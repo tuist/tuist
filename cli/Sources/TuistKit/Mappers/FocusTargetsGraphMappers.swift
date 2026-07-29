@@ -1,5 +1,4 @@
 import Foundation
-import TSCBasic
 import TuistConfig
 import TuistCore
 import TuistLogging
@@ -87,6 +86,16 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                 excludedTargets: excludedTargets,
                 excludingExternalTargets: true
             )
+            let initialUserSpecifiedSourceTargets = environment.initialGraph.map { initialGraph in
+                let initialGraphTraverser = GraphTraverser(graph: initialGraph)
+                return initialGraphTraverser.filterIncludedTargets(
+                    basedOn: initialGraphTraverser.allTargets(),
+                    testPlan: testPlan,
+                    includedTargets: includedTargets,
+                    excludedTargets: excludedTargets,
+                    excludingExternalTargets: true
+                )
+            }
 
             let includedTargetNames: [String] = includedTargets.compactMap {
                 guard case let .named(name) = $0 else { return nil }
@@ -104,7 +113,13 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                 throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
             }
 
-            if !includedTargets.isEmpty || !excludedTargets.isEmpty, userSpecifiedSourceTargets.isEmpty {
+            let allIncludedTargetsWerePrunedBySelectiveTesting = !includedTargets.isEmpty
+                && userSpecifiedSourceTargets.isEmpty
+                && initialUserSpecifiedSourceTargets?.isEmpty == false
+            if !includedTargets.isEmpty || !excludedTargets.isEmpty,
+               userSpecifiedSourceTargets.isEmpty,
+               !allIncludedTargetsWerePrunedBySelectiveTesting
+            {
                 throw FocusTargetsGraphMappersError.noTargetsFound
             }
 

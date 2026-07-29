@@ -565,7 +565,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -604,6 +606,113 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             ],
             gotSideEffects
         )
+    }
+
+    /// Some static Objective-C xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
+    /// subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
+    /// layout gets only the `Headers` root (the parent of the module subdirectory) on the search
+    /// path, so the prefixed imports resolve, and no `-fmodule-map-file`: clang discovers the module
+    /// map next to whichever headers win the search path. Naming one here would define the module
+    /// over the xcframework's headers even when Xcode's `ProcessXCFramework` has copied the same
+    /// headers into `$(BUILT_PRODUCTS_DIR)/include/<ModuleName>/`, which is searched first — the
+    /// module and its umbrella's imports would then come from two different copies, which clang
+    /// rejects as an incomplete umbrella or a shadowed module.
+    func test_map_when_static_xcframework_library_with_nested_module_headers_linked_via_dynamic_xcframework() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let nestedPath = projectPath
+            .parentDirectory
+            .appending(component: "NestedObjC.xcframework")
+        let nestedHeadersRoot = nestedPath.appending(components: "ios-arm64", "Headers")
+        let nestedModuleHeadersPath = nestedHeadersRoot.appending(component: "NestedObjC")
+        try await fileSystem.makeDirectory(at: nestedModuleHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: nestedModuleHeadersPath.appending(component: "module.modulemap")
+        )
+        try await fileSystem.writeText(
+            """
+            #import <NestedObjC/Anchor.h>
+            #import <NestedObjC/TrackingState.h>
+            """,
+            at: nestedModuleHeadersPath.appending(component: "NestedObjC.h")
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: nestedPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "NestedObjC.a")
+                                ),
+                            ]
+                        ),
+                        linking: .static,
+                        moduleMaps: [
+                            nestedModuleHeadersPath.appending(component: "module.modulemap"),
+                        ]
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers\""],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        // Nested layouts are consumed directly from the xcframework, so no derived copy is generated.
+        XCTAssertBetterEqual([], gotSideEffects)
     }
 
     func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
@@ -812,7 +921,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/../CustomScratch/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../CustomScratch/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -1174,7 +1285,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -1199,6 +1312,146 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     FileDescriptor(
                         path: derivedDirectory.appending(components: "GoogleMaps", "Headers", "module.modulemap"),
                         contents: "modulemap".data(using: .utf8)
+                    )
+                ),
+            ],
+            gotSideEffects
+        )
+    }
+
+    func test_map_when_static_xcframework_module_map_references_non_umbrella_header() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let clibsqlPath = projectPath
+            .parentDirectory
+            .appending(component: "CLibsql.xcframework")
+        let clibsqlHeadersPath = clibsqlPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: clibsqlHeadersPath)
+        try await fileSystem.writeText(
+            """
+            module CLibsql {
+                header "libsql.h"
+                export *
+            }
+            """,
+            at: clibsqlHeadersPath.appending(component: "module.modulemap")
+        )
+        try await fileSystem.writeText(
+            "void libsql(void);",
+            at: clibsqlHeadersPath.appending(component: "libsql.h")
+        )
+
+        let derivedDirectory = projectPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            ]
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: clibsqlPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "liblibsql.a")
+                                ),
+                            ]
+                        ),
+                        linking: .static,
+                        moduleMaps: [
+                            clibsqlHeadersPath.appending(component: "module.modulemap"),
+                        ]
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "OTHER_SWIFT_FLAGS": [
+                                    "-Xcc",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CLibsql/Headers/module.modulemap\"",
+                                ],
+                                "OTHER_C_FLAGS": [
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CLibsql/Headers/module.modulemap\"",
+                                ],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/CLibsql/Headers\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertBetterEqual(
+            [
+                .directory(
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "CLibsql", "Headers"))
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "CLibsql", "Headers", "module.modulemap"),
+                        contents: """
+                        module CLibsql {
+                            header "libsql.h"
+                            export *
+                        }
+                        """.data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "CLibsql", "Headers", "libsql.h"),
+                        contents: "void libsql(void);".data(using: .utf8)
                     )
                 ),
             ],
@@ -1302,7 +1555,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -1317,7 +1572,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -1429,13 +1686,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             ]
         )
 
-        // Expected: paths should be relative to the App project path
-        // App is at AllInOneTests/, GoogleMaps is at BuiltFrameworks/
-        // So the correct relative path should be ../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers
-        //
-        // BUG: The current implementation may produce incorrect paths like:
-        // ../../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers
-        // which would be relative to the cached xcframework's path instead
+        // Expected: paths should be relative to the App project path.
         var expectedGraph = graph
         expectedGraph.projects = [
             appProjectPath: .test(
@@ -1453,7 +1704,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
-                                    "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
                                 ],
                             ]
                         )
@@ -1699,12 +1950,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             ]
         )
 
-        // Expected: Each project should have paths relative to its own path
-        // Project1 is at basePath/Project1, GoogleMaps is at basePath/BuiltFrameworks
-        // -> HEADER_SEARCH_PATHS: ../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers
-        //
-        // Project2 is at basePath/deeply/nested/Project2, GoogleMaps is at basePath/BuiltFrameworks
-        // -> HEADER_SEARCH_PATHS: ../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers
+        // Expected: Each project should have paths relative to its own path.
         var expectedGraph = graph
         expectedGraph.projects = [
             project1Path: .test(
@@ -1722,7 +1968,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
-                                    "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
                                 ],
                             ]
                         )
@@ -1744,7 +1990,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                     "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
-                                    "\"$(SRCROOT)/../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                    "\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
                                 ],
                             ]
                         )
@@ -1868,7 +2114,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         let cachedFrameworkSettings = gotGraph.projects[cachedFrameworkProjectPath]?.targets["CachedFramework"]?.settings?.base
         XCTAssertEqual(
             cachedFrameworkSettings?["HEADER_SEARCH_PATHS"],
-            .array(["\"$(SRCROOT)/../../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
+            .array(["\"$(SRCROOT)/../../../../Project/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\""])
         )
 
         // App gets CachedFramework's settings via combination.
@@ -1879,7 +2125,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // App's path should be relative to its own project (Project/), not to CachedFramework's project
         XCTAssertEqual(
             appHeaderSearchPaths,
-            .array(["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
+            .array(["\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\""])
         )
     }
 
@@ -1974,7 +2220,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers\"",
+                                ],
                             ]
                         )
                     ),

@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import PathKit
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -40,7 +41,7 @@ protocol LinkGenerating {
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws
+    ) throws -> [SideEffectDescriptor]
 }
 
 /// When generating build settings like "framework search path", some of the path might be relative to paths
@@ -80,8 +81,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupSearchAndIncludePaths(
+    ) throws -> [SideEffectDescriptor] {
+        let sideEffects = try setupSearchAndIncludePaths(
             target: target,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -101,7 +102,9 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         try generatePackages(
             target: target,
             pbxTarget: pbxTarget,
-            pbxproj: pbxproj
+            pbxproj: pbxproj,
+            path: path,
+            graphTraverser: graphTraverser
         )
 
         try generateEmbedPhase(
@@ -122,6 +125,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             pbxproj: pbxproj,
             fileElements: fileElements
         )
+
+        return sideEffects
     }
 
     private func setupSearchAndIncludePaths(
@@ -130,15 +135,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         sourceRootPath: AbsolutePath,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupFrameworkSearchPath(
-            target: target,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
+    ) throws -> [SideEffectDescriptor] {
         try setupHeadersSearchPath(
             target: target,
             pbxTarget: pbxTarget,
@@ -170,19 +167,36 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             path: path,
             graphTraverser: graphTraverser
         )
+
+        return []
     }
 
     func generatePackages(
         target: Target,
         pbxTarget: PBXTarget,
-        pbxproj: PBXProj
+        pbxproj: PBXProj,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product, type: type, condition: condition):
+                guard !target.canLinkStaticProducts() || type == .plugin || type == .macro else {
+                    continue
+                }
+                let role: PBXTarget.SwiftPackageProductRole
+                switch type {
+                case .plugin:
+                    role = .plugin
+                case .macro:
+                    role = .link
+                case .runtime, .runtimeEmbedded:
+                    role = target.product.isStatic ? .buildOnly : .link
+                }
+                guard role != .buildOnly else { continue }
                 try pbxTarget.addSwiftPackageProduct(
                     productName: product,
-                    isPlugin: type == .plugin,
+                    role: role,
                     pbxproj: pbxproj,
                     target: target,
                     condition: condition
@@ -190,6 +204,30 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }
+        }
+
+        let buildOnlyPackageProducts = target.product.isStatic
+            ? graphTraverser.packageProductsLinkedThroughStaticTargets(path: path, name: target.name).sorted()
+            : []
+        for case let .packageProduct(product, condition) in buildOnlyPackageProducts {
+            try pbxTarget.addSwiftPackageProduct(
+                productName: product,
+                role: .buildOnly,
+                pbxproj: pbxproj,
+                target: target,
+                condition: condition
+            )
+        }
+
+        if !buildOnlyPackageProducts.isEmpty {
+            // Xcode needs package product dependencies to propagate transitive package build settings,
+            // including C module maps, but their object files must stay out of static archives. Package
+            // products can contain targets with unrelated names, so the exclusion cannot use product names.
+            try setup(
+                setting: "EXCLUDED_SOURCE_FILE_NAMES",
+                values: ["$(BUILT_PRODUCTS_DIR)/*.o"],
+                pbxTarget: pbxTarget
+            )
         }
     }
 
@@ -291,34 +329,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
 
         pbxproj.add(object: embedPhase)
         pbxTarget.buildPhases.append(embedPhase)
-    }
-
-    func setupFrameworkSearchPath(
-        target: Target,
-        pbxTarget: PBXTarget,
-        sourceRootPath: AbsolutePath,
-        path: AbsolutePath,
-        graphTraverser: GraphTraversing
-    ) throws {
-        let linkableModules = try graphTraverser.searchablePathDependencies(path: path, name: target.name).sorted()
-
-        let precompiledPaths = linkableModules.compactMap(\.precompiledPath)
-            .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
-        let sdkPaths = linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
-                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
-            } else {
-                return nil
-            }
-        }
-
-        let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
-        try setup(
-            setting: "FRAMEWORK_SEARCH_PATHS",
-            paths: uniquePaths,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
-        )
     }
 
     func setupHeadersSearchPath(
@@ -434,6 +444,22 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         }
     }
 
+    private func setup(
+        setting name: String,
+        values: [String],
+        pbxTarget: PBXTarget
+    ) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let value = SettingValue.array(["$(inherited)"] + values)
+        let newSetting = [name: value]
+        let helper = SettingsHelper()
+        for configuration in configurationList.buildConfigurations {
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+        }
+    }
+
     func generateLinkingPhase(
         target: Target,
         pbxTarget: PBXTarget,
@@ -477,8 +503,16 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                 try addBuildFile(path, condition: condition, status: status)
             case let .foreignBuildOutput(path, _, condition):
                 try addBuildFile(path, condition: condition)
-            case .bundle, .macro, .packageProduct:
+            case .bundle, .macro:
                 break
+            case let .packageProduct(product, condition):
+                try pbxTarget.addSwiftPackageProduct(
+                    productName: product,
+                    role: .link,
+                    pbxproj: pbxproj,
+                    target: target,
+                    condition: condition
+                )
             case let .product(dependencyTarget, _, status, condition):
                 guard status != .none else { continue }
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
@@ -669,22 +703,37 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
 }
 
 extension PBXTarget {
+    enum SwiftPackageProductRole {
+        case buildOnly
+        case link
+        case plugin
+    }
+
     func addSwiftPackageProduct(
         productName: String,
-        isPlugin: Bool,
+        role: SwiftPackageProductRole,
         pbxproj: PBXProj,
         target: Target,
         condition: PlatformCondition?
     ) throws {
-        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: role == .plugin)
         pbxproj.add(object: productDependency)
 
-        if isPlugin {
-            let pluginDependency = PBXTargetDependency(product: productDependency)
-            pbxproj.add(object: pluginDependency)
+        switch role {
+        case .buildOnly, .plugin:
+            let targetDependency = PBXTargetDependency(product: productDependency)
+            if role == .buildOnly {
+                targetDependency.applyCondition(condition, applicableTo: target)
+                // Preserve the package product dependency for package-imparted compiler settings.
+                if packageProductDependencies == nil {
+                    packageProductDependencies = []
+                }
+                packageProductDependencies?.append(productDependency)
+            }
+            pbxproj.add(object: targetDependency)
 
-            dependencies.append(pluginDependency)
-        } else {
+            dependencies.append(targetDependency)
+        case .link:
             // Build file
             let buildFile = PBXBuildFile(product: productDependency)
             buildFile.applyCondition(condition, applicableTo: target)

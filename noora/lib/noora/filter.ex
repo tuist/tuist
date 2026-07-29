@@ -22,7 +22,7 @@ defmodule Noora.Filter do
 
   ### Filter Types and Operators
 
-  - **Text filters** (`:text`) - Support operators: `:==` (is), `:=~` (contains)
+  - **Text filters** (`:text`) - Support operators: `:==` (is), `:=~` (contains), `:"!=~"` (does not contain)
   - **Number filters** (`:number`) - Support operators: `:==`, `:<`, `:>`, `:<=`, `:>=`
   - **Option filters** (`:option`) - Support operators: `:==` (is), `:!=` (is not)
   - **List filters** (`:list`) - Support operators: `:=~` (contains), `:"!=~"` (does not contain) — for array/list fields
@@ -259,16 +259,19 @@ defmodule Noora.Filter do
           nil -> value
         end
 
-      [%{field: String.to_existing_atom(id), op: operator, value: option_key}]
+      [%{field: String.to_existing_atom(id), op: to_flop_operator(operator), value: option_key}]
     end
 
     def to_flop_filter(%Filter{field: field, operator: operator, value: value}) do
-      [%{field: field, op: operator, value: value}]
+      [%{field: field, op: to_flop_operator(operator), value: value}]
     end
 
     def convert_filters_to_flop(filters) when is_list(filters) do
       Enum.flat_map(filters, &to_flop_filter/1)
     end
+
+    defp to_flop_operator(:"!=~"), do: :not_ilike
+    defp to_flop_operator(operator), do: operator
 
     def encode_filters_to_query(filters) when is_list(filters) do
       Enum.reduce(filters, %{}, fn filter, acc ->
@@ -567,7 +570,7 @@ defmodule Noora.Filter do
   end
 
   defp operators(:option), do: [:==, :!=]
-  defp operators(:text), do: [:==, :=~]
+  defp operators(:text), do: [:==, :=~, :"!=~"]
   defp operators(:number), do: [:==, :<, :>, :<=, :>=]
   defp operators(:percentage), do: [:==, :<, :>, :<=, :>=]
   defp operators(:list), do: [:=~, :"!=~"]

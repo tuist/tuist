@@ -9,10 +9,11 @@ export default {
       const checkbox = this.el.querySelector('[data-part="checkbox"]');
       const clickedOnCheckbox = checkbox && checkbox.contains(event.target);
 
-      // Close dropdown if clicked on label (not checkbox)
+      // Close dropdown if clicked on label (not checkbox), unless the
+      // dropdown opted out of close-on-select (e.g. multi-select menus).
       if (!clickedOnCheckbox) {
         const dropdown = this.el.closest(".noora-dropdown");
-        if (dropdown) {
+        if (dropdown && dropdown.dataset.closeOnSelect !== "false") {
           window.dispatchEvent(
             new CustomEvent("phx:close-dropdown", {
               detail: { id: dropdown.id },

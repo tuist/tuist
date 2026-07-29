@@ -16,6 +16,9 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
 
   describe "GET /api/projects/:account_handle/:project_handle/cache-runs" do
     test "returns a list of cache runs", %{conn: conn, user: user, project: project} do
+      created_at = ~U[2026-01-14 10:00:00Z]
+      ran_at = ~U[2026-01-15 10:00:00Z]
+
       cache_run =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
@@ -26,7 +29,9 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
           git_branch: "main",
           cacheable_targets: ["TargetA", "TargetB", "TargetC"],
           local_cache_target_hits: [],
-          remote_cache_target_hits: []
+          remote_cache_target_hits: [],
+          created_at: created_at,
+          ran_at: ran_at
         )
 
       conn =
@@ -46,6 +51,7 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
       assert returned_cache_run["status"] == "success"
       assert returned_cache_run["is_ci"] == true
       assert returned_cache_run["cacheable_targets"] == ["TargetA", "TargetB", "TargetC"]
+      assert returned_cache_run["ran_at"] == DateTime.to_unix(ran_at)
     end
 
     test "returns empty list when no cache runs exist", %{conn: conn, user: user, project: project} do
@@ -88,6 +94,55 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
 
       assert %{"cache_runs" => [returned]} = json_response(conn, 200)
       assert returned["id"] == cache_run.id
+    end
+
+    test "filters by ran_at gte and lte", %{conn: conn, user: user, project: project} do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "cache",
+        ran_at: ~U[2026-01-10 10:00:00Z]
+      )
+
+      cache_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          ran_at: ~U[2026-01-15 10:00:00Z]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "cache",
+        ran_at: ~U[2026-01-20 10:00:00Z]
+      )
+
+      query =
+        URI.encode_query(%{
+          "ran_at[gte]" => DateTime.to_unix(~U[2026-01-12 00:00:00Z]),
+          "ran_at[lte]" => DateTime.to_unix(~U[2026-01-16 00:00:00Z])
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/cache-runs" <> "?#{query}")
+
+      assert %{"cache_runs" => [returned]} = json_response(conn, 200)
+      assert returned["id"] == cache_run.id
+      assert returned["ran_at"] == DateTime.to_unix(~U[2026-01-15 10:00:00Z])
+    end
+
+    test "returns bad request for invalid ran_at operator", %{conn: conn, user: user, project: project} do
+      query = URI.encode_query(%{"ran_at[gte]" => -1})
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/cache-runs" <> "?#{query}")
+
+      assert %{
+               "message" => "`ran_at[gte]` must be a valid Unix timestamp."
+             } = json_response(conn, 400)
     end
   end
 

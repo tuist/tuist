@@ -76,4 +76,66 @@ struct PackageInfoTests {
         // Then
         #expect(subject == decoded)
     }
+
+    @Test
+    func packageInfo_decodesWarningControlSettings() throws {
+        let json = """
+        {
+          "name": "Package",
+          "products": [],
+          "targets": [
+            {
+              "name": "Target",
+              "resources": [],
+              "exclude": [],
+              "dependencies": [],
+              "type": "regular",
+              "settings": [
+                {
+                  "kind": {
+                    "treatAllWarnings": {
+                      "_0": "error"
+                    }
+                  },
+                  "tool": "swift"
+                },
+                {
+                  "kind": {
+                    "treatWarning": {
+                      "_0": "DeprecatedDeclaration",
+                      "_1": "warning"
+                    }
+                  },
+                  "tool": "swift"
+                },
+                {
+                  "kind": {
+                    "enableWarning": {
+                      "_0": "all"
+                    }
+                  },
+                  "tool": "c"
+                }
+              ],
+              "checksum": null
+            }
+          ],
+          "traits": [],
+          "dependencies": [],
+          "platforms": [],
+          "toolsVersion": {
+            "_version": "6.4.0"
+          }
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+
+        let decoded = try JSONDecoder().decode(PackageInfo.self, from: data)
+
+        #expect(decoded.targets.first?.settings == [
+            .init(tool: .swift, name: .treatAllWarnings, condition: nil, value: ["error"]),
+            .init(tool: .swift, name: .treatWarning, condition: nil, value: ["DeprecatedDeclaration", "warning"]),
+            .init(tool: .c, name: .enableWarning, condition: nil, value: ["all"]),
+        ])
+    }
 }

@@ -5,24 +5,33 @@ This file provides guidance to AI agents when working with code in this reposito
 ## Repository Map
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
+- `codebase-search/` - Bounded Rust service for hosted source-code search - see `codebase-search/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `registry/` - Swift package registry service (Elixir/Phoenix) - see `registry/AGENTS.md`
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
+- `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
-- `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
+- `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
 - `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
-- `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that manages Scaleway Apple Silicon Mac minis declaratively. Watches `ScalewayAppleSiliconMachine` CRs, calls Scaleway's API to order/release machines, SSHes in to bootstrap kubelet + tart-cri. Scaling the fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
+- `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
+- `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
+- `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
+- `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
+- `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
@@ -38,7 +47,9 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `registry` - Changes to the Swift package registry service
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
@@ -46,14 +57,17 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
 - `status` - Changes to the public status page (Cloudflare Worker)
+- `grafana-datasource` - Changes to the Grafana data source plugin
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
 
 Examples:
 - `feat(server): add new telemetry sanitizer module`
+- `feat(codebase-search): add bounded source file listing`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(registry): add release sync allowlist`
 - `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
@@ -70,17 +84,26 @@ Pull request descriptions should cover:
 
 Avoid minimal PR descriptions that only restate the code diff. The goal is that a reviewer can understand the problem, the reasoning, and the validation without reopening the full agent session.
 
+## Review Guidance
+
+When reviewing changes, keep the relevant Blick review skills in mind based on the languages modified:
+
+- [Tuist Elixir review](.blick/skills/tuist-elixir-review/SKILL.md) for Elixir, Phoenix, Noora, and shared service changes.
+- [Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md) for Swift changes, including Tuist command-line and SwifterPM changes.
+
+These files are review context for Claude, Codex, and other local coding agents. Only report findings whose cited line appears in the diff.
+
 # Tuist CLI (Swift)
 
 ## Code style
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
-- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
+- For faster builds, generate only the required targets before compiling or testing, for example `tuist generate tuist ProjectDescription --no-open`. If the target or test suite you need is not present in the current generated workspace, regenerate with that specific production target and test target instead of falling back to SwiftPM.
+- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`.
+- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` or `xcsiftbuild test` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
-- When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
+- Do not use `swift build` or `swift test` as a fallback for CLI work. Only use SwiftPM commands when the user explicitly asks for them or when changing package-resolution behavior; in those exceptional cases, always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution.
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories
@@ -336,7 +359,7 @@ When creating or modifying security policies:
 3. **Key considerations**:
    - Keep policies practical for a 4-person company
    - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Render, Supabase, Tigris, Cloudflare) handle their own layer security
+   - Infrastructure providers (Hetzner, Tigris, Cloudflare) handle their own layer security
    - Focus on application-layer responsibilities
 
 ## Navigation Configuration
@@ -386,8 +409,8 @@ description: Brief description of the page content
    - Practical implementation requirements
 
 3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Render for application hosting
-   - Supabase for database services
+   - Hetzner for compute (CAPI-managed Kubernetes clusters)
+   - CloudNativePG for in-cluster Postgres
    - Tigris for data storage
    - Cloudflare for CDN and edge services
 

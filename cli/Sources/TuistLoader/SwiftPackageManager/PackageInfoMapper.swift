@@ -4,6 +4,7 @@ import Mockable
 import Path
 import ProjectDescription
 import TSCUtility
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistRootDirectoryLocator
@@ -39,6 +40,12 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
 
+    /// Thrown when an included local package test target depends on a product from another package.
+    case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
+
+    /// Thrown when an included local package test target depends on an executable target that is not mapped.
+    case unsupportedExecutableTargetInLocalPackageTest(package: String, target: String, executable: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -66,6 +73,18 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
+        case let .unsupportedExternalProductInLocalPackageTest(package, target, product):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
+            Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
+            the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
+        case let .unsupportedExecutableTargetInLocalPackageTest(package, target, executable):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the executable target `\(executable)`, \
+            which Tuist omits when mapping local package dependencies. Remove the executable target dependency, or set \
+            `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .modulemapMissing(moduleMapPath, package, target):
@@ -81,29 +100,51 @@ public enum PackageType {
     }
 
     case local
-    case external(origin: ExternalOrigin = .remote, artifactPaths: [String: AbsolutePath])
+    case external(
+        origin: ExternalOrigin = .remote,
+        artifactPaths: [String: AbsolutePath],
+        packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] = [:],
+        derivedXCFrameworksPath: AbsolutePath? = nil
+    )
 
-    fileprivate var includesTestTargets: Bool {
+    fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
-        case .local, .external(origin: .local, artifactPaths: _):
+        case .local:
             return true
-        case .external:
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+            return includeLocalPackageTestTargets
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
             return false
         }
     }
 
     fileprivate var isLocalExternal: Bool {
-        if case .external(origin: .local, artifactPaths: _) = self {
+        if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
             return true
         }
         return false
     }
 
     fileprivate var isRemoteExternal: Bool {
-        if case .external(origin: .remote, artifactPaths: _) = self {
+        if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
             return true
         }
         return false
+    }
+
+    fileprivate var packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] {
+        switch self {
+        case .local:
+            return [:]
+        case let .external(origin: _, artifactPaths: _, packagePrebuilts: packagePrebuilts, derivedXCFrameworksPath: _):
+            return packagePrebuilts
+        }
+    }
+
+    fileprivate func prebuilt(targetPackage: String?, product: String) -> SwiftPackageManagerPrebuilt? {
+        guard let targetPackage else { return nil }
+        return packagePrebuilts[targetPackage]?[product]
+            ?? packagePrebuilts[targetPackage.lowercased()]?[product]
     }
 }
 
@@ -161,9 +202,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
-    ///   - packageInfos: All available `PackageInfo`s
-    ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
+    ///   - packageInfos: All available `PackageInfo`s, keyed by package identity
+    ///   - packageToFolder: Mapping from a package identity to its local folder
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package identity to its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         path: AbsolutePath,
@@ -174,26 +215,38 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageModuleAliases: [String: [String: String]],
         packageSettings: TuistCore.PackageSettings
     ) async throws -> [String: [ProjectDescription.TargetDependency]] {
-        let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.value.targets.forEach { target in
-                guard target.type == .binary else { return }
+        var targetDependencyToFramework: [String: Path] = [:]
+        let derivedXCFrameworksPath = path.appending(
+            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+        )
+        for packageInfo in packageInfos {
+            for target in packageInfo.value.targets {
+                guard target.type == .binary else { continue }
                 if let path = target.path, !path.hasSuffix(".zip") {
                     // local non .zip binary
-                    result[target.name] = .path(
-                        packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
-                            .pathString
+                    targetDependencyToFramework[target.name] = try await binaryArtifactDependencyPath(
+                        targetName: target.name,
+                        packageName: packageInfo.value.name,
+                        artifactPath: packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path)),
+                        derivedXCFrameworksPath: derivedXCFrameworksPath
                     )
                 }
                 // remote or .zip binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                 // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
                 else if let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] {
-                    result[target.name] = .path(artifactPath.pathString)
+                    targetDependencyToFramework[target.name] = try await binaryArtifactDependencyPath(
+                        targetName: target.name,
+                        packageName: packageInfo.value.name,
+                        artifactPath: artifactPath,
+                        derivedXCFrameworksPath: derivedXCFrameworksPath
+                    )
                 }
                 // If the binary path is not present in the `.build/workspace-state.json`, we try to use a default path.
                 // If the target is not used by a downstream target, the generation will ignore a missing binary artifact.
                 // Otherwise, users will get an error that the xcframework was not found.
                 else {
-                    result[target.name] = .path(
+                    targetDependencyToFramework[target.name] = .path(
                         packageToFolder[packageInfo.key]!.appending(
                             components: target.name,
                             "\(target.name).xcframework"
@@ -208,7 +261,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
             .reduce(into: [:]) { result, packageInfo in
                 let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
-                    result[moduleAliases?[product.name] ?? product.name] = try product.targets.flatMap { target in
+                    let productName = moduleAliases?[product.name] ?? product.name
+                    if case .plugin = product.type {
+                        result[productName] = []
+                        continue
+                    }
+
+                    result[productName] = try product.targets.flatMap { target in
                         try ResolvedDependency.fromTarget(
                             name: moduleAliases?[target] ?? target,
                             targetDependencyToFramework: targetDependencyToFramework,
@@ -359,12 +418,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
+        let prebuiltEligibleTargets = prebuiltEligibleTargets(packageInfo: packageInfo, packageType: packageType)
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
                 return try await map(
                     target: target,
                     targetToProducts: targetToProducts,
+                    targetsByName: targetsByName,
                     packageInfo: packageInfo,
                     packageType: packageType,
                     packageSettings: packageSettings,
@@ -377,7 +438,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
-                    enabledTraits: enabledTraits
+                    enabledTraits: enabledTraits,
+                    prebuiltEligibleTargets: prebuiltEligibleTargets
                 )
             }
 
@@ -443,7 +505,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveProductName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -453,7 +515,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let productName = singleProduct.name
         let wrapsProductFramework = wrapsProductNamedFramework(
-            targetName: targetName, productName: productName, packageTargets: packageTargets
+            targetName: targetName, productName: productName, targetsByName: targetsByName
         )
 
         if targetName == productName {
@@ -474,7 +536,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveModuleName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -484,7 +546,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let productName = singleProduct.name
         let wrapsProductFramework = wrapsProductNamedFramework(
-            targetName: targetName, productName: productName, packageTargets: packageTargets
+            targetName: targetName, productName: productName, targetsByName: targetsByName
         )
 
         if targetName == productName {
@@ -504,9 +566,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func wrapsProductNamedFramework(
         targetName: String,
         productName: String,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> Bool {
-        let targetsByName = Dictionary(uniqueKeysWithValues: packageTargets.map { ($0.name, $0) })
         var visited = Set<String>()
         var queue = [targetName]
 
@@ -569,10 +630,97 @@ public struct PackageInfoMapper: PackageInfoMapping {
             || strippedName.hasPrefix(productName)
     }
 
+    private func prebuiltEligibleTargets(
+        packageInfo: PackageInfo,
+        packageType: PackageType
+    ) -> Set<String> {
+        guard !packageType.packagePrebuilts.isEmpty else { return [] }
+
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let allTargetNames = Set(targetsByName.keys)
+
+        func isHostOnlyTarget(_ targetName: String) -> Bool {
+            switch targetsByName[targetName]?.type {
+            case .macro:
+                return true
+            default:
+                return false
+            }
+        }
+
+        func localDependencies(of target: PackageInfo.Target, includeHostOnlyTargets: Bool) -> [String] {
+            target.dependencies.compactMap { dependency in
+                let dependencyName: String
+                switch dependency {
+                case let .target(name, _):
+                    dependencyName = name
+                case let .byName(name, _) where allTargetNames.contains(name):
+                    dependencyName = name
+                case .byName, .product:
+                    return nil
+                }
+
+                guard allTargetNames.contains(dependencyName) else { return nil }
+                guard includeHostOnlyTargets || !isHostOnlyTarget(dependencyName) else { return nil }
+                return dependencyName
+            }
+        }
+
+        func dependencyClosure(from roots: Set<String>, includeHostOnlyTargets: Bool) -> Set<String> {
+            var visited = Set<String>()
+            var queue = Array(roots)
+
+            while let targetName = queue.popLast() {
+                guard visited.insert(targetName).inserted,
+                      let target = targetsByName[targetName]
+                else { continue }
+
+                queue.append(
+                    contentsOf: localDependencies(
+                        of: target,
+                        includeHostOnlyTargets: includeHostOnlyTargets
+                    )
+                )
+            }
+
+            return visited
+        }
+
+        let macroTargets = Set(packageInfo.targets.compactMap { target in
+            switch target.type {
+            case .macro:
+                target.name
+            default:
+                nil
+            }
+        })
+
+        let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
+        let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
+            guard target.type == .test else { return nil }
+            return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
+                .isDisjoint(with: macroClosure) ? nil : target.name
+        })
+
+        let hostRoots = macroTargets.union(macroTestTargets)
+        let hostReachableTargets = dependencyClosure(from: hostRoots, includeHostOnlyTargets: true)
+        let nonHostReachableTargets = dependencyClosure(
+            from: allTargetNames.subtracting(hostRoots),
+            includeHostOnlyTargets: false
+        )
+
+        guard hostReachableTargets.isDisjoint(with: nonHostReachableTargets) else {
+            return []
+        }
+
+        return hostReachableTargets
+    }
+
     // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
         targetToProducts: [String: Set<PackageInfo.Product>],
+        targetsByName: [String: PackageInfo.Target],
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
@@ -585,12 +733,15 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
-        enabledTraits: Set<String>
+        enabledTraits: Set<String>,
+        prebuiltEligibleTargets: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .test where !packageType.includesTestTargets:
+        case .test where !packageType.includesTestTargets(
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        ):
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         case .regular, .system, .macro, .test:
@@ -606,6 +757,44 @@ public struct PackageInfoMapper: PackageInfoMapping {
         default:
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let productName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .product(name, package: _, moduleAliases: _, condition: _):
+                   return name
+               case let .byName(name, condition: _) where targetsByName[name] == nil:
+                   return name
+               case .target, .byName:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                product: productName
+            )
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let executableName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .target(name, _), let .byName(name, _):
+                   return targetsByName[name]?.type == .executable ? name : nil
+               case .product:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                executable: executableName
+            )
         }
 
         let products = targetToProducts[target.name] ?? Set()
@@ -624,9 +813,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let targetPath = try await target.basePath(packageFolder: packageFolder)
 
+        let moduleMapModuleName: String?
         let moduleMap: ModuleMap?
         switch target.type {
         case .system:
+            moduleMapModuleName = nil
             // System library targets assume the module map is located at the source directory root
             // https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
             let packagePath = try await target.basePath(packageFolder: path)
@@ -642,9 +833,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
-            let moduleName = PackageInfoMapper.effectiveModuleName(
-                targetName: target.name, products: products, packageTargets: packageInfo.targets
+            let resolvedModuleName = PackageInfoMapper.effectiveModuleName(
+                targetName: target.name, products: products, targetsByName: targetsByName
             )
+            moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
                 SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
             } else {
@@ -652,11 +844,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
-                moduleName: moduleName,
+                moduleName: resolvedModuleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
+            moduleMapModuleName = nil
             moduleMap = nil
         }
 
@@ -698,7 +891,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
         var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
-            headers = try Headers.from(moduleMap: moduleMap)
+            headers = try await discoveredHeaders(
+                for: target,
+                moduleMap: moduleMap,
+                moduleName: moduleMapModuleName,
+                targetPath: targetPath
+            )
         }
 
         if target.type.supportsSources {
@@ -716,6 +914,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         var dependencies: [ProjectDescription.TargetDependency] = []
+        var targetPrebuilts: [SwiftPackageManagerPrebuilt] = []
 
         // Module aliases of used dependencies.
         // These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
@@ -738,6 +937,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         .define
                     ),
                     (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                    (.linker, .treatAllWarnings), (.linker, .treatWarning), (.linker, .enableWarning),
                     (
                         _,
                         .defaultIsolation
@@ -752,10 +952,28 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
 
-            dependencies = try linkerDependencies + target.dependencies.compactMap {
-                switch $0 {
+            let targetDependencies = try await target.dependencies + samePackageTargetDependenciesImportedByPublicHeaders(
+                for: target,
+                packageInfo: packageInfo,
+                packageFolder: packageFolder
+            )
+
+            for dependency in targetDependencies {
+                switch dependency {
                 case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
-                    try mapDependency(
+                    if prebuiltEligibleTargets.contains(target.name),
+                       let prebuilt = try prebuiltDependency(
+                           name: name,
+                           targetPackage: package,
+                           packageType: packageType,
+                           condition: condition,
+                           enabledTraits: enabledTraits
+                       )
+                    {
+                        targetPrebuilts.append(prebuilt)
+                        continue
+                    }
+                    if let dependency = try await mapDependency(
                         name: name,
                         targetPackage: package,
                         sourceTargetName: target.name,
@@ -766,13 +984,15 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         moduleAliases: moduleAliases,
                         dependencyModuleAliases: &dependencyModuleAliases,
                         enabledTraits: enabledTraits
-                    )
+                    ) {
+                        dependencies.append(dependency)
+                    }
                 case let .byName(name: name, condition: condition),
                      let .target(
                          name: name,
                          condition: condition
                      ):
-                    try mapDependency(
+                    if let dependency = try await mapDependency(
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
@@ -781,21 +1001,24 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         moduleAliases: packageModuleAliases[packageInfo.name],
                         dependencyModuleAliases: &dependencyModuleAliases,
                         enabledTraits: enabledTraits
-                    )
+                    ) {
+                        dependencies.append(dependency)
+                    }
                 }
             }
+            dependencies = linkerDependencies + dependencies
         }
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
         let effectiveModuleName = PackageInfoMapper.effectiveModuleName(
-            targetName: target.name, products: products, packageTargets: packageInfo.targets
+            targetName: target.name, products: products, targetsByName: targetsByName
         )
         let aliasedEffectiveModuleName = packageModuleAliases[packageInfo.name]?[effectiveModuleName] ?? effectiveModuleName
         let moduleName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveModuleName)
             .replacingOccurrences(of: "-", with: "_")
         let effectiveProductName = PackageInfoMapper.effectiveProductName(
-            targetName: target.name, products: products, packageTargets: packageInfo.targets
+            targetName: target.name, products: products, targetsByName: targetsByName
         )
         let aliasedEffectiveProductName = packageModuleAliases[packageInfo.name]?[effectiveProductName] ?? effectiveProductName
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
@@ -812,7 +1035,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
-            enabledTraits: enabledTraits
+            enabledTraits: enabledTraits,
+            prebuilts: targetPrebuilts
         )
 
         var metadataTags: [String] = []
@@ -838,6 +1062,287 @@ public struct PackageInfoMapper: PackageInfoMapping {
         )
     }
 
+    /// Surfaces every header in a C-family target in the generated project so they can be browsed and
+    /// indexed, matching the file discovery SwiftPM performs (including the recognized header extensions).
+    ///
+    /// How a header is classified depends on how the target's module is consumed:
+    ///
+    /// - `.custom` / `.header` targets carry an explicit or umbrella-header module map that defines the
+    ///   module, and are consumed as a Swift/Clang module (`import Module`). Tagging their headers `Public`
+    ///   is redundant and harmful: SwiftPM C targets generate as frameworks, and a `Public` header is copied
+    ///   into the framework bundle's `Headers` directory. That copy flips `__has_include(<Module/Header.h>)`
+    ///   checks in sibling shim targets (for example swift-nio-ssl's `CNIOBoringSSLShims.h`, which includes
+    ///   `<CNIOBoringSSL/CNIOBoringSSL.h>`), which re-homes the included declarations into the shim module and
+    ///   breaks consumers under the `MemberImportVisibility` upcoming feature. So they are surfaced as project
+    ///   headers only, which leaves the module composition untouched.
+    /// - `.directory` targets have no umbrella header; their public headers directory *is* the module's public
+    ///   surface, and consumers import individual headers as `<Module/Header.h>` (e.g. an ObjC framework). Those
+    ///   headers must stay `Public` so they are copied into the framework bundle and remain resolvable.
+    ///
+    /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
+    /// to `ModuleMap.none` and keep `nil` headers.
+    private func discoveredHeaders(
+        for target: PackageInfo.Target,
+        moduleMap: ModuleMap?,
+        moduleName: String?,
+        targetPath: AbsolutePath
+    ) async throws -> ProjectDescription.Headers? {
+        guard let moduleMap else { return nil }
+
+        // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
+        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
+        let excluding: [ProjectDescription.Path] = try target.exclude.map {
+            let excludePath = targetPath.appending(try RelativePath(validating: $0))
+            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+            return .path(excludeGlob.pathString)
+        }
+
+        switch moduleMap {
+        case .none:
+            return nil
+        case .custom, .header:
+            return .headers(
+                project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
+            )
+        case let .directory(_, publicHeadersPath):
+            let frameworkHeaders = try await frameworkPublicHeaders(
+                publicHeadersPath: publicHeadersPath,
+                targetPath: targetPath,
+                excluding: target.exclude,
+                moduleName: moduleName
+            )
+            return .headers(
+                public: frameworkHeaders.public,
+                project: .list([
+                    .glob(
+                        .path("\(targetPath.pathString)/\(headersGlob)"),
+                        excluding: excluding + frameworkHeaders.shadowedPublicHeaderExclusions
+                    ),
+                ]),
+                exclusionRule: .projectExcludesPrivateAndPublic
+            )
+        }
+    }
+
+    private struct FrameworkPublicHeaders {
+        let `public`: ProjectDescription.FileList?
+        let shadowedPublicHeaderExclusions: [ProjectDescription.Path]
+    }
+
+    private func frameworkPublicHeaders(
+        publicHeadersPath: AbsolutePath,
+        targetPath: AbsolutePath,
+        excluding: [String],
+        moduleName: String?
+    ) async throws -> FrameworkPublicHeaders {
+        let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
+        let excludedPaths = try excluding.map {
+            targetPath.appending(try RelativePath(validating: $0))
+        }
+
+        let headers = try await fileSystem
+            .glob(directory: publicHeadersPath, include: ["**/*.{\(headerExtensions)}", "*.{\(headerExtensions)}"])
+            .collect()
+            .uniqued()
+            .filter { header in
+                excludedPaths.allSatisfy { excludedPath in
+                    if excludedPath.extension == nil {
+                        !header.isDescendantOfOrEqual(to: excludedPath)
+                    } else {
+                        header != excludedPath
+                    }
+                }
+            }
+
+        let frameworkHeaders = uniqueFrameworkPublicHeaders(
+            headers,
+            publicHeadersPath: publicHeadersPath,
+            moduleName: moduleName
+        )
+
+        let frameworkHeaderSet = Set(frameworkHeaders)
+        let shadowedPublicHeaderExclusions = headers
+            .filter { !frameworkHeaderSet.contains($0) }
+            .sorted()
+            .map { ProjectDescription.Path.path($0.pathString) }
+
+        return FrameworkPublicHeaders(
+            public: frameworkHeaders.isEmpty ? nil : .list(frameworkHeaders.map { .glob(.path($0.pathString)) }),
+            shadowedPublicHeaderExclusions: shadowedPublicHeaderExclusions
+        )
+    }
+
+    private func uniqueFrameworkPublicHeaders(
+        _ headers: [AbsolutePath],
+        publicHeadersPath: AbsolutePath,
+        moduleName: String?
+    ) -> [AbsolutePath] {
+        let moduleDirectory = moduleName.map { publicHeadersPath.appending(component: $0.sanitizedModuleName) }
+
+        return Dictionary(grouping: headers, by: \.basename)
+            .values
+            .compactMap { headers in
+                headers.sorted { lhs, rhs in
+                    if let moduleDirectory {
+                        let lhsIsModuleNested = lhs.isDescendant(of: moduleDirectory)
+                        let rhsIsModuleNested = rhs.isDescendant(of: moduleDirectory)
+                        if lhsIsModuleNested != rhsIsModuleNested {
+                            return lhsIsModuleNested
+                        }
+                    }
+
+                    let lhsDepth = lhs.relative(to: publicHeadersPath).components.count
+                    let rhsDepth = rhs.relative(to: publicHeadersPath).components.count
+                    if lhsDepth != rhsDepth {
+                        return lhsDepth > rhsDepth
+                    }
+
+                    return lhs.pathString < rhs.pathString
+                }
+                .first
+            }
+            .sorted()
+    }
+
+    private func prebuiltDependency(
+        name: String,
+        targetPackage: String,
+        packageType: PackageType,
+        condition: PackageInfo.PackageConditionDescription?,
+        enabledTraits: Set<String>
+    ) throws -> SwiftPackageManagerPrebuilt? {
+        if let traits = condition?.traits,
+           !traits.isEmpty,
+           !traits.contains(where: { enabledTraits.contains($0) })
+        {
+            return nil
+        }
+
+        do {
+            _ = try ProjectDescription.PlatformCondition.from(condition)
+        } catch {
+            return nil
+        }
+
+        return packageType.prebuilt(targetPackage: targetPackage, product: name)
+    }
+
+    private func samePackageTargetDependenciesImportedByPublicHeaders(
+        for target: PackageInfo.Target,
+        packageInfo: PackageInfo,
+        packageFolder: AbsolutePath
+    ) async throws -> [PackageInfo.Target.Dependency] {
+        // SwiftPM relies on manifest-declared target dependencies and does not add these edges by scanning
+        // public headers. This is limited to concrete public `#import` and `#include` statements to support
+        // packages such as Firebase that document, but do not declare, a same-package target dependency:
+        // https://github.com/firebase/firebase-ios-sdk/blob/1fc52ab0e172e7c5a961f975a76c2611f4f22852/Package.swift#L213-L225
+        guard target.type == .regular else { return [] }
+
+        let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
+        guard try await fileSystem.exists(publicHeadersPath) else { return [] }
+
+        let importedModules = try await importedModules(inPublicHeadersAt: publicHeadersPath)
+        guard !importedModules.isEmpty else { return [] }
+
+        let declaredDependencyNames = Set(target.dependencies.map(\.name))
+        return packageInfo.targets
+            .filter { $0.name != target.name && !declaredDependencyNames.contains($0.name) }
+            .filter { $0.type == .regular }
+            .filter {
+                !packageTarget(
+                    named: $0.name,
+                    dependsOn: target.name,
+                    packageInfo: packageInfo
+                )
+            }
+            .filter {
+                moduleNameCandidates(targetName: $0.name).contains(where: importedModules.contains)
+            }
+            .map { .target(name: $0.name, condition: nil) }
+    }
+
+    private func packageTarget(
+        named targetName: String,
+        dependsOn dependencyName: String,
+        packageInfo: PackageInfo
+    ) -> Bool {
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let productsByName = Dictionary(uniqueKeysWithValues: packageInfo.products.map { ($0.name, $0) })
+        var targetsToVisit = [targetName]
+        var visitedTargets = Set<String>()
+
+        while let currentTargetName = targetsToVisit.popLast() {
+            guard !visitedTargets.contains(currentTargetName),
+                  let currentTarget = targetsByName[currentTargetName]
+            else { continue }
+            visitedTargets.insert(currentTargetName)
+
+            for dependency in currentTarget.dependencies {
+                switch dependency {
+                case let .target(name: name, _):
+                    if name == dependencyName { return true }
+                    targetsToVisit.append(name)
+                case let .byName(name: name, _):
+                    if name == dependencyName { return true }
+                    if targetsByName[name] != nil {
+                        targetsToVisit.append(name)
+                    } else if let product = productsByName[name] {
+                        if product.targets.contains(dependencyName) { return true }
+                        targetsToVisit.append(contentsOf: product.targets)
+                    }
+                case let .product(name: name, package: package, _, _):
+                    guard package == nil || package == packageInfo.name,
+                          let product = productsByName[name]
+                    else { continue }
+                    if product.targets.contains(dependencyName) { return true }
+                    targetsToVisit.append(contentsOf: product.targets)
+                }
+            }
+        }
+
+        return false
+    }
+
+    private func importedModules(inPublicHeadersAt publicHeadersPath: AbsolutePath) async throws -> Set<String> {
+        let headerPaths = try await fileSystem
+            .glob(directory: publicHeadersPath, include: ["**/*.{h,hh,hpp,hxx}", "*.{h,hh,hpp,hxx}"])
+            .collect()
+
+        var modules = Set<String>()
+        for headerPath in headerPaths {
+            let contents = try await fileSystem.readTextFile(at: headerPath)
+            modules.formUnion(PackageInfoMapper.importedModules(inHeader: contents))
+        }
+
+        return modules
+    }
+
+    private func moduleNameCandidates(targetName: String) -> Set<String> {
+        [
+            targetName,
+            PackageInfoMapper.sanitize(targetName: targetName),
+        ]
+    }
+
+    private static func importedModules(inHeader header: String) -> Set<String> {
+        let headerWithoutComments = header.strippingCComments()
+        let importPatterns = [
+            #"#\s*(?:import|include)\s+<([A-Za-z_][A-Za-z0-9_]*)/"#,
+        ]
+
+        return importPatterns.reduce(into: Set<String>()) { modules, pattern in
+            guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return }
+
+            let range = NSRange(headerWithoutComments.startIndex ..< headerWithoutComments.endIndex, in: headerWithoutComments)
+            for match in regularExpression.matches(in: headerWithoutComments, range: range) {
+                guard let moduleRange = Range(match.range(at: 1), in: headerWithoutComments) else { continue }
+                modules.insert(String(headerWithoutComments[moduleRange]))
+            }
+        }
+    }
+
     private func mapDependency(
         name: String,
         targetPackage: String? = nil,
@@ -849,7 +1354,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         moduleAliases: [String: String]?,
         dependencyModuleAliases: inout [String: String],
         enabledTraits: Set<String>
-    ) throws -> ProjectDescription.TargetDependency? {
+    ) async throws -> ProjectDescription.TargetDependency? {
         // If the condition has traits, check if any of them are enabled
         // If none are enabled, skip this dependency
         if let traits = condition?.traits, !traits.isEmpty {
@@ -876,11 +1381,23 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(origin: _, artifactPaths: artifactPaths) = packageType,
+            if target.type == .binary,
+               case let .external(
+                   origin: _,
+                   artifactPaths: artifactPaths,
+                   packagePrebuilts: _,
+                   derivedXCFrameworksPath: derivedXCFrameworksPath
+               ) = packageType,
                let artifactPath = artifactPaths[target.name]
             {
+                let dependencyPath = try await binaryArtifactDependencyPath(
+                    targetName: target.name,
+                    packageName: packageInfo.name,
+                    artifactPath: artifactPath,
+                    derivedXCFrameworksPath: derivedXCFrameworksPath
+                )
                 return .xcframework(
-                    path: .path(artifactPath.pathString),
+                    path: dependencyPath,
                     expectedSignature: packageSettings.expectedSignatures[target.name]
                         .map(ProjectDescription.XCFrameworkSignature.from),
                     status: .required,
@@ -901,6 +1418,200 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 return .external(name: name, condition: platformCondition)
             }
         }
+    }
+
+    private func binaryArtifactDependencyPath(
+        targetName: String,
+        packageName: String,
+        artifactPath: AbsolutePath,
+        derivedXCFrameworksPath: AbsolutePath?
+    ) async throws -> Path {
+        let xcframeworkPath = try await staticLibraryArtifactBundleXCFrameworkPath(
+            targetName: targetName,
+            packageName: packageName,
+            artifactBundlePath: artifactPath,
+            derivedXCFrameworksPath: derivedXCFrameworksPath
+        ) ?? artifactPath
+        return .path(xcframeworkPath.pathString)
+    }
+
+    private func staticLibraryArtifactBundleXCFrameworkPath(
+        targetName: String,
+        packageName: String,
+        artifactBundlePath: AbsolutePath,
+        derivedXCFrameworksPath: AbsolutePath?
+    ) async throws -> AbsolutePath? {
+        guard artifactBundlePath.extension == "artifactbundle" else { return nil }
+        let infoPath = artifactBundlePath.appending(component: "info.json")
+        guard try await fileSystem.exists(infoPath) else { return nil }
+
+        let infoData = try await fileSystem.readFile(at: infoPath)
+        let info = try JSONDecoder().decode(StaticLibraryArtifactBundleInfo.self, from: infoData)
+        guard let artifact = info.artifacts[targetName] ?? (info.artifacts.count == 1 ? info.artifacts.values.first : nil),
+              artifact.type == "staticLibrary"
+        else {
+            return nil
+        }
+
+        guard let derivedXCFrameworksPath = derivedXCFrameworksPath
+            ?? Self.derivedXCFrameworksPath(containingArtifact: artifactBundlePath)
+        else { return nil }
+        let contentHasher = ContentHasher()
+        let sourceFingerprint = try contentHasher.hash([
+            artifactBundlePath.pathString,
+            contentHasher.hash(infoData),
+        ])
+        let xcframeworkPath = derivedXCFrameworksPath
+            .appending(component: Self.sanitize(targetName: packageName))
+            .appending(component: "\(Self.sanitize(targetName: targetName))-\(sourceFingerprint).xcframework")
+        let infoPlistPath = xcframeworkPath.appending(component: "Info.plist")
+        if try await fileSystem.exists(infoPlistPath) {
+            return xcframeworkPath
+        }
+
+        if try await fileSystem.exists(xcframeworkPath) {
+            try await fileSystem.remove(xcframeworkPath)
+        }
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
+
+        var libraries: [XCFrameworkInfoPlist.Library] = []
+        var usedIdentifiers: Set<String> = []
+
+        for variant in artifact.variants {
+            let sourceLibrary = artifactBundlePath.appending(try RelativePath(validating: variant.path))
+            let slices = Dictionary(
+                grouping: variant.supportedTriples.compactMap { StaticLibraryArtifactBundleSlice(supportedTriple: $0) },
+                by: \.identifier
+            )
+            for sliceIdentifier in slices.keys.sorted() {
+                let sliceArchitectures = slices[sliceIdentifier, default: []].map(\.architecture).uniqued().sorted(by: {
+                    $0.rawValue < $1.rawValue
+                })
+                guard !sliceArchitectures.isEmpty else { continue }
+
+                let identifier = uniqueXCFrameworkLibraryIdentifier(
+                    preferredIdentifier: sourceLibrary.parentDirectory.basename,
+                    usedIdentifiers: &usedIdentifiers
+                )
+                let slicePath = xcframeworkPath.appending(component: identifier)
+                try await fileSystem.makeDirectory(at: slicePath)
+                try await fileSystem.createSymbolicLink(
+                    from: slicePath.appending(component: sourceLibrary.basename),
+                    to: sourceLibrary
+                )
+
+                let headersPath = try await linkStaticLibraryArtifactBundleHeaders(
+                    metadata: variant.staticLibraryMetadata,
+                    artifactBundlePath: artifactBundlePath,
+                    slicePath: slicePath
+                )
+
+                libraries.append(XCFrameworkInfoPlist.Library(
+                    identifier: identifier,
+                    path: try RelativePath(validating: sourceLibrary.basename),
+                    headersPath: headersPath,
+                    mergeable: false,
+                    platform: sliceIdentifier.platform,
+                    platformVariant: sliceIdentifier.platformVariant,
+                    architectures: sliceArchitectures
+                ))
+            }
+        }
+
+        guard !libraries.isEmpty else {
+            try await fileSystem.remove(xcframeworkPath)
+            return nil
+        }
+
+        let plistEncoder = PropertyListEncoder()
+        plistEncoder.outputFormat = .xml
+        try await fileSystem.writeAsPlist(
+            XCFrameworkInfoPlist(libraries: libraries),
+            at: infoPlistPath,
+            encoder: plistEncoder
+        )
+        return xcframeworkPath
+    }
+
+    private static func derivedXCFrameworksPath(containingArtifact artifactPath: AbsolutePath) -> AbsolutePath? {
+        var current = artifactPath
+        while current != .root {
+            if current.basename == "artifacts" {
+                return current.parentDirectory.appending(
+                    components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+                )
+            }
+            current = current.parentDirectory
+        }
+        return nil
+    }
+
+    private func linkStaticLibraryArtifactBundleHeaders(
+        metadata: StaticLibraryArtifactBundleInfo.Artifact.Variant.StaticLibraryMetadata?,
+        artifactBundlePath: AbsolutePath,
+        slicePath: AbsolutePath
+    ) async throws -> RelativePath? {
+        let headersPath = slicePath.appending(component: "Headers")
+        var linkedHeaders = false
+
+        for headerPath in metadata?.headerPaths ?? [] {
+            let sourceHeaderPath = artifactBundlePath.appending(try RelativePath(validating: headerPath))
+            if !linkedHeaders {
+                try await fileSystem.makeDirectory(at: headersPath)
+                linkedHeaders = true
+            }
+
+            if try await fileSystem.exists(sourceHeaderPath, isDirectory: true) {
+                for header in try await fileSystem.contentsOfDirectory(sourceHeaderPath) {
+                    try await linkStaticLibraryArtifactBundleHeader(
+                        from: header,
+                        to: headersPath.appending(component: header.basename)
+                    )
+                }
+            } else {
+                try await linkStaticLibraryArtifactBundleHeader(
+                    from: sourceHeaderPath,
+                    to: headersPath.appending(component: sourceHeaderPath.basename)
+                )
+            }
+        }
+
+        if let moduleMapPath = metadata?.moduleMapPath {
+            let sourceModuleMapPath = artifactBundlePath.appending(try RelativePath(validating: moduleMapPath))
+            if !linkedHeaders {
+                try await fileSystem.makeDirectory(at: headersPath)
+                linkedHeaders = true
+            }
+            try await linkStaticLibraryArtifactBundleHeader(
+                from: sourceModuleMapPath,
+                to: headersPath.appending(component: sourceModuleMapPath.basename)
+            )
+        }
+
+        return linkedHeaders ? try RelativePath(validating: "Headers") : nil
+    }
+
+    private func linkStaticLibraryArtifactBundleHeader(
+        from sourcePath: AbsolutePath,
+        to destinationPath: AbsolutePath
+    ) async throws {
+        guard try await !fileSystem.exists(destinationPath) else { return }
+        try await fileSystem.createSymbolicLink(from: destinationPath, to: sourcePath)
+    }
+
+    private func uniqueXCFrameworkLibraryIdentifier(
+        preferredIdentifier: String,
+        usedIdentifiers: inout Set<String>
+    ) -> String {
+        var identifier = preferredIdentifier
+        var suffix = 1
+        while usedIdentifiers.contains(identifier) {
+            suffix += 1
+            identifier = "\(preferredIdentifier)-\(suffix)"
+        }
+        usedIdentifiers.insert(identifier)
+        return identifier
     }
 
     /// Returns a union of products' destinations.
@@ -963,6 +1674,119 @@ public struct PackageInfoMapper: PackageInfoMapping {
     }
 }
 
+private struct StaticLibraryArtifactBundleInfo: Decodable {
+    let artifacts: [String: Artifact]
+
+    struct Artifact: Decodable {
+        let type: String
+        let variants: [Variant]
+
+        struct Variant: Decodable {
+            let path: String
+            let supportedTriples: [String]
+            let staticLibraryMetadata: StaticLibraryMetadata?
+
+            struct StaticLibraryMetadata: Decodable {
+                let headerPaths: [String]
+                let moduleMapPath: String?
+
+                private enum CodingKeys: String, CodingKey {
+                    case headerPaths
+                    case moduleMapPath
+                }
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    headerPaths = try container.decodeIfPresent([String].self, forKey: .headerPaths) ?? []
+                    moduleMapPath = try container.decodeIfPresent(String.self, forKey: .moduleMapPath)
+                }
+            }
+        }
+    }
+}
+
+private struct StaticLibraryArtifactBundleSlice: Hashable, Comparable {
+    let platform: XCFrameworkInfoPlist.Library.Platform
+    let platformVariant: XCFrameworkInfoPlist.Library.PlatformVariant?
+    let architecture: BinaryArchitecture
+
+    var identifier: StaticLibraryArtifactBundleSliceIdentifier {
+        StaticLibraryArtifactBundleSliceIdentifier(platform: platform, platformVariant: platformVariant)
+    }
+
+    init?(supportedTriple: String) {
+        let components = supportedTriple.split(separator: "-").map(String.init)
+        guard let architectureName = components.first,
+              let architecture = BinaryArchitecture(rawValue: architectureName)
+        else {
+            return nil
+        }
+
+        let lowercasedTriple = supportedTriple.lowercased()
+        let platform: XCFrameworkInfoPlist.Library.Platform
+        let platformVariant: XCFrameworkInfoPlist.Library.PlatformVariant?
+
+        if lowercasedTriple.contains("-apple-ios-macabi") {
+            platform = .iOS
+            platformVariant = .maccatalyst
+        } else if lowercasedTriple.contains("-apple-ios-simulator") {
+            platform = .iOS
+            platformVariant = .simulator
+        } else if lowercasedTriple.contains("-apple-ios") {
+            platform = .iOS
+            platformVariant = nil
+        } else if lowercasedTriple.contains("-apple-macos") {
+            platform = .macOS
+            platformVariant = nil
+        } else if lowercasedTriple.contains("-apple-tvos-simulator") {
+            platform = .tvOS
+            platformVariant = .simulator
+        } else if lowercasedTriple.contains("-apple-tvos") {
+            platform = .tvOS
+            platformVariant = nil
+        } else if lowercasedTriple.contains("-apple-watchos-simulator") {
+            platform = .watchOS
+            platformVariant = .simulator
+        } else if lowercasedTriple.contains("-apple-watchos") {
+            platform = .watchOS
+            platformVariant = nil
+        } else if lowercasedTriple.contains("-apple-xros-simulator") {
+            platform = .visionOS
+            platformVariant = .simulator
+        } else if lowercasedTriple.contains("-apple-xros") {
+            platform = .visionOS
+            platformVariant = nil
+        } else {
+            return nil
+        }
+
+        self.platform = platform
+        self.platformVariant = platformVariant
+        self.architecture = architecture
+    }
+
+    static func < (lhs: StaticLibraryArtifactBundleSlice, rhs: StaticLibraryArtifactBundleSlice) -> Bool {
+        lhs.sortKey < rhs.sortKey
+    }
+
+    private var sortKey: String {
+        "\(platform.rawValue)-\(platformVariant?.rawValue ?? "")-\(architecture.rawValue)"
+    }
+}
+
+private struct StaticLibraryArtifactBundleSliceIdentifier: Hashable, Comparable {
+    let platform: XCFrameworkInfoPlist.Library.Platform
+    let platformVariant: XCFrameworkInfoPlist.Library.PlatformVariant?
+
+    static func < (lhs: StaticLibraryArtifactBundleSliceIdentifier, rhs: StaticLibraryArtifactBundleSliceIdentifier) -> Bool {
+        lhs.sortKey < rhs.sortKey
+    }
+
+    private var sortKey: String {
+        "\(platform.rawValue)-\(platformVariant?.rawValue ?? "")"
+    }
+}
+
 extension ProjectDescription.DeploymentTargets {
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
@@ -982,12 +1806,36 @@ extension ProjectDescription.DeploymentTargets {
                 tvOS: "11.0",
                 visionOS: "1.0"
             )
-        } else {
+        } else if swiftVersion < Version(6, 0, 0) {
             return .multiplatform(
                 iOS: "12.0",
                 macOS: "10.13",
                 watchOS: "4.0",
                 tvOS: "12.0",
+                visionOS: "1.0"
+            )
+        } else if swiftVersion < Version(6, 2, 0) {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "10.13",
+                watchOS: "7.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        } else if swiftVersion < Version(6, 4, 0) {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "11.0",
+                watchOS: "8.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        } else {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
                 visionOS: "1.0"
             )
         }
@@ -1253,6 +2101,7 @@ extension ProjectDescription.ResourceFileElements {
     /// Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
     private static let defaultSpmResourceFileExtensions = Set([
         "xib",
+        "nib",
         "storyboard",
         "xcdatamodeld",
         "xcmappingmodel",
@@ -1308,6 +2157,15 @@ extension ProjectDescription.TargetDependency {
                     .define
                 ),
                 (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (
+                    .linker,
+                    .treatAllWarnings
+                ), (
+                    .linker,
+                    .treatWarning
+                ), (
+                    .linker,
+                    .enableWarning
+                ), (
                     _,
                     .defaultIsolation
                 ), (
@@ -1325,26 +2183,6 @@ extension ProjectDescription.TargetDependency {
     }
 }
 
-extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMap: ModuleMap?) throws -> Self? {
-        guard let moduleMap else { return nil }
-        // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
-        // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        switch moduleMap {
-        case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
-            return .headers(
-                public: .list(
-                    [
-                        .glob("\(umbrellaDirectory.pathString)/*.h"),
-                    ]
-                )
-            )
-        case .none, .header, .custom:
-            return nil
-        }
-    }
-}
-
 extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
@@ -1358,7 +2196,8 @@ extension ProjectDescription.Settings {
         targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
-        enabledTraits: Set<String>
+        enabledTraits: Set<String>,
+        prebuilts: [SwiftPackageManagerPrebuilt]
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1463,7 +2302,45 @@ extension ProjectDescription.Settings {
             }
         }
 
+        let uniquePrebuilts = Dictionary(grouping: prebuilts, by: \.libraryName)
+            .compactMap(\.value.first)
+            .sorted { $0.libraryName < $1.libraryName }
+        for prebuilt in uniquePrebuilts {
+            settingsDictionary.appendArraySetting(
+                key: "OTHER_SWIFT_FLAGS",
+                values: prebuilt.includeSearchPaths.flatMap { ["-I", $0.quotedIfContainsSpaces] },
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "LIBRARY_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "LD_RUNPATH_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "OTHER_LDFLAGS",
+                values: ["-l\(prebuilt.libraryName)"],
+                includeInherited: true
+            )
+        }
+
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
+
+        var propagatedBaseSettings = baseSettings.base
+        // The target's own sanitized bundle identifier is authoritative. A package-wide
+        // PRODUCT_BUNDLE_IDENTIFIER template such as com.acme.$(PRODUCT_NAME) is applied at
+        // the project level, where each target's identifier overrides it. Copying it onto the
+        // target would instead override the sanitized identifier, and modules whose names start
+        // with an underscore (e.g. _RopeModule) would produce identifiers Xcode rejects.
+        propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
+        baseSettingsDictionary.merge(
+            .from(settingsDictionary: propagatedBaseSettings),
+            uniquingKeysWith: { _, new in new }
+        )
 
         if let userDefinedBaseSettings = targetSettings?.base {
             baseSettingsDictionary.merge(
@@ -1598,6 +2475,50 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+}
+
+extension [String: XcodeGraph.SettingValue] {
+    fileprivate mutating func appendArraySetting(
+        key: String,
+        values: [String],
+        includeInherited: Bool
+    ) {
+        guard !values.isEmpty else { return }
+
+        var resolvedValues: [String]
+        switch self[key] {
+        case let .array(existingValues):
+            resolvedValues = existingValues
+        case let .string(value):
+            resolvedValues = value.split(separator: " ").map(String.init)
+        case nil:
+            resolvedValues = includeInherited ? ["$(inherited)"] : []
+        }
+
+        resolvedValues.append(contentsOf: values)
+
+        self[key] = .array(resolvedValues)
+    }
+}
+
+extension SwiftPackageManagerPrebuilt {
+    fileprivate var librarySearchPath: String {
+        path.appending(component: "lib").pathString
+    }
+
+    fileprivate var includeSearchPaths: [String] {
+        var result = [
+            path.appending(component: "Modules").pathString,
+        ]
+
+        if let checkoutPath, let includePath {
+            result.append(contentsOf: includePath.map { checkoutPath.appending($0).pathString })
+        } else {
+            result.append(contentsOf: cModules.map { path.appending(components: "include", $0).pathString })
+        }
+
+        return result
     }
 }
 
@@ -1887,6 +2808,16 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+extension String {
+    fileprivate func strippingCComments() -> String {
+        let pattern = #"/\*[\s\S]*?\*/|//.*"#
+        guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return self }
+
+        let range = NSRange(startIndex ..< endIndex, in: self)
+        return regularExpression.stringByReplacingMatches(in: self, range: range, withTemplate: "")
     }
 }
 

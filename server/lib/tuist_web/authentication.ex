@@ -60,11 +60,19 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the account that owns the authenticated subject, or `nil`.
+
+  Callers that require an account (for ownership, storage, or analytics
+  association) must handle `nil` explicitly and reject the request rather than
+  dereferencing the result or storing a `nil` account.
+  """
   def authenticated_subject_account(conn) do
     case authenticated_subject(conn) do
       %User{account: account} -> account
       %Project{account: account} -> account
       %AuthenticatedAccount{account: account} -> account
+      nil -> nil
     end
   end
 
@@ -135,16 +143,47 @@ defmodule TuistWeb.Authentication do
     user_return_to = get_session(conn, :user_return_to)
     auth_method = Map.get(params, :auth_method, :password)
 
+    {post_invitation_return_to, post_invitation_token} =
+      case Map.fetch(params, :post_invitation_return_to) do
+        {:ok, return_to} ->
+          {return_to, Map.get(params, :post_invitation_token)}
+
+        :error ->
+          if get_session(conn, :post_invitation_user_id) == user.id do
+            {
+              get_session(conn, :post_invitation_return_to),
+              get_session(conn, :post_invitation_token)
+            }
+          else
+            {nil, nil}
+          end
+      end
+
     Analytics.user_authenticate(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
     |> put_session(:auth_method, auth_method)
+    |> maybe_put_post_invitation_context(
+      post_invitation_return_to,
+      user.id,
+      post_invitation_token
+    )
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
   end
+
+  defp maybe_put_post_invitation_context(conn, return_to, user_id, invitation_token)
+       when is_binary(return_to) and is_integer(user_id) and is_binary(invitation_token) do
+    conn
+    |> put_session(:post_invitation_return_to, return_to)
+    |> put_session(:post_invitation_user_id, user_id)
+    |> put_session(:post_invitation_token, invitation_token)
+  end
+
+  defp maybe_put_post_invitation_context(conn, _return_to, _user_id, _invitation_token), do: conn
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
     put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
@@ -332,18 +371,26 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
-         organization_id when not is_nil(organization_id) <- account.organization_id,
-         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-         auth_method = get_session(conn, :auth_method),
-         false <- auth_method == organization.sso_provider do
+    if TuistWeb.OperatorGrant.active_grant?(conn, account_handle) do
+      # An operator holding a valid grant for this account bypasses the
+      # customer's SSO enforcement: they authenticated out-of-band at
+      # ops.tuist.dev and the access is reason-logged and time-boxed.
+      # This is the path that makes SSO-enforced orgs reachable.
       conn
-      |> put_session(:oauth_return_to, current_path(conn))
-      |> redirect(to: sso_provider_path(organization))
-      |> halt()
     else
-      _ -> conn
+      with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+           organization_id when not is_nil(organization_id) <- account.organization_id,
+           {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+           true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+           auth_method = get_session(conn, :auth_method),
+           false <- auth_method == organization.sso_provider do
+        conn
+        |> put_session(:oauth_return_to, current_path(conn))
+        |> redirect(to: sso_provider_path(organization))
+        |> halt()
+      else
+        _ -> conn
+      end
     end
   end
 

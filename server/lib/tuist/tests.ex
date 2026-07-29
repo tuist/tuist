@@ -44,15 +44,19 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunByCommit
+  alias Tuist.Tests.TestCaseRunByProject
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.Dispatcher
 
+  require Logger
   require OpenTelemetry.Tracer
 
   # Number of days of run history used to decide whether a test case is "active"
@@ -61,6 +65,10 @@ defmodule Tuist.Tests do
   @active_window_days 14
   @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
+  # ClickHouse query parameters are encoded in the request address. Ten thousand
+  # identifiers stay comfortably below its default one-mebibyte limit while
+  # still covering the small explicit-state sets this path is designed for.
+  @max_preloaded_test_case_states 10_000
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
@@ -292,6 +300,23 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  def latest_completed_test_runs(project_id, limit \\ 40) do
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.status in ["success", "failure", "skipped"],
+      order_by: [desc: t.ran_at],
+      limit: ^limit,
+      select: %{
+        id: t.id,
+        duration: t.duration,
+        status: t.status,
+        ran_at: t.ran_at
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reverse()
+  end
+
   def list_sharded_test_runs(attrs) do
     base_query = from(t in Test, where: not is_nil(t.shard_plan_id))
 
@@ -366,6 +391,18 @@ defmodule Tuist.Tests do
 
   defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
+  @doc """
+  Lists the run/target-level errors recorded for a test run, oldest-first.
+  """
+  def list_run_errors(test_run_id) do
+    ClickHouseRepo.all(
+      from(e in TestRunError,
+        where: e.test_run_id == ^test_run_id,
+        order_by: [asc: e.inserted_at]
+      )
+    )
+  end
+
   def create_test(attrs) do
     attrs = normalize_string_keys(attrs)
     shard_plan_id = Map.get(attrs, :shard_plan_id)
@@ -407,6 +444,7 @@ defmodule Tuist.Tests do
          |> IngestRepo.insert() do
       {:ok, test} ->
         create_run_destinations(test, Map.get(attrs, :run_destinations, []))
+        create_run_errors(test, Map.get(attrs, :run_errors, []))
 
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -459,6 +497,39 @@ defmodule Tuist.Tests do
     Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
   end
 
+  # Run/target-level errors (the test runner itself errored, e.g. a target
+  # whose `.xctest` bundle couldn't be loaded). The parser lifts these out of
+  # the test cases, so they don't create test_case_runs or fan out webhooks;
+  # they're stored separately and surfaced as an "Errors" section.
+  defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
+    now = NaiveDateTime.utc_now()
+
+    rows =
+      errors
+      |> Enum.map(fn error ->
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          project_id: project_id,
+          module_name: error_field(error, :target) || "",
+          message: error_field(error, :message),
+          inserted_at: now
+        }
+      end)
+      |> Enum.filter(&(&1.message && &1.message != ""))
+
+    case rows do
+      [] -> :ok
+      rows -> IngestRepo.insert_all(TestRunError, rows)
+    end
+  end
+
+  defp create_run_errors(_, _), do: :ok
+
+  defp error_field(error, key) when is_atom(key) do
+    Map.get(error, key) || Map.get(error, Atom.to_string(key))
+  end
+
   defp create_or_update_sharded_test(attrs) do
     shard_plan_id = Map.fetch!(attrs, :shard_plan_id)
     project_id = Map.fetch!(attrs, :project_id)
@@ -501,19 +572,27 @@ defmodule Tuist.Tests do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
 
-          # Each shard can have multiple ShardRun rows (the controller
-          # inserts one with status=processing when the CLI is still
-          # uploading, the worker inserts another after parsing). Count
-          # distinct shard indexes that have already produced a non-
-          # processing row, and only count the current shard if its own
-          # status is non-processing too.
-          reported_count =
-            count_completed_shards(existing_test.id, shard_index) +
-              if shard_status == "processing", do: 0, else: 1
+          insert_shard_run(
+            shard_plan_id,
+            project_id,
+            existing_test.id,
+            shard_index,
+            shard_status,
+            shard_duration,
+            attrs
+          )
+
+          # A shard can move through processing, failed_processing, and a
+          # successful client retry. Collapse that append-only history before
+          # deciding whether the merged run is complete. Insert the current
+          # row first so concurrent workers cannot both miss each other's
+          # terminal status and leave the merged run in_progress forever.
+          latest_statuses = latest_shard_statuses(existing_test.id)
+          reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
           merged_status =
             if reported_count >= expected_shard_count do
-              compute_final_shard_status(existing_test, shard_status)
+              compute_final_shard_status(latest_statuses)
             else
               "in_progress"
             end
@@ -550,15 +629,17 @@ defmodule Tuist.Tests do
       end
 
     with {:ok, test} <- result do
-      insert_shard_run(
-        shard_plan_id,
-        project_id,
-        test.id,
-        shard_index,
-        shard_status,
-        shard_duration,
-        attrs
-      )
+      if is_nil(existing) do
+        insert_shard_run(
+          shard_plan_id,
+          project_id,
+          test.id,
+          shard_index,
+          shard_status,
+          shard_duration,
+          attrs
+        )
+      end
 
       {:ok, test}
     end
@@ -602,34 +683,20 @@ defmodule Tuist.Tests do
   defp blank?(""), do: true
   defp blank?(_), do: false
 
-  defp count_completed_shards(test_run_id, current_shard_index) do
-    # A shard counts as completed once any ShardRun row for it carries a
-    # non-processing status. The current shard is excluded because the
-    # caller decides whether to add it based on the incoming attrs.
-    ClickHouseRepo.one(
+  defp latest_shard_statuses(test_run_id) do
+    ClickHouseRepo.all(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
-        where: sr.status != "processing",
-        where: sr.shard_index != ^(current_shard_index || -1),
-        select: fragment("uniqExact(?)", sr.shard_index)
+        group_by: sr.shard_index,
+        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
       )
-    ) || 0
+    )
   end
 
-  defp compute_final_shard_status(existing_test, current_shard_status) do
-    has_failed_shard =
-      ClickHouseRepo.one(
-        from(sr in ShardRun,
-          where: sr.test_run_id == ^existing_test.id,
-          where: sr.status == "failure",
-          select: count(),
-          limit: 1
-        )
-      ) || 0
-
+  defp compute_final_shard_status(latest_statuses) do
     cond do
-      current_shard_status == "failure" -> "failure"
-      has_failed_shard > 0 -> "failure"
+      "failed_processing" in latest_statuses -> "failed_processing"
+      "failure" in latest_statuses -> "failure"
       true -> "success"
     end
   end
@@ -665,6 +732,16 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(Test, [attrs])
     updated_test
+  end
+
+  defp enqueue_flaky_alert_evaluations(test, test_case_runs) do
+    test_case_ids =
+      test_case_runs
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
   end
 
   defp has_any_flaky_test_case?(test_modules) do
@@ -713,8 +790,7 @@ defmodule Tuist.Tests do
             else: div(Enum.sum(new_durations), length(new_durations))
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
-        existing_is_flaky = Map.get(existing, :is_flaky, false)
-        existing_state = Map.get(existing, :state, "enabled")
+        existing_is_flaky = Map.get(existing, :is_flaky) || false
 
         # Update only the column matching the current run's environment; carry
         # the other forward from the prior row so ReplacingMergeTree's
@@ -742,9 +818,12 @@ defmodule Tuist.Tests do
           last_ran_at: data.ran_at,
           last_ran_at_ci: last_ran_at_ci,
           last_ran_at_local: last_ran_at_local,
-          is_flaky: existing_is_flaky,
+          # Legacy columns, now inert: every pod reads `test_case_states`, so
+          # there is nothing left to carry forward for. Written as the schema
+          # defaults until a follow-up drops the columns outright.
+          is_flaky: false,
           last_run_id: test_run_id,
-          state: existing_state,
+          state: "enabled",
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -784,41 +863,120 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
-  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
-  # `max_query_size` of 256 KB even with surrounding query text. Larger batches
-  # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
-  @existing_test_cases_batch_size 5_000
+  # Batch size for the existing-test-case lookup. The IDs travel as a single
+  # ClickHouse array parameter (see existing_test_cases_chunk_query/2), so the
+  # multipart request always carries one form field for them regardless of batch
+  # size. We still chunk to keep that parameter's encoded value below
+  # ClickHouse's per-field value-length limit on large reports.
+  @existing_test_cases_batch_size 2_000
 
-  defp get_existing_test_cases(_project_id, []), do: %{}
+  defp get_existing_test_cases(_project_id, [], _flaky_run_test_case_ids), do: %{}
 
-  # Returns the latest `recent_durations`, `is_flaky`, and `state` per test case
-  # for the given IDs. We avoid the FINAL hint because the per-call merge cost
-  # dominates when this is called during ingestion (every test report) and
-  # dedupe in Elixir from a small result set instead.
-  defp get_existing_test_cases(project_id, test_case_ids) do
-    test_case_ids
-    |> Enum.chunk_every(@existing_test_cases_batch_size)
-    |> Enum.reduce(%{}, fn ids_chunk, acc ->
-      project_id
-      |> existing_test_cases_chunk_query(ids_chunk)
-      |> ClickHouseRepo.all()
-      |> Enum.reduce(acc, &merge_latest_test_case/2)
+  # Returns the latest `recent_durations` and per-environment run timestamps per
+  # test case for the given IDs. We avoid the FINAL hint because the per-call
+  # merge cost dominates when this is called during ingestion (every test
+  # report) and dedupe in Elixir from a small result set instead.
+  #
+  # `is_flaky` comes from `test_case_states` and is read-only here: it decides
+  # whether this run is the one that newly flags the test case. Ingestion never
+  # writes it back — see the legacy-column note in `create_test_cases/4`.
+  defp get_existing_test_cases(project_id, test_case_ids, flaky_run_test_case_ids) do
+    existing =
+      test_case_ids
+      |> Enum.chunk_every(@existing_test_cases_batch_size)
+      |> Enum.reduce(%{}, fn ids_chunk, acc ->
+        project_id
+        |> fetch_existing_test_cases_chunk(ids_chunk)
+        |> Enum.reduce(acc, &merge_latest_test_case/2)
+      end)
+
+    # Only the test cases that are flaky in *this* run need their stored flag:
+    # it is read once, to decide whether this run is the one that newly flags
+    # them, and that check short-circuits on the current run first. Fetching it
+    # for every test case in the report meant an extra ClickHouse round-trip per
+    # chunk whose result was discarded whenever nothing was flaky, which is the
+    # overwhelmingly common case.
+    flaky_flags =
+      fetch_test_case_flaky_flags(project_id, Enum.filter(flaky_run_test_case_ids, &Map.has_key?(existing, &1)))
+
+    Map.new(existing, fn {id, row} ->
+      {id, Map.put(row, :is_flaky, Map.get(flaky_flags, id) || false)}
     end)
   end
 
-  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
-    from(test_case in TestCase,
-      where: test_case.project_id == ^project_id,
-      where: test_case.id in ^ids_chunk,
+  # Keyed off the resolved run data rather than the raw repetitions, because a
+  # test case can also be flagged flaky by cross-run detection, which only shows
+  # up here.
+  defp flaky_run_test_case_ids(project_id, test_case_run_data) do
+    for {{name, module_name, suite_name}, data} <- test_case_run_data,
+        Map.get(data, :is_flaky, false) do
+      generate_test_case_id(project_id, name, module_name, suite_name)
+    end
+  end
+
+  defp fetch_test_case_flaky_flags(_project_id, []), do: %{}
+
+  defp fetch_test_case_flaky_flags(project_id, test_case_ids) do
+    test_case_ids
+    |> Enum.chunk_every(@existing_test_cases_batch_size)
+    |> Enum.reduce(%{}, fn ids_chunk, acc ->
+      rows =
+        project_id
+        |> test_case_flaky_flags_chunk_query(ids_chunk)
+        |> ClickHouseRepo.all(multipart: true)
+
+      Enum.reduce(rows, acc, &Map.put(&2, &1.test_case_id, &1.is_flaky))
+    end)
+  end
+
+  # Same single-`Array(UUID)`-parameter shape as
+  # `existing_test_cases_chunk_query/2`, and for the same reason. The ID filter
+  # sits inside the aggregate so it only collapses the rows this report asks
+  # about rather than every flagged test case in the project.
+  defp test_case_flaky_flags_chunk_query(project_id, ids_chunk) do
+    from(s in TestCaseState,
+      where:
+        s.project_id == ^project_id and
+          fragment("? IN (?)", s.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+      group_by: s.test_case_id,
       select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        state: test_case.state,
-        last_ran_at_ci: test_case.last_ran_at_ci,
-        last_ran_at_local: test_case.last_ran_at_local,
-        inserted_at: test_case.inserted_at
+        test_case_id: s.test_case_id,
+        # A test case whose rows all came from state events has `is_flaky` null
+        # on every one of them, and `argMax` skips nulls, so the group exists
+        # but the value is null. Normalizing here rather than at the call site
+        # keeps the null from reaching the ingestion arithmetic below.
+        is_flaky:
+          fragment(
+            "ifNull(argMaxIf(?, ?, isNotNull(?)), false)",
+            s.is_flaky,
+            s.inserted_at,
+            s.is_flaky
+          )
+      }
+    )
+  end
+
+  defp fetch_existing_test_cases_chunk(project_id, ids_chunk) do
+    project_id
+    |> existing_test_cases_chunk_query(ids_chunk)
+    |> ClickHouseRepo.all(multipart: true)
+  end
+
+  # Binds the IDs as a single `Array(UUID)` parameter via a fragment instead of
+  # `tc.id in ^ids_chunk`. `in` expands to one bound parameter per ID, and in
+  # multipart mode each parameter becomes its own form field, which overflows
+  # ClickHouse's form-field limit on large reports.
+  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
+    from(tc in TestCase,
+      where:
+        tc.project_id == ^project_id and
+          fragment("? IN (?)", tc.id, type(^ids_chunk, {:array, Ecto.UUID})),
+      select: %{
+        id: tc.id,
+        recent_durations: tc.recent_durations,
+        last_ran_at_ci: tc.last_ran_at_ci,
+        last_ran_at_local: tc.last_ran_at_local,
+        inserted_at: tc.inserted_at
       }
     )
   end
@@ -861,9 +1019,95 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      test_case -> {:ok, test_case}
+      nil ->
+        {:error, :not_found}
+
+      test_case ->
+        resolved = resolve_test_case_state(test_case.project_id, test_case.id)
+        {:ok, apply_test_case_state(test_case, resolved)}
     end
+  end
+
+  # `state` / `is_flaky` live in `test_case_states`, not on the `test_cases`
+  # row (see `Tuist.Tests.TestCaseState`). The columns of the same name on
+  # `test_cases` are legacy leftovers that ingestion still overwrites; they are
+  # never read. A test case with no `test_case_states` row has never been muted
+  # or flagged, so it resolves to the defaults.
+  @default_test_case_state %{state: "enabled", is_flaky: false}
+
+  # Scoped by `project_id` (which the caller already read off the test case) so
+  # this rides the `(project_id, test_case_id)` sort prefix instead of leaning
+  # on the bloom-filter index across every tenant's rows.
+  defp resolve_test_case_state(project_id, test_case_id) do
+    query =
+      from(s in TestCaseState,
+        where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
+        group_by: s.test_case_id,
+        select: %{
+          state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+          is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+        }
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> @default_test_case_state
+      resolved -> normalize_test_case_state(resolved)
+    end
+  end
+
+  # Each row carries only the column its event set, so a test case can have rows
+  # for one column and none for the other. `argMaxIf` over an empty set yields
+  # null for these nullable columns, which is the "never touched" case and
+  # resolves to the default.
+  defp normalize_test_case_state(resolved) do
+    %{
+      state: normalize_state(resolved.state),
+      is_flaky: resolved.is_flaky || false
+    }
+  end
+
+  defp normalize_state(state) when state in [nil, ""], do: "enabled"
+  defp normalize_state(state), do: state
+
+  defp apply_test_case_state(test_case, resolved) do
+    %{test_case | state: resolved.state, is_flaky: resolved.is_flaky}
+  end
+
+  # Collapses the projection into the current value per test case. Scoped by
+  # `project_id` so it rides the table's sort prefix. Each column is resolved
+  # from the rows that actually set it, because an event only ever writes the
+  # one column it is about and leaves the other null.
+  defp test_case_states_subquery(project_id) do
+    from(s in TestCaseState,
+      where: s.project_id == ^project_id,
+      group_by: s.test_case_id,
+      select: %{
+        test_case_id: s.test_case_id,
+        state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+        is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+      }
+    )
+  end
+
+  defp resolve_test_case_states(project_id, test_case_ids \\ nil)
+
+  defp resolve_test_case_states(_project_id, []), do: %{}
+
+  defp resolve_test_case_states(project_id, test_case_ids) do
+    query = test_case_states_subquery(project_id)
+
+    query =
+      if is_nil(test_case_ids) do
+        query
+      else
+        where(query, [state], state.test_case_id in ^test_case_ids)
+      end
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new(fn state ->
+      {state.test_case_id, normalize_test_case_state(state)}
+    end)
   end
 
   @doc """
@@ -887,19 +1131,12 @@ defmodule Tuist.Tests do
     alert_id = Keyword.get(opts, :alert_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      attrs =
-        test_case
-        |> Map.from_struct()
-        |> Map.delete(:__meta__)
-        |> Map.merge(filtered_attrs)
-        |> Map.put(:inserted_at, NaiveDateTime.utc_now())
-
-      IngestRepo.insert_all(TestCase, [attrs])
+      ensure_projectable!(test_case)
 
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case_id, event_types, actor_id, alert_id)
+      record_test_case_events(test_case, event_types, actor_id, alert_id)
       # Broadcast THIS call's update before fanning out to event-driven
       # automations. An automation action (e.g. change_state) re-enters
       # `update_test_case/3`, which will broadcast its own update; we want
@@ -951,16 +1188,34 @@ defmodule Tuist.Tests do
     )
   end
 
-  defp record_test_case_events(_test_case_id, [], _actor_id, _alert_id), do: :ok
+  # The projection is keyed by project and every read of it is project-scoped,
+  # so an event without a real `project_id` records history that no read can
+  # ever resolve back into state. That is the exact failure this whole change
+  # exists to remove, so it fails loudly. Checked before any write rather than
+  # at the point of use, so a violation can't leave the legacy column updated
+  # with no matching event behind it.
+  defp ensure_projectable!(test_case) do
+    if is_nil(test_case.project_id) or test_case.project_id == 0 do
+      raise ArgumentError, "test case #{test_case.id} has no project_id; refusing to record a state change"
+    end
 
-  defp record_test_case_events(test_case_id, event_types, actor_id, alert_id) do
+    :ok
+  end
+
+  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  # `project_id` is denormalized onto the event so `test_case_states_mv` can
+  # project it into `test_case_states`, whose reads are all project-scoped. A
+  # materialized view only sees the inserted rows and can't join back for it.
+  defp record_test_case_events(test_case, event_types, actor_id, alert_id) do
     now = NaiveDateTime.utc_now()
 
     events =
       Enum.map(event_types, fn event_type ->
         %{
           id: UUIDv7.generate(),
-          test_case_id: test_case_id,
+          test_case_id: test_case.id,
+          project_id: test_case.project_id,
           event_type: to_string(event_type),
           actor_id: actor_id,
           alert_id: alert_id,
@@ -1042,6 +1297,12 @@ defmodule Tuist.Tests do
       {:test_run_id, _test_run_id} ->
         list_test_case_runs_via_test_run_mv(attrs, preloads)
 
+      {:test_case_id, _test_case_id} ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+
+      {:project_id, _project_id} ->
+        list_test_case_runs_via_project_mv(attrs, preloads)
+
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
     end
@@ -1100,6 +1361,27 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  defp list_test_case_runs_via_project_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByProject, hints: ["FINAL"])
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByProject)
+
+    ids = Enum.map(slim_results, & &1.id)
+
+    full_results = fetch_full_test_case_runs(slim_results)
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
   defp fetch_full_test_case_runs([]), do: []
 
   defp fetch_full_test_case_runs(slim_results) do
@@ -1108,21 +1390,65 @@ defmodule Tuist.Tests do
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
-    # updates) leave multiple versions per id until background merges
-    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
-    # paying FINAL's full-part scan and in-memory merge for the page-sized
-    # set of ids that the slim MV already narrowed us to.
-    from(tcr in TestCaseRun,
-      where: tcr.project_id in ^project_ids,
-      where: tcr.test_case_id in ^test_case_ids,
-      where: tcr.ran_at >= ^min_ran_at,
-      where: tcr.ran_at <= ^max_ran_at,
-      where: tcr.id in ^ids,
-      order_by: [desc: tcr.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(& &1.id)
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id in ^project_ids,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+
+    results =
+      case inserted_at_by_id(slim_results) do
+        nil ->
+          ClickHouseRepo.all(base_query)
+
+        inserted_at_by_id ->
+          inserted_ats = inserted_at_by_id |> Map.values() |> Enum.uniq()
+
+          versioned_results =
+            base_query
+            |> where([tcr], tcr.inserted_at in ^inserted_ats)
+            |> ClickHouseRepo.all()
+
+          versioned_results =
+            Enum.filter(versioned_results, fn result ->
+              Map.fetch!(inserted_at_by_id, result.id) == result.inserted_at
+            end)
+
+          found_ids = MapSet.new(versioned_results, & &1.id)
+          missing_ids = Enum.reject(ids, &MapSet.member?(found_ids, &1))
+
+          missing_results =
+            case missing_ids do
+              [] ->
+                []
+
+              missing_ids ->
+                base_query
+                |> where([tcr], tcr.id in ^missing_ids)
+                |> ClickHouseRepo.all()
+            end
+
+          versioned_results ++ missing_results
+      end
+
+    # `test_case_runs` is ReplacingMergeTree; re-inserts leave multiple
+    # versions per id until background merges collapse them. The timestamp
+    # filter normally selects the versions returned by the slim view and
+    # prunes unrelated parts. Missing ids are retried without it so reads
+    # remain correct if two replicas have temporarily different visibility.
+    Enum.uniq_by(results, & &1.id)
+  end
+
+  defp inserted_at_by_id(slim_results) do
+    versions = Enum.map(slim_results, &{&1.id, Map.get(&1, :inserted_at)})
+
+    if Enum.all?(versions, fn {_id, inserted_at} -> not is_nil(inserted_at) end) do
+      Map.new(versions)
+    end
   end
 
   defp ran_at_bounds([first | rest]) do
@@ -1145,25 +1471,38 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Filter precedence for routing: a narrower scope wins so we use the
+  # most-selective materialized view available. `test_case_id` keeps the main
+  # table because callers also scope it by `project_id`, matching the primary
+  # key prefix `(project_id, test_case_id)`. `project_id` falls through to the
+  # project materialized view when no narrower scope is present; without it,
+  # the listing query scans every row for the project.
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
-    Enum.find_value(filters, fn
-      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    filters
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(%Flop{} = flop) do
     flop.filters
     |> List.wrap()
-    |> Enum.find_value(fn
-      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(_), do: nil
+
+  defp filter_scope(%{field: :test_run_id, op: :==, value: value}), do: {:test_run_id, value}
+  defp filter_scope(%{field: :shard_id, op: :==, value: value}), do: {:shard_id, value}
+  defp filter_scope(%{field: :test_case_id, op: :==, value: value}), do: {:test_case_id, value}
+  defp filter_scope(%{field: :project_id, op: :==, value: value}), do: {:project_id, value}
+  defp filter_scope(_), do: nil
+
+  defp pick_mv_scope(scopes) do
+    Enum.find_value([:test_run_id, :shard_id, :test_case_id, :project_id], fn key ->
+      Enum.find(scopes, &match?({^key, _}, &1))
+    end)
+  end
 
   @doc """
   Gets a test case run by its UUID.
@@ -1235,7 +1574,13 @@ defmodule Tuist.Tests do
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
-    existing_test_cases = get_existing_test_cases(test.project_id, test_case_ids)
+
+    existing_test_cases =
+      get_existing_test_cases(
+        test.project_id,
+        test_case_ids,
+        flaky_run_test_case_ids(test.project_id, test_case_run_data)
+      )
 
     test_case_run_data_by_module =
       Enum.group_by(
@@ -1243,7 +1588,8 @@ defmodule Tuist.Tests do
         fn {{_name, mod_name, _suite}, _data} -> mod_name end
       )
 
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+    test_modules
+    |> Enum.flat_map_reduce([], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -1313,6 +1659,30 @@ defmodule Tuist.Tests do
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
+    |> tap(fn _ -> flush_test_case_run_buffers() end)
+  end
+
+  # One flush for the whole run rather than one per module.
+  #
+  # The client uploads attachments and crash reports as soon as it receives the
+  # test case run IDs in the response, and those endpoints authorize each upload
+  # against the run and its arguments. Both tables sit behind an ingestion
+  # buffer that otherwise only flushes periodically, so the rows have to be
+  # written through before the caller returns or the uploads race the flush and
+  # are rejected as not found. Flushing here still satisfies that: every module
+  # has been staged and this runs before `create_new_test/3` returns.
+  #
+  # Doing it per module was expensive out of proportion to what it bought.
+  # ClickHouse insert cost on `test_case_runs` is almost entirely fixed
+  # overhead (~480ms whether the batch is 52 rows or 25,515), and every buffer
+  # is a single named process shared by every worker on the node, so each extra
+  # flush blocked all of them for another round trip. Runs carry a median of 2
+  # modules but a p90 of 134 and a maximum of 647, so the tail was paying
+  # hundreds of serialized round trips to write data that one insert covers.
+  defp flush_test_case_run_buffers do
+    TestCaseRun.Buffer.flush()
+    TestCaseRunArgument.Buffer.flush()
+    :ok
   end
 
   defp get_test_case_run_data(test, test_modules) do
@@ -1344,7 +1714,7 @@ defmodule Tuist.Tests do
     {test_case_data, historical_flaky_runs} =
       check_cross_run_flakiness(test, test_case_data)
 
-    mark_test_case_runs_as_flaky(test.project_id, historical_flaky_runs)
+    mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test, test_case_data)
 
@@ -1364,23 +1734,39 @@ defmodule Tuist.Tests do
       get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
-      case filter_cross_run_flaky(data, existing_runs) do
-        [] ->
-          {data, historical_runs}
-
-        flaky_runs ->
-          {%{data | is_flaky: true}, flaky_runs ++ historical_runs}
-      end
+      {data, flaky_failures} = resolve_cross_run_flaky_failures(data, existing_runs)
+      {data, flaky_failures ++ historical_runs}
     end)
   end
 
-  defp filter_cross_run_flaky(data, existing_runs) do
-    existing = Map.get(existing_runs, data.test_case_id, [])
+  # A run is flaky only when it is a failure that the same test case also passed
+  # on for the same commit and scheme — a failure that did not reproduce. The
+  # passing runs that prove the test can succeed on the commit are left clean, so
+  # flaky-run counts and rates reflect the spurious failures rather than every
+  # execution of the commit.
+  defp resolve_cross_run_flaky_failures(%{status: status} = data, _existing_runs)
+       when status not in ["success", "failure"] do
+    {data, []}
+  end
 
-    if data.status in ["success", "failure"] do
-      Enum.filter(existing, &(to_string(&1.status) != data.status))
-    else
-      []
+  defp resolve_cross_run_flaky_failures(data, existing_runs) do
+    existing = Map.get(existing_runs, data.test_case_id, [])
+    {existing_successes, existing_failures} = Enum.split_with(existing, &(to_string(&1.status) == "success"))
+
+    cond do
+      # This run failed and the test already passed on the commit: the current
+      # failure is the flake. Earlier failures were already flagged when their
+      # passing sibling arrived, so there is nothing to back-mark.
+      data.status == "failure" and existing_successes != [] ->
+        {%{data | is_flaky: true}, []}
+
+      # This run passed and the test already failed on the commit: those earlier
+      # failures are now proven flaky, so back-mark them.
+      data.status == "success" and existing_failures != [] ->
+        {data, existing_failures}
+
+      true ->
+        {data, []}
     end
   end
 
@@ -1436,6 +1822,54 @@ defmodule Tuist.Tests do
     )
     |> ClickHouseRepo.all()
     |> MapSet.new()
+  end
+
+  # Chunk size for the default-branch validation lookup. An alert's triggered
+  # set can be large (a `flakiness_rate < threshold` cleanup rule matches most
+  # of a project's test cases, which can run into tens of thousands). The ids
+  # travel as a single ClickHouse array parameter, so chunking keeps that
+  # parameter's encoded value below ClickHouse's per-request limits.
+  @default_branch_validation_batch_size 2_000
+
+  @doc """
+  Given a list of test case ids, returns the subset that has at least one
+  successful, non-flaky run on the project's default branch. A test case with
+  no such run has never been validated on the trusted branch (for example, a
+  brand-new test that has only ever run on a pull-request branch) and should
+  not be eligible for automated quarantine.
+  """
+  def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
+
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    test_case_ids
+    |> Enum.chunk_every(@default_branch_validation_batch_size)
+    |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
+  end
+
+  # Reads `test_case_runs_validated_on_branch`, a ReplacingMergeTree fed by the
+  # `test_case_runs_validated_on_branch_mv` materialized view holding one marker
+  # row per `(project_id, git_branch, test_case_id)` that has ever had a
+  # successful, non-flaky run. Each test case collapses to a single row, so
+  # validating a large triggered set is a bounded primary-key point lookup
+  # instead of scanning every matching run of the raw `test_case_runs` table
+  # (which, on busy projects, read millions of rows per evaluation).
+  #
+  # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
+  # `v.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per id,
+  # which overflows ClickHouse's request limits when the triggered set is large.
+  # `distinct` collapses any not-yet-merged duplicate marker rows; the schema is
+  # borrowed from `TestCaseRun` purely to type the shared columns.
+  defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
+    ClickHouseRepo.all(
+      from(v in {"test_case_runs_validated_on_branch", TestCaseRun},
+        where: v.project_id == ^project_id,
+        where: v.git_branch == ^default_branch,
+        where: fragment("? IN (?)", v.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+        distinct: true,
+        select: v.test_case_id
+      ),
+      multipart: true
+    )
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
@@ -1565,7 +1999,7 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || "",
+          suite_name: suite_name,
           shard_id: if(shard_plan, do: shard_plan.id),
           shard_index: shard_index
         }
@@ -1586,8 +2020,17 @@ defmodule Tuist.Tests do
         }
       end)
 
+    # Buffered here, flushed once by `create_test_modules/4` after every module
+    # has been staged. The rows still land before the caller returns, which is
+    # what the attachment and crash-report endpoints depend on (see the flush
+    # site), but a run no longer pays one round trip per module.
+    TestCaseRun.Buffer.insert_all(test_case_runs)
+
+    if Enum.any?(all_arguments) do
+      TestCaseRunArgument.Buffer.insert_all(all_arguments)
+    end
+
     Tuist.Tasks.run_async(fn ->
-      TestCaseRun.Buffer.insert_all(test_case_runs)
       TestCaseFailure.Buffer.insert_all(all_failures)
 
       if Enum.any?(all_repetitions) do
@@ -1598,9 +2041,7 @@ defmodule Tuist.Tests do
         TestCaseRunAttachment.Buffer.insert_all(all_attachments)
       end
 
-      if Enum.any?(all_arguments) do
-        TestCaseRunArgument.Buffer.insert_all(all_arguments)
-      end
+      enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
     # The audit-log row and the outbound webhook fire on the same set:
@@ -1752,6 +2193,7 @@ defmodule Tuist.Tests do
         %{
           id: TestCaseEvent.first_run_id(run.test_case_id),
           test_case_id: run.test_case_id,
+          project_id: run.project_id,
           event_type: "first_run",
           actor_id: nil,
           alert_id: nil,
@@ -1814,11 +2256,45 @@ defmodule Tuist.Tests do
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
 
+    # `state` / `is_flaky` are resolved from `test_case_states`, not from the
+    # legacy columns on `test_cases`, so they are pulled out of the Flop filter
+    # set and applied by hand below.
+    {control_plane_filters, flop_filters} = Enum.split_with(filters, &control_plane_filter?/1)
+    attrs = Map.put(attrs, :filters, flop_filters)
+
+    {state_filter_mode, resolved_states} =
+      state_filter_mode(project_id, control_plane_filters)
+
     base_query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id
-      )
+      case state_filter_mode do
+        :joined ->
+          from(test_case in TestCase,
+            hints: ["FINAL"],
+            left_join: test_case_state in subquery(test_case_states_subquery(project_id)),
+            as: :test_case_state,
+            on: test_case.id == test_case_state.test_case_id,
+            where: test_case.project_id == ^project_id
+          )
+
+        :preloaded ->
+          from(test_case in TestCase,
+            hints: ["FINAL"],
+            where: test_case.project_id == ^project_id
+          )
+      end
+
+    base_query =
+      case state_filter_mode do
+        :joined ->
+          Enum.reduce(control_plane_filters, base_query, &apply_joined_control_plane_filter/2)
+
+        :preloaded ->
+          apply_preloaded_control_plane_filters(
+            control_plane_filters,
+            base_query,
+            resolved_states
+          )
+      end
 
     base_query =
       cond do
@@ -1837,7 +2313,219 @@ defmodule Tuist.Tests do
           apply_active_window(base_query, is_ci)
       end
 
-    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+    flop = Tuist.ClickHouseFlop.validate!(attrs, for: TestCase)
+    total_count = test_cases_count(base_query, flop)
+
+    case state_filter_mode do
+      :joined ->
+        base_query
+        |> select_resolved_test_case_state()
+        |> Tuist.ClickHouseFlop.run(flop, for: TestCase, count: total_count)
+
+      :preloaded ->
+        {test_cases, meta} =
+          Tuist.ClickHouseFlop.run(base_query, flop, for: TestCase, count: total_count)
+
+        resolved_page_states =
+          resolve_test_case_states(project_id, Enum.map(test_cases, & &1.id))
+
+        test_cases =
+          Enum.map(test_cases, fn test_case ->
+            resolved = Map.get(resolved_page_states, test_case.id, @default_test_case_state)
+            apply_test_case_state(test_case, resolved)
+          end)
+
+        {test_cases, meta}
+    end
+  end
+
+  defp state_filter_mode(_project_id, []), do: {:preloaded, %{}}
+
+  defp state_filter_mode(project_id, _control_plane_filters) do
+    resolved_states = resolve_test_case_states(project_id)
+
+    if map_size(resolved_states) <= @max_preloaded_test_case_states do
+      {:preloaded, resolved_states}
+    else
+      {:joined, %{}}
+    end
+  end
+
+  # Two different nulls collapse to the same answer here. A test case with no
+  # `test_case_states` row at all gets null from the LEFT JOIN, and one whose
+  # rows only ever set the *other* column gets null out of `argMaxIf`. Both mean
+  # "never touched", so both resolve to the defaults. Every comparison against
+  # these columns has to go through the same `ifNull`, because a null would
+  # otherwise make the predicate null and silently drop the row.
+  defp select_resolved_test_case_state(query) do
+    from([test_case, test_case_state: state] in query,
+      select_merge: %{
+        state: fragment("ifNull(?, 'enabled')", state.state),
+        is_flaky: fragment("ifNull(?, false)", state.is_flaky)
+      }
+    )
+  end
+
+  defp control_plane_filter?(filter) do
+    control_plane_filter_field(filter) != nil
+  end
+
+  defp control_plane_filter_field(%{field: field}) when field in [:state, "state"], do: :state
+  defp control_plane_filter_field(%{field: field}) when field in [:is_flaky, "is_flaky"], do: :is_flaky
+  defp control_plane_filter_field(_filter), do: nil
+
+  # Only the operators the callers actually build: `:==` / `:!=` from the
+  # dashboard's option filter, `:==` / `:in` from the API's `state` and
+  # `quarantined` params. Anything else matches nothing rather than silently
+  # degrading to equality, which would invert the meaning of a negated filter.
+  defp apply_preloaded_control_plane_filters(filters, query, resolved_states) do
+    case control_plane_filter_matchers(filters) do
+      {:ok, matchers} ->
+        matcher = fn state -> Enum.all?(matchers, & &1.(state)) end
+        default_matches? = matcher.(@default_test_case_state)
+
+        {matching_ids, non_matching_ids} =
+          Enum.reduce(resolved_states, {[], []}, fn {test_case_id, state}, {matching, non_matching} ->
+            if matcher.(state) do
+              {[test_case_id | matching], non_matching}
+            else
+              {matching, [test_case_id | non_matching]}
+            end
+          end)
+
+        apply_resolved_state_ids(query, default_matches?, matching_ids, non_matching_ids)
+
+      :error ->
+        where(query, false)
+    end
+  end
+
+  defp control_plane_filter_matchers(filters) do
+    Enum.reduce_while(filters, {:ok, []}, fn filter, {:ok, matchers} ->
+      case control_plane_filter_matcher(filter) do
+        {:ok, matcher} ->
+          {:cont, {:ok, [matcher | matchers]}}
+
+        :error ->
+          log_unsupported_control_plane_filter(filter)
+          {:halt, :error}
+      end
+    end)
+  end
+
+  defp control_plane_filter_matcher(filter) do
+    op = Map.get(filter, :op, :==)
+    value = Map.get(filter, :value)
+
+    case {control_plane_filter_field(filter), op} do
+      {:state, :in} ->
+        values = List.wrap(value)
+        {:ok, &Enum.member?(values, &1.state)}
+
+      {:state, :not_in} ->
+        values = List.wrap(value)
+        {:ok, &(not Enum.member?(values, &1.state))}
+
+      {:state, :==} ->
+        {:ok, &(&1.state == value)}
+
+      {:state, :!=} ->
+        {:ok, &(&1.state != value)}
+
+      {:is_flaky, :==} ->
+        {:ok, &(&1.is_flaky == value)}
+
+      {:is_flaky, :!=} ->
+        {:ok, &(&1.is_flaky != value)}
+
+      {_field, _op} ->
+        :error
+    end
+  end
+
+  defp apply_resolved_state_ids(query, true, _matching_ids, []), do: query
+
+  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids),
+    do: where(query, [test_case], test_case.id not in ^non_matching_ids)
+
+  defp apply_resolved_state_ids(query, false, [], _non_matching_ids), do: where(query, false)
+
+  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids),
+    do: where(query, [test_case], test_case.id in ^matching_ids)
+
+  defp apply_joined_control_plane_filter(filter, query) do
+    op = Map.get(filter, :op, :==)
+    value = Map.get(filter, :value)
+
+    case {control_plane_filter_field(filter), op} do
+      {:state, :in} ->
+        where(
+          query,
+          [test_case_state: state],
+          fragment(
+            "ifNull(?, 'enabled') IN (?)",
+            state.state,
+            type(^List.wrap(value), {:array, :string})
+          )
+        )
+
+      {:state, :not_in} ->
+        where(
+          query,
+          [test_case_state: state],
+          fragment(
+            "ifNull(?, 'enabled') NOT IN (?)",
+            state.state,
+            type(^List.wrap(value), {:array, :string})
+          )
+        )
+
+      {:state, :==} ->
+        where(
+          query,
+          [test_case_state: state],
+          fragment("ifNull(?, 'enabled') = ?", state.state, type(^value, :string))
+        )
+
+      {:state, :!=} ->
+        where(
+          query,
+          [test_case_state: state],
+          fragment("ifNull(?, 'enabled') != ?", state.state, type(^value, :string))
+        )
+
+      {:is_flaky, :==} ->
+        where(query, [test_case_state: state], fragment("ifNull(?, false) = ?", state.is_flaky, ^value))
+
+      {:is_flaky, :!=} ->
+        where(query, [test_case_state: state], fragment("ifNull(?, false) != ?", state.is_flaky, ^value))
+
+      {field, op} ->
+        log_unsupported_control_plane_filter(%{field: field, op: op})
+        where(query, false)
+    end
+  end
+
+  defp log_unsupported_control_plane_filter(filter) do
+    field = control_plane_filter_field(filter)
+    op = Map.get(filter, :op, :==)
+
+    # Neither the dashboard nor the public API builds anything else: the
+    # trait filter's dropdown only offers `:==` and `:!=`, and the API
+    # hard-codes `:==` and `:in`. A hand-edited query string can still
+    # smuggle one of the other Noora operators through, because the
+    # operator whitelist there isn't narrowed to the filter's type. Match
+    # nothing rather than raising: this runs inside the listing's
+    # `assign_async`, where an exception surfaces as an empty table anyway,
+    # only with a crashed task and the error noise that comes with it.
+    Logger.warning("Ignoring test case #{field} filter with unsupported operator #{inspect(op)}")
+  end
+
+  defp test_cases_count(query, flop) do
+    query
+    |> Tuist.ClickHouseFlop.filter(flop, for: TestCase)
+    |> select([test_case], count(test_case.id))
+    |> ClickHouseRepo.one()
   end
 
   defp quarantine_filter?(filters) do
@@ -2175,23 +2863,23 @@ defmodule Tuist.Tests do
          state_filter
        ) do
     base_query =
-      apply_quarantined_state_filter(
-        from(test_case in TestCase,
-          as: :test_case,
-          hints: ["FINAL"],
-          where: test_case.project_id == ^project_id,
-          select: %{
-            id: test_case.id,
-            name: test_case.name,
-            module_name: test_case.module_name,
-            suite_name: test_case.suite_name,
-            last_ran_at: test_case.last_ran_at,
-            last_run_id: test_case.last_run_id,
-            last_status: test_case.last_status,
-            state: test_case.state
-          }
-        ),
-        state_filter
+      from(test_case in TestCase,
+        as: :test_case,
+        hints: ["FINAL"],
+        inner_join: quarantined in subquery(quarantined_test_case_states_subquery(project_id, state_filter)),
+        as: :test_case_state,
+        on: test_case.id == quarantined.test_case_id,
+        where: test_case.project_id == ^project_id,
+        select: %{
+          id: test_case.id,
+          name: test_case.name,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
+          last_ran_at: test_case.last_ran_at,
+          last_run_id: test_case.last_run_id,
+          last_status: test_case.last_status,
+          state: quarantined.state
+        }
       )
 
     base_query =
@@ -2231,14 +2919,14 @@ defmodule Tuist.Tests do
          state_filter
        ) do
     base_query =
-      apply_quarantined_state_filter(
-        from(test_case in TestCase,
-          as: :test_case,
-          hints: ["FINAL"],
-          where: test_case.project_id == ^project_id,
-          select: count(test_case.id)
-        ),
-        state_filter
+      from(test_case in TestCase,
+        as: :test_case,
+        hints: ["FINAL"],
+        inner_join: quarantined in subquery(quarantined_test_case_states_subquery(project_id, state_filter)),
+        as: :test_case_state,
+        on: test_case.id == quarantined.test_case_id,
+        where: test_case.project_id == ^project_id,
+        select: count(test_case.id)
       )
 
     base_query =
@@ -2275,10 +2963,8 @@ defmodule Tuist.Tests do
   """
   def get_quarantine_actors(project_id) do
     quarantined_ids_subquery =
-      from(tc in TestCase,
-        hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state in @active_quarantine_states,
-        select: tc.id
+      from(s in subquery(quarantined_test_case_states_subquery(project_id, nil)),
+        select: s.test_case_id
       )
 
     actor_ids =
@@ -2360,11 +3046,37 @@ defmodule Tuist.Tests do
   defp apply_quarantined_order(query, _, _),
     do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
-  defp apply_quarantined_state_filter(query, nil),
-    do: from([test_case: tc] in query, where: tc.state in @active_quarantine_states)
+  # The currently quarantined test cases for a project, optionally narrowed to
+  # one state. Joining against this instead of filtering `test_cases.state` also
+  # makes the quarantine listing selective on the small side: only test cases
+  # that were ever muted or skipped have a row in `test_case_states`.
+  #
+  # Deliberately a bare `argMax`, unlike every other read of this table. It
+  # needs no `isNotNull` guard because `argMax` skips nulls, and none of the
+  # `ifNull(..., 'enabled')` normalisation the other reads apply, because here a
+  # null must *not* become `enabled`: a test case with only flaky rows has no
+  # state, and `NULL IN (...)` is 0 in ClickHouse, so the `HAVING` correctly
+  # drops it. Wrapping this in `ifNull` would start matching test cases that
+  # were never quarantined.
+  defp quarantined_test_case_states_subquery(project_id, state_filter) do
+    states = if state_filter in @active_quarantine_states, do: [state_filter], else: @active_quarantine_states
 
-  defp apply_quarantined_state_filter(query, state) when state in @active_quarantine_states,
-    do: from([test_case: tc] in query, where: tc.state == ^state)
+    from(s in TestCaseState,
+      where: s.project_id == ^project_id,
+      group_by: s.test_case_id,
+      having:
+        fragment(
+          "argMax(?, ?) IN (?)",
+          s.state,
+          s.inserted_at,
+          type(^states, {:array, :string})
+        ),
+      select: %{
+        test_case_id: s.test_case_id,
+        state: fragment("argMax(?, ?)", s.state, s.inserted_at)
+      }
+    )
+  end
 
   defp apply_quarantined_by_filter(query, nil), do: query
 
@@ -2406,16 +3118,20 @@ defmodule Tuist.Tests do
     }
   end
 
-  defp mark_test_case_runs_as_flaky(_project_id, []), do: :ok
+  defp mark_test_case_runs_as_flaky(_project_id, _git_commit_sha, []), do: :ok
 
-  defp mark_test_case_runs_as_flaky(project_id, runs) when is_list(runs) do
+  defp mark_test_case_runs_as_flaky(project_id, git_commit_sha, runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
     test_case_ids = runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
     # `test_case_runs` is `ORDER BY (project_id, test_case_id, ran_at, id)` —
     # filtering by `project_id` and `test_case_id` (both already known per
-    # `historical_flaky_runs`) lets the primary key prune granules instead
-    # of falling back to the bloom filter on `id` alone, which scales poorly.
+    # `historical_flaky_runs`) lets the primary key prune granules. That still
+    # scans the whole `ran_at` span for a high-volume test case, so we also
+    # constrain `git_commit_sha`: every historical flaky run comes from
+    # `get_existing_ci_runs_for_commit/4` for this exact commit, and the table
+    # carries a `GRANULARITY 1` bloom filter on `git_commit_sha` that prunes
+    # the range down to the handful of granules holding that commit's runs.
     # The table is also a ReplacingMergeTree, so a re-inserted run can return
     # multiple versions per id until the background merge collapses them; we
     # dedupe in Elixir so the result set stays small. `FINAL` would force a
@@ -2424,6 +3140,7 @@ defmodule Tuist.Tests do
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.id in ^ids,
         order_by: [desc: tcr.inserted_at]
       )
@@ -2515,21 +3232,22 @@ defmodule Tuist.Tests do
 
     groups = ClickHouseRepo.all(groups_query)
     group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
+    commit_shas = groups |> Enum.map(& &1.git_commit_sha) |> Enum.uniq()
 
-    flaky_runs_query =
+    # Fetch every run on the flaky commits, not just the flagged failures, so the
+    # per-group pass/fail breakdown reflects the full history of the commit. The
+    # group itself is still identified by `is_flaky` runs in `groups_query`.
+    group_runs =
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
-        where: tcr.is_flaky == true,
+        where: tcr.git_commit_sha in ^commit_shas,
         order_by: [desc: tcr.ran_at]
       )
-
-    flaky_runs =
-      flaky_runs_query
       |> ClickHouseRepo.all()
       |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
 
-    run_ids = Enum.map(flaky_runs, & &1.id)
+    run_ids = Enum.map(group_runs, & &1.id)
 
     failures = get_failures_for_runs(run_ids)
     failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
@@ -2537,7 +3255,7 @@ defmodule Tuist.Tests do
     repetitions = get_repetitions_for_runs(run_ids)
     repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
-    runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
+    runs_by_group = Enum.group_by(group_runs, fn run -> {run.scheme, run.git_commit_sha} end)
 
     flaky_groups =
       Enum.map(groups, fn group ->
@@ -2583,22 +3301,19 @@ defmodule Tuist.Tests do
   end
 
   def get_flaky_run_group_for_test_case_run(test_case_run) do
-    flaky_runs_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^test_case_run.project_id,
-        where: tcr.test_case_id == ^test_case_run.test_case_id,
-        where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
-        where: tcr.scheme == ^test_case_run.scheme,
-        where: tcr.is_flaky == true,
-        order_by: [desc: tcr.ran_at]
+    group_runs =
+      ClickHouseRepo.all(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^test_case_run.project_id,
+          where: tcr.test_case_id == ^test_case_run.test_case_id,
+          where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
+          where: tcr.scheme == ^test_case_run.scheme,
+          order_by: [desc: tcr.ran_at]
+        )
       )
 
-    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
-
-    if Enum.empty?(flaky_runs) do
-      nil
-    else
-      run_ids = Enum.map(flaky_runs, & &1.id)
+    if Enum.any?(group_runs, & &1.is_flaky) do
+      run_ids = Enum.map(group_runs, & &1.id)
 
       failures = get_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
@@ -2607,7 +3322,7 @@ defmodule Tuist.Tests do
       repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
       runs_with_details =
-        Enum.map(flaky_runs, fn run ->
+        Enum.map(group_runs, fn run ->
           run_failures = Map.get(failures_by_run_id, run.id, [])
 
           run_repetitions =
@@ -2625,7 +3340,7 @@ defmodule Tuist.Tests do
       %{
         scheme: test_case_run.scheme,
         git_commit_sha: test_case_run.git_commit_sha,
-        latest_ran_at: flaky_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+        latest_ran_at: group_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
         passed_count: passed_count,
         failed_count: failed_count,
         runs: runs_with_details
@@ -2769,8 +3484,11 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # Resolves the "same test_case_id flaked on the same commit in OTHER
-  # test_runs" lookup for an entire batch of test_run_ids in one query.
+  # Resolves the "same test_case_id ran on the same commit in OTHER
+  # test_runs" lookup for an entire batch of test_run_ids in one query. The
+  # test cases are already known to be flaky (they come from each run's own
+  # flagged runs); this pulls every run on the commit for them — passes
+  # included — so the grouped view shows the full pass/fail breakdown.
   #
   # The single ClickHouse query is filtered against the *union* of
   # per-axis IN sets across the batch, but each test_run's slice of the
@@ -2808,7 +3526,6 @@ defmodule Tuist.Tests do
               where: tcr.project_id in ^project_ids,
               where: tcr.test_case_id in ^test_case_ids,
               where: tcr.git_commit_sha in ^commit_shas,
-              where: tcr.is_flaky == true,
               order_by: [desc: tcr.ran_at]
             )
           )
@@ -2900,7 +3617,9 @@ defmodule Tuist.Tests do
     # `idx_status` skip index, which is the only thing that makes finding
     # `in_progress` rows cheap. Find candidate ids without FINAL (the skip
     # index then prunes granules), then re-resolve their latest version via
-    # the `proj_by_id` projection — FINAL over a small id set stays cheap.
+    # the `proj_by_id` projection. Status and age must be checked only after
+    # resolving the latest version, or an older in-progress version could
+    # overwrite a completed run.
     candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
@@ -2911,19 +3630,23 @@ defmodule Tuist.Tests do
         )
       )
 
-    stale_runs =
+    latest_candidate_runs =
       if candidate_ids == [] do
         []
       else
-        ClickHouseRepo.all(
-          from(t in Test,
-            hints: ["FINAL"],
-            where: t.id in ^candidate_ids,
-            where: t.status == "in_progress",
-            where: t.inserted_at < ^six_hours_ago
-          )
+        from(t in Test,
+          where: t.id in ^candidate_ids,
+          order_by: [asc: t.id, desc: t.inserted_at]
         )
+        |> ClickHouseRepo.all()
+        |> Enum.uniq_by(& &1.id)
       end
+
+    stale_runs =
+      Enum.filter(
+        latest_candidate_runs,
+        &(&1.status == "in_progress" and NaiveDateTime.before?(&1.inserted_at, six_hours_ago))
+      )
 
     updated_runs =
       Enum.map(stale_runs, fn run ->
@@ -2999,6 +3722,21 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def get_test_case_run_attachment(test_case_run_id, attachment_id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.id == ^attachment_id,
+        limit: 1
+      )
+
+    # Crash report uploads immediately read a newly created attachment through a different
+    # ClickHouse pool, so this lookup must not use stale replica metadata.
+    case ClickHouseRepo.one(query, settings: [select_sequential_consistency: 1]) do
       nil -> {:error, :not_found}
       attachment -> {:ok, attachment}
     end

@@ -16,11 +16,13 @@ defmodule TuistWeb.ProjectSettingsLive do
     end
 
     rename_project_form = to_form(Project.update_changeset(selected_project, %{}))
+    default_branch_form = to_form(Project.update_changeset(selected_project, %{}))
     delete_project_form = to_form(%{"name" => ""})
 
     socket =
       socket
       |> assign(rename_project_form: rename_project_form)
+      |> assign(default_branch_form: default_branch_form)
       |> assign(delete_project_form: delete_project_form)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("settings"))
@@ -86,6 +88,51 @@ defmodule TuistWeb.ProjectSettingsLive do
       socket
       |> push_event("close-modal", %{id: "delete-project-modal"})
       |> assign(delete_project_form: to_form(%{"name" => ""}))
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "update_default_branch",
+        %{"project" => %{"default_branch" => default_branch}},
+        %{assigns: %{selected_project: selected_project}} = socket
+      ) do
+    # `Ecto.Changeset.cast` substitutes the schema default ("main") for an
+    # empty string, so a blank submission would silently reset the branch
+    # instead of being rejected. Guard against it here before casting.
+    case String.trim(default_branch) do
+      "" ->
+        changeset =
+          selected_project
+          |> Project.update_changeset(%{})
+          |> Ecto.Changeset.add_error(:default_branch, dgettext("dashboard_projects", "can't be blank"))
+          |> Map.put(:action, :update)
+
+        {:noreply, assign(socket, default_branch_form: to_form(changeset))}
+
+      trimmed ->
+        case Projects.update_project(selected_project, %{default_branch: trimmed}) do
+          {:ok, project} ->
+            socket =
+              socket
+              |> assign(selected_project: project)
+              |> assign(default_branch_form: to_form(Project.update_changeset(project, %{})))
+              |> push_event("close-modal", %{id: "default-branch-modal"})
+              |> put_flash(:info, dgettext("dashboard_projects", "Default branch updated."))
+
+            {:noreply, socket}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, assign(socket, default_branch_form: to_form(changeset))}
+        end
+    end
+  end
+
+  def handle_event("close_default_branch_modal", _params, socket) do
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "default-branch-modal"})
+      |> assign(default_branch_form: to_form(Project.update_changeset(socket.assigns.selected_project, %{})))
 
     {:noreply, socket}
   end

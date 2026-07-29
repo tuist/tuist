@@ -18,13 +18,14 @@ public protocol ListCacheRunsServicing: Sendable {
 
 enum ListCacheRunsServiceError: LocalizedError {
     case unknownError(Int)
+    case badRequest(String)
     case forbidden(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The cache runs could not be listed due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message):
+        case let .badRequest(message), let .forbidden(message):
             return message
         }
     }
@@ -70,6 +71,11 @@ public struct ListCacheRunsService: ListCacheRunsServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw ListCacheRunsServiceError.badRequest(error.message)
             }
         case let .forbidden(forbidden):
             switch forbidden.body {

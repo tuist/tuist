@@ -5,9 +5,10 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
   alias Tuist.Billing
-  alias Tuist.Environment
   alias Tuist.Kura
+  alias Tuist.Runners.Concurrency
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -17,7 +18,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
 
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     %{conn: conn, user: user}
   end
@@ -28,6 +29,26 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert html =~ user.account.name
     assert html =~ "Plan &amp; billing"
     assert html =~ "Kura"
+    assert html =~ "Runner concurrency"
+    assert html =~ "value=\"12\""
+  end
+
+  test "updates platform-specific runner concurrency limits", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv
+    |> form("#runner-concurrency-form", %{
+      "account" => %{
+        "runner_linux_vcpus_limit" => "48",
+        "runner_linux_memory_gb_limit" => "96",
+        "runner_macos_vcpus_limit" => "18",
+        "runner_macos_memory_gb_limit" => "42"
+      }
+    })
+    |> render_submit()
+
+    assert Concurrency.limits_for(user.account, :linux) == %{vcpus: 48, memory_gb: 96}
+    assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
   end
 
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do

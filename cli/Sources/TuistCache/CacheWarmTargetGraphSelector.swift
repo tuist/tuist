@@ -28,7 +28,7 @@ public enum CacheWarmTargetGraphSelector {
         }
 
         let nonTestRoots = requestedGraphTargets.filter {
-            !graphTraverser.dependsOnXCTest(path: $0.path, name: $0.target.name)
+            !$0.target.product.testsBundle
         }
         guard !nonTestRoots.isEmpty else {
             return .noNonTestRoots

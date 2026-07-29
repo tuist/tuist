@@ -1,0 +1,3 @@
+import MacroDependency
+
+print(prebuiltMessage)

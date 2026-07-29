@@ -69,7 +69,7 @@ public struct PackageInfoLoader: PackageInfoLoading {
         }
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let json = try await commandRunner.capture(arguments: command, workingDirectory: path)
+        let json = try await commandRunner.capture(arguments: command)
 
         let data = Data(json.utf8)
         let decoder = JSONDecoder()

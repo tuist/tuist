@@ -49,6 +49,11 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         baseDirectory.appending(component: "DerivedData")
     }
 
+    public var derivedDataLocationStub: DerivedDataLocation?
+    public func derivedDataLocation() async throws -> DerivedDataLocation {
+        derivedDataLocationStub ?? .default
+    }
+
     public var stubbedArchitecture: MacArchitecture = .arm64
     public func architecture() async throws -> MacArchitecture {
         stubbedArchitecture
@@ -80,6 +85,18 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
+
+    public func casProxySocketPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas-proxy.sock")
+    }
+
+    public func casProxySocketPathString() -> String {
+        "$HOME/cas-proxy.sock"
+    }
+
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
     }
 }
 

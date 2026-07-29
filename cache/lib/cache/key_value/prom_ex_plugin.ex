@@ -159,6 +159,14 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   def execute_sqlite_metrics do
+    if Cache.Config.xcode_database_interactions_enabled?() do
+      do_execute_sqlite_metrics()
+    else
+      :ok
+    end
+  end
+
+  defp do_execute_sqlite_metrics do
     db_path = SQLiteHelpers.db_path(KeyValueRepo)
     wal_path = "#{db_path}-wal"
 

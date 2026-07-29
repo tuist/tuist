@@ -105,6 +105,25 @@ struct SettingsMapper {
                 swiftFlags.append(contentsOf: setting.value)
             case (.swift, .disableWarning):
                 swiftFlags.append("-Wno-\(setting.value[0])")
+            case (.c, .treatAllWarnings):
+                cFlags.append(setting.treatAllWarningsFlag(errorFlag: "-Werror", warningFlag: "-Wno-error"))
+            case (.cxx, .treatAllWarnings):
+                cxxFlags.append(setting.treatAllWarningsFlag(errorFlag: "-Werror", warningFlag: "-Wno-error"))
+            case (.swift, .treatAllWarnings):
+                swiftFlags.append(setting.treatAllWarningsFlag(
+                    errorFlag: "-warnings-as-errors",
+                    warningFlag: "-no-warnings-as-errors"
+                ))
+            case (.c, .treatWarning):
+                cFlags.append(setting.treatWarningFlag(errorPrefix: "-Werror=", warningPrefix: "-Wno-error="))
+            case (.cxx, .treatWarning):
+                cxxFlags.append(setting.treatWarningFlag(errorPrefix: "-Werror=", warningPrefix: "-Wno-error="))
+            case (.swift, .treatWarning):
+                swiftFlags.append(contentsOf: setting.treatSwiftWarningFlags())
+            case (.c, .enableWarning):
+                cFlags.append("-W\(setting.value[0])")
+            case (.cxx, .enableWarning):
+                cxxFlags.append("-W\(setting.value[0])")
             case (.swift, .enableUpcomingFeature):
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
@@ -132,7 +151,8 @@ struct SettingsMapper {
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (.linker, .disableWarning),
                  (_, .enableUpcomingFeature), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
-                 (_, .strictMemorySafety):
+                 (_, .strictMemorySafety), (.linker, .treatAllWarnings), (.linker, .treatWarning),
+                 (.swift, .enableWarning), (.linker, .enableWarning):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
@@ -203,5 +223,19 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
         } else {
             return (name: define, value: "1")
         }
+    }
+
+    fileprivate func treatAllWarningsFlag(errorFlag: String, warningFlag: String) -> String {
+        value[0] == "error" ? errorFlag : warningFlag
+    }
+
+    fileprivate func treatWarningFlag(errorPrefix: String, warningPrefix: String) -> String {
+        let prefix = value[1] == "error" ? errorPrefix : warningPrefix
+        return "\(prefix)\(value[0])"
+    }
+
+    fileprivate func treatSwiftWarningFlags() -> [String] {
+        let flag = value[1] == "error" ? "-Werror" : "-Wwarning"
+        return [flag, value[0]]
     }
 }

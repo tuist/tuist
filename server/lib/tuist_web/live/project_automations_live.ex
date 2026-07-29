@@ -27,6 +27,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
     socket =
       socket
       |> assign(:slack_configured, Environment.slack_configured?())
+      |> assign(
+        :can_manage_automations,
+        Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
+      )
+      |> assign(:flash_message, nil)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -59,7 +64,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
-    |> assign(create_automation_form_rolling_window_size: "100")
+    |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
@@ -72,12 +77,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @comparisons ~w(gte gt lt lte)
   @window_types ~w(last_days rolling)
 
-  # Only varies by metric — switching comparison keeps whatever the user has
-  # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
-  # auto-resetting on every dropdown click would clobber their input.
+  # These defaults encode the metric's unhealthy direction: flakiness should
+  # rise above the threshold, while reliability should fall below it.
   defp default_threshold("flakiness_rate"), do: "10"
   defp default_threshold("flaky_run_count"), do: "3"
+  defp default_threshold("reliability_rate"), do: "90"
   defp default_threshold(_), do: "1"
+
+  defp default_comparison("reliability_rate"), do: "lt"
+  defp default_comparison(_), do: "gte"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -112,7 +120,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
-      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
+      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
@@ -204,6 +212,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply,
      socket
      |> assign(create_automation_form_metric: metric)
+     |> assign(create_automation_form_comparison: default_comparison(metric))
      |> assign(create_automation_form_threshold: default_threshold(metric))
      |> assign(create_automation_form_trigger_actions: trigger_actions)
      |> assign(create_automation_form_recovery_enabled: recovery_enabled)
@@ -396,10 +405,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
     result =
       case assigns.editing_automation_id do
         nil ->
-          Automations.create_alert(attrs)
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_create,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ) do
+            Automations.create_alert(attrs)
+          end
 
         id ->
-          with {:ok, automation} <- Automations.get_alert(id) do
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_update,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ),
+               {:ok, automation} <- Automations.get_alert(id),
+               true <- automation.project_id == assigns.selected_project.id do
             Automations.update_alert(automation, attrs)
           end
       end
@@ -414,23 +437,46 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
         {:noreply, socket}
 
-      {:error, _} ->
+      _ ->
         {:noreply, socket}
     end
   end
 
-  def handle_event("toggle_automation_enabled", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
-    with {:ok, automation} <- Automations.get_alert(id),
+  def handle_event(
+        "toggle_automation_enabled",
+        %{"id" => id},
+        %{assigns: %{selected_project: project, current_user: current_user}} = socket
+      ) do
+    with :ok <- Authorization.authorize(:automation_alert_update, current_user, project),
+         {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
-      {:noreply, assign_automations(socket, project)}
+      {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
     else
-      _ -> {:noreply, socket}
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error",
+            dgettext(
+              "dashboard_projects",
+              "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+            )}
+         )}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
-  def handle_event("delete_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
-    with {:ok, automation} <- Automations.get_alert(id),
+  def handle_event(
+        "delete_automation",
+        %{"id" => id},
+        %{assigns: %{selected_project: project, current_user: current_user}} = socket
+      ) do
+    with :ok <- Authorization.authorize(:automation_alert_delete, current_user, project),
+         {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.delete_alert(automation) do
       {:noreply, assign_automations(socket, project)}
@@ -504,7 +550,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "threshold" => threshold,
       "comparison" => comparison,
       "window_type" => "rolling",
-      "rolling_window_size" => parse_int(rolling_window_size, 100)
+      "rolling_window_size" => parse_int(rolling_window_size, 75)
     }
   end
 
@@ -545,18 +591,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp strip_redundant_actions(actions, _), do: actions
 
-  def event_driven_monitor_type?("test_updated"), do: true
-  def event_driven_monitor_type?(_), do: false
+  def event_driven_monitor_type?(monitor_type), do: Alert.event_driven?(monitor_type)
 
-  defp parse_threshold("flakiness_rate", value) do
+  defp parse_threshold(metric, value) when metric in ["flakiness_rate", "reliability_rate"] do
     case Float.parse(value) do
       {n, _} -> n
-      :error -> 10.0
+      :error -> metric |> default_threshold() |> parse_default_rate_threshold()
     end
   end
 
   defp parse_threshold(_metric, value) do
     parse_int(value, 1)
+  end
+
+  defp parse_default_rate_threshold(value) do
+    {threshold, _} = Float.parse(value)
+    threshold
   end
 
   defp parse_int(value, default) do
@@ -568,6 +618,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Test reliability")
   def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
@@ -612,6 +663,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def comparison_symbol(_), do: "≥"
 
   def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("reliability_rate"), do: dgettext("dashboard_projects", "Percent")
   def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
   def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
@@ -681,6 +733,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
+  def automation_summary(%{monitor_type: "reliability_rate", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When test reliability across branches %{symbol} %{threshold}% over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
   def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do
     events = trigger_config["events"] || []
 
@@ -723,13 +788,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
   """
   def rolling_window_inputs_valid?(assigns) do
     is_nil(
-      rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)
+      rolling_size_error(
+        assigns.create_automation_form_window_type,
+        assigns.create_automation_form_rolling_window_size,
+        Alert.max_rolling_trigger_window_size()
+      )
     ) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            rolling_size_error(
              assigns.create_automation_form_recovery_window_type,
-             assigns.create_automation_form_recovery_rolling_window_size
+             assigns.create_automation_form_recovery_rolling_window_size,
+             Alert.max_rolling_window_size()
            )
          ))
   end
@@ -740,16 +810,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `error` attribute on the noora `text_input` so the same constraint that
   disables Save is visible inline on the field.
   """
-  def rolling_size_error("rolling", raw_size) do
-    max = Alert.max_rolling_window_size()
-
+  def rolling_size_error("rolling", raw_size, max) do
     case Integer.parse(to_string(raw_size)) do
       {n, ""} when n >= 1 and n <= max -> nil
       _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
     end
   end
 
-  def rolling_size_error(_window_type, _raw_size), do: nil
+  def rolling_size_error(_window_type, _raw_size, _max), do: nil
 
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.

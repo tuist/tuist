@@ -32,6 +32,14 @@
     {dgettext("dashboard_projects", "Automations")}
   </h2>
 
+  <.alert
+    :if={@flash_message}
+    status={elem(@flash_message, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@flash_message, 1)}
+  />
+
   <.card_section data-part="test-case-automations-card-section">
     <div data-part="header">
       <div data-part="title-group">
@@ -46,6 +54,7 @@
         </span>
       </div>
       <.modal
+        :if={@can_manage_automations}
         id="create-automation-modal"
         title={
           if @editing_automation_id,
@@ -119,6 +128,14 @@
                         label={dgettext("dashboard_projects", "Flaky runs")}
                         on_click="update_create_automation_form_metric"
                         data-selected={@create_automation_form_metric == "flaky_run_count"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="reliability_rate"
+                        label={dgettext("dashboard_projects", "Test reliability")}
+                        on_click="update_create_automation_form_metric"
+                        data-selected={@create_automation_form_metric == "reliability_rate"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -264,13 +281,14 @@
                       id="create-automation-rolling-window-size"
                       name="rolling_window_size"
                       value={@create_automation_form_rolling_window_size}
-                      placeholder="100"
+                      placeholder="75"
                       min={1}
-                      max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                      max={Tuist.Automations.Alerts.Alert.max_rolling_trigger_window_size()}
                       error={
                         rolling_size_error(
                           @create_automation_form_window_type,
-                          @create_automation_form_rolling_window_size
+                          @create_automation_form_rolling_window_size,
+                          Tuist.Automations.Alerts.Alert.max_rolling_trigger_window_size()
                         )
                       }
                       phx-keyup="update_create_automation_form_rolling_window_size"
@@ -672,7 +690,8 @@
                         error={
                           rolling_size_error(
                             @create_automation_form_recovery_window_type,
-                            @create_automation_form_recovery_rolling_window_size
+                            @create_automation_form_recovery_rolling_window_size,
+                            Tuist.Automations.Alerts.Alert.max_rolling_window_size()
                           )
                         }
                         phx-keyup="update_create_automation_form_recovery_rolling_window_size"
@@ -884,7 +903,7 @@
           <.text_cell label={automation_summary(automation)} />
         </:col>
         <:col :let={automation} label="">
-          <.button_cell>
+          <.button_cell :if={@can_manage_automations}>
             <:button>
               <.button
                 icon_only

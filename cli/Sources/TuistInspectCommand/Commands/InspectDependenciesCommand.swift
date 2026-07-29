@@ -26,6 +26,9 @@
         )
         var only: [DependencyInspectionType] = []
 
+        @OptionGroup
+        var loggingOptions: LoggingOptions
+
         func run() async throws {
             let inspectionTypes: Set<DependencyInspectionType> = if only.isEmpty {
                 Set(DependencyInspectionType.allCases)

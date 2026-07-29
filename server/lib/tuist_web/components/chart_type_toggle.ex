@@ -45,7 +45,7 @@ defmodule TuistWeb.Components.ChartTypeToggle do
           patch={"?#{Query.put(@uri.query, @group_by_query_param, option.value)}"}
           data-selected={@selected_group_by == option.value}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@selected_group_by == option.value}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
       <.button_group size="medium">

@@ -99,36 +99,51 @@ spec:
               value: processor
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
-            # Required because DATABASE_URL below points at Supavisor on 6543.
+            # Required because DATABASE_URL below points at an external
+            # transaction-mode pooler.
             - name: TUIST_DATABASE_POOLED
               value: "1"
+            {{- else }}
+            {{- if .Values.postgresql.cnpg.pooler.enabled }}
+            # Routed through the CNPG transaction-mode Pooler (PgBouncer):
+            # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
+            # DATABASE_URL below points at the `-pooler-rw` Service.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            {{- end }}
+            # Match the server / migration pods: the in-cluster Service is
+            # reached over plaintext. Without this, TUIST_USE_SSL_FOR_DATABASE
+            # defaults to "1" (runtime.exs) and only the processor would dial
+            # CNPG with SSL, diverging from the rest of the app's connection
+            # shape.
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
             # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
             # UPDATE/DELETE on oban_jobs + read-only on accounts/projects.
-            # See infra/supabase/tuist-processor-role.sql.
+            # See infra/cnpg/tuist-processor-grants.sql.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ $processorSecretName }}
                   key: processor-database-url
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc
-            # (ClickHouse URL, S3 creds, Sentry, Stripe, etc.). The release
-            # boots with the same secrets the web server would, minus the
-            # DATABASE_URL override above.
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
-                  key: server-master-key
-            {{- end }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            # Tuist.License.assert_valid!/0 runs unconditionally at boot
+            # (application.ex), so the processor needs the license key. It used
+            # to come from the encrypted blob; with the blob gone it must be
+            # wired like the server Deployment, or boot crashes "license missing".
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -162,12 +177,19 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.processor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           # No HTTP probes — the pod has no web endpoint. Liveness is proved
           # by Oban's heartbeat into oban_peers: a wedged BEAM stops updating

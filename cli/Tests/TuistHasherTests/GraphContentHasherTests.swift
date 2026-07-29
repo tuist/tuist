@@ -109,4 +109,69 @@ struct GraphContentHasherTests {
         // Then
         #expect(hashedTargets == expectedCachableTargets)
     }
+
+    @Test
+    func contentHashes_passes_the_embedded_resource_bundle_closure_to_the_target_hasher() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let bundleTarget: Target = .test(
+            name: "Bundle",
+            product: .bundle,
+            infoPlist: nil,
+            entitlements: nil
+        )
+        let frameworkTarget: Target = .test(
+            name: "Framework",
+            product: .framework,
+            infoPlist: nil,
+            entitlements: nil
+        )
+        let project: Project = .test(
+            path: path,
+            targets: [frameworkTarget, bundleTarget]
+        )
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: "Framework", path: path): Set([.target(name: "Bundle", path: path)]),
+            ]
+        )
+
+        let targetContentHasher = MockTargetContentHashing()
+        given(targetContentHasher)
+            .contentHash(
+                for: .any,
+                hashedTargets: .any,
+                hashedPaths: .any,
+                destination: .any,
+                embeddedProductReferences: .any,
+                additionalStrings: .any
+            )
+            .willReturn(TargetContentHash.test())
+        let subject = GraphContentHasher(
+            contentHasher: ContentHasher(),
+            targetContentHasher: targetContentHasher
+        )
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            include: { _ in true },
+            destination: nil,
+            additionalStrings: []
+        )
+
+        // Then
+        verify(targetContentHasher)
+            .contentHash(
+                for: .matching { $0.target.name == "Framework" },
+                hashedTargets: .any,
+                hashedPaths: .any,
+                destination: .any,
+                embeddedProductReferences: .value(["product:Bundle:Bundle.bundle"]),
+                additionalStrings: .any
+            )
+            .called(1)
+    }
 }

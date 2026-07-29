@@ -3,13 +3,45 @@
 {{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- if .Values.server.migrationJob.asHook }}
+# Dedicated SA for the migration Job: pre-install/upgrade hooks run
+# before regular release resources exist, so the Job can't reference
+# the server SA on first install — and hook-managed resources are
+# deleted+recreated each upgrade (before-hook-creation), which must
+# never happen to an SA that long-running pods hold projected tokens
+# for. Migrations only talk to the databases; this SA carries no RBAC.
+#
+# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecrets
+# (license/Kura + the config Secret via ESO), -5 app-secrets when
+# managedSecrets=false, -1 the migrate Job.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server-migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-12"
+    helm.sh/hook-delete-policy: before-hook-creation
+---
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  # Stable name across revisions so the `before-hook-creation` delete
-  # policy below matches and deletes the prior Job (and its Pending pods)
-  # before the new hook schedules.
-  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  # As a hook: a stable name across revisions, so the `before-hook-creation`
+  # delete policy below matches and deletes the prior Job (and its Pending
+  # pods) before the new hook schedules.
+  #
+  # As a regular Job (previews, where a pre-install hook would deadlock on the
+  # embedded databases): a name scoped to the release revision. A Job's
+  # `spec.template` is immutable, so reusing the name across upgrades fails
+  # with "field is immutable" whenever the image tag changes. Renaming per
+  # revision means Helm creates the new Job and prunes the previous one,
+  # because it is no longer in the release manifest. Without this, something
+  # has to `kubectl delete` the stale Job before every upgrade.
+  name: {{ include "tuist.serverMigrateJobName" . }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server-migration
@@ -29,8 +61,20 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if .Values.server.migrationJob.asHook }}
+      serviceAccountName: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+      {{- else }}
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      {{- end }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       {{- if not .Values.server.managedSecrets }}
       # Only wait for embedded Postgres / ClickHouse to come up when chart
@@ -52,6 +96,7 @@ spec:
                 sleep 2
               done
           env:
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: PGHOST
               value: {{ include "tuist.databaseHost" . | quote }}
             - name: PGPORT
@@ -72,11 +117,40 @@ spec:
             - eval
             - Tuist.Release.migrate
           env:
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_MIGRATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            {{- if .Values.server.managedSecrets }}
+            - name: TUIST_DATABASE_RUNTIME_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            - name: TUIST_DATABASE_PROCESSOR_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
+            - name: TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+            - name: TUIST_DATABASE_GRAFANA_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+            {{- end }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE
@@ -92,20 +166,20 @@ spec:
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
-            {{- end }}
-            {{- if not .Values.server.managedSecrets }}
+            # Object-storage boot config must be set unconditionally. The
+            # release runtime reads the selected provider at boot even though
+            # the migration job does not actively upload or download artifacts.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
             - name: TUIST_S3_BUCKET_NAME
-              value: {{ .Values.server.s3.bucketName | quote }}
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
-              value: {{ .Values.server.s3.region | quote }}
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- if $objectStorageAccessKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
@@ -120,17 +194,19 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
-            - name: TUIST_S3_VIRTUAL_HOST
-              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
-            - name: TUIST_S3_BUCKET_AS_HOST
-              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
-            {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.server.migrationJob.resources | nindent 12 }}

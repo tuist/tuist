@@ -30,10 +30,14 @@ defmodule Cache.KeyValueEvictionWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    started_at = System.monotonic_time(:millisecond)
-    deadline_ms = started_at + Config.key_value_eviction_max_duration_ms()
+    if Config.xcode_database_interactions_enabled?() do
+      started_at = System.monotonic_time(:millisecond)
+      deadline_ms = started_at + Config.key_value_eviction_max_duration_ms()
 
-    do_perform(started_at, deadline_ms)
+      do_perform(started_at, deadline_ms)
+    else
+      :ok
+    end
   end
 
   defp do_perform(started_at, deadline_ms) do

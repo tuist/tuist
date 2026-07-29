@@ -519,6 +519,272 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
+
+    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    func ios_app_with_local_swift_package_product_code_coverage() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "AppWithPackageCoverage" }
+        )
+        #expect(scheme.testAction?.onlyGenerateCoverageForSpecifiedTargets == true)
+        let coverageBuildables = try #require(scheme.testAction?.codeCoverageTargets)
+
+        // The product name is a valid coverage buildable and is kept. The name of the
+        // package target backing it and a product of another package referenced through
+        // this package's path are not, so they are dropped.
+        #expect(coverageBuildables.count == 1)
+        let reference = try #require(coverageBuildables.first)
+        #expect(reference.blueprintName == "LibraryC")
+        #expect(reference.buildableName == "LibraryC")
+        #expect(reference.blueprintIdentifier == "LibraryC")
+        #expect(reference.referencedContainer == "container:Packages/PackageA")
+    }
+}
+
+struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
+    @Test(.withFixture("generated_command_line_tool_with_native_package_traits"), .inTemporaryDirectory)
+    func command_line_tool_with_native_package_traits() async throws {
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
+    @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
+    func ios_app_with_objc_static_framework_package() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "archive",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "-archivePath",
+            temporaryDirectory.appending(component: "App.xcarchive").pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let copiedModuleMapPath = derivedDataPath.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "ArchiveIntermediates",
+            "App",
+            "BuildProductsPath",
+            "Release-iphoneos",
+            "ObjCPlayerSupport.framework",
+            "Modules",
+            "module.modulemap"
+        )
+        let copiedModuleMapExists = try await FileSystem().exists(copiedModuleMapPath)
+        #expect(!copiedModuleMapExists)
+    }
+}
+
+struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
+    @Test(.withFixture("generated_ios_app_with_modulemap_packages"), .inTemporaryDirectory)
+    func ios_app_with_modulemap_packages() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+    }
+}
+
+struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
+    /// Regression coverage for the request to include SwiftPM target headers in generated projects
+    /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
+    /// generated project. Before the fix, a target with a custom module map produced no headers at all,
+    /// and nested/non-public headers were dropped, so this assertion fails without it (red -> green).
+    ///
+    /// The headers are surfaced as project headers rather than public ones on purpose: these targets
+    /// generate as frameworks, and copying a public header into the framework bundle re-homes the
+    /// declarations of sibling C modules that `#include <Module/Header.h>`, breaking consumers under the
+    /// `MemberImportVisibility` upcoming feature (for example swift-nio-ssl, which the Tuist project itself
+    /// depends on). See `discoveredHeaders` for the full reasoning.
+    @Test(.withFixture("generated_app_with_spm_c_target_headers"), .inTemporaryDirectory)
+    func app_with_spm_c_target_headers() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
+        )
+        let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "CLib" }))
+        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
+        let headerNames = Set(headerFiles.compactMap { $0.file?.path })
+
+        #expect(headerNames.isSuperset(of: ["CLib.h", "Deep.h", "CLibInternal.h"]))
+
+        func attributes(of name: String) -> [String] {
+            headerFiles.first(where: { $0.file?.path == name })?.settings?["ATTRIBUTES"]?.arrayValue ?? []
+        }
+        // Headers are surfaced as project headers, so none are tagged `Public` (which would copy them into
+        // the framework bundle and break sibling C shim modules).
+        #expect(!attributes(of: "CLib.h").contains("Public"))
+        #expect(!attributes(of: "Deep.h").contains("Public"))
+        #expect(!attributes(of: "CLibInternal.h").contains("Public"))
+    }
+}
+
+struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
+    /// Regression coverage for SwiftPM C targets whose public headers contain duplicate basenames once
+    /// flattened into an Xcode framework's `Headers` directory. The local package mirrors nanopb's layout:
+    /// top-level wrapper public headers include nested module headers with the same filenames.
+    ///
+    /// Before the fix, both the wrapper and nested headers were marked Public, so Xcode failed with
+    /// "Multiple commands produce ... nanopb.framework/Headers/pb.h". After the fix, Tuist keeps only one
+    /// public header per framework destination. A sibling C target then includes `<nanopb/pb.h>` to ensure
+    /// the remaining project headers do not shadow the real framework public header and recurse through the
+    /// top-level wrapper.
+    @Test(.withFixture("generated_app_with_spm_c_target_duplicate_public_headers"), .inTemporaryDirectory)
+    func app_with_spm_c_target_duplicate_public_headers() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let packageXcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(
+            in: fixturePath.appending(component: "Nanopb")
+        )
+        let xcodeproj = try XcodeProj(pathString: packageXcodeprojPath.pathString)
+        let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "nanopb" }))
+        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
+        let publicHeaderNames = headerFiles
+            .filter { ($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
+            .compactMap { $0.file?.path }
+            .sorted()
+        let nonPublicHeaderNames = headerFiles
+            .filter { !($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
+            .compactMap { $0.file?.path }
+            .sorted()
+
+        #expect(publicHeaderNames == ["pb.h", "pb_common.h"])
+        #expect(nonPublicHeaderNames == ["pb.h", "pb_common.h"])
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+        ])
+    }
+}
+
+struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
+    /// Pins package compiler-setting propagation through static target chains while ensuring
+    /// package object files are linked only by the final binary.
+    @Test(.withFixture("generated_app_with_native_package_static_chain"), .inTemporaryDirectory)
+    func app_with_native_package_static_chain() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(GenerateCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let productsPath = derivedDataPath.appending(components: "Build", "Products", "Debug")
+        for targetName in ["FeatureA", "FeatureB", "FeatureCore", "PackageLeaf"] {
+            let archivePath = productsPath.appending(
+                components: "\(targetName).framework", "Versions", "A", targetName
+            )
+            let archiveMembers = try await CommandRunner().capture(arguments: [
+                "/usr/bin/ar",
+                "-t",
+                archivePath.pathString,
+            ])
+
+            #expect(archiveMembers.contains("\(targetName).o"))
+            #expect(!archiveMembers.contains("PackageFeature.o"))
+            #expect(!archiveMembers.contains("CModule.o"))
+        }
+
+        let appBinaryPath = productsPath.appending(component: "App")
+        let appSymbols = try await CommandRunner().capture(arguments: [
+            "/usr/bin/nm",
+            "-gj",
+            appBinaryPath.pathString,
+        ])
+        #expect(appSymbols.split(separator: "\n").count { $0 == "_package_value" } == 1)
+    }
 }
 
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
@@ -842,17 +1108,10 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
 }
 
 struct GenerateAcceptanceTestiOSAppWithAppClip {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            appClip: "AppClip1",
-            architecture: "arm64"
-        )
-        try await XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await run(BuildCommand.self, "App")
         try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
             "App.app",
             destination: "Debug-iphonesimulator",
@@ -864,6 +1123,11 @@ struct GenerateAcceptanceTestiOSAppWithAppClip {
             "AppClip1.app",
             destination: "Debug-iphonesimulator",
             extension: "AppClip1Widgets"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "AppClip1.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
         )
     }
 }
@@ -1326,6 +1590,14 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     }
 }
 
+struct GenerateAcceptanceTestStaticFrameworkWithBundleMacro {
+    @Test(.withFixture("generated_static_framework_with_bundle_macro"), .inTemporaryDirectory)
+    func static_framework_with_bundle_macro() async throws {
+        try await run(GenerateCommand.self)
+        try await run(TestCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.disabled(), .withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {
@@ -1734,6 +2006,45 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
 //            )
 //        }
 //    }
+}
+
+struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
+    @Test(.withFixture("generated_app_with_buildable_folder_membership"), .inTemporaryDirectory)
+    func app_with_buildable_folder_membership() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let pbxproj = try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj
+        let appTarget = try #require(pbxproj.nativeTargets.first { $0.name == "App" })
+
+        // xcconfigs inside the buildable folder are referenced through the synchronized-group anchor, not a flat reference.
+        let debugConfiguration = try #require(appTarget.buildConfigurationList?.configuration(name: "Debug"))
+        #expect(debugConfiguration.baseConfiguration == nil)
+        #expect(debugConfiguration.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+
+        // SharedStub.swift is added to AppTests via a foreign-target exception set, not a flat reference.
+        let synchronizedGroup = try #require(
+            appTarget.fileSystemSynchronizedGroups?
+                .compactMap { $0 as? PBXFileSystemSynchronizedRootGroup }
+                .first { $0.path == "App" }
+        )
+        let foreignException = try #require(
+            synchronizedGroup.exceptions?
+                .compactMap { $0 as? PBXFileSystemSynchronizedBuildFileExceptionSet }
+                .first { $0.target?.name == "AppTests" }
+        )
+        #expect(foreignException.membershipExceptions == ["SharedStub.swift"])
+
+        // None of the buildable-folder files leak as flat file references at the project root.
+        let fileReferenceNames = pbxproj.fileReferences.compactMap(\.path) + pbxproj.fileReferences.compactMap(\.name)
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.xcconfig") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Info.plist") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("SharedStub.swift") })
+    }
 }
 
 private enum AcceptanceTestError: Error {

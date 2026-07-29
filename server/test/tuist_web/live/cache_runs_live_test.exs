@@ -81,6 +81,36 @@ defmodule TuistWeb.CacheRunsLiveTest do
       assert has_element?(lv, "span", "tuist cache App")
     end
 
+    test "truncates the command column for runs with a long argument list", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given - a cache run with many target arguments, which otherwise widens the command
+      # column unbounded and pushes every other column off-screen.
+      targets = Enum.map(1..40, &"Target#{&1}")
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache" | targets]
+      )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs")
+
+      # Then - the command cell truncates (the default for text_and_description cells) so the
+      # column can no longer grow unbounded.
+      assert has_element?(
+               lv,
+               ~s([data-part="cell"][data-type="text_and_description"][data-truncate]),
+               "cache Target1"
+             )
+    end
+
     test "filters cache runs by user with ran_by filter", %{
       conn: conn,
       user: user,
@@ -104,6 +134,14 @@ defmodule TuistWeb.CacheRunsLiveTest do
         command_arguments: ["cache", "OtherUserApp"]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "ContinuousIntegrationUserApp"],
+        is_ci: true
+      )
+
       {:ok, lv, _html} =
         live(
           conn,
@@ -112,6 +150,93 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
       assert has_element?(lv, "span", "tuist cache UserApp")
       refute has_element?(lv, "span", "tuist cache OtherUserApp")
+      refute has_element?(lv, "span", "tuist cache ContinuousIntegrationUserApp")
+    end
+
+    test "filters cache runs by displayed command", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      matching_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "cache",
+          command_arguments: ["cache", "MatchedApp"]
+        )
+
+      other_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "cache",
+          command_arguments: ["cache", "OtherApp"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "==",
+          "filter_name_val" => "tuist cache MatchedApp"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/cache-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{matching_run.id}")
+      refute has_element?(lv, "tr##{other_run.id}")
+    end
+
+    test "filters cache runs when the command filter contains only the tuist prefix", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      cache_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "cache",
+          command_arguments: ["cache", "warm", "--configuration", "DebugStaging"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "=~",
+          "filter_name_val" => "tuist"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/cache-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{cache_run.id}")
+    end
+
+    test "displays the command name when cache run arguments are empty", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: []
+      )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs")
+
+      assert has_element?(lv, "span", "tuist cache")
     end
   end
 end

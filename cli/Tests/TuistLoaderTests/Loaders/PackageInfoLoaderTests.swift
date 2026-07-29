@@ -111,4 +111,27 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)
     }
+
+    func test_loadPackageInfo_doesNotOverrideWorkingDirectory() async throws {
+        // Given
+        let path = try temporaryPath()
+        mockCommandRunner.succeedCommand(
+            [
+                "swift",
+                "package",
+                "--package-path",
+                path.pathString,
+                "--disable-sandbox",
+                "dump-package",
+            ],
+            output: PackageInfo.testJSON
+        )
+
+        // When
+        _ = try await subject.loadPackageInfo(at: path, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(mockCommandRunner.workingDirectories.count, 1)
+        XCTAssertNil(mockCommandRunner.workingDirectories[0])
+    }
 }

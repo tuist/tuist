@@ -2,6 +2,9 @@ apiVersion: v2
 name: kura
 description: Kura distributed cache mesh for build artifacts and metadata
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
-
+version: 0.1.1
+# The default image tag (the statefulset falls back to .Chart.AppVersion when
+# image.tag is unset). "latest" in the repo tree; the chart release pipeline
+# stamps the concrete kura runtime version at publish, so released charts
+# default to a pinned, existing image.
+appVersion: "latest"

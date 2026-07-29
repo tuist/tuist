@@ -86,8 +86,10 @@
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
                             git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
+                            id: commandEvent.generationId,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
+                            module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
                             name: commandEvent.name,
                             preview_id: commandEvent.previewId,
                             ran_at: commandEvent.ranAt.ISO8601Format(),
@@ -147,11 +149,11 @@
                                             .miss
                                         }
                                         return .init(
-                                            build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in
                                                 .init(
+                                                    additional_hashing_inputs: subhashes.additionalHashingInputs,
                                                     additional_strings: subhashes.additionalStrings,
                                                     buildable_folders: subhashes.buildableFolders,
                                                     copy_files: subhashes.copyFiles,
@@ -196,6 +198,7 @@
                                             hit: hit,
                                             subhashes: selectiveTestingMetadata.subhashes.map { subhashes in
                                                 .init(
+                                                    additional_hashing_inputs: subhashes.additionalHashingInputs,
                                                     additional_strings: subhashes.additionalStrings,
                                                     buildable_folders: subhashes.buildableFolders,
                                                     copy_files: subhashes.copyFiles,
@@ -220,6 +223,27 @@
                         }
                     )
                 }
+            )
+        }
+
+        private func map(
+            moduleCacheOutput: ModuleCacheOutput
+        ) -> Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayloadPayload {
+            let operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayloadPayload
+                .operationPayload = switch moduleCacheOutput.operation
+            {
+            case .download:
+                .download
+            case .upload:
+                .upload
+            }
+            return .init(
+                compressed_size: moduleCacheOutput.compressedSize,
+                duration: moduleCacheOutput.durationInMs,
+                hash: moduleCacheOutput.hash,
+                name: moduleCacheOutput.name,
+                operation: operation,
+                size: moduleCacheOutput.size
             )
         }
 

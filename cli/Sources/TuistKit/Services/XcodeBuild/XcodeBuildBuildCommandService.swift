@@ -84,7 +84,22 @@ struct XcodeBuildBuildCommandService {
             }
         }
 
-        try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+        let buildStartedAt = Date()
+        do {
+            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+        } catch {
+            await captureBuildRunReport(
+                succeeded: false,
+                startedAt: buildStartedAt,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
+            throw error
+        }
+        await captureBuildRunReport(
+            succeeded: true,
+            startedAt: buildStartedAt,
+            passthroughXcodebuildArguments: passthroughXcodebuildArguments
+        )
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
         if derivedDataPath == nil {
@@ -118,11 +133,9 @@ struct XcodeBuildBuildCommandService {
                 return
             }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let destination = passedValue(for: "-destination", arguments: passthroughXcodebuildArguments)
             let buildRunId = await RunMetadataStorage.current.buildRunId
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
-                destination: destination,
                 reference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
@@ -136,6 +149,27 @@ struct XcodeBuildBuildCommandService {
                 archivePath: shardArchivePath
             )
         }
+    }
+
+    /// Captures a lightweight per-scheme build summary into `RunMetadataStorage` so the GitHub Actions
+    /// job summary can be rendered locally, without waiting for the server to finish parsing the
+    /// uploaded activity log.
+    private func captureBuildRunReport(
+        succeeded: Bool,
+        startedAt: Date,
+        passthroughXcodebuildArguments: [String]
+    ) async {
+        guard let scheme = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
+            ?? Environment.current.schemeName
+        else { return }
+
+        await RunMetadataStorage.current.add(
+            buildRunReport: RunReportBuildRun(
+                scheme: scheme,
+                succeeded: succeeded,
+                duration: Date().timeIntervalSince(startedAt)
+            )
+        )
     }
 
     private func uploadBuildRunIfNeeded(

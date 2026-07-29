@@ -11,18 +11,15 @@ struct CacheStorableItemTests {
             [
                 CacheStorableItem(
                     name: "name_one",
-                    hash: "hash_one",
-                    metadata: CacheStorableItemMetadata(time: 100)
+                    hash: "hash_one"
                 ),
                 CacheStorableItem(
                     name: "name_one",
-                    hash: "hash_one",
-                    metadata: CacheStorableItemMetadata(time: 200)
+                    hash: "hash_one"
                 ),
                 CacheStorableItem(
                     name: "name_two",
-                    hash: "hash_one",
-                    metadata: CacheStorableItemMetadata(time: 100)
+                    hash: "hash_one"
                 ),
             ]
         )

@@ -1,6 +1,6 @@
 defmodule TuistWeb.Runs.ModuleCacheTab do
   @moduledoc """
-  Shared component for the Module Cache tab used in both RunDetailLive and TestRunLive.
+  Shared component for the Module Cache tab used in RunDetailLive, BuildRunLive, and TestRunLive.
   """
   use TuistWeb, :html
   use Noora
@@ -19,6 +19,10 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :run, :any, required: true
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
+
+  attr :module_cache_metrics, :map,
+    default: nil,
+    doc: "Per-run module cache network transfer summary (download/upload bytes + throughput), or nil."
 
   def module_cache_tab(assigns) do
     assigns = assign(assigns, :binary_cache_json, binary_cache_targets_json(assigns.run))
@@ -66,6 +70,32 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             }
             value={"#{@binary_cache_analytics.cache_hit_rate}%"}
             id="widget-optimization-summary-cache-hit-rate"
+          />
+          <.widget
+            :if={@module_cache_metrics && @module_cache_metrics.download_bytes > 0}
+            title={dgettext("dashboard_builds", "Downloaded")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Total data downloaded from the remote cache during this run (%{count} artifacts).",
+                count: @module_cache_metrics.download_count
+              )
+            }
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.download_bytes)}
+            id="widget-optimization-summary-module-cache-downloaded"
+          />
+          <.widget
+            :if={@module_cache_metrics && @module_cache_metrics.upload_bytes > 0}
+            title={dgettext("dashboard_builds", "Uploaded")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Total data uploaded to the remote cache during this run (%{count} artifacts).",
+                count: @module_cache_metrics.upload_count
+              )
+            }
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.upload_bytes)}
+            id="widget-optimization-summary-module-cache-uploaded"
           />
         </.card_section>
       </.card>
@@ -119,6 +149,47 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               }
             />
           </.card_section>
+          <div
+            :if={
+              @module_cache_metrics &&
+                (@module_cache_metrics.download_throughput > 0 or
+                   @module_cache_metrics.upload_throughput > 0)
+            }
+            data-part="throughput-widgets"
+          >
+            <.widget
+              :if={@module_cache_metrics.download_throughput > 0}
+              title={dgettext("dashboard_builds", "Download throughput")}
+              description={
+                dgettext(
+                  "dashboard_builds",
+                  "Time-weighted average download throughput from the remote cache during this run."
+                )
+              }
+              value={
+                Tuist.Utilities.ThroughputFormatter.format_throughput(
+                  @module_cache_metrics.download_throughput
+                )
+              }
+              id="widget-module-cache-download-throughput"
+            />
+            <.widget
+              :if={@module_cache_metrics.upload_throughput > 0}
+              title={dgettext("dashboard_builds", "Upload throughput")}
+              description={
+                dgettext(
+                  "dashboard_builds",
+                  "Time-weighted average upload throughput to the remote cache during this run."
+                )
+              }
+              value={
+                Tuist.Utilities.ThroughputFormatter.format_throughput(
+                  @module_cache_metrics.upload_throughput
+                )
+              }
+              id="widget-module-cache-upload-throughput"
+            />
+          </div>
           <div data-part="filters">
             <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
               <.text_input
@@ -160,10 +231,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
                 |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
                 |> Query.drop("binary-cache-page")}"
               }
-              icon={
-                @binary_cache_sort_by == "name" &&
-                  sort_icon(@binary_cache_sort_order)
-              }
+              sort_order={@binary_cache_sort_by == "name" && @binary_cache_sort_order}
             >
               <.text_and_description_cell label={binary_cache_module.name} />
             </:col>
@@ -248,6 +316,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">
           {@target.destinations
+          |> Enum.sort()
           |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
           |> Enum.join(", ")}
         </span>
@@ -336,6 +405,12 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.buildable_folders_hash}</span>
       </div>
+      <div :if={@target.additional_hashing_inputs_hash != ""} data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Additional hashing inputs")}:
+        </span>
+        <span data-part="subhash-value">{@target.additional_hashing_inputs_hash}</span>
+      </div>
       <div :if={not Enum.empty?(@target.additional_strings || [])} data-part="subhash-item">
         <span data-part="subhash-label">
           {dgettext("dashboard_builds", "Additional strings")}:
@@ -347,9 +422,6 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     </div>
     """
   end
-
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
 
   defp sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do
@@ -509,7 +581,8 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
-      destinations: target.destinations,
+      additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
+      destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)

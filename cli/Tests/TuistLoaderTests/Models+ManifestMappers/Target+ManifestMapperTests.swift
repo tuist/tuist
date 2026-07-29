@@ -1,7 +1,10 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -24,6 +27,63 @@ final class TargetManifestMapperErrorTests: TuistUnitTestCase {
             got,
             "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that has a glob pattern."
         )
+    }
+}
+
+struct TargetManifestMapperAdditionalHashingInputsTests {
+    private let fileSystem = FileSystem()
+
+    @Test(.inTemporaryDirectory)
+    func from_mapsAdditionalHashingInputs() async throws {
+        // Given
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let hashingDirectory = rootDirectory.appending(component: "Hashing")
+        let nestedDirectory = hashingDirectory.appending(component: "Nested")
+        let firstFile = hashingDirectory.appending(component: "first.txt")
+        let secondFile = hashingDirectory.appending(component: "second.txt")
+        try await fileSystem.makeDirectory(at: nestedDirectory)
+        try await fileSystem.touch(firstFile)
+        try await fileSystem.touch(secondFile)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: rootDirectory,
+            rootDirectory: rootDirectory
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                additionalHashingInputs: [
+                    .glob(.relativeToRoot("Hashing/first.txt")),
+                    .glob(.path(firstFile.pathString)),
+                    .glob(.relativeToRoot("Hashing/Nested")),
+                    .glob(.relativeToRoot("Hashing/*.txt")),
+                    .string("production"),
+                    .environmentVariable("CONFIGURATION"),
+                    .script("codegen --version"),
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        let expectedInputs: [TargetHashingInput] = [
+            .path(firstFile, isDeclaredAbsolute: false),
+            .path(firstFile, isDeclaredAbsolute: true),
+            .path(nestedDirectory, isDeclaredAbsolute: false),
+            .path(firstFile, isDeclaredAbsolute: false),
+            .path(secondFile, isDeclaredAbsolute: false),
+            .string("production"),
+            .environmentVariable("CONFIGURATION"),
+            .script("codegen --version"),
+        ]
+        #expect(target.additionalHashingInputs == expectedInputs)
     }
 }
 
@@ -206,5 +266,88 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         verify(mockContentHasher)
             .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
             .called(1)
+    }
+
+    func test_from_deduplicatesIdenticalXCFrameworkDependenciesExpandedFromExternalDependencies() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+        let xcframeworkDependency = XcodeGraph.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                infoPlist: .default,
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                dependencies: [
+                    .external(name: "ProductA"),
+                    .external(name: "ProductB"),
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [
+                "ProductA": [xcframeworkDependency],
+                "ProductB": [xcframeworkDependency],
+            ],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.dependencies, [xcframeworkDependency])
+    }
+
+    func test_from_preservesDuplicateAuthoredXCFrameworkDependencies() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+        let manifestDependency = ProjectDescription.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let graphDependency = XcodeGraph.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                infoPlist: .default,
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                dependencies: [
+                    manifestDependency,
+                    manifestDependency,
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.dependencies, [
+            graphDependency,
+            graphDependency,
+        ])
     }
 }

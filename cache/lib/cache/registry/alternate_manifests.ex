@@ -19,14 +19,12 @@ defmodule Cache.Registry.AlternateManifests do
 
   alias Cache.Config
   alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.ManifestVariants
 
   require Logger
 
   @cache_name :registry_alternate_manifests_cache
   @ttl to_timeout(minute: 10)
-  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
-  @swift_tools_version_regex ~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/
-
   def child_spec(_opts) do
     %{
       id: __MODULE__,
@@ -42,15 +40,25 @@ defmodule Cache.Registry.AlternateManifests do
 
     case Cachex.get(cache_name, key) do
       {:ok, nil} ->
-        manifests = discover(scope, name, version)
-        Cachex.put(cache_name, key, manifests, ttl: @ttl)
-        manifests
+        discover_and_maybe_cache(cache_name, key, scope, name, version)
 
       {:ok, manifests} ->
         manifests
 
       _ ->
-        discover(scope, name, version)
+        {_status, manifests} = discover(scope, name, version)
+        manifests
+    end
+  end
+
+  defp discover_and_maybe_cache(cache_name, key, scope, name, version) do
+    case discover(scope, name, version) do
+      {:ok, manifests} ->
+        Cachex.put(cache_name, key, manifests, ttl: @ttl)
+        manifests
+
+      {:error, manifests} ->
+        manifests
     end
   end
 
@@ -65,10 +73,8 @@ defmodule Cache.Registry.AlternateManifests do
       |> ExAws.S3.list_objects_v2(prefix: prefix)
       |> ExAws.stream!()
       |> Stream.map(fn %{key: key} -> {key, Path.basename(key)} end)
-      |> Stream.filter(fn {_key, filename} -> alternate_manifest?(filename) end)
-      |> Enum.flat_map(fn {key, filename} ->
-        descriptor_for(bucket, key, filename, scope, name, version)
-      end)
+      |> Enum.to_list()
+      |> descriptors(bucket, scope, name, version)
     rescue
       error ->
         Logger.warning(
@@ -76,11 +82,58 @@ defmodule Cache.Registry.AlternateManifests do
             inspect(error)
         )
 
-        []
+        {:error, []}
     end
   end
 
-  defp alternate_manifest?(filename), do: Regex.match?(@alternate_manifest_regex, filename)
+  defp descriptors(objects, bucket, scope, name, version) do
+    alternate_objects =
+      Enum.filter(objects, fn {_key, filename} -> ManifestVariants.alternate_manifest?(filename) end)
+
+    if alternate_objects == [],
+      do: {:ok, []},
+      else: descriptors_with_alternates(objects, alternate_objects, bucket, scope, name, version)
+  end
+
+  defp descriptors_with_alternates(objects, alternate_objects, bucket, scope, name, version) do
+    default_object = Enum.find(objects, fn {_key, filename} -> filename == "Package.swift" end)
+
+    case default_descriptor_for(default_object, bucket, scope, name, version) do
+      {:ok, default_descriptor} ->
+        alternates =
+          Enum.flat_map(alternate_objects, fn {key, filename} ->
+            descriptor_for(bucket, key, filename, scope, name, version)
+          end)
+
+        {:ok, ManifestVariants.linkable_alternates(default_descriptor ++ alternates)}
+
+      {:error, _reason} ->
+        {:error, []}
+    end
+  end
+
+  defp default_descriptor_for(nil, _bucket, _scope, _name, _version), do: {:ok, []}
+
+  defp default_descriptor_for({key, filename}, bucket, scope, name, version) do
+    case fetch_content(bucket, key) do
+      {:ok, content} ->
+        {:ok,
+         [
+           %{
+             "swift_version" => filename_swift_version(filename),
+             "swift_tools_version" => ManifestVariants.swift_tools_version(content)
+           }
+         ]}
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to fetch default manifest #{key} for #{scope}/#{name}@#{version}: " <>
+            inspect(reason)
+        )
+
+        {:error, reason}
+    end
+  end
 
   defp descriptor_for(bucket, key, filename, scope, name, version) do
     case fetch_content(bucket, key) do
@@ -88,7 +141,7 @@ defmodule Cache.Registry.AlternateManifests do
         [
           %{
             "swift_version" => filename_swift_version(filename),
-            "swift_tools_version" => parse_swift_tools_version(content)
+            "swift_tools_version" => ManifestVariants.swift_tools_version(content)
           }
         ]
 
@@ -111,21 +164,6 @@ defmodule Cache.Registry.AlternateManifests do
     end
   end
 
-  defp filename_swift_version(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
-
-  defp parse_swift_tools_version(content) do
-    case Regex.run(@swift_tools_version_regex, content) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
+  defp filename_swift_version("Package.swift"), do: nil
+  defp filename_swift_version(filename), do: ManifestVariants.filename_swift_version(filename)
 end

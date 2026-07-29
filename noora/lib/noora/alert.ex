@@ -89,6 +89,7 @@ defmodule Noora.Alert do
         <div data-part="column">
           <span data-part="title">{@title}</span>
           <div :if={@inner_block != []} data-part="description">
+            <span :if={@description}>{@description}</span>
             {render_slot(@inner_block)}
           </div>
           <span :if={@inner_block == [] and @description} data-part="description">

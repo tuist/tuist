@@ -2,11 +2,16 @@ defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "list_alerts/1" do
     test "returns automations for the given project ordered by insertion time" do
@@ -71,6 +76,25 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
       refute updated.enabled
     end
+
+    test "resets the baseline when the monitor definition changes" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:ok, updated} =
+               Automations.update_alert(automation, %{
+                 "trigger_config" => %{"threshold" => 20, "window_type" => "last_days", "window" => "30d"}
+               })
+
+      assert updated.baseline_established_at == nil
+    end
+
+    test "keeps the baseline when only enabled changes" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
+
+      assert updated.baseline_established_at == automation.baseline_established_at
+    end
   end
 
   describe "delete_alert/1" do
@@ -122,6 +146,287 @@ defmodule Tuist.AutomationsTest do
 
       events = Automations.list_active_alert_events(alert.id)
       refute Enum.any?(events, &(&1.test_case_id == test_case_id))
+    end
+  end
+
+  describe "enqueue_flaky_alert_evaluations/2" do
+    test "enqueues one debounced scoped evaluation per project and cadence" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      _flakiness_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      _count_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      _reliability_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+        )
+
+      _disabled =
+        AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flaky_run_count", enabled: false)
+
+      _event_driven =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "test_updated",
+          trigger_config: %{"events" => ["marked_flaky"]}
+        )
+
+      _other_project =
+        AutomationsFixtures.automation_alert_fixture(project: other_project, monitor_type: "flakiness_rate")
+
+      test_case_ids = [Ecto.UUID.generate(), Ecto.UUID.generate()]
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids ++ [hd(test_case_ids), nil])
+
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] = all_enqueued(worker: AlertEvaluationWorker)
+
+      assert project_id == project.id
+    end
+
+    test "leaves calendar-window alerts and rolling baselines to the scheduler" do
+      project = ProjectsFixtures.project_fixture()
+
+      _calendar_window_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate"
+        )
+
+      _rolling_baseline_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          baseline_established_at: nil,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [] = all_enqueued(worker: AlertEvaluationWorker)
+    end
+
+    test "merges repeated enqueue calls into one scoped evaluation job per project and cadence" do
+      project = ProjectsFixtures.project_fixture()
+
+      _alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      [first_id, second_id, third_id] = Enum.map(1..3, fn _ -> Ecto.UUID.generate() end)
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [first_id, second_id])
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [second_id, third_id])
+
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] =
+               all_enqueued(worker: AlertEvaluationWorker)
+
+      assert project_id == project.id
+    end
+
+    test "keeps different alert cadences in separate evaluation jobs" do
+      project = ProjectsFixtures.project_fixture()
+
+      _five_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      _one_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          cadence: "1m",
+          trigger_config: %{
+            "threshold" => 90,
+            "comparison" => "lt",
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [60, 300] ==
+               [worker: AlertEvaluationWorker]
+               |> all_enqueued()
+               |> Enum.map(& &1.args["cadence_seconds"])
+               |> Enum.sort()
+    end
+
+    test "schedules scoped evaluations at the alert cadence" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "30s"
+        )
+
+      enqueued_at = DateTime.utc_now(:second)
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      assert [%{scheduled_at: scheduled_at}] = all_enqueued(worker: AlertEvaluationWorker)
+      assert DateTime.diff(scheduled_at, enqueued_at, :second) in 30..31
+    end
+
+    test "does not enqueue a second scoped evaluation while the existing job is active" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      job_query =
+        from(job in Oban.Job,
+          where: job.worker == ^inspect(AlertEvaluationWorker)
+        )
+
+      job = Repo.one!(job_query)
+
+      for state <- ["executing", "retryable"] do
+        Repo.update!(Ecto.Changeset.change(job, state: state))
+
+        assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+        assert [%{id: job_id, state: ^state}] = Repo.all(job_query)
+        assert job_id == job.id
+      end
+    end
+  end
+
+  describe "recent_test_case_run_changes_for_alert/1" do
+    test "returns distinct recently inserted test case ids for the alert project" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, alert} = Automations.update_alert_scoped_evaluation_cursor(alert, ~U[2026-06-09 10:00:50Z])
+
+      first_id = Ecto.UUID.generate()
+      second_id = Ecto.UUID.generate()
+      corrected_id = Ecto.UUID.generate()
+      outside_window_id = Ecto.UUID.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: Ecto.UUID.generate(),
+        inserted_at: ~N[2026-06-09 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: first_id,
+        inserted_at: ~N[2026-06-09 10:00:45.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: first_id,
+        inserted_at: ~N[2026-06-09 10:00:48.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: second_id,
+        inserted_at: ~N[2026-06-09 10:00:46.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: corrected_id,
+        ran_at: ~N[2025-01-01 00:00:00.000000],
+        inserted_at: ~N[2026-06-09 10:10:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: outside_window_id,
+        inserted_at: ~N[2026-06-09 10:15:50.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: nil,
+        inserted_at: ~N[2026-06-09 10:00:49.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: other_project.id,
+        test_case_id: Ecto.UUID.generate(),
+        inserted_at: ~N[2026-06-09 10:00:49.000000]
+      )
+
+      assert %{test_case_ids: test_case_ids, cursor: cursor, more?: true} =
+               Automations.recent_test_case_run_changes_for_alert(alert)
+
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id, corrected_id])
+      assert cursor == ~U[2026-06-09 10:15:50Z]
+    end
+  end
+
+  describe "scoped_evaluation_ranges/1" do
+    test "keeps ordered identifiers in several bounded ranges" do
+      identifiers = Enum.to_list(1..8001)
+
+      ranges = Automations.scoped_evaluation_ranges(identifiers)
+
+      assert Enum.map(ranges, &length/1) == [2000, 2000, 2000, 2000, 1]
+      assert List.flatten(ranges) == identifiers
+    end
+
+    test "splits smaller sets into at least four ranges" do
+      identifiers = Enum.to_list(1..4000)
+
+      assert [1000, 1000, 1000, 1000] ==
+               identifiers
+               |> Automations.scoped_evaluation_ranges()
+               |> Enum.map(&length/1)
     end
   end
 

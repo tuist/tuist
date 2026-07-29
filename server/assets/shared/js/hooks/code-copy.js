@@ -9,6 +9,10 @@ function flashCopyCheck(button) {
   }, 2000);
 }
 
+function copySourceText(container) {
+  return container?.querySelector('[data-part="copy-source"]')?.content?.textContent;
+}
+
 function setupCodeCopy(el) {
   el.querySelectorAll('.code-window [data-part="copy"]').forEach((button) => {
     button.setAttribute("role", "button");
@@ -16,9 +20,10 @@ function setupCodeCopy(el) {
     button.setAttribute("aria-label", "Copy code");
 
     button.addEventListener("click", () => {
-      const codeBlock = button.closest(".code-window")?.querySelector('[data-part="code"]');
+      const codeWindow = button.closest(".code-window");
+      const codeBlock = codeWindow?.querySelector('[data-part="code"]');
       if (!codeBlock) return;
-      copyTextToClipboard(codeBlock.textContent.trim())
+      copyTextToClipboard(copySourceText(codeWindow) ?? codeBlock.textContent.trim())
         .then(() => flashCopyCheck(button))
         .catch((err) => console.error("Failed to copy code:", err));
     });
@@ -41,4 +46,4 @@ const CodeCopy = {
   },
 };
 
-export { CodeCopy, setupCodeCopy, flashCopyCheck };
+export { CodeCopy, setupCodeCopy, flashCopyCheck, copySourceText };

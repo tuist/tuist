@@ -4,10 +4,6 @@
 [bump]
 initial_tag = "0.1.0"
 
-[remote.github]
-owner = "tuist"
-repo = "tuist"
-
 [changelog]
 header = """
 # Changelog
@@ -22,16 +18,7 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
-  {% if commit.github.pr_title -%}
-    {%- set commit_message = commit.github.pr_title -%}
-  {%- else -%}
-    {%- set commit_message = commit.message -%}
-  {%- endif -%}
-  * {{ commit_message | split(pat="\n") | first | trim }}\
-    {% if commit.github.username %} by [@{{ commit.github.username }}](https://github.com/{{ commit.github.username }}){%- endif -%}
-    {% if commit.github.pr_number %} in \
-      [#{{ commit.github.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.github.pr_number }}) \
-    {%- endif %}
+  * {{ commit.message | split(pat="\n") | first | trim }}
 {%- endfor -%}
 {% endfor %}
 
@@ -44,7 +31,7 @@ body = """
 {% endif %}
 
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/tuist/tuist
 {%- endmacro -%}
 """
 trim = true
@@ -60,27 +47,33 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 commit_preprocessors = [
-    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
+    # Linkify (#123) PR refs straight from commit messages.
+    # [remote.github] is intentionally unset so git-cliff makes no GitHub API
+    # calls per release (each would paginate the whole repo's commits+PRs).
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/tuist/tuist/pull/${1}))" },
 ]
-# Match commits scoped to linux-runner-image. Covers the Linux
-# OCI image hosting customer-facing GitHub Actions runners
-# (Dockerfile + dispatch-poll script). Distinct from the
-# macOS runner-image which lives in `infra/runner-image/`.
+# Path-scoped releases: check.sh and the release-notes / CHANGELOG
+# steps pass `--include-path infra/linux-runner-image/**`, so the
+# directory is the release gate. Parsers match by type only (not by a
+# `linux-runner-image` scope), so any feat/fix touching the image —
+# whatever the commit's conventional scope — bumps it. Covers the
+# Linux OCI image hosting customer-facing GitHub Actions runners
+# (Dockerfile + dispatch-poll script); the macOS runner-image lives
+# in `infra/runner-image/` and is path-filtered out.
 commit_parsers = [
-    { message = "^feat\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\blinux-runner-image\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\blinux-runner-image\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\blinux-runner-image\\b[^)]*\\)", skip = true },
-    { message = "^[a-z]+\\([^)]+\\)", skip = true },
+    { message = "^feat[(:!]", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix[(:!]", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?[(:!]", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf[(:!]", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor[(:!]", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style[(:!]", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test[(:!]", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore[(:!]", skip = true },
+    { message = "^ci[(:!]", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = true
-tag_pattern = "linux-runner-image@[0-9].*"
+tag_pattern = "^linux-runner-image@[0-9].*"
 skip_tags = "beta|alpha"
 ignore_tags = "rc"
 topo_order = false

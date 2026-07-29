@@ -1,0 +1,3 @@
+# Vendored @grafana/create-plugin scaffolding — collapse in diffs, exclude from
+# language stats. Refresh with `npx @grafana/create-plugin@latest update`.
+.config/** linguist-generated=true

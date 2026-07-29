@@ -24,6 +24,10 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The Tuist Selective Tests cache
     case selectiveTests
 
+    /// Per-project generation metadata, used to link local Xcode builds back to the graph
+    /// uploaded by the last `tuist generate`.
+    case generationMetadata
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -42,6 +46,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "Binaries"
         case .selectiveTests:
             return "SelectiveTests"
+        case .generationMetadata:
+            return "GenerationMetadata"
         }
     }
 }

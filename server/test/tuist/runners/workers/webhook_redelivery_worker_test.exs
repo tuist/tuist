@@ -6,6 +6,8 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorkerTest do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners.Workers.WebhookRedeliveryWorker
 
+  @moduletag capture_log: true
+
   setup :verify_on_exit!
 
   defp delivery(opts) do

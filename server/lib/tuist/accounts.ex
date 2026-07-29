@@ -10,11 +10,13 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AccountTokenProject
+  alias Tuist.Accounts.AgentAuth
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
@@ -25,13 +27,66 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.Kura
-  alias Tuist.Namespace
   alias Tuist.Repo
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 
   @reset_password_delivery_cooldown_in_minutes 5
+  @sso_configuration_attr_keys [
+    :sso_provider,
+    :sso_organization_id,
+    :sso_enforced,
+    :sso_login_domain,
+    :sso_login_domain_verification_token,
+    :sso_login_domain_verified_at,
+    :sso_automatic_enrollment,
+    :sso_legacy_email_domain_fallback,
+    :oauth2_client_id,
+    :oauth2_client_secret,
+    :oauth2_encrypted_client_secret,
+    :oauth2_authorize_url,
+    :oauth2_token_url,
+    :oauth2_user_info_url
+  ]
+
+  # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
+  # These delegators keep `Tuist.Accounts` as the single context facade.
+  defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate agent_auth_poll_interval_seconds(), to: AgentAuth, as: :protocol_poll_interval_seconds
+  defdelegate agent_auth_id_jag_max_auth_age_seconds(), to: AgentAuth, as: :id_jag_max_auth_age_seconds
+  defdelegate agent_auth_service_jwks(), to: AgentAuth, as: :service_jwks
+  defdelegate claimed_agent_registration_user(account_token_id), to: AgentAuth, as: :claimed_user_for_account_token
+  defdelegate claimed_protocol_agent_user(registration_id), to: AgentAuth, as: :claimed_user_for_registration
+  defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+  defdelegate create_protocol_agent_registration(attrs), to: AgentAuth, as: :create_protocol_registration
+  defdelegate initiate_protocol_agent_claim(attrs), to: AgentAuth, as: :initiate_protocol_claim
+  defdelegate protocol_agent_claim_view(claim_view_token, user), to: AgentAuth, as: :get_protocol_claim_view
+  defdelegate confirm_protocol_agent_claim(attrs), to: AgentAuth, as: :confirm_protocol_claim
+
+  defdelegate exchange_protocol_agent_assertion(assertion, audience, resource),
+    to: AgentAuth,
+    as: :exchange_protocol_assertion
+
+  defdelegate poll_protocol_agent_claim(claim_token, audience), to: AgentAuth, as: :poll_protocol_claim
+  defdelegate revoke_protocol_agent_access_token(token), to: AgentAuth, as: :revoke_protocol_access_token
+  defdelegate receive_protocol_agent_event(token, audience), to: AgentAuth, as: :receive_protocol_event
+
+  defdelegate revoke_agent_registrations(logout_token, audience),
+    to: AgentAuth,
+    as: :revoke_registrations
+
+  defdelegate agent_registration_credential_revoked?(claims),
+    to: AgentAuth,
+    as: :credential_revoked?
+
+  defdelegate resend_agent_registration_claim(attrs), to: AgentAuth, as: :resend_claim
+  defdelegate complete_agent_registration_claim(attrs), to: AgentAuth, as: :complete_claim
+
+  defdelegate get_agent_registration_claim_view(claim_view_token),
+    to: AgentAuth,
+    as: :get_claim_view
 
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
@@ -79,6 +134,22 @@ defmodule Tuist.Accounts do
 
   def get_account_by_handle(handle) do
     Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
+  end
+
+  @doc """
+  Batch lookup for `get_account_by_handle/1`. Returns a map of
+  `handle => account_id` for every handle that resolves. Handles that
+  don't match an account are simply absent from the map.
+
+  Use this instead of mapping over `get_account_by_handle/1` to avoid
+  the N+1 query pattern when resolving Kura-style handle batches.
+  """
+  def get_account_ids_by_handles(handles) when is_list(handles) do
+    handles = Enum.uniq(handles)
+
+    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
+    |> Repo.all()
+    |> Map.new()
   end
 
   @doc ~S"""
@@ -252,18 +323,143 @@ defmodule Tuist.Accounts do
       {:ok, organization} ->
         sso_attrs =
           attrs
+          |> normalize_sso_configuration_attr_keys()
+          |> drop_sso_login_domain_verification_attrs()
           |> Map.put(:sso_provider, sso_provider)
+          |> prepare_sso_legacy_fallback_attrs(organization)
+          |> prepare_sso_login_domain_attrs(organization)
           |> maybe_rename_secret(
             :oauth2_client_secret,
             :oauth2_encrypted_client_secret
           )
 
         organization
-        |> Organization.update_changeset(sso_attrs)
+        |> Organization.sso_configuration_changeset(sso_attrs)
         |> Repo.update()
 
       {:error, :not_found} = error ->
         error
+    end
+  end
+
+  def verify_sso_login_domain(
+        %Organization{sso_login_domain: domain, sso_login_domain_verification_token: token} = organization
+      )
+      when is_binary(domain) and is_binary(token) do
+    if SSOLoginDomainVerification.verified?(domain, token) do
+      persist_verified_sso_login_domain(organization.id, domain, token)
+    else
+      {:error, :verification_record_not_found}
+    end
+  end
+
+  def verify_sso_login_domain(%Organization{}), do: {:error, :login_domain_not_configured}
+
+  def sso_login_domain_record_name(%Organization{sso_login_domain: domain}) when is_binary(domain) do
+    SSOLoginDomainVerification.record_name(domain)
+  end
+
+  def sso_login_domain_record_name(%Organization{}), do: nil
+
+  def sso_login_domain_record_value(%Organization{sso_login_domain_verification_token: token}) when is_binary(token) do
+    SSOLoginDomainVerification.record_value(token)
+  end
+
+  def sso_login_domain_record_value(%Organization{}), do: nil
+
+  defp persist_verified_sso_login_domain(organization_id, domain, token) do
+    Repo.transaction(fn ->
+      from(o in Organization,
+        where:
+          o.id == ^organization_id and o.sso_login_domain == ^domain and
+            o.sso_login_domain_verification_token == ^token,
+        lock: "FOR UPDATE"
+      )
+      |> Repo.one()
+      |> update_verified_sso_login_domain()
+    end)
+  end
+
+  defp update_verified_sso_login_domain(nil), do: Repo.rollback(:verification_record_not_found)
+
+  defp update_verified_sso_login_domain(organization) do
+    organization
+    |> Organization.verify_sso_login_domain_changeset(DateTime.truncate(DateTime.utc_now(), :second))
+    |> Repo.update()
+    |> case do
+      {:ok, organization} -> organization
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
+
+  defp prepare_sso_login_domain_attrs(attrs, organization) do
+    case Map.fetch(attrs, :sso_login_domain) do
+      {:ok, login_domain} ->
+        domain = normalize_sso_login_domain(login_domain)
+
+        if domain == organization.sso_login_domain do
+          Map.put(attrs, :sso_login_domain, domain)
+        else
+          attrs
+          |> Map.put(:sso_login_domain, domain)
+          |> Map.put(
+            :sso_login_domain_verification_token,
+            if(is_nil(domain), do: nil, else: generate_random_string(32))
+          )
+          |> Map.put(:sso_login_domain_verified_at, nil)
+        end
+
+      :error ->
+        attrs
+    end
+  end
+
+  defp normalize_sso_configuration_attr_keys(attrs) do
+    Enum.reduce(@sso_configuration_attr_keys, attrs, fn key, attrs ->
+      string_key = Atom.to_string(key)
+
+      case Map.fetch(attrs, string_key) do
+        {:ok, value} ->
+          attrs
+          |> Map.delete(string_key)
+          |> Map.put_new(key, value)
+
+        :error ->
+          attrs
+      end
+    end)
+  end
+
+  defp prepare_sso_legacy_fallback_attrs(attrs, organization) do
+    provider_changed? =
+      Map.has_key?(attrs, :sso_provider) and attrs.sso_provider != organization.sso_provider
+
+    organization_id_changed? =
+      Map.has_key?(attrs, :sso_organization_id) and
+        attrs.sso_organization_id != organization.sso_organization_id
+
+    if organization.sso_legacy_email_domain_fallback and
+         (provider_changed? or organization_id_changed?) do
+      Map.put(attrs, :sso_legacy_email_domain_fallback, false)
+    else
+      attrs
+    end
+  end
+
+  defp drop_sso_login_domain_verification_attrs(attrs) do
+    Map.drop(attrs, [
+      :sso_login_domain_verification_token,
+      :sso_login_domain_verified_at,
+      :sso_legacy_email_domain_fallback
+    ])
+  end
+
+  defp normalize_sso_login_domain(nil), do: nil
+
+  defp normalize_sso_login_domain(domain) do
+    case domain |> String.trim() |> String.trim_trailing(".") |> String.downcase() do
+      "" -> nil
+      normalized_domain -> normalized_domain
     end
   end
 
@@ -275,8 +471,15 @@ defmodule Tuist.Accounts do
   end
 
   def update_organization(%Organization{} = organization, attrs) do
+    attrs =
+      attrs
+      |> normalize_sso_configuration_attr_keys()
+      |> drop_sso_login_domain_verification_attrs()
+      |> prepare_sso_legacy_fallback_attrs(organization)
+      |> prepare_sso_login_domain_attrs(organization)
+
     Multi.new()
-    |> Multi.update(:organization, Organization.update_changeset(organization, attrs))
+    |> Multi.update(:organization, Organization.sso_configuration_changeset(organization, attrs))
     |> Multi.run(:assign_sso_users, fn _repo, %{organization: updated_organization} ->
       if sso_newly_enabled?(
            organization.sso_provider,
@@ -317,7 +520,14 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account] ->
+      {:error, part, changeset, _changes}
+      when part in [
+             :organization,
+             :account,
+             :runner_concurrency_limits,
+             :default_runner_profile,
+             :default_macos_runner_profile
+           ] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -329,6 +539,11 @@ defmodule Tuist.Accounts do
   defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
+    sso_login_domain = Keyword.get(opts, :sso_login_domain)
+    sso_login_domain_verification_token = Keyword.get(opts, :sso_login_domain_verification_token)
+    sso_login_domain_verified_at = Keyword.get(opts, :sso_login_domain_verified_at)
+    sso_automatic_enrollment = Keyword.get(opts, :sso_automatic_enrollment, false)
+    sso_legacy_email_domain_fallback = Keyword.get(opts, :sso_legacy_email_domain_fallback, false)
     oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
     oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
     oauth2_authorize_url = Keyword.get(opts, :oauth2_authorize_url)
@@ -345,6 +560,11 @@ defmodule Tuist.Accounts do
       Organization.create_changeset(%Organization{}, %{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
+        sso_login_domain: sso_login_domain,
+        sso_login_domain_verification_token: sso_login_domain_verification_token,
+        sso_login_domain_verified_at: sso_login_domain_verified_at,
+        sso_automatic_enrollment: sso_automatic_enrollment,
+        sso_legacy_email_domain_fallback: sso_legacy_email_domain_fallback,
         oauth2_client_id: oauth2_client_id,
         oauth2_encrypted_client_secret: oauth2_client_secret,
         oauth2_authorize_url: oauth2_authorize_url,
@@ -367,6 +587,15 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+      RunnerConcurrency.create_default_limits(account)
+    end)
+    |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_for_account(account)
+    end)
+    |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_macos_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -479,8 +708,19 @@ defmodule Tuist.Accounts do
         assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
         {:ok, oauth_identity}
 
-      error ->
-        error
+      {:error, %Changeset{}} = error ->
+        case get_oauth2_identity(
+               attrs.provider,
+               attrs.id_in_provider,
+               attrs[:provider_organization_id]
+             ) do
+          {:ok, %Oauth2Identity{user_id: ^user_id} = oauth_identity} ->
+            assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+            {:ok, oauth_identity}
+
+          _ ->
+            error
+        end
     end
   end
 
@@ -518,7 +758,7 @@ defmodule Tuist.Accounts do
 
     query =
       if provider in [:okta, :oauth2] do
-        from o in query, where: o.provider_organization_id == ^provider_organization_id
+        from(o in query, where: o.provider_organization_id == ^provider_organization_id)
       else
         query
       end
@@ -651,6 +891,15 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+        RunnerConcurrency.create_default_limits(account)
+      end)
+      |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_for_account(account)
+      end)
+      |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_macos_for_account(account)
+      end)
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -686,6 +935,11 @@ defmodule Tuist.Accounts do
         else
           {:error, changeset}
         end
+
+      {:error, step, reason, _}
+      when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
+        {:error, :internal_server_error}
     end
   end
 
@@ -812,8 +1066,7 @@ defmodule Tuist.Accounts do
         user
 
       error ->
-        # Re-raise any other errors
-        {:ok, _} = error
+        raise "Unexpected result from create_user/2 while creating OAuth2 user: #{inspect(error)}"
     end
   end
 
@@ -821,7 +1074,9 @@ defmodule Tuist.Accounts do
        when not is_nil(provider_organization_id) do
     organization = organization_by_sso_credentials(provider, provider_organization_id)
 
-    if organization do
+    if organization &&
+         (not is_nil(get_user_role_in_organization(user, organization)) ||
+            sso_automatic_enrollment_allowed?(organization, user.email)) do
       add_user_to_organization(user, organization, role: :user)
     end
   end
@@ -858,7 +1113,10 @@ defmodule Tuist.Accounts do
   """
   def assign_existing_sso_users_to_organization(organization, provider, provider_organization_id)
       when not is_nil(provider) and not is_nil(provider_organization_id) do
-    users = find_unassigned_sso_users(organization, provider, provider_organization_id)
+    users =
+      organization
+      |> find_unassigned_sso_users(provider, provider_organization_id)
+      |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
 
     Enum.each(users, fn user ->
       add_user_to_organization(user, organization, role: :user)
@@ -1087,6 +1345,29 @@ defmodule Tuist.Accounts do
     invitation
   end
 
+  def resend_invitation(%Invitation{} = invitation, %{url: url_fun}, opts \\ []) when is_function(url_fun, 1) do
+    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
+    invitation = Repo.preload(invitation, [:inviter, :organization])
+    account = get_account_from_organization(invitation.organization)
+
+    result =
+      invitation
+      |> Invitation.resend_changeset(%{token: token})
+      |> Repo.update()
+
+    if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
+      UserNotifier.deliver_invitation(invitation.invitee_email, %{
+        inviter: invitation.inviter,
+        to: %{organization: invitation.organization, account: account},
+        url: url_fun.(token)
+      })
+    end
+
+    result
+  end
+
+  def invitation_expired?(%Invitation{} = invitation), do: Invitation.expired?(invitation)
+
   def invite_users_to_organization(emails, %{
         inviter: %User{id: user_id} = inviter,
         to: %Organization{id: organization_id} = organization,
@@ -1139,8 +1420,21 @@ defmodule Tuist.Accounts do
         invitee: %User{} = invitee,
         organization: %Organization{} = organization
       }) do
-    add_user_to_organization(invitee, organization)
-    Repo.delete(invitation)
+    case Repo.get(Invitation, invitation.id) do
+      nil ->
+        {:error, :not_found}
+
+      %Invitation{token: token} when token != invitation.token ->
+        {:error, :not_found}
+
+      %Invitation{} = invitation ->
+        if Invitation.expired?(invitation) do
+          {:error, :expired}
+        else
+          add_user_to_organization(invitee, organization)
+          Repo.delete(invitation)
+        end
+    end
   end
 
   def delete_invitation(%{invitation: %Invitation{} = invitation}) do
@@ -1153,13 +1447,7 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token, invitee_email: invitee.email)
       |> Repo.preload(inviter: :account)
 
-    cond do
-      is_nil(invitation) ->
-        {:error, :not_found}
-
-      !is_nil(invitation) ->
-        {:ok, invitation}
-    end
+    invitation_result(invitation)
   end
 
   def get_invitation_by_token(token) do
@@ -1168,9 +1456,16 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token)
       |> Repo.preload(inviter: :account)
 
-    case invitation do
-      nil -> {:error, :not_found}
-      invitation -> {:ok, invitation}
+    invitation_result(invitation)
+  end
+
+  defp invitation_result(nil), do: {:error, :not_found}
+
+  defp invitation_result(%Invitation{} = invitation) do
+    if Invitation.expired?(invitation) do
+      {:error, :expired}
+    else
+      {:ok, invitation}
     end
   end
 
@@ -1191,6 +1486,117 @@ defmodule Tuist.Accounts do
       )
 
     Repo.exists?(oauth2_identity_query)
+  end
+
+  @doc """
+  Returns true when single sign-on is enforced for the given email. Existing
+  users are resolved through organization membership. Unknown users are
+  resolved through a verified login email domain. Organizations configured
+  before domain verification was introduced temporarily retain the previous
+  provider-identifier heuristic until they verify a domain.
+
+  Used by the auth.md agent-registration flow to refuse minting MCP credentials
+  for SSO-managed users via mailbox proof or trusted agent-provider assertions:
+  those paths bypass the configured IdP and would otherwise be a back door
+  around the organization's SSO policy.
+  """
+  def sso_enforced_for_email?(email) when is_binary(email) do
+    case get_user_by_email(email) do
+      {:ok, user} -> user_has_sso_enforced_organization?(user)
+      {:error, :not_found} -> email_domain_has_sso_enforced_organization?(email)
+    end
+  end
+
+  def sso_enforced_for_email?(_email), do: false
+
+  @doc """
+  Returns true when at least one organization on this instance has an Okta or
+  generic OAuth2 SSO provider configured. Drives whether the login page surfaces
+  the SSO entry point: the generic login form has no email yet, so it can't
+  resolve a single organization and instead asks whether SSO is reachable on the
+  instance at all.
+
+  Scoped to `:okta`/`:oauth2` because those are the providers the email-based
+  `/users/log_in/sso` flow resolves by domain. Google SSO logs in through the
+  regular Google button instead, so it must not surface a dead-end SSO entry.
+  """
+  def sso_configured? do
+    Repo.exists?(from(o in Organization, where: o.sso_provider in [:okta, :oauth2]))
+  end
+
+  @doc """
+  Returns true when `user` is a Tuist operator: in dev, or an account whose
+  email belongs to the operator email domain
+  (`Tuist.Environment.operator_email_domain/0`).
+
+  On tuist-hosted (tuist.dev) the domain match alone isn't enough: operators
+  sign into the org-restricted Tuist Google Workspace, so we additionally
+  require the Google hosted-domain (`hd`) match. A self-hosted instance has no
+  Tuist Google Workspace — operators there are whoever the instance configures
+  via the operator email domain — so the Google check is skipped, not the whole
+  operator concept.
+
+  This is an eligibility heuristic, not an authorization boundary: it
+  decides whether a non-member is routed to the ops.tuist.dev reason
+  form instead of getting a 404. The actual authorization is the
+  signed grant minted there (and verified offline). Replaces the old
+  static `ops_user_handles` allowlist.
+  """
+  def tuist_operator?(%User{} = user) do
+    Environment.dev?() or operator_email?(user)
+  end
+
+  def tuist_operator?(_), do: false
+
+  defp operator_email?(%User{email: email} = user) when is_binary(email) do
+    domain = Environment.operator_email_domain()
+
+    String.ends_with?(String.downcase(email), "@" <> domain) and
+      (not Environment.tuist_hosted?() or google_workspace_member?(user, domain))
+  end
+
+  defp operator_email?(_), do: false
+
+  # Only enforced on tuist-hosted. Operators authenticate through Google
+  # Workspace SSO — our preferred, org-restricted sign-in. We verify membership
+  # the same way org SSO does: Google's hosted-domain (`hd`) claim, captured at
+  # sign-in as the identity's `provider_organization_id`. Matching it against
+  # the operator domain proves the account belongs to our Workspace rather than
+  # inferring it from the email string. The email/password confirmation flow
+  # (which sets `confirmed_at`, something Google sign-in never does) and other
+  # OAuth providers do not qualify a hosted operator.
+  defp google_workspace_member?(%User{id: id}, domain) do
+    Repo.exists?(
+      from(o in Oauth2Identity,
+        where: o.user_id == ^id and o.provider == :google and o.provider_organization_id == ^domain
+      )
+    )
+  end
+
+  defp user_has_sso_enforced_organization?(user) do
+    user
+    |> get_user_organization_accounts()
+    |> Enum.any?(fn %{organization: organization} -> organization.sso_enforced end)
+  end
+
+  defp email_domain_has_sso_enforced_organization?(email) do
+    case email_domain(email) do
+      nil ->
+        false
+
+      domain ->
+        legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
+
+        Repo.exists?(
+          from(o in Organization,
+            where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
+            where:
+              (o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at)) or
+                (o.sso_legacy_email_domain_fallback == true and
+                   o.sso_organization_id in ^legacy_organization_ids)
+          )
+        )
+    end
   end
 
   def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
@@ -1216,7 +1622,9 @@ defmodule Tuist.Accounts do
             r.resource_id == ^organization_id
       )
 
-    Repo.exists?(query) or belongs_to_sso_organization?(user, organization)
+    Repo.exists?(query) or
+      (sso_automatic_enrollment_allowed?(organization, user.email) and
+         belongs_to_sso_organization?(user, organization))
   end
 
   def get_invitation_by_id(id) do
@@ -1233,9 +1641,12 @@ defmodule Tuist.Accounts do
   end
 
   def get_pending_invitations_by_email(invitee_email) do
+    validity_days = Invitation.validity_days()
+
     Repo.all(
       from(i in Invitation,
         where: i.invitee_email == ^invitee_email,
+        where: i.updated_at > ago(^validity_days, "day"),
         order_by: [desc: i.created_at]
       )
     )
@@ -1354,24 +1765,6 @@ defmodule Tuist.Accounts do
     account
     |> Account.update_changeset(attrs)
     |> Repo.update()
-  end
-
-  @doc """
-  Creates a namespace tenant for the account and updates the account with the namespace_tenant_id.
-  """
-  def create_namespace_tenant_for_account(%Account{} = account) do
-    case Namespace.create_tenant(
-           account.name,
-           account.id
-         ) do
-      {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}} ->
-        account
-        |> Account.update_changeset(%{namespace_tenant_id: namespace_tenant_id})
-        |> Repo.update()
-
-      {:error, reason} ->
-        {:error, reason}
-    end
   end
 
   @doc """
@@ -1528,11 +1921,12 @@ defmodule Tuist.Accounts do
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
     Repo.exists?(
-      from t in UserToken,
+      from(t in UserToken,
         where:
           t.user_id == ^user_id and
             t.context == "reset_password" and
             t.inserted_at > ago(@reset_password_delivery_cooldown_in_minutes, "minute")
+      )
     )
   end
 
@@ -1665,6 +2059,29 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Gets a specific account token by ID for a given account.
+  """
+  def get_account_token(%Account{} = account, token_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    case UUIDv7.cast(token_id) do
+      {:ok, token_id} ->
+        case Repo.one(
+               from(t in AccountToken,
+                 where: t.id == ^token_id and t.account_id == ^account.id,
+                 preload: ^preload
+               )
+             ) do
+          nil -> {:error, :not_found}
+          token -> {:ok, token}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Gets a specific account token by name for a given account.
   """
   def get_account_token_by_name(%Account{} = account, token_name, opts \\ []) do
@@ -1765,28 +2182,105 @@ defmodule Tuist.Accounts do
   end
 
   defp sso_organization_for_email_domain(email) do
-    case String.split(email, "@") do
-      [_username, domain] ->
-        okta_domain = String.replace(domain, ".com", ".okta.com")
-        url_domain = "https://#{domain}"
+    case email_domain(email) do
+      nil ->
+        {:error, :not_found}
 
-        case Repo.one(
-               from(o in Organization,
-                 where: o.sso_provider in [:okta, :oauth2],
-                 where:
-                   o.sso_organization_id == ^domain or
-                     o.sso_organization_id == ^okta_domain or
-                     o.sso_organization_id == ^url_domain
-               )
-             ) do
+      domain ->
+        legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
+
+        verified_organization =
+          Repo.one(
+            from(o in Organization,
+              where: o.sso_provider in [:okta, :oauth2],
+              where: o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at),
+              limit: 1
+            )
+          )
+
+        legacy_organization =
+          fn ->
+            Repo.one(
+              from(o in Organization,
+                where: o.sso_provider in [:okta, :oauth2],
+                where:
+                  o.sso_legacy_email_domain_fallback == true and
+                    o.sso_organization_id in ^legacy_organization_ids,
+                order_by: [asc: o.id],
+                limit: 1
+              )
+            )
+          end
+
+        case verified_organization || legacy_organization.() do
           %Organization{} = organization -> {:ok, organization}
           nil -> {:error, :not_found}
         end
-
-      _ ->
-        {:error, :not_found}
     end
   end
+
+  def sso_automatic_enrollment_allowed?(%Organization{sso_automatic_enrollment: false}, _email), do: false
+
+  def sso_automatic_enrollment_allowed?(
+        %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true},
+        _email
+      ), do: true
+
+  def sso_automatic_enrollment_allowed?(%Organization{sso_provider: :google, sso_automatic_enrollment: true}, _email),
+    do: true
+
+  def sso_automatic_enrollment_allowed?(
+        %Organization{
+          sso_login_domain: domain,
+          sso_login_domain_verified_at: verified_at,
+          sso_automatic_enrollment: true
+        },
+        email
+      )
+      when is_binary(domain) do
+    not is_nil(verified_at) and email_domain(email) == domain
+  end
+
+  def sso_automatic_enrollment_allowed?(%Organization{}, _email), do: false
+
+  def sso_new_user_enrollment_allowed?(%Organization{} = organization, email, invitation?) when is_boolean(invitation?) do
+    trusted_email_domain? = sso_identity_linking_allowed?(organization, email)
+
+    (sso_automatic_enrollment_allowed?(organization, email) and
+       (organization.sso_legacy_email_domain_fallback || trusted_email_domain?)) or
+      (invitation? and trusted_email_domain?)
+  end
+
+  def sso_new_user_enrollment_allowed?(_organization, _email, _invitation?), do: false
+
+  # Domain Name System control is the account-linking trust boundary here:
+  # https://workos.com/docs/authkit/identity-linking#domain-verification
+  def sso_identity_linking_allowed?(
+        %Organization{sso_login_domain: domain, sso_login_domain_verified_at: verified_at},
+        email
+      )
+      when is_binary(domain) do
+    not is_nil(verified_at) and email_domain(email) == domain
+  end
+
+  def sso_identity_linking_allowed?(%Organization{}, _email), do: false
+
+  defp legacy_sso_organization_ids_for_domain(domain) do
+    [
+      domain,
+      String.replace(domain, ".com", ".okta.com"),
+      "https://#{domain}"
+    ]
+  end
+
+  defp email_domain(email) when is_binary(email) do
+    case String.split(email, "@") do
+      [_username, domain] -> normalize_sso_login_domain(domain)
+      _ -> nil
+    end
+  end
+
+  defp email_domain(_email), do: nil
 
   defp user_sso_organization(user) do
     user_organizations = get_user_organization_accounts(user)
@@ -1799,15 +2293,36 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
-    cond do
-      user?(account) ->
-        account_user = get_user_by_id(account.user_id)
-        delete_user(account_user)
+    result =
+      cond do
+        user?(account) ->
+          account_user = get_user_by_id(account.user_id)
+          delete_user(account_user)
 
-      organization?(account) ->
-        {:ok, account_organization} = get_organization_by_id(account.organization_id)
-        delete_organization!(account_organization)
-    end
+        organization?(account) ->
+          {:ok, account_organization} = get_organization_by_id(account.organization_id)
+          delete_organization!(account_organization)
+      end
+
+    purge_account_cache_masters(account)
+    result
+  end
+
+  # The runner cache-volume master archive is customer-derived build cache
+  # stored under an account_id-keyed prefix, outside the account-handle
+  # namespace that handle-based artifact retention sweeps — so nothing else
+  # removes it. Delete it explicitly on account deletion so it doesn't outlive
+  # the account. Best-effort: a storage failure must never fail the deletion.
+  defp purge_account_cache_masters(account) do
+    Tuist.Storage.delete_all_objects(Tuist.Runners.volume_master_object_prefix(account.id), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   def organization?(account), do: !is_nil(account.organization_id)
@@ -1841,39 +2356,63 @@ defmodule Tuist.Accounts do
   @doc """
   Returns cache endpoint URLs for the given account handle and cache technology.
 
-  For the default cache technology, custom endpoints are only returned when:
+  The `technology` argument is driven by the `kura` client feature flag header.
+  When `:kura`, the account's provisioned Kura endpoints are returned if it has
+  any, so routing to Kura is opt-in from the CLI alone. In every other case
+  (technology is `:default`, or the account has no Kura endpoint), the custom
+  and default endpoint fallback behavior is preserved.
+
+  Custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
 
-  For Kura, account-specific endpoints are returned only when they have been configured.
+  Preview environments use the same routing as production: a `kura_servers`
+  row per account points at the preview's `KuraInstance`, and the Lua hook
+  enforces tenant matching strictly. The earlier "shared mesh" override that
+  short-circuited per-account routing is gone (see PR #11348 review).
   """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
+    cache_endpoints_for_handle(account_handle, technology)
+  end
 
-  def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
+  defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      account_handle
-      |> get_account_by_handle()
-      |> custom_cache_endpoints()
-      |> case do
-        [] -> CacheEndpoints.active_endpoint_urls()
-        endpoints -> Enum.map(endpoints, & &1.url)
-      end
+      hosted_cache_endpoints_for_handle(account_handle, technology)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
+  defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
+
+  defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> kura_cache_endpoint_urls(account)
-      _ -> []
+      %Account{} = account -> cache_endpoint_urls(account, technology)
+      _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
-  def get_cache_endpoints_for_handle(_, :kura), do: []
+  defp cache_endpoint_urls(%Account{} = account, :kura) do
+    case kura_cache_endpoint_urls(account) do
+      [] -> custom_cache_endpoint_urls(account)
+      endpoints -> endpoints
+    end
+  end
+
+  defp cache_endpoint_urls(%Account{} = account, :default) do
+    custom_cache_endpoint_urls(account)
+  end
+
+  defp custom_cache_endpoint_urls(%Account{} = account) do
+    account
+    |> custom_cache_endpoints()
+    |> case do
+      [] -> CacheEndpoints.active_endpoint_urls()
+      endpoints -> Enum.map(endpoints, & &1.url)
+    end
+  end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
@@ -1885,17 +2424,38 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
-  defp kura_cache_endpoints(_), do: []
+  defp kura_cache_endpoints(%Account{} = account) do
+    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+    # nodes are not static rows: each one self-registers its advertised URL via
+    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
+    # these are handed to the CLI is decided upstream by the `kura` client
+    # feature flag, so provisioning is the only server-side gate.
+    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
+  end
 
-  defp kura_cache_endpoint_urls(%Account{} = account) do
-    endpoints = kura_cache_endpoints(account)
-    global_candidate_url = Kura.global_cache_endpoint_candidate_url(account)
+  @doc """
+  The Kura cache endpoint URLs the CLI resolves for this account.
+  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
+  derives its in-cluster fallback from the exact candidate set the CLI
+  sees, rather than a parallel query that could drift.
+  """
+  def kura_cache_endpoint_urls(%Account{} = account) do
+    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+    registered_urls = registered_kura_endpoint_urls(account)
 
-    case {endpoints, Kura.global_cache_endpoint_url(account)} do
-      {[], _global_url} -> []
-      {_endpoints, global_url} when is_binary(global_url) -> [global_url]
-      {endpoints, _global_url} -> endpoints |> Enum.map(& &1.url) |> Enum.reject(&(&1 == global_candidate_url))
+    Enum.uniq(static_urls ++ registered_urls)
+  end
+
+  # Client-facing URLs from registration heartbeats: customer-owned nodes that
+  # report a live, ready advertised endpoint. Lease-gated, so a node that stops
+  # heartbeating drops out.
+  defp registered_kura_endpoint_urls(%Account{} = account) do
+    # Self-hosting is Enterprise-only, so do not surface a downgraded account's
+    # registered node addresses to the CLI even while their leases are still live.
+    if Billing.Entitlements.allows?(account, :self_hosted_cache) do
+      Tuist.Kura.Registrations.active_advertised_urls(account)
+    else
+      []
     end
   end
 

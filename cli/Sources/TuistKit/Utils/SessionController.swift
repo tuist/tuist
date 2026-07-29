@@ -5,6 +5,12 @@ import TuistEnvironment
 import TuistLogging
 import TuistSupport
 
+#if canImport(Glibc)
+    import Glibc
+#elseif canImport(Darwin)
+    import Darwin
+#endif
+
 /// Manages CLI session directories containing logs and network recordings.
 ///
 /// Session directories are stored at `$XDG_STATE_HOME/tuist/sessions/<UUID>/`
@@ -12,6 +18,10 @@ import TuistSupport
 /// - `logs.txt`: The text log file for the session
 /// - `network.har`: HTTP Archive file containing all network requests/responses
 public struct SessionController {
+    static let defaultMaxSessions = 50
+    static let maxSessionsEnvironmentVariable = "TUIST_SESSION_MAX_SESSIONS"
+    static let processIdentifierFileName = "process.pid"
+
     private let fileSystem: FileSystem
 
     public init(fileSystem: FileSystem = FileSystem()) {
@@ -44,8 +54,9 @@ public struct SessionController {
 
     /// Schedules best-effort cleanup of old session directories.
     public func scheduleMaintenance(stateDirectory: AbsolutePath) {
+        let maxSessions = Self.maxSessions(environment: Environment.current)
         Task.detached(priority: .background) { [fileSystem] in
-            try? await Self.clean(fileSystem: fileSystem, stateDirectory: stateDirectory)
+            try? await Self.clean(fileSystem: fileSystem, stateDirectory: stateDirectory, maxSessions: maxSessions)
         }
     }
 
@@ -68,6 +79,10 @@ public struct SessionController {
         let logFilePath = sessionDirectory.appending(component: "logs.txt")
         let networkFilePath = sessionDirectory.appending(component: "network.har")
 
+        try await fileSystem.writeText(
+            "\(ProcessInfo.processInfo.processIdentifier)",
+            at: sessionDirectory.appending(component: Self.processIdentifierFileName)
+        )
         try await fileSystem.touch(logFilePath)
 
         return SessionPaths(
@@ -87,34 +102,74 @@ public struct SessionController {
         fileSystem: FileSystem,
         stateDirectory: AbsolutePath,
         maxAge: TimeInterval = 5 * 24 * 60 * 60,
-        maxSessions: Int = 50
+        maxSessions: Int = Self.defaultMaxSessions
     ) async throws {
         let sessionsDirectory = stateDirectory.appending(component: "sessions")
         guard try await fileSystem.exists(sessionsDirectory) else { return }
 
         let cutoffDate = Date().addingTimeInterval(-maxAge)
 
-        var sessionsWithDates: [(path: AbsolutePath, creationDate: Date)] = []
+        var inactiveSessionsWithDates: [(path: AbsolutePath, creationDate: Date)] = []
 
         for sessionPath in try await fileSystem.glob(directory: sessionsDirectory, include: ["*"]).collect() {
-            guard let creationDate = try FileManager.default.attributesOfItem(
-                atPath: sessionPath.pathString
-            )[.creationDate] as? Date else { continue }
+            guard let creationDate = creationDate(for: sessionPath) else { continue }
 
-            if creationDate < cutoffDate {
-                try await fileSystem.remove(sessionPath)
+            if await isSessionActive(sessionPath, fileSystem: fileSystem) {
+                continue
+            } else if creationDate < cutoffDate {
+                try? await fileSystem.remove(sessionPath)
             } else {
-                sessionsWithDates.append((path: sessionPath, creationDate: creationDate))
+                inactiveSessionsWithDates.append((path: sessionPath, creationDate: creationDate))
             }
         }
 
-        if sessionsWithDates.count > maxSessions {
-            sessionsWithDates.sort { $0.creationDate > $1.creationDate }
-            let sessionsToRemove = sessionsWithDates.dropFirst(maxSessions)
+        if inactiveSessionsWithDates.count > maxSessions {
+            inactiveSessionsWithDates.sort { $0.creationDate > $1.creationDate }
+            let sessionsToRemove = inactiveSessionsWithDates.dropFirst(maxSessions)
             for session in sessionsToRemove {
-                try await fileSystem.remove(session.path)
+                try? await fileSystem.remove(session.path)
             }
         }
+    }
+
+    private static func creationDate(for sessionPath: AbsolutePath) -> Date? {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: sessionPath.pathString)
+        return attributes?[.creationDate] as? Date
+    }
+
+    static func maxSessions(environment: Environmenting) -> Int {
+        guard let value = environment.variables[maxSessionsEnvironmentVariable],
+              let maxSessions = Int(value),
+              maxSessions > 0
+        else {
+            return defaultMaxSessions
+        }
+
+        return maxSessions
+    }
+
+    private static func isSessionActive(_ sessionPath: AbsolutePath, fileSystem: FileSystem) async -> Bool {
+        let processIdentifierPath = sessionPath.appending(component: processIdentifierFileName)
+        guard let processIdentifierString = try? await fileSystem.readTextFile(at: processIdentifierPath)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            let processIdentifier = Int32(processIdentifierString)
+        else {
+            return false
+        }
+
+        return isProcessRunning(processIdentifier)
+    }
+
+    private static func isProcessRunning(_ processIdentifier: Int32) -> Bool {
+        #if canImport(Glibc) || canImport(Darwin)
+            if kill(processIdentifier, 0) == 0 {
+                return true
+            }
+
+            return errno == EPERM
+        #else
+            return false
+        #endif
     }
 }
 

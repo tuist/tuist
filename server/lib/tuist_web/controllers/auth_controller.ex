@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
   alias Ueberauth.Auth.Credentials
@@ -25,7 +26,7 @@ defmodule TuistWeb.AuthController do
   end
 
   def request(_conn, _params) do
-    raise TuistWeb.Errors.NotFoundError,
+    raise NotFoundError,
           dgettext("dashboard", "The authentication URL is not supported")
   end
 
@@ -67,9 +68,6 @@ defmodule TuistWeb.AuthController do
 
           {:error, :oauth2_not_configured} ->
             raise_sso_unauthorized(:sso_not_configured)
-
-          _ ->
-            raise_sso_unauthorized(:sso_request_failed)
         end
 
       _ ->
@@ -106,9 +104,6 @@ defmodule TuistWeb.AuthController do
           {:error, reason} ->
             log(:error, "Failed SSO callback: #{inspect(reason)}")
             raise_sso_unauthorized(reason)
-
-          _ ->
-            raise_sso_unauthorized(:sso_callback_failed)
         end
 
       _ ->
@@ -134,8 +129,18 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    complete_oauth_callback(conn, auth)
+    if provider_auth_enabled?(auth.provider) do
+      complete_oauth_callback(conn, auth)
+    else
+      raise NotFoundError,
+            dgettext("dashboard", "The authentication URL is not supported")
+    end
   end
+
+  defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
+  defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
+  defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
+  defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
     auth_params = %{auth_method: auth.provider}
@@ -161,19 +166,30 @@ defmodule TuistWeb.AuthController do
 
         case Accounts.get_user_by_email(auth.info.email) do
           {:error, :not_found} ->
-            oauth_data = %{
-              "provider" => to_string(auth.provider),
-              "uid" => to_string(auth.uid),
-              "email" => auth.info.email,
-              "provider_organization_id" => provider_organization_id,
-              "oauth_return_url" => oauth_return_url
-            }
+            invitation =
+              pending_invitation_for_email(
+                auth.info.email,
+                sso_organization
+              )
 
-            conn
-            |> delete_session(:oauth_return_to)
-            |> put_session(:pending_oauth_signup, oauth_data)
-            |> redirect(to: ~p"/users/choose-username")
-            |> halt()
+            if new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) do
+              oauth_data = %{
+                "provider" => to_string(auth.provider),
+                "uid" => to_string(auth.uid),
+                "email" => auth.info.email,
+                "provider_organization_id" => provider_organization_id,
+                "oauth_return_url" => oauth_return_url,
+                "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
+              }
+
+              conn
+              |> delete_session(:oauth_return_to)
+              |> put_session(:pending_oauth_signup, oauth_data)
+              |> redirect(to: ~p"/users/choose-username")
+              |> halt()
+            else
+              raise_sso_unauthorized(new_sso_user_rejection_reason(sso_organization, auth.info.email))
+            end
 
           {:ok, existing_user} ->
             link_existing_user_and_log_in(
@@ -198,6 +214,12 @@ defmodule TuistWeb.AuthController do
          provider_organization_id,
          oauth_return_url
        ) do
+    invitation =
+      pending_invitation_for(
+        existing_user,
+        sso_organization
+      )
+
     cond do
       can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
         {:ok, _oauth_identity} =
@@ -207,69 +229,132 @@ defmodule TuistWeb.AuthController do
             provider_organization_id: provider_organization_id
           })
 
-        if oauth_return_url do
-          conn
-          |> put_session(:user_return_to, oauth_return_url)
-          |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(existing_user, auth_params)
-        else
-          Authentication.log_in_user(conn, existing_user, auth_params)
-        end
+        log_in_linked_sso_user(
+          conn,
+          existing_user,
+          invitation,
+          auth_params,
+          sso_organization,
+          oauth_return_url
+        )
 
-      invitation = pending_invitation_for(existing_user, sso_organization) ->
-        # The user came in through SSO but isn't a member of the org yet —
-        # however, an admin has issued them an invitation. Send them to the
-        # accept page so they can review and explicitly accept; we don't
-        # want to silently flip membership during a login redirect.
-        #
-        # The accept page is behind `:require_authenticated_user`, which
-        # will overwrite `:user_return_to` with the invitation URL when it
-        # bounces the visitor to /users/log_in. Stash whatever return
-        # target was pending before that overwrite (e.g. the device-code
-        # URL for `tuist auth login`) under a separate key so the LiveView
-        # can resume the original flow after the user clicks Accept.
+      invitation ->
         prior_return_to =
           oauth_return_url || get_session(conn, :user_return_to)
 
         conn
-        |> maybe_put_post_invitation_return_to(prior_return_to)
+        |> maybe_put_post_invitation_context(
+          prior_return_to,
+          existing_user.id,
+          invitation.token
+        )
         |> redirect(to: ~p"/auth/invitations/#{invitation.token}")
         |> halt()
 
       true ->
         log(
           :warning,
-          "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
+          "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: no organization membership, verified-domain enrollment, or matching invitation link established trust."
         )
 
         raise_sso_unauthorized(:existing_user_not_member)
     end
   end
 
-  # Custom SSO providers (Okta, generic OAuth2) let an admin configure
-  # arbitrary authorize/token/userinfo endpoints. A malicious admin could
-  # return any email from /userinfo and take over an existing Tuist account
-  # via email-based auto-linking. We only auto-link when the existing user
-  # is already a member of the authenticating organization, since the admin
-  # already has access to manage that user.
+  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do
+    cond do
+      invitation &&
+          not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
+        prior_return_to =
+          oauth_return_url || get_session(conn, :user_return_to)
+
+        conn
+        |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
+        |> delete_session(:oauth_return_to)
+        |> Authentication.log_in_user(
+          existing_user,
+          Map.merge(auth_params, %{
+            post_invitation_return_to: prior_return_to,
+            post_invitation_token: invitation.token
+          })
+        )
+
+      oauth_return_url ->
+        conn
+        |> put_session(:user_return_to, oauth_return_url)
+        |> delete_session(:oauth_return_to)
+        |> Authentication.log_in_user(existing_user, auth_params)
+
+      true ->
+        Authentication.log_in_user(conn, existing_user, auth_params)
+    end
+  end
+
+  # Custom providers let an admin configure arbitrary profile endpoints. We
+  # only link an existing account when membership already establishes trust or
+  # when the organization has opted into enrollment through a verified domain.
   defp can_link_existing_user?(_user, provider, _organization) when provider not in [:okta, :oauth2], do: true
   defp can_link_existing_user?(_user, _provider, nil), do: false
 
   defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
-    Accounts.belongs_to_organization?(user, organization)
+    Accounts.belongs_to_organization?(user, organization) ||
+      Accounts.sso_identity_linking_allowed?(organization, user.email)
   end
 
   defp pending_invitation_for(_user, nil), do: nil
 
   defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
-    Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
+    pending_invitation_for_email(email, organization)
   end
 
-  defp maybe_put_post_invitation_return_to(conn, nil), do: conn
+  defp pending_invitation_for_email(_email, nil), do: nil
 
-  defp maybe_put_post_invitation_return_to(conn, return_to) do
-    put_session(conn, :post_invitation_return_to, return_to)
+  defp pending_invitation_for_email(email, %Organization{} = organization) do
+    case Accounts.get_invitation_by_invitee_email_and_organization(email, organization) do
+      nil -> nil
+      invitation -> if Accounts.invitation_expired?(invitation), do: nil, else: invitation
+    end
   end
+
+  defp new_sso_user_allowed?(provider, _organization, _email, _invitation) when provider not in [:okta, :oauth2], do: true
+
+  defp new_sso_user_allowed?(_provider, %Organization{} = organization, email, invitation) do
+    Accounts.sso_new_user_enrollment_allowed?(organization, email, not is_nil(invitation))
+  end
+
+  defp new_sso_user_allowed?(_provider, nil, _email, _invitation), do: false
+
+  defp new_sso_user_rejection_reason(%Organization{} = organization, email) do
+    if Accounts.sso_identity_linking_allowed?(organization, email) do
+      :automatic_enrollment_not_allowed
+    else
+      :login_domain_verification_required
+    end
+  end
+
+  defp new_sso_user_rejection_reason(nil, _email), do: :automatic_enrollment_not_allowed
+
+  defp invitation_token_for_signup(nil, _organization, _email), do: nil
+
+  defp invitation_token_for_signup(invitation, %Organization{} = organization, email) do
+    if Accounts.sso_automatic_enrollment_allowed?(organization, email) do
+      nil
+    else
+      invitation.token
+    end
+  end
+
+  defp invitation_token_for_signup(_invitation, nil, _email), do: nil
+
+  defp maybe_put_post_invitation_context(conn, return_to, user_id, invitation_token)
+       when is_binary(return_to) and is_integer(user_id) and is_binary(invitation_token) do
+    conn
+    |> put_session(:post_invitation_return_to, return_to)
+    |> put_session(:post_invitation_user_id, user_id)
+    |> put_session(:post_invitation_token, invitation_token)
+  end
+
+  defp maybe_put_post_invitation_context(conn, _return_to, _user_id, _invitation_token), do: conn
 
   def authenticate_cli_deprecated(conn, params) do
     conn
@@ -297,23 +382,7 @@ defmodule TuistWeb.AuthController do
   def complete_signup(conn, %{"token" => token}) do
     case Phoenix.Token.verify(TuistWeb.Endpoint, "signup_completion", token, max_age: 300) do
       {:ok, %{user_id: user_id, oauth_return_url: oauth_return_url}} ->
-        case Accounts.get_user_by_id(user_id) do
-          nil ->
-            redirect(conn, to: ~p"/users/log_in")
-
-          user ->
-            pending = get_session(conn, :pending_oauth_signup)
-            auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
-
-            return_to =
-              oauth_return_url ||
-                if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
-
-            conn
-            |> delete_session(:pending_oauth_signup)
-            |> put_session(:user_return_to, return_to)
-            |> Authentication.log_in_user(user, %{auth_method: auth_method})
-        end
+        complete_signup_for_user(conn, user_id, oauth_return_url)
 
       {:error, _reason} ->
         redirect(conn, to: ~p"/users/log_in")
@@ -323,6 +392,41 @@ defmodule TuistWeb.AuthController do
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
   end
+
+  defp complete_signup_for_user(conn, user_id, oauth_return_url) do
+    case Accounts.get_user_by_id(user_id) do
+      nil -> redirect(conn, to: ~p"/users/log_in")
+      user -> log_in_completed_signup(conn, user, oauth_return_url)
+    end
+  end
+
+  defp log_in_completed_signup(conn, user, oauth_return_url) do
+    pending = get_session(conn, :pending_oauth_signup)
+    auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
+
+    invitation_return_to = pending_invitation_return_to(pending)
+    prior_return_to = oauth_return_url || get_session(conn, :user_return_to)
+
+    return_to =
+      invitation_return_to ||
+        prior_return_to ||
+        if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
+
+    conn
+    |> delete_session(:pending_oauth_signup)
+    |> put_session(:user_return_to, return_to)
+    |> Authentication.log_in_user(user, %{
+      auth_method: auth_method,
+      post_invitation_return_to: if(invitation_return_to, do: prior_return_to),
+      post_invitation_token: if(invitation_return_to, do: pending["invitation_token"])
+    })
+  end
+
+  defp pending_invitation_return_to(%{"invitation_token" => token}) when is_binary(token) do
+    ~p"/auth/invitations/#{token}"
+  end
+
+  defp pending_invitation_return_to(_pending), do: nil
 
   def cancel_pending_signup(conn, _params) do
     conn
@@ -407,7 +511,7 @@ defmodule TuistWeb.AuthController do
         &String.starts_with?(&1, "http")
       )
 
-    if Enum.all?(urls, &Tuist.URL.public_url?/1) do
+    if Enum.all?(urls, &Tuist.URL.sso_url?/1) do
       :ok
     else
       {:error, :unsafe_sso_url}
@@ -578,6 +682,20 @@ defmodule TuistWeb.AuthController do
     dgettext(
       "dashboard",
       "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
+    )
+  end
+
+  defp sso_unauthorized_message(:automatic_enrollment_not_allowed) do
+    dgettext(
+      "dashboard",
+      "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
+    )
+  end
+
+  defp sso_unauthorized_message(:login_domain_verification_required) do
+    dgettext(
+      "dashboard",
+      "Your organization must verify a login email domain that matches your email before new users can sign in. Ask an organization admin to review the single sign-on domain settings."
     )
   end
 

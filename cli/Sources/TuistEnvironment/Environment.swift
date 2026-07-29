@@ -80,19 +80,37 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
-    /// Returns the LaunchAgent label for the Xcode cache daemon of the given full handle.
-    /// This label is shared between `tuist setup cache` (which registers the LaunchAgent)
-    /// and `tuist teardown cache` (which boots it out).
+    /// The machine-wide CAS proxy's unix socket. Unlike `cacheSocketPath(for:)` this
+    /// is not per-project: one proxy serves every project on the machine.
+    func casProxySocketPath() -> AbsolutePath
+
+    /// The CAS proxy's socket with a $HOME prefix, to be environment-independent when
+    /// baked into a build setting.
+    func casProxySocketPathString() -> String
+
+    /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
+    /// non-kura path) of the given full handle. Shared between `tuist setup cache`
+    /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
+
+    /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
+    /// proxy. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
+    /// proxy serves every project on the machine, multiplexing by instance.
+    func casProxyLaunchAgentLabel() -> String
 
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
 
-    /// Returns the derived data directory
+    /// Returns Xcode's shared default derived data directory (`~/Library/Developer/Xcode/DerivedData`).
     func derivedDataDirectory() async throws -> AbsolutePath
+
+    /// Returns how Xcode is configured to resolve the DerivedData location, inferred from the
+    /// `IDECustomDerivedDataLocation` preference.
+    func derivedDataLocation() async throws -> DerivedDataLocation
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
+private let falsyValues = ["0", "false", "FALSE", "no", "NO"]
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
@@ -102,6 +120,11 @@ extension Environmenting {
     public func isVariableTruthy(_ name: String) -> Bool {
         guard let value = variables[name] else { return false }
         return truthyValues.contains(value)
+    }
+
+    public func isVariableFalsy(_ name: String) -> Bool {
+        guard let value = variables[name] else { return false }
+        return falsyValues.contains(value)
     }
 
     public var isCI: Bool {
@@ -232,7 +255,18 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try await FileSystem().currentWorkingDirectory()
+        do {
+            return try await FileSystem().currentWorkingDirectory()
+        } catch {
+            // Some CI environments leave the process with a working directory that
+            // `getcwd` can no longer resolve (e.g. it was deleted and recreated by a
+            // previous step), so `FileManager` reports an empty path. Fall back to the
+            // shell-provided `PWD` when it points at a valid absolute path.
+            if let pwd = variables["PWD"], let path = try? AbsolutePath(validating: pwd) {
+                return path
+            }
+            throw error
+        }
     }
 
     private func variable(_ variableName: String) -> String? {
@@ -387,6 +421,37 @@ public struct Environment: Environmenting {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
+    /// Anchored to `HOME` rather than `stateDirectory` on purpose, even though the
+    /// two agree by default. `stateDirectory` honors `XDG_STATE_HOME`, and the
+    /// plugin resolves this same path from `HOME` alone inside compiler frontends,
+    /// which carry no CLI environment (`default_proxy_socket` in cas-plugin says so
+    /// on its side). Honoring XDG here would point Xcode at a socket the proxy is
+    /// not listening on, and Xcode answers an unreachable service by retrying every
+    /// cache request rather than failing fast.
+    public func casProxySocketPath() -> AbsolutePath {
+        homeDirectory.appending(components: [".local", "state", "tuist", "cas-proxy.sock"])
+    }
+
+    public func casProxySocketPathString() -> String {
+        homeRelative(casProxySocketPath())
+    }
+
+    /// A path with its `$HOME` prefix restored, so a value baked into a build
+    /// setting does not hard-code one machine's home directory.
+    private func homeRelative(_ path: AbsolutePath) -> String {
+        let pathString = path.pathString
+        let homeDirectoryPathString = homeDirectory.pathString
+        if pathString.hasPrefix(homeDirectoryPathString) {
+            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
+        } else {
+            return pathString
+        }
+    }
+
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
+    }
+
     #if os(macOS)
         public func architecture() async throws -> MacArchitecture {
             let process = Process()
@@ -402,45 +467,35 @@ public struct Environment: Environmenting {
         }
 
         public func derivedDataDirectory() async throws -> AbsolutePath {
+            homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+        }
+
+        public func derivedDataLocation() async throws -> DerivedDataLocation {
+            let rawLocation = readXcodeDefault("IDEDerivedDataPathOverride")
+                ?? readXcodeDefault("IDECustomDerivedDataLocation")
+            return rawLocation.map(DerivedDataLocation.init) ?? .default
+        }
+
+        private func readXcodeDefault(_ key: String) -> String? {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-            process.arguments = ["read", "com.apple.dt.Xcode", "IDEDerivedDataPathOverride"]
+            process.arguments = ["read", "com.apple.dt.Xcode", key]
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = Pipe()
             do {
                 try process.run()
                 process.waitUntilExit()
-                if process.terminationStatus == 0 {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !output.isEmpty
-                    {
-                        return try AbsolutePath(validating: output)
-                    }
-                }
-            } catch {}
-
-            let customProcess = Process()
-            customProcess.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-            customProcess.arguments = ["read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]
-            let customPipe = Pipe()
-            customProcess.standardOutput = customPipe
-            customProcess.standardError = Pipe()
-            do {
-                try customProcess.run()
-                customProcess.waitUntilExit()
-                if customProcess.terminationStatus == 0 {
-                    let data = customPipe.fileHandleForReading.readDataToEndOfFile()
-                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !output.isEmpty
-                    {
-                        return try AbsolutePath(validating: output)
-                    }
-                }
-            } catch {}
-
-            return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+                guard process.terminationStatus == 0 else { return nil }
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let output = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !output.isEmpty
+                else { return nil }
+                return output
+            } catch {
+                return nil
+            }
         }
 
     #elseif os(Linux)
@@ -460,6 +515,10 @@ public struct Environment: Environmenting {
         public func derivedDataDirectory() async throws -> AbsolutePath {
             homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
         }
+
+        public func derivedDataLocation() async throws -> DerivedDataLocation {
+            .default
+        }
     #else
         public func architecture() async throws -> MacArchitecture {
             .arm64
@@ -467,6 +526,10 @@ public struct Environment: Environmenting {
 
         public func derivedDataDirectory() async throws -> AbsolutePath {
             homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+        }
+
+        public func derivedDataLocation() async throws -> DerivedDataLocation {
+            .default
         }
     #endif
 }

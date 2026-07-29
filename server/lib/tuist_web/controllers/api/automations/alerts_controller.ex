@@ -128,7 +128,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
          type: :object,
          properties: %{
            name: %Schema{type: :string},
-           monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
+           monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"]},
            trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: AutomationAlertAction},

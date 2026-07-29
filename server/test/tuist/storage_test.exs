@@ -3,9 +3,11 @@ defmodule Tuist.StorageTest do
   use Mimic
 
   alias ExAws.Operation.S3
+  alias ExAws.S3.Download
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
+  alias Tuist.Storage.AzureBlob
 
   setup do
     # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
@@ -144,12 +146,12 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        :ok
+        {:ok, %{}}
       end)
 
       # When
@@ -162,6 +164,60 @@ defmodule Tuist.StorageTest do
                        %{object_key: ^object_key, upload_id: ^upload_id}}
 
       assert is_number(duration)
+    end
+
+    test "returns a tagged error when the multipart upload no longer exists" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}]
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error,
+         {:http_error, 404,
+          %{
+            body: "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>"
+          }}}
+      end)
+
+      # When/Then
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) ==
+               {:error, :multipart_upload_not_found}
+    end
+
+    test "returns the original error when a 404 response is not a missing multipart upload" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}]
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+      error = {:http_error, 404, %{body: "<Error><Code>NoSuchKey</Code></Error>"}}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error, error}
+      end)
+
+      # When/Then
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) == {:error, error}
     end
   end
 
@@ -199,6 +255,32 @@ defmodule Tuist.StorageTest do
 
       # Then
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+
+    test "overrides the download filename" do
+      url = "https://tuist.io/download-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+      content_disposition = ~s(attachment; filename="result_bundle.aar")
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
+                                          :get,
+                                          ^bucket_name,
+                                          ^object_key,
+                                          [
+                                            query_params: [
+                                              {"response-content-disposition", ^content_disposition}
+                                            ],
+                                            expires_in: 3600
+                                          ] ->
+        {:ok, url}
+      end)
+
+      assert Storage.generate_download_url(object_key, :test, content_disposition: content_disposition) == url
     end
   end
 
@@ -270,6 +352,55 @@ defmodule Tuist.StorageTest do
       # Then
       assert got == stream
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+  end
+
+  describe "download_to_file/3" do
+    test "returns the downloaded file when the request succeeds" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, :done} end)
+
+      # When / Then
+      assert {:ok, :done} = Storage.download_to_file(object_key, file_path, :test)
+    end
+
+    test "returns an error tuple instead of exiting when an S3 chunk download times out" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+
+      # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
+      # exits rather than raising, so a stalled chunk would otherwise escape as an
+      # uncaught exit and crash the calling job (observed as an Oban.CrashError).
+      expect(ExAws, :request, fn ^operation, _opts ->
+        exit({:timeout, {Task.Supervised, :stream, [60_000]}})
+      end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:error, {:timeout, {Task.Supervised, :stream, [60_000]}}} = result
     end
   end
 
@@ -392,6 +523,28 @@ defmodule Tuist.StorageTest do
     end
   end
 
+  describe "get_object_range/3" do
+    test "obtains only the requested object bytes" do
+      event_name = Tuist.Telemetry.event_name_storage_get_object_range()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+      expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key, [range: "bytes=0-1"] -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, %{body: "pb"}} end)
+
+      assert Storage.get_object_range(object_key, 0..1, :test) == {:ok, "pb"}
+
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key, range: 0..1}}
+
+      assert is_number(duration)
+    end
+  end
+
   describe "multipart_start/1" do
     test "starts the multipart upload using ExAws.S3 and sends the right telemetry event" do
       # Given
@@ -434,6 +587,31 @@ defmodule Tuist.StorageTest do
   end
 
   describe "delete_all_objects/1" do
+    test "returns Azure Blob deletion errors instead of hiding them" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_delete_all_objects()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      project_slug = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :delete_all_objects, fn ^project_slug ->
+        {:error, :list_failed}
+      end)
+
+      # When
+      assert Storage.delete_all_objects(project_slug, :test) == {:error, :list_failed}
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{project_slug: ^project_slug}}
+
+      assert is_number(duration)
+    end
+
     test "deletes all objects using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
@@ -513,6 +691,227 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
 
       assert is_number(duration)
+    end
+  end
+
+  describe "upload_file/4" do
+    test "normalizes Azure Blob successful uploads to the shared success tuple" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [block_size: 10] ->
+        :ok
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test, block_size: 10) == {:ok, :done}
+    end
+
+    test "keeps Azure Blob upload errors unchanged" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [] ->
+        {:error, :upload_failed}
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test) == {:error, :upload_failed}
+    end
+  end
+
+  describe "delete_object/2" do
+    test "deletes one object using the bulk deletion API" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, opts ->
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_object(object_key, :test) == :ok
+    end
+
+    test "passes custom timeout options to the bulk deletion API" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, opts ->
+        assert Map.get(opts, :receive_timeout) == 60_000
+        assert Map.get(opts, :pool_timeout) == 2_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_objects([object_key], :test,
+               receive_timeout: 60_000,
+               pool_timeout: 2_000,
+               task_timeout: 65_000
+             ) == :ok
+    end
+
+    test "returns an error on unexpected S3 responses" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, _opts ->
+        {:ok, %{status_code: 500}}
+      end)
+
+      # When/Then
+      assert {:error, {:unexpected_response, %{status_code: 500}}} = Storage.delete_object(object_key, :test)
+    end
+
+    test "returns an error when S3 reports per-object delete failures in a successful response" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, _opts ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: """
+           <?xml version="1.0" encoding="UTF-8"?>
+           <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+             <Deleted>
+               <Key>deleted-object</Key>
+             </Deleted>
+             <Error>
+               <Key>#{object_key}</Key>
+               <Code>AccessDenied</Code>
+               <Message>Access denied</Message>
+             </Error>
+           </DeleteResult>
+           """
+         }}
+      end)
+
+      # When
+      assert {:error, {:delete_objects_failed, [error]}} = Storage.delete_object(object_key, :test)
+
+      # Then
+      assert error.key == object_key
+      assert error.code == "AccessDenied"
+      assert error.message == "Access denied"
+    end
+
+    test "deletes object chunks concurrently" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      object_keys =
+        Enum.map(1..1001, fn index ->
+          "object-#{index}"
+        end)
+
+      first_chunk = Enum.take(object_keys, 1000)
+      second_chunk = Enum.drop(object_keys, 1000)
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      first_operation = %S3{body: UUIDv7.generate()}
+      second_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, 2, fn
+        ^bucket_name, ^first_chunk -> first_operation
+        ^bucket_name, ^second_chunk -> second_operation
+      end)
+
+      expect(ExAws, :request, 2, fn
+        ^first_operation, _opts -> {:ok, %{status_code: 204}}
+        ^second_operation, _opts -> {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_objects(object_keys, :test, max_concurrency: 2) == :ok
+    end
+  end
+
+  describe "bucket helpers" do
+    test "list_objects_from_bucket uses S3 by default" do
+      bucket_name = UUIDv7.generate()
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: "prefix", max_keys: 10] ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, config ->
+        assert config.access_key_id == "test-access-key"
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, prefix: "prefix", max_keys: 10) ==
+               {:ok, %{body: %{contents: []}}}
+    end
+
+    test "list_objects_from_bucket can opt into Azure Blob" do
+      bucket_name = UUIDv7.generate()
+
+      expect(AzureBlob, :list_objects, fn ^bucket_name, opts ->
+        assert opts[:storage_provider] == :azure_blob
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, storage_provider: :azure_blob) ==
+               {:ok, %{body: %{contents: []}}}
     end
   end
 
@@ -1001,6 +1400,36 @@ defmodule Tuist.StorageTest do
 
       # Then
       assert result == url
+    end
+  end
+
+  describe "azure blob provider" do
+    test "delegates generated download URLs to Azure Blob when configured as the default provider" do
+      object_key = UUIDv7.generate()
+      url = "https://tuiststorage.blob.core.windows.net/tuist/#{object_key}?sig=signature"
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+      expect(AzureBlob, :generate_download_url, fn ^object_key, _opts -> url end)
+
+      assert Storage.generate_download_url(object_key, :test) == url
+    end
+
+    test "custom S3 storage takes precedence over the Azure Blob default provider" do
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY"
+      }
+
+      object_key = UUIDv7.generate()
+      url = "https://custom-bucket.s3.amazonaws.com/test-key"
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        {:ok, url}
+      end)
+
+      assert Storage.generate_download_url(object_key, account) == url
     end
   end
 end

@@ -14,9 +14,17 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: HCloudMachineTemplate
         name: tuist-hcloud-hcloud-machinetemplate
+    deletion:
+      # The default ten-second timeout can expire during a brief control-plane
+      # interruption and leave a Node behind after its Machine is deleted.
+      # Zero keeps retrying until the workload control plane accepts deletion.
+      nodeDeletionTimeoutSeconds: 0
     healthCheck:
       checks:
-        nodeStartupTimeoutSeconds: 900
+        # New members currently reach the infrastructure-ready state but do
+        # not register a Node. Do not delete and recreate them indefinitely
+        # until that bootstrap defect has been diagnosed from the host.
+        nodeStartupTimeoutSeconds: 0
         unhealthyNodeConditions:
           - type: Ready
             status: Unknown
@@ -26,7 +34,10 @@ spec:
             timeoutSeconds: 300
       remediation:
         triggerIf:
-          unhealthyLessThanOrEqualTo: 33%
+          # Allow only one registered unhealthy member to be replaced at a
+          # time. An absolute limit does not change as the control plane
+          # moves between two and three Machines.
+          unhealthyLessThanOrEqualTo: 1
   infrastructure:
     templateRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -211,6 +222,19 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Extra kubelet node-labels for a worker pool, in kubelet's
+    # `k=v,k=v` form. Set as a per-MachineDeployment override so a pool
+    # self-applies role labels at registration. Unlike MachineDeployment
+    # metadata labels (which CAPI only syncs for the
+    # node-role/node-restriction/node.cluster.x-k8s.io prefixes), this
+    # reaches the node directly and survives node replacement — which is
+    # why the stable-egress gateway role is pinned this way.
+    - name: workerNodeLabels
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -225,6 +249,25 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # apiserver --kubelet-preferred-address-types order. Default keeps Hetzner
+    # nodes on ExternalIP; envs with cross-cloud nodes (Scaleway Elastic Metal /
+    # macOS PN) that report no ExternalIP and an unresolvable Hostname set this
+    # to insert InternalIP so the apiserver can reach those kubelets (logs/exec).
+    # Flipping it rolls that cluster's control plane — do it per-env, deliberately.
+    - name: kubeletPreferredAddressTypes
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Rollout switch for a kubeadm control-plane join failure observed with
+    # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
+    # each environment can validate the compatibility fallback separately.
+    - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -344,6 +387,27 @@ spec:
               path: "/spec/template/spec/placementGroupName"
               valueFrom:
                 variable: hcloudWorkerMachinePlacementGroupName
+    # Append per-pool kubelet node-labels to the worker bootstrap. The
+    # shared worker KubeadmConfigTemplate carries only cloud-provider +
+    # config args; this appends `--node-labels=<workerNodeLabels>` for any
+    # MachineDeployment that overrides the variable (no-op otherwise). It
+    # is how the stable-egress gateway pool self-labels its node so the
+    # role survives MachineHealthCheck remediation.
+    - name: KubeadmConfigTemplateWorkerNodeLabels
+      enabledIf: '{{ if ne .workerNodeLabels "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the
@@ -368,6 +432,42 @@ spec:
               path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
               valueFrom:
                 variable: bareMetalCluster
+    # Rebuilds the apiserver extraArgs array (CAPI ClusterClass patches can't
+    # index array elements) with kubelet-preferred-address-types set from the
+    # per-cluster variable. No-op while the variable equals the template
+    # default, so applying this patch rolls nothing; setting the variable on a
+    # Cluster CR regenerates that KubeadmControlPlane and rolls its CP.
+    - name: KubeadmControlPlaneKubeletAddressTypes
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
+              valueFrom:
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
+    # kubeadm's local-mode join points the bootstrap kubelet at the new node's
+    # control-plane endpoint before that endpoint exists. On the affected
+    # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
+    # the local etcd learner never starts and kubeadm aborts the join. This
+    # opt-in patch restores the established load-balancer bootstrap path per
+    # environment.
+    - name: DisableControlPlaneKubeletLocalMode
+      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
+              valueFrom:
+                template: '{"ControlPlaneKubeletLocalMode": false}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -422,6 +522,10 @@ spec:
         clusterConfiguration:
           apiServer:
             extraArgs:
+              # Default value. The KubeadmControlPlaneKubeletAddressTypes patch
+              # rebuilds this whole extraArgs array from the
+              # kubeletPreferredAddressTypes variable, so keep
+              # kubelet-preferred-address-types the only apiServer extraArg.
               - name: kubelet-preferred-address-types
                 value: ExternalIP,Hostname,InternalDNS,ExternalDNS
           controllerManager:
@@ -463,11 +567,11 @@ spec:
           # gets cleared. Critical fields below are required for kubelet
           # to talk to containerd (containerRuntimeEndpoint), watch
           # static pods (staticPodPath), and resolve in-cluster DNS
-          # (clusterDNS / clusterDomain). resolvConf is intentionally
-          # unset so kubelet falls back to the host's /etc/resolv.conf,
-          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
-          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
-          # away.
+          # (clusterDNS / clusterDomain). resolvConf must point at the
+          # systemd-resolved upstream file. /etc/resolv.conf points at
+          # the host-local 127.0.0.53 stub, which is unreachable from a
+          # pod network namespace and makes CoreDNS detect a forwarding
+          # loop when it is scheduled on that node.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -658,8 +762,10 @@ spec:
           owner: root:root
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
-        # See KCP files block above for why these fields are mandatory
-        # and why resolvConf is intentionally unset.
+        # See the control-plane files block above for why these fields
+        # are mandatory. CoreDNS receives explicit upstream resolvers
+        # from the workload bootstrap so it does not depend on this
+        # worker's host-local systemd-resolved stub.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration

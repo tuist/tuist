@@ -25,6 +25,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     with_flushed_ingestion_buffers(fn ->
       CommandEvents.create_command_event(
         %{
+          id: Keyword.get(attrs, :id),
           name: Keyword.get(attrs, :name, "generate"),
           subcommand: Keyword.get(attrs, :subcommand, ""),
           command_arguments: Keyword.get(attrs, :command_arguments, []),

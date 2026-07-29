@@ -40,11 +40,14 @@ public enum Module: String, CaseIterable {
     case xcodeBuildProducts = "TuistXcodeBuildProducts"
     case xcResultService = "TuistXCResultService"
     case cas = "TuistCAS"
+    case reapi = "TuistREAPI"
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
+    case jobSummary = "TuistJobSummary"
     case http = "TuistHTTP"
     case har = "TuistHAR"
     case cacheCommand = "TuistCacheCommand"
+    case bazelCommand = "TuistBazelCommand"
     case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
@@ -61,6 +64,7 @@ public enum Module: String, CaseIterable {
     case configLoader = "TuistConfigLoader"
     case nooraTesting = "TuistNooraTesting"
     case loggerTesting = "TuistLoggerTesting"
+    case swifterPMCore = "SwifterPMCore"
     case accountCommand = "TuistAccountCommand"
     case organizationCommand = "TuistOrganizationCommand"
     case projectCommand = "TuistProjectCommand"
@@ -71,6 +75,7 @@ public enum Module: String, CaseIterable {
     case testCommand = "TuistTestCommand"
     case initCommand = "TuistInitCommand"
     case runCommand = "TuistRunCommand"
+    case runnerCommand = "TuistRunnerCommand"
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
@@ -157,6 +162,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.appleArchiver.targetName),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftECC"),
@@ -211,6 +217,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.appleArchiver.targetName),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -349,13 +356,13 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-             .constants, .environment, .logging,
+             .constants, .environment, .logging, .swifterPMCore,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android:
+             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -411,8 +418,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
+                    .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "XcodeProj"),
                 ]
             case .dependencies:
                 [
@@ -482,6 +492,7 @@ public enum Module: String, CaseIterable {
         // Domain tags
         switch self {
         case .projectDescription, .projectAutomation, .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper, .support, .core,
+             .swifterPMCore,
              .constants, .environment, .logging, .userInputReader, .config:
             moduleTags.append("domain:foundation")
         case .generator, .hasher, .cache:
@@ -505,14 +516,14 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
+             .process, .ci, .cas, .reapi, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
              .xcodeBuildProducts,
-             .http, .har, .configLoader, .machineMetrics, .appleArchiver:
+             .http, .har, .configLoader, .machineMetrics, .appleArchiver, .jobSummary:
             moduleTags.append("domain:infrastructure")
-        case .cacheCommand, .authCommand, .envKey, .versionCommand,
+        case .cacheCommand, .bazelCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
-             .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
+             .initCommand, .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -523,6 +534,7 @@ public enum Module: String, CaseIterable {
         // Layer tags
         switch self {
         case .projectDescription, .projectAutomation, .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper, .support, .core,
+             .swifterPMCore,
              .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable,
              .uniqueIDGenerator, .opener, .config:
             moduleTags.append("layer:foundation")
@@ -643,6 +655,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.registryCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
@@ -666,6 +679,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.bazelCommand.targetName),
                     .target(name: Module.accountCommand.targetName),
                     .target(name: Module.organizationCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
@@ -676,6 +690,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.constants.targetName),
@@ -713,6 +728,13 @@ public enum Module: String, CaseIterable {
                 ]
             case .projectAutomation, .projectDescription:
                 []
+            case .swifterPMCore:
+                [
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Crypto"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Subprocess"),
+                ]
             case .support:
                 [
                     .target(name: Module.constants.targetName),
@@ -735,11 +757,13 @@ public enum Module: String, CaseIterable {
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
                     .external(name: "Crypto"),
+                    .target(name: Module.swifterPMCore.targetName),
                 ]
             case .kit:
                 [
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.jobSummary.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
@@ -1097,6 +1121,15 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftProtobuf"),
                     .external(name: "libzstd"),
                 ]
+            case .reapi:
+                [
+                    .target(name: Module.logging.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "Mockable"),
+                ]
             case .casAnalytics:
                 [
                     .target(name: Module.environment.targetName),
@@ -1105,6 +1138,14 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .external(name: "Command"),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .jobSummary:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.ci.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
@@ -1152,9 +1193,25 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.encodable.targetName),
                     .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
                     .external(name: "Logging"),
                     .external(name: "Noora"),
                     .external(name: "SwiftToolsSupport"),
+                ]
+            case .bazelCommand:
+                [
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Noora"),
                 ]
             case .authCommand:
                 [
@@ -1468,6 +1525,19 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "Mockable"),
                 ]
+            case .runnerCommand:
+                [
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                ]
             case .inspectCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1514,12 +1584,12 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .constants, .environment, .logging, .nooraTesting, .loggerTesting,
+                 .constants, .environment, .logging, .nooraTesting, .loggerTesting, .swifterPMCore,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .shareCommand, .inspectCommand, .android:
+                 .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
                 []
@@ -1587,6 +1657,22 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .bazelCommand:
+                [
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .userInputReader:
                 [
@@ -1630,6 +1716,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
                 ]
             case .tuistFixtureGenerator:
                 [
@@ -1646,6 +1734,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
+                    .target(name: Module.swifterPMCore.targetName),
                 ]
             case .projectDescription:
                 [
@@ -1658,6 +1747,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
+                    .target(name: Module.jobSummary.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
@@ -1701,6 +1791,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.organizationCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.android.targetName),
@@ -1977,6 +2068,14 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
+            case .jobSummary:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.ci.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                ]
             case .oidc:
                 [
                     .target(name: Module.environmentTesting.targetName),
@@ -1990,6 +2089,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
+                    .external(name: "FileSystem"),
                 ]
             }
         dependencies =
@@ -2052,6 +2152,8 @@ public enum Module: String, CaseIterable {
                 buildableFolderPath = "cli/Sources/XcodeGraph/Sources/XcodeMetadata/"
             case .xcodeGraphMapper:
                 buildableFolderPath = "cli/Sources/XcodeGraph/Sources/XcodeGraphMapper/"
+            case .swifterPMCore:
+                buildableFolderPath = "swifterpm/Sources/swifterpm/"
             default:
                 buildableFolderPath = "cli/Sources/\(name)/"
             }

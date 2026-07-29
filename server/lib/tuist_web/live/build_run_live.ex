@@ -7,6 +7,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
@@ -16,9 +17,13 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RunnerJobLive
+  alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
 
   @binary_cache_page_size 20
@@ -109,11 +114,23 @@ defmodule TuistWeb.BuildRunLive do
     project = socket.assigns.selected_project
     run_id = run.id
 
-    has_binary_cache_data = command_event != nil and Xcode.has_binary_cache_data?(command_event)
+    binary_cache_command_event = binary_cache_command_event(run, command_event)
+    has_binary_cache_data = binary_cache_command_event != nil
+
+    module_cache_metrics =
+      if binary_cache_command_event,
+        do: CommandEvents.module_cache_output_metrics(binary_cache_command_event.id)
+
+    ci_run_url = Builds.build_ci_run_url(run)
+    ci_context = build_ci_context(run, socket.assigns.selected_account, ci_run_url)
 
     socket
     |> assign(:command_event, command_event)
+    |> assign(:binary_cache_command_event, binary_cache_command_event)
+    |> assign(:module_cache_metrics, module_cache_metrics)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
+    |> assign(:ci_run_url, ci_run_url)
+    |> assign(:ci_context, ci_context)
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)
     |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
@@ -132,6 +149,81 @@ defmodule TuistWeb.BuildRunLive do
       storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
+  end
+
+  defp build_ci_context(run, selected_account, ci_run_url) when not is_nil(ci_run_url) do
+    with "github" <- normalize_ci_provider(Map.get(run, :ci_provider)),
+         repository when is_binary(repository) and repository != "" <- Map.get(run, :ci_project_handle),
+         workflow_run_id when is_integer(workflow_run_id) <- parse_workflow_run_id(Map.get(run, :ci_run_id)),
+         jobs when jobs != [] <- Jobs.list_for_workflow_run(selected_account.id, repository, workflow_run_id),
+         runner_job when not is_nil(runner_job) <- matching_build_job(jobs) do
+      steps = JobSteps.list_for_job(runner_job.workflow_job_id)
+      matched_step = matching_build_step(steps)
+
+      %{
+        matched_step: matched_step,
+        matched_step_path: RunnerJobLive.step_path(selected_account.name, runner_job, matched_step),
+        runner_job: runner_job,
+        runner_job_path: RunnerJobLive.path(selected_account.name, runner_job),
+        workflow_path: RunnerWorkflowsLive.workflow_path(selected_account.name, runner_job)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp build_ci_context(_, _, _), do: nil
+
+  defp normalize_ci_provider(provider) when is_binary(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
+  defp normalize_ci_provider(_), do: nil
+
+  defp parse_workflow_run_id(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_workflow_run_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {workflow_run_id, ""} when workflow_run_id > 0 -> workflow_run_id
+      _ -> nil
+    end
+  end
+
+  defp parse_workflow_run_id(_), do: nil
+
+  defp matching_build_job(jobs), do: find_ci_job_by_name(jobs, ["build"])
+  defp matching_build_step(steps), do: find_ci_step_by_name(steps, ["build"])
+
+  defp find_ci_job_by_name(jobs, needles) do
+    Enum.find(jobs, fn job ->
+      name = job |> Map.get(:job_name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
+  end
+
+  defp find_ci_step_by_name(steps, needles) do
+    Enum.find(steps, fn step ->
+      name = step |> Map.get(:name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
+  end
+
+  # The Module Cache breakdown lives on the command event that carries the xcode_graph.
+  # `tuist test`/`tuist xcodebuild build` builds have it on their own command event (linked by
+  # build_run_id). Builds made straight from Xcode have no such command event, so they point at the
+  # graph uploaded by the last `tuist generate` via `generation_id`, which is that generate command
+  # event's id. The project check guards against a build referencing another project's command event.
+  defp binary_cache_command_event(run, command_event) do
+    if command_event != nil and Xcode.has_binary_cache_data?(command_event) do
+      command_event
+    else
+      with generation_id when not is_nil(generation_id) <- run.generation_id,
+           {:ok, event} <- CommandEvents.get_command_event_by_id(generation_id),
+           true <- event.project_id == run.project_id,
+           true <- Xcode.has_binary_cache_data?(event) do
+        event
+      else
+        _ -> nil
+      end
+    end
   end
 
   @impl true
@@ -349,36 +441,6 @@ defmodule TuistWeb.BuildRunLive do
       )
 
     {:noreply, socket}
-  end
-
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => row_key},
-        %{assigns: %{selected_tab: "module-cache", expanded_target_names: expanded_target_names}} = socket
-      ) do
-    updated_expanded_names =
-      if MapSet.member?(expanded_target_names, row_key) do
-        MapSet.delete(expanded_target_names, row_key)
-      else
-        MapSet.put(expanded_target_names, row_key)
-      end
-
-    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
-  end
-
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => task_key},
-        %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
-      ) do
-    updated_expanded_keys =
-      if MapSet.member?(expanded_task_keys, task_key) do
-        MapSet.delete(expanded_task_keys, task_key)
-      else
-        MapSet.put(expanded_task_keys, task_key)
-      end
-
-    {:noreply, assign(socket, :expanded_task_keys, updated_expanded_keys)}
   end
 
   defp handle_event_xcode(
@@ -824,14 +886,6 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     issue_title(title, issue, run)
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
   end
 
   def file_breakdown_column_patch_sort(
@@ -1357,7 +1411,7 @@ defmodule TuistWeb.BuildRunLive do
          %{
            assigns: %{
              selected_tab: "module-cache",
-             command_event: command_event,
+             binary_cache_command_event: command_event,
              binary_cache_available_filters: available_filters
            }
          } = socket,

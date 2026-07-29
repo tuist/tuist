@@ -10,6 +10,8 @@ import Config
 config :noora_storybook,
   generators: [timestamp_type: :utc_datetime]
 
+config :tzdata, http_client: NooraStorybook.TzdataClient
+
 # Configures the endpoint
 config :noora_storybook, NooraStorybookWeb.Endpoint,
   url: [host: "localhost"],
@@ -25,10 +27,15 @@ config :noora_storybook, NooraStorybookWeb.Endpoint,
 config :esbuild,
   version: "0.17.11",
   noora_storybook: [
+    # Storybook imports Noora's global stylesheet separately. Component stylesheet imports are
+    # loaded as text so Lit can adopt the same source inside each custom element's shadow root.
     args:
-      ~w(js/app.js js/storybook.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
+      ~w(js/app.js js/storybook.js --bundle --target=es2017 --loader:.css=text --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../../node_modules", __DIR__) <> ":" <> Path.expand("../deps", __DIR__)}
+    env: %{
+      "NODE_PATH" =>
+        Path.expand("../../node_modules", __DIR__) <> ":" <> Path.expand("../deps", __DIR__)
+    }
   ]
 
 config :tailwind,

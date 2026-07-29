@@ -21,9 +21,15 @@ public func parseXCResult(
         do {
             let xcresultPath = try AbsolutePath(validating: path)
             let rootDirectory = try AbsolutePath(validating: rootDir)
+            // The server worker passes its per-run temp dir as rootDir and
+            // removes it wholesale once the run is processed, so it's also
+            // a directory we can export attachments into — point them there
+            // so the worker's cleanup reclaims them instead of leaking them
+            // in a process-wide temp dir.
             guard let parsed = try await XCResultParser().parse(
                 path: xcresultPath,
-                rootDirectory: rootDirectory
+                rootDirectory: rootDirectory,
+                attachmentsDirectory: rootDirectory
             ) else {
                 result = .failure(XCResultParserError.failedToParseOutput(xcresultPath))
                 semaphore.signal()
@@ -36,9 +42,10 @@ public func parseXCResult(
         semaphore.signal()
     }
 
-    let timeout = semaphore.wait(timeout: .now() + .seconds(600))
+    let timeoutSeconds = 600
+    let timeout = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
     if timeout == .timedOut {
-        result = .failure(XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path)))
+        result = .failure(XCResultParserError.timedOut(try! AbsolutePath(validating: path), seconds: timeoutSeconds))
     }
 
     switch result {

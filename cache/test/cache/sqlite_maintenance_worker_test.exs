@@ -44,4 +44,12 @@ defmodule Cache.SQLiteMaintenanceWorkerTest do
 
     assert :ok = SQLiteMaintenanceWorker.perform(%{})
   end
+
+  test "skips KV maintenance when Xcode database interactions are disabled" do
+    expect(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+    expect(Cache.Repo, :query, fn "PRAGMA incremental_vacuum(128000)" -> {:ok, %{rows: []}} end)
+    reject(Cache.KeyValueRepo, :checkout, 1)
+
+    assert :ok = SQLiteMaintenanceWorker.perform(%{})
+  end
 end

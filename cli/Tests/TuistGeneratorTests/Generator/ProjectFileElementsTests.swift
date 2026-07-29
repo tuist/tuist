@@ -642,6 +642,83 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateProjectFiles_whenInfoPlistIsInsideBuildableFolder_doesNotCreateFlatReference() throws {
+        // Given
+        let infoPlistPath = try AbsolutePath(validating: "/project/App/Supporting/App-Info.plist")
+        let target = Target.test(
+            infoPlist: .file(path: infoPlistPath),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/App",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNil(subject.file(path: infoPlistPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), ["App"])
+    }
+
+    func test_generateProjectFiles_whenXcconfigIsInsideBuildableFolder_doesNotCreateFlatReference() throws {
+        // Given
+        let xcconfigPath = try AbsolutePath(validating: "/project/App/Supporting/Configurations/App-Debug.xcconfig")
+        let target = Target.test(
+            settings: Settings(
+                base: [:],
+                configurations: [.debug: Configuration(settings: [:], xcconfig: xcconfigPath)]
+            ),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/App",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNil(subject.file(path: xcconfigPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), ["App"])
+    }
+
     func test_generateProducts_stableOrder() throws {
         for _ in 0 ..< 5 {
             let pbxproj = PBXProj()

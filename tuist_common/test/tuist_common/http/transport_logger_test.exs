@@ -16,7 +16,7 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
     %{handler_suffix: handler_suffix}
   end
 
-  test "logs Bandit body read timeouts with route and connection context", %{
+  test "logs Bandit read timeouts with route and connection context", %{
     handler_suffix: _handler_suffix
   } do
     log =
@@ -30,7 +30,7 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
             [:bandit, :request, :stop],
             %{duration: System.convert_time_unit(2, :millisecond, :native), req_body_bytes: 128},
             %{
-              error: "Body read timeout",
+              error: "Read timeout",
               telemetry_span_context: make_ref(),
               connection_telemetry_span_context: make_ref(),
               conn: %{
@@ -44,7 +44,7 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
         end
       )
 
-    assert log =~ "Bandit request body read timed out"
+    assert log =~ "Bandit request read timed out"
     assert log =~ "request_id=req_123"
     assert log =~ "method=POST"
     assert log =~ "route=/upload"

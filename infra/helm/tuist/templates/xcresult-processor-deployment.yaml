@@ -1,6 +1,6 @@
 {{- if .Values.xcresultProcessor.enabled }}
-{{- $secretName := include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -11,6 +11,15 @@ metadata:
     app.kubernetes.io/component: xcresult-processor
 spec:
   replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  # maxSurge: 0 (below) replaces one Tart VM at a time: terminate the
+  # old VM to free hostPort 9091, then boot a fresh one. A full macOS
+  # VM teardown + boot routinely overruns the 600s k8s default, which
+  # flips the Deployment to Progress-deadline-exceeded mid-roll. The
+  # deploy's `helm upgrade --atomic` then rolls back the whole release,
+  # so a slow processor image bump (e.g. 0.23.1 -> 0.24.0) blocks every
+  # prod deploy until it lands. Give a single VM cycle ample headroom,
+  # still well under helm's 60m --timeout.
+  progressDeadlineSeconds: 1800
   strategy:
     {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
   selector:
@@ -107,20 +116,24 @@ spec:
             # binds Phoenix on :8080, runs license validation, and
             # generally claims a wider Oban queue set than it can
             # actually serve under the tuist_processor DB role —
-            # leaving ProcessXcresultWorker's queue starved while
-            # legacy consumers on the same Supabase win the race.
+            # leaving ProcessXcresultWorker's queue starved.
             - name: TUIST_MODE
               value: "xcresult_processor"
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            # Tuist.License.assert_valid!/0 runs unconditionally at boot
+            # (application.ex), so the xcresult processor needs the license key.
+            # It used to come from the encrypted blob; with the blob gone it must
+            # be wired like the server Deployment, or boot crashes "license missing".
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
               value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
-            # Supabase Supavisor (transaction mode) for Postgres. Same
-            # tuist_processor role + same connection params the build
-            # processor uses — provisioned via
-            # infra/supabase/tuist-processor-role.sql.
+            # Route Postgres through the transaction-mode pooler. Same
+            # tuist_processor role + connection params the build processor
+            # uses (see `postgresql.cnpg.roles.processor` for the role's
+            # grant surface).
             - name: TUIST_DATABASE_POOLED
               value: "1"
             - name: DATABASE_URL
@@ -128,16 +141,87 @@ spec:
                 secretKeyRef:
                   name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
                   key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            # Object storage: the xcresult archive is downloaded to be parsed.
+            # Same wiring as the build processor — S3 creds come from the
+            # object-storage ESO Secret (managed) or app-secrets (self-hosted);
+            # Azure Blob creds come from the server Azure Blob settings.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
             {{- end }}
+            {{- if .Values.xcresultProcessor.tailscale.enabled }}
+            # Per-VM tailnet identity. tailscale-up.sh inside the VM
+            # reads TAILSCALE_AUTH_KEY at boot and joins the tailnet
+            # before the BEAM starts so Postgrex's first dial of the
+            # operator-managed pooler proxy hostname resolves. See
+            # infra/xcresult-processor-image/tailscale-up.sh.
+            #
+            # We share the macOS-fleet Tailscale auth key (same
+            # `tag:tuist-macmini-<env>` ACL binding the bootstrap
+            # uses for the Mac mini hosts) rather than minting a
+            # separate VM key — the ACL grants the same outbound
+            # surface either way and one key per env keeps rotation
+            # simple.
+            - name: TAILSCALE_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.xcresultProcessor.tailscale.authKeySecretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+                  key: {{ .Values.xcresultProcessor.tailscale.authKeySecretKey | default "auth-key" }}
+            # Identity stamp on the tailnet device the VM registers
+            # — defaults to the K8s Pod name (Downward API), which
+            # the chart's Deployment template already binds to the
+            # ReplicaSet hash + Pod ordinal. Roll a Pod → new device
+            # name → fresh tailnet registration.
+            - name: TAILSCALE_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if $serverConfigEnvFrom }}
+          # Bulk runtime config (ClickHouse URL, Sentry, the Phoenix/Cloak/
+          # Guardian secret keys, etc.) from the consolidated config Secret —
+          # the kubelet resolves envFrom and inject-env.sh handles multi-line
+          # values, so this replaces what the removed MASTER_KEY blob unlocked.
+          envFrom:
+            {{- $serverConfigEnvFrom | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
 {{- end }}

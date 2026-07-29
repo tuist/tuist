@@ -7,16 +7,27 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
 
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  @render_async_timeout 5_000
+
   describe "overview page with test runs" do
-    test "renders without error when in-progress test runs exist", %{
+    test "renders completed runs when processing test runs exist", %{
       conn: conn,
       organization: organization,
       project: project
     } do
+      reject(Tuist.Builds.Analytics, :build_time_analytics, 1)
+
       {:ok, _test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           status: "in_progress",
+          duration: 0
+        )
+
+      {:ok, _test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          status: "processing",
           duration: 0
         )
 
@@ -34,7 +45,12 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
           duration: 3000
         )
 
-      {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      {:ok, live_view, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      render_async(live_view, @render_async_timeout)
+
+      assert has_element?(live_view, "#chart-single-test-run-duration")
+      assert has_element?(live_view, "[data-part='test-runs-chart']", "Passed runs")
+      assert has_element?(live_view, "[data-part='test-runs-chart']", "Failed runs")
     end
   end
 

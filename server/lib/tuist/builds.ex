@@ -313,10 +313,11 @@ defmodule Tuist.Builds do
   defp create_cas_outputs(build, outputs) do
     outputs =
       outputs
-      |> Enum.map(&CASOutput.changeset(build.id, &1))
+      |> Enum.map(&CASOutput.changeset(build.id, build.project_id, &1))
       |> Enum.map(&Ecto.Changeset.apply_changes/1)
       |> Enum.map(fn struct ->
         %{
+          project_id: struct.project_id,
           node_id: struct.node_id,
           checksum: struct.checksum,
           size: struct.size,

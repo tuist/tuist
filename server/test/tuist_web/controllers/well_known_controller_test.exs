@@ -3,8 +3,21 @@ defmodule TuistWeb.WellKnownControllerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.Namespace.JWTToken
   alias TuistWeb.AgentSkillsDiscovery
+
+  setup do
+    stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
+    :ok
+  end
 
   describe "GET /.well-known/api-catalog" do
     test "returns a linkset API catalog", %{conn: conn} do
@@ -103,6 +116,49 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/registry.json" do
+    test "advertises the swift ecosystem and derives its login path", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/api/registry/swift" end)
+
+      conn = get(conn, "/.well-known/registry.json")
+
+      assert json_response(conn, 200) == %{
+               "ecosystems" => %{
+                 "swift" => %{
+                   "url" => "https://registry.tuist.dev/api/registry/swift",
+                   "loginAPIPath" => "/api/registry/swift/login"
+                 }
+               }
+             }
+    end
+
+    test "serves JSON to clients that send an application/json Accept header", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/swift" end)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/registry.json")
+
+      assert json_response(conn, 200) == %{
+               "ecosystems" => %{
+                 "swift" => %{
+                   "url" => "https://registry.tuist.dev/swift",
+                   "loginAPIPath" => "/swift/login"
+                 }
+               }
+             }
+    end
+
+    test "404s when the deployment exposes no registry", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> nil end)
+
+      conn = get(conn, "/.well-known/registry.json")
+
+      assert response(conn, 404) == ""
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")
@@ -111,11 +167,27 @@ defmodule TuistWeb.WellKnownControllerTest do
       server = Tuist.MCP.Server.server()
 
       assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
+      assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=3600"]
+      refute Map.has_key?(response, "$schema")
+      assert response["version"] == "1.0"
+      assert response["protocolVersion"] == "2025-06-18"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
+      assert response["serverInfo"]["title"] == "Tuist"
+      assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
-      assert "tools" in response["capabilities"]
-      assert "prompts" in response["capabilities"]
+      assert response["capabilities"]["tools"] == %{"listChanged" => true}
+      assert response["capabilities"]["prompts"] == %{"listChanged" => true}
+
+      assert response["authentication"] == %{
+               "required" => true,
+               "schemes" => ["bearer", "oauth2"]
+             }
+
+      assert response["instructions"] == server.instructions
+      assert response["tools"] == ["dynamic"]
+      assert response["prompts"] == ["dynamic"]
     end
   end
 
@@ -150,40 +222,6 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
-  describe "GET /.well-known/openid_configuration" do
-    test "returns the OpenID configuration", %{conn: conn} do
-      issuer = "https://test.example.com"
-
-      expect(JWTToken, :issuer, fn -> issuer end)
-      conn = get(conn, "/.well-known/openid-configuration")
-
-      response = json_response(conn, 200)
-
-      assert response["issuer"] == issuer
-    end
-  end
-
-  describe "GET /.well-known/jwks.json" do
-    test "returns the JWKS", %{conn: conn} do
-      expect(JWTToken, :public_jwk, fn ->
-        %{
-          "kty" => "RSA",
-          "use" => "sig",
-          "alg" => "RS256",
-          "kid" => "namespace-jwt-key-1",
-          "n" => "mock_n_value",
-          "e" => "AQAB"
-        }
-      end)
-
-      conn = get(conn, "/.well-known/jwks.json")
-
-      response = json_response(conn, 200)
-
-      assert length(response["keys"]) == 1
-    end
-  end
-
   describe "GET /.well-known/oauth-authorization-server" do
     test "returns OAuth authorization server metadata", %{conn: conn} do
       conn = get(conn, "/.well-known/oauth-authorization-server")
@@ -193,11 +231,30 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["issuer"] == "http://www.example.com"
       assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
       assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["revocation_endpoint"] == "http://www.example.com/oauth2/revoke"
+      assert response["jwks_uri"] == "http://www.example.com/.well-known/jwks.json"
+      assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
       assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
       assert response["scopes_supported"] == ["mcp"]
+
+      assert response["agent_auth"] == %{
+               "skill" => "http://www.example.com/auth.md",
+               "identity_endpoint" => "http://www.example.com/agent/identity",
+               "claim_endpoint" => "http://www.example.com/agent/identity/claim",
+               "events_endpoint" => "http://www.example.com/agent/event/notify",
+               "identity_types_supported" => ["anonymous", "identity_assertion", "service_auth"],
+               "identity_assertion" => %{
+                 "assertion_types_supported" => ["urn:ietf:params:oauth:token-type:id-jag"]
+               },
+               "events_supported" => ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"],
+               "compatibility" => %{
+                 "legacy_registration_endpoint" => "http://www.example.com/agent/auth",
+                 "legacy_claim_endpoint" => "http://www.example.com/agent/auth/claim"
+               }
+             }
     end
 
-    test "uses forwarded request origin for OAuth authorization server metadata", %{conn: conn} do
+    test "keeps the configured canonical origin behind a forwarding proxy", %{conn: conn} do
       conn =
         conn
         |> put_req_header("x-forwarded-proto", "https")
@@ -207,10 +264,15 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       response = json_response(conn, 200)
 
-      assert response["issuer"] == "https://self-hosted.example.com"
-      assert response["authorization_endpoint"] == "https://self-hosted.example.com/oauth2/authorize"
-      assert response["token_endpoint"] == "https://self-hosted.example.com/oauth2/token"
-      assert response["registration_endpoint"] == "https://self-hosted.example.com/oauth2/register"
+      assert response["issuer"] == "http://www.example.com"
+      assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
+      assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
+      assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
+      assert response["agent_auth"]["skill"] == "http://www.example.com/auth.md"
+      assert response["agent_auth"]["identity_endpoint"] == "http://www.example.com/agent/identity"
+      assert response["agent_auth"]["claim_endpoint"] == "http://www.example.com/agent/identity/claim"
+      assert response["agent_auth"]["events_endpoint"] == "http://www.example.com/agent/event/notify"
     end
   end
 
@@ -221,10 +283,19 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
 
       assert response["resource"] == "http://www.example.com"
+      assert response["resource_name"] == "Tuist"
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
-      refute Map.has_key?(response, "resource_documentation")
+      assert response["agent_auth"]["skill"] == "http://www.example.com/auth.md"
+      assert response["agent_auth"]["identity_endpoint"] == "http://www.example.com/agent/identity"
+
+      assert response["agent_auth"]["identity_assertion"]["assertion_types_supported"] == [
+               "urn:ietf:params:oauth:token-type:id-jag"
+             ]
+
+      assert response["resource_documentation"] ==
+               "http://www.example.com/en/docs/guides/features/agentic-coding/mcp"
     end
   end
 
@@ -235,13 +306,17 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
 
       assert response["resource"] == "http://www.example.com/mcp"
+      assert response["resource_name"] == "Tuist MCP"
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
-      refute Map.has_key?(response, "resource_documentation")
+      assert response["agent_auth"]["claim_endpoint"] == "http://www.example.com/agent/identity/claim"
+
+      assert response["resource_documentation"] ==
+               "http://www.example.com/en/docs/guides/features/agentic-coding/mcp"
     end
 
-    test "uses request origin including non-default port", %{conn: conn} do
+    test "keeps the configured canonical resource when reached through an alias", %{conn: conn} do
       conn =
         conn
         |> Map.put(:host, "custom.tuist.dev")
@@ -250,8 +325,9 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       response = json_response(conn, 200)
 
-      assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
-      assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
+      assert response["resource"] == "http://www.example.com/mcp"
+      assert response["resource_name"] == "Tuist MCP"
+      assert response["authorization_servers"] == ["http://www.example.com"]
     end
 
     test "returns not found for unsupported protected resources", %{conn: conn} do

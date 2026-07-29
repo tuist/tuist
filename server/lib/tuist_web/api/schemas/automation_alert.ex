@@ -17,7 +17,7 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       enabled: %Schema{type: :boolean},
       monitor_type: %Schema{
         type: :string,
-        enum: ["flakiness_rate", "flaky_run_count"],
+        enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"],
         description: "The monitor type that evaluates the condition."
       },
       trigger_config: %Schema{type: :object, description: "Monitor-specific trigger parameters (e.g. threshold, window)."},

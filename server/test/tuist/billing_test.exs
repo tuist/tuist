@@ -1,5 +1,5 @@
 defmodule Tuist.BillingTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts
@@ -493,58 +493,6 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "update_namespace_usage_meter/2" do
-    test "sends correct Stripe meter event with instance unit minutes" do
-      customer_id = "cus_123"
-      idempotency_key = "job-xyz"
-
-      account = %Account{customer_id: customer_id, namespace_tenant_id: "tenant-abc"}
-
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> {:ok, account} end)
-
-      stub(Tuist.Namespace, :get_tenant_usage, fn ^account, _start_date, _end_date ->
-        {:ok, %{"total" => %{"instanceMinutes" => %{"unit" => 137}}}}
-      end)
-
-      expect(Date, :utc_today, fn -> ~D[2024-11-21] end)
-      expect(Tuist.Time, :utc_now, fn -> ~U[2024-11-21 00:00:00Z] end)
-
-      expect(Stripe.Request, :make_request, fn req ->
-        assert %{
-                 method: :post,
-                 endpoint: "/v1/billing/meter_events",
-                 params: %{
-                   event_name: "namespace_unit_minute",
-                   payload: %{
-                     value: 137,
-                     stripe_customer_id: ^customer_id
-                   }
-                 }
-               } = req
-
-        assert req.headers["Idempotency-Key"] == "#{idempotency_key}-namespace"
-
-        {:ok, %{}}
-      end)
-
-      assert {:ok, :updated} = Billing.update_namespace_usage_meter(customer_id, idempotency_key)
-    end
-
-    test "does nothing when account has no namespace tenant id" do
-      customer_id = "cus_no_ns"
-      idempotency_key = "job-noop"
-
-      account = %Account{customer_id: customer_id, namespace_tenant_id: nil}
-
-      stub(Accounts, :get_account_from_customer_id, fn ^customer_id -> {:ok, account} end)
-
-      reject(&Stripe.Request.make_request/1)
-
-      assert {:ok, %Account{customer_id: ^customer_id}} =
-               Billing.update_namespace_usage_meter(customer_id, idempotency_key)
-    end
-  end
-
   describe "get_customer_by_id/1" do
     test "returns the customer when it exists" do
       # Given
@@ -731,6 +679,102 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == nil
+    end
+  end
+
+  describe "effective_plan/1" do
+    test "returns Air when an organization account has no active subscription" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      assert Billing.effective_plan(account) == :air
+    end
+
+    test "returns the active subscription plan for a personal account" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+      assert Billing.effective_plan(user.account) == :pro
+    end
+
+    test "ignores inactive subscriptions" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise, status: "canceled")
+
+      assert Billing.effective_plan(account) == :air
+    end
+
+    test "uses the latest active or trialing preloaded subscription" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      older =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :pro,
+          inserted_at: ~N[2026-01-31 23:59:59]
+        )
+
+      newer =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :enterprise,
+          status: "trialing",
+          inserted_at: ~N[2026-02-01 00:00:00]
+        )
+
+      canceled =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :air,
+          status: "canceled",
+          inserted_at: ~N[2026-02-02 00:00:00]
+        )
+
+      account = %{account | subscriptions: [older, newer, canceled]}
+
+      assert Billing.effective_plan(account) == :enterprise
+    end
+
+    test "returns Air when preloaded subscriptions contain no active subscription" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      canceled =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :enterprise,
+          status: "canceled"
+        )
+
+      account = %{account | subscriptions: [canceled]}
+
+      assert Billing.effective_plan(account) == :air
+    end
+
+    test "uses the subscription identifier to break preloaded timestamp ties" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      inserted_at = ~N[2026-02-01 00:00:00]
+
+      older =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :pro,
+          inserted_at: inserted_at
+        )
+
+      newer =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :enterprise,
+          inserted_at: inserted_at
+        )
+
+      account = %{account | subscriptions: [older, newer]}
+
+      assert Billing.effective_plan(account) == :enterprise
     end
   end
 

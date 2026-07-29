@@ -38,7 +38,7 @@ public struct CommandEventFactory {
             )
         }
 
-        let commandEvent = CommandEvent(
+        return CommandEvent(
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
@@ -61,9 +61,10 @@ public struct CommandEventFactory {
             ranAt: info.ranAt,
             buildRunId: info.buildRunId,
             testRunId: info.testRunId,
-            cacheEndpoint: info.cacheEndpoint
+            generationId: info.generationId,
+            cacheEndpoint: info.cacheEndpoint,
+            moduleCacheOutputs: info.moduleCacheOutputs
         )
-        return commandEvent
     }
 
     private func map(
@@ -92,7 +93,6 @@ public struct CommandEventFactory {
                         binaryCacheMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
                             hit: hit,
-                            buildDuration: cacheItem.buildDuration,
                             subhashes: targetContentHashSubhashes[cacheItem.hash]
                         )
                     } else {

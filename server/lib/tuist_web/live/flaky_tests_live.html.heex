@@ -316,8 +316,18 @@
         title={dgettext("dashboard_tests", "No data yet")}
       >
         <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
     </div>
@@ -400,10 +410,7 @@
               @flaky_tests_sort_by == "name" &&
                 column_sort_patch(assigns, "name")
             }
-            icon={
-              @flaky_tests_sort_by == "name" &&
-                sort_icon(@flaky_tests_sort_order)
-            }
+            sort_order={@flaky_tests_sort_by == "name" && @flaky_tests_sort_order}
           >
             <.text_and_description_cell
               label={test_case.name}
@@ -428,10 +435,7 @@
               @flaky_tests_sort_by == "flaky_runs_count" &&
                 column_sort_patch(assigns, "flaky_runs_count")
             }
-            icon={
-              @flaky_tests_sort_by == "flaky_runs_count" &&
-                sort_icon(@flaky_tests_sort_order)
-            }
+            sort_order={@flaky_tests_sort_by == "flaky_runs_count" && @flaky_tests_sort_order}
           >
             <.text_cell label={test_case.flaky_runs_count} />
           </:col>
@@ -442,10 +446,7 @@
               @flaky_tests_sort_by == "last_flaky_at" &&
                 column_sort_patch(assigns, "last_flaky_at")
             }
-            icon={
-              @flaky_tests_sort_by == "last_flaky_at" &&
-                sort_icon(@flaky_tests_sort_order)
-            }
+            sort_order={@flaky_tests_sort_by == "last_flaky_at" && @flaky_tests_sort_order}
           >
             <.link_button
               :if={test_case.flaky_runs_count > 0}
@@ -480,8 +481,18 @@
           data-part="empty-flaky-tests-table-card-section"
         >
           <:image>
-            <img src="/images/empty_table_light.png" data-theme="light" />
-            <img src="/images/empty_table_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </div>

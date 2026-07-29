@@ -16,37 +16,36 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
     alerts = Repo.all(from(a in Alert, where: a.enabled == true))
 
     Enum.each(alerts, fn alert ->
-      # The scheduler itself runs on a fixed cron (~1 minute). Without
-      # including `:completed` in the uniqueness state set, a fast-running
-      # evaluation job would move to :completed within seconds, and the next
-      # scheduler tick would queue another one — collapsing the effective
-      # cadence to the scheduler's interval. Checking `:completed` + the
-      # per-alert `period` guarantees we wait at least `cadence` seconds
-      # before re-scheduling, regardless of how quickly the previous run
-      # finished.
-      {:ok, _job} =
-        %{alert_id: alert.id}
-        |> AlertEvaluationWorker.new(
-          unique: [
-            keys: [:alert_id],
-            period: cadence_seconds(alert.cadence),
-            states: [:available, :scheduled, :executing, :completed]
-          ]
-        )
-        |> Oban.insert()
+      if scheduled_alert?(alert) do
+        # The scheduler itself runs on a fixed cron (~1 minute). Without
+        # including `:completed` in the uniqueness state set, a fast-running
+        # evaluation job would move to :completed within seconds, and the next
+        # scheduler tick would queue another one — collapsing the effective
+        # cadence to the scheduler's interval. Checking `:completed` + the
+        # per-alert `period` guarantees we wait at least `cadence` seconds
+        # before re-scheduling, regardless of how quickly the previous run
+        # finished.
+        {:ok, _job} =
+          %{alert_id: alert.id}
+          |> AlertEvaluationWorker.new(
+            unique: [
+              keys: [:alert_id],
+              period: Alert.cadence_seconds(alert.cadence),
+              states: [:available, :scheduled, :executing, :completed]
+            ]
+          )
+          |> Oban.insert()
+      end
     end)
 
     :ok
   end
 
-  defp cadence_seconds(cadence) when is_binary(cadence) do
-    case Integer.parse(cadence) do
-      {value, "m"} -> value * 60
-      {value, "h"} -> value * 3600
-      {value, "s"} -> value
-      _ -> 300
+  defp scheduled_alert?(alert) do
+    cond do
+      Alert.event_driven?(alert) -> false
+      Alert.scoped_evaluation?(alert) -> false
+      true -> true
     end
   end
-
-  defp cadence_seconds(_), do: 300
 end

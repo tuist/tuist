@@ -32,7 +32,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
           "state" => state_token
         })
 
-      assert redirected_to(conn) == "/#{account.name}/integrations"
+      assert redirected_to(conn) == "/#{account.name}/settings/integrations"
 
       # Regression guard: github.com installations must land with no
       # per-installation credentials so the runtime keeps falling back
@@ -90,7 +90,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
           "state" => state_token
         })
 
-      assert redirected_to(conn) == "/#{account.name}/integrations"
+      assert redirected_to(conn) == "/#{account.name}/settings/integrations"
 
       {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
       assert installation.installation_id == installation_id

@@ -5,7 +5,7 @@ defmodule TuistCommon.ObanTelemetry do
 
   def attach do
     :telemetry.attach(
-      "oban-discard-error-reporter",
+      "oban-exception-reporter",
       [:oban, :job, :exception],
       &__MODULE__.handle_exception/4,
       :no_config
@@ -15,16 +15,20 @@ defmodule TuistCommon.ObanTelemetry do
   def handle_exception(
         [:oban, :job, :exception],
         _measurements,
-        %{state: :discard, job: job, kind: kind, reason: reason, stacktrace: stacktrace},
+        %{state: state, job: job, kind: kind, reason: reason, stacktrace: stacktrace},
         :no_config
-      ) do
+      )
+      when state in [:failure, :discard] do
     exception = Exception.normalize(kind, reason, stacktrace)
 
     Sentry.capture_exception(exception,
       stacktrace: stacktrace,
-      tags: %{oban_worker: job.worker, oban_queue: job.queue},
+      tags: %{oban_worker: job.worker, oban_queue: job.queue, oban_state: to_string(state)},
       fingerprint: [job.worker, "{{ default }}"],
-      extra: Map.take(job, [:args, :attempt, :id, :max_attempts, :queue, :worker])
+      extra:
+        job
+        |> Map.take([:args, :attempt, :id, :max_attempts, :queue, :worker])
+        |> Map.put(:oban_state, state)
     )
   end
 

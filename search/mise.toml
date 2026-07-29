@@ -1,3 +1,4 @@
-[tools]
-ruby = "3.3.10"
-"gem:kamal" = "2.10.1"
+# The search image and its indexers are deployed to Kubernetes via
+# infra/helm/typesense and .github/workflows/typesense-deployment.yml. The one
+# local task (test) builds the Docker image and health-checks it, needing only
+# Docker, so this project declares no mise-managed tools.

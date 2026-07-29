@@ -4,22 +4,21 @@ Describe 'extension hooks'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-extension"
-    export KURA_US_PORT=4501
-    export KURA_EU_PORT=4502
-    export KURA_AP_PORT=4503
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_EU_URL="http://localhost:${KURA_EU_PORT}"
-    export KURA_AP_URL="http://localhost:${KURA_AP_PORT}"
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/test/e2e/docker-compose.extension.yml"
     )
     setup_suite_tmpdir
 
+    suite_env COMPOSE_PROJECT_NAME kura-extension
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
+
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us kura-eu kura-ap || return 1
+
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
@@ -90,6 +89,11 @@ Describe 'extension hooks'
       -H "content-type: application/json" \
       -d '{"parts":[1,2]}')"
     The variable complete_status should eq 204
+
+    wait_for_status_with \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      200 \
+      -H "authorization: Bearer ${ios_token}" >/dev/null || return 1
 
     headers_file="${SUITE_TMP_DIR}/module.headers"
     body_file="${SUITE_TMP_DIR}/module.body"

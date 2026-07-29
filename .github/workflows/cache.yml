@@ -28,7 +28,7 @@ defaults:
     working-directory: cache
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
@@ -37,7 +37,7 @@ env:
 jobs:
   format:
     name: Format
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -54,13 +54,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Check format
-        run: mise run format --check
+        run: mise run --skip-tools format --check
 
   credo:
     name: Credo
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -78,13 +78,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Run Credo
-        run: mise run credo
+        run: mise run --skip-tools credo
 
   test:
     name: Test
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -102,13 +102,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Run tests
-        run: mise run test
+        run: mise run --skip-tools test
 
   compile-prod:
     name: Compile (prod)
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -126,16 +126,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Compile with MIX_ENV=prod
         run: MIX_ENV=prod mix compile --warnings-as-errors
 
   docker-compose:
     name: Docker Compose
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — `docker compose config` requires the docker CLI
-    # and engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

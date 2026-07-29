@@ -19,18 +19,6 @@ struct XCActivityLogControllerTests {
         )
     }
 
-    @Test func buildTimesByTarget() async throws {
-        // Given
-        let projectDerivedDataDirectory = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/FrameworkDerivedDataWithActivityLog"))
-
-        // When
-        let got = try await subject.buildTimesByTarget(projectDerivedDataDirectory: projectDerivedDataDirectory)
-
-        // Then
-        #expect(got == ["Framework": 4.696011543273926])
-    }
-
     @Test func parseCleanBuildXCActivityLog() async throws {
         // Given
         let cleanBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory

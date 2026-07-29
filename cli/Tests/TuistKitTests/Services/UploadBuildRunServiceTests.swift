@@ -15,8 +15,8 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
-
 @testable import TuistKit
 
 struct UploadBuildRunServiceTests {
@@ -29,8 +29,19 @@ struct UploadBuildRunServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
     private let ciController = MockCIControlling()
+    private let generationMetadataStore = MockGenerationMetadataStoring()
+    private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
 
     init() throws {
+        given(generationMetadataStore)
+            .read(for: .any)
+            .willReturn(nil)
+
+        // No workspace under the build path by default, so the lookup falls back to projectPath.
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willThrow(NSError.test())
+
         subject = UploadBuildRunService(
             fileSystem: fileSystem,
             machineEnvironment: machineEnvironment,
@@ -39,7 +50,9 @@ struct UploadBuildRunServiceTests {
             uploadBuildService: uploadBuildService,
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
-            ciController: ciController
+            ciController: ciController,
+            generationMetadataStore: generationMetadataStore,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
         )
 
         given(serverEnvironmentService)
@@ -48,7 +61,7 @@ struct UploadBuildRunServiceTests {
 
         given(createBuildService)
             .createBuild(
-                fullHandle: .any, serverURL: .any, id: .any, category: .any,
+                fullHandle: .any, serverURL: .any, id: .any, generationId: .any, category: .any,
                 configuration: .any, customMetadata: .any, duration: .any,
                 files: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
                 gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
@@ -151,6 +164,7 @@ struct UploadBuildRunServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 id: .value("test-uuid"),
+                generationId: .value(nil),
                 category: .value(.incremental),
                 configuration: .value("Debug"),
                 customMetadata: .any,
@@ -176,6 +190,54 @@ struct UploadBuildRunServiceTests {
                 cacheableTasks: .value([]),
                 casOutputs: .value([]),
                 machineMetrics: .value([])
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func forwards_generation_id_resolved_from_the_store() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")
+        try await fileSystem.writeText("fake", at: activityLogPath)
+        // The build hands us a directory; the service resolves the generated workspace from it and
+        // reads the generation metadata keyed by that workspace.
+        let projectPath = temporaryDirectory
+        let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+
+        xcodeProjectOrWorkspacePathLocator.reset()
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(projectPath))
+            .willReturn(workspacePath)
+        generationMetadataStore.reset()
+        given(generationMetadataStore)
+            .read(for: .value(workspacePath))
+            .willReturn("generation-uuid")
+
+        let config = Tuist.test(fullHandle: "tuist/tuist")
+
+        // When
+        try await subject.uploadBuildRun(
+            activityLogPath: activityLogPath,
+            projectPath: projectPath,
+            config: config,
+            scheme: nil,
+            configuration: nil
+        )
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any, serverURL: .any, id: .any,
+                generationId: .value("generation-uuid"), category: .any,
+                configuration: .any, customMetadata: .any, duration: .any,
+                files: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
+                gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
+                modelIdentifier: .any, macOSVersion: .any, scheme: .any,
+                targets: .any, xcodeCacheUploadEnabled: .any, xcodeVersion: .any,
+                status: .any, ciRunId: .any, ciProjectHandle: .any,
+                ciHost: .any, ciProvider: .any, cacheableTasks: .any,
+                casOutputs: .any, machineMetrics: .any
             )
             .called(1)
     }
@@ -221,7 +283,7 @@ struct UploadBuildRunServiceTests {
 
         verify(createBuildService)
             .createBuild(
-                fullHandle: .any, serverURL: .any, id: .any, category: .any,
+                fullHandle: .any, serverURL: .any, id: .any, generationId: .any, category: .any,
                 configuration: .any,
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }

@@ -21,7 +21,7 @@ clickhouse_database_exists() {
 
 bootstrap_postgres_database() {
   mix ecto.create -r Tuist.Repo
-  mix ecto.load -r Tuist.Repo
+  mix ecto.migrate -r Tuist.Repo
 }
 
 rebootstrap_postgres_database() {
@@ -52,7 +52,7 @@ popd >/dev/null
 if ! postgres_database_exists; then
   bootstrap_postgres_database
 elif ! postgres_database_bootstrapped; then
-  # A previous install may have created the DB but exited before `ecto.load`
+  # A previous install may have created the DB but exited before migrations
   # finished. In that state later runs skip bootstrapping and migrations fail
   # against missing base tables such as `users`, so rebuild the local DB.
   rebootstrap_postgres_database

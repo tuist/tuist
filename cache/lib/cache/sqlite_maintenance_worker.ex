@@ -11,12 +11,14 @@ defmodule Cache.SQLiteMaintenanceWorker do
   def perform(_job) do
     Repo.query("PRAGMA incremental_vacuum(128000)")
 
-    timeout_ms = Config.key_value_maintenance_busy_timeout_ms()
+    if Config.xcode_database_interactions_enabled?() do
+      timeout_ms = Config.key_value_maintenance_busy_timeout_ms()
 
-    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fn ->
-      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")
-      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA incremental_vacuum(1000)")
-    end)
+      SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fn ->
+        SQLiteHelpers.query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")
+        SQLiteHelpers.query!(KeyValueRepo, "PRAGMA incremental_vacuum(1000)")
+      end)
+    end
 
     :ok
   rescue

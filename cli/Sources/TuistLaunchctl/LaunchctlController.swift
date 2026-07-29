@@ -12,6 +12,9 @@ public protocol LaunchctlControlling {
     /// Boots out a LaunchAgent by label from the current user's GUI domain.
     func bootout(label: String) async throws
 
+    /// Restarts a LaunchAgent by label in the current user's GUI domain.
+    func kickstart(label: String) async throws
+
     /// Returns whether a LaunchAgent with the given label is currently loaded in the
     /// current user's GUI domain.
     func isLoaded(label: String) async throws -> Bool
@@ -43,6 +46,19 @@ public struct LaunchctlController: LaunchctlControlling {
             arguments: [
                 "/bin/launchctl",
                 "bootout",
+                "gui/\(uid)/\(label)",
+            ]
+        )
+        .awaitCompletion()
+    }
+
+    public func kickstart(label: String) async throws {
+        let uid = getuid()
+        _ = try await commandRunner.run(
+            arguments: [
+                "/bin/launchctl",
+                "kickstart",
+                "-k",
                 "gui/\(uid)/\(label)",
             ]
         )

@@ -12,16 +12,21 @@ defmodule Tuist.Accounts.UserNotifier do
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
+    recipient |> build_email(subject, body) |> Mailer.deliver_now!()
+  end
+
+  # Builds the email envelope without delivering it. Lets callers that need a
+  # non-raising delivery (e.g. Oban workers binding the result to `perform/1`)
+  # send via `Mailer.deliver_now/1` while sharing the envelope conventions
+  # used by every other notifier function in this module.
+  defp build_email(recipient, subject, body) do
     email =
       new_email(to: recipient, from: {"Tuist", Environment.mailing_from_address()}, subject: subject, html_body: body)
 
-    email =
-      case Environment.mailing_reply_to_address() do
-        nil -> email
-        reply_to -> put_header(email, "Reply-To", reply_to)
-      end
-
-    Mailer.deliver_now!(email)
+    case Environment.mailing_reply_to_address() do
+      nil -> email
+      reply_to -> put_header(email, "Reply-To", reply_to)
+    end
   end
 
   defp html_email(body, icon_url) do
@@ -154,6 +159,34 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
+  Deliver instructions to view an agent registration OTP.
+  """
+  def deliver_agent_registration_claim_instructions(%{email: email, claim_view_url: claim_view_url}) do
+    deliver(
+      email,
+      "Your Tuist agent sign-in code",
+      html_email(
+        """
+            <div class="container">
+              <h1>View your Tuist sign-in code</h1>
+              <p>
+                An agent is requesting access to Tuist on your behalf.
+                Open the secure page below to view the one-time code, then read it back to the agent.
+              </p>
+              <p style="padding-top: 16px; padding-bottom: 16px;">
+                <a href="#{claim_view_url}" style="color: #ffffff;" class="button">View sign-in code</a>
+              </p>
+              <p style="font-size: 14px; color: #555555; text-align: center;">
+                If you did not ask an agent to connect to Tuist, ignore this email.
+              </p>
+            </div>
+        """,
+        Environment.email_icon_url()
+      )
+    )
+  end
+
+  @doc """
   Deliver invitation to an organization
   """
   def deliver_invitation(invitee_email, %{
@@ -179,6 +212,52 @@ defmodule Tuist.Accounts.UserNotifier do
         Environment.email_icon_url()
       )
     )
+  end
+
+  @doc """
+  Notify an existing Tuist user that they were attached to an organization by
+  that organization's SCIM provisioning (e.g. Okta). The user did not initiate
+  this — the message exists so they can audit the new membership. Removal is
+  only possible by an organization admin (in Tuist) or by the identity
+  provider de-provisioning the user, so the copy directs the recipient to
+  their IdP/IT admin rather than promising a Tuist self-service flow.
+
+  Returns `{:ok, email}` on successful delivery and `{:error, reason}` on
+  delivery failure (e.g. SMTP timeout) so the caller — typically an Oban
+  worker — can let Oban's retry pipeline pick it up via the standard
+  `{:error, _}` return.
+  """
+  def deliver_scim_organization_attachment(%User{email: user_email}, %{account: %{name: organization_name}}) do
+    organization_url = Environment.app_url(path: "/#{organization_name}")
+
+    subject =
+      dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization",
+        organization_name: organization_name
+      )
+
+    body =
+      html_email(
+        """
+            <div class="container">
+              <h1>#{dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization", organization_name: organization_name)}</h1>
+              <p>
+                #{dgettext("dashboard_account", "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).", user_email: user_email, organization_name: organization_name)}
+              </p>
+              <p>
+                #{dgettext("dashboard_account", "If you expected this, no action is needed. You can open the organization here:")}
+              </p>
+              <p style="padding-top: 16px; padding-bottom: 16px;">
+                <a href="#{organization_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name)}</a>
+              </p>
+              <p>
+                #{dgettext("dashboard_account", "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.", organization_name: organization_name)}
+              </p>
+            </div>
+        """,
+        Environment.email_icon_url()
+      )
+
+    user_email |> build_email(subject, body) |> Mailer.deliver_now()
   end
 
   @doc """

@@ -1,0 +1,465 @@
+{{/*
+  Render the CNPG Cluster + ScheduledBackup + ESO Secrets when either:
+    - `postgresql.cnpg.enabled` is true — the operator-driven path that
+      provisions the cluster alongside whatever DATABASE_URL the server
+      currently reads (useful for parallel soak before cutover).
+    - `postgresql.mode == "cnpg"` — the cutover state. Migration Jobs
+      read the cluster's `<name>-app` owner Secret; managed server pods
+      read the `tuist_web` runtime role Secret.
+*/}}
+{{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "pg") -}}
+{{- $backupSecretName := include "tuist.componentName" (dict "root" . "component" "pg-backup-credentials") -}}
+{{- $objectStoreName := include "tuist.componentName" (dict "root" . "component" "pg-backup-store") -}}
+{{- $webRoleSecretName := include "tuist.cnpgWebRoleSecretName" . -}}
+{{- $processorRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-processor") -}}
+{{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
+{{- $grafanaRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-grafana-ro") -}}
+{{- $swiftRegistrySyncRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-swift-registry-sync") -}}
+# CloudNativePG Cluster. The `cloudnative-pg` operator owns the primary,
+# the synchronous replicas, instance scheduling, role provisioning, and
+# WAL archiving. The chart only declares intent: replica count, storage
+# shape, Tigris backup endpoint, and the managed roles the application
+# consumes. Day-2 operations (failover, point-in-time recovery, cluster
+# restore) flow through `kubectl cnpg <command>` against this CR.
+#
+# Cluster requirements:
+#   * The cloudnative-pg operator must be installed cluster-wide before
+#     this template renders (`helm install cnpg-system cnpg/cloudnative-pg`).
+#     The platform chart installs it on managed clusters.
+#   * Tigris credentials for barman live in 1Password as
+#     `S3_BACKUP_CREDENTIALS` and are synced via ESO into
+#     `{{ $backupSecretName }}` below.
+#   * Managed-role passwords are synced by ESO from the configured store
+#     under `postgresql.cnpg.externalSecrets`; CNPG reconciles those
+#     Secret values into Postgres role passwords.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $clusterName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.cnpg.instances }}
+  imageName: {{ .Values.postgresql.cnpg.image.repository }}:{{ .Values.postgresql.cnpg.image.tag }}
+  primaryUpdateStrategy: unsupervised
+  primaryUpdateMethod: {{ .Values.postgresql.cnpg.primaryUpdateMethod | default "switchover" }}
+
+  # Synchronous replication: the primary holds a COMMIT's ack until a
+  # standby has the WAL durably (`ANY 1` quorum), so an acknowledged
+  # write survives losing the primary's node (RPO≈0) and failover
+  # promotes a caught-up standby. `dataDurability: required` keeps that
+  # guarantee under replica loss — writes wait rather than fall back to
+  # async. With 2 standbys (canary/production) one being down still
+  # satisfies the quorum; a 1-standby cluster (staging) can stall.
+  #
+  # `parameters` sets server-level Postgres settings (notably
+  # max_connections, which must clear the aggregate connection budget).
+  # `sharedPreloadLibraries` is a separate list on the CR rather than
+  # a parameter map entry because CNPG's admission webhook treats
+  # `shared_preload_libraries` as a fixed parameter (the operator
+  # manages its own required entries) and rejects it under `parameters`.
+  {{- if or .Values.postgresql.cnpg.parameters .Values.postgresql.cnpg.sharedPreloadLibraries (gt (int .Values.postgresql.cnpg.instances) 1) }}
+  postgresql:
+    {{- with .Values.postgresql.cnpg.sharedPreloadLibraries }}
+    shared_preload_libraries:
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.postgresql.cnpg.parameters }}
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+    {{- if gt (int .Values.postgresql.cnpg.instances) 1 }}
+    synchronous:
+      method: any
+      number: 1
+      dataDurability: required
+    {{- end }}
+  {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.cnpg.database | quote }}
+      owner: {{ .Values.postgresql.cnpg.owner | quote }}
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+      {{- if .Values.postgresql.cnpg.queryStats.enabled }}
+      # Fresh clusters get pg_stat_statements (for the query-latency
+      # metrics) at bootstrap, so no manual step is needed for new envs.
+      # postInitSQL runs against `postgres` as superuser, which is where
+      # the instance-global view must live. It fires only at initdb, so
+      # the already-bootstrapped envs still need the one-time
+      # infra/cnpg/pg-stat-statements.sql run; the extension persists
+      # thereafter (it survives a physical restore). Full declarative
+      # reconciliation on existing clusters would need CNPG >= 1.26's
+      # Database.spec.extensions.
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+      {{- end }}
+
+  # CNPG generates `{{ $clusterName }}-app` for the `tuist_app` owner /
+  # migration role. Runtime workloads use narrower managed roles below;
+  # the superuser Secret stays break-glass only (`kubectl cnpg psql`).
+  enableSuperuserAccess: true
+
+  storage:
+    size: {{ .Values.postgresql.cnpg.storage.size | quote }}
+    {{- with .Values.postgresql.cnpg.storage.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+
+  resources:
+    requests:
+      cpu: {{ .Values.postgresql.cnpg.resources.requests.cpu | quote }}
+      memory: {{ .Values.postgresql.cnpg.resources.requests.memory | quote }}
+    limits:
+      cpu: {{ .Values.postgresql.cnpg.resources.limits.cpu | quote }}
+      memory: {{ .Values.postgresql.cnpg.resources.limits.memory | quote }}
+
+  # Hard pod anti-affinity across hostnames keeps the primary and its
+  # sync replica on different worker nodes so a single-node outage
+  # never takes the cluster offline.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+
+  {{- if or .Values.postgresql.cnpg.monitoring .Values.postgresql.cnpg.queryStats.enabled }}
+  monitoring:
+    {{- with .Values.postgresql.cnpg.monitoring }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.postgresql.cnpg.queryStats.enabled }}
+    # pg_stat_statements latency metrics (cnpg_tuist_query_stats_*). The
+    # ConfigMap and its prerequisites are described in
+    # templates/postgresql-cnpg-monitoring-queries.yaml.
+    customQueriesConfigMap:
+      - name: {{ include "tuist.componentName" (dict "root" . "component" "pg-monitoring-queries") }}
+        key: queries
+    {{- end }}
+  {{- end }}
+
+  # Managed roles. CNPG creates the role on bootstrap and rotates the
+  # password whenever the referenced Secret changes — there is no
+  # `CREATE ROLE` SQL to run by hand. Web and processor per-table grants
+  # are both applied by Tuist.Release.migrate after each migration (as the
+  # schema owner, gated on TUIST_DATABASE_{RUNTIME,PROCESSOR}_ROLE). The
+  # infra/cnpg SQL runbook is now only a bootstrap/restore fallback for the
+  # window before the first migrate, plus the Ops role's CONNECT + REVOKE
+  # defense-in-depth.
+  managed:
+    roles:
+      - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+        ensure: present
+        login: true
+        # `inherit: false` so membership in tuist_ops_ro (below) lets the web
+        # role `SET ROLE tuist_ops_ro` for the internal Atlas query runner
+        # WITHOUT passively inheriting pg_read_all_data — keeping the web role's
+        # own footprint at its direct grants. NOINHERIT is safe here: the web
+        # role's application privileges are granted directly, not via any role
+        # membership. CNPG reconciles this membership, so no manual GRANT is
+        # needed (replaces the GRANT line that used to live in
+        # infra/cnpg/tuist-ops-ro-grants.sql).
+        inherit: false
+        inRoles:
+          - {{ .Values.postgresql.cnpg.roles.opsRo.name | quote }}
+        comment: "Tuist web runtime role"
+        passwordSecret:
+          name: {{ $webRoleSecretName }}
+      - name: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
+        ensure: present
+        login: true
+        comment: "Oban-queue processor role"
+        passwordSecret:
+          name: {{ $processorRoleSecretName }}
+      - name: {{ .Values.postgresql.cnpg.roles.opsRo.name | quote }}
+        ensure: present
+        login: true
+        inRoles:
+          - pg_read_all_data
+        comment: "Read-only Ops UI inspection role"
+        passwordSecret:
+          name: {{ $opsRoSecretName }}
+      # Grafana dashboard role. No `inRoles` on purpose: unlike opsRo this
+      # credential is stored in Grafana Cloud, so it must not inherit
+      # pg_read_all_data (which would hand a third party every current and
+      # future table, including users.encrypted_password and projects.token).
+      # CNPG creates the bare role; the column-level SELECTs it needs come from
+      # infra/cnpg/tuist-grafana-ro-grants.sql.
+      - name: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+        ensure: present
+        login: true
+        comment: "Read-only Grafana Product Usage dashboard role"
+        passwordSecret:
+          name: {{ $grafanaRoSecretName }}
+      - name: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+        ensure: present
+        login: true
+        comment: "Swift Package Registry sync worker role"
+        passwordSecret:
+          name: {{ $swiftRegistrySyncRoleSecretName }}
+
+  # Barman Cloud Plugin (CNPG-I). WAL archiving + base backups run via the
+  # plugin sidecar against the ObjectStore CR below. `serverName` is pinned to
+  # the cluster name — the value the archive prefix has always used — so the
+  # plugin reads and writes the existing PITR history.
+  plugins:
+    - name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ $objectStoreName | quote }}
+        serverName: {{ $clusterName | quote }}
+---
+# Barman Cloud Plugin object-store config: bucket, credentials, wal/data
+# compression, and retention for the archive the plugin reads and writes.
+# Referenced by the Cluster's plugins[].parameters.barmanObjectName above.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $objectStoreName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  retentionPolicy: {{ .Values.postgresql.cnpg.backup.retention | quote }}
+  configuration:
+    destinationPath: {{ .Values.postgresql.cnpg.backup.destinationPath | quote }}
+    endpointURL: {{ .Values.postgresql.cnpg.backup.endpointURL | quote }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ $backupSecretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ $backupSecretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 4
+    data:
+      compression: gzip
+      jobs: 2
+---
+# Daily base backup at 03:00 UTC. The continuous WAL stream archived by
+# the Cluster above keeps PITR alive between base backups; the
+# ScheduledBackup gives us the periodic snapshot to recover from.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-daily") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  schedule: {{ .Values.postgresql.cnpg.backup.schedule | quote }}
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
+  cluster:
+    name: {{ $clusterName }}
+  immediate: true
+---
+# ESO-synced Tigris credentials for the barman object store. Stored in
+# 1Password under `S3_BACKUP_CREDENTIALS` so the backup credential is
+# rotatable independently of the workload's `S3_CREDENTIALS` access
+# key. The two access keys SHOULD be different in production: the
+# backup key only needs write+list against the dedicated backup bucket;
+# the workload key only needs read+write against the app's storage
+# bucket.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $backupSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $backupSecretName }}
+    creationPolicy: Owner
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.item }}/{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.accessKeyField }}"
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.item }}/{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.secretKeyField }}"
+---
+# CNPG looks up the password for a managed role on every reconcile;
+# rotation is `op item edit … password=<new>` followed by ESO refresh.
+# The web Secret also carries the composed runtime DATABASE_URL consumed
+# by managed server pods.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $webRoleSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $webRoleSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+        uri: "postgres://{{ .Values.postgresql.cnpg.roles.web.name }}:{{ `{{ .password | urlquery }}` }}@{{ include "tuist.cnpgServiceRW" . }}:5432/{{ .Values.postgresql.cnpg.database }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.webPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.webPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $processorRoleSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $processorRoleSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.processorPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.processorPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $opsRoSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $opsRoSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.opsRo.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $grafanaRoSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $grafanaRoSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.grafanaRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.grafanaRoPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $swiftRegistrySyncRoleSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $swiftRegistrySyncRoleSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.swiftRegistrySyncPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.swiftRegistrySyncPassword.field }}"
+---
+# Lets the Tuist server read this cluster's Backup / ScheduledBackup CRs
+# so the /ops/db Backups tab can list base backups (per-snapshot phase,
+# method, error) — detail pg_stat_archiver can't surface. Read-only,
+# namespaced to the release namespace (where the CRs live), scoped to
+# the postgresql.cnpg.io group.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups", "scheduledbackups"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

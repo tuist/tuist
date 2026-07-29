@@ -6,7 +6,9 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
+  @event_driven_monitor_types ~w(test_updated)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -18,11 +20,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # Cap on `rolling_window_size`. The monitor reads from
-  # `test_case_runs_recent_per_case`, an AggregatingMergeTree MV whose
-  # `groupArrayLast(N)` state is sized at this value, so raising the cap
-  # without also bumping the MV's aggregate type would silently truncate
-  # any window above the old N.
+  # New or edited trigger windows are temporarily constrained to the largest
+  # value currently used in production. The 100-run aggregate then has room
+  # for the correction rows produced when flaky runs are re-inserted.
+  @max_rolling_trigger_window_size 75
+
+  # Recovery counts read raw runs rather than the rolling aggregate tables, so
+  # they retain the existing product cap.
   @max_rolling_window_size 1000
 
   @doc """
@@ -33,11 +37,59 @@ defmodule Tuist.Automations.Alerts.Alert do
   def test_updated_events, do: @test_updated_events
 
   @doc """
-  Maximum value the `trigger_config.rolling_window_size` /
-  `recovery_config.rolling_window_size` field accepts. Surfaced so the UI
-  can apply the same constraint at the input level.
+  Maximum rolling trigger window accepted while the aggregate storage is being
+  replaced.
+  """
+  def max_rolling_trigger_window_size, do: @max_rolling_trigger_window_size
+
+  @doc """
+  Whether an alert's rolling trigger can be evaluated from the active
+  aggregate.
+  """
+  def trigger_window_supported?(%__MODULE__{
+        trigger_config: %{"window_type" => "rolling", "rolling_window_size" => size}
+      }), do: is_integer(size) and size >= 1 and size <= @max_rolling_trigger_window_size
+
+  def trigger_window_supported?(%__MODULE__{trigger_config: %{"window_type" => "rolling"}}), do: false
+  def trigger_window_supported?(%__MODULE__{}), do: true
+
+  @doc """
+  Maximum rolling recovery window and legacy runtime ceiling.
   """
   def max_rolling_window_size, do: @max_rolling_window_size
+
+  @doc """
+  Event-driven monitors (`test_updated`) fire from
+  `Tuist.Automations.dispatch_test_case_event/2` the instant a test case
+  changes and keep their own one-shot ledger. They are not scheduled and have
+  no dwell or recovery semantics. Accepts an alert struct or a monitor-type
+  string.
+  """
+  def event_driven?(%{monitor_type: monitor_type}), do: event_driven?(monitor_type)
+  def event_driven?(monitor_type), do: monitor_type in @event_driven_monitor_types
+
+  @doc """
+  Metric monitors evaluated by the scheduled `AlertEvaluationWorker` via
+  `FlakyTestsMonitor`. These drive the triggered/recovered ledger this worker
+  maintains (baseline, transition firing, re-arming). Accepts an alert struct
+  or a monitor-type string.
+  """
+  def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
+  def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
+
+  @doc """
+  Established rolling metric alerts are evaluated from recently changed test
+  cases. Calendar-window alerts and rolling alerts without a baseline stay on
+  the periodic full-evaluation path.
+  """
+  def scoped_evaluation?(%{
+        monitor_type: monitor_type,
+        trigger_config: %{"window_type" => "rolling"},
+        baseline_established_at: %DateTime{}
+      })
+      when monitor_type in @recovery_ledger_monitor_types, do: true
+
+  def scoped_evaluation?(_alert), do: false
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -53,10 +105,25 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_config, :map, default: %{}
     field :recovery_actions, {:array, :map}, default: []
     field :baseline_established_at, :utc_datetime
+    field :last_scoped_evaluation_inserted_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
 
     timestamps(type: :utc_datetime)
+  end
+
+  # AutomationScheduler dedupes per-alert evaluations against the completed
+  # Oban job within `cadence`, and completed jobs are pruned at 2h, so the
+  # cadence must stay well under that window. Lifting this cap means
+  # decoupling that dedup from Oban retention first.
+  @default_cadence_seconds 300
+  @max_cadence_seconds 3600
+
+  def cadence_seconds(cadence) do
+    case parse_cadence_seconds(cadence) do
+      {:ok, seconds} -> seconds
+      :error -> @default_cadence_seconds
+    end
   end
 
   def changeset(alert \\ %__MODULE__{}, attrs) do
@@ -76,11 +143,33 @@ defmodule Tuist.Automations.Alerts.Alert do
     ])
     |> validate_required([:project_id, :name, :monitor_type])
     |> validate_inclusion(:monitor_type, @monitor_types)
+    |> validate_cadence()
     |> validate_actions(:trigger_actions, require_present: true)
     |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()
     |> foreign_key_constraint(:project_id)
   end
+
+  defp validate_cadence(changeset) do
+    validate_change(changeset, :cadence, fn :cadence, cadence ->
+      case parse_cadence_seconds(cadence) do
+        {:ok, seconds} when seconds >= 1 and seconds <= @max_cadence_seconds -> []
+        {:ok, _} -> [cadence: "must be between 1 second and 1 hour"]
+        :error -> [cadence: ~s(must be a duration like "5m", "30s", or "1h")]
+      end
+    end)
+  end
+
+  defp parse_cadence_seconds(cadence) when is_binary(cadence) do
+    case Integer.parse(cadence) do
+      {value, "s"} -> {:ok, value}
+      {value, "m"} -> {:ok, value * 60}
+      {value, "h"} -> {:ok, value * 3600}
+      _ -> :error
+    end
+  end
+
+  defp parse_cadence_seconds(_), do: :error
 
   defp validate_actions(changeset, field, opts) do
     case get_field(changeset, field) do
@@ -139,6 +228,22 @@ defmodule Tuist.Automations.Alerts.Alert do
   end
 
   defp validate_config(changeset) do
+    if disabling_only?(changeset) do
+      changeset
+    else
+      validate_monitor_config(changeset)
+    end
+  end
+
+  # A legacy alert may contain a trigger that new code no longer accepts. It
+  # must still be possible to turn that alert off without editing its
+  # definition. Any other effective change continues through full validation.
+  defp disabling_only?(%{data: %__MODULE__{id: id, enabled: true}, changes: %{enabled: false} = changes})
+       when not is_nil(id) and map_size(changes) == 1, do: true
+
+  defp disabling_only?(_changeset), do: false
+
+  defp validate_monitor_config(changeset) do
     monitor_type = get_field(changeset, :monitor_type)
     trigger_config = get_field(changeset, :trigger_config) || %{}
 
@@ -146,6 +251,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       case monitor_type do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
@@ -203,13 +309,17 @@ defmodule Tuist.Automations.Alerts.Alert do
     end
   end
 
+  defp validate_reliability_rate_config(changeset, trigger_config) do
+    validate_flakiness_rate_config(changeset, trigger_config)
+  end
+
   # `window_type` selects between a calendar window ("last_days", configured
   # via `window: "30d"`) and a count-based rolling window ("rolling",
   # configured via `rolling_window_size: 100`). Every persisted row carries an
   # explicit `window_type` after the backfill migration, so missing values are
   # rejected here instead of inferred.
   defp validate_window_config(changeset, trigger_config) do
-    case validate_window_shape(trigger_config) do
+    case validate_window_shape(trigger_config, @max_rolling_trigger_window_size) do
       :ok -> changeset
       {:error, message} -> add_error(changeset, :trigger_config, message)
     end
@@ -222,7 +332,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     if get_field(changeset, :recovery_enabled) do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
-      case validate_window_shape(recovery_config) do
+      case validate_window_shape(recovery_config, @max_rolling_window_size) do
         :ok -> changeset
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
@@ -231,7 +341,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     end
   end
 
-  defp validate_window_shape(config) do
+  defp validate_window_shape(config, max_rolling_window_size) do
     case window_type(config) do
       "last_days" ->
         if valid_window?(config["window"]),
@@ -245,8 +355,8 @@ defmodule Tuist.Automations.Alerts.Alert do
           not (is_integer(size) and size > 0) ->
             {:error, "rolling_window_size must be a positive integer"}
 
-          size > @max_rolling_window_size ->
-            {:error, "rolling_window_size must be at most #{@max_rolling_window_size}"}
+          size > max_rolling_window_size ->
+            {:error, "rolling_window_size must be at most #{max_rolling_window_size}"}
 
           true ->
             :ok

@@ -28,7 +28,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :shard_id,
       :shard_index
     ],
-    sortable: [:inserted_at, :duration, :name, :ran_at]
+    sortable: [:inserted_at, :duration, :name, :ran_at, :id]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}

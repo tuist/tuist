@@ -23,12 +23,14 @@
         case paymentRequired(String)
         case forbidden(String)
         case unauthorized(String)
+        case conflict(String)
 
         public var errorDescription: String? {
             switch self {
             case let .unknownError(statusCode):
                 return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
-            case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
+            case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message),
+                 let .conflict(message):
                 return message
             }
         }
@@ -81,6 +83,11 @@
                 switch unauthorized.body {
                 case let .json(error):
                     throw MultipartUploadCompleteCacheServiceError.unauthorized(error.message)
+                }
+            case let .conflict(conflict):
+                switch conflict.body {
+                case let .json(error):
+                    throw MultipartUploadCompleteCacheServiceError.conflict(error.message)
                 }
             }
         }

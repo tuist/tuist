@@ -214,6 +214,20 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
+        label: "Compute",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Runners",
+            slug: "/en/guides/features/runners",
+            items: [
+              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
+            ]
+          }
+        ]
+      },
+      %Group{
         label: "Artifacts",
         weight: :medium,
         items: [
@@ -374,13 +388,13 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/server/accounts-and-projects"
           },
           %Item{label: "Authentication", slug: "/en/guides/server/authentication"},
+          %Item{label: "Data retention", slug: "/en/guides/server/data-retention"},
           %Item{label: "Network", slug: "/en/guides/server/network"},
           %Item{
             label: "Self-hosting",
             items: [
-              %Item{label: "Installation", slug: "/en/guides/server/self-host/install"},
-              %Item{label: "Cache nodes", slug: "/en/guides/cache/self-host"},
-              %Item{label: "Cache architecture", slug: "/en/guides/cache/architecture"},
+              %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
+              %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]
           }
@@ -486,6 +500,8 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
+          %Item{label: "Release channels", slug: "/en/cli/release-channels"},
+          %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},
           %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}

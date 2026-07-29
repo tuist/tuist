@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: "Sources/App/**",
             dependencies: [
-                .target(name: "AppKit"),
+                .target(name: "App Kit"),
                 .target(name: "CrashManager"),
             ]
         ),
@@ -27,9 +27,10 @@ let project = Project(
             ]
         ),
         .target(
-            name: "AppKit",
+            name: "App Kit",
             destinations: .iOS,
             product: .staticFramework,
+            productName: "AppKit",
             bundleId: "dev.tuist.app.kit",
             infoPlist: .default,
             sources: "Sources/AppKit/**",
@@ -47,7 +48,7 @@ let project = Project(
             infoPlist: .default,
             sources: "Tests/AppKit/**",
             dependencies: [
-                .target(name: "AppKit"),
+                .target(name: "App Kit"),
                 .external(name: "Nimble"),
             ]
         ),

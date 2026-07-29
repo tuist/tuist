@@ -84,6 +84,7 @@ import TuistSupport
             headers: Headers? = nil,
             entitlements: Entitlements = .file(path: "Entitlements.entitlements"),
             scripts: [TargetScript] = [],
+            additionalHashingInputs: [Target.HashingInput] = [],
             dependencies: [TargetDependency] = [],
             settings: Settings? = nil,
             coreDataModels: [CoreDataModel] = [],
@@ -104,6 +105,7 @@ import TuistSupport
                 headers: headers,
                 entitlements: entitlements,
                 scripts: scripts,
+                additionalHashingInputs: additionalHashingInputs,
                 dependencies: dependencies,
                 settings: settings,
                 coreDataModels: coreDataModels,
@@ -120,9 +122,9 @@ import TuistSupport
             order: Order = .pre,
             arguments: [String] = [],
             inputPaths: [FileListGlob] = [],
-            inputFileListPaths: [Path] = [],
+            inputFileListPaths: [TargetScript.FileListPath] = [],
             outputPaths: [Path] = [],
-            outputFileListPaths: [Path] = [],
+            outputFileListPaths: [TargetScript.FileListPath] = [],
             dependencyFile: Path? = nil
         ) -> TargetScript {
             TargetScript(

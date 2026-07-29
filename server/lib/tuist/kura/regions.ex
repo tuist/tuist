@@ -24,12 +24,223 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
 
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.
   @local_controller_kura_base_port 4100
+  @managed_region_node_pool_label "node.cluster.x-k8s.io/pool"
+  # Public Kura hostnames for every environment share the single
+  # `*.kura.tuist.dev` Cloudflare zone. `{env_suffix}` is filled at runtime
+  # (see `managed_region_host_suffix/0`): empty in production and
+  # `-staging`/`-canary` elsewhere, so non-production deployments mint
+  # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
+  @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+  # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
+  # ingress routes the gRPC service path prefixes to the gRPC backend and
+  # everything else to the REST cache (see infra/kura-controller). The gRPC
+  # host template is therefore identical to the public host template — there
+  # is no separate `grpc.` hostname. Kept as its own attribute so the CR's
+  # `grpcPublicHost` and the `grpcs://` CLI URL still flow through the gRPC
+  # accessors.
+  @managed_region_grpc_public_host_template @managed_region_public_host_template
+  @managed_region_peer_public_host_template "peer.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+
+  # The peer/replication port managed Kura instances listen on (matches the
+  # controller's peerPort). Self-hosted nodes dial the public peer host here.
+  @peer_port 7443
+  @managed_region_storage_class "hcloud-volumes"
+  # In-cluster Service DNS form of a region's per-account instance.
+  # Port 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one
+  # listener. Never CLI-facing — only runner dispatch hands it out
+  # (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  @in_cluster_url_template "http://{instance}.kura.svc.cluster.local:4000"
+  # The guaranteed egress floor an enterprise tenant reserves on a shared
+  # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
+  # scheduler bin-packs against the node's budget. Uniform across regions — a
+  # tenant's guaranteed minimum shouldn't depend on which box it lands on.
+  # Deliberately low to start: at 25 Mbps all ~20 enterprise tenants pack onto a
+  # single box (even a ~1 Gbit/s one would still admit ~40); the per-region burst
+  # ceiling does the real sharing. Bump as real per-tenant usage data lands. The
+  # default bursty tenant reserves nothing (best-effort under the burst ceiling).
+  @enterprise_egress_floor_mbps 25
+  @managed_region_specs [
+    # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
+    # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
+    # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
+    # has no Hetzner LB), and two bounded-size replicas — the same bare-metal
+    # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
+    # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
+    # the former Hetzner backing, so the cutover is invisible to customers. Only
+    # production serves these regions (TUIST_KURA_AVAILABLE_REGIONS), so the
+    # switch is prod-only.
+    %{
+      id: "us-east",
+      display_name: "US East",
+      cluster_id: "us-east-1",
+      ingress_class_name: "kura-us-east",
+      node_pool: "kura-us-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500
+    },
+    %{
+      id: "us-west",
+      display_name: "US West",
+      cluster_id: "us-west-1",
+      ingress_class_name: "kura-us-west",
+      node_pool: "kura-us-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500
+    },
+    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
+    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
+    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # and two bounded-size replicas so a rolling deploy fails the cache Service
+    # over to the warm standby instead of dropping traffic while the primary pod
+    # restarts. Both replicas of an account stay co-located on its box (controller
+    # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
+    # cache regenerates / re-bootstraps from cross-region peers). The region
+    # id, cluster_id, ingress class, and public hostnames are unchanged from the
+    # former Hetzner ccx13 backing, so the cutover is invisible to the customer.
+    %{
+      id: "eu-central",
+      display_name: "EU Central",
+      cluster_id: "eu-central-1",
+      ingress_class_name: "kura-eu-central",
+      node_pool: "kura-dedibox",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
+      # per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500
+    },
+    # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
+    # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
+    # hostNetwork regional gateway bound to the box's public IP (OVH has no
+    # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
+    # provider (OVH) is an implementation detail behind the geographic id. Gated
+    # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
+    # is validated; production serves us-east/us-west on their own OVH fleets).
+    %{
+      id: "ca-east",
+      display_name: "Canada East",
+      cluster_id: "ca-east-1",
+      ingress_class_name: "kura-ca-east",
+      node_pool: "kura-ca-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
+      # enterprise per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500
+    }
+  ]
+  # Private runner-cache regions. Both share the same model: a single-
+  # replica `KuraInstance` pinned to a specific node pool of the umbrella
+  # cluster, exposed only as a `ClusterIP` Service (no public host, no
+  # ingress, no certificate, no LoadBalancer). The runner pool reaches
+  # the cache pod by Kubernetes Service DNS, so cache traffic never
+  # leaves the cluster. The control plane provisions exactly one of
+  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
+  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  #
+  # `runner_platforms` declares which runner fleets a region's nodes are
+  # provisioned for and routed to — the cluster-locality boundary from
+  # the runner's side. A region only serves fleets whose runtime is
+  # network-adjacent to its node pool:
+  #
+  #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
+  #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
+  #     handing its URL to a Linux runner would route cache traffic
+  #     across the WAN, which is worse than the public ingress it's
+  #     meant to replace.
+  #
+  # Linux runners have no private cache region. `hetzner-staging-runners`
+  # was one, on the staging cluster's Hetzner node pool, but that pool is
+  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
+  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
+  # The spec outlived the pool and kept minting instances that could
+  # never schedule, so it was removed rather than repointed — staging's
+  # Mac minis already exercise the co-located topology through
+  # `scw-fr-par-runners`, the same spec production uses.
+  @private_region_specs [
+    %{
+      id: "scw-fr-par-runners",
+      display_name: "Scaleway fr-par (runner cache)",
+      cluster_id: "scw-fr-par",
+      node_pool: "kura-scw-fr-par",
+      # The pool runs on Scaleway Elastic Metal (bare metal), which can't
+      # attach scw-bssd block volumes — and a regenerable cache wants fast
+      # local NVMe anyway. Per-account PVs come from the node's local NVMe
+      # via the local-path provisioner (`scw-local-nvme` StorageClass,
+      # installed on the pool out-of-band).
+      storage_class: "scw-local-nvme",
+      storage_size: "50Gi",
+      runner_platforms: [:macos],
+      # The macOS Tart VMs reach this pool over a Scaleway Private
+      # Network, not the cluster's pod network, so cluster Service DNS
+      # neither resolves nor routes for them. Dispatch hands out
+      # `http://<node PN address>:<NodePort>` instead, read from the
+      # KuraInstance status the kura-controller maintains.
+      data_plane: :node_port,
+      # The PN subnet (minis + kura nodes). NodePort traffic keeps the
+      # client's source address, which the per-instance NetworkPolicy
+      # only admits through this ipBlock.
+      client_cidrs: ["172.16.0.0/22"],
+      # Per-account egress ceiling (Cilium bandwidth manager). The pool's
+      # node NIC is shared by every tenant pod on it; the cap keeps one
+      # account's restore burst from starving the rest. Conservative
+      # against the Elastic Metal node's 10G PN (~13 tenants at the cap
+      # before the NIC binds), so there's headroom to raise it.
+      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
+      # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
+      # taint so general workloads stay off this shared-NIC, egress-capped
+      # node; the cache pods tolerate it (node_selector already pins them
+      # here). Matches the `tuist.dev/macos` / `runner-tier` taint pattern.
+      tolerations: [
+        %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+      ]
+    },
+    # A catalog tombstone for runner-cache rows created before the staging
+    # Hetzner runner pool was retired. It is never offered for provisioning,
+    # but keeping the original cluster identity lets the reconciler observe and
+    # delete the old KuraInstance resources instead of failing every tick with
+    # `:not_found` while resolving their stored region.
+    %{
+      id: "hetzner-staging-runners",
+      display_name: "Hetzner staging (retired runner cache)",
+      cluster_id: "staging",
+      node_pool: "kura",
+      storage_class: @managed_region_storage_class,
+      storage_size: "20Gi",
+      runner_platforms: [:linux],
+      retired: true
+    }
+  ]
 
   @doc "All registered regions."
   def all, do: managed_regions() ++ [local_controller_region()]
@@ -47,9 +258,104 @@ defmodule Tuist.Kura.Regions do
     else
       available_region_ids = MapSet.new(Tuist.Environment.kura_available_region_ids())
 
-      Enum.filter(managed_regions(), &MapSet.member?(available_region_ids, &1.id))
+      Enum.filter(managed_regions(), &(not retired?(&1) and MapSet.member?(available_region_ids, &1.id)))
     end
   end
+
+  @doc """
+  Regions a customer may explicitly select in the UI. This is
+  `available/0` minus regions the control plane manages on the
+  customer's behalf (the private runner-cache regions, which are
+  provisioned automatically when an account turns on runners and are
+  reachable only over the cluster's internal DNS — there is no public
+  endpoint for a developer to point the CLI at). `create_server/1`
+  still accepts these regions through `available/0`; they're only
+  hidden from the picker.
+  """
+  def selectable, do: Enum.reject(available(), &private?/1)
+
+  @doc """
+  True iff the region has no public endpoint and is reachable only over
+  the cluster's internal DNS (today: the runner-cache regions, which
+  serve the in-cluster runner fleet). Private regions are managed by
+  the control plane rather than picked by customers, skip the public
+  DNS/HTTPS readiness probe at activation, and never mirror their URL
+  into `account_cache_endpoints` (CLI-facing; developer machines can't
+  reach the in-cluster endpoint).
+  """
+  def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
+  def private?(_), do: false
+
+  @doc "True iff the region remains in the catalog only to clean up stored resources."
+  def retired?(%__MODULE__{retired: retired}), do: retired
+  def retired?(_), do: false
+
+  @doc """
+  Ids of regions kept only as catalog tombstones. A tombstone exists so the
+  reconciler can still resolve a stored server's cluster identity long enough
+  to tear its resources down; servers left in one can never schedule, because
+  the node pool the tombstone names is gone.
+  """
+  def retired_ids do
+    all()
+    |> Enum.filter(&retired?/1)
+    |> Enum.map(& &1.id)
+  end
+
+  @doc """
+  True iff this private region's runner fleet dials a node-published
+  endpoint (`http://<node address>:<NodePort>`) instead of cluster
+  Service DNS — the data plane for fleets that share a network with
+  the region's node pool but not with the cluster's pod network.
+  """
+  def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
+  def node_port_data_plane?(_), do: false
+
+  @doc """
+  The public hostname this region's account peer plane is reachable at from
+  outside the cluster, or `nil` for regions without a peer host template (the
+  local controller and the private runner-cache regions). The controller
+  publishes this host (`meshPublicPeerHost`) and covers it in the peer-cert SAN.
+  """
+  def peer_public_host(handle, %__MODULE__{
+        provisioner_config: %{peer_public_host_template: template, cluster_id: cluster_id}
+      })
+      when is_binary(handle) do
+    template
+    |> String.replace("{account_handle}", String.downcase(handle))
+    |> String.replace("{cluster_id}", cluster_id)
+  end
+
+  def peer_public_host(_handle, _region), do: nil
+
+  @doc """
+  The public peer URL (`https://<peer_public_host>:<peer_port>`) a self-hosted
+  node dials to join this region's managed mesh, or `nil` when the region has
+  no public peer host.
+  """
+  def peer_public_url(handle, %__MODULE__{} = region) do
+    case peer_public_host(handle, region) do
+      nil -> nil
+      host -> "https://#{host}:#{@peer_port}"
+    end
+  end
+
+  @doc """
+  True iff this region's runner-cache nodes serve runner fleets of the
+  given platform (`:linux` | `:macos`). Always `false` for public
+  regions — they have no `runner_platforms` and are CLI-facing, not
+  runner-facing. This is the dispatch-side locality gate: a runner only
+  ever receives a `cache_endpoint_url` from a region that declared its
+  platform, so a region pinned next to one fleet can't leak its
+  in-cluster URL to a fleet on the wrong side of a WAN.
+  """
+  def serves_runner_platform?(%__MODULE__{retired: true}, _platform), do: false
+
+  def serves_runner_platform?(%__MODULE__{runner_platforms: platforms}, platform) when is_list(platforms) do
+    platform in platforms
+  end
+
+  def serves_runner_platform?(_, _), do: false
 
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
@@ -75,63 +381,115 @@ defmodule Tuist.Kura.Regions do
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
 
-  defp managed_regions, do: [us_east_region(), us_west_region(), eu_central_region()]
+  defp managed_regions do
+    Enum.map(@managed_region_specs, &managed_region/1) ++
+      Enum.map(@private_region_specs, &private_region/1)
+  end
 
-  defp us_east_region do
+  defp managed_region(spec) do
+    host_suffix = managed_region_host_suffix()
+
     %__MODULE__{
-      id: "us-east",
-      display_name: "US East",
+      id: spec.id,
+      display_name: spec.display_name,
       provisioner: KubernetesController,
       provisioner_config: %{
-        cluster_id: "us-east-1",
-        hetzner_location: "ash",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        global_public_host_template: "{account_handle}.kura.tuist.dev",
-        global_grpc_public_host_template: "grpc.{account_handle}.kura.tuist.dev",
-        cloudflare_pool_latitude: 39.0438,
-        cloudflare_pool_longitude: -77.4874,
-        storage_class: "hcloud-volumes"
+        cluster_id: spec.cluster_id,
+        hetzner_location: Map.get(spec, :hetzner_location),
+        public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        private_url_template: @in_cluster_url_template,
+        grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
+        peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
+        ingress_class_name: spec.ingress_class_name,
+        storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        gateway: Map.get(spec, :gateway, :hetzner),
+        # The region's public peer failover IP (bare-metal regions only): the
+        # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
+        # healthy box by the CAPI provider. nil on the Hetzner cloud regions
+        # (their public peer plane is a per-instance LoadBalancer instead).
+        failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
+        # nil for the multi-box Hetzner regions (controller default applies);
+        # bare-metal regions set 2 (a warm standby for gapless rolling deploys)
+        # + a bounded storage_size.
+        replicas: Map.get(spec, :replicas),
+        storage_size: Map.get(spec, :storage_size),
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        # Tolerate the customer-facing cache nodes' taint so the cache pod
+        # still schedules onto the dedicated (Dedibox/OVH) bare-metal node.
+        tolerations: [
+          %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+        ],
+        # Per-pod egress governance on the shared bare-metal boxes: every
+        # tenant gets the Cilium burst ceiling (a pod annotation); enterprise
+        # tenants additionally reserve egress_guaranteed_mbps as a bin-packed
+        # tuist.dev/egress-mbps request (gated in the provisioner via Entitlements)
+        # against the node budget the CAPI provider advertises. The default,
+        # bursty tenant runs best-effort under the ceiling alone. Both unset on
+        # the Hetzner cloud regions (no shared-NIC contention to govern).
+        pod_annotations: managed_region_pod_annotations(spec),
+        egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        # Controller-managed per-account peer mesh: an account's nodes
+        # across regions replicate to each other under one per-account CA.
+        mesh: true
       }
     }
   end
 
-  defp us_west_region do
-    %__MODULE__{
-      id: "us-west",
-      display_name: "US West",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-west-1",
-        hetzner_location: "hil",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-west-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        global_public_host_template: "{account_handle}.kura.tuist.dev",
-        global_grpc_public_host_template: "grpc.{account_handle}.kura.tuist.dev",
-        cloudflare_pool_latitude: 45.5229,
-        cloudflare_pool_longitude: -122.9898,
-        storage_class: "hcloud-volumes"
-      }
-    }
+  # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
+  # can't monopolize the shared box NIC. Set on the bare-metal regions (from
+  # egress_burst_mbps); empty on the Hetzner cloud regions.
+  defp managed_region_pod_annotations(spec) do
+    case Map.get(spec, :egress_burst_mbps) do
+      nil -> %{}
+      mbps -> %{"kubernetes.io/egress-bandwidth" => "#{mbps}M"}
+    end
   end
 
-  defp eu_central_region do
+  # Environment suffix woven into managed-region public hostnames so the
+  # ingress hosts, external-dns Cloudflare records, and cert-manager
+  # certificates of staging/canary never collide with production. The
+  # managed regions (e.g. `eu-central`) are exposed in every environment
+  # and share a `cluster_id`, so without a per-environment suffix all three
+  # would mint the identical hostname and fight over the same DNS record.
+  defp managed_region_host_suffix do
+    case Tuist.Environment.env() do
+      :stag -> "-staging"
+      :can -> "-canary"
+      _ -> ""
+    end
+  end
+
+  defp private_region(spec) do
     %__MODULE__{
-      id: "eu-central",
-      display_name: "EU Central",
+      id: spec.id,
+      display_name: spec.display_name,
+      runner_platforms: spec.runner_platforms,
+      retired: Map.get(spec, :retired, false),
       provisioner: KubernetesController,
       provisioner_config: %{
-        cluster_id: "eu-central-1",
-        hetzner_location: "fsn1",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        global_public_host_template: "{account_handle}.kura.tuist.dev",
-        global_grpc_public_host_template: "grpc.{account_handle}.kura.tuist.dev",
-        cloudflare_pool_latitude: 50.4779,
-        cloudflare_pool_longitude: 12.3713,
-        storage_class: "hcloud-volumes"
+        cluster_id: spec.cluster_id,
+        private: true,
+        # In-cluster Service DNS the runner Pods resolve. `{instance}`
+        # interpolates to `instance_name(handle, region)`. Node-port
+        # regions don't use it for dispatch but keep it as the
+        # in-cluster debugging path.
+        private_url_template: @in_cluster_url_template,
+        data_plane: Map.get(spec, :data_plane, :cluster_dns),
+        client_cidrs: Map.get(spec, :client_cidrs, []),
+        pod_annotations: Map.get(spec, :pod_annotations, %{}),
+        tolerations: Map.get(spec, :tolerations, []),
+        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        storage_class: spec.storage_class,
+        storage_size: spec.storage_size,
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
+        replicas: 1,
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        # The runner-cache node replicates with the account's other nodes
+        # over the in-cluster peer mesh (cache content stays coherent; the
+        # runner hot path remains node-local over the Private Network).
+        mesh: true
       }
     }
   end
@@ -155,7 +513,15 @@ defmodule Tuist.Kura.Regions do
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:#{@local_controller_kura_base_port + suffix}",
         replicas: 1,
-        storage_size: "10Gi"
+        storage_size: "10Gi",
+        # kind's local-path volumes bound nothing, so without an envelope Kura
+        # would fall back to statvfs and size the ring at half the developer's
+        # own disk. 10Gi cannot carry one: the reserves plus Kura's ring floor
+        # need ~11GiB, so a budget derived from it would be raised to the floor
+        # and silently overrun the claim. Declare the envelope the dev cache is
+        # actually allowed instead, on the claim rather than in it, since
+        # local-path rejects the expansion a bigger storage_size would trigger.
+        disk_envelope_size: "12Gi"
       }
     }
   end

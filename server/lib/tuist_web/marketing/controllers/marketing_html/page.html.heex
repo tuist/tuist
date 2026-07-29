@@ -3,7 +3,7 @@
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 
     <header data-part="header">
-      <img :if={@page.logo} src={@page.logo} alt="" data-part="logo" />
+      <img :if={@page.logo} src={@page.logo} alt="" data-part="logo" decoding="async" />
       <h1 data-part="title">{@page.title}</h1>
       <p :if={@page.last_updated} data-part="last-updated">
         {dgettext("marketing", "Last updated %{date}",
@@ -13,7 +13,7 @@
     </header>
 
     <div data-part="body" data-prose>
-      {raw(@page.body)}
+      {raw(content_html(@page.body))}
     </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

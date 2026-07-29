@@ -24,6 +24,8 @@ let differenceDependency: Target.Dependency = .product(name: "Difference", packa
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
 let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", package: "dduan.TOMLDecoder")
 let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
+let subprocessDependency: Target.Dependency = .product(name: "Subprocess", package: "swiftlang.swift-subprocess")
+let swifterPMCoreDependency: Target.Dependency = "SwifterPMCore"
 
 // MARK: - Targets
 
@@ -39,6 +41,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
     "TuistProjectCommand",
@@ -51,17 +54,36 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistInitCommand",
     "TuistShareCommand",
     "TuistRunCommand",
+    "TuistRunnerCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
     pathDependency,
+    fileSystemDependency,
     swiftToolsSupportDependency,
 ]
+var tuistBazelCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistEnvironment",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistREAPI",
+    "TuistHTTP",
+    "TuistAlert",
+    "TuistConfigLoader",
+]
+
 var tuistCacheCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
     loggingDependency,
     swiftToolsSupportDependency,
+    fileSystemDependency,
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -134,6 +156,14 @@ var tuistCASDependencies: [Target.Dependency] = [
     .product(name: "libzstd", package: "facebook.zstd"),
     mockableDependency,
     pathDependency,
+]
+var tuistREAPIDependencies: [Target.Dependency] = [
+    "TuistLogging",
+    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
+    .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+    mockableDependency,
 ]
 var tuistAccountCommandDependencies: [Target.Dependency] = [
     pathDependency,
@@ -348,6 +378,18 @@ var tuistRunCommandDependencies: [Target.Dependency] = [
     "TuistSupport",
     .product(name: "Noora", package: "tuist.Noora"),
 ]
+var tuistRunnerCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistHTTP",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
 var tuistInspectCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
@@ -437,6 +479,30 @@ var targets: [Target] = [
         dependencies: tuistDependencies,
         path: "cli/Sources/tuist",
         exclude: ["AGENTS.md"]
+    ),
+    .executableTarget(
+        name: "swifterpm",
+        dependencies: [
+            "SwifterPMCore",
+        ],
+        path: "swifterpm/Sources/swifterpmCLI",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
+    ),
+    .target(
+        name: "SwifterPMCore",
+        dependencies: [
+            argumentParserDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+            subprocessDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "swifterpm/Sources/swifterpm",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
     ),
     .target(
         name: "TuistConstants",
@@ -622,6 +688,11 @@ var targets: [Target] = [
         path: "cli/Sources/TuistCacheCommand"
     ),
     .target(
+        name: "TuistBazelCommand",
+        dependencies: tuistBazelCommandDependencies,
+        path: "cli/Sources/TuistBazelCommand"
+    ),
+    .target(
         name: "TuistAuthCommand",
         dependencies: tuistAuthCommandDependencies,
         path: "cli/Sources/TuistAuthCommand",
@@ -754,6 +825,15 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistREAPI",
+        dependencies: tuistREAPIDependencies,
+        path: "cli/Sources/TuistREAPI",
+        exclude: ["capabilities.proto", "AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistConfig",
         dependencies: [
             pathDependency,
@@ -838,6 +918,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistRunnerCommand",
+        dependencies: tuistRunnerCommandDependencies,
+        path: "cli/Sources/TuistRunnerCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -855,6 +943,7 @@ var targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             commandDependency,
+            swifterPMCoreDependency,
             "TuistConstants",
             "TuistLogging",
             "TuistEnvironment",
@@ -928,6 +1017,7 @@ var targets: [Target] = [
             "TuistHTTP",
             "TuistEnvironment",
             "TuistEnvironmentTesting",
+            fileSystemDependency,
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"
@@ -1033,6 +1123,13 @@ var targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Tests/TuistTestCommandTests"
+    ),
+    .testTarget(
+        name: "TuistRunnerCommandTests",
+        dependencies: [
+            "TuistRunnerCommand",
+        ],
+        path: "cli/Tests/TuistRunnerCommandTests"
     ),
     .testTarget(
         name: "TuistInitCommandTests",
@@ -1246,6 +1343,7 @@ targets.append(contentsOf: [
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
+            "TuistJobSummary",
             .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
@@ -1301,6 +1399,7 @@ targets.append(contentsOf: [
             "TuistProjectCommand",
             "TuistRegistryCommand",
             "TuistRunCommand",
+            "TuistRunnerCommand",
             "TuistShareCommand",
             xcodeProjDependency,
             fileSystemDependency,
@@ -1594,6 +1693,22 @@ targets.append(contentsOf: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistJobSummary",
+        dependencies: [
+            "TuistCore",
+            "TuistCI",
+            "TuistEnvironment",
+            "TuistLogging",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistJobSummary",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ])
 #endif
 
@@ -1610,6 +1725,8 @@ targets.append(contentsOf: [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
+            "Subprocess": .staticFramework,
+            "_NIOFileSystem": .staticFramework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -1619,6 +1736,7 @@ targets.append(contentsOf: [
 
 var products: [Product] = [
     .executable(name: "tuist", targets: ["tuist"]),
+    .executable(name: "swifterpm", targets: ["swifterpm"]),
     .library(
         name: "TuistServer",
         targets: ["TuistServer"]
@@ -1723,7 +1841,7 @@ let package = Package(
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.14.0")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
@@ -1739,8 +1857,9 @@ let package = Package(
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.3")),
-        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.5")),
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.8")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
+        .package(id: "swiftlang.swift-subprocess", exact: "0.4.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
         .package(
@@ -1752,7 +1871,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.47")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

@@ -9,14 +9,30 @@ defmodule Tuist.Environment do
   @compile_env Mix.env()
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
-  @runtime_envs ~w(prod can stag)
+  @runtime_envs ~w(prod can stag preview)
+  @default_database_schema "public"
+  @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
+  @agent_auth_default_trusted_providers [
+    %{
+      "issuer" => "https://auth0.openai.com/",
+      "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+    }
+  ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -26,7 +42,12 @@ defmodule Tuist.Environment do
   def modes, do: @modes
 
   def env do
-    with :prod <- @compile_env,
+    # Gate on the stringified compile env rather than matching the `:prod`
+    # atom directly: `@compile_env` is a compile-time literal, so a
+    # `:prod <- @compile_env` match trips Elixir's type checker in test/dev
+    # builds (and narrowing `env/0` to that literal poisons every caller
+    # that compares `env()` against another env atom).
+    with "prod" <- Atom.to_string(@compile_env),
          deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
       String.to_existing_atom(deploy_env)
     else
@@ -47,7 +68,7 @@ defmodule Tuist.Environment do
   @doc ~S"""
   Returns an list with all the supported environments.
   """
-  def all_envs, do: [:dev, :test, :can, :stag, :prod]
+  def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
   def test? do
     @compile_env == :test
@@ -104,6 +125,14 @@ defmodule Tuist.Environment do
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
       can load). Booted by xcresult-processor-deployment.yaml.
+    * `:swift_registry_sync` — no Phoenix listener, Oban queue set
+      narrowed to `:swift_registry_sync` + `:swift_registry_release`.
+      Consumes jobs enqueued by the `:web` pod's cron, fetches Swift
+      packages from GitHub, and writes archives + metadata into the
+      registry S3 bucket. The standalone `registry` Phoenix app reads
+      back from the same bucket. Booted by
+      swift-registry-sync-deployment.yaml. Future ecosystems get
+      their own mode (e.g. `:maven_registry_sync`) and Deployment.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -120,6 +149,7 @@ defmodule Tuist.Environment do
   def mode("web"), do: :web
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
+  def mode("swift_registry_sync"), do: :swift_registry_sync
 
   def mode(other) do
     raise """
@@ -134,6 +164,8 @@ defmodule Tuist.Environment do
 
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
 
+  def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
+
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
@@ -142,14 +174,135 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
   end
 
+  def database_schema do
+    "TUIST_DATABASE_SCHEMA" |> System.get_env() |> database_schema()
+  end
+
+  def database_schema(nil), do: @default_database_schema
+  def database_schema(""), do: @default_database_schema
+
+  def database_schema(schema) when is_binary(schema) do
+    validate_postgres_identifier!(schema, "TUIST_DATABASE_SCHEMA")
+  end
+
+  def default_database_schema?(schema \\ database_schema()) do
+    schema == @default_database_schema
+  end
+
+  def migration_database_url do
+    case System.get_env("TUIST_MIGRATION_DATABASE_URL") do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
+  def database_runtime_role do
+    case System.get_env("TUIST_DATABASE_RUNTIME_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_processor_role do
+    case System.get_env("TUIST_DATABASE_PROCESSOR_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_swift_registry_sync_role do
+    case System.get_env("TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Role backing the Grafana Product Usage dashboard. Set only for managed CNPG
+  migration Jobs; unset leaves the role's grants untouched.
+  """
+  def database_grafana_role do
+    case System.get_env("TUIST_DATABASE_GRAFANA_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_config_from_url(url) do
+    parsed_url = URI.parse(url)
+
+    [username, password] =
+      parsed_url.userinfo
+      |> String.split(":", parts: 2)
+      |> Enum.map(&URI.decode/1)
+
+    [
+      database: String.replace_prefix(parsed_url.path, "/", ""),
+      username: username,
+      password: password,
+      hostname: parsed_url.host,
+      port: parsed_url.port || 5432
+    ]
+  end
+
+  def validate_postgres_identifier!(identifier, environment_variable_name) do
+    if Regex.match?(@postgres_identifier_regex, identifier) do
+      identifier
+    else
+      raise "#{environment_variable_name} must be a valid unquoted PostgreSQL identifier, " <>
+              "got: #{inspect(identifier)}"
+    end
+  end
+
+  def quote_postgres_identifier(identifier) do
+    ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
+  end
+
+  def test_user_login_enabled? do
+    dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
+  end
+
   def dev_all_locales?, do: @dev_all_locales
 
-  def dev_single_locale?, do: dev?() and not dev_all_locales?()
+  # Both :dev and :test compile a single locale ("en") by default so Gettext
+  # doesn't generate all locale modules on every cold compile. Tests that
+  # genuinely exercise other locales are tagged `:locale` and only run when
+  # TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
@@ -176,21 +329,26 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Whether managed Kura servers must wait for the global Cloudflare-
-  fronted endpoint before being projected active.
-
-  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
-  degrade gracefully while the global load-balancer layer is
-  unavailable or quota-limited.
+  The public peer failover IP for a bare-metal region, or `nil` when none is
+  configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
+  CAPI provider keeps it routed to a healthy box of the region's pool. Read from
+  `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
+  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
   """
-  def kura_require_global_endpoints? do
-    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
-    |> System.get_env()
-    |> case do
-      nil -> true
-      "" -> true
-      value -> not falsey?(value)
-    end
+  def kura_peer_failover_ip(region_id) when is_binary(region_id) do
+    "TUIST_KURA_PEER_FAILOVER_IPS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.find_value(fn pair ->
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [key, ip] when key == region_id and ip != "" -> ip
+        _ -> nil
+      end
+    end)
+  end
+
+  def kura_tuist_base_url do
+    System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
   def prometheus_enabled? do
@@ -225,49 +383,41 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
+
+  def agent_auth_trusted_providers(secrets \\ secrets()) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") ||
+           get([:agent_auth, :trusted_providers], secrets) do
+      providers when is_list(providers) ->
+        providers
+
+      providers_json when is_binary(providers_json) and providers_json != "" ->
+        case JSON.decode(providers_json) do
+          {:ok, providers} when is_list(providers) -> providers
+          _ -> []
+        end
+
+      _ ->
+        agent_auth_default_trusted_providers()
+    end
+  end
+
   def cache_endpoints(secrets \\ secrets()) do
     case get([:cache, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
-        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+        split_endpoints(endpoints)
 
       _ ->
         nil
     end
   end
 
-  @doc """
-  Returns the kubeconfig (raw YAML string) for the given Kura cluster
-  ID, or `nil` if none is configured.
+  def kura_endpoints(secrets \\ secrets(), env_value \\ System.get_env("TUIST_KURA_ENDPOINTS")) do
+    case endpoint_env_value(env_value) || get([:kura, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        split_endpoints(endpoints)
 
-  Used by managed Kura regions that run outside the server's own
-  Kubernetes cluster. Managed regions in the same cluster can still use
-  the server pod's in-cluster ServiceAccount instead.
-
-  Two sources are checked in order:
-
-    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
-       file on disk (the convenient dev path — devs use their own
-       `~/.kube/config` against a kind cluster).
-    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
-       YAML inline.
-
-  In both forms the cluster ID is uppercased and `-` becomes `_` for
-  env vars.
-  """
-  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
-    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-    cond do
-      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
-        case File.read(path) do
-          {:ok, contents} -> contents
-          {:error, _reason} -> nil
-        end
-
-      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
-        inline
-
-      true ->
+      _ ->
         nil
     end
   end
@@ -314,13 +464,96 @@ defmodule Tuist.Environment do
     end
   end
 
-  def ops_user_handles(secrets \\ secrets()) do
-    case get([:ops_user_handles], secrets) do
-      user_handles when is_binary(user_handles) ->
-        user_handles |> String.split(",") |> Enum.map(&String.trim(&1))
+  @doc """
+  Email domain whose confirmed members are Tuist operators. Used only
+  as a routing heuristic (redirect a non-member operator to the ops
+  reason form vs. 404 a regular customer); the real gates are
+  ops.tuist.dev's Pomerium/Google-OIDC and the offline grant
+  verification. Defaults to `tuist.dev`.
+  """
+  def operator_email_domain(secrets \\ secrets()) do
+    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+  end
 
-      _ ->
-        []
+  @doc """
+  PEM-encoded Ed25519 PUBLIC key used to verify operator access grant
+  tokens minted by ops.tuist.dev. nil when unset, in which case grant
+  verification fails closed (no operator grants are honoured).
+  """
+  def operator_grant_public_key(secrets \\ secrets()) do
+    get([:operator_grant, :public_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim required on operator grant tokens. Pinned per
+  environment so a token minted for a different env can't be replayed.
+  Must match ops.tuist.dev's `OPERATOR_GRANT_AUDIENCE`.
+  """
+  def operator_grant_audience(secrets \\ secrets()) do
+    get([:operator_grant, :audience], secrets, default_value: "tuist-server")
+  end
+
+  @doc """
+  Maximum allowed lifetime (`exp - iat`, seconds) of an operator grant
+  token. A token claiming a longer lifetime is rejected, so a
+  compromised signer can't mint a long-lived grant. Defaults to 1h.
+  """
+  def operator_grant_max_ttl_seconds(secrets \\ secrets()) do
+    case get([:operator_grant, :max_ttl_seconds], secrets, default_value: 3600) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
+  @doc """
+  Base URL of the ops.tuist.dev reason form a non-member operator is
+  redirected to before they can access a customer project. nil by
+  default: the redirect is opt-in per environment and stays off until
+  ops.tuist.dev is Pomerium-fronted and routes `/grants` with a
+  matching audience. Offline grant verification does not depend on this.
+  """
+  def ops_reason_form_url(secrets \\ secrets()) do
+    get([:ops, :reason_form_url], secrets, default_value: nil)
+  end
+
+  @doc """
+  PEM-encoded Ed25519 PRIVATE key the server uses to sign per-account
+  cache-signing grants delivered to runner jobs. The runner's
+  Tuist EE CLI verifies the grant OFFLINE with the matching public half
+  baked into the binary, then scopes cached-artifact signatures to the
+  account instead of the machine MAC so a warm cache volume's binaries
+  validate as local hits across VMs. nil (default) disables grant minting:
+  dispatch omits the grant, the CLI falls back to the MAC default, and the
+  manifest/helper cache warmth still applies — the volume just re-pulls its
+  binaries, exactly as without the EE change. Provisioned per environment
+  from 1Password via ESO; distinct from the artifact-signing key.
+  """
+  def cache_grant_private_key(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_GRANT_PRIVATE_KEY") || get([:cache_grant, :private_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim stamped on cache-signing grants, pinned per environment
+  so a grant minted for one env can't be replayed in another. Must match
+  the audience the EE CLI enforces.
+  """
+  def cache_grant_audience(secrets \\ secrets()) do
+    get([:cache_grant, :audience], secrets, default_value: "tuist-runner-cache")
+  end
+
+  @doc """
+  Lifetime (seconds) of a cache-signing grant. Set to the job's maximum
+  lifetime plus a small margin: a leaked grant (runner jobs run arbitrary
+  user code that can read the environment) expires within the job's TTL,
+  so sustaining cross-machine reuse would require continuously harvesting
+  fresh grants from one's own live runner jobs — an authorized account
+  member who can already download the same artifacts with their account
+  token. Defaults to 7h (GitHub Actions' 6h job ceiling + margin).
+  """
+  def cache_grant_ttl_seconds(secrets \\ secrets()) do
+    case get([:cache_grant, :ttl_seconds], secrets, default_value: 25_200) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
     end
   end
 
@@ -331,6 +564,52 @@ defmodule Tuist.Environment do
   def posthog_url(secrets \\ secrets()) do
     get([:posthog, :url], secrets)
   end
+
+  def object_storage_provider(secrets \\ secrets()) do
+    provider =
+      System.get_env("TUIST_OBJECT_STORAGE_PROVIDER") ||
+        get([:object_storage, :provider], secrets) ||
+        "s3"
+
+    case provider do
+      "s3" -> :s3
+      :s3 -> :s3
+      "azure_blob" -> :azure_blob
+      :azure_blob -> :azure_blob
+      other -> raise "Unsupported TUIST_OBJECT_STORAGE_PROVIDER=#{inspect(other)}. Expected \"s3\" or \"azure_blob\"."
+    end
+  end
+
+  def azure_storage_account_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_NAME") ||
+      get([:azure_blob, :account_name], secrets)
+  end
+
+  def azure_storage_account_key(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_KEY") ||
+      get([:azure_blob, :account_key], secrets)
+  end
+
+  def azure_blob_container_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_CONTAINER_NAME") ||
+      get([:azure_blob, :container_name], secrets)
+  end
+
+  def azure_blob_endpoint(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_ENDPOINT") ||
+      get([:azure_blob, :endpoint], secrets) ||
+      azure_blob_endpoint_from_account_name(azure_storage_account_name(secrets))
+  end
+
+  def azure_blob_service_version(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_SERVICE_VERSION") ||
+      get([:azure_blob, :service_version], secrets) ||
+      "2020-12-06"
+  end
+
+  defp azure_blob_endpoint_from_account_name(nil), do: nil
+  defp azure_blob_endpoint_from_account_name(""), do: nil
+  defp azure_blob_endpoint_from_account_name(account_name), do: "https://#{account_name}.blob.core.windows.net"
 
   def s3_authentication_method(secrets \\ secrets()) do
     case get([:s3, :authentication_method], secrets) do
@@ -455,6 +734,19 @@ defmodule Tuist.Environment do
     end
   end
 
+  def cache_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_S3_BUCKET_NAME") ||
+      System.get_env("S3_BUCKET") ||
+      get([:cache, :s3, :bucket], secrets)
+  end
+
+  def cache_xcode_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_XCODE_S3_BUCKET_NAME") ||
+      System.get_env("S3_XCODE_CACHE_BUCKET") ||
+      get([:cache, :s3, :xcode_cache_bucket], secrets) ||
+      cache_s3_bucket_name(secrets)
+  end
+
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
       System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
@@ -527,18 +819,13 @@ defmodule Tuist.Environment do
   end
 
   def stripe_prices(secrets \\ secrets()) do
-    prices = get([:stripe, :prices], secrets)
-    prices_base64_json = get([:stripe, :prices, :base64, :json], secrets)
-
-    cond do
-      is_map(prices) ->
-        prices
-
-      is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> JSON.decode!()
-
-      true ->
-        nil
+    case get([:stripe, :prices], secrets) do
+      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map as a
+      # JSON string (rendered by the chart / set in mise for dev). A raw map is
+      # only seen in tests that stub it directly.
+      prices when is_map(prices) -> prices
+      prices when is_binary(prices) -> JSON.decode!(prices)
+      _ -> nil
     end
   end
 
@@ -547,14 +834,6 @@ defmodule Tuist.Environment do
       port when is_binary(port) -> String.to_integer(port)
       _ -> get([:minio, :console_port], secrets, default_value: 9098)
     end
-  end
-
-  def mautic_username(secrets \\ secrets()) do
-    get([:mautic, :username], secrets)
-  end
-
-  def mautic_password(secrets \\ secrets()) do
-    get([:mautic, :password], secrets)
   end
 
   def loops_api_key(secrets \\ secrets()) do
@@ -608,6 +887,41 @@ defmodule Tuist.Environment do
 
   def github_oauth_configured?(secrets \\ secrets()) do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
+  end
+
+  # The GitHub App used for VCS integration shares its client id/secret with
+  # GitHub sign-in, so configuring VCS otherwise forces GitHub onto the login
+  # page. This lever lets a self-hosted operator keep the App while turning the
+  # sign-in method off.
+  def github_auth_enabled? do
+    truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
+  # Email/password sign-in and self-serve registration are built in and have no
+  # "configured?" concept, so this lever lets a self-hosted operator turn them
+  # off entirely (for example on an SSO-only instance). It gates the login form,
+  # registration, and the password-reset flow, both in the UI and server-side.
+  # There is deliberately no lockout guard: disabling this while no OAuth/SSO
+  # provider is usable leaves the instance without a login method.
+  def email_auth_enabled? do
+    truthy?(System.get_env("TUIST_EMAIL_AUTH_ENABLED", "1"))
+  end
+
+  # Google, Okta, and Apple sign-in are shown whenever the provider is
+  # configured. These levers, mirroring `github_auth_enabled?/0`, let a
+  # self-hosted operator keep a provider configured while removing it as a
+  # sign-in option (button hidden and, for the Ueberauth providers, the sign-in
+  # callback closed).
+  def google_auth_enabled? do
+    truthy?(System.get_env("TUIST_GOOGLE_AUTH_ENABLED", "1"))
+  end
+
+  def okta_auth_enabled? do
+    truthy?(System.get_env("TUIST_OKTA_AUTH_ENABLED", "1"))
+  end
+
+  def apple_auth_enabled? do
+    truthy?(System.get_env("TUIST_APPLE_AUTH_ENABLED", "1"))
   end
 
   def github_app_configured?(secrets \\ secrets()) do
@@ -670,7 +984,8 @@ defmodule Tuist.Environment do
   end
 
   def mailing_from_address(secrets \\ secrets()) do
-    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets)
+    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets) ||
+      if(dev?(), do: "noreply@tuist.dev")
   end
 
   def mailing_reply_to_address(secrets \\ secrets()) do
@@ -709,10 +1024,10 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
-  def clickhouse_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :pool_size], secrets) do
+  def clickhouse_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      _ -> database_pool_size(secrets)
+      _ -> 10
     end
   end
 
@@ -730,14 +1045,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def anthropic_api_key(secrets \\ secrets()) do
-    get([:anthropic, :api_key], secrets)
-  end
-
-  def openai_api_key(secrets \\ secrets()) do
-    get([:openai, :api_key], secrets)
-  end
-
   def cache_api_key(secrets \\ secrets()) do
     get([:cache_api_key], secrets)
   end
@@ -748,10 +1055,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
@@ -799,8 +1106,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :buffer_pool_size], secrets) do
+  def clickhouse_buffer_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_BUFFER_POOL_SIZE") do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
     end
@@ -810,6 +1117,35 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :max_threads], secrets) do
       max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
       _ -> 4
+    end
+  end
+
+  def clickhouse_read_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :read_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  def clickhouse_write_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :write_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  # Per-query memory ceiling (in bytes) for the read path. ClickHouse enforces
+  # this per query, so a single pathological aggregation fails on its own with
+  # a `(for query)` error the caller can retry, instead of pushing the process
+  # to its `(total)` server ceiling and killing whatever unrelated query
+  # allocates next. The default stays well under the process limit while
+  # leaving ample headroom over normal analytics; override per
+  # environment/instance size via the `clickhouse.max_memory_usage_bytes`
+  # secret.
+  def clickhouse_max_memory_usage_bytes(secrets \\ secrets()) do
+    case get([:clickhouse, :max_memory_usage_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 6 * 1024 * 1024 * 1024
     end
   end
 
@@ -867,6 +1203,20 @@ defmodule Tuist.Environment do
     case get([:auth_rate_limit, :bucket_size], secrets) do
       bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
       _ -> if can?(), do: 100, else: 10
+    end
+  end
+
+  @doc """
+  Returns the bucket size for the dashboard route rate limiter.
+
+  The default values are:
+  - 300 requests per route for canary environments
+  - 60 requests per route for other environments (production, staging, dev)
+  """
+  def dashboard_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:dashboard_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 300, else: 60
     end
   end
 
@@ -980,46 +1330,51 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  @doc """
-  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
-  """
-  def namespace_ssh_private_key(secrets \\ secrets()) do
-    get([:namespace, :ssh_private_key], secrets)
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
+  # compatibility fallback for existing deployments and dev secrets.
+  def kura_control_plane_client_id(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
   end
 
-  @doc """
-  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
-  """
-  def namespace_ssh_public_key(secrets \\ secrets()) do
-    get([:namespace, :ssh_public_key], secrets)
+  def kura_control_plane_client_secret(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
   end
 
-  @doc """
-  Returns the Namespace partner ID that identifies this Tuist instance
-  as an authorized partner in the Namespace ecosystem. This ID is used
-  when issuing Namespace tenant tokens.
-  """
-  def namespace_partner_id(secrets \\ secrets()) do
-    get([:namespace, :partner_id], secrets)
+  def kura_control_plane_configured?(secrets \\ secrets()) do
+    kura_control_plane_client_id(secrets) != nil and
+      kura_control_plane_client_secret(secrets) != nil
   end
 
-  @doc """
-  Returns the Namespace JWT private key used for signing authentication tokens
-  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
-  """
-  def namespace_jwt_private_key(secrets \\ secrets()) do
-    case get([:namespace, :jwt_private_key], secrets) do
-      nil -> nil
-      base64_key -> Base.decode64!(base64_key)
-    end
-  end
+  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
 
-  def namespace_enabled?(secrets \\ secrets()) do
-    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
-  end
+  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+
+  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
+  end
+
+  def codebase_search_url(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_CODEBASE_SEARCH_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def codebase_search_enabled?(environment \\ System.get_env()) when is_map(environment) do
+    codebase_search_url(environment) != nil
   end
 
   @doc """
@@ -1031,6 +1386,178 @@ defmodule Tuist.Environment do
   """
   def runners_namespace do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
+  @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
+  Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
+  Helm renders the prefix into the `RunnerPool` CR names and injects it
+  here so the server's enqueue target stays identical to the rendered CR
+  name regardless of helm release. Default mirrors the Linux side, with
+  `-macos` substituted for `-linux`.
+  """
+  def runners_macos_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Runner platforms whose fleets can resolve and reach the cluster's
+  internal Service network (`*.svc.cluster.local`) — the per-environment
+  input behind `Tuist.Runners.Catalog.fleet_on_cluster_network?/1`.
+
+  Comma-separated platform names in
+  `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS`. The default is `linux`
+  (kata Pods always ride the CNI). An environment adds `macos` only once
+  its Mac mini fleet has the tailnet route into the cluster
+  (subnet-router Connector advertising the Service CIDR, host
+  `--accept-routes`, and the VM egress firewall carve-out — see
+  `infra/helm/tailscale-operator` and `infra/macos-host-bootstrap`).
+  Unknown tokens are ignored so a typo degrades to "no cache routing for
+  that platform" rather than crashing dispatch.
+  """
+  def runners_cluster_network_platforms do
+    "TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS"
+    |> System.get_env("linux")
+    |> String.split(",")
+    |> Enum.flat_map(fn token ->
+      case String.trim(token) do
+        "linux" -> [:linux]
+        "macos" -> [:macos]
+        _ -> []
+      end
+    end)
+  end
+
+  @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
+  end
+
+  @doc """
+  Namespace where the runners-controller's ServiceAccount lives —
+  used to gate `POST /api/internal/runners/pods/stopped` so only
+  the controller can close billing sessions. Defaults to `tuist`
+  (the typical chart release namespace); helm sets it explicitly
+  to `.Release.Namespace`.
+  """
+  def runners_controller_namespace do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_NAMESPACE", "tuist")
+  end
+
+  @doc """
+  Name of the runners-controller's ServiceAccount. Pairs with
+  `runners_controller_namespace/0` to identify the only principal
+  authorised to call the pod-lifecycle endpoints. Defaults to
+  `tuist-runners-controller` (chart-rendered name); helm overrides
+  via env when the release name differs.
+  """
+  def runners_controller_sa_name do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
+  @doc """
+  Least-privilege database role the internal Atlas query runner drops to via
+  `SET LOCAL ROLE` before executing operator-supplied SQL. Set to `tuist_ops_ro`
+  by the chart in managed environments (requires `GRANT tuist_ops_ro TO
+  tuist_web` — see `infra/cnpg/tuist-ops-ro-grants.sql`). Unset in dev/test, where
+  queries run as the default role.
+  """
+  def atlas_db_readonly_role do
+    case System.get_env("TUIST_ATLAS_DB_READONLY_ROLE") do
+      role when role in [nil, ""] -> nil
+      role -> role
+    end
+  end
+
+  @doc """
+  Cross-cluster trust policy for Atlas workload tokens.
+  """
+  def atlas_workload_identity_policy do
+    %{
+      audience: atlas_token_audience(),
+      issuer: atlas_token_issuer(),
+      jwks: atlas_token_jwks(),
+      max_token_ttl_seconds: atlas_token_max_ttl_seconds(),
+      namespace: atlas_namespace(),
+      service_account_name: atlas_service_account_name()
+    }
+  end
+
+  @doc """
+  Namespace where Atlas' ServiceAccount lives. Atlas calls internal Tuist
+  endpoints with a projected ServiceAccount token, so the server verifies both
+  the token subject and this expected principal.
+  """
+  def atlas_namespace do
+    System.get_env("TUIST_ATLAS_NAMESPACE", "atlas-production")
+  end
+
+  @doc """
+  Name of the Atlas ServiceAccount allowed to call Atlas internal read models.
+  """
+  def atlas_service_account_name do
+    System.get_env("TUIST_ATLAS_SERVICE_ACCOUNT_NAME", "atlas")
+  end
+
+  @doc """
+  Issuer expected in Atlas' projected ServiceAccount tokens.
+  """
+  def atlas_token_issuer do
+    System.get_env("TUIST_ATLAS_TOKEN_ISSUER") ||
+      get([:atlas, :token_issuer], secrets(), default_value: "https://kubernetes.default.svc.cluster.local")
+  end
+
+  @doc """
+  Audience Atlas must request on its projected ServiceAccount token.
+  """
+  def atlas_token_audience do
+    System.get_env("TUIST_ATLAS_TOKEN_AUDIENCE") ||
+      get([:atlas, :token_audience], secrets(), default_value: "tuist-server")
+  end
+
+  @doc """
+  Pinned Atlas Kubernetes JWKS used to verify projected ServiceAccount tokens.
+  """
+  def atlas_token_jwks do
+    System.get_env("TUIST_ATLAS_TOKEN_JWKS") || get([:atlas, :token_jwks], secrets())
+  end
+
+  @doc """
+  Maximum accepted lifetime for Atlas projected ServiceAccount tokens.
+  """
+  def atlas_token_max_ttl_seconds do
+    case get([:atlas, :token_max_ttl_seconds], secrets(), default_value: "3600") do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
+  @doc """
+  Returns the bucket size for Atlas internal API rate limiting.
+  """
+  def atlas_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:atlas, :rate_limit_bucket_size], secrets, default_value: "600") do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
   end
 
   def typesense_search_api_key do
@@ -1071,9 +1598,21 @@ defmodule Tuist.Environment do
 
   defp safe_get_in(_data, _keys), do: nil
 
-  defp falsey?(value) when is_binary(value) do
-    String.downcase(value) in ["0", "false", "no", "off"]
+  defp split_endpoints(endpoints) do
+    endpoints
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
+
+  defp endpoint_env_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp endpoint_env_value(_), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}
@@ -1085,7 +1624,13 @@ defmodule Tuist.Environment do
   end
 
   @doc ~s"""
-  It decrypts the secrets and returns them.
+  Returns the secrets map the accessors fall back to.
+
+  Outside the test environment this is always empty: runtime secrets are read
+  straight from the environment (1Password via ESO in the managed envs, fnox in
+  local dev), so `get/3` resolves them from `TUIST_*` env vars. The encrypted
+  `priv/secrets/<env>.yml.enc` blob it used to decrypt has been removed. Tests
+  still load their fixture values from the plain `priv/secrets/test.yml`.
   """
   def decrypt_secrets do
     if @compile_env == :test do
@@ -1096,25 +1641,7 @@ defmodule Tuist.Environment do
 
       to_string_map(secrets_map)
     else
-      master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
-      master_key_env_variable = "MASTER_KEY"
-
-      secrets_path =
-        case System.get_env("SECRETS_DIRECTORY") do
-          env_directory when is_binary(env_directory) ->
-            Path.join(env_directory, "#{Atom.to_string(env())}.yml.enc")
-
-          _ ->
-            Path.join("priv/secrets", "#{Atom.to_string(env())}.yml.enc")
-        end
-
-      if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
-        key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
-
-        key |> EncryptedSecrets.read!(secrets_path) |> to_string_map()
-      else
-        %{}
-      end
+      %{}
     end
   end
 

@@ -486,6 +486,89 @@ defmodule Cache.Registry.ReleaseWorkerTest do
              })
   end
 
+  test "omits duplicate alternate manifests from metadata when tools versions match" do
+    default_manifest = "// swift-tools-version:6.0\nimport PackageDescription"
+    alternate_manifest = "// swift-tools-version:6.0\nimport PackageDescription"
+
+    expect(Lock, :try_acquire, fn {:release, "pointfreeco", "swift-snapshot-testing", "1.18.7"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "pointfreeco", "swift-snapshot-testing", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "pointfreeco/swift-snapshot-testing",
+                                                     "token",
+                                                     "1.18.7",
+                                                     archive_path,
+                                                     _ ->
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    expect(Upload, :stream_file, fn path ->
+      assert File.exists?(path)
+      [File.read!(path)]
+    end)
+
+    expect(ExAws.S3, :upload, fn _stream, _bucket, _key, _opts ->
+      %S3{http_method: :put, bucket: "test", path: "key"}
+    end)
+
+    expect(ExAws, :request, 3, fn _op -> {:ok, %{status_code: 200, body: ""}} end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "pointfreeco/swift-snapshot-testing",
+                                                             "token",
+                                                             "1.18.7",
+                                                             _ ->
+      {:ok,
+       [
+         %{"path" => "Package.swift", "type" => "file"},
+         %{"path" => "Package@swift-6.0.swift", "type" => "file"}
+       ]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 3, fn
+      "pointfreeco/swift-snapshot-testing", "token", ".gitmodules", "1.18.7", _ ->
+        {:error, :not_found}
+
+      "pointfreeco/swift-snapshot-testing", "token", "Package.swift", "1.18.7", _ ->
+        {:ok, default_manifest}
+
+      "pointfreeco/swift-snapshot-testing", "token", "Package@swift-6.0.swift", "1.18.7", _ ->
+        {:ok, alternate_manifest}
+    end)
+
+    expect(Lock, :try_acquire, fn {:package, "pointfreeco", "swift-snapshot-testing"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "pointfreeco", "swift-snapshot-testing", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Metadata, :put_package, fn "pointfreeco", "swift-snapshot-testing", metadata ->
+      release = metadata["releases"]["1.18.7"]
+
+      assert release["manifests"] == [
+               %{"swift_version" => nil, "swift_tools_version" => "6.0"}
+             ]
+
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "pointfreeco",
+                 "name" => "swift-snapshot-testing",
+                 "repository_full_handle" => "pointfreeco/swift-snapshot-testing",
+                 "tag" => "1.18.7"
+               }
+             })
+  end
+
   test "marks releases without root manifests as skipped" do
     expect(Lock, :try_acquire, 2, fn
       {:release, "newrelic", "newrelic-ios-agent-spm", "7.0.0"}, _ -> {:ok, :acquired}

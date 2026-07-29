@@ -4,10 +4,30 @@ Bare-metal Mac mini fleet that bakes the Tart VM images for our CI
 workflows (today: [`runner-image`](runner-image/),
 [`xcresult-processor-image`](xcresult-processor-image/)). Managed
 through the same CAPI provider as the rest of the macOS fleet
-([`infra/cluster-api-provider-scaleway-applesilicon/`](cluster-api-provider-scaleway-applesilicon/));
+([`infra/cluster-api-provider-tuist/`](cluster-api-provider-tuist/));
 scale by editing the `buildersFleet.replicas` chart value or running
 `kubectl scale machinedeployment <release>-builders-fleet
 --replicas=N`.
+
+## Which environments run a builder
+
+Production only. The baked Tart images are global GHCR artifacts, so
+a single fleet bakes them for every environment. More to the point,
+every builder registers the same `vm-image-builder` label set to the
+same `tuist` org with no per-env scoping (see the
+[`runs-on:` selector](#workflow-runs-on-selector) section), so a
+builder running in staging or canary would pick up production
+image-release jobs indiscriminately, including pushing production
+image tags from a non-prod host. Staging and canary therefore pin
+`buildersFleet.enabled: false`; only `values-managed-production.yaml`
+runs the fleet, sized at 2 so the release's two parallel bakes (runner
+image + xcresult-processor image) run concurrently instead of
+serializing on one host.
+
+The GitHub App and the setup steps below are still written per-env
+because the App is a single shared identity any env could borrow for a
+throwaway builder in a pinch. In steady state, apply the enablement
+steps to production alone.
 
 ## Architecture
 
@@ -41,6 +61,7 @@ if not:
 | `tart`              | `/usr/local/bin/tart`             | Operator-image-baked `tart.app` tarball (`installTart` in `macos-host-bootstrap`). Same install path the macosFleet and runnersFleet hosts use; Tart's version is pinned by what the operator image ships. |
 | `packer`            | `/opt/homebrew/bin/packer`        | Homebrew (`hashicorp/tap/packer`) installed by the builder tail (`installBuilderTooling`) and `brew pin`'d. A follow-up will bake Packer into the operator image too, dropping Homebrew from the bootstrap entirely. |
 | `crane`             | `/opt/homebrew/bin/crane`         | Homebrew core, installed by `installBuilderTooling`. Used by the image-build workflows to write GHCR credentials into `~/.docker/config.json` for `tart push` (`crane auth login`), and by `release.yml`'s runner-image leg to resolve a pushed tag to its immutable digest (`crane digest`). |
+| `oras`              | `/opt/homebrew/bin/oras`          | Homebrew core, installed by `installBuilderTooling`. Used by `macos-xcode-image.yml` to pull the pre-mirrored Xcode `.xip` artifacts from `ghcr.io/tuist/xcode-xips`. |
 | Actions runner      | `/opt/actions-runner/`            | Downloaded directly from `actions/runner`'s GitHub releases by `installActionsRunner` and registered as a launchd LaunchAgent under `m1`. |
 
 Nothing in the workflow yaml installs or upgrades any of these.
@@ -71,11 +92,14 @@ bootstrap is what makes the grants stable across re-runs.
    - **Install App** → select tuist → install. The URL becomes
      `…/installations/<installation-id>`. Note the installation ID.
 
-2. **Stash the App credentials in 1Password**, one item per env
-   vault (`tuist-k8s-staging`, `tuist-k8s-canary`,
-   `tuist-k8s-production`). The `ClusterSecretStore "onepassword"`
-   is pre-scoped to the matching vault per env, so the same item
-   name works across envs. Each item has three fields:
+2. **Stash the App credentials in 1Password.** Production is the
+   only env that runs a builder (see
+   [Which environments run a builder](#which-environments-run-a-builder)),
+   so the item only needs to live in the `tuist-k8s-production`
+   vault. The `ClusterSecretStore "onepassword"` is pre-scoped to
+   the matching vault per env, so the same item name works in the
+   `tuist-k8s-staging` / `tuist-k8s-canary` vaults too if you ever
+   stand up a throwaway non-prod builder. Each item has three fields:
 
    ```
    BUILDERS_FLEET_GITHUB_APP
@@ -84,11 +108,11 @@ bootstrap is what makes the grants stable across re-runs.
      private-key      = <contents of the .pem file>
    ```
 
-   Same triple in all three envs — the App is one shared identity.
-   No expiry to track, no rotation on scale-up; the reconciler
-   mints a fresh ~1h runner-registration token from these on every
-   builder-host bootstrap via the GitHub App JWT → installation
-   token → registration token flow.
+   The App is one shared identity, so the same triple works in any
+   env vault that needs it. No expiry to track, no rotation on
+   scale-up; the reconciler mints a fresh ~1h runner-registration
+   token from these on every builder-host bootstrap via the GitHub
+   App JWT -> installation token -> registration token flow.
 
 3. **Pre-order Mac minis on Scaleway** with names prefixed
    `tuist-pool-`. Same pre-ordered pool the macosFleet and
@@ -98,10 +122,12 @@ bootstrap is what makes the grants stable across re-runs.
    speculative auto-ordering expensive, so the operator does this
    ahead of any scale-up.
 
-4. **Enable the fleet** in the env's values file:
+4. **Enable the fleet** in production's values file (staging and
+   canary keep `enabled: false`, per
+   [Which environments run a builder](#which-environments-run-a-builder)):
 
    ```yaml
-   # infra/helm/tuist/values-managed-<env>.yaml
+   # infra/helm/tuist/values-managed-production.yaml
    buildersFleet:
      enabled: true
      replicas: 2
@@ -272,6 +298,26 @@ around this by using `TART_REGISTRY_USERNAME` /
 of writing to keychain; no `tart login` is needed. If you add a
 new workflow that pushes to GHCR, follow the same pattern.
 
+## Reliable registry uploads
+
+All builder workflows use
+[`tart-push`](../.github/actions/tart-push/action.yml)
+for the final registry publication. Keep new Tart image workflows on that
+action rather than adding an inline retry loop.
+
+The action limits Tart to one concurrent registry upload and uses
+three-megabyte chunks. This trades some best-case throughput for fewer
+simultaneous long-lived requests on the Scaleway-to-GitHub path. Failed
+attempts use randomized backoff so two builders do not repeatedly retry
+in lockstep. Every failure also records connection timing and the selected
+address for the registry and blob-delivery endpoints, which gives
+operators evidence for distinguishing a GitHub-side incident from a
+provider-route problem.
+
+The upload remains content-addressed. A later attempt checks blobs that
+already landed and resumes with the missing content rather than publishing
+a different artifact.
+
 ## Workflow `runs-on:` selector
 
 Both image-build workflows pin
@@ -299,8 +345,18 @@ workflows can't run as Pods on that model because they'd need to
 spawn nested macOS guests (Packer → Tart → macOS), which Apple
 Silicon Virtualization.framework refuses. So the builder runs as a
 host-level LaunchAgent that invokes Tart directly, sitting beside
-tart-kubelet on the same host without conflict because no Pods are
-ever scheduled there.
+tart-kubelet on the same host.
+
+The one place this isn't conflict-free: tart-kubelet's orphan-VM
+GC (`internal/podagent/garbage.go`) deletes every local Tart VM
+not backed by a Pod scheduled to the Node. Because no Pods ever
+land on a builder, the host-baked build VM looks orphaned and the
+GC would `tart delete` it mid-`tart push` — the push then fails at
+the NVRAM layer with `The file "nvram.bin" doesn't exist`. The
+bootstrap therefore starts tart-kubelet with `--disable-vm-gc` on
+builder Nodes (`renderLaunchdPlist` keys this off `GHActionsRunner`
+being set); the image-bake workflow's own "Reclaim Tart disk" step
+handles disk reclamation there instead.
 
 The bootstrap helpers in
 [`infra/macos-host-bootstrap/`](macos-host-bootstrap/) are shared

@@ -1,5 +1,5 @@
 defmodule Tuist.AuthenticationTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts
@@ -7,6 +7,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication
+  alias Tuist.Authorization.Checks
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -73,6 +74,33 @@ defmodule Tuist.AuthenticationTest do
     assert result.account == account
     assert result.all_projects == false
     assert result.project_ids == []
+  end
+
+  test "authenticated_subject does not use stored account token creator as issued_by" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+    target_organization = AccountsFixtures.organization_fixture(preload: [:account])
+    Accounts.add_user_to_organization(creator, target_organization, role: :admin)
+    target_project = ProjectsFixtures.project_fixture(account_id: target_organization.account.id)
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: creator.account,
+        scopes: ["project:cache:read"],
+        name: "test-token",
+        all_projects: true
+      })
+
+    # When
+    result = Authentication.authenticated_subject(token_value)
+
+    # Then
+    assert result.created_by_account_id == creator.account.id
+    assert result.issued_by == nil
+
+    assert Checks.scopes_permit(result, target_project, "project:cache:read") == false
   end
 
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
@@ -213,7 +241,7 @@ defmodule Tuist.AuthenticationTest do
     assert new_claims["preferred_username"] == new_handle
   end
 
-  describe "encode_and_sign/3 with projects claim" do
+  describe "encode_and_sign/3 with cache access claims" do
     test "adds projects claim with user's accessible project handles" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -235,9 +263,14 @@ defmodule Tuist.AuthenticationTest do
       assert is_list(claims["projects"])
       assert "#{user.account.name}/#{project1.name}" in claims["projects"]
       assert "#{user.account.name}/#{project2.name}" in claims["projects"]
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+      assert "#{user.account.name}/#{project1.name}" in claims["cache_grants"]["project"]["read"]
+      assert "#{user.account.name}/#{project2.name}" in claims["cache_grants"]["project"]["write"]
     end
 
-    test "adds empty projects claim when user has no projects" do
+    test "adds empty projects claim without embedding account access when user has no projects" do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -252,6 +285,11 @@ defmodule Tuist.AuthenticationTest do
 
       # Then
       assert claims["projects"] == []
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+      assert claims["cache_grants"]["project"]["read"] == []
+      assert claims["cache_grants"]["project"]["write"] == []
     end
 
     test "includes projects from organization memberships" do
@@ -273,6 +311,134 @@ defmodule Tuist.AuthenticationTest do
 
       # Then
       assert "#{organization.account.name}/#{project.name}" in claims["projects"]
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+
+      assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
+    end
+
+    test "omits cache write grants for user-accessible accounts restricted to tokens" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      personal_project = ProjectsFixtures.project_fixture(account: user.account)
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      {:ok, organization_account} =
+        Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+
+      organization_project = ProjectsFixtures.project_fixture(account: organization_account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      personal_project_handle = "#{user.account.name}/#{personal_project.name}"
+      organization_project_handle = "#{organization_account.name}/#{organization_project.name}"
+
+      assert organization_project_handle in claims["projects"]
+      assert organization_project_handle in claims["cache_grants"]["project"]["read"]
+      refute organization_project_handle in claims["cache_grants"]["project"]["write"]
+      assert personal_project_handle in claims["cache_grants"]["project"]["write"]
+    end
+
+    test "uses account JWT scopes when embedding account cache claims" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          account,
+          %{
+            "type" => "account",
+            "scopes" => ["account:cache:write", "project:cache:write"],
+            "all_projects" => true
+          },
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert claims["accounts"] == [account.name]
+      assert claims["projects"] == [project_handle]
+      assert claims["cache_grants"]["account"]["read"] == [account.name]
+      assert claims["cache_grants"]["account"]["write"] == [account.name]
+      assert claims["cache_grants"]["project"]["read"] == [project_handle]
+      assert claims["cache_grants"]["project"]["write"] == [project_handle]
+    end
+
+    test "keeps user token size independent from accessible account count" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      for _ <- 1..20 do
+        organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, organization, role: :admin)
+      end
+
+      # When
+      {:ok, token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+      assert byte_size(token) < 5_000
+    end
+
+    test "drops stale account claims when signing user tokens" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{"accounts" => ["stale-account"], email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      refute Map.has_key?(claims, "accounts")
+    end
+
+    test "does not grant account-scoped access to project-scoped subjects" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          project,
+          %{},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      assert claims["accounts"] == []
+      assert claims["projects"] == ["#{project.account.name}/#{project.name}"]
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["project"]["read"] == ["#{project.account.name}/#{project.name}"]
+      assert claims["cache_grants"]["project"]["write"] == ["#{project.account.name}/#{project.name}"]
     end
 
     test "preserves existing claims while adding projects" do
@@ -293,6 +459,8 @@ defmodule Tuist.AuthenticationTest do
       assert claims["email"] == user.email
       assert claims["custom_claim"] == "custom_value"
       assert is_list(claims["projects"])
+      refute Map.has_key?(claims, "accounts")
+      assert is_map(claims["cache_grants"])
     end
   end
 end

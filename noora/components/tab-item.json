@@ -1,0 +1,68 @@
+{
+  "name": "TabItem",
+  "tagName": "noora-tab-item",
+  "elementClassName": "NooraTabItem",
+  "className": "noora-tab-item",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative tab item.",
+  "usage": "<noora-tab-item value=\"overview\" icon=\"category\">Overview</noora-tab-item>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the label instead of using text content."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Sets the selected value."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Shows an icon before the label."
+    },
+    {
+      "name": "right-icon",
+      "property": "rightIcon",
+      "type": "string",
+      "description": "Shows an icon after the label."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "description": "Renders the tab as a navigation link."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables selection."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The tab label."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "item",
+      "title": "Item",
+      "description": "Describe one tab.",
+      "markup": "<noora-tab-item value=\"overview\" icon=\"category\">Overview</noora-tab-item>"
+    }
+  ]
+}

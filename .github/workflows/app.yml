@@ -28,7 +28,7 @@ permissions:
   contents: read
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
@@ -72,10 +72,13 @@ jobs:
             } catch (error) {
               if (error.status === 404) {
                 console.log(`User ${context.payload.pull_request.user.login} is NOT a member of @tuist/engineering`);
-                core.setOutput('is-member', 'false');
               } else {
-                throw error;
+                // Don't let a transient GitHub API error (e.g. 403 rate-limit) fail the
+                // whole workflow. Fail safe: treat the author as a non-member so the
+                // privileged device-build/share steps skip rather than the PR going red.
+                console.log(`Could not resolve team membership (${error.status} ${error.message}); treating as non-member`);
               }
+              core.setOutput('is-member', 'false');
             }
   app-build:
     name: Build
@@ -92,8 +95,6 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -115,8 +116,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
@@ -152,8 +152,6 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -175,8 +173,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Test TuistApp
         run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -203,8 +200,6 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -226,8 +221,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
@@ -238,6 +232,8 @@ jobs:
           github.event_name == 'push' ||
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
+        env:
+          EXPORT_METHOD: release-testing
         run: mise run app:bundle-ios
       - name: Inspect TuistApp
         if: |

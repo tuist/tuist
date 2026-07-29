@@ -1,6 +1,6 @@
 defmodule TuistWeb.UserForgotPasswordLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
   use Mimic
 
   import Ecto.Query
@@ -16,6 +16,13 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password")
 
       assert html =~ "Forgot your password?"
+    end
+
+    test "redirects to log in when email auth is disabled", %{conn: conn} do
+      stub(Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/reset_password")
+      assert to == ~p"/users/log_in"
     end
 
     test "redirects if already logged in", %{conn: conn} do

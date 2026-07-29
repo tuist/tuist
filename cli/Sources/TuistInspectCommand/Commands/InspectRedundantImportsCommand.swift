@@ -21,6 +21,9 @@
         )
         var path: String?
 
+        @OptionGroup
+        var loggingOptions: LoggingOptions
+
         func run() async throws {
             AlertController.current
                 .warning(

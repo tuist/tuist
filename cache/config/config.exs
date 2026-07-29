@@ -66,7 +66,6 @@ config :cache, Oban,
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
-       {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
@@ -87,6 +86,7 @@ config :cache,
   analytics_cooldown_ms: 60_000,
   analytics_receive_timeout_ms: 2_000,
   analytics_pool_timeout_ms: 1_000,
+  xcode_database_interactions_enabled: true,
   key_value_eviction_max_age_days: 30,
   key_value_max_db_size_bytes: 25 * 1024 * 1024 * 1024,
   key_value_eviction_min_retention_days: 1,

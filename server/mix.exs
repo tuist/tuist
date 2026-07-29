@@ -63,39 +63,49 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.11.1", override: true},
-      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:bandit, "~> 1.12.0", override: true},
+      # The WebSocket upgrade crash that originally held this at 1.19.2
+      # (ArgumentError ":upgrade not a binary") came from the header validation
+      # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
+      # 1.19.4 fixed it by normalising the key, so 1.19.5 upgrades cleanly. The
+      # pin stays because plug is otherwise an unconstrained transitive dep and
+      # every `mix deps.get` re-resolves it to the latest, churning the lock and
+      # forcing full recompiles.
+      {:plug, "1.19.5", override: true},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
       {:tower_opentelemetry, "~> 0.2.0"},
-      {:hackney, "~> 1.8"},
+      {:hackney, "~> 4.5", override: true},
+      {:httpoison, "~> 3.0", override: true},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
-      {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
       {:ex_cldr, "~> 2.37"},
       {:ex_cldr_numbers, "~> 2.38"},
-      {:number, "~> 1.0"},
+      {:decimal, "~> 3.1", override: true},
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
-      {:open_api_spex, "~> 3.18"},
-      {:oban, "~> 2.19"},
+      {:open_api_spex, "~> 3.22"},
+      {:oban, "~> 2.20"},
       {:oban_web, "~> 2.11"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
-      {:req, "~> 0.5.6"},
-      {:req_telemetry, "~> 0.1.1"},
+      {:ueberauth_apple, "~> 0.6.2"},
+      {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
+      # PromEx's standalone metrics server still runs on Cowboy even though
+      # the Phoenix endpoint runs on Bandit.
+      {:plug_cowboy, "~> 2.7"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
@@ -104,24 +114,30 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
-      {:cachex, "~> 4.0.4"},
+      # Pinned to the open PR `whitfin/cachex#433` (TBK145/cachex@patch-1),
+      # which renames cachex's internal `@type record` so it stops colliding
+      # with Elixir 1.19's new builtin `record/0` type. Revert to a hex
+      # version once the PR lands upstream.
+      {:cachex, github: "TBK145/cachex", ref: "72822750eacef403135ad7413f654d40719fbd9f", override: true},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
-      {:nimble_publisher, "~> 1.1"},
       {:yaml_elixir, "~> 2.11"},
-      {:plug_cowboy, "~> 2.7"},
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:emcp, "~> 0.3.4"},
+      # Pinned to the open upstream fix for intermittent missing tool-call
+      # responses. Revert to a Hex version once the fix is released.
+      {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
+      {:ex_json_schema, "~> 0.11.5"},
       {:ua_parser, "~> 1.8"},
-      {:money, "~> 1.12"},
+      {:money, "~> 1.15"},
       {:image, "~> 0.60"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
-      {:solid, "~> 1.0"},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:solid, "~> 1.3"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.13.0"},
@@ -141,6 +157,7 @@ defmodule Tuist.MixProject do
       {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
+      {:x509, "~> 0.9"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
@@ -148,18 +165,29 @@ defmodule Tuist.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
-      {:earmark, "~> 1.4"},
-      {:mdex, "~> 0.11"},
+      {:mdex, "~> 0.13.3"},
+      {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},
+      # grpcbox is transitive (opentelemetry_exporter) but pinned here: <= 0.17
+      # pulls chatterbox 0.15, whose h2_client/h2_connection/h2_frame/h2_settings
+      # modules collide with the :h2 app that hackney 4 depends on, and
+      # `mix release` refuses to assemble a release with duplicated modules.
+      # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
+      {:grpcbox, "~> 0.18.0", override: true},
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
-      {:opentelemetry_finch, "~> 0.2"},
+      # The hex package (bancolombia/opentelemetry_finch 0.2.0) is unmaintained since 2022 and
+      # crashes its [:finch, :request, :stop] handler on streamed requests (reads response.status
+      # off Req's {request, response} accumulator → BadMapError → handler permanently detached).
+      # The contrib monorepo version handles streaming results.
+      {:opentelemetry_finch,
+       github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_finch"},
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
@@ -192,7 +220,6 @@ defmodule Tuist.MixProject do
         "ecto.drop",
         "ecto.create",
         "run priv/repo/timezone.exs",
-        "ecto.load",
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],

@@ -6,13 +6,21 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
 func nn(ns, name string) types.NamespacedName {
@@ -45,6 +53,32 @@ func newPool(name, image string, replicas int32) *tuistv1.RunnerPool {
 	}
 }
 
+func newLinuxKataPool(name string, replicas, maxProvisioning int32) *tuistv1.RunnerPool {
+	pool := newPool(name, "ghcr.io/tuist/tuist-linux-runner:test", replicas)
+	pool.Spec.OS = "linux"
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pool.Spec.Provisioning = &tuistv1.RunnerPoolProvisioning{
+		MaxConcurrentPerFleetSelector: ptr.To(maxProvisioning),
+		StartTimeoutSeconds:           ptr.To[int32](300),
+	}
+	return pool
+}
+
+func readyLinuxRunnerNode(name, fleetSelector string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				fleetNodePoolLabel: fleetSelector,
+			},
+		},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+}
+
 func newRunnerPod(name, image string, phase corev1.PodPhase, poolName string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -60,6 +94,20 @@ func newRunnerPod(name, image string, phase corev1.PodPhase, poolName string) *c
 		},
 		Status: corev1.PodStatus{Phase: phase},
 	}
+}
+
+func warmLinuxRunnerPod(name, image, poolName, runtimeClassRevision string) *corev1.Pod {
+	pod := newRunnerPod(name, image, corev1.PodPending, poolName)
+	if runtimeClassRevision != "" {
+		pod.Annotations = map[string]string{
+			podtemplate.RuntimeClassRevisionAnnotation: runtimeClassRevision,
+		}
+	}
+	pod.Status.InitContainerStatuses = []corev1.ContainerStatus{{
+		Name:  "poller",
+		State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+	}}
+	return pod
 }
 
 func TestIsStaleImage(t *testing.T) {
@@ -96,6 +144,135 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	if isStaleImage(pod, pool) {
 		t.Fatalf("expected isStaleImage to be false for empty-containers pod")
 	}
+}
+
+func TestIsStaleRuntimeClassRevision(t *testing.T) {
+	pool := newLinuxKataPool("pool", 1, 1)
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	current := warmLinuxRunnerPod("current", "image", pool.Name, "current")
+	stale := warmLinuxRunnerPod("stale", "image", pool.Name, "old")
+	missing := warmLinuxRunnerPod("missing", "image", pool.Name, "")
+
+	if isStaleRuntimeClassRevision(current, pool) {
+		t.Fatal("current RuntimeClass revision was classified as stale")
+	}
+	if !isStaleRuntimeClassRevision(stale, pool) {
+		t.Fatal("old RuntimeClass revision was not classified as stale")
+	}
+	if !isStaleRuntimeClassRevision(missing, pool) {
+		t.Fatal("missing RuntimeClass revision was not classified as stale")
+	}
+	delete(pool.Annotations, podtemplate.RuntimeClassRevisionAnnotation)
+	if isStaleRuntimeClassRevision(stale, pool) {
+		t.Fatal("revision was classified as stale when the pool has no desired revision")
+	}
+}
+
+func TestPodPhaseReplicaCounts(t *testing.T) {
+	pending := newRunnerPod("p-pending", "img", corev1.PodPending, "p")
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	unknown := newRunnerPod("p-unknown", "img", corev1.PodUnknown, "p")
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(pending)
+	counts.add(running)
+	counts.add(unknown)
+
+	if counts.pending != 1 || counts.running != 1 || counts.unknown != 1 {
+		t.Fatalf("counts after add = %+v, want pending=1 running=1 unknown=1", counts)
+	}
+
+	counts.remove(pending)
+	counts.remove(pending)
+	counts.remove(running)
+
+	if counts.pending != 0 || counts.running != 0 || counts.unknown != 1 {
+		t.Fatalf("counts after remove = %+v, want pending=0 running=0 unknown=1", counts)
+	}
+}
+
+func TestIsIdle(t *testing.T) {
+	withPoller := func(name string, state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod(name, "img", corev1.PodPending, "p")
+		p.Status.InitContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			{Name: "poller", State: state},
+		}
+		return p
+	}
+	owner := newRunnerPod("p-owner", "img", corev1.PodPending, "p")
+	owner.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	cases := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{"warm, no label, no init status", newRunnerPod("p-warm", "img", corev1.PodPending, "p"), true},
+		{"owner label set", owner, false},
+		// The poller exits the moment it stages a claim, so a
+		// terminated poller means "claimed" even without the
+		// best-effort owner label.
+		{"poller terminated, no label", withPoller("p-claimed", corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}), false},
+		{"poller still running, no label", withPoller("p-polling", corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isIdle(tc.pod); got != tc.want {
+				t.Fatalf("isIdle = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunnerTerminated(t *testing.T) {
+	withRunner := func(state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod("p", "img", corev1.PodFailed, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+			{Name: "runner", State: state},
+		}
+		return p
+	}
+
+	t.Run("guest-OOM fingerprint (137/Error) is captured", func(t *testing.T) {
+		got := runnerTerminated(withRunner(corev1.ContainerState{
+			Terminated: &corev1.ContainerStateTerminated{ExitCode: 137, Signal: 9, Reason: "Error"},
+		}))
+		if got == nil || got.ExitCode != 137 || got.Reason != "Error" {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=137 reason=Error", got)
+		}
+	})
+
+	t.Run("falls back to LastTerminationState", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "runner", LastTerminationState: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{ExitCode: 1},
+			}},
+		}
+		if got := runnerTerminated(p); got == nil || got.ExitCode != 1 {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=1 from LastTerminationState", got)
+		}
+	})
+
+	t.Run("no runner container returns nil", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+		}
+		if got := runnerTerminated(p); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
+
+	t.Run("running runner returns nil", func(t *testing.T) {
+		if got := runnerTerminated(withRunner(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}})); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
 }
 
 // TestReconcile_DeletesStalePendingPodAndCreatesReplacement is the
@@ -160,6 +337,156 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	err = c.Get(context.Background(), nn("tuist-runners", "p-runner-stale"), sa)
 	if err == nil {
 		t.Fatalf("expected stale SA p-runner-stale to be deleted, still present")
+	}
+}
+
+// TestReconcile_ThrottlesStalePendingReapToRollCap guards the roll
+// concurrency cap on the stale-Pending reap path. Before, every stale
+// Pending Pod was reaped in a single reconcile, so a digest roll made
+// the whole fleet `tart pull` the new image at once. Now the reap shares
+// the roll budget: with 5 replicas and a 40% cap (floor = 2), only 2
+// stale Pods retire per reconcile and the rest keep serving the old
+// image until the budget frees.
+func TestReconcile_ThrottlesStalePendingReapToRollCap(t *testing.T) {
+	scheme := mustScheme(t)
+	const (
+		oldImage = "ghcr.io/tuist/tuist-runner@sha256:old"
+		newImage = "ghcr.io/tuist/tuist-runner@sha256:new"
+	)
+	pool := newPool("p", newImage, 5)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 40}
+	p0 := newRunnerPod("p-runner-s0", oldImage, corev1.PodPending, "p")
+	p1 := newRunnerPod("p-runner-s1", oldImage, corev1.PodPending, "p")
+	p2 := newRunnerPod("p-runner-s2", oldImage, corev1.PodPending, "p")
+	p3 := newRunnerPod("p-runner-s3", oldImage, corev1.PodPending, "p")
+	p4 := newRunnerPod("p-runner-s4", oldImage, corev1.PodPending, "p")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, p0, p1, p2, p3, p4).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	oldCount, newCount := 0, 0
+	for i := range pods.Items {
+		if pods.Items[i].Spec.Containers[0].Image == oldImage {
+			oldCount++
+		} else {
+			newCount++
+		}
+	}
+	// cap = floor(40% * 5) = 2: exactly 2 stale Pods retired + replaced
+	// this tick; the other 3 keep serving the old image.
+	if oldCount != 3 {
+		t.Fatalf("expected 3 stale pods remaining (cap=2 reaped), got %d", oldCount)
+	}
+	if newCount != 2 {
+		t.Fatalf("expected 2 current-image replacements, got %d", newCount)
+	}
+	if len(pods.Items) != 5 {
+		t.Fatalf("expected pool to stay at 5 pods, got %d", len(pods.Items))
+	}
+}
+
+// TestReconcile_LeavesStalePendingClaimedPodAlone covers the
+// isIdle guard on the stale-Pending reap. With the Linux
+// token-isolation Pod shape the poller runs as an init container, so
+// a Pod that has just claimed a job is briefly Pending (poller init
+// exiting, runner main starting). The server stamps
+// `runner-pool-owner` at claim time; the reap must skip such Pods or
+// an image roll racing a claim would kill the job mid-flight.
+func TestReconcile_LeavesStalePendingClaimedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claimed := newRunnerPod("p-runner-claimed", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claimed" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("claimed stale pending pod was reaped; the isIdle guard should protect a just-claimed Pod")
+	}
+	// alive=1 (the claimed pod counts), gap=0 — no replacement.
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while claimed pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+}
+
+// TestReconcile_LeavesStalePendingPollerExitedPodAlone covers the
+// label-independent half of the stale-Pending guard. The server's
+// owner-label stamp is best-effort (it degrades to "running without
+// the label" if the apiserver patch keeps failing), so a genuinely
+// claimed Pod can be Pending with no owner label while the poller
+// exits and the runner starts. The terminated poller is the reliable
+// "claimed" signal, and the reap must honor it.
+func TestReconcile_LeavesStalePendingPollerExitedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claiming := newRunnerPod("p-runner-claiming", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	// No owner label (stamp failed), but the poller has staged the JIT
+	// and exited.
+	claiming.Status.InitContainerStatuses = []corev1.ContainerStatus{
+		{Name: "poller", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claiming).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claiming" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("stale Pending pod with an exited poller was reaped; the poller-terminated signal should protect a just-claimed Pod even without the owner label")
+	}
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while the claiming pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
 	}
 }
 
@@ -235,6 +562,154 @@ func TestReconcile_NoDeletionWhenImageMatches(t *testing.T) {
 	}
 	if len(pods.Items) != 1 || pods.Items[0].Name != "p-runner-current" {
 		t.Fatalf("expected current-image pod to survive reconcile untouched, got %v", podNames(pods.Items))
+	}
+}
+
+func TestReconcile_RollsStaleRuntimeClassRevisionAtConfiguredCap(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 50}
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	old0 := warmLinuxRunnerPod("p-runner-old-0", pool.Spec.Image, pool.Name, "old")
+	old1 := warmLinuxRunnerPod("p-runner-old-1", pool.Spec.Image, pool.Name, "old")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, old0, old1).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:              c,
+		Scheme:              scheme,
+		DispatchURL:         "http://dispatch",
+		DispatchInternalURL: "http://dispatch-internal",
+	}
+	request := ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}
+
+	if _, err := r.Reconcile(context.Background(), request); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods after first reconcile: %v", err)
+	}
+	oldNames := map[string]bool{old0.Name: true, old1.Name: true}
+	oldRemaining := 0
+	var replacement *corev1.Pod
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if oldNames[pod.Name] {
+			oldRemaining++
+		} else {
+			replacement = pod
+		}
+	}
+	if oldRemaining != 1 || replacement == nil || len(pods.Items) != 2 {
+		t.Fatalf("first reconcile left %d old Pods and replacement %v; want one of each", oldRemaining, replacement != nil)
+	}
+	if got := replacement.Annotations[podtemplate.RuntimeClassRevisionAnnotation]; got != "current" {
+		t.Fatalf("replacement RuntimeClass revision = %q, want current", got)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(replacement), replacement); err != nil {
+		t.Fatalf("get replacement before status update: %v", err)
+	}
+	replacement.Status = corev1.PodStatus{
+		Phase: corev1.PodPending,
+		InitContainerStatuses: []corev1.ContainerStatus{{
+			Name:  "poller",
+			State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+		}},
+	}
+	if err := c.Status().Update(context.Background(), replacement); err != nil {
+		t.Fatalf("mark replacement warm: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), request); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	pods = &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods after second reconcile: %v", err)
+	}
+	for i := range pods.Items {
+		if oldNames[pods.Items[i].Name] {
+			t.Fatalf("old-revision Pod %q survived after the warm replacement freed the roll slot", pods.Items[i].Name)
+		}
+	}
+	if len(pods.Items) != 2 {
+		t.Fatalf("expected pool to remain at 2 Pods, got %d", len(pods.Items))
+	}
+}
+
+func TestReconcile_LeavesClaimedAndRunningPodsWithStaleRuntimeClassRevisionAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	claimed := warmLinuxRunnerPod("p-runner-claimed", pool.Spec.Image, pool.Name, "old")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "account"
+	running := newRunnerPod("p-runner-running", pool.Spec.Image, corev1.PodRunning, pool.Name)
+	running.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "old",
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, claimed, running).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(claimed), &corev1.Pod{}); err != nil {
+		t.Fatalf("claimed Pod with a stale RuntimeClass revision was interrupted: %v", err)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(running), &corev1.Pod{}); err != nil {
+		t.Fatalf("Running Pod with a stale RuntimeClass revision was interrupted: %v", err)
+	}
+}
+
+func TestReconcile_CurrentTemplateUnavailableCapacityPausesRuntimeClassRoll(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 50}
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	stale := warmLinuxRunnerPod("p-runner-stale", pool.Spec.Image, pool.Name, "old")
+	scalingUp := newRunnerPod("p-runner-scaling", pool.Spec.Image, corev1.PodPending, pool.Name)
+	scalingUp.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, stale, scalingUp).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(stale), &corev1.Pod{}); err != nil {
+		t.Fatalf("stale warm Pod was reaped while current-template capacity was already unavailable: %v", err)
 	}
 }
 
@@ -352,10 +827,703 @@ func TestReconcile_LeavesImageRolledAtAloneWhenImageUnchanged(t *testing.T) {
 	}
 }
 
+// TestReconcile_DrainsPoolOnDeleteWithoutKillingRunningPod is the
+// regression test for the cascade-GC kill: a helm upgrade that drops
+// or renames a RunnerPool deletes the CR, and because Pods carry an
+// owner reference to it, Kubernetes GC would otherwise cascade-delete
+// every Pod the pool owns — including runners mid-job. The drain
+// finalizer must hold the CR Terminating while a mid-job Pod is still
+// running, reap only the idle Pods, and release the CR once the last
+// in-flight runner has exited.
+func TestReconcile_DrainsPoolOnDeleteWithoutKillingRunningPod(t *testing.T) {
+	scheme := mustScheme(t)
+	image := "ghcr.io/tuist/tuist-runner@sha256:current"
+	pool := newPool("p", image, 2)
+
+	// Idle pod: warm-polling, no owner label — safe to reap on drain.
+	idle := newRunnerPod("p-runner-idle", image, corev1.PodRunning, "p")
+	idleSA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "p-runner-idle", Namespace: "tuist-runners"}}
+	// Mid-job pod: the server stamped the owner label at claim time —
+	// must survive the drain.
+	busy := newRunnerPod("p-runner-busy", image, corev1.PodRunning, "p")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "acme"
+	busySA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "p-runner-busy", Namespace: "tuist-runners"}}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idle, idleSA, busy, busySA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	ctx := context.Background()
+
+	// First reconcile installs the drain finalizer.
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	got := &tuistv1.RunnerPool{}
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(got, runnerPoolFinalizer) {
+		t.Fatalf("expected drain finalizer to be installed")
+	}
+
+	// helm-style delete: the finalizer holds the CR Terminating.
+	if err := c.Delete(ctx, got); err != nil {
+		t.Fatalf("delete pool: %v", err)
+	}
+
+	// Drain reconcile: idle pod reaped, mid-job pod survives, CR remains.
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("drain reconcile: %v", err)
+	}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), &corev1.Pod{}); err != nil {
+		t.Fatalf("expected mid-job pod to survive drain: %v", err)
+	}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-idle"), &corev1.Pod{}); err == nil {
+		t.Fatalf("expected idle pod to be reaped during drain")
+	}
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err != nil {
+		t.Fatalf("expected pool to remain Terminating while a runner is mid-job: %v", err)
+	}
+
+	// The job finishes: the single-shot pod exits and goes away. With
+	// no live runner left, the next reconcile finds running == 0 and
+	// releases the finalizer, so the CR (and the now-unblocked GC) can
+	// finalize.
+	busyLive := &corev1.Pod{}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), busyLive); err != nil {
+		t.Fatalf("get busy pod: %v", err)
+	}
+	if err := c.Delete(ctx, busyLive); err != nil {
+		t.Fatalf("remove finished busy pod: %v", err)
+	}
+
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("final drain reconcile: %v", err)
+	}
+	// The controller's contract is to release the finalizer once the
+	// pool is drained; the apiserver then GCs the CR. Assert the
+	// finalizer is gone (the CR is either deleted or no longer holds
+	// it) rather than the fake client's GC behaviour.
+	drained := &tuistv1.RunnerPool{}
+	switch err := c.Get(ctx, nn(pool.Namespace, pool.Name), drained); {
+	case apierrors.IsNotFound(err):
+		// CR collected — fully drained.
+	case err != nil:
+		t.Fatalf("get pool after drain: %v", err)
+	case controllerutil.ContainsFinalizer(drained, runnerPoolFinalizer):
+		t.Fatalf("expected drain finalizer to be released after the drain completed")
+	}
+}
+
 func podNames(pods []corev1.Pod) []string {
 	out := make([]string, len(pods))
 	for i, p := range pods {
 		out[i] = p.Name
 	}
 	return out
+}
+
+func TestOldestPendingAgeTracksTheOldest(t *testing.T) {
+	now := time.Date(2026, 7, 17, 3, 0, 0, 0, time.UTC)
+
+	newest := newRunnerPod("p-newest", "img", corev1.PodPending, "p")
+	newest.CreationTimestamp = metav1.NewTime(now.Add(-30 * time.Second))
+	oldest := newRunnerPod("p-oldest", "img", corev1.PodPending, "p")
+	oldest.CreationTimestamp = metav1.NewTime(now.Add(-4 * time.Hour))
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	running.CreationTimestamp = metav1.NewTime(now.Add(-8 * time.Hour))
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(newest)
+	counts.add(oldest)
+	// A Pod that booted long ago is not waiting on anything, so its age
+	// must not leak into the gauge.
+	counts.add(running)
+
+	if got := counts.oldestPendingAge(now); got != 4*time.Hour {
+		t.Fatalf("oldest pending age = %v, want 4h", got)
+	}
+
+	// Reaping the oldest has to reveal the next-oldest. A running max
+	// would keep reporting 4h here.
+	counts.remove(oldest)
+	if got := counts.oldestPendingAge(now); got != 30*time.Second {
+		t.Fatalf("oldest pending age after reaping the oldest = %v, want 30s", got)
+	}
+
+	counts.remove(newest)
+	if got := counts.oldestPendingAge(now); got != 0 {
+		t.Fatalf("oldest pending age with nothing pending = %v, want 0", got)
+	}
+}
+
+func TestOldestPendingAgeEmpty(t *testing.T) {
+	counts := podPhaseReplicaCounts{}
+	if got := counts.oldestPendingAge(time.Now()); got != 0 {
+		t.Fatalf("oldest pending age on an empty pool = %v, want 0", got)
+	}
+}
+
+// oldestPendingGauge reads the published gauge out of the shared
+// controller-runtime registry: the metric is unexported in its own
+// package, and the registry is the same surface Prometheus scrapes.
+// Returns the value for `pool` and the total number of series.
+func oldestPendingGauge(t *testing.T, pool string) (float64, int) {
+	t.Helper()
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var value float64
+	var series int
+	for _, f := range families {
+		if f.GetName() != "tuist_runners_pool_oldest_pending_pod_age_seconds" {
+			continue
+		}
+		series = len(f.GetMetric())
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "pool" && l.GetValue() == pool {
+					value = m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return value, series
+}
+
+// A Linux warm-standby Pod runs its dispatch poller as an init container,
+// and kubelet holds a Pod in Pending for as long as any init container
+// runs — so an idle Linux runner reports Pending for hours by design.
+// Publishing the un-booted age for Linux would peg every idle pool at its
+// warm-pool age and read as wedged. Tart pools have no such state.
+func TestOldestPendingPodAgeIsDarwinOnly(t *testing.T) {
+	now := time.Date(2026, 7, 17, 3, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		os         string
+		pool       string
+		wantAge    float64
+		wantSeries int
+	}{
+		{os: "darwin", pool: "p-darwin", wantAge: 3600, wantSeries: 1},
+		{os: "linux", pool: "p-linux", wantAge: 0, wantSeries: 0},
+	} {
+		t.Run(tc.os, func(t *testing.T) {
+			metrics.ClearRunnerPool(tc.pool)
+			t.Cleanup(func() { metrics.ClearRunnerPool(tc.pool) })
+
+			scheme := mustScheme(t)
+			pool := newPool(tc.pool, "img", 1)
+			pool.Spec.OS = tc.os
+
+			pending := newRunnerPod(tc.pool+"-runner-a", "img", corev1.PodPending, tc.pool)
+			pending.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(pool, pending).
+				WithStatusSubresource(&tuistv1.RunnerPool{}).
+				Build()
+
+			r := &RunnerPoolReconciler{
+				Client:      c,
+				Scheme:      scheme,
+				DispatchURL: "http://dispatch",
+				Now:         func() time.Time { return now },
+			}
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+				t.Fatalf("reconcile: %v", err)
+			}
+
+			gotAge, gotSeries := oldestPendingGauge(t, tc.pool)
+			if gotAge != tc.wantAge {
+				t.Errorf("%s pool oldest pending age = %v, want %v", tc.os, gotAge, tc.wantAge)
+			}
+			if gotSeries != tc.wantSeries {
+				t.Errorf("%s pool published %d series, want %d", tc.os, gotSeries, tc.wantSeries)
+			}
+		})
+	}
+}
+
+// idleReplicasGauge reads the published idle gauge out of the shared
+// controller-runtime registry, the same surface Prometheus scrapes.
+func idleReplicasGauge(t *testing.T, pool string) float64 {
+	t.Helper()
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var value float64
+	for _, f := range families {
+		if f.GetName() != "tuist_runners_pool_idle_replicas" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "pool" && l.GetValue() == pool {
+					value = m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return value
+}
+
+// Warm capacity has to be countable on its own. phaseReplicas cannot
+// substitute: a Pod running a customer job and a Pod polling for work are
+// both Running, so "jobs are queued while warm Pods sit idle" — the
+// dispatch-starvation signature — is inexpressible without this series.
+func TestReconcilePublishesIdleReplicas(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// Two unclaimed warm Pods and one running a customer job. Only the
+	// unclaimed pair is idle capacity.
+	idleA := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	idleB := newRunnerPod(poolName+"-runner-b", "img", corev1.PodRunning, poolName)
+	claimed := newRunnerPod(poolName+"-runner-c", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idleA, idleB, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas = %v, want 2 (the claimed Pod is not idle capacity)", got)
+	}
+}
+
+// A fully-busy pool must publish 0, not carry its last non-zero sample.
+// A stale reading here would look like warm capacity ignoring queued work
+// and fire starvation on a pool that is simply saturated.
+func TestReconcileDrainsIdleReplicasWhenFullyClaimed(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 1)
+	pool.Spec.OS = "darwin"
+
+	claimed := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 0 {
+		t.Fatalf("idle replicas on a fully-claimed pool = %v, want 0", got)
+	}
+}
+
+// A darwin Pod that never got a node has no VM and cannot accept a job,
+// so it is not warm capacity however long it has been alive. Counting it
+// would invert the starvation signal: a pool starved of Mac minis would
+// report idle Pods sitting on queued work, which is the fingerprint of
+// dispatch failing, not of a capacity shortfall.
+func TestIdleReplicasExcludesUnschedulableDarwinPods(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// One booted warm Pod, plus two that never scheduled (the shape of a
+	// Mac mini fleet at 100% memory: unclaimed, unowned, no node).
+	booted := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	stuckA := newRunnerPod(poolName+"-runner-b", "img", corev1.PodPending, poolName)
+	stuckB := newRunnerPod(poolName+"-runner-c", "img", corev1.PodPending, poolName)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, booted, stuckA, stuckB).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 1 {
+		t.Fatalf("idle replicas = %v, want 1 (only the booted Pod is capacity)", got)
+	}
+}
+
+// linuxPod builds a Linux runner Pod with an explicit `poller` init
+// container state. Linux warm runners are Pending for their whole idle
+// life, so the phase alone says nothing; the poller's state decides.
+func linuxPod(name, poolName string, pollerState *corev1.ContainerState) *corev1.Pod {
+	p := newRunnerPod(name, "img", corev1.PodPending, poolName)
+	if pollerState != nil {
+		p.Status.InitContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			{Name: "poller", State: *pollerState},
+		}
+	}
+	return p
+}
+
+func reconcileLinuxPool(t *testing.T, poolName string, pods ...*corev1.Pod) {
+	t.Helper()
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", int32(len(pods)))
+	pool.Spec.OS = "linux"
+
+	objs := []client.Object{pool}
+	for _, p := range pods {
+		objs = append(objs, p)
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+}
+
+// The mirror case: on Linux the dispatch poller is an init container, so
+// kubelet reports a warm idle runner as Pending for its entire life.
+// Applying the darwin rule here would report every idle Linux pool as
+// having zero warm capacity and silence starvation on the platform.
+func TestIdleReplicasCountsRunningLinuxPollers(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	running := &corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, running),
+		linuxPod(poolName+"-runner-b", poolName, running),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas on a Linux pool = %v, want 2 (a running poller is warm)", got)
+	}
+}
+
+// The Linux twin of the darwin unschedulable case. An unscheduled Linux
+// Pod is Pending, unowned, and has no poller status at all, so
+// `pollerTerminated` reports false for it. Counting it would classify a
+// Linux pool that is merely out of hosts as starved, inverting the
+// signal on the other platform.
+func TestIdleReplicasExcludesUnscheduledLinuxPods(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	running := &corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, running),
+		// No init status: never scheduled, or still pulling.
+		linuxPod(poolName+"-runner-b", poolName, nil),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 1 {
+		t.Fatalf("idle replicas = %v, want 1 (the unscheduled Pod is not capacity)", got)
+	}
+}
+
+// A poller still Waiting has not begun polling, so the Pod cannot accept
+// a job yet either.
+func TestIdleReplicasExcludesWaitingLinuxPoller(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, &corev1.ContainerState{
+			Waiting: &corev1.ContainerStateWaiting{Reason: "PodInitializing"},
+		}),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 0 {
+		t.Fatalf("idle replicas = %v, want 0 (a waiting poller is not warm)", got)
+	}
+}
+
+func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
+	scheme := mustScheme(t)
+	poolA := newLinuxKataPool("linux-a", 8, 4)
+	poolB := newLinuxKataPool("linux-b", 8, 4)
+	node := readyLinuxRunnerNode("runner-node", poolA.Spec.FleetSelector)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(poolA, poolB, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolA.Namespace, poolA.Name)})
+	if err != nil {
+		t.Fatalf("reconcile first pool: %v", err)
+	}
+	if result.RequeueAfter != provisioningRequeueAfter {
+		t.Fatalf("first pool requeue = %s, want %s while gap remains", result.RequeueAfter, provisioningRequeueAfter)
+	}
+
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list first pool pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("first reconcile created %d Pods, want shared cap 4", len(pods.Items))
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolB.Namespace, poolB.Name)}); err != nil {
+		t.Fatalf("reconcile sibling pool: %v", err)
+	}
+	pods = corev1.PodList{}
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list sibling pool pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("sibling reconcile exceeded shared cap: got %d Pods, want 4", len(pods.Items))
+	}
+
+	gotPool := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(poolA.Namespace, poolA.Name), gotPool); err != nil {
+		t.Fatalf("get first pool: %v", err)
+	}
+	if gotPool.Status.ObservedReplicas != 4 {
+		t.Fatalf("ObservedReplicas = %d, want only the 4 Pods actually created", gotPool.Status.ObservedReplicas)
+	}
+}
+
+func TestReconcileLinuxKataProvisioningAdvancesWhenPollerStarts(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 6, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("initial reconcile: %v", err)
+	}
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("initial Pods = %d, want 4", len(pods.Items))
+	}
+
+	started := pods.Items[0].DeepCopy()
+	started.Status.InitContainerStatuses = []corev1.ContainerStatus{{
+		Name:  "poller",
+		State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+	}}
+	if err := c.Status().Update(context.Background(), started); err != nil {
+		t.Fatalf("mark poller running: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile after poller start: %v", err)
+	}
+	pods = corev1.PodList{}
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list replenished pods: %v", err)
+	}
+	if len(pods.Items) != 5 {
+		t.Fatalf("Pods after one poller started = %d, want 5", len(pods.Items))
+	}
+}
+
+func TestProvisioningAdmissionCountsLocalCreateReservations(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 2, 1)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, node).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, Now: func() time.Time { return time.Unix(1000, 0) }}
+	r.reserveCreatedRunner(pool, "not-in-cache-yet")
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.pendingForFleet != 1 || admission.available != 0 || admission.blockedReason != "fleet_cap" {
+		t.Fatalf("admission with local reservation = %+v, want pending=1 available=0 fleet_cap", admission)
+	}
+}
+
+func TestReconcileDoesNotCreateLinuxKataPodWithoutHealthyNode(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 3, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	node.Status.Conditions[0].Status = corev1.ConditionFalse
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != provisioningRequeueAfter {
+		t.Fatalf("requeue = %s, want %s", result.RequeueAfter, provisioningRequeueAfter)
+	}
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 0 {
+		t.Fatalf("created %d Pods with no healthy node, want 0", len(pods.Items))
+	}
+}
+
+func TestReconcileReapsBoundLinuxPodWhosePollerNeverStarts(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	pool.Spec.Provisioning.StartTimeoutSeconds = ptr.To[int32](300)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-stuck", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.CreationTimestamp = metav1.NewTime(now.Add(-6 * time.Minute))
+	pod.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Minute)),
+	}}
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	recorder := record.NewFakeRecorder(1)
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    recorder,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Get(context.Background(), nn(pod.Namespace, pod.Name), &corev1.Pod{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("timed-out Pod get error = %v, want NotFound", err)
+	}
+	select {
+	case event := <-recorder.Events:
+		if event == "" {
+			t.Fatal("empty timeout event")
+		}
+	default:
+		t.Fatal("expected RunnerPodStartTimedOut event")
+	}
+}
+
+func TestStartTimeoutIgnoresUnboundAndClaimedPods(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	pool := newLinuxKataPool("linux", 1, 4)
+
+	unbound := linuxPod("unbound", pool.Name, nil)
+	unbound.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	if startTimedOut(unbound, pool, now) {
+		t.Fatal("unbound Pod timed out; scheduler waiting must not churn")
+	}
+
+	recentlyBound := linuxPod("recently-bound", pool.Name, nil)
+	recentlyBound.Spec.NodeName = "runner-node"
+	recentlyBound.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	recentlyBound.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Minute)),
+	}}
+	if startTimedOut(recentlyBound, pool, now) {
+		t.Fatal("recently bound Pod inherited its unscheduled age instead of starting a fresh timeout clock")
+	}
+
+	claimed := linuxPod("claimed", pool.Name, nil)
+	claimed.Spec.NodeName = "runner-node"
+	claimed.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	claimed.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+	}}
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "account"
+	if startTimedOut(claimed, pool, now) {
+		t.Fatal("claimed Pod timed out; customer work must be protected")
+	}
 }

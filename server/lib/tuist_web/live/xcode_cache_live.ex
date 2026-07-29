@@ -189,23 +189,23 @@ defmodule TuistWeb.XcodeCacheLive do
     |> assign_async(
       [:transfer_analytics, :latency_analytics, :throughput_analytics, :hit_rate_analytics, :analytics_chart_data],
       fn ->
-        transfer_analytics = Analytics.cas_transfer_analytics(project.id, opts)
-        latency_analytics = Analytics.cas_latency_analytics(project.id, opts)
-        throughput_analytics = Analytics.cas_throughput_analytics(project.id, opts)
-        hit_rate_analytics = Analytics.build_cache_hit_rate_analytics(project.id, opts)
+        cas_task = Task.async(fn -> Analytics.cas_analytics(project.id, opts) end)
+        hit_rate_task = Task.async(fn -> Analytics.build_cache_hit_rate_analytics(project.id, opts) end)
+
+        [cas_analytics, hit_rate_analytics] = Task.await_many([cas_task, hit_rate_task], 30_000)
 
         {:ok,
          %{
-           transfer_analytics: transfer_analytics,
-           latency_analytics: latency_analytics,
-           throughput_analytics: throughput_analytics,
+           transfer_analytics: cas_analytics.transfer,
+           latency_analytics: cas_analytics.latency,
+           throughput_analytics: cas_analytics.throughput,
            hit_rate_analytics: hit_rate_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
-               transfer_analytics,
-               latency_analytics,
-               throughput_analytics,
+               cas_analytics.transfer,
+               cas_analytics.latency,
+               cas_analytics.throughput,
                hit_rate_analytics
              )
          }}

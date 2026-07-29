@@ -4,30 +4,29 @@ Describe 'memory pressure resilience'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-memory-pressure"
-    export KURA_US_PORT=4701
-    export KURA_EU_PORT=4702
-    export KURA_AP_PORT=4703
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_EU_URL="http://localhost:${KURA_EU_PORT}"
-    export KURA_AP_URL="http://localhost:${KURA_AP_PORT}"
-    export KURA_E2E_DOCKER_MEMORY_LIMIT=512m
-    export KURA_E2E_MEMORY_SOFT_LIMIT_BYTES=$((256 * 1024 * 1024))
-    export KURA_E2E_MEMORY_HARD_LIMIT_BYTES=$((320 * 1024 * 1024))
-    export KURA_E2E_MANIFEST_CACHE_MAX_BYTES=$((16 * 1024 * 1024))
-    export KURA_E2E_SEGMENT_HANDLE_CACHE_SIZE=8
-    export KURA_E2E_METADATA_STORE_READ_CACHE_BYTES=$((16 * 1024 * 1024))
-    export KURA_E2E_METADATA_STORE_WRITE_BUFFER_POOL_BYTES=$((16 * 1024 * 1024))
-    export KURA_E2E_METADATA_STORE_WRITE_BUFFER_BYTES=$((8 * 1024 * 1024))
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/spec/e2e/docker-compose.memory-pressure.yml"
     )
     setup_suite_tmpdir
 
+    suite_env COMPOSE_PROJECT_NAME kura-memory-pressure
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
+    suite_env KURA_E2E_DOCKER_MEMORY_LIMIT 512m
+    suite_env KURA_E2E_MEMORY_SOFT_LIMIT_BYTES $((256 * 1024 * 1024))
+    suite_env KURA_E2E_MEMORY_HARD_LIMIT_BYTES $((320 * 1024 * 1024))
+    suite_env KURA_E2E_MANIFEST_CACHE_MAX_BYTES $((16 * 1024 * 1024))
+    suite_env KURA_E2E_SEGMENT_HANDLE_CACHE_SIZE 8
+    suite_env KURA_E2E_METADATA_STORE_READ_CACHE_BYTES $((16 * 1024 * 1024))
+    suite_env KURA_E2E_METADATA_STORE_WRITE_BUFFER_POOL_BYTES $((16 * 1024 * 1024))
+    suite_env KURA_E2E_METADATA_STORE_WRITE_BUFFER_BYTES $((8 * 1024 * 1024))
+
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us kura-eu kura-ap || return 1
+
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
@@ -41,15 +40,6 @@ Describe 'memory pressure resilience'
   }
 
   teardown_suite() {
-    unset COMPOSE_PROJECT_NAME
-    unset KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
-    unset KURA_US_URL KURA_EU_URL KURA_AP_URL
-    unset KURA_E2E_DOCKER_MEMORY_LIMIT
-    unset KURA_E2E_MEMORY_SOFT_LIMIT_BYTES KURA_E2E_MEMORY_HARD_LIMIT_BYTES
-    unset KURA_E2E_MANIFEST_CACHE_MAX_BYTES KURA_E2E_SEGMENT_HANDLE_CACHE_SIZE
-    unset KURA_E2E_METADATA_STORE_READ_CACHE_BYTES
-    unset KURA_E2E_METADATA_STORE_WRITE_BUFFER_POOL_BYTES
-    unset KURA_E2E_METADATA_STORE_WRITE_BUFFER_BYTES
     compose_teardown
   }
 
@@ -71,7 +61,7 @@ Describe 'memory pressure resilience'
 import sys
 
 chunk = b"kura-memory-pressure-traffic"
-size = 4 * 1024 * 1024
+size = 16 * 1024 * 1024
 repetitions = (size + len(chunk) - 1) // len(chunk)
 sys.stdout.buffer.write((chunk * repetitions)[:size])
 PY
@@ -97,6 +87,8 @@ PY
     capture_into ap_keyvalue wait_for_contains "${keyvalue_url_ap}" '"probe"' || return 1
     The variable eu_keyvalue should include '"load"'
     The variable ap_keyvalue should include '"probe"'
+
+    run_parallel_http_posts "${cas_url_us}" "${artifact_path}" 4 4 || return 1
 
     run_parallel_http_gets "${cas_url_us}" 6 12 &
     cas_us_pid=$!
@@ -145,5 +137,26 @@ PY
     The variable us_oom_killed should eq false
     The variable eu_oom_killed should eq false
     The variable ap_oom_killed should eq false
+
+    us_oom_events="$(container_memory_event kura-us oom)"
+    eu_oom_events="$(container_memory_event kura-eu oom)"
+    ap_oom_events="$(container_memory_event kura-ap oom)"
+    The variable us_oom_events should eq 0
+    The variable eu_oom_events should eq 0
+    The variable ap_oom_events should eq 0
+
+    us_oom_kill_events="$(container_memory_event kura-us oom_kill)"
+    eu_oom_kill_events="$(container_memory_event kura-eu oom_kill)"
+    ap_oom_kill_events="$(container_memory_event kura-ap oom_kill)"
+    The variable us_oom_kill_events should eq 0
+    The variable eu_oom_kill_events should eq 0
+    The variable ap_oom_kill_events should eq 0
+
+    us_max_events="$(container_memory_event kura-us max)"
+    eu_max_events="$(container_memory_event kura-eu max)"
+    ap_max_events="$(container_memory_event kura-ap max)"
+    The variable us_max_events should eq 0
+    The variable eu_max_events should eq 0
+    The variable ap_max_events should eq 0
   End
 End

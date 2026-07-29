@@ -14,7 +14,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
     %{
       workflow_job_id: Keyword.get(opts, :workflow_job_id, 76_348_428_905),
       account_id: Keyword.get(opts, :account_id, 3),
-      repo: Keyword.get(opts, :repo, "tuist/tuist"),
+      repository: Keyword.get(opts, :repository, "tuist/tuist"),
       claimed_at: Keyword.get(opts, :claimed_at, ~U[2026-05-16 21:14:06.616167Z]),
       started_at: Keyword.get(opts, :started_at, ~U[2026-05-16 21:14:07.711527Z]),
       pod_name: Keyword.get(opts, :pod_name, "pod-1")

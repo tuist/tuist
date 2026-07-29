@@ -1,5 +1,6 @@
-use std::{io::BufReader, sync::Arc, time::Duration};
+use std::{io::BufReader, net::SocketAddr, sync::Arc, time::Duration};
 
+use arc_swap::ArcSwapOption;
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::{Certificate, Client, Identity};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -8,12 +9,42 @@ use tokio::fs;
 
 use crate::config::{Config, PeerTlsConfig, PublicTlsConfig};
 
-pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
-    let mut builder = Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(30));
+struct PeerIdentity {
+    identity_pem: Vec<u8>,
+    ca_pem: Vec<u8>,
+}
 
-    if let Some(peer_tls) = &config.peer_tls {
+/// Builds outbound peer HTTP clients with the current peer mTLS identity. The
+/// identity is held behind an atomic swap so a renewal task can rotate the
+/// certificate in place: clients built afterwards (and `state.client` once it is
+/// rebuilt) pick up the new identity without a restart.
+#[derive(Clone)]
+pub struct PeerClientFactory {
+    identity: Arc<ArcSwapOption<PeerIdentity>>,
+}
+
+impl PeerClientFactory {
+    pub fn plain() -> Self {
+        Self {
+            identity: Arc::new(ArcSwapOption::const_empty()),
+        }
+    }
+
+    pub async fn from_config(config: &Config) -> Result<Self, String> {
+        let factory = Self::plain();
+        if config.peer_tls.is_some() {
+            factory.reload_from_config(config).await?;
+        }
+        Ok(factory)
+    }
+
+    /// Re-reads the peer identity from the configured `KURA_INTERNAL_TLS_*` paths
+    /// and atomically swaps it. A no-op when peer TLS is disabled.
+    pub async fn reload_from_config(&self, config: &Config) -> Result<(), String> {
+        let Some(peer_tls) = &config.peer_tls else {
+            return Ok(());
+        };
+
         let ca_pem = fs::read(&peer_tls.ca_cert_path).await.map_err(|error| {
             format!(
                 "failed to read peer CA certificate {}: {error}",
@@ -39,22 +70,59 @@ pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
         }
         identity_pem.extend_from_slice(&key_pem);
 
-        let identity = Identity::from_pem(&identity_pem)
-            .map_err(|error| format!("failed to parse peer identity PEM: {error}"))?;
-        let ca = Certificate::from_pem(&ca_pem)
-            .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
-
-        builder = builder.identity(identity).add_root_certificate(ca);
+        self.identity.store(Some(Arc::new(PeerIdentity {
+            identity_pem,
+            ca_pem,
+        })));
+        Ok(())
     }
 
-    builder
-        .build()
-        .map_err(|error| format!("failed to build peer HTTP client: {error}"))
+    pub fn build(&self) -> Result<Client, String> {
+        self.builder()?
+            .build()
+            .map_err(|error| format!("failed to build peer HTTP client: {error}"))
+    }
+
+    pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
+        self.builder()?
+            .resolve_to_addrs(host, &[address])
+            .build()
+            .map_err(|error| format!("failed to build peer HTTP client for {host}: {error}"))
+    }
+
+    fn builder(&self) -> Result<reqwest::ClientBuilder, String> {
+        let mut builder = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            // Idle/read timeout, NOT a total request timeout. A bootstrap
+            // artifact streams its whole body over this client; under
+            // cold-start load (bandwidth-limited + congested) a large
+            // artifact's transfer can exceed any fixed total cap, which
+            // aborts it mid-body and surfaces to the peer as an undecodable
+            // (incomplete) response — silently wedging bootstrap. read_timeout
+            // resets on each chunk, so a slow-but-progressing transfer
+            // completes while a genuinely stalled connection still fails fast.
+            .read_timeout(Duration::from_secs(30));
+
+        if let Some(identity) = self.identity.load_full() {
+            let id = Identity::from_pem(&identity.identity_pem)
+                .map_err(|error| format!("failed to parse peer identity PEM: {error}"))?;
+            let ca = Certificate::from_pem(&identity.ca_pem)
+                .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
+
+            builder = builder.identity(id).add_root_certificate(ca);
+        }
+
+        Ok(builder)
+    }
 }
 
-pub async fn build_internal_rustls_config(
+/// Builds the rustls `ServerConfig` for the internal mTLS plane, preserving the
+/// `WebPkiClientVerifier` (the per-account CA peer-auth check). Exposed so cert
+/// rotation can rebuild it and hot-swap via `RustlsConfig::reload_from_config`,
+/// which `reload_from_pem*` cannot do (they drop the client verifier).
+pub async fn build_internal_server_config(
     peer_tls: &PeerTlsConfig,
-) -> Result<RustlsConfig, String> {
+) -> Result<Arc<ServerConfig>, String> {
     install_default_crypto_provider();
     let certificates = load_certificates(&peer_tls.cert_path).await?;
     let private_key = load_private_key(&peer_tls.key_path).await?;
@@ -69,7 +137,15 @@ pub async fn build_internal_rustls_config(
         .map_err(|error| format!("failed to build peer TLS server config: {error}"))?;
     server_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
-    Ok(RustlsConfig::from_config(Arc::new(server_config)))
+    Ok(Arc::new(server_config))
+}
+
+pub async fn build_internal_rustls_config(
+    peer_tls: &PeerTlsConfig,
+) -> Result<RustlsConfig, String> {
+    Ok(RustlsConfig::from_config(
+        build_internal_server_config(peer_tls).await?,
+    ))
 }
 
 pub async fn build_public_rustls_config(
@@ -88,7 +164,7 @@ pub async fn build_public_rustls_config(
     Ok(RustlsConfig::from_config(Arc::new(server_config)))
 }
 
-fn install_default_crypto_provider() {
+pub(crate) fn install_default_crypto_provider() {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 

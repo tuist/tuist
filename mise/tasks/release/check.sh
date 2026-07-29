@@ -73,22 +73,37 @@ check_component() {
   return 0
 }
 
-declare -A WANTED=()
-for name in "$@"; do WANTED[$name]=1; done
+WANTED=("$@")
+
+wants_component() {
+  local name=$1 wanted
+  if (( ${#WANTED[@]} == 0 )); then
+    return 0
+  fi
+  for wanted in "${WANTED[@]}"; do
+    if [[ "$wanted" == "$name" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 # Iterate the components config. Each iteration receives one component as a JSON
 # blob on stdin; per-field jq calls keep the script easy to read and the cost
 # (~7 jq invocations × 15 components × <50ms) is negligible next to cliff.
 while IFS= read -r component_json; do
   name=$(jq -r '.name' <<< "$component_json")
-  if (( ${#WANTED[@]} > 0 )) && [[ -z "${WANTED[$name]:-}" ]]; then
+  if ! wants_component "$name"; then
     continue
   fi
   tag_prefix=$(jq -r '.tag_prefix' <<< "$component_json")
   tag_regex=$(jq -r '.tag_regex' <<< "$component_json")
   cliff_config=$(jq -r '.cliff_config' <<< "$component_json")
   initial=$(jq -r '.initial_version' <<< "$component_json")
-  mapfile -t include_paths < <(jq -r '.include_paths[]?' <<< "$component_json")
+  include_paths=()
+  while IFS= read -r include_path; do
+    include_paths+=("$include_path")
+  done < <(jq -r '.include_paths[]?' <<< "$component_json")
 
   if (( ${#include_paths[@]} > 0 )); then
     check_component "$name" "$tag_prefix" "$tag_regex" "$cliff_config" "$initial" "${include_paths[@]}"

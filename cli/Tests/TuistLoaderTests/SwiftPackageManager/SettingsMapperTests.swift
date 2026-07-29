@@ -478,6 +478,55 @@ final class SettingsMapperTests: XCTestCase {
             .array(["$(inherited)", "-Wno-unused-parameter"])
         )
     }
+
+    func test_set_warning_control_settings() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .treatAllWarnings, condition: nil, value: ["error"]),
+            .init(tool: .swift, name: .treatAllWarnings, condition: nil, value: ["warning"]),
+            .init(tool: .swift, name: .treatWarning, condition: nil, value: ["DeprecatedDeclaration", "warning"]),
+            .init(tool: .swift, name: .treatWarning, condition: nil, value: ["StrictConcurrency", "error"]),
+            .init(tool: .c, name: .treatAllWarnings, condition: nil, value: ["warning"]),
+            .init(tool: .c, name: .treatAllWarnings, condition: nil, value: ["error"]),
+            .init(tool: .c, name: .treatWarning, condition: nil, value: ["unused-variable", "error"]),
+            .init(tool: .c, name: .treatWarning, condition: nil, value: ["deprecated-declarations", "warning"]),
+            .init(tool: .c, name: .enableWarning, condition: nil, value: ["all"]),
+            .init(tool: .cxx, name: .treatAllWarnings, condition: nil, value: ["error"]),
+            .init(tool: .cxx, name: .treatAllWarnings, condition: nil, value: ["warning"]),
+            .init(tool: .cxx, name: .treatWarning, condition: nil, value: ["unused", "warning"]),
+            .init(tool: .cxx, name: .treatWarning, condition: nil, value: ["deprecated-declarations", "error"]),
+            .init(tool: .cxx, name: .enableWarning, condition: nil, value: ["extra"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array([
+                "$(inherited)", "-warnings-as-errors", "-no-warnings-as-errors",
+                "-Wwarning", "DeprecatedDeclaration", "-Werror", "StrictConcurrency",
+            ])
+        )
+        XCTAssertEqual(
+            resolvedSettings["OTHER_CFLAGS"],
+            .array([
+                "$(inherited)", "-Wno-error", "-Werror",
+                "-Werror=unused-variable", "-Wno-error=deprecated-declarations", "-Wall",
+            ])
+        )
+        XCTAssertEqual(
+            resolvedSettings["OTHER_CPLUSPLUSFLAGS"],
+            .array([
+                "$(inherited)", "-Werror", "-Wno-error",
+                "-Wno-error=unused", "-Werror=deprecated-declarations", "-Wextra",
+            ])
+        )
+    }
 }
 
 // OTHER_LDFLAGS

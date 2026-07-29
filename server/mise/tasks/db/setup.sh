@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-mix ecto.load
+mix ecto.migrate

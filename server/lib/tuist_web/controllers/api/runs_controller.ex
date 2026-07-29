@@ -778,7 +778,7 @@ defmodule TuistWeb.API.RunsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
 
     case Map.get(body_params, :type, "build") do
       "build" ->
@@ -845,7 +845,7 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -866,15 +866,15 @@ defmodule TuistWeb.API.RunsController do
 
         build_attrs
         |> Builds.create_build()
-        |> handle_build_creation_result(params.id)
+        |> handle_build_creation_result(params.id, params.project.id)
     end
   end
 
-  defp handle_build_creation_result({:ok, build}, _build_id), do: {:ok, build}
+  defp handle_build_creation_result({:ok, build}, _build_id, _project_id), do: {:ok, build}
 
-  defp handle_build_creation_result({:error, changeset}, build_id) do
+  defp handle_build_creation_result({:error, changeset}, build_id, project_id) do
     if Keyword.has_key?(changeset.errors, :id) do
-      case Builds.get_build(build_id) do
+      case Builds.get_build(build_id, project_id: project_id) do
         {:ok, build} -> {:ok, build}
         {:error, :not_found} -> {:error, :creation_failed}
       end
@@ -900,7 +900,7 @@ defmodule TuistWeb.API.RunsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

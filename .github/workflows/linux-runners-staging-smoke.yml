@@ -1,30 +1,26 @@
 name: Linux Runners Staging Smoke Test
 
-# Manual smoke test for the staging Linux runner pool. Targets
-# `runs-on: tuist-staging-linux` so the pool's warm Pods (configured
-# in infra/helm/tuist/values-managed-staging.yaml under
-# `runnersFleetLinux.pools[]` with `autoscaling.minWarmPoolFloor: 1`)
-# pick up this job.
+# Manual smoke test for the staging Runner Profile dispatch path.
+# Requires a profile on the staging account whose rendered label is
+# `tuist-staging-linux` — the canonical setup is a profile named
+# `staging-linux` (4 vCPU / 16 GB, Linux). Create it at
+# `staging.tuist.dev/<account>/runners/profiles` before running.
 #
 # Validates, end-to-end:
 #   1. workflow_job: queued webhook reaches the staging server.
-#   2. Tuist.Runners.dispatch_for_sa finds an idle Pod, mints a JIT
-#      with `["self-hosted", "Linux", "X64", "tuist-staging-linux"]`,
-#      stamps `tuist.dev/runner-pool-owner` on the Pod.
-#   3. The runner container polls /api/internal/runners/dispatch on
-#      staging.tuist.dev, claims the JIT, registers as a runner.
-#   4. GitHub dispatches this job to the registered runner.
-#   5. The job runs inside the OCI container on a Hetzner Cloud
-#      `ccx23` node (provisioned by the workload cluster's
-#      ClusterClass topology — see cluster-staging.yaml).
-#   6. After completion the Pod terminates, kubelet observes the
-#      exit, the RunnerPoolReconciler reaps the Pod + sibling SA
-#      and the autoscaler's next 15s tick re-evaluates desired
-#      replicas to refill the warm pool.
+#   2. `Tuist.Runners.Dispatch.resolve_dispatch_target` matches the
+#      `staging-linux` profile, resolves to its shape's RunnerPool
+#      (`tuist-tuist-runner-pool-linux-4vcpu-16gb`), and enqueues with
+#      `requested_dispatch_label = "tuist-staging-linux"`.
+#   3. A polling Pod in that pool claims the JIT (stamped with the
+#      original label so GitHub binds), registers, runs the job inside
+#      a kata microVM on the bare-metal node.
+#   4. After completion the Pod terminates, kubelet observes the exit,
+#      the RunnerPoolReconciler reaps the Pod + sibling SA, and the
+#      autoscaler's next tick re-evaluates desired replicas.
 #
-# Mirrors `.github/workflows/runners-staging-smoke.yml` for the
-# macOS fleet. Manual-trigger only — we don't want every push to
-# burn elastic capacity.
+# Manual-trigger only — we don't want every push to burn elastic
+# capacity.
 
 on:
   workflow_dispatch:

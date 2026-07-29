@@ -139,7 +139,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         )
 
         Logger.current.debug("Generating targets for project \(project.name)")
-        let nativeTargets = try await generateTargets(
+        let (nativeTargets, targetSideEffects) = try await generateTargets(
             project: project,
             pbxproj: pbxproj,
             pbxProject: pbxProject,
@@ -170,7 +170,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         )
 
         Logger.current.debug("Generating project schemes for project \(project.name)")
-        let (schemes, sideEffects) = try schemeDescriptorsGenerator.generateProjectSchemes(
+        let (schemes, schemeSideEffects) = try schemeDescriptorsGenerator.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
@@ -186,7 +186,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             xcodeprojPath: project.xcodeProjPath,
             xcodeProj: xcodeProj,
             schemeDescriptors: schemes,
-            sideEffectDescriptors: sideEffects
+            sideEffectDescriptors: targetSideEffects + schemeSideEffects
         )
     }
 
@@ -231,13 +231,14 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) async throws -> [String: PBXTarget] {
+    ) async throws -> (nativeTargets: [String: PBXTarget], sideEffects: [SideEffectDescriptor]) {
         var nativeTargets: [String: PBXTarget] = [:]
+        var sideEffects: [SideEffectDescriptor] = []
         let sortedTargets = project.targets.values.sorted()
         Logger.current.debug("Generating \(sortedTargets.count) targets for project \(project.name)")
         for target in sortedTargets {
             Logger.current.debug("Generating target \(target.name) in project \(project.name)")
-            let nativeTarget = try await targetGenerator.generateTarget(
+            let (nativeTarget, targetSideEffects) = try await targetGenerator.generateTarget(
                 target: target,
                 project: project,
                 pbxproj: pbxproj,
@@ -248,6 +249,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 graphTraverser: graphTraverser
             )
             nativeTargets[target.name] = nativeTarget
+            sideEffects.append(contentsOf: targetSideEffects)
             Logger.current.debug("Finished generating target \(target.name) in project \(project.name)")
         }
 
@@ -260,7 +262,15 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
         Logger.current.debug("Finished generating target dependencies for project \(project.name)")
-        return nativeTargets
+
+        // Additive cross-target buildable-folder memberships need every PBXTarget to exist, so they run after the loop.
+        try targetGenerator.generateBuildableFolderForeignExceptions(
+            targets: Array(project.targets.values),
+            nativeTargets: nativeTargets,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+        return (nativeTargets, sideEffects)
     }
 
     private func generateTestTargetIdentity(
@@ -315,7 +325,8 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 )
 
                 let packageReference = XCLocalSwiftPackageReference(
-                    relativePath: relativePath
+                    relativePath: relativePath,
+                    traits: project.packageTraits?[package.identity]
                 )
                 pbxproj.add(object: packageReference)
                 localPackageReferences[path.pathString] = packageReference
@@ -333,7 +344,8 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 Logger.current.debug("Processing remote package \(url) for project \(project.name)")
                 let packageReference = XCRemoteSwiftPackageReference(
                     repositoryURL: url,
-                    versionRequirement: requirement.xcodeprojValue
+                    versionRequirement: requirement.xcodeprojValue,
+                    traits: project.packageTraits?[package.identity]
                 )
                 remotePackageReferences[url] = packageReference
                 pbxproj.add(object: packageReference)

@@ -1,0 +1,6 @@
+module NestedObjC {
+  umbrella header "NestedObjC.h"
+
+  export *
+  module * { export * }
+}

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -17,6 +18,15 @@ public enum TargetManifestMapperError: FatalError, Equatable {
         case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
             return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that has a glob pattern."
         }
+    }
+}
+
+extension XcodeGraph.TargetDependency {
+    fileprivate var isXCFrameworkDependency: Bool {
+        if case .xcframework = self {
+            return true
+        }
+        return false
     }
 }
 
@@ -44,12 +54,28 @@ extension XcodeGraph.Target {
         let productName = manifest.productName
         let deploymentTargets = manifest.deploymentTargets.map { XcodeGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
-        let dependencies = try manifest.dependencies.flatMap {
-            try XcodeGraph.TargetDependency.from(
-                manifest: $0,
+        var dependencies: [XcodeGraph.TargetDependency] = []
+        var externalXCFrameworkDependencies = Set<XcodeGraph.TargetDependency>()
+        for manifestDependency in manifest.dependencies {
+            let mappedDependencies = try XcodeGraph.TargetDependency.from(
+                manifest: manifestDependency,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
+
+            if case .external = manifestDependency {
+                for mappedDependency in mappedDependencies {
+                    guard !mappedDependency.isXCFrameworkDependency else {
+                        if externalXCFrameworkDependencies.insert(mappedDependency).inserted {
+                            dependencies.append(mappedDependency)
+                        }
+                        continue
+                    }
+                    dependencies.append(mappedDependency)
+                }
+            } else {
+                dependencies.append(contentsOf: mappedDependencies)
+            }
         }
 
         let infoPlist = try XcodeGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
@@ -114,6 +140,12 @@ extension XcodeGraph.Target {
             )
         }
 
+        let additionalHashingInputs = try await additionalHashingInputs(
+            from: manifest.additionalHashingInputs,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
@@ -168,6 +200,7 @@ extension XcodeGraph.Target {
             headers: headers,
             coreDataModels: coreDataModels,
             scripts: scripts,
+            additionalHashingInputs: additionalHashingInputs,
             environmentVariables: environmentVariables,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
@@ -186,6 +219,49 @@ extension XcodeGraph.Target {
     }
 
     // MARK: - Fileprivate
+
+    private static func additionalHashingInputs(
+        from manifestInputs: [ProjectDescription.Target.HashingInput],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [TargetHashingInput] {
+        var inputs: [TargetHashingInput] = []
+
+        for manifestInput in manifestInputs {
+            switch manifestInput {
+            case let .glob(path):
+                let resolvedPath = try generatorPaths.resolve(path: path)
+                let isDeclaredAbsolute = (try? AbsolutePath(validating: path.pathString)) != nil
+                guard fileSystem.isGlobPattern(path) else {
+                    inputs.append(.path(resolvedPath, isDeclaredAbsolute: isDeclaredAbsolute))
+                    continue
+                }
+
+                let pattern = String(resolvedPath.pathString.dropFirst())
+                let matchedPaths = try await fileSystem
+                    .glob(directory: AbsolutePath.root, include: [pattern])
+                    .collect()
+                    .sorted()
+
+                if matchedPaths.isEmpty {
+                    AlertController.current.warning(.alert(
+                        "Additional hashing input '\(resolvedPath.pathString)' matched no files. Verify that the path is correct."
+                    ))
+                }
+                inputs.append(contentsOf: matchedPaths.map {
+                    .path($0, isDeclaredAbsolute: isDeclaredAbsolute)
+                })
+            case let .string(value):
+                inputs.append(.string(value))
+            case let .environmentVariable(name):
+                inputs.append(.environmentVariable(name))
+            case let .script(script):
+                inputs.append(.script(script))
+            }
+        }
+
+        return inputs
+    }
 
     private static func foreignBuildInfo(
         from manifest: ProjectDescription.Target.ForeignBuild?,

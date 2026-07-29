@@ -1,5 +1,5 @@
 defmodule Tuist.Telemetry.SanitizerTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Tuist.Telemetry.Sanitizer
 

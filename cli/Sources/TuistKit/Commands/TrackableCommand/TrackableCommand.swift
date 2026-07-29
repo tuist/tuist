@@ -7,6 +7,7 @@ import TuistAlert
 import TuistCache
 import TuistCore
 import TuistEnvironment
+import TuistJobSummary
 import TuistLogging
 import TuistProcess
 import TuistServer
@@ -31,7 +32,9 @@ public struct TrackableCommandInfo {
     let ranAt: Date
     let buildRunId: String?
     let testRunId: String?
+    let generationId: String?
     let cacheEndpoint: String
+    let moduleCacheOutputs: [ModuleCacheOutput]
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -44,6 +47,9 @@ public class TrackableCommand {
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
+    private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
+    private let runReportService: RunReportServicing
+    private let bestEffortForegroundUploadTimeout: Duration
     private let sessionDirectory: AbsolutePath
 
     public init(
@@ -55,6 +61,9 @@ public class TrackableCommand {
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
+        gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
+        runReportService: RunReportServicing = RunReportService(),
+        bestEffortForegroundUploadTimeout: Duration = .seconds(15),
         sessionDirectory: AbsolutePath
     ) {
         self.command = command
@@ -65,6 +74,9 @@ public class TrackableCommand {
         self.uploadAnalyticsService = uploadAnalyticsService
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
+        self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
+        self.runReportService = runReportService
+        self.bestEffortForegroundUploadTimeout = bestEffortForegroundUploadTimeout
         self.sessionDirectory = sessionDirectory
     }
 
@@ -78,6 +90,16 @@ public class TrackableCommand {
         let ranAt = clock.now
         let path = try await CommandArguments.path(in: commandArguments)
         let runMetadataStorage = RunMetadataStorage()
+
+        // Up front, so that the path holds this run's report or nothing at all. Writing it only
+        // happens once the run URL is known, and everything between here and there can fail: the
+        // command, the upload, the process. Any of those leaves a report from a previous run in
+        // place, and a stale URL is worse than a missing one — it points at a different run and
+        // gives no sign that it's the wrong one.
+        if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+            await runReportService.clearRunReport(at: runReportPath)
+        }
+
         let usesOptionalAuthentication =
             optionalAuthentication
                 && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
@@ -166,20 +188,23 @@ public class TrackableCommand {
                 ranAt: ranAt,
                 buildRunId: runMetadataStorage.buildRunId,
                 testRunId: runMetadataStorage.testRunId,
-                cacheEndpoint: runMetadataStorage.cacheEndpoint
+                generationId: runMetadataStorage.generationId,
+                cacheEndpoint: runMetadataStorage.cacheEndpoint,
+                moduleCacheOutputs: runMetadataStorage.moduleCacheOutputs
             )
             let commandEvent = try await commandEventFactory.make(
                 from: info,
                 path: path
             )
             let buildRunURL = await runMetadataStorage.buildRunURL
-            if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
+            let isAnalyticsRequired = (command as? TrackableParsableCommand)?.analyticsRequired == true
+            if isAnalyticsRequired || Environment.current.isCI {
                 Logger.current.info("Uploading run metadata...")
-                let serverCommandEvent = try await uploadAnalyticsService.upload(
-                    commandEvent: commandEvent,
+                let serverCommandEvent = try await uploadCommandEvent(
+                    commandEvent,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    sessionDirectory: sessionDirectory
+                    isAnalyticsRequired: isAnalyticsRequired
                 )
                 if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
@@ -196,6 +221,31 @@ public class TrackableCommand {
                         .info(
                             "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                         )
+                }
+
+                let testRunReports = await runMetadataStorage.testRunReports
+                let buildRunReports = await runMetadataStorage.buildRunReports
+                await gitHubActionsJobSummaryService.writeJobSummary(
+                    testRunReports: testRunReports,
+                    buildRunReports: buildRunReports,
+                    runURL: serverCommandEvent.url
+                )
+
+                // Unlike the job summary, this is written even when there's nothing to tabulate:
+                // the URLs are the payload consumers are after.
+                if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+                    await runReportService.writeRunReport(
+                        RunReport(
+                            runId: runId,
+                            status: status,
+                            runURL: serverCommandEvent.url,
+                            testRunURL: serverCommandEvent.testRunURL,
+                            buildRunURL: buildRunURL,
+                            testRunReports: testRunReports,
+                            buildRunReports: buildRunReports
+                        ),
+                        to: runReportPath
+                    )
                 }
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
@@ -214,9 +264,46 @@ public class TrackableCommand {
             }
         } catch let error as ClientError {
             Logger.current.warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
+        } catch let error as TrackableCommandUploadError {
+            Logger.current.warning("Failed to upload run metadata: \(error.localizedDescription)")
         } catch {
             Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
         }
+    }
+
+    private func uploadCommandEvent(
+        _ commandEvent: CommandEvent,
+        fullHandle: String,
+        serverURL: URL,
+        isAnalyticsRequired: Bool
+    ) async throws -> ServerCommandEvent {
+        if isAnalyticsRequired {
+            return try await uploadAnalyticsService.upload(
+                commandEvent: commandEvent,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                sessionDirectory: sessionDirectory
+            )
+        }
+
+        var serverCommandEvent: ServerCommandEvent?
+        try await withTimeout(
+            bestEffortForegroundUploadTimeout,
+            onTimeout: {
+                throw TrackableCommandUploadError.bestEffortUploadTimedOut
+            }
+        ) {
+            serverCommandEvent = try await self.uploadAnalyticsService.upload(
+                commandEvent: commandEvent,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                sessionDirectory: self.sessionDirectory
+            )
+        }
+        guard let serverCommandEvent else {
+            throw TrackableCommandUploadError.bestEffortUploadTimedOut
+        }
+        return serverCommandEvent
     }
 
     private func analyticsCommandMetadata(
@@ -256,5 +343,16 @@ public class TrackableCommand {
             subcommand: fallbackSubcommand,
             commandArguments: commandArguments
         )
+    }
+}
+
+private enum TrackableCommandUploadError: LocalizedError {
+    case bestEffortUploadTimedOut
+
+    var errorDescription: String? {
+        switch self {
+        case .bestEffortUploadTimedOut:
+            return "Run metadata upload timed out."
+        }
     }
 }

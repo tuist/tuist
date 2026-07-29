@@ -89,6 +89,73 @@
       </.dropdown>
     </div>
   </.card_section>
+  <.card_section data-part="default-branch-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_projects", "Default branch")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <.badge
+        label={@selected_project.default_branch}
+        color="information"
+        style="light-fill"
+        size="large"
+      />
+      <.form
+        data-part="form"
+        for={@default_branch_form}
+        id="default-branch-form"
+        phx-submit="update_default_branch"
+      >
+        <.modal
+          id="default-branch-modal"
+          title={dgettext("dashboard_projects", "Edit default branch")}
+          header_size="large"
+          on_dismiss="close_default_branch_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button icon_only variant="secondary" size="medium" {attrs}>
+              <.icon name="pencil" />
+            </.button>
+          </:trigger>
+          <.line_divider />
+          <.text_input
+            label={dgettext("dashboard_projects", "Branch name")}
+            field={@default_branch_form[:default_branch]}
+            type="basic"
+            placeholder="main"
+          />
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="reset"
+                  label={dgettext("dashboard_projects", "Cancel")}
+                  variant="secondary"
+                  phx-click="close_default_branch_modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="submit"
+                  label={dgettext("dashboard_projects", "Save")}
+                  variant="primary"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </.form>
+    </div>
+  </.card_section>
   <.card_section data-part="rename-card-section">
     <div data-part="header">
       <span data-part="title">

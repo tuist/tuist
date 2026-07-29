@@ -1,0 +1,626 @@
+{
+  "pins": [
+    {
+      "identity": "abseil-cpp-binary",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/abseil-cpp-binary",
+      "state": {
+        "revision": "748c7837511d0e6a507737353af268484e1745e2",
+        "version": "1.2024011601.1"
+      }
+    },
+    {
+      "identity": "activelabel.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/optonaut/ActiveLabel.swift",
+      "state": {
+        "revision": "36949c1a69ef8b40574da20c9e24b115f387b1cf",
+        "version": "1.1.5"
+      }
+    },
+    {
+      "identity": "adjust_signature_sdk",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/adjust/adjust_signature_sdk",
+      "state": {
+        "revision": "93c40d7fa27b709a81adc50e41b400ce4411c7ff",
+        "version": "3.35.2"
+      }
+    },
+    {
+      "identity": "alamofire",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/Alamofire/Alamofire",
+      "state": {
+        "revision": "ce5be6fbc6f51414c49f56fc8e2b7c99253d9f8e",
+        "version": "4.9.0"
+      }
+    },
+    {
+      "identity": "amplify-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/aws-amplify/amplify-swift",
+      "state": {
+        "revision": "bdf99fd638bc8da9159c46acb93a3c57f92ce180",
+        "version": "2.49.1"
+      }
+    },
+    {
+      "identity": "amplify-swift-utils-notifications",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/aws-amplify/amplify-swift-utils-notifications",
+      "state": {
+        "revision": "959eec669ba97c7d923b963c3e66ca8a0b2737f6",
+        "version": "1.1.1"
+      }
+    },
+    {
+      "identity": "amplify-ui-swift-liveness",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/aws-amplify/amplify-ui-swift-liveness",
+      "state": {
+        "revision": "c1b77dd8e83c27b94c10f80a9b8a4ec3bebbd4cc",
+        "version": "1.4.2"
+      }
+    },
+    {
+      "identity": "app-check",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/app-check",
+      "state": {
+        "revision": "3b62f154d00019ae29a71e9738800bb6f18b236d",
+        "version": "10.19.2"
+      }
+    },
+    {
+      "identity": "appauth-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/openid/AppAuth-iOS",
+      "state": {
+        "revision": "2781038865a80e2c425a1da12cc1327bcd56501f",
+        "version": "1.7.6"
+      }
+    },
+    {
+      "identity": "aws-crt-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/awslabs/aws-crt-swift",
+      "state": {
+        "revision": "74d970dde8a0d6b2fe1d8374767ca9793088ce2c",
+        "version": "0.48.0"
+      }
+    },
+    {
+      "identity": "aws-sdk-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/awslabs/aws-sdk-swift",
+      "state": {
+        "revision": "104958a898543582bb01102616bf5d61ed237352",
+        "version": "1.2.59"
+      }
+    },
+    {
+      "identity": "braze-swift-sdk-prebuilt-static",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/braze-inc/braze-swift-sdk-prebuilt-static",
+      "state": {
+        "revision": "8f821d77dc6c03c5e8ea74a328076cc186ede14a",
+        "version": "14.0.4"
+      }
+    },
+    {
+      "identity": "combine-schedulers",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/combine-schedulers",
+      "state": {
+        "revision": "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
+        "version": "1.1.0"
+      }
+    },
+    {
+      "identity": "down",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/johnxnguyen/Down",
+      "state": {
+        "revision": "f34b166be1f1db4aa8f573067e901d72f2a6be57",
+        "version": "0.11.0"
+      }
+    },
+    {
+      "identity": "firebase-ios-sdk",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/firebase/firebase-ios-sdk",
+      "state": {
+        "revision": "42eae77a0af79e9c3f41df04a23c76f05cfdda77",
+        "version": "10.24.0"
+      }
+    },
+    {
+      "identity": "googleappmeasurement",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/GoogleAppMeasurement",
+      "state": {
+        "revision": "51ba746a9d51a4bd0774b68499b0c73ef6e8570d",
+        "version": "10.24.0"
+      }
+    },
+    {
+      "identity": "googledatatransport",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/GoogleDataTransport",
+      "state": {
+        "revision": "a732a4b47f59e4f725a2ea10f0c77e93a7131117",
+        "version": "9.3.0"
+      }
+    },
+    {
+      "identity": "googlesignin-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/GoogleSignIn-iOS",
+      "state": {
+        "revision": "a7965d134c5d3567026c523e0a8a583f73b62b0d",
+        "version": "7.1.0"
+      }
+    },
+    {
+      "identity": "googleutilities",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/GoogleUtilities",
+      "state": {
+        "revision": "830ffa9276e10267881f2697283c2fcd867603fd",
+        "version": "7.13.0"
+      }
+    },
+    {
+      "identity": "grdb.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/groue/GRDB.swift",
+      "state": {
+        "revision": "18497b68fdbb3a09528d260a0a0e1e7e61c8c53d",
+        "version": "7.8.0"
+      }
+    },
+    {
+      "identity": "grdbsnapshottesting",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/groue/GRDBSnapshotTesting",
+      "state": {
+        "revision": "dc9c6664160558980ebe6a327e2aef60829e7ee4",
+        "version": "0.4.2"
+      }
+    },
+    {
+      "identity": "grpc-binary",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/grpc-binary",
+      "state": {
+        "revision": "e9fad491d0673bdda7063a0341fb6b47a30c5359",
+        "version": "1.62.2"
+      }
+    },
+    {
+      "identity": "gtm-session-fetcher",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/gtm-session-fetcher",
+      "state": {
+        "revision": "aac6380a307f956e6288be7c070408c2476f355e",
+        "version": "3.3.0"
+      }
+    },
+    {
+      "identity": "gtmappauth",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/GTMAppAuth",
+      "state": {
+        "revision": "5d7d66f647400952b1758b230e019b07c0b4b22a",
+        "version": "4.1.1"
+      }
+    },
+    {
+      "identity": "interop-ios-for-google-sdks",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/interop-ios-for-google-sdks",
+      "state": {
+        "revision": "2d12673670417654f08f5f90fdd62926dc3a2648",
+        "version": "100.0.0"
+      }
+    },
+    {
+      "identity": "ios-maps-sdk",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/googlemaps/ios-maps-sdk",
+      "state": {
+        "revision": "3786e5028d868482ef88140117d33efd60828300",
+        "version": "9.1.1"
+      }
+    },
+    {
+      "identity": "ios_sdk",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/adjust/ios_sdk",
+      "state": {
+        "revision": "e2d063a30318c7f8169b39f81aec627f44cf81b7",
+        "version": "5.4.0"
+      }
+    },
+    {
+      "identity": "joseswift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/airsidemobile/JOSESwift",
+      "state": {
+        "revision": "10ed3b6736def7c26eb87135466b1cb46ea7e37f",
+        "version": "2.4.0"
+      }
+    },
+    {
+      "identity": "leveldb",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/firebase/leveldb",
+      "state": {
+        "revision": "0706abcc6b0bd9cedfbb015ba840e4a780b5159b",
+        "version": "1.22.2"
+      }
+    },
+    {
+      "identity": "libwebp-xcode",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/SDWebImage/libwebp-Xcode",
+      "state": {
+        "revision": "b2b1d20a90b14d11f6ef4241da6b81c1d3f171e4",
+        "version": "1.3.2"
+      }
+    },
+    {
+      "identity": "lottie-spm",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/airbnb/lottie-spm",
+      "state": {
+        "revision": "69faaefa7721fba9e434a52c16adf4329c9084db",
+        "version": "4.6.0"
+      }
+    },
+    {
+      "identity": "nanopb",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/firebase/nanopb",
+      "state": {
+        "revision": "819d0a2173aff699fb8c364b6fb906f7cdb1a692",
+        "version": "2.30909.0"
+      }
+    },
+    {
+      "identity": "nytphotoviewer",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/nytimes/NYTPhotoViewer",
+      "state": {
+        "revision": "0c0f45324c0dedba085e151bf91e713cf689aca2",
+        "version": "5.0.6"
+      }
+    },
+    {
+      "identity": "ohhttpstubs",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/AliSoftware/OHHTTPStubs",
+      "state": {
+        "revision": "e92b5a5746ef16add2a1424f1fc19529d9a75cde",
+        "version": "9.0.0"
+      }
+    },
+    {
+      "identity": "pincache",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pinterest/PINCache",
+      "state": {
+        "revision": "875c654984fb52b47ca65ae70d24852b0003ccd9",
+        "version": "3.0.3"
+      }
+    },
+    {
+      "identity": "pinoperation",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pinterest/PINOperation",
+      "state": {
+        "revision": "40504c156a68b20f98f7ddc73a115cbb7893be25",
+        "version": "1.2.2"
+      }
+    },
+    {
+      "identity": "pinremoteimage",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pinterest/PINRemoteImage",
+      "state": {
+        "revision": "611d8ab1c6937bcdfd9d59a967716b0370a332be",
+        "version": "3.0.3"
+      }
+    },
+    {
+      "identity": "plaid-link-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/plaid/plaid-link-ios",
+      "state": {
+        "revision": "5988db252c03c25f3bd1e9404a9f932fb1f9731b",
+        "version": "6.2.0"
+      }
+    },
+    {
+      "identity": "promises",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/google/promises",
+      "state": {
+        "revision": "e70e889c0196c76d22759eb50d6a0270ca9f1d9e",
+        "version": "2.3.1"
+      }
+    },
+    {
+      "identity": "pulse",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/kean/Pulse",
+      "state": {
+        "revision": "3f13427fdc7886bb071a0979396dcd0ca4571f61",
+        "version": "3.0.0"
+      }
+    },
+    {
+      "identity": "realm-core",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/realm/realm-core",
+      "state": {
+        "revision": "cccb3ca9e26ec452a29f2f0d4050d1e38b8a3d43",
+        "version": "14.14.0"
+      }
+    },
+    {
+      "identity": "realm-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/realm/realm-swift",
+      "state": {
+        "revision": "54eebd2b5e7a4a8055a7a8b55ac859a48462d722",
+        "version": "10.54.5"
+      }
+    },
+    {
+      "identity": "sdwebimage",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/SDWebImage/SDWebImage",
+      "state": {
+        "revision": "cac9a55a3ae92478a2c95042dcc8d9695d2129ca",
+        "version": "5.21.0"
+      }
+    },
+    {
+      "identity": "sentry-cocoa",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/getsentry/sentry-cocoa",
+      "state": {
+        "revision": "e9bcb13a491c00da6c9d100fe73954aea9e9d8a6",
+        "version": "8.57.0"
+      }
+    },
+    {
+      "identity": "smithy-swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/awslabs/smithy-swift",
+      "state": {
+        "revision": "755367ae4e10004f8b5a94fbfdf3f638a1f225bc",
+        "version": "0.125.0"
+      }
+    },
+    {
+      "identity": "snapkit",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/SnapKit/SnapKit",
+      "state": {
+        "revision": "f222cbdf325885926566172f6f5f06af95473158",
+        "version": "5.6.0"
+      }
+    },
+    {
+      "identity": "sqlite.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/stephencelis/SQLite.swift",
+      "state": {
+        "revision": "a95fc6df17d108bd99210db5e8a9bac90fe984b8",
+        "version": "0.15.3"
+      }
+    },
+    {
+      "identity": "stripe-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/stripe/stripe-ios",
+      "state": {
+        "revision": "ca7865689662c09ee2af452449c79ba02a9e1605",
+        "version": "25.9.0"
+      }
+    },
+    {
+      "identity": "stripe-terminal-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/stripe/stripe-terminal-ios",
+      "state": {
+        "revision": "85edec079da03ba2c23787b701866b9f065e466e",
+        "version": "5.1.1"
+      }
+    },
+    {
+      "identity": "swift-algorithms",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-algorithms",
+      "state": {
+        "revision": "87e50f483c54e6efd60e885f7f5aa946cee68023",
+        "version": "1.2.1"
+      }
+    },
+    {
+      "identity": "swift-async-algorithms",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-async-algorithms",
+      "state": {
+        "revision": "6ae9a051f76b81cc668305ceed5b0e0a7fd93d20",
+        "version": "1.0.1"
+      }
+    },
+    {
+      "identity": "swift-case-paths",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-case-paths",
+      "state": {
+        "revision": "6989976265be3f8d2b5802c722f9ba168e227c71",
+        "version": "1.7.2"
+      }
+    },
+    {
+      "identity": "swift-clocks",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-clocks",
+      "state": {
+        "revision": "cc46202b53476d64e824e0b6612da09d84ffde8e",
+        "version": "1.0.6"
+      }
+    },
+    {
+      "identity": "swift-collections",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-collections",
+      "state": {
+        "revision": "c1805596154bb3a265fd91b8ac0c4433b4348fb0",
+        "version": "1.2.0"
+      }
+    },
+    {
+      "identity": "swift-composable-architecture",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-composable-architecture",
+      "state": {
+        "revision": "5b0890fabfd68a2d375d68502bc3f54a8548c494",
+        "version": "1.23.1"
+      }
+    },
+    {
+      "identity": "swift-concurrency-extras",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state": {
+        "revision": "5a3825302b1a0d744183200915a47b508c828e6f",
+        "version": "1.3.2"
+      }
+    },
+    {
+      "identity": "swift-custom-dump",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-custom-dump",
+      "state": {
+        "revision": "82645ec760917961cfa08c9c0c7104a57a0fa4b1",
+        "version": "1.3.3"
+      }
+    },
+    {
+      "identity": "swift-dependencies",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-dependencies",
+      "state": {
+        "revision": "a10f9feeb214bc72b5337b6ef6d5a029360db4cc",
+        "version": "1.10.0"
+      }
+    },
+    {
+      "identity": "swift-identified-collections",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-identified-collections",
+      "state": {
+        "revision": "322d9ffeeba85c9f7c4984b39422ec7cc3c56597",
+        "version": "1.1.1"
+      }
+    },
+    {
+      "identity": "swift-log",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-log",
+      "state": {
+        "revision": "3d8596ed08bd13520157f0355e35caed215ffbfa",
+        "version": "1.6.3"
+      }
+    },
+    {
+      "identity": "swift-navigation",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-navigation",
+      "state": {
+        "revision": "bf498690e1f6b4af790260f542e8428a4ba10d78",
+        "version": "2.6.0"
+      }
+    },
+    {
+      "identity": "swift-numerics",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-numerics",
+      "state": {
+        "revision": "e0ec0f5f3af6f3e4d5e7a19d2af26b481acb6ba8",
+        "version": "1.0.3"
+      }
+    },
+    {
+      "identity": "swift-perception",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-perception",
+      "state": {
+        "revision": "4f47ebafed5f0b0172cf5c661454fa8e28fb2ac4",
+        "version": "2.0.9"
+      }
+    },
+    {
+      "identity": "swift-protobuf",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-protobuf",
+      "state": {
+        "revision": "ab3a58b7209a17d781c0d1dbb3e1ff3da306bae8",
+        "version": "1.20.3"
+      }
+    },
+    {
+      "identity": "swift-sharing",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-sharing",
+      "state": {
+        "revision": "3bfc408cc2d0bee2287c174da6b1c76768377818",
+        "version": "2.7.4"
+      }
+    },
+    {
+      "identity": "swift-snapshot-testing",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-snapshot-testing",
+      "state": {
+        "revision": "37230a37e83f1b7023be08e1b1a2603fcb1567fb",
+        "version": "1.18.4"
+      }
+    },
+    {
+      "identity": "swift-syntax",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/swiftlang/swift-syntax",
+      "state": {
+        "revision": "0687f71944021d616d34d922343dcef086855920",
+        "version": "600.0.1"
+      }
+    },
+    {
+      "identity": "veriff-ios-spm",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/Veriff/veriff-ios-spm",
+      "state": {
+        "revision": "5d2910ad5a37d89424982ea38ecf733cf167ff79",
+        "version": "10.2.0"
+      }
+    },
+    {
+      "identity": "xctest-dynamic-overlay",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state": {
+        "revision": "31073495cae9caf243c440eac94b3ab067e3d7bc",
+        "version": "1.8.0"
+      }
+    }
+  ],
+  "version": 2
+}

@@ -15,9 +15,12 @@ Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)
 Mimic.copy(ExAws.S3)
 Mimic.copy(File)
+Mimic.copy(Finch)
 Mimic.copy(FunWithFlags)
 Mimic.copy(Hammer)
 Mimic.copy(Hammer.ETS.FixWindow)
+Mimic.copy(Hammer.ETS.TokenBucket)
+Mimic.copy(:hackney)
 Mimic.copy(JOSE)
 Mimic.copy(JOSE.JWK)
 Mimic.copy(JOSE.JWS)
@@ -29,6 +32,7 @@ Mimic.copy(Mix)
 Mimic.copy(MuonTrap)
 Mimic.copy(NaiveDateTime)
 Mimic.copy(Oban)
+Mimic.copy(Oban.Engines.Basic)
 Mimic.copy(OAuth2.Client)
 Mimic.copy(OpenTelemetry.Tracer)
 Mimic.copy(Tuist.OAuth2.SSOClient)
@@ -45,9 +49,14 @@ Mimic.copy(System)
 Mimic.copy(Time)
 Mimic.copy(Tuist.API.Pipeline)
 Mimic.copy(Tuist.Accounts)
+Mimic.copy(Tuist.Accounts.AgentAuth)
+Mimic.copy(Tuist.Accounts.SSOLoginDomainVerification)
+Mimic.copy(Tuist.Accounts.UserNotifier)
 Mimic.copy(Tuist.AppBuilds)
 Mimic.copy(Tuist.Authentication)
 Mimic.copy(Tuist.Authorization)
+Mimic.copy(Tuist.Atlas)
+Mimic.copy(Tuist.AtlasWorkloadIdentity)
 Mimic.copy(Tuist.Bundles)
 Mimic.copy(Tuist.Base64)
 Mimic.copy(Tuist.Billing)
@@ -56,6 +65,9 @@ Mimic.copy(Tuist.CommandEvents)
 Mimic.copy(Tuist.Date)
 Mimic.copy(Tuist.Docs.CLI)
 Mimic.copy(Tuist.Environment)
+Mimic.copy(Tuist.MCP.CodebaseSearch)
+Mimic.copy(Tuist.MCP.Search)
+Mimic.copy(Tuist.FeatureFlags)
 Mimic.copy(Tuist.GitHub.App)
 Mimic.copy(Tuist.GitHub.Client)
 Mimic.copy(Tuist.GitHub.Releases)
@@ -68,12 +80,15 @@ Mimic.copy(Tuist.OAuth.Clients)
 Mimic.copy(Tuist.OAuth2.SSRFGuard)
 Mimic.copy(Tuist.OIDC)
 Mimic.copy(Tuist.Projects)
+Mimic.copy(Tuist.Registry.S3)
 Mimic.copy(Tuist.Repo)
 Mimic.copy(Tuist.Builds)
 Mimic.copy(Tuist.Builds.Analytics)
 Mimic.copy(Tuist.Runs.Analytics)
 Mimic.copy(Tuist.Tests)
 Mimic.copy(Tuist.Tests.Analytics)
+Mimic.copy(Tuist.Runners.Catalog)
+Mimic.copy(Tuist.Runners.Profiles)
 Mimic.copy(Tuist.Slack)
 Mimic.copy(Tuist.Alerts)
 Mimic.copy(Tuist.Slack.Client)
@@ -81,13 +96,19 @@ Mimic.copy(Tuist.SSHClient)
 Mimic.copy(Tuist.Shards)
 Mimic.copy(Tuist.Shards.Analytics)
 Mimic.copy(Tuist.Storage)
+Mimic.copy(Tuist.Storage.AzureBlob)
+Mimic.copy(Tuist.Storage.CacheArtifactRetention)
+Mimic.copy(Tuist.Storage.LegacyBuildArtifactRetention)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.Cache)
 Mimic.copy(Tuist.Cache.Analytics)
 Mimic.copy(Tuist.CacheEndpoints)
 Mimic.copy(Tuist.CommandEvents)
-Mimic.copy(Tuist.Namespace)
-Mimic.copy(Tuist.Namespace.JWTToken)
+Mimic.copy(Tuist.Registry)
+Mimic.copy(Tuist.Registry.Swift.Lock)
+Mimic.copy(Tuist.Registry.Swift.Metadata)
+Mimic.copy(Tuist.Registry.Swift.SwiftPackageIndex)
+Mimic.copy(Tuist.Registry.Swift.SyncCursor)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(Tuist.Xcode)
 Mimic.copy(Tuist.Zip)
@@ -95,8 +116,11 @@ Mimic.copy(Tuist.ClickHouseRepo)
 Mimic.copy(Tuist.IngestRepo)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Kura)
+Mimic.copy(Tuist.Kura.Mesh)
+Mimic.copy(Tuist.Kura.Workers.StaleSelfHostedPeersWorker)
 Mimic.copy(Tuist.Kura.Provisioner)
 Mimic.copy(Tuist.Kura.Reconciler)
+Mimic.copy(Tuist.Kura.Registrations)
 Mimic.copy(Tuist.Loops)
 Mimic.copy(Tuist.Automations)
 Mimic.copy(Tuist.Automations.ActionExecutor)
@@ -109,9 +133,14 @@ Mimic.copy(Tuist.Automations.Actions.AddLabelAction)
 Mimic.copy(Tuist.Automations.Actions.RemoveLabelAction)
 Mimic.copy(Tuist.Automations.Monitors.FlakyTestsMonitor)
 Mimic.copy(TuistWeb.Authentication)
+Mimic.copy(TuistWeb.RateLimit)
 Mimic.copy(TuistWeb.RateLimit.Auth)
+Mimic.copy(TuistWeb.RateLimit.AgentAuth)
+Mimic.copy(TuistWeb.RateLimit.Atlas)
 Mimic.copy(TuistWeb.RateLimit.InMemory)
 Mimic.copy(TuistWeb.RateLimit.MCP)
+Mimic.copy(TuistWeb.RateLimit.Metrics)
+Mimic.copy(TuistWeb.RateLimit.PersistentFixedWindow)
 Mimic.copy(TuistWeb.RateLimit.PersistentTokenBucket)
 Mimic.copy(TuistWeb.RemoteIp)
 Mimic.copy(UAParser)
@@ -119,16 +148,67 @@ Mimic.copy(UeberauthApple)
 Mimic.copy(Zstream)
 Mimic.copy(Slipstream)
 Mimic.copy(Port)
+Mimic.copy(ExAws.S3.Upload)
+Mimic.copy(TuistCommon.GitHub)
+Mimic.copy(Tuist.Registry.Swift.Purge)
 Mimic.copy(Tuist.Processor.BuildProcessor)
 Mimic.copy(Tuist.Processor.XCResultProcessor)
 Mimic.copy(Tuist.Processor.XCResultNIF)
 Mimic.copy(Tuist.Runners)
+Mimic.copy(Tuist.Runners.CacheGrant)
+Mimic.copy(Tuist.Runners.VolumeAffinities)
 Mimic.copy(Tuist.Runners.Claims)
 Mimic.copy(Tuist.Runners.Dispatch)
 Mimic.copy(Tuist.Runners.Jobs)
+Mimic.copy(Tuist.Runners.JobMetrics)
+Mimic.copy(Tuist.Runners.JobSteps)
+Mimic.copy(Tuist.Runners.RunnerSessions)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Tasks)
 
-ExUnit.start(exclude: [:skip])
+defmodule TuistTestSupport.LoggerFilters do
+  @moduledoc false
+
+  def filter_db_connection_sandbox_teardown(%{level: :error} = log_event, _extra) do
+    message = log_event_message(log_event)
+
+    if String.contains?(message, "disconnected: ** (DBConnection.ConnectionError)") and
+         String.contains?(message, " exited") and
+         (String.contains?(message, "client #PID<") or String.contains?(message, "owner #PID<")) do
+      :stop
+    else
+      :ignore
+    end
+  end
+
+  def filter_db_connection_sandbox_teardown(_log_event, _extra), do: :ignore
+
+  defp log_event_message(%{msg: {:string, message}}), do: IO.iodata_to_binary(message)
+
+  defp log_event_message(%{msg: {:report, report}}), do: inspect(report)
+
+  defp log_event_message(%{msg: {:format, format, args}}) do
+    format
+    |> :io_lib.format(args)
+    |> IO.iodata_to_binary()
+  end
+
+  defp log_event_message(%{msg: message}) when is_binary(message), do: message
+  defp log_event_message(log_event), do: inspect(log_event)
+end
+
+:logger.add_primary_filter(
+  :db_connection_sandbox_teardown,
+  {&TuistTestSupport.LoggerFilters.filter_db_connection_sandbox_teardown/2, []}
+)
+
+# The :test env compiles only the "en" locale by default (see
+# Tuist.Environment.single_locale?/0) to keep cold compiles fast. Tests tagged
+# `:locale` assert behaviour of other Gettext locales, which aren't compiled
+# in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
+# locale set.
+locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
+
+ExUnit.start(capture_log: true, exclude: [:skip, :destructive_clickhouse_migration] ++ locale_exclude)
 Sandbox.mode(Tuist.Repo, :manual)
 Sandbox.mode(Tuist.IngestRepo, :manual)

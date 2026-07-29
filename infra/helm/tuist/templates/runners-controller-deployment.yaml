@@ -32,6 +32,19 @@ rules:
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [get, list, watch]
+  # The fleet-aware autoscaler sums allocatable memory across the
+  # bare-metal Linux node pool to bin-pack shape replicas against real
+  # host capacity. Nodes are cluster-scoped, so this read can't live in
+  # the namespaced Role below.
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  # RuntimeClass podFixed memory is part of the scheduler's per-Pod
+  # cost. The autoscaler reads it directly so its fleet allocation
+  # cannot drift from the admission-time scheduling calculation.
+  - apiGroups: [node.k8s.io]
+    resources: [runtimeclasses]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -104,11 +117,24 @@ rules:
     resources: [runnerpools/status]
     verbs: [get, update, patch]
   - apiGroups: [""]
-    # Pods + SAs are direct owner-ref children of the RunnerPool.
-    # The reconciler creates them to bring the alive Pod count up
-    # to `spec.replicas` and deletes terminal Pods + their sibling
-    # SAs before booting replacements.
-    resources: [pods, serviceaccounts]
+    # Pods are direct owner-ref children of the RunnerPool. The
+    # reconciler creates them to bring the alive Pod count up to
+    # `spec.replicas`, deletes terminal Pods before booting
+    # replacements, and `patch`es the `tuist.dev/drain-eligible`
+    # label onto stale Pods to pace an image roll (see
+    # markDrainEligible) — so `patch` is required here.
+    resources: [pods]
+    verbs: [get, list, watch, create, patch, delete]
+  - apiGroups: [""]
+    # Read a terminated runner's container log to re-emit its final
+    # RUNNER_VITALS/_diag trail to the controller's own durable stdout
+    # before the reap deletes the Pod (mid-job death forensics).
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [""]
+    # Sibling SAs of each Pod; created and deleted alongside, never
+    # patched.
+    resources: [serviceaccounts]
     verbs: [get, list, watch, create, delete]
   - apiGroups: [""]
     resources: [events]
@@ -174,6 +200,36 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- with .Values.runnersController.clusterDNS.ip }}
+            # kube-dns ClusterIP staged into macOS pool Pods as
+            # TUIST_CLUSTER_DNS_IP so the Tart VM can point an
+            # /etc/resolver entry at cluster DNS and resolve the
+            # dispatch-provided in-cluster cache_endpoint_url.
+            - --cluster-dns-ip={{ . }}
+            - --cluster-domain={{ $.Values.runnersController.clusterDNS.domain | default "cluster.local" }}
+            {{- end }}
+            {{- if .Values.runnersController.features.dindImage }}
+            # dockerd sidecar image stamped on every Linux runner Pod.
+            # Gated on the controller binary recognising the flag —
+            # see `runnersController.features.dindImage` in values.yaml.
+            - --dind-image={{ .Values.runnersController.dindImage }}
+            {{- end }}
+            {{- if .Values.runnersController.features.registryMirror }}
+            # In-cluster pull-through cache the dind dockerd mirrors
+            # docker.io through. Gated on the controller binary
+            # recognising --registry-mirror-url (see features.registryMirror).
+            # Defaults to this release's registry-cache Service, so an env
+            # only flips the feature gate; override registryMirror to point
+            # elsewhere.
+            - --registry-mirror-url={{ .Values.runnersController.registryMirror | default (printf "http://%s.%s.svc.cluster.local:5000" (include "tuist.componentName" (dict "root" . "component" "registry-cache")) .Release.Namespace) }}
+            {{- end }}
+            # Pod-lifecycle reconciler reports terminal-phase
+            # transitions to the server's RunnerSessions store so
+            # billing closes off K8s-authoritative timestamps
+            # instead of the flaky `workflow_job.completed`
+            # webhook. In-cluster Service URL — same path used by
+            # the autoscaler.
+            - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
           ports:
             - name: metrics
               containerPort: 8080

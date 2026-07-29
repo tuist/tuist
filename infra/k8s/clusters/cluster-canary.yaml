@@ -1,5 +1,6 @@
 # Canary workload Cluster, topology mode against tuist-hcloud.
-# Mirrors staging shape.
+# Mirrors staging shape, plus a small Kura pool so the canary-only
+# managed Kura region exposed in account settings can actually schedule.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -24,7 +25,13 @@ spec:
       - name: region
         value: fsn1
       - name: hcloudControlPlaneMachineType
-        value: cpx22
+        value: cpx32
+      # Roll out the kubeadm compatibility fallback in canary first. With the
+      # local-mode feature enabled, new control-plane kubelets point at their
+      # own not-yet-running control-plane endpoint and never start the etcd
+      # learner.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
       - name: hcloudWorkerMachineType
         value: cpx32
       - name: hcloudSSHKeyName
@@ -38,12 +45,35 @@ spec:
       # (`tuist-bm-canary-…`).
       - name: bareMetalCluster
         value: canary
+      # Insert InternalIP so the apiserver can reach kubelets on nodes with no
+      # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
+      # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
+      # re-renders the apiserver patch and rolls this cluster's control plane.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
     workers:
       machineDeployments:
         - class: hcloud-worker
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors prod/staging so the
+        # failover controller + cutover are exercised in the deployment cascade
+        # before production. Nodes self-apply the candidate label; the controller
+        # keeps the Floating IP + active label on one Ready node.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
         # Linux runner pool on Hetzner Robot bare metal. The
         # `hetzner-robot-controller` reflects `tuist-bm-canary-*`
         # Robot servers into HBM CRs stamped

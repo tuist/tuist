@@ -1,5 +1,5 @@
 defmodule Tuist.SubscriptionTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
   alias Tuist.Billing.Subscription

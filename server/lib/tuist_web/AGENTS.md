@@ -29,6 +29,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - Plugs: `server/lib/tuist_web/plugs/AGENTS.md`
 - Rate Limit: `server/lib/tuist_web/rate_limit/AGENTS.md`
 - Utilities: `server/lib/tuist_web/utilities/AGENTS.md`
+- Websocks: `server/lib/tuist_web/websocks/AGENTS.md`
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`

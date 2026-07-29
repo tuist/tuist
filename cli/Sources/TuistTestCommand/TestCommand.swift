@@ -8,6 +8,8 @@ public struct TestCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "test",
             abstract: "Tests a project",
+            discussion:
+            "Use 'tuist help test run' to see options for executing tests. The 'run' subcommand is the default, so 'tuist test --clean' and 'tuist test run --clean' are equivalent.",
             subcommands: subcommands,
             defaultSubcommand: defaultSubcommand
         )

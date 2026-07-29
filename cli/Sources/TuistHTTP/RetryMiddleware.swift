@@ -4,10 +4,16 @@ import OpenAPIRuntime
 import TuistLogging
 
 public struct RetryMiddleware: ClientMiddleware {
-    private let maxRetries: Int
+    private let retryPolicy: HTTPRetryPolicy
 
-    public init(maxRetries: Int = 3) {
-        self.maxRetries = maxRetries
+    public init(
+        maxRetries: Int? = nil,
+        baseDelayMilliseconds: UInt64? = nil
+    ) {
+        retryPolicy = HTTPRetryPolicy(
+            maximumRetryCount: maxRetries,
+            baseDelayMilliseconds: baseDelayMilliseconds
+        )
     }
 
     public func intercept(
@@ -24,7 +30,7 @@ public struct RetryMiddleware: ClientMiddleware {
             bodyData = nil
         }
 
-        for retry in 0 ..< maxRetries {
+        for retry in 0 ..< retryPolicy.maximumRetryCount {
             let replayBody = bodyData.map { HTTPBody($0) }
             do {
                 let (response, responseBody) = try await next(request, replayBody, baseURL)
@@ -32,27 +38,21 @@ public struct RetryMiddleware: ClientMiddleware {
                     return (response, responseBody)
                 }
                 Logger.current.debug(
-                    "Received HTTP \(response.status.code) for \(request.method.rawValue) \(request.path ?? ""), retrying (\(retry + 1)/\(maxRetries))..."
+                    "Received HTTP \(response.status.code) for \(request.method.rawValue) \(request.path ?? ""), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
                 Logger.current.debug(
-                    "HTTP request failed for \(request.method.rawValue) \(request.path ?? ""): \(error.localizedDescription), retrying (\(retry + 1)/\(maxRetries))..."
+                    "HTTP request failed for \(request.method.rawValue) \(request.path ?? ""): \(error.localizedDescription), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )
             }
-            try await Task<Never, Never>.sleep(nanoseconds: delay(for: retry))
+            try await Task<Never, Never>.sleep(nanoseconds: retryPolicy.delay(for: retry))
         }
 
         try Task<Never, Never>.checkCancellation()
         let replayBody = bodyData.map { HTTPBody($0) }
         return try await next(request, replayBody, baseURL)
-    }
-
-    private func delay(for retry: Int) -> UInt64 {
-        let baseInterval = TimeInterval(100_000_000) // 100ms
-        let jitter = Double.random(in: 0 ... 100_000_000) // 0-100ms jitter
-        return UInt64(baseInterval * pow(2, Double(retry)) + jitter)
     }
 
     private static func isRetryableStatusCode(_ statusCode: Int) -> Bool {

@@ -27,8 +27,7 @@ struct PackageInfoLoader: PackageInfoLoading {
                 "--package-path",
                 path.pathString,
                 "dump-package",
-            ],
-            workingDirectory: path
+            ]
         )
         .concatenatedString()
 

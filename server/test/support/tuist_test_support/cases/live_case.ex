@@ -16,7 +16,6 @@ defmodule TuistTestSupport.Cases.LiveCase do
   end
 
   setup do
-    Mimic.stub(Releases, :get_latest_cli_release, fn -> nil end)
     Mimic.stub(Releases, :get_latest_app_release, fn -> nil end)
     :ok
   end

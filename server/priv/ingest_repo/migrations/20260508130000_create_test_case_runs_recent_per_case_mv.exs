@@ -10,9 +10,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
 
   This MV maintains a `groupArrayLast(N)` aggregate of `(ran_at, is_flaky)`
   tuples per test case, capped at 1000 entries to match the changeset's
-  `rolling_window_size` cap. A project's whole rolling-window scan becomes
-  one row per test case — bounded by `active_test_cases`, regardless of run
-  volume.
+  `rolling_window_size` cap. A later migration adds a parallel
+  `(ran_at, status == 'success')` aggregate for reliability-rate automations.
+  A project's whole rolling-window scan becomes one row per test case —
+  bounded by `active_test_cases`, regardless of run volume.
 
   Ordering caveat: `groupArrayLast(N)` keeps the last N values by
   *aggregation order*, not by `ran_at`. The backfill query orders source

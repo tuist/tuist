@@ -1,5 +1,5 @@
 defmodule Tuist.GuardianTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts.Account
@@ -12,6 +12,13 @@ defmodule Tuist.GuardianTest do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
       assert {:ok, to_string(account.id)} == Guardian.subject_for_token(account, %{})
+    end
+
+    test "returns subject for authenticated account with claims" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      assert {:ok, to_string(account.id)} ==
+               Guardian.subject_for_token(%AuthenticatedAccount{account: account, scopes: []}, %{})
     end
   end
 

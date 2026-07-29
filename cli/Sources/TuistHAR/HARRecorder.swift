@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Synchronization
 import TuistConstants
 import TuistLogging
 
@@ -22,6 +23,20 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         "x-amz-credential",
     ]
 
+    private nonisolated let finishedState = Mutex(false)
+
+    private nonisolated var isFinished: Bool {
+        finishedState.withLock { $0 }
+    }
+
+    private nonisolated func markFinished() -> Bool {
+        finishedState.withLock { isFinished in
+            guard !isFinished else { return false }
+            isFinished = true
+            return true
+        }
+    }
+
     private var log: HAR.Log
     private let filePath: AbsolutePath?
 
@@ -41,10 +56,45 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         )
     }
 
+    public static func withCurrent<T>(_ recorder: HARRecorder?, _ action: () async throws -> T) async throws -> T {
+        try await $current.withValue(recorder) {
+            do {
+                let result = try await action()
+                await recorder?.finish()
+                return result
+            } catch {
+                await recorder?.finish()
+                throw error
+            }
+        }
+    }
+
+    public static func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
+        current?.recordDetached(action)
+    }
+
+    public static func finishCurrent() async {
+        await current?.finish()
+    }
+
+    public nonisolated func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
+        guard !isFinished else { return }
+        Task.detached(priority: .background) {
+            guard !self.isFinished else { return }
+            await action(self)
+        }
+    }
+
     /// Records a new entry to the HAR log.
     /// - Parameter entry: The entry to record.
-    public func record(_ entry: HAR.Entry) async {
+    public func record(_ entry: HAR.Entry) {
+        guard !isFinished else { return }
         log.entries.append(entry)
+    }
+
+    /// Stops accepting new HAR entries and persists the entries recorded so far.
+    public nonisolated func finish() async {
+        guard markFinished() else { return }
         await persist()
     }
 
@@ -65,7 +115,8 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
+        guard !isFinished else { return }
         let entry = buildEntry(
             url: url,
             method: method,
@@ -83,7 +134,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
             responseHeadersSize: responseHeadersSize,
             requestBodySize: requestBodySize
         )
-        await record(entry)
+        record(entry)
     }
 
     /// Records an HTTP request and response from URLRequest/HTTPURLResponse.
@@ -99,9 +150,9 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard let url = request.url else { return }
-        await recordRequest(
+        recordRequest(
             url: url,
             method: request.httpMethod ?? "GET",
             requestHeaders: Self.headers(from: request),
@@ -133,7 +184,8 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
+        guard !isFinished else { return }
         let entry = buildErrorEntry(
             url: url,
             method: method,
@@ -147,7 +199,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
             requestHeadersSize: requestHeadersSize,
             requestBodySize: requestBodySize
         )
-        await record(entry)
+        record(entry)
     }
 
     /// Records a failed HTTP request from URLRequest.
@@ -161,9 +213,9 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard let url = request.url else { return }
-        await recordError(
+        recordError(
             url: url,
             method: request.httpMethod ?? "GET",
             requestHeaders: Self.headers(from: request),
@@ -201,8 +253,8 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     }
 
     /// Persists the current HAR log to disk if a file path was provided.
-    private func persist() async {
-        guard let filePath else { return }
+    private func persist() {
+        guard let filePath, !log.entries.isEmpty else { return }
         do {
             let data = try HAR.encode(log)
             try data.write(to: URL(fileURLWithPath: filePath.pathString), options: .atomic)

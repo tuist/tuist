@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# Lua 5.4 compiled from the sources vendored in the `lua-src` crate (the same
+# sources mlua's `vendored` feature would build via cargo). We build it as a
+# first-class cc_library and link it into mlua-sys, instead of relying on
+# lua-src's build script, which resolves its source dir from a compile-time
+# env!("CARGO_MANIFEST_DIR") that does not survive Bazel sandboxing.
+#
+# The platform define matches lua-src's own per-OS build: LUA_USE_LINUX on Linux,
+# LUA_USE_MACOSX on macOS (both enable LUA_USE_POSIX + LUA_USE_DLOPEN). dlopen needs
+# -ldl at the final link on Linux; on macOS it lives in libSystem. lua.c/luac.c (the
+# standalone interpreter/compiler mains) are not shipped by lua-src, so the glob is
+# exactly the embeddable library.
+# The lua-src C sources/headers are exposed as filegroups and re-aliased onto the @crates hub via
+# crate.annotation in //:MODULE.bazel. The hub label carries the lua-src version, so a lua-src bump
+# means updating it in srcs and hdrs below (and the lua-5.4.* globs in MODULE.bazel).
+cc_library(
+    name = "lua",
+    srcs = ["@crates//:lua_c_srcs-550.0.0"],
+    hdrs = ["@crates//:lua_hdrs-550.0.0"],
+    linkopts = select({
+        "@platforms//os:linux": ["-ldl"],
+        "//conditions:default": [],
+    }),
+    local_defines = select({
+        "@platforms//os:linux": ["LUA_USE_LINUX"],
+        "@platforms//os:macos": ["LUA_USE_MACOSX"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)

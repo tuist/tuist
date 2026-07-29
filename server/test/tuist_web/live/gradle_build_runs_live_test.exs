@@ -97,6 +97,37 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
     refute has_element?(lv, "span", "feature-build")
   end
 
+  test "filters build runs whose branch does not contain a substring", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "queued-build",
+      git_branch: "gh-readonly-queue/main"
+    )
+
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      root_project_name: "feature-build",
+      git_branch: "feature/main"
+    )
+
+    query =
+      URI.encode_query(%{
+        "filter_git_branch_op" => "!=~",
+        "filter_git_branch_val" => "gh-readonly-queue"
+      })
+
+    {:ok, lv, html} =
+      live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs?#{query}")
+
+    assert html =~ "does not contain"
+    assert has_element?(lv, "span", "feature-build")
+    refute has_element?(lv, "span", "queued-build")
+  end
+
   test "filters build runs by environment (CI)", %{
     conn: conn,
     organization: organization,
@@ -147,6 +178,13 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
       is_ci: false
     )
 
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      account_id: user.account.id,
+      root_project_name: "user-continuous-integration-build",
+      is_ci: true
+    )
+
     {:ok, lv, _html} =
       live(
         conn,
@@ -155,6 +193,7 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
 
     assert has_element?(lv, "span", "user-build")
     refute has_element?(lv, "span", "other-user-build")
+    refute has_element?(lv, "span", "user-continuous-integration-build")
   end
 
   test "filters build runs by ran_by CI", %{

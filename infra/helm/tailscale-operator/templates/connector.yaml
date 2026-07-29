@@ -34,7 +34,44 @@ spec:
   hostname: {{ .Values.connector.hostname | default "tuist-cluster-router" }}
   tags:
     {{- toYaml .Values.connector.tags | nindent 4 }}
+  {{- if .Values.connector.proxyClass.enabled }}
+  proxyClass: {{ .Values.connector.proxyClass.name | default "tuist-connector" }}
+  {{- end }}
   subnetRouter:
     advertiseRoutes:
       {{- toYaml .Values.connector.advertiseRoutes | nindent 6 }}
+{{- if .Values.connector.proxyClass.enabled }}
+---
+# Pod-spec overrides for the Connector's proxy StatefulSet —
+# the supported way to pin the subnet router to specific nodes.
+# Used to keep the router next to the workloads it fronts: the
+# runner-cache path is Mac mini -> router -> kura Pod, and if the
+# router sits in a different region than the kura node pool the
+# traffic hairpins across the WAN twice, defeating the co-location
+# the private region exists for.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ .Values.connector.proxyClass.name | default "tuist-connector" }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: connector-proxy-class
+  annotations:
+    # Same hook rationale as the Connector above: the ProxyClass CRD
+    # ships with the subchart's templates, so apply after install.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "4"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  statefulSet:
+    pod:
+      {{- with .Values.connector.proxyClass.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.connector.proxyClass.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
 {{- end }}

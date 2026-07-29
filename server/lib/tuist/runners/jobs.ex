@@ -7,14 +7,12 @@ defmodule Tuist.Runners.Jobs do
   the latest row per key.
 
   This module is **state-recording + read-only views**. Claim
-  atomicity and per-account cap counting live in
-  `Tuist.Runners.Claims` (a thin Postgres table). The split:
+  atomicity lives in `Tuist.Runners.Claims` (a thin Postgres
+  table). The split:
 
     * **Postgres `runner_claims`** is the OLTP claim lock. One
       row per currently-claimed workflow_job; PK on
       `workflow_job_id` gives atomic INSERT-ON-CONFLICT-DO-NOTHING.
-      Cap counting is an indexed `GROUP BY account_id` against
-      this table.
     * **ClickHouse `runner_jobs` (here)** is the customer-facing
       view + history. Powers the "what's queued / running right
       now / recent runs" surfaces and the analytics dashboards.
@@ -35,10 +33,11 @@ defmodule Tuist.Runners.Jobs do
 
   ## Idempotency
 
-  Webhook retries of `workflow_job.queued` INSERT another row
-  with the same `workflow_job_id`. RMT merge collapses them; both
-  rows carry the same `queued` state so the merge is a no-op
-  visible to clients.
+  Webhook retries of `workflow_job.queued` and `workflow_job.waiting`
+  use `enqueue_if_missing/1`. GitHub can redeliver those events after
+  later lifecycle events (especially cancellation), so they must create
+  a missing row without regressing an already-claimed, running, or
+  completed job back to queued.
 
   ## Read pattern (no `FINAL`)
 
@@ -53,18 +52,152 @@ defmodule Tuist.Runners.Jobs do
 
   import Ecto.Query
 
+  alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.Projects
+  alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
+  alias Tuist.Tests.Test, as: TestRun
 
   require Logger
 
-  # Pre-1970 sentinel used for "not yet set" timestamp slots. Any
-  # timestamp at or below this epoch is treated as missing when
-  # computing telemetry durations so a delivery-race `completed`
-  # (no `started_at`) doesn't emit a multi-decade run_time spike.
-  @epoch ~U[1970-01-01 00:00:00.000000Z]
+  # The dispatch hot path (`pick_queued/2`) and the autoscaler
+  # (`queued_count_by_fleet/1`) only care about jobs that could still
+  # be legitimately `queued`. `StaleQueuedJobsWorker` force-completes
+  # any row that stays queued past a 24h hard backstop, so a job can't
+  # remain claimable beyond that. Bounding these scans on `enqueued_at`
+  # — the column `runner_jobs` is partitioned by via `toYYYYMM` — lets
+  # ClickHouse prune to the recent partitions instead of running the
+  # `GROUP BY workflow_job_id` + argMax dedup over the fleet's full
+  # history. Without the floor that aggregation state grows with every
+  # completed job the fleet has ever run and eventually trips
+  # ClickHouse's per-query memory limit (Code 241 MEMORY_LIMIT_EXCEEDED)
+  # on the hot path. 7 days matches `StaleQueuedJobsWorker`'s lookback:
+  # far enough beyond the 24h backstop to survive worker downtime, so a
+  # still-claimable job is never pruned out of view.
+  @queued_lookback_seconds 7 * 86_400
+
+  @doc """
+  Serializes GitHub workflow_job events for a single `workflow_job_id`.
+
+  ClickHouse is still the lifecycle history store, but queued/completed
+  webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
+  observe "missing", race a concurrent completion, and write a newer queued row.
+  """
+  def with_workflow_job_ordering_lock(workflow_job_id, fun) when is_integer(workflow_job_id) and is_function(fun, 0) do
+    fn ->
+      acquire_workflow_job_ordering_lock(workflow_job_id)
+      fun.()
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Latest `enqueued_at` per `requested_dispatch_label` for an account.
+
+  Powers the "Last used" column on the Profiles page — a profile's
+  customer-facing label (`tuist-<name>`) is the key. Returns a map of
+  `label => %DateTime{}`; labels with no jobs are simply absent (the
+  caller renders those as "never used"). `enqueued_at` is stable
+  across a workflow_job's state transitions, so `max/1` over the RMT
+  rows gives the most recent job's enqueue time without needing
+  `argMax`.
+  """
+  def last_used_at_by_dispatch_label(account_id) when is_integer(account_id) do
+    from(j in Job,
+      where: j.account_id == ^account_id and j.requested_dispatch_label != "",
+      group_by: j.requested_dispatch_label,
+      select: {j.requested_dispatch_label, max(j.enqueued_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+    projects =
+      repository
+      |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
+      |> Enum.filter(&(&1.account_id == account_id and &1.vcs_connection.provider == :github))
+
+    case projects do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(_, _), do: {:error, :not_found}
+
+  def list_runner_build_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    BuildRun
+    |> where([build], build.project_id in ^project_ids)
+    |> where([build], build.ci_provider == "github")
+    |> where([build], build.ci_run_id == ^workflow_run_id)
+    |> order_by([build], desc: build.inserted_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+  end
+
+  def list_runner_test_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    TestRun
+    |> where([test], test.project_id in ^project_ids)
+    |> where([test], test.status != "in_progress")
+    |> where([test], test.ci_provider == "github")
+    |> where([test], test.ci_run_id == ^workflow_run_id)
+    |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+    |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  def command_events_for_runs([], _kind), do: []
+
+  def command_events_for_runs(runs, kind) do
+    events_by_run_id =
+      case kind do
+        :build -> command_events_by_run_id(runs, :build_run_id)
+        :test -> command_events_by_run_id(runs, :test_run_id)
+      end
+
+    Enum.map(runs, &Map.get(events_by_run_id, &1.id))
+  end
+
+  defp command_events_by_run_id(runs, run_id_field) do
+    run_ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    project_ids = runs |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    Event
+    |> where([event], event.project_id in ^project_ids)
+    |> where([event], field(event, ^run_id_field) in ^run_ids)
+    |> order_by([event], desc: event.ran_at, desc: event.created_at)
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Event.normalize_enums/1)
+    |> Enum.reduce(%{}, fn event, acc ->
+      Map.put_new(acc, Map.fetch!(event, run_id_field), event)
+    end)
+  end
+
+  defp project_ids(projects) when is_list(projects) do
+    projects
+    |> Enum.map(& &1.id)
+    |> Enum.uniq()
+  end
+
+  defp project_ids(project), do: project_ids([project])
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -77,9 +210,6 @@ defmodule Tuist.Runners.Jobs do
       attrs
       |> Map.put(:status, "queued")
       |> Map.put_new(:enqueued_at, now)
-      |> Map.put_new(:claimed_at, epoch())
-      |> Map.put_new(:started_at, epoch())
-      |> Map.put_new(:completed_at, epoch())
       |> Map.put(:updated_at, now)
 
     insert_row!(row)
@@ -90,51 +220,126 @@ defmodule Tuist.Runners.Jobs do
       %{fleet: Map.get(row, :fleet_name, "")}
     )
 
+    broadcast_status_change(Map.get(attrs, :account_id), "queued")
     :ok
+  end
+
+  @doc """
+  Enqueues a job only when no lifecycle row exists yet.
+
+  Used for GitHub's `workflow_job.waiting` webhook, which represents a
+  self-hosted job waiting for runner capacity. It fills the gap when
+  GitHub does not deliver a normal `queued` event, while avoiding a
+  late `waiting` delivery from moving an existing claimed/running job
+  back to queued.
+  """
+  def enqueue_if_missing(%{workflow_job_id: workflow_job_id} = attrs) when is_integer(workflow_job_id) do
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      cond do
+        completion_recorded?(workflow_job_id) -> :ok
+        is_nil(current(workflow_job_id)) -> enqueue(attrs)
+        true -> :ok
+      end
+    end)
+  end
+
+  @doc """
+  Records a completed job even when the queued row was never accepted.
+
+  GitHub can deliver `workflow_job.completed` before its matching
+  `queued` delivery. Writing this completion row gives later `queued`
+  redeliveries something to see so they cannot resurrect canceled work.
+  """
+  def record_completed(attrs, conclusion) when is_map(attrs) and is_binary(conclusion) do
+    with_workflow_job_ordering_lock(Map.fetch!(attrs, :workflow_job_id), fn ->
+      record_completed_locked(attrs, conclusion)
+    end)
   end
 
   @doc """
   Picks the oldest queued candidate on `fleet_name`. The
   caller's responsibility to then atomically claim it via
-  `Tuist.Runners.Claims.attempt/4`.
+  `Tuist.Runners.Claims.attempt/5`.
 
-  `ineligible_account_ids` is the set of accounts already at
-  cap (built by the caller from `Claims.counts_per_account/1`
-  + the per-account `runner_max_concurrent`). Returns the
+  `ineligible_account_ids` is an optional set of account IDs to
+  exclude from candidate selection. `excluded_workflow_job_ids`
+  skips specific queued rows that are already claimed in Postgres or
+  that this dispatch poll already lost a claim race for. Returns the
   candidate's full metadata so we can carry it forward on the
   `claimed` INSERT.
 
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
-  Postgres uniqueness in `Claims.attempt/4`.
+  Postgres uniqueness in `Claims.attempt/5`.
+
+  The scan is floored at `@queued_lookback_seconds` on `enqueued_at`
+  so ClickHouse prunes to recent partitions rather than aggregating
+  the fleet's full history — see the attribute's rationale.
   """
-  def pick_queued(fleet_name, ineligible_account_ids \\ [])
-      when is_binary(fleet_name) and is_list(ineligible_account_ids) do
+  def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
+    case pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_workflow_job_ids, 1) do
+      {:ok, [candidate | _]} -> {:ok, candidate}
+      {:error, :empty} -> {:error, :empty}
+    end
+  end
+
+  @doc """
+  Like `pick_queued/3` but returns up to `k` oldest queued candidates
+  (deterministically ordered), for dispatch-time volume-affinity scoring.
+  The server prefers the oldest candidate whose account is
+  affine to the polling runner's node, within an age tolerance of the
+  head; the deterministic ordering keeps concurrent pollers converging on
+  the same set. Returns `{:ok, [candidate]}` (possibly one) or
+  `{:error, :empty}`.
+  """
+  def pick_queued_top_k(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [], k \\ 20)
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) and
+             is_integer(k) and k > 0 do
+    pick_queued_top_k(fleet_name, ineligible_account_ids, [], excluded_workflow_job_ids, k)
+  end
+
+  @doc """
+  Like `pick_queued_top_k/4`, while also excluding queued candidates
+  whose latest repository is in `excluded_repositories`.
+  """
+  def pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_repositories, excluded_workflow_job_ids, k)
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_repositories) and
+             is_list(excluded_workflow_job_ids) and is_integer(k) and k > 0 do
+    lookback_floor = queued_lookback_floor()
+
     from(j in Job,
-      where: j.fleet_name == ^fleet_name,
+      where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
       group_by: j.workflow_job_id,
       having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
       select: %{
         workflow_job_id: j.workflow_job_id,
         account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
         fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+        platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+        vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+        memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
         workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
         run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
         job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
         head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
         head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at)
       }
     )
     |> exclude_accounts(ineligible_account_ids)
+    |> exclude_repositories(excluded_repositories)
+    |> exclude_workflow_jobs(excluded_workflow_job_ids)
     |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
-    |> limit(1)
-    |> ClickHouseRepo.one()
+    |> limit(^k)
+    |> ClickHouseRepo.all()
     |> case do
-      nil -> {:error, :empty}
-      candidate -> {:ok, candidate}
+      [] -> {:error, :empty}
+      candidates -> {:ok, candidates}
     end
   end
 
@@ -144,24 +349,59 @@ defmodule Tuist.Runners.Jobs do
     having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
   end
 
+  defp exclude_repositories(query, []), do: query
+
+  defp exclude_repositories(query, repositories) when is_list(repositories) do
+    having(query, [j], fragment("argMax(?, ?)", j.repository, j.updated_at) not in ^repositories)
+  end
+
+  defp exclude_workflow_jobs(query, []), do: query
+
+  defp exclude_workflow_jobs(query, workflow_job_ids) when is_list(workflow_job_ids) do
+    where(query, [j], j.workflow_job_id not in ^workflow_job_ids)
+  end
+
   @doc """
   Records the `claimed` state transition for customer visibility.
-  Called after `Claims.attempt/4` succeeds and we're about to mint.
+  Called after `Claims.attempt/5` succeeds and we're about to mint.
+
+  Does NOT open the per-Pod billing session — `Tuist.Runners`
+  opens it only after `serve_claim/5` commits (JIT minted +
+  `running` recorded). Opening here would leak an open session
+  for every dispatch that fails between claim and JIT-mint
+  (pool lookup, GH API hiccup, etc.), which `Billing` then
+  clamps to the 6h max-lifetime — over-billing for compute the
+  customer never received.
   """
   def record_claimed(candidate, pod_name, claimed_at) when is_map(candidate) and is_binary(pod_name) do
-    now = DateTime.utc_now()
+    workflow_job_id = Map.fetch!(candidate, :workflow_job_id)
 
-    row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
+        {:error, :completed}
+      else
+        now = DateTime.utc_now()
 
-    insert_row!(row)
+        row =
+          Map.merge(candidate, %{
+            status: "claimed",
+            claimed_at: claimed_at,
+            pod_name: pod_name,
+            updated_at: now
+          })
 
-    :telemetry.execute(
-      Telemetry.event_name_job_claim(),
-      %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
-      %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
-    )
+        insert_row!(row)
 
-    :ok
+        :telemetry.execute(
+          Telemetry.event_name_job_claim(),
+          %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
+          %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
+        )
+
+        broadcast_status_change(Map.get(candidate, :account_id), "claimed")
+        :ok
+      end
+    end)
   end
 
   @doc """
@@ -169,63 +409,79 @@ defmodule Tuist.Runners.Jobs do
   about to register with GitHub.
   """
   def record_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    case current(workflow_job_id) do
-      nil ->
-        Logger.warning("runners: no CH row to transition to running",
-          workflow_job_id: workflow_job_id
-        )
-
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
         :ok
+      else
+        case current(workflow_job_id) do
+          nil ->
+            Logger.warning("runners: no CH row to transition to running",
+              workflow_job_id: workflow_job_id
+            )
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+            :ok
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{
-            status: "running",
-            started_at: now,
-            runner_name: runner_name,
-            updated_at: now
-          })
+          %Job{} = job ->
+            now = DateTime.utc_now()
 
-        insert_row!(row)
+            row =
+              job
+              |> job_to_row()
+              |> Map.merge(%{
+                status: "running",
+                started_at: now,
+                runner_name: runner_name,
+                updated_at: now
+              })
 
-        :telemetry.execute(
-          Telemetry.event_name_job_running(),
-          %{
-            count: 1,
-            queue_to_running_ms: duration_ms(job.enqueued_at, now),
-            claim_to_running_ms: duration_ms(job.claimed_at, now)
-          },
-          %{fleet: job.fleet_name || ""}
-        )
+            insert_row!(row)
 
-        :ok
-    end
+            :telemetry.execute(
+              Telemetry.event_name_job_running(),
+              %{
+                count: 1,
+                queue_to_running_ms: duration_ms(job.enqueued_at, now),
+                claim_to_running_ms: duration_ms(job.claimed_at, now)
+              },
+              %{fleet: job.fleet_name || ""}
+            )
+
+            broadcast_status_change(job.account_id, "running")
+            :ok
+        end
+      end
+    end)
   end
 
   @doc """
   Records the `queued` state — re-surfaces the workflow_job as
-  claimable after a release / stale-recovery. The caller is
-  responsible for having already DELETE'd the matching PG claim.
-  """
-  def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
+  claimable after a release / stale-recovery.
 
-      %Job{} = job ->
+  The candidate-map variant is used by the dispatch hot path. It already
+  carries the stable job metadata selected by `pick_queued/3`, so it can write
+  the queued row without reading the current ClickHouse row first. This keeps
+  a failed dispatch releasable when ClickHouse is under read-memory pressure.
+
+  The workflow-job-id variant remains for recovery workers that do not retain
+  the original candidate metadata.
+  """
+  def record_queued(%{workflow_job_id: workflow_job_id} = candidate) when is_integer(workflow_job_id) do
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
+        :ok
+      else
         now = DateTime.utc_now()
 
         row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{
+          Map.merge(candidate, %{
             status: "queued",
-            claimed_at: epoch(),
+            conclusion: "",
+            claimed_at: nil,
+            started_at: nil,
+            completed_at: nil,
             pod_name: "",
+            runner_name: "",
+            log_archived_at: nil,
             updated_at: now
           })
 
@@ -234,11 +490,55 @@ defmodule Tuist.Runners.Jobs do
         :telemetry.execute(
           Telemetry.event_name_job_requeued(),
           %{count: 1},
-          %{fleet: job.fleet_name || ""}
+          %{fleet: Map.get(candidate, :fleet_name, "")}
         )
 
+        broadcast_status_change(Map.get(candidate, :account_id), "queued")
         :ok
-    end
+      end
+    end)
+  end
+
+  def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
+        :ok
+      else
+        case current(workflow_job_id) do
+          nil ->
+            :ok
+
+          %Job{} = job ->
+            now = DateTime.utc_now()
+
+            row =
+              job
+              |> job_to_row()
+              |> Map.merge(%{
+                status: "queued",
+                conclusion: "",
+                claimed_at: nil,
+                started_at: nil,
+                completed_at: nil,
+                pod_name: "",
+                runner_name: "",
+                log_archived_at: nil,
+                updated_at: now
+              })
+
+            insert_row!(row)
+
+            :telemetry.execute(
+              Telemetry.event_name_job_requeued(),
+              %{count: 1},
+              %{fleet: job.fleet_name || ""}
+            )
+
+            broadcast_status_change(job.account_id, "queued")
+            :ok
+        end
+      end
+    end)
   end
 
   @doc """
@@ -250,11 +550,54 @@ defmodule Tuist.Runners.Jobs do
   Returns `{:ok, %Job{}}` if the job was found and transitioned,
   or `{:error, :not_found}` if no row exists for the workflow_job
   yet (delivery race where `completed` arrives before `queued`).
+
+  Per-step data lives in `runner_job_steps`; the caller writes it
+  via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
   def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      case current(workflow_job_id) do
+        nil -> {:error, :not_found}
+        %Job{} = job -> complete_locked(job, conclusion)
+      end
+    end)
+  end
+
+  @doc """
+  Lists jobs whose log archive has aged past `threshold`. Drives the
+  daily prune that keeps the S3 archive at parity with the 90-day TTL
+  on `runner_job_logs`.
+
+  Uses the `argMax(col, updated_at) GROUP BY workflow_job_id`
+  pattern documented in this module's `@moduledoc` rather than
+  `FINAL`. The prune scans every job — without a workflow_job_id
+  scope, `FINAL`'s merge would span every part in `runner_jobs`,
+  which scales poorly as the table grows.
+  """
+  def list_expired_archives(%DateTime{} = threshold) do
+    ClickHouseRepo.all(
+      from(j in Job,
+        group_by: j.workflow_job_id,
+        having:
+          not is_nil(fragment("argMax(?, ?)", j.log_archived_at, j.updated_at)) and
+            fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
+        select: %{workflow_job_id: j.workflow_job_id, account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)}
+      )
+    )
+  end
+
+  @doc """
+  Stamps the job row with the time its gzipped log archive landed in
+  S3 (or clears it when the archive has been pruned). State-transition
+  INSERT, carrying all other columns forward.
+
+  No-op when no row exists yet for the workflow_job.
+  """
+  def set_log_archived_at(workflow_job_id, archived_at)
+      when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
     case current(workflow_job_id) do
       nil ->
-        {:error, :not_found}
+        :ok
 
       %Job{} = job ->
         now = DateTime.utc_now()
@@ -262,36 +605,319 @@ defmodule Tuist.Runners.Jobs do
         row =
           job
           |> job_to_row()
-          |> Map.merge(%{
-            status: "completed",
-            conclusion: conclusion,
-            completed_at: now,
-            updated_at: now
-          })
+          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
 
         insert_row!(row)
+        :ok
+    end
+  end
 
-        :telemetry.execute(
-          Telemetry.event_name_job_completed(),
-          %{
-            count: 1,
-            run_time_ms: duration_ms(job.started_at, now),
-            queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
-            total_time_ms: duration_ms(job.enqueued_at, now)
-          },
-          %{
-            fleet: job.fleet_name || "",
-            conclusion: normalise_conclusion(conclusion)
-          }
-        )
+  @doc """
+  Lists jobs for an account, ordered so the most recently updated
+  rows come first. Used by the customer-facing Jobs dashboard.
 
-        {:ok,
-         Map.merge(job, %{
-           status: "completed",
-           conclusion: conclusion,
-           completed_at: now,
-           updated_at: now
-         })}
+  Options:
+    * `:limit` — page size, default 50
+    * `:offset` — number of rows to skip (page-based pagination)
+    * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
+    * `:conclusion` — restrict completed jobs to a conclusion
+      (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
+    * `:repository` — substring match on `repository`
+    * `:workflow_name` — substring match on `workflow_name`
+    * `:job_name` — substring match on `job_name`
+    * `:head_branch` — substring match on `head_branch`
+
+  Deduplicates one row per workflow_job via the
+  `latest_jobs_subquery/2` GROUP BY + argMax pattern — that gives
+  callers the merged latest-state row without paying `FINAL`'s
+  per-read part-merge cost.
+  """
+  def list_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+    sort_by = Keyword.get(opts, :sort_by, "enqueued")
+    sort_order = Keyword.get(opts, :sort_order, default_jobs_sort_order(sort_by))
+
+    sub = latest_jobs_subquery(account_id, opts)
+
+    from(j in subquery(sub), select: j)
+    |> maybe_filter_status(Keyword.get(opts, :status))
+    |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+    |> jobs_order_by(sort_by, sort_order)
+    |> limit(^limit)
+    |> offset(^offset)
+    |> ClickHouseRepo.all()
+  end
+
+  # Alphabetical sorts feel natural ascending; everything else
+  # (timestamps, durations) defaults to descending so the freshest
+  # / longest rows land at the top.
+  defp default_jobs_sort_order("job"), do: "asc"
+  defp default_jobs_sort_order("workflow"), do: "asc"
+  defp default_jobs_sort_order(_), do: "desc"
+
+  defp jobs_order_by(query, "job", "asc"), do: order_by(query, [j], asc: j.job_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "job", _desc), do: order_by(query, [j], desc: j.job_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "workflow", "asc"), do: order_by(query, [j], asc: j.workflow_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "workflow", _desc), do: order_by(query, [j], desc: j.workflow_name, desc: j.workflow_job_id)
+
+  # `duration` orders by elapsed runtime (completed_at - started_at)
+  # in milliseconds. Rows without both timestamps (still queued /
+  # running / claimed) coalesce to 0 so they cluster at the bottom of
+  # a descending sort instead of producing nan.
+  defp jobs_order_by(query, "duration", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "if(? = 'completed' AND isNotNull(?) AND isNotNull(?), toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          j.status,
+          j.started_at,
+          j.completed_at,
+          j.completed_at,
+          j.started_at
+        ),
+      desc: j.workflow_job_id
+    )
+  end
+
+  defp jobs_order_by(query, "duration", _desc) do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "if(? = 'completed' AND isNotNull(?) AND isNotNull(?), toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          j.status,
+          j.started_at,
+          j.completed_at,
+          j.completed_at,
+          j.started_at
+        ),
+      desc: j.workflow_job_id
+    )
+  end
+
+  defp jobs_order_by(query, _enqueued_default, "asc"),
+    do: order_by(query, [j], asc: j.enqueued_at, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, _enqueued_default, _desc),
+    do: order_by(query, [j], desc: j.enqueued_at, desc: j.workflow_job_id)
+
+  @doc """
+  Total count of jobs matching the same filters used by
+  `list_for_account/2`. Used to drive pagination.
+  """
+  def count_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    sub = latest_jobs_subquery(account_id, opts)
+
+    [%{count: count} | _] =
+      from(j in subquery(sub), select: %{count: count(j.workflow_job_id)})
+      |> maybe_filter_status(Keyword.get(opts, :status))
+      |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+      |> ClickHouseRepo.all()
+      |> case do
+        [] -> [%{count: 0}]
+        rows -> rows
+      end
+
+    count || 0
+  end
+
+  @doc """
+  Lists the latest runner jobs that belong to a single GitHub workflow
+  run. This powers reciprocal links from build/test insight pages back
+  to the Tuist-owned runner job details for the same CI run.
+
+  The CI details card only needs enough job metadata to build dashboard
+  links, display profile/timing, and match a build/test step. Keep this
+  projection intentionally narrow while still collapsing lifecycle rows
+  with `argMax` because `runner_jobs` is a ReplacingMergeTree.
+  """
+  def list_for_workflow_run(account_id, repository, workflow_run_id, opts \\ [])
+
+  def list_for_workflow_run(account_id, repository, workflow_run_id, opts)
+      when is_integer(account_id) and is_binary(repository) and repository != "" and is_integer(workflow_run_id) and
+             workflow_run_id > 0 and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 20)
+
+    Job
+    |> where([j], j.account_id == ^account_id and j.repository == ^repository and j.workflow_run_id == ^workflow_run_id)
+    |> group_by([j], j.workflow_job_id)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at)
+    })
+    |> order_by([j],
+      asc:
+        fragment(
+          "coalesce(argMax(?, ?), argMax(?, ?), argMax(?, ?))",
+          j.started_at,
+          j.updated_at,
+          j.claimed_at,
+          j.updated_at,
+          j.enqueued_at,
+          j.updated_at
+        ),
+      asc: j.workflow_job_id
+    )
+    |> limit(^limit)
+    |> ClickHouseRepo.all()
+  end
+
+  def list_for_workflow_run(_, _, _, _), do: []
+
+  # Inner dedup subquery for every multi-row read in this module.
+  # GROUP BY workflow_job_id + argMax(field, updated_at) gives us
+  # one row per workflow_job carrying its latest state — the same
+  # logical view `FROM … FINAL` would have produced, without the
+  # per-read part-merge cost. Stable-across-versions filters
+  # (repository, workflow_name, head_branch, job_name, platform, search-by-
+  # job_name) sit inside the inner WHERE so we scan fewer rows;
+  # latest-state filters (status, conclusion) belong on the OUTER
+  # query so the deduped state is what gets matched.
+  defp latest_jobs_subquery(account_id, opts) do
+    Job
+    |> where([j], j.account_id == ^account_id)
+    |> maybe_filter_like(:repository, Keyword.get(opts, :repository))
+    |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
+    |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
+    |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
+    |> maybe_filter_search(Keyword.get(opts, :search))
+    |> group_by([j], j.workflow_job_id)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+      head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+      status: fragment("argMax(?, ?)", j.status, j.updated_at),
+      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
+      runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
+      updated_at: max(j.updated_at)
+    })
+  end
+
+  # Search input is scoped to `job_name`. Workflow filtering happens
+  # through the dedicated Workflow filter chip.
+  defp maybe_filter_search(query, nil), do: query
+  defp maybe_filter_search(query, ""), do: query
+
+  defp maybe_filter_search(query, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.job_name, ^pattern))
+  end
+
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix (e.g.
+  # `tuist-runner-pool-linux-4vcpu-16gb`, `tuist-runner-pool-macos-26-5`),
+  # so the dropdown matches profile-dispatched and legacy jobs together.
+  defp maybe_filter_platform(query, nil), do: query
+  defp maybe_filter_platform(query, ""), do: query
+  defp maybe_filter_platform(query, "any"), do: query
+
+  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:linux))
+
+  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
+
+  defp maybe_filter_platform(query, _), do: query
+
+  # OR `startsWith(fleet_name, prefix)` across every prefix as a
+  # single `where` clause. `or_where` would OR against the *whole*
+  # prior chain (account scope and other filters), wiping them out;
+  # the dynamic stays nested inside the surrounding ANDs.
+  defp filter_by_prefixes(query, [first | rest]) do
+    predicate =
+      Enum.reduce(rest, dynamic([j], fragment("startsWith(?, ?)", j.fleet_name, ^first)), fn prefix, acc ->
+        dynamic([j], ^acc or fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
+      end)
+
+    where(query, ^predicate)
+  end
+
+  defp maybe_filter_status(query, nil), do: query
+
+  defp maybe_filter_status(query, status) when is_binary(status) do
+    where(query, [j], j.status == ^status)
+  end
+
+  defp maybe_filter_conclusion(query, nil), do: query
+
+  defp maybe_filter_conclusion(query, conclusion) when is_binary(conclusion) do
+    where(query, [j], j.conclusion == ^conclusion)
+  end
+
+  defp maybe_filter_like(query, _field, nil), do: query
+  defp maybe_filter_like(query, _field, ""), do: query
+
+  defp maybe_filter_like(query, :repository, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.repository, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :workflow_name, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.workflow_name, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :job_name, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.job_name, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :head_branch, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.head_branch, ^pattern))
+  end
+
+  @doc """
+  Returns the merged current state for a single `workflow_job_id`
+  across all accounts. Callers must perform account authorization on
+  the returned job before exposing it.
+  """
+  def get(workflow_job_id) when is_integer(workflow_job_id) do
+    case current(workflow_job_id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
+  end
+
+  @doc """
+  Returns the merged current state for a single `workflow_job_id`
+  belonging to `account_id`. Used by the detail page so the URL
+  can't be tampered with to view another customer's run.
+  """
+  def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
     end
   end
 
@@ -304,9 +930,11 @@ defmodule Tuist.Runners.Jobs do
   `queued` don't get double-counted.
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
+    lookback_floor = queued_lookback_floor()
+
     inner =
       from j in Job,
-        where: j.fleet_name == ^fleet_name,
+        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
         group_by: j.workflow_job_id,
         having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
         select: j.workflow_job_id
@@ -314,6 +942,34 @@ defmodule Tuist.Runners.Jobs do
     from(s in subquery(inner), select: count())
     |> ClickHouseRepo.one()
     |> Kernel.||(0)
+  end
+
+  @doc """
+  Queued workflow_job counts for `fleet_name`, broken down by account.
+
+  Same rows `queued_count_by_fleet/1` totals, grouped so the caller can
+  weigh each account's share against what that account is actually
+  allowed to run concurrently. Returns `%{account_id => count}`.
+  """
+  def queued_count_by_fleet_and_account(fleet_name) when is_binary(fleet_name) do
+    lookback_floor = queued_lookback_floor()
+
+    inner =
+      from j in Job,
+        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
+        }
+
+    from(s in subquery(inner),
+      group_by: s.account_id,
+      select: {s.account_id, count()}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   @doc """
@@ -335,8 +991,8 @@ defmodule Tuist.Runners.Jobs do
 
   Note on RMT semantics: rows for completed jobs carry
   `completed_at` set to the completion timestamp; rows still in
-  flight carry `completed_at = epoch`, so the interval check
-  matches on `completed_at > bucket OR completed_at = epoch`. The
+  flight carry `completed_at IS NULL`, so the interval check
+  matches on `completed_at > bucket OR completed_at IS NULL`. The
   2-hour scan window bounds the work — jobs that completed more
   than two hours ago can't overlap any bucket inside the last
   60 minutes, so excluding them is a free perf win.
@@ -349,10 +1005,7 @@ defmodule Tuist.Runners.Jobs do
         b.bucket AS bucket,
         countIf(
           j.claimed_at <= b.bucket
-          AND (
-            j.completed_at > b.bucket
-            OR j.completed_at = toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
-          )
+          AND (j.completed_at > b.bucket OR j.completed_at IS NULL)
         ) AS concurrent_count
       FROM (
         SELECT toStartOfMinute(now() - toIntervalMinute(number)) AS bucket
@@ -365,7 +1018,7 @@ defmodule Tuist.Runners.Jobs do
         FROM runner_jobs
         WHERE fleet_name = {fleet:String}
           AND claimed_at >= now() - toIntervalHour(2)
-          AND claimed_at != toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+          AND claimed_at IS NOT NULL
         GROUP BY workflow_job_id
       ) AS j
       GROUP BY b.bucket
@@ -376,6 +1029,293 @@ defmodule Tuist.Runners.Jobs do
       {:ok, %{rows: [[p95]]}} when is_integer(p95) -> p95
       _ -> 0
     end
+  end
+
+  @doc """
+  Aggregates `runner_jobs` into per-workflow rollups for the
+  customer-facing Workflows dashboard. One row per `(workflow_name,
+  repository)` pair, ordered by most recently active first.
+
+  Each row carries:
+
+    * `:workflow_name`, `:repository`
+    * `:total_jobs`
+    * `:success_count`, `:failure_count`, `:cancelled_count`, `:skipped_count`
+    * `:in_progress_count` — claimed + running + queued (anything not
+      completed)
+    * `:avg_duration_ms` — average completed job duration (NULL
+      `started_at`/`completed_at` excluded)
+    * `:last_run_at` — max `enqueued_at`
+
+  Options:
+    * `:limit` — page size, default 50
+    * `:repository` — substring match on `repository`
+    * `:workflow_name` — substring match on `workflow_name`
+    * `:head_branch` — substring match on `head_branch`
+  """
+  def list_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+    sort_by = Keyword.get(opts, :sort_by, "workflow")
+    sort_order = Keyword.get(opts, :sort_order, default_sort_order(sort_by))
+
+    sub = latest_jobs_subquery(account_id, opts)
+
+    from(j in subquery(sub),
+      group_by: [j.workflow_name, j.repository],
+      select: %{
+        workflow_name: j.workflow_name,
+        repository: j.repository,
+        total_jobs: count(j.workflow_job_id),
+        success_count: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+        failure_count: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion),
+        cancelled_count: fragment("countIf(? = 'completed' AND ? = 'cancelled')", j.status, j.conclusion),
+        skipped_count: fragment("countIf(? = 'completed' AND ? = 'skipped')", j.status, j.conclusion),
+        in_progress_count: fragment("countIf(? != 'completed')", j.status),
+        avg_duration_ms:
+          fragment(
+            "avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?))",
+            j.completed_at,
+            j.started_at,
+            j.status,
+            j.started_at,
+            j.completed_at
+          ),
+        last_run_at: max(j.enqueued_at)
+      }
+    )
+    |> workflows_order_by(sort_by, sort_order)
+    |> limit(^limit)
+    |> offset(^offset)
+    |> ClickHouseRepo.all()
+  end
+
+  # Numerical sorts default to descending (largest first feels right
+  # for counts/rates); the alphabetical workflow sort defaults to
+  # ascending. Callers presenting a column-header click UI should
+  # mirror the same defaults so a first click matches what an
+  # unscoped query returns.
+  defp default_sort_order("workflow"), do: "asc"
+  defp default_sort_order(_), do: "desc"
+
+  # Each branch builds the ORDER BY for one (column, direction) pair.
+  # "success_rate" divides the success countIf by the total count
+  # with nullIf on the denominator so all-zero workflows don't blow
+  # up with a 0/0 nan that breaks the comparator.
+  defp workflows_order_by(query, "success_rate", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "coalesce(toFloat64(countIf(? = 'completed' AND ? = 'success')) / nullIf(toFloat64(count(?)), 0), 0)",
+          j.status,
+          j.conclusion,
+          j.workflow_job_id
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "success_rate", _desc) do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "coalesce(toFloat64(countIf(? = 'completed' AND ? = 'success')) / nullIf(toFloat64(count(?)), 0), 0)",
+          j.status,
+          j.conclusion,
+          j.workflow_job_id
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "jobs", "asc") do
+    order_by(query, [j], asc: count(j.workflow_job_id), desc: max(j.enqueued_at))
+  end
+
+  defp workflows_order_by(query, "jobs", _desc) do
+    order_by(query, [j], desc: count(j.workflow_job_id), desc: max(j.enqueued_at))
+  end
+
+  # "avg_duration" mirrors the avg_duration_ms select fragment so the
+  # ORDER BY uses the same conditional average — workflows without
+  # any completed runs collapse to 0 instead of nan and land at the
+  # bottom of the descending list.
+  defp workflows_order_by(query, "avg_duration", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?)), 0)",
+          j.completed_at,
+          j.started_at,
+          j.status,
+          j.started_at,
+          j.completed_at
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "avg_duration", _desc) do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?)), 0)",
+          j.completed_at,
+          j.started_at,
+          j.status,
+          j.started_at,
+          j.completed_at
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, _workflow_default, "desc") do
+    order_by(query, [j], desc: j.workflow_name, desc: j.repository)
+  end
+
+  defp workflows_order_by(query, _workflow_default, _asc) do
+    order_by(query, [j], asc: j.workflow_name, asc: j.repository)
+  end
+
+  @doc """
+  Returns the N most recently completed workflow_runs for the account,
+  one row per `workflow_run_id`. Each row collapses the workflow_run's
+  jobs into a single rollup: max(completed_at)-min(started_at) for
+  duration, argMax over the latest job for human-readable fields
+  (workflow_name, repository, head_branch, head_sha), and the worst
+  conclusion across all the completed jobs as the run's conclusion.
+
+  Options:
+    * `:limit` — page size, default 5
+    * `:repository` — exact match on `repository`
+    * `:workflow_name` — exact match on `workflow_name`
+  """
+  def list_recent_workflow_runs_for_account(account_id, opts \\ []) when is_integer(account_id) do
+    limit = Keyword.get(opts, :limit, 5)
+    repository = Keyword.get(opts, :repository)
+    workflow_name = Keyword.get(opts, :workflow_name)
+
+    # Two-stage aggregation: inner dedupes to one row per
+    # workflow_job (GROUP BY workflow_job_id + argMax), then the
+    # outer groups those by workflow_run_id for the run-level
+    # rollup. Uses exact `==` matching on repository/workflow_name —
+    # distinct from the substring-search variant in
+    # `latest_jobs_subquery` (ILIKE) — so we keep the inner
+    # specialised rather than routing through that helper.
+    inner =
+      Job
+      |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+      |> maybe_eq_workflow(repository, workflow_name)
+      |> maybe_filter_platform(Keyword.get(opts, :platform))
+      |> group_by([j], j.workflow_job_id)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        status: fragment("argMax(?, ?)", j.status, j.updated_at),
+        conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+        started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+        completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+        updated_at: max(j.updated_at)
+      })
+
+    ClickHouseRepo.all(
+      from(j in subquery(inner),
+        group_by: j.workflow_run_id,
+        having: fragment("countIf(? != 'completed')", j.status) == 0,
+        select: %{
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+          head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+          head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+          duration_ms:
+            fragment(
+              "maxIf(toUnixTimestamp64Milli(?), isNotNull(?)) - minIf(toUnixTimestamp64Milli(?), isNotNull(?))",
+              j.completed_at,
+              j.completed_at,
+              j.started_at,
+              j.started_at
+            ),
+          conclusion:
+            fragment(
+              "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
+              j.conclusion,
+              j.conclusion,
+              j.conclusion
+            ),
+          updated_at: max(j.updated_at)
+        },
+        order_by: [desc: max(j.updated_at)],
+        limit: ^limit
+      )
+    )
+  end
+
+  defp maybe_eq_workflow(query, nil, nil), do: query
+
+  defp maybe_eq_workflow(query, repository, nil) when is_binary(repository) and repository != "",
+    do: where(query, [j], j.repository == ^repository)
+
+  defp maybe_eq_workflow(query, nil, workflow_name) when is_binary(workflow_name) and workflow_name != "",
+    do: where(query, [j], j.workflow_name == ^workflow_name)
+
+  defp maybe_eq_workflow(query, repository, workflow_name)
+       when is_binary(repository) and is_binary(workflow_name) and repository != "" and workflow_name != "",
+       do: where(query, [j], j.repository == ^repository and j.workflow_name == ^workflow_name)
+
+  defp maybe_eq_workflow(query, _repository, _workflow_name), do: query
+
+  @doc """
+  Lists the distinct repositories the account has dispatched jobs to
+  in the last 30 days, in alphabetical order. Powers the page-level
+  repository dropdown on the Workflows page — a curated list of
+  values is friendlier than a free-text filter, and the 30-day
+  window keeps the list short on accounts with long-tail repos.
+  """
+  def distinct_repositories_for_account(account_id) when is_integer(account_id) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.repository != "" and j.enqueued_at >= ^thirty_days_ago
+    )
+    |> distinct(true)
+    |> order_by([j], asc: j.repository)
+    |> select([j], j.repository)
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Counts the distinct `(workflow_name, repository)` pairs that match the
+  same filters used by `list_workflows_for_account/2`. Wraps the
+  filtered group-by in a subquery so the outer `count()` returns one
+  row per workflow pair without re-aggregating.
+  """
+  def count_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    # Route through `latest_jobs_subquery` so this count matches
+    # `list_workflows_for_account/2` exactly — both share the same
+    # GROUP BY + argMax dedup pass over `runner_jobs`, avoiding the
+    # per-read merge cost of `FROM runner_jobs FINAL` while still
+    # collapsing state-transition rows down to one row per
+    # workflow_job before the (workflow_name, repository) GROUP BY.
+    sub = latest_jobs_subquery(account_id, opts)
+
+    inner =
+      from(j in subquery(sub),
+        group_by: [j.workflow_name, j.repository],
+        select: %{workflow_name: j.workflow_name, repository: j.repository}
+      )
+
+    from(s in subquery(inner), select: count())
+    |> ClickHouseRepo.one()
+    |> Kernel.||(0)
   end
 
   @doc """
@@ -410,7 +1350,7 @@ defmodule Tuist.Runners.Jobs do
   release + re-queue.
 
   Returns a list of maps carrying everything the worker needs
-  (`repo` for the GH API call, `claimed_at` for the PG release
+  (`repository` for the GH API call, `claimed_at` for the PG release
   handle), so the worker doesn't need a second round trip.
   """
   def list_orphaned_running(%DateTime{} = threshold) do
@@ -420,7 +1360,7 @@ defmodule Tuist.Runners.Jobs do
     |> select([j], %{
       workflow_job_id: j.workflow_job_id,
       account_id: j.account_id,
-      repo: j.repo,
+      repository: j.repository,
       claimed_at: j.claimed_at,
       started_at: j.started_at,
       pod_name: j.pod_name
@@ -428,7 +1368,66 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
   end
 
+  @doc """
+  Lists `runner_jobs` rows whose latest state is `queued` and whose
+  `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
+  candidates for the "queued but never reconciled" recovery path that
+  `StaleQueuedJobsWorker` drives.
+
+  A queued row only ever leaves the queue by a Pod claiming it
+  (`queued → claimed → running → completed`) or a
+  `workflow_job.completed` webhook marking it `completed`. When no
+  runner ever registers to accept the job AND no completion webhook
+  arrives (GitHub kept it `queued` on its side, or the delivery was
+  lost past the redelivery window), nothing terminates the row:
+  `StaleClaimsWorker` only sees PG `claimed` rows and
+  `OrphanedRunnersWorker` only sees CH `running` rows, so neither
+  covers `queued`.
+
+  Both bounds are on `enqueued_at`, which `runner_jobs` is partitioned
+  by and which is stable across a workflow_job's state transitions.
+  `enqueued_before` drops jobs queued too recently to be stale; the
+  `enqueued_after` floor bounds the scan to a finite window so the
+  `argMax` dedup never has to aggregate the table's full history
+  (partition pruning skips everything older). The caller sets the floor
+  comfortably beyond the backstop age, so a stuck job is always reaped
+  while still inside the window.
+
+  Returns the fields the worker needs to address GitHub's Actions
+  jobs API (`repository`) and to apply the hard backstop
+  (`enqueued_at`).
+  """
+  def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
+    ClickHouseRepo.all(
+      from(j in Job,
+        where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+        }
+      )
+    )
+  end
+
   # ----- internal -----
+
+  defp queued_lookback_floor do
+    DateTime.add(DateTime.utc_now(), -@queued_lookback_seconds, :second)
+  end
+
+  defp latest_runner_runs_by_id(runs) do
+    runs
+    |> Enum.sort_by(&datetime_sort_key(&1.inserted_at), :desc)
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp datetime_sort_key(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
+  defp datetime_sort_key(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+  defp datetime_sort_key(_), do: ""
 
   # Fetch the current state of a workflow_job. Single-row lookup
   # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
@@ -439,6 +1438,101 @@ defmodule Tuist.Runners.Jobs do
     |> order_by([j], desc: j.updated_at)
     |> limit(1)
     |> ClickHouseRepo.one()
+  end
+
+  defp complete_locked(%Job{} = job, conclusion) do
+    now = DateTime.utc_now()
+
+    completion = %{
+      status: "completed",
+      conclusion: conclusion,
+      completed_at: now,
+      updated_at: now
+    }
+
+    row =
+      job
+      |> job_to_row()
+      |> Map.merge(completion)
+
+    persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
+    insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_completed(),
+      %{
+        count: 1,
+        run_time_ms: duration_ms(job.started_at, now),
+        queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
+        total_time_ms: duration_ms(job.enqueued_at, now)
+      },
+      %{
+        fleet: job.fleet_name || "",
+        conclusion: normalise_conclusion(conclusion)
+      }
+    )
+
+    broadcast_status_change(job.account_id, "completed")
+
+    {:ok, Map.merge(job, completion)}
+  end
+
+  defp record_completed_locked(attrs, conclusion) do
+    now = DateTime.utc_now()
+
+    row =
+      attrs
+      |> Map.put(:status, "completed")
+      |> Map.put(:conclusion, conclusion)
+      |> Map.put_new(:enqueued_at, now)
+      |> Map.put(:completed_at, now)
+      |> Map.put(:updated_at, now)
+
+    persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_completed(),
+      %{count: 1, run_time_ms: 0, queue_time_ms: 0, total_time_ms: 0},
+      %{fleet: Map.get(row, :fleet_name, ""), conclusion: normalise_conclusion(conclusion)}
+    )
+
+    broadcast_status_change(Map.get(attrs, :account_id), "completed")
+    :ok
+  end
+
+  defp acquire_workflow_job_ordering_lock(workflow_job_id) do
+    case Repo.query("SELECT pg_advisory_xact_lock($1)", [workflow_job_id]) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> Repo.rollback({:lock_failed, reason})
+    end
+  end
+
+  defp completion_recorded?(workflow_job_id) do
+    Repo.exists?(from(completion in JobCompletion, where: completion.workflow_job_id == ^workflow_job_id))
+  end
+
+  defp persist_completion!(workflow_job_id, account_id, conclusion, completed_at) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    completed_at = DateTime.truncate(completed_at, :second)
+
+    Repo.insert_all(
+      JobCompletion,
+      [
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account_id,
+          conclusion: conclusion,
+          completed_at: completed_at,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      conflict_target: [:workflow_job_id],
+      on_conflict: {:replace, [:account_id, :conclusion, :completed_at, :updated_at]}
+    )
+
+    :ok
   end
 
   defp insert_row!(row) do
@@ -452,15 +1546,11 @@ defmodule Tuist.Runners.Jobs do
     |> Map.delete(:__meta__)
   end
 
-  defp epoch, do: @epoch
-
-  # Returns `nil` when either bound is missing/epoch so the
-  # histogram bucketer drops the sample instead of recording a
-  # garbage duration.
+  # Returns `nil` when either bound is missing or the interval is
+  # negative so the histogram bucketer drops the sample instead of
+  # recording a garbage duration.
   defp duration_ms(%DateTime{} = from, %DateTime{} = to) do
-    if DateTime.after?(from, @epoch) and DateTime.after?(to, from) do
-      DateTime.diff(to, from, :millisecond)
-    end
+    if DateTime.after?(to, from), do: DateTime.diff(to, from, :millisecond)
   end
 
   defp duration_ms(_, _), do: nil
@@ -472,5 +1562,19 @@ defmodule Tuist.Runners.Jobs do
   # recovery path.
   defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
   defp normalise_conclusion(c) when is_binary(c), do: c
-  defp normalise_conclusion(_), do: "unknown"
+
+  @doc """
+  Pub/Sub topic for an account's runner-job lifecycle events.
+  Subscribers receive `{:runner_jobs_status_changed, %{status: ...}}`
+  whenever any job in the account transitions — used by callers
+  that need to refresh Running / Queued aggregates in real time.
+  """
+  def topic(account_id) when is_integer(account_id), do: "runner_jobs:#{account_id}"
+
+  defp broadcast_status_change(account_id, new_status) when is_integer(account_id) do
+    Tuist.PubSub.broadcast(%{status: new_status}, topic(account_id), :runner_jobs_status_changed)
+    :ok
+  end
+
+  defp broadcast_status_change(_, _), do: :ok
 end

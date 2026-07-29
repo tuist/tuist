@@ -21,8 +21,11 @@ defaults:
     working-directory: status
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
+  # Install only this project's tools and stop mise auto-installing the rest of the
+  # merged root toolset when `mise run` executes (which would hit the GitHub API).
+  MISE_AUTO_INSTALL: "0"
 
 jobs:
   deploy:
@@ -32,10 +35,11 @@ jobs:
     environment: status-production
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: status
+          install: "node aube npm:wrangler"
+          working-directory: status
       - uses: 1password/install-cli-action@v2
       - name: Deploy worker to Cloudflare
         env:

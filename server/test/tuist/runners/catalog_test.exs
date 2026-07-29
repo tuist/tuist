@@ -1,0 +1,209 @@
+defmodule Tuist.Runners.CatalogTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  alias Tuist.Runners.Catalog
+
+  describe "fleet_name_prefixes/1" do
+    test "Linux covers both legacy and shape-catalog pool naming" do
+      # Both prefixes are what `runner_jobs.fleet_name` can carry on a
+      # Linux row — the platform filter and the analytics grouping
+      # rely on this list to recognise profile-dispatched jobs (their
+      # fleet name comes from `Catalog.pool_name/1`).
+      prefixes = Catalog.fleet_name_prefixes(:linux)
+
+      assert "linux-" in prefixes
+      assert "#{Tuist.Environment.runners_linux_pool_name_prefix()}-" in prefixes
+      # `String.starts_with?/2` accepts a list of prefixes — the
+      # filter/grouping callers depend on that calling convention.
+      assert String.starts_with?(
+               Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+               prefixes
+             )
+
+      assert String.starts_with?("linux-amd64", prefixes)
+      refute String.starts_with?("macos-arm64", prefixes)
+    end
+
+    test "macOS covers both legacy and Xcode-catalog pool naming" do
+      prefixes = Catalog.fleet_name_prefixes(:macos)
+
+      assert "macos-" in prefixes
+      assert "#{Tuist.Environment.runners_macos_pool_name_prefix()}-" in prefixes
+      # A profile-dispatched macOS fleet name should start with one of these.
+      assert String.starts_with?(
+               Catalog.pool_name(%{platform: :macos, xcode_version: "26.5"}),
+               prefixes
+             )
+
+      assert String.starts_with?("macos-26-5", prefixes)
+      refute String.starts_with?("linux-amd64", prefixes)
+    end
+  end
+
+  describe "pool_name/1" do
+    test ":linux profile resolves to `<prefix>-<vcpus>vcpu-<memory_gb>gb`" do
+      assert Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}) ==
+               "#{Tuist.Environment.runners_linux_pool_name_prefix()}-4vcpu-16gb"
+    end
+
+    test ":macos profile resolves to `<prefix>-<xcode-dashes>`" do
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.5"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.4.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-4-1"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.3"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-3"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
+    end
+  end
+
+  describe "resources_for_fleet/1" do
+    test "resolves Linux pool names through the configured shape catalog" do
+      Enum.each(Catalog.shapes(:linux), fn shape ->
+        fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+      end)
+    end
+
+    test "uses platform defaults for legacy Linux and macOS rows" do
+      linux = Catalog.default_shape(:linux)
+      macos = Catalog.default_shape(:macos)
+
+      assert Catalog.resources_for_fleet("linux-amd64") ==
+               {:ok, %{platform: :linux, vcpus: linux.vcpus, memory_gb: linux.memory_gb}}
+
+      assert Catalog.resources_for_fleet("macos-26-5") ==
+               {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "does not infer resources from an unconfigured Linux pool suffix" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-999vcpu-999gb"
+
+      assert Catalog.resources_for_fleet(fleet_name) == {:error, :invalid_resources}
+    end
+
+    test "resolves an operator-defined Linux pool from its configured resources" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-ubuntu-22-04"
+
+      stub(Catalog, :linux_fleet_resources, fn ->
+        [%{fleet_name: fleet_name, platform: :linux, vcpus: 6, memory_gb: 18}]
+      end)
+
+      assert Catalog.resources_for_fleet(fleet_name) ==
+               {:ok, %{platform: :linux, vcpus: 6, memory_gb: 18}}
+    end
+
+    test "rejects an unknown fleet" do
+      assert Catalog.resources_for_fleet("windows-large") == {:error, :invalid_resources}
+    end
+  end
+
+  describe "parse_shapes_json/1" do
+    test "parses the Helm-injected JSON into the config shape" do
+      # The exact value the chart renders into TUIST_RUNNER_LINUX_SHAPES.
+      json = ~s([{"memoryGb":2,"vcpus":1},{"default":true,"memoryGb":16,"vcpus":4}])
+
+      assert [
+               %{vcpus: 1, memory_gb: 2} = first,
+               %{vcpus: 4, memory_gb: 16, default: true}
+             ] = Catalog.parse_shapes_json(json)
+
+      # Non-default entries don't carry a :default key.
+      refute Map.has_key?(first, :default)
+    end
+
+    test "ignores unknown keys (e.g. per-shape autoscaling)" do
+      json = ~s([{"vcpus":4,"memoryGb":16,"default":true,"autoscaling":{"minWarmPoolFloor":30}}])
+
+      assert [%{vcpus: 4, memory_gb: 16, default: true}] = Catalog.parse_shapes_json(json)
+    end
+
+    test "returns :error on malformed JSON so the caller keeps the default" do
+      assert :error = Catalog.parse_shapes_json("not json")
+      assert :error = Catalog.parse_shapes_json("{}")
+      assert :error = Catalog.parse_shapes_json(nil)
+    end
+  end
+
+  describe "parse_linux_pools_json/1" do
+    test "parses operator-defined pool resources" do
+      json = ~s([{"name":"ubuntu-22-04","cpuMilli":5500,"memoryMB":17408}])
+
+      assert Catalog.parse_linux_pools_json(json) == [
+               %{name: "ubuntu-22-04", cpu_milli: 5500, memory_mb: 17_408}
+             ]
+    end
+
+    test "rejects pools without positive resource values" do
+      assert Catalog.parse_linux_pools_json(~s([{"name":"ubuntu","cpuMilli":0,"memoryMB":1024}])) == :error
+      assert Catalog.parse_linux_pools_json("not json") == :error
+    end
+  end
+
+  describe "parse_xcode_versions_json/1" do
+    test "parses the Helm-injected JSON into the config shape" do
+      json =
+        """
+        [
+          {"xcodeVersion":"26.5","default":true},
+          {"xcodeVersion":"26.4.1"},
+          {"xcodeVersion":"26.3"},
+          {"xcodeVersion":"26.0.1"}
+        ]
+        """
+
+      assert [
+               %{xcode_version: "26.5", default: true},
+               %{xcode_version: "26.4.1"} = second,
+               %{xcode_version: "26.3"} = third,
+               %{xcode_version: "26.0.1"} = fourth
+             ] = Catalog.parse_xcode_versions_json(json)
+
+      refute Map.has_key?(second, :default)
+      refute Map.has_key?(third, :default)
+      refute Map.has_key?(fourth, :default)
+    end
+
+    test "returns :error on malformed JSON" do
+      assert :error = Catalog.parse_xcode_versions_json("not json")
+      assert :error = Catalog.parse_xcode_versions_json("{}")
+      assert :error = Catalog.parse_xcode_versions_json(nil)
+    end
+  end
+
+  describe "fleet_on_cluster_network?/1" do
+    test "linux fleets are on the cluster network by default" do
+      # The unset default is `linux`: kata Pods always ride the CNI,
+      # while macOS Tart VMs need the per-env tailnet route first.
+      assert Catalog.fleet_on_cluster_network?("linux-amd64")
+      refute Catalog.fleet_on_cluster_network?("macos-26-5")
+      refute Catalog.fleet_on_cluster_network?("unknown-fleet")
+      refute Catalog.fleet_on_cluster_network?(nil)
+    end
+
+    test "macOS fleets qualify when the environment declares the tailnet route" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [:linux, :macos] end)
+
+      assert Catalog.fleet_on_cluster_network?("linux-amd64")
+      assert Catalog.fleet_on_cluster_network?("macos-26-5")
+      assert Catalog.fleet_on_cluster_network?("#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5")
+      # Unrecognized fleets still fail closed: a hard-override cache
+      # URL handed to an unknown runtime breaks caching outright.
+      refute Catalog.fleet_on_cluster_network?("windows-arm64")
+    end
+
+    test "an environment can turn the gate off entirely" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [] end)
+
+      refute Catalog.fleet_on_cluster_network?("linux-amd64")
+      refute Catalog.fleet_on_cluster_network?("macos-26-5")
+    end
+  end
+end

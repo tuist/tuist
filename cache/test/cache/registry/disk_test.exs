@@ -38,7 +38,7 @@ defmodule Cache.Registry.DiskTest do
 
     test "handles pre-release version" do
       key = RegistryDisk.key("apple", "parser", "1.0.0-alpha.1", "source_archive.zip")
-      assert key == "registry/swift/apple/parser/1.0.0-alpha+1/source_archive.zip"
+      assert key == "registry/swift/apple/parser/1.0.0-alpha.1/source_archive.zip"
     end
   end
 

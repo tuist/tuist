@@ -39,6 +39,10 @@ public final class TuistService: NSObject {
     ) async throws {
         var arguments = arguments
 
+        guard !arguments.isEmpty else {
+            throw TuistServiceError.taskUnavailable
+        }
+
         let commandName = "tuist-\(arguments[0])"
 
         let path = try await CommandArguments.path(in: arguments)

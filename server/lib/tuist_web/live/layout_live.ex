@@ -37,39 +37,49 @@ defmodule TuistWeb.LayoutLive do
   def on_mount(
         :project,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = params,
-        session,
+        _session,
         socket
       )
       when is_binary(account_handle) and is_binary(project_handle) do
-    current_user = get_current_user(session)
-
-    TuistWeb.Authorization.require_user_can_read_project(%{
-      user: current_user,
-      account_handle: account_handle,
-      project_handle: project_handle
-    })
+    current_user = socket.assigns[:current_user]
 
     selected_project =
-      Map.get(
-        socket.assigns,
-        :selected_project,
-        Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
-      )
+      case Map.get(socket.assigns, :selected_project) do
+        nil ->
+          TuistWeb.Authorization.require_user_can_read_project(%{
+            user: current_user,
+            account_handle: account_handle,
+            project_handle: project_handle
+          })
 
-    if is_nil(selected_project) do
-      raise NotFoundError,
-            dgettext("dashboard", "The project you are looking for doesn't exist or has been moved.")
-    end
+        project ->
+          if project_matches_handles?(project, account_handle, project_handle) do
+            TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
+          else
+            TuistWeb.Authorization.require_user_can_read_project(%{
+              user: current_user,
+              account_handle: account_handle,
+              project_handle: project_handle
+            })
+          end
+      end
 
     %{account: selected_account} = selected_project
 
-    selected_projects = get_projects(selected_account, current_user)
+    # Dropdown contents only matter once the user can click them, so defer
+    # the queries until the LiveView is connected.
+    {selected_projects, current_user_accounts} =
+      if connected?(socket) do
+        organization_accounts =
+          if is_nil(current_user) do
+            []
+          else
+            get_user_organization_accounts(current_user) ++ [current_user.account]
+          end
 
-    current_user_accounts =
-      if is_nil(current_user) do
-        []
+        {get_projects(selected_account, current_user), organization_accounts}
       else
-        get_user_organization_accounts(current_user) ++ [current_user.account]
+        {[], []}
       end
 
     {:cont,
@@ -125,7 +135,6 @@ defmodule TuistWeb.LayoutLive do
        ]
      })
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
      |> assign(:current_user, current_user)
@@ -136,11 +145,16 @@ defmodule TuistWeb.LayoutLive do
      |> assign_selected_run(params)}
   end
 
-  def on_mount(:account, params, session, socket) do
-    current_user = get_current_user(session)
+  def on_mount(:account, params, _session, socket) do
+    current_user = socket.assigns[:current_user]
 
+    # Deferred until connected — see :project.
     current_user_accounts =
-      get_user_organization_accounts(current_user) ++ [current_user.account]
+      if connected?(socket) do
+        get_user_organization_accounts(current_user) ++ [current_user.account]
+      else
+        []
+      end
 
     selected_account =
       case Map.get(params, "account_handle") do
@@ -186,20 +200,18 @@ defmodule TuistWeb.LayoutLive do
        Authorization.authorize(:billing_read, current_user, selected_account) == :ok
      )
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:current_user, current_user)
      |> assign(:current_user_accounts, current_user_accounts)}
   end
 
-  def on_mount(:ops, _params, session, socket) do
-    current_user = get_current_user(session)
+  def on_mount(:ops, _params, _session, socket) do
+    current_user = socket.assigns[:current_user]
 
     {:cont,
      socket
      |> assign_current_path()
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:current_user, current_user)}
   end
 
@@ -210,6 +222,14 @@ defmodule TuistWeb.LayoutLive do
       user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
     end
   end
+
+  defp project_matches_handles?(
+         %{account: %{name: account_handle}, name: project_handle},
+         account_handle,
+         project_handle
+       ), do: true
+
+  defp project_matches_handles?(_project, _account_handle, _project_handle), do: false
 
   defp assign_current_path(socket) do
     attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
@@ -232,19 +252,6 @@ defmodule TuistWeb.LayoutLive do
       user_belongs_to_account? or project.visibility == :public
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
-  end
-
-  defp get_current_user(session) do
-    user_token = session["user_token"]
-
-    user =
-      if is_nil(user_token) do
-        nil
-      else
-        Accounts.get_user_by_session_token(session["user_token"], preload: [:account])
-      end
-
-    user
   end
 
   defp assign_selected_run(socket, params) do
@@ -277,24 +284,6 @@ defmodule TuistWeb.LayoutLive do
       end
 
     {:ok, %{latest_app_release: latest_app_release}}
-  end
-
-  def assign_latest_cli_release(socket) do
-    assign_async(socket, :latest_cli_release, &get_latest_cli_release/0)
-  end
-
-  defp get_latest_cli_release do
-    latest_cli_release = Releases.get_latest_cli_release()
-
-    latest_cli_release =
-      if not is_nil(latest_cli_release) do
-        %{published_at: published_at} = latest_cli_release
-
-        if Timex.after?(published_at, Timex.shift(Timex.today(), days: -1)),
-          do: latest_cli_release
-      end
-
-    {:ok, %{latest_cli_release: latest_cli_release}}
   end
 
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}

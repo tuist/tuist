@@ -36,6 +36,11 @@ spec:
         value: fsn1
       - name: hcloudControlPlaneMachineType
         value: cpx22
+      # Extend the canary-validated fallback to staging. New control-plane
+      # kubelets bootstrap through the load-balanced endpoint until their
+      # local control-plane endpoint is available.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
       # Default for pools without an override (md-0).
       - name: hcloudWorkerMachineType
         value: cpx32
@@ -50,6 +55,13 @@ spec:
       # (`tuist-bm-staging-…`).
       - name: bareMetalCluster
         value: staging
+      # Insert InternalIP ahead of Hostname so the apiserver can reach the
+      # cross-cloud kura kubelets (Dedibox/Elastic Metal): they report no
+      # ExternalIP and an unresolvable Hostname, so the default order lands on
+      # Hostname and breaks logs/exec + metrics-server. Hetzner nodes keep
+      # ExternalIP first, so their behaviour is unchanged.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, system DaemonSets.
@@ -60,6 +72,24 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors production so
+        # the failover controller + cutover are exercised end to end on
+        # staging before production. Nodes self-apply the candidate label
+        # `tuist.dev/stable-egress-candidate=server`; the controller keeps the
+        # Floating IP + active label on one Ready node and fails over on loss.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
         # Linux runner pool on Hetzner Robot bare metal. Each
         # claimable `HetznerBareMetalHost` CR (see
         # `bare-metal-staging.yaml`) gets picked up by caph, which

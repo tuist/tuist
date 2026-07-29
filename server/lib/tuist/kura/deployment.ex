@@ -26,14 +26,15 @@ defmodule Tuist.Kura.Deployment do
 
   alias Tuist.Kura.Server
 
-  @status_mappings [pending: 0, running: 1, succeeded: 2, failed: 3, cancelled: 4]
+  @status_mappings [pending: 0, running: 1, succeeded: 2, failed: 3, cancelled: 4, superseded: 5]
   @statuses Keyword.keys(@status_mappings)
   @allowed_status_transitions %{
-    pending: [:pending, :running, :failed, :cancelled],
-    running: [:running, :succeeded, :failed, :cancelled],
+    pending: [:pending, :running, :failed, :cancelled, :superseded],
+    running: [:running, :succeeded, :failed, :cancelled, :superseded],
     succeeded: [:succeeded],
     failed: [:failed],
-    cancelled: [:cancelled]
+    cancelled: [:cancelled],
+    superseded: [:superseded]
   }
   @image_tag_format ~r/\A[A-Za-z0-9_][A-Za-z0-9_.-]*\z/
   @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
@@ -64,6 +65,10 @@ defmodule Tuist.Kura.Deployment do
     |> validate_format(:image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:image_tag, max: 128)
     |> foreign_key_constraint(:kura_server_id)
+    |> unique_constraint(:kura_server_id,
+      name: :kura_deployments_one_open_per_server_index,
+      message: "already has an open deployment"
+    )
   end
 
   def status_changeset(deployment, attrs) do

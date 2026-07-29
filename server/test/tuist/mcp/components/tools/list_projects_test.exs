@@ -14,17 +14,24 @@ defmodule Tuist.MCP.Components.Tools.ListProjectsTest do
 
       result = ListProjects.call(conn, %{})
 
-      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert %{
+               "content" => [%{"type" => "text", "text" => text}],
+               "structuredContent" => structured_content
+             } = result
 
-      assert [
-               %{
-                 "account_handle" => account_handle,
-                 "build_system" => "xcode",
-                 "full_handle" => full_handle,
-                 "id" => project_id,
-                 "name" => project_name
-               }
-             ] = JSON.decode!(text)
+      assert %{
+               "projects" => [
+                 %{
+                   "account_handle" => account_handle,
+                   "build_system" => "xcode",
+                   "full_handle" => full_handle,
+                   "id" => project_id,
+                   "name" => project_name
+                 }
+               ]
+             } = JSON.decode!(text)
+
+      assert structured_content == JSON.decode!(text)
 
       assert account_handle == user.account.name
       assert full_handle == "#{user.account.name}/#{project.name}"

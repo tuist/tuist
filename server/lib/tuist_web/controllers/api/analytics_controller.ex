@@ -190,6 +190,42 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The cache endpoint URL used for this command (regional module cache)."
            },
+           module_cache_outputs: %Schema{
+             type: :array,
+             description:
+               "Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.",
+             items: %Schema{
+               type: :object,
+               required: [:operation, :name, :hash, :size, :compressed_size, :duration],
+               properties: %{
+                 operation: %Schema{
+                   type: :string,
+                   enum: ["download", "upload"],
+                   description: "Whether the artifact was downloaded from or uploaded to the remote module cache."
+                 },
+                 name: %Schema{
+                   type: :string,
+                   description: "Name of the target the artifact belongs to."
+                 },
+                 hash: %Schema{
+                   type: :string,
+                   description: "Content hash of the cached artifact."
+                 },
+                 size: %Schema{
+                   type: :integer,
+                   description: "Size of the artifact on disk, in bytes."
+                 },
+                 compressed_size: %Schema{
+                   type: :integer,
+                   description: "Number of bytes transferred over the wire (compressed payload)."
+                 },
+                 duration: %Schema{
+                   type: :integer,
+                   description: "Duration of this single transfer operation, in milliseconds."
+                 }
+               }
+             }
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -201,6 +237,11 @@ defmodule TuistWeb.API.AnalyticsController do
            test_run_id: %Schema{
              type: :string,
              description: "The test run identifier."
+           },
+           id: %Schema{
+             type: :string,
+             description:
+               "Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one."
            },
            xcode_graph: %Schema{
              type: :object,
@@ -329,6 +370,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                    project_settings: %Schema{type: :string, description: "Project settings hash"},
                                    target_settings: %Schema{type: :string, description: "Target settings hash"},
                                    buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
                                    additional_strings: %Schema{
                                      type: :array,
                                      description: "Additional strings used in the hash",
@@ -371,6 +416,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                    project_settings: %Schema{type: :string, description: "Project settings hash"},
                                    target_settings: %Schema{type: :string, description: "Target settings hash"},
                                    buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
                                    additional_strings: %Schema{
                                      type: :array,
                                      description: "Additional strings used in the hash",
@@ -424,6 +473,7 @@ defmodule TuistWeb.API.AnalyticsController do
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
+    command_event_id = Map.get(body_params, :id)
 
     # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
     cli_version = Headers.get_cli_version(conn)
@@ -446,6 +496,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     command_event =
       CommandEvents.create_command_event(%{
+        id: command_event_id,
         name: body_params.name,
         subcommand: Map.get(body_params, :subcommand, nil),
         command_arguments: body_params.command_arguments,
@@ -480,6 +531,12 @@ defmodule TuistWeb.API.AnalyticsController do
 
     if not is_nil(xcode_graph) do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
+    end
+
+    module_cache_outputs = Map.get(body_params, :module_cache_outputs, [])
+
+    if module_cache_outputs != [] do
+      CommandEvents.create_module_cache_outputs(command_event, module_cache_outputs)
     end
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do

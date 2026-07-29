@@ -17,6 +17,7 @@ import TuistHTTP
             fullHandle: String,
             serverURL: URL,
             id: String,
+            generationId: String?,
             category: XCActivityBuildCategory,
             configuration: String?,
             customMetadata: BuildCustomMetadata?,
@@ -85,6 +86,7 @@ import TuistHTTP
             fullHandle: String,
             serverURL: URL,
             id: String,
+            generationId: String?,
             category: XCActivityBuildCategory,
             configuration: String?,
             customMetadata: BuildCustomMetadata?,
@@ -173,6 +175,7 @@ import TuistHTTP
                             duration: duration,
                             files: files
                                 .map(Operations.createBuild.Input.Body.jsonPayload.filesPayloadPayload.init),
+                            generation_id: generationId,
                             git_branch: gitBranch,
                             git_commit_sha: gitCommitSHA,
                             git_ref: gitRef,

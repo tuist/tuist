@@ -1,4 +1,4 @@
-{{- if .Values.macosFleet.enabled }}
+{{- if or .Values.macosFleet.enabled .Values.kuraFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
 {{- /*
 ClusterRole every per-machine tart-kubelet ServiceAccount binds to.
@@ -59,4 +59,41 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
+  # A real Linux kubelet (the kura runner-cache node, unlike the macOS
+  # tart-kubelet shim) needs the standard node permissions: its own heartbeat
+  # Lease, Services to build pod env vars (without which every pod fails
+  # CreateContainerConfigError "services have not yet been read"), a CSINode,
+  # RuntimeClasses, and — with webhook auth/authz + serverTLSBootstrap — token/
+  # access reviews and a serving-cert CSR. These mirror the built-in
+  # system:node role; the tart-kubelet shim simply doesn't exercise them.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [csinodes]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["node.k8s.io"]
+    resources: [runtimeclasses]
+    verbs: [get, list, watch]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: [tokenreviews]
+    verbs: [create]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: [subjectaccessreviews]
+    verbs: [create]
+  - apiGroups: ["certificates.k8s.io"]
+    resources: [certificatesigningrequests]
+    verbs: [get, list, watch, create]
+  # Mounting CSI volumes (the scw-bssd cache PVCs) needs the kubelet to read
+  # the PVC/PV bound to each pod and watch the VolumeAttachment the external
+  # attacher creates.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [volumeattachments, csidrivers]
+    verbs: [get, list, watch]
 {{- end }}

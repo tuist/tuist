@@ -11,8 +11,6 @@ defmodule Tuist.Xcode do
   alias Tuist.Xcode.XcodeTarget
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
-  require Logger
-
   def create_xcode_graph(%{command_event: %{id: command_event_id}, xcode_graph: %{name: name} = xcode_graph}) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
       prepare_xcode_graph(xcode_graph, command_event_id)
@@ -56,6 +54,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
           destinations: xt.destinations,
           additional_strings: xt.additional_strings
         }
@@ -88,6 +87,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
           destinations: target.destinations,
           additional_strings: target.additional_strings
         }
@@ -128,6 +128,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
           destinations: xt.destinations,
           additional_strings: xt.additional_strings
         }
@@ -160,6 +161,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
           destinations: target.destinations,
           additional_strings: target.additional_strings
         }

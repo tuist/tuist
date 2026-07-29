@@ -5,6 +5,7 @@ defmodule TuistWeb.API.AuthController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authentication
+  alias Tuist.Environment
   alias Tuist.OAuth.Apple
   alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
@@ -262,6 +263,16 @@ defmodule TuistWeb.API.AuthController do
   end
 
   def do_authenticate(%{body_params: %{email: email, password: password}} = conn, _params) do
+    if Environment.email_auth_enabled?() do
+      authenticate_with_password(conn, email, password)
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: "Email and password sign-in is disabled."})
+    end
+  end
+
+  defp authenticate_with_password(conn, email, password) do
     case Accounts.get_user_by_email_and_password(email, password) do
       {:error, :not_confirmed} ->
         conn

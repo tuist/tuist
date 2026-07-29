@@ -1,47 +1,29 @@
 defmodule TuistWeb.RateLimit.InMemoryTest do
   use TuistTestSupport.Cases.ConnCase, async: true
-  use Mimic
 
-  alias Hammer.ETS.FixWindow
-  alias Tuist.Environment
   alias TuistWeb.RateLimit.InMemory
 
-  describe "rate_limit/2" do
-    test "allows the request when the rate limit is not reached" do
-      # Given
-      expect(FixWindow, :hit, fn _table, _ip, _window, _limit, _increment -> {:allow, 1} end)
-      conn = build_conn()
+  describe "hit/4" do
+    test "counts a fixed-window hit once on the serving node" do
+      key = "local-fixed-window-hit-#{System.unique_integer([:positive])}"
+      window = to_timeout(minute: 1)
 
-      # When
-      got = InMemory.rate_limit(conn, %{})
+      assert {:allow, 1} = InMemory.hit(key, window, 10)
+      :sys.get_state(InMemory.Listener)
 
-      # Then
-      assert conn == got
+      assert {:allow, 2} = InMemory.Local.hit(key, window, 10)
     end
+  end
 
-    test "raises TooManyRequestsError when the rate limit is reached" do
-      # Given
-      expect(FixWindow, :hit, fn _table, _ip, _window, _limit, _increment -> {:deny, 1} end)
-      conn = build_conn()
+  describe "hit_token_bucket/4" do
+    test "counts a token-bucket hit once on the serving node" do
+      key = "local-token-bucket-hit-#{System.unique_integer([:positive])}"
+      refill_rate = 1 / 60
 
-      # When
-      assert_raise TuistWeb.Errors.TooManyRequestsError, fn ->
-        InMemory.rate_limit(conn, %{})
-      end
-    end
+      assert {:allow, 9} = InMemory.hit_token_bucket(key, refill_rate, 10)
+      :sys.get_state(InMemory.Listener)
 
-    test "does not check rate limit when on premise" do
-      # Given
-      Mimic.reject(&FixWindow.hit/5)
-
-      expect(Environment, :tuist_hosted?, fn -> false end)
-      conn = build_conn()
-
-      # When
-      got = InMemory.rate_limit(conn, %{})
-
-      # Then
-      assert conn == got
+      assert {:allow, 8} = InMemory.TokenBucket.hit(key, refill_rate, 10)
     end
   end
 end

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "Tuist",
+  "id": "tuist-metrics-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_tuist_datasource",
+  "info": {
+    "description": "Query Tuist build and test duration metrics (average, p50, p90, p99) as Grafana time series.",
+    "author": {
+      "name": "Tuist",
+      "url": "https://tuist.dev"
+    },
+    "keywords": ["tuist", "ios", "xcode", "ci", "build", "test", "swift"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "Website",
+        "url": "https://tuist.dev"
+      },
+      {
+        "name": "Documentation",
+        "url": "https://docs.tuist.dev"
+      },
+      {
+        "name": "Source code",
+        "url": "https://github.com/tuist/tuist/tree/main/grafana-datasource"
+      },
+      {
+        "name": "Report an issue",
+        "url": "https://github.com/tuist/tuist/issues"
+      }
+    ],
+    "screenshots": [
+      {
+        "name": "Build and test duration percentiles",
+        "path": "img/screenshot-dashboard.png"
+      }
+    ],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  }
+}

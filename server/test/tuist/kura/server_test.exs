@@ -12,7 +12,8 @@ defmodule Tuist.Kura.ServerTest do
                active: 1,
                failed: 2,
                destroying: 3,
-               destroyed: 4
+               destroyed: 4,
+               replicating: 5
              ]
     end
   end

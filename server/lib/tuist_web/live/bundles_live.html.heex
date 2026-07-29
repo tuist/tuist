@@ -275,8 +275,18 @@
           title={dgettext("dashboard_cache", "No bundles yet")}
         >
           <:image>
-            <img src="/images/empty_line_chart_light.png" data-theme="light" />
-            <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_line_chart_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_line_chart_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </div>
@@ -361,10 +371,7 @@
               patch={
                 @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
               }
-              icon={
-                @bundles_sort_by == "install-size" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "install-size" && @bundles_sort_order}
             >
               <.text_cell label={format_bytes(bundle.install_size)} />
             </:col>
@@ -374,10 +381,7 @@
               patch={
                 @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
               }
-              icon={
-                @bundles_sort_by == "download-size" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "download-size" && @bundles_sort_order}
             >
               <.text_cell label={
                 if bundle.download_size,
@@ -398,10 +402,7 @@
               :let={bundle}
               label={dgettext("dashboard_cache", "Created at")}
               patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
-              icon={
-                @bundles_sort_by == "created-at" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "created-at" && @bundles_sort_order}
             >
               <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
             </:col>
@@ -420,8 +421,18 @@
           data-part="empty-bundles-table-card-section"
         >
           <:image>
-            <img src="/images/empty_table_light.png" data-theme="light" />
-            <img src="/images/empty_table_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </.card_section>

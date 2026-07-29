@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist-ops.fullname" . }}
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+  {{- if .Values.service.tailscaleExpose }}
+  annotations:
+    # Tailscale operator picks up this annotation and provisions a
+    # tailnet device that proxies to this Service. Pomerium pods
+    # in workload clusters dial `http://<hostname>.<tailnet>.ts.net`
+    # to reach this endpoint without joining the tailnet themselves.
+    # The operator's egress Service annotation in those clusters
+    # (see `infra/helm/pomerium/templates/tailscale-egress.yaml`)
+    # forwards to this hostname.
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ .Values.tailnetHostname | quote }}
+    # Without this the operator defaults to `tag:k8s`, which the
+    # OAuth client doesn't have permission to mint. Use the
+    # production cluster's tag (matches the operator's defaultTags
+    # in infra/helm/tailscale-operator/values-production.yaml).
+    tailscale.com/tags: "tag:tuist-k8s-production"
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "tuist-ops.selectorLabels" . | nindent 4 }}

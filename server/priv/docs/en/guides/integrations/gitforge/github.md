@@ -56,3 +56,16 @@ The GitHub app posts a Tuist run report, which includes a summary of the PR, inc
 >
 > You can run the relevant command, like `tuist share`, with the prefixed `GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist share</code>
 
+## GitHub Actions job summary {#github-actions-job-summary}
+
+When you run Tuist in GitHub Actions, it writes a run report to the [job summary](https://github.blog/news-insights/product-news/supercharging-github-actions-with-job-summaries/) of the workflow run, so you see your test and build results on the run's summary page with nothing extra to set up. The summary links to the full report on Tuist, where richer insights such as flaky tests and bundle-size deltas are available.
+
+![An image that shows the Tuist run report in the GitHub Actions job summary](/images/guides/integrations/gitforge/github/github-actions-job-summary.png)
+
+This is particularly useful with [merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue). A merge queue run is not attached to a pull request, so no comment is posted, but the job summary still surfaces the results.
+
+> [!NOTE]
+> **Requirements**
+>
+> Like the pull/merge request comment, the job summary is only written when your CI runs are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+

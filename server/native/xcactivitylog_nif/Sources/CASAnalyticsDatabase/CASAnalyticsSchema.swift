@@ -8,6 +8,11 @@ public enum CASOutputsSchema {
     public static let duration = SQLite.Expression<Double>("duration")
     public static let compressedSize = SQLite.Expression<Int>("compressed_size")
     public static let createdAt = SQLite.Expression<Date>("created_at")
+    // Breakdown of `duration` (ms): network transfer (download/upload) and
+    // (de)compression. The remainder, duration - transfer - codec, is the
+    // daemon's per-op processing (gRPC hop, marshalling, scheduling).
+    public static let transferDuration = SQLite.Expression<Double>("transfer_duration")
+    public static let codecDuration = SQLite.Expression<Double>("codec_duration")
 }
 
 public enum NodesSchema {

@@ -21,6 +21,9 @@ The command will take you through a web-based authentication flow. Once you auth
 
 The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
 
+> [!NOTE]
+> If your organization uses single sign-on, choose the enterprise login option in the browser and enter your work email address. Tuist can find the provider from your existing organization membership or a <.localized_link href="/guides/integrations/authentication/sso#verify-a-login-email-domain">verified login email domain</.localized_link>.
+
 ## OIDC tokens {#oidc-tokens}
 
 For CI environments that support OpenID Connect (OIDC), Tuist can authenticate automatically without requiring you to manage long-lived secrets. When running in a supported CI environment, the CLI will automatically detect the OIDC token provider and exchange the CI-provided token for a Tuist access token.
@@ -79,9 +82,19 @@ For CI environments that don't support OIDC, or when you need fine-grained contr
 
 ### Creating an account token {#creating-an-account-token}
 
+The easiest way to create an account token is from the dashboard:
+
+1. Open the organization in the Tuist dashboard.
+2. Go to **Settings** > **Tokens**.
+3. Select **Generate token**.
+4. Choose a name, optional expiration, project access, and the scopes the token needs.
+5. Copy the generated token value before closing the dialog. Token values are only shown once.
+
+You can also create account tokens from the CLI, which is useful for scripting or automation:
+
 ```bash
 tuist account tokens create account-handle \
-  --scopes project:cache:read project:cache:write \
+  --scopes account:cache:write project:cache:read project:cache:write \
   --name ci-cache-token \
   --expires 1y
 ```
@@ -102,6 +115,8 @@ The command accepts the following options:
 
 | Scope | Description |
 | --- | --- |
+| `account:cache:read` | Download account-scoped cached binaries |
+| `account:cache:write` | Upload account-scoped cached binaries |
 | `account:members:read` | Read account members |
 | `account:members:write` | Manage account members |
 | `account:registry:read` | Read from the Swift package registry |
@@ -127,12 +142,14 @@ Scope groups provide a convenient way to grant multiple related scopes with a si
 
 | Scope Group | Included Scopes |
 | --- | --- |
-| `ci` | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+| `ci` | `account:cache:write`, `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
 | `mcp` | `project:cache:read`, `project:previews:read`, `project:bundles:read`, `project:tests:read`, `project:builds:read`, `project:runs:read` |
 
 ### Continuous Integration {#continuous-integration}
 
-For CI environments that don't support OIDC, you can create an account token with the `ci` scope group to authenticate your CI workflows:
+For CI environments that don't support OIDC, create an account token with the `ci` scope group to authenticate your CI workflows. In the dashboard, select the **CI** preset when generating the token.
+
+You can also create the same token from the CLI:
 
 ```bash
 tuist account tokens create account-handle --scopes ci --name ci
@@ -141,6 +158,8 @@ tuist account tokens create account-handle --scopes ci --name ci
 This creates a token with all the scopes needed for typical CI operations (cache, previews, bundles, tests, builds, and runs). Store the generated token as a secret in your CI environment and set it as the `TUIST_TOKEN` environment variable.
 
 ### Managing account tokens {#managing-account-tokens}
+
+Open **Settings** > **Tokens** in the account dashboard to view account tokens, inspect a token's scopes and project access, and revoke tokens during rotation.
 
 To list all tokens for an account:
 

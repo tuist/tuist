@@ -114,30 +114,24 @@ defmodule TuistWeb.API.ProjectsController do
         |> json(%Error{message: "Project already exists."})
 
       true ->
-        try do
-          opts =
-            if build_system == nil do
-              []
-            else
-              [build_system: String.to_existing_atom(build_system)]
-            end
+        opts =
+          if build_system == nil do
+            []
+          else
+            [build_system: String.to_existing_atom(build_system)]
+          end
 
-          project =
-            Projects.create_project!(
-              %{
-                name: project_handle,
-                account: account
-              },
-              opts
+        case Projects.create_project(%{name: project_handle, account: account}, opts) do
+          {:ok, project} ->
+            conn
+            |> put_status(:ok)
+            |> json(
+              project_response(project, Projects.get_project_slug_from_id(project.id), include_repository_url: true)
             )
 
-          conn
-          |> put_status(:ok)
-          |> json(project_response(project, Projects.get_project_slug_from_id(project.id), include_repository_url: true))
-        rescue
-          e in Ecto.InvalidChangesetError ->
+          {:error, %Ecto.Changeset{} = changeset} ->
             message =
-              e.changeset
+              changeset
               |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
               |> Enum.flat_map(fn {_key, value} -> value end)
               |> hd()
@@ -242,7 +236,7 @@ defmodule TuistWeb.API.ProjectsController do
           message: "You don't have permission to read the #{project.name} project."
         })
 
-      !is_nil(project) ->
+      true ->
         Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
 
         conn
@@ -334,7 +328,7 @@ defmodule TuistWeb.API.ProjectsController do
           message: "The authenticated subject is not authorized to perform this action."
         })
 
-      not is_nil(project) ->
+      true ->
         {:ok, project} =
           Projects.update_project(project, %{
             default_branch: Map.get(body_params, :default_branch, project.default_branch),

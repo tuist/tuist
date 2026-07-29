@@ -25,9 +25,9 @@ extension XcodeGraph.FileElement {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
-                let globComponents = absolute.components.drop(while: { !$0.isGlobComponent })
-                if globComponents.allSatisfy({ $0 == "**" }) {
-                    excluded.insert(absolute.upToLastNonGlob)
+                if let recursiveGlobRoot = absolute.recursiveGlobRoot {
+                    excluded.insert(recursiveGlobRoot)
+                    continue
                 }
                 let globs = try await fileSystem.glob(
                     directory: .root,

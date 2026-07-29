@@ -1,0 +1,134 @@
+{{- if and .Values.capi.enabled .Values.ovhFleet.enabled }}
+{{- $fleetName := include "tuist.componentName" (dict "root" . "component" "ovh-fleet") }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- /*
+OVH fleet — a customer-facing Kura cache region on OVHcloud bare metal. Like the
+Dedibox and Elastic Metal kinds it self-joins via the reconciler's SSH bootstrap
+(noop-bootstrap; this cluster's control plane is externally managed, so CABPK has
+no CA to mint a kubeadm join).
+
+Scripted install (same as Dedibox): the operator pre-orders the box and sets its
+displayName to `adoptDisplayNamePrefix`. The reconciler claims a free box by
+`datacenter` + `offer` scoped to that displayName — the env boundary, since one
+OVH account holds every env's boxes — registers the fleet SSH key, drives the OVH
+OS install to completion, and self-joins it. The reconciler authenticates with
+the OVH API (OVH_* env, wired from ovh-external-secrets.yaml).
+
+OnDelete strategy: don't auto-churn the cache node.
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: OVHDedicatedMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      adoptDisplayNamePrefix: {{ required "ovhFleet.machine.adoptDisplayNamePrefix is required: it is the per-env adoption boundary" .Values.ovhFleet.machine.adoptDisplayNamePrefix | quote }}
+      datacenter: {{ .Values.ovhFleet.machine.datacenter | default "" | quote }}
+      offer: {{ .Values.ovhFleet.machine.offer | default "" | quote }}
+      os: {{ .Values.ovhFleet.machine.os | default "ubuntu_24.04" | quote }}
+      # Stable fleet name so every Machine the MachineDeployment clones shares one
+      # SSH key — the key the controller registers and the OS install authorizes.
+      fleetName: {{ $fleetName | quote }}
+      # Dedicate the node to this region's cache pod; general workloads stay off.
+      nodeTaints:
+        - key: tuist.dev/kura-cache
+          value: "true"
+          effect: NoSchedule
+      {{- with .Values.ovhFleet.machine.egressBudgetMbps }}
+      egressBudgetMbps: {{ . }}
+      {{- end }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  # `dig` (not `| default 1`) so an explicit replicas: 0 renders 0 — Helm's default
+  # treats 0 as empty and would force 1. 0 lets a fresh fleet deploy at MD 0/0
+  # (never wedging helm --wait on an unjoined box); prep the box, then scale to 1.
+  replicas: {{ dig "replicas" 1 .Values.ovhFleet }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+        # CAPI propagates node.cluster.x-k8s.io/* Machine labels to the Node, so
+        # the region's pool label lands declaratively (the region's nodeSelector
+        # pins its Kura cache pods here).
+        node.cluster.x-k8s.io/pool: {{ .Values.ovhFleet.nodePool | default "kura-ovh" | quote }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ .Values.ovhFleet.kubernetesVersion | default "v1.34.8" | quote }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: OVHDedicatedMachineTemplate
+        name: {{ $fleetName }}
+---
+{{- /*
+MachineHealthCheck — the auto-remediation backstop for a box that stays dead.
+The in-box bootstrap hardening (systemd hardware watchdog + panic sysctls) reboots
+a silently-locked-up box in ~30s without touching the OS, so this only fires when
+that self-heal fails: a Node NotReady for 10 continuous minutes is remediated. The
+provider has no reboot API for OVH — its only release path is a wipe-and-reinstall
+— so remediation reinstalls the box and re-adopts it once it comes back clean.
+Without this, a frozen box sits NotReady forever, drops the observability
+node-exporter DaemonSet below full availability, and wedges every deploy.
+
+unhealthyRange "[0-1]" remediates a single dead box but never reinstalls a whole
+region at once: a cluster-wide blip that NotReadies every replica is left for an
+operator rather than mass-reinstalled. nodeStartupTimeout must clear the FULL
+bare-metal OS reinstall + boot — an OVHcloud install runs 45-60 min before sshd
+comes up. Set it below that and the health check culls the box mid-install, the
+provider wipes and reinstalls it, and the ~50 min clock restarts from zero: an
+endless reinstall loop that never lets the box join and wedges helm --wait on the
+MachineDeployment (the node never reaches Ready, so this only gates the initial
+startup window — a box that dies after joining is still remediated by the
+unhealthyConditions below).
+*/ -}}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  clusterName: {{ $clusterName }}
+  nodeStartupTimeout: 90m
+  unhealthyRange: "[0-1]"
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  unhealthyConditions:
+    - type: Ready
+      status: Unknown
+      timeout: 600s
+    - type: Ready
+      status: "False"
+      timeout: 600s
+{{- end }}

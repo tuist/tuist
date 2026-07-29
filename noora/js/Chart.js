@@ -75,6 +75,15 @@ const formatters = {
       hour12: false,
     });
   },
+  toLocaleDateHour: (el) => (value, _) => {
+    const date = new Date(value);
+    const dateStr = date.toLocaleDateString(navigator.language, {
+      day: "numeric",
+      month: "short",
+    });
+    const hour = String(date.getHours()).padStart(2, "0");
+    return `${dateStr}, ${hour}:00`;
+  },
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
@@ -114,15 +123,17 @@ export default {
 
     const option = this.option();
     if (!animate) option.animation = false;
-    const theme = getTheme(option);
+    const theme = getNooraChartTheme(option);
 
     echarts.registerTheme("noora", theme);
-    this.chart = echarts.init(
-      this.el.querySelector("[data-part='chart']"),
-      "noora",
-      { renderer: "canvas" },
-    );
+    const chartDom = this.el.querySelector("[data-part='chart']");
+    this.chart = echarts.init(chartDom, "noora", { renderer: "canvas" });
     this.chart.setOption(option);
+    // Expose the instance on the chart element so code outside this hook
+    // (and outside Noora's bundled ECharts) can drive the chart — e.g. an
+    // external hover adding a markArea — without echarts.getInstanceByDom,
+    // which only resolves instances created by the same ECharts copy.
+    chartDom.__nooraChart = this.chart;
 
     const hasClickableData =
       option.series &&
@@ -139,7 +150,6 @@ export default {
         }
       });
 
-      const chartDom = this.el.querySelector("[data-part='chart']");
       this.chart.on("mouseover", (params) => {
         if (params.data && params.data.url) {
           chartDom.style.cursor = "pointer";
@@ -162,6 +172,8 @@ export default {
     this.render({ animate: false });
   },
   destroyed() {
+    const chartDom = this.el.querySelector("[data-part='chart']");
+    if (chartDom) chartDom.__nooraChart = null;
     this.chart.dispose();
     window.removeEventListener(
       "changed-preferred-theme",
@@ -171,86 +183,22 @@ export default {
     window.removeEventListener("phx:resize", this.resizeListener);
   },
   option() {
-    let option = {};
     try {
-      option = JSON.parse(
-        this.el.querySelector("[data-part='data']").textContent,
+      return prepareChartOptions(
+        JSON.parse(this.el.querySelector("[data-part='data']").textContent),
+        this.el,
       );
-
-      if (
-        option.legend &&
-        option.legend.textStyle &&
-        option.legend.textStyle.color
-      ) {
-        option.legend.textStyle.color = processColor(
-          option.legend.textStyle.color,
-        );
-      }
-
-      if (option.series && Array.isArray(option.series)) {
-        option.series = processSeriesColors(option.series);
-
-        // Calculate the size of the largest series which we use for later calculations.
-        let largestSeriesCount = 0;
-        option.series.forEach((series) => {
-          if (series.data && Array.isArray(series.data)) {
-            const itemCount = series.data.length;
-            largestSeriesCount = Math.max(largestSeriesCount, itemCount);
-          }
-        });
-
-        if (largestSeriesCount > 0) {
-          this.el.setAttribute("data-largest-series-count", largestSeriesCount);
-        }
-      }
-
-      const formatterPaths = ["xAxis.axisLabel", "yAxis.axisLabel"];
-      formatterPaths.forEach((path) => {
-        const parts = path.split(".");
-
-        const parent = parts.reduce((obj, part) => obj && obj[part], option);
-
-        if (
-          parent &&
-          parent.formatter &&
-          typeof parent.formatter === "string" &&
-          parent.formatter.startsWith("fn:")
-        ) {
-          const functionName = parent.formatter.substring(3);
-          if (functionName in formatters) {
-            parent.formatter = formatters[functionName](this.el);
-          } else if (
-            window.nooraChartFormatters &&
-            functionName in window.nooraChartFormatters
-          ) {
-            parent.formatter = window.nooraChartFormatters[functionName](
-              this.el,
-            );
-          }
-        }
-      });
     } catch (err) {
       console.error("Failed to parse ECharts options:", err);
+      return {};
     }
-    if (option.yAxis.splitLine.lineStyle.color) {
-      option.yAxis.splitLine.lineStyle.color = processColor(
-        option.yAxis.splitLine.lineStyle.color,
-      );
-    }
-    if (option.yAxis.axisLabel.color) {
-      option.yAxis.axisLabel.color = processColor(option.yAxis.axisLabel.color);
-    }
-    if (option.xAxis.axisLabel.color) {
-      option.xAxis.axisLabel.color = processColor(option.xAxis.axisLabel.color);
-    }
-    return option;
   },
 };
 
 // Private helper functions
 
 // Theme
-function getTheme(option) {
+export function getNooraChartTheme(option) {
   return {
     color: colors(option),
     tooltip: {
@@ -277,6 +225,79 @@ function getTheme(option) {
       },
     },
   };
+}
+
+export function prepareChartOptions(input, element) {
+  const option = cloneChartValue(input);
+
+  if (option.legend?.textStyle?.color) {
+    option.legend.textStyle.color = processColor(option.legend.textStyle.color);
+  }
+
+  if (Array.isArray(option.series)) {
+    option.series = processSeriesColors(option.series);
+
+    const largestSeriesCount = option.series.reduce(
+      (largestCount, series) =>
+        Array.isArray(series.data)
+          ? Math.max(largestCount, series.data.length)
+          : largestCount,
+      0,
+    );
+
+    if (largestSeriesCount > 0) {
+      element?.setAttribute("data-largest-series-count", largestSeriesCount);
+    }
+  }
+
+  for (const path of ["xAxis.axisLabel", "yAxis.axisLabel"]) {
+    const parent = path
+      .split(".")
+      .reduce((object, part) => object?.[part], option);
+
+    if (
+      typeof parent?.formatter === "string" &&
+      parent.formatter.startsWith("fn:")
+    ) {
+      const functionName = parent.formatter.substring(3);
+      if (functionName in formatters) {
+        parent.formatter = formatters[functionName](element);
+      } else if (
+        window.nooraChartFormatters &&
+        functionName in window.nooraChartFormatters
+      ) {
+        parent.formatter = window.nooraChartFormatters[functionName](element);
+      }
+    }
+  }
+
+  if (option.yAxis?.splitLine?.lineStyle?.color) {
+    option.yAxis.splitLine.lineStyle.color = processColor(
+      option.yAxis.splitLine.lineStyle.color,
+    );
+  }
+  if (option.yAxis?.axisLabel?.color) {
+    option.yAxis.axisLabel.color = processColor(option.yAxis.axisLabel.color);
+  }
+  if (option.xAxis?.axisLabel?.color) {
+    option.xAxis.axisLabel.color = processColor(option.xAxis.axisLabel.color);
+  }
+
+  return option;
+}
+
+function cloneChartValue(value) {
+  if (Array.isArray(value)) return value.map(cloneChartValue);
+  if (
+    value &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, cloneChartValue(item)]),
+    );
+  }
+  return value;
 }
 
 function processColor(color) {
@@ -310,8 +331,15 @@ function resolveLightDark(string) {
 }
 
 function colors(option) {
-  if (!option.colors || !Array.isArray(option.colors)) return [];
-  return option.colors.map(processColor);
+  const chartColors = Array.isArray(option.colors)
+    ? option.colors
+    : [
+        "var:noora-chart-primary",
+        "var:noora-chart-secondary",
+        "var:noora-chart-tertiary",
+        "var:noora-chart-quaternary",
+      ];
+  return chartColors.map(processColor);
 }
 
 function processSeriesColors(series) {

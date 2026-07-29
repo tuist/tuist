@@ -585,6 +585,11 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                 case linker
             }
 
+            public enum WarningLevel: String, Codable, Hashable {
+                case warning
+                case error
+            }
+
             /// The name of the build setting.
             public enum SettingName: String, Codable, Hashable {
                 case swiftLanguageMode
@@ -599,6 +604,9 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                 case defaultIsolation
                 case strictMemorySafety
                 case disableWarning
+                case treatAllWarnings
+                case treatWarning
+                case enableWarning
             }
 
             /// An individual build setting.
@@ -652,6 +660,9 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                     case defaultIsolation(String)
                     case strictMemorySafety(String?)
                     case disableWarning(String)
+                    case treatAllWarnings(WarningLevel)
+                    case treatWarning(String, WarningLevel)
+                    case enableWarning(String)
                 }
 
                 enum SettingDecodingError: LocalizedError {
@@ -716,6 +727,15 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                         case let .disableWarning(value):
                             name = .disableWarning
                             self.value = [value]
+                        case let .treatAllWarnings(level):
+                            name = .treatAllWarnings
+                            value = [level.rawValue]
+                        case let .treatWarning(warningName, level):
+                            name = .treatWarning
+                            value = [warningName, level.rawValue]
+                        case let .enableWarning(value):
+                            name = .enableWarning
+                            self.value = [value]
                         }
                     } else {
                         // Legacy format - try to decode name
@@ -764,6 +784,12 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                         try container.encode(Kind.strictMemorySafety(value.first), forKey: .kind)
                     case .disableWarning:
                         try container.encode(Kind.disableWarning(value.first!), forKey: .kind)
+                    case .treatAllWarnings:
+                        try container.encode(Kind.treatAllWarnings(WarningLevel(rawValue: value.first!)!), forKey: .kind)
+                    case .treatWarning:
+                        try container.encode(Kind.treatWarning(value[0], WarningLevel(rawValue: value[1])!), forKey: .kind)
+                    case .enableWarning:
+                        try container.encode(Kind.enableWarning(value.first!), forKey: .kind)
                     }
                 }
             }

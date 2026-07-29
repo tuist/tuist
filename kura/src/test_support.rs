@@ -9,14 +9,17 @@ use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
-    config::Config,
+    bandwidth::BandwidthLimiter,
+    config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
     extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
+    peer_tls::PeerClientFactory,
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState},
     store::Store,
+    usage::Usage,
 };
 
 pub(crate) struct TestContext {
@@ -41,25 +44,35 @@ where
     let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
     let mut config = Config {
         port: 0,
-        grpc_port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
         region: "local".into(),
         tmp_dir: temp_dir.path().join("tmp"),
         data_dir: temp_dir.path().join("data"),
+        tmp_dir_max_bytes: 8 * 1024 * 1024 * 1024,
+        cas_capacity_bytes: None,
         node_url: "http://127.0.0.1:7443".into(),
+        peer_gateway_url: None,
         peers: vec!["http://127.0.0.1:7443".into()],
         discovery_dns_name: None,
+        global_discovery_dns_name: None,
         peer_tls: None,
-        grpc_tls: None,
         public_tls: None,
         https_port: 0,
+        accelerated_file_serving: AcceleratedFileServingConfig {
+            enabled: true,
+            mode: AcceleratedFileServingMode::Splice,
+            max_concurrent: 32,
+            chunk_bytes: 1024 * 1024,
+        },
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
         segment_handle_cache_size: 8,
+        memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
+        snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,
         rocksdb_max_open_files: 256,
@@ -69,11 +82,16 @@ where
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
         outbox_max_depth: 100_000,
+        replication_bandwidth_limit_bytes_per_second: 0,
+        replication_public_latency_target_ms: 100,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
+        multipart_max_active_uploads: 128,
+        multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
         analytics: None,
+        usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
@@ -84,7 +102,14 @@ where
     };
     override_config(&mut config);
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
+        .await
+        .expect("failed to create test data directory");
+
+    let data_dir_lock =
+        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+    config
+        .ensure_directories(&data_dir_lock)
         .await
         .expect("failed to create test directories");
 
@@ -96,38 +121,73 @@ where
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )
     .expect("failed to create test io controller");
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_runtime_limit(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
-    let data_dir_lock =
-        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let local_data_available_at_join = store
+        .has_artifacts()
+        .expect("failed to inspect local test artifacts");
+    let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
+        .expect("failed to build test usage");
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
+    let runtime = RuntimeState::new();
+    let replication_bandwidth_limiter = BandwidthLimiter::new(
+        config.replication_bandwidth_limit_bytes_per_second,
+        config.replication_public_latency_target_ms,
+        runtime.clone(),
+    )
+    .map(Arc::new);
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.bootstrap_staging_budget_bytes()),
+    );
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
+        snapshot_cache,
         metrics,
-        runtime: RuntimeState::new(),
+        runtime,
         extension,
         analytics,
+        usage,
         geoip: None,
-        client,
+        client: arc_swap::ArcSwap::from_pointee(client),
+        peer_client_factory: PeerClientFactory::plain(),
+        internal_tls: None,
+        dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
+        tmp_staging_budget,
+        bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
 

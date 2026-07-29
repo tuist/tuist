@@ -93,6 +93,26 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts a reliability_rate alert with percent threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "reliability_rate",
+            "trigger_config" => %{
+              "threshold" => 90,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "lt"
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "rejects an unknown comparison" do
       project = ProjectsFixtures.project_fixture()
 
@@ -151,7 +171,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "trigger_config" => %{
               "threshold" => 10,
               "window_type" => "rolling",
-              "rolling_window_size" => 100
+              "rolling_window_size" => 75
             }
           })
         )
@@ -203,13 +223,64 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "trigger_config" => %{
               "threshold" => 10,
               "window_type" => "rolling",
-              "rolling_window_size" => 1_000_000
+              "rolling_window_size" => 76
             }
           })
         )
 
       refute changeset.valid?
-      assert errors_on(changeset).trigger_config
+      assert "rolling_window_size must be at most 75" in errors_on(changeset).trigger_config
+    end
+
+    test "allows an existing alert with a legacy rolling window to be disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        %Alert{id: UUIDv7.generate(), enabled: true}
+        |> Alert.changeset(
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 75
+            }
+          })
+        )
+        |> Ecto.Changeset.apply_changes()
+        |> Map.put(:trigger_config, %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        })
+
+      assert Alert.changeset(alert, %{enabled: false}).valid?
+    end
+
+    test "validates other edits to an existing alert with a legacy rolling window" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        %Alert{id: UUIDv7.generate(), enabled: true}
+        |> Alert.changeset(
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 75
+            }
+          })
+        )
+        |> Ecto.Changeset.apply_changes()
+        |> Map.put(:trigger_config, %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        })
+
+      changeset = Alert.changeset(alert, %{enabled: false, name: "Changed while disabling"})
+
+      refute changeset.valid?
+      assert "rolling_window_size must be at most 75" in errors_on(changeset).trigger_config
     end
 
     test "rejects rolling window_type with non-positive rolling_window_size" do
@@ -399,6 +470,22 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "keeps the larger rolling window cap for recovery" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 500},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "skips recovery validation when recovery is disabled" do
       project = ProjectsFixtures.project_fixture()
 
@@ -412,6 +499,68 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         )
 
       assert changeset.valid?
+    end
+  end
+
+  describe "cadence validation" do
+    test "converts cadence values to seconds" do
+      assert Alert.cadence_seconds("30s") == 30
+      assert Alert.cadence_seconds("5m") == 300
+      assert Alert.cadence_seconds("1h") == 3600
+      assert Alert.cadence_seconds("invalid") == 300
+    end
+
+    test "accepts cadences at or under one hour" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["30s", "5m", "60m", "1h"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        assert changeset.valid?, "expected #{cadence} to be valid"
+      end
+    end
+
+    test "rejects cadences over one hour" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["90m", "2h", "24h"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        refute changeset.valid?, "expected #{cadence} to be rejected"
+        assert errors_on(changeset).cadence
+      end
+    end
+
+    test "rejects malformed cadences" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["abc", "5", "5d"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        refute changeset.valid?, "expected #{inspect(cadence)} to be rejected"
+        assert errors_on(changeset).cadence
+      end
+    end
+  end
+
+  describe "scoped_evaluation?/1" do
+    test "returns true only for established rolling metric alerts" do
+      established_at = DateTime.utc_now()
+
+      assert Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "last_days"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: nil
+             })
     end
   end
 
@@ -606,6 +755,27 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
       {:error, changeset_with_error} = Repo.insert(changeset)
       assert "does not exist" in errors_on(changeset_with_error).project_id
+    end
+  end
+
+  describe "event_driven?/1 and recovery_ledger?/1" do
+    test "test_updated is event-driven and not part of the recovery ledger" do
+      assert Alert.event_driven?("test_updated")
+      assert Alert.event_driven?(%Alert{monitor_type: "test_updated"})
+      refute Alert.recovery_ledger?("test_updated")
+    end
+
+    test "metric monitors drive the recovery ledger and are not event-driven" do
+      for monitor_type <- ~w(flakiness_rate flaky_run_count reliability_rate) do
+        assert Alert.recovery_ledger?(monitor_type)
+        assert Alert.recovery_ledger?(%Alert{monitor_type: monitor_type})
+        refute Alert.event_driven?(monitor_type)
+      end
+    end
+
+    test "unknown monitor types are neither event-driven nor recovery-ledger" do
+      refute Alert.event_driven?("legacy_unknown")
+      refute Alert.recovery_ledger?("legacy_unknown")
     end
   end
 end

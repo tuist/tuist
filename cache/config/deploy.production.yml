@@ -17,5 +17,5 @@ env:
     SERVER_URL: https://tuist.dev
     SENTRY_ENV: prod
     DEPLOY_ENV: prod
+    XCODE_DATABASE_INTERACTIONS_ENABLED: "false"
     POOL_SIZE: "10"
-

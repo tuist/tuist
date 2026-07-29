@@ -99,16 +99,61 @@ spec:
                   type: integer
                   default: 14336
                   description: Pod memory request matching the host's capacity minus substrate overhead.
+                idleTimeoutSeconds:
+                  type: integer
+                  description: |
+                    Bounds how long a runner that registered with GitHub but
+                    has not been handed a job stays alive. The runner image's
+                    watchdog terminates it once this many seconds elapse
+                    without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker; a runner
+                    executing a job has written the marker and is never
+                    terminated. 0 / absent disables the watchdog.
+
+                    The bound is necessary because GitHub assigns a queued job
+                    to any label-eligible runner, so a runner whose job landed
+                    on a sibling otherwise waits indefinitely, holding
+                    warm-pool capacity that reads as busy (the Pod's owner
+                    label is stamped at claim, not at execution). It bounds
+                    only the post-claim window between registering and being
+                    handed work; a Pod still polling for a claim is
+                    unaffected.
                 runtimeClass:
                   type: string
                   description: |
-                    Optional `Pod.spec.runtimeClassName`. When set, Pods route
-                    through the named RuntimeClass instead of the cluster
-                    default. The chart's `kata-qemu` RuntimeClass runs each
-                    Pod as a Kata Containers + QEMU microVM (per-tenant
-                    kernel, real isolation). Empty keeps the default runtime
-                    (runc on containerd), which is fine for macOS pools and
-                    single-tenant bare-metal Linux pools during bring-up.
+                    Optional `Pod.spec.runtimeClassName`. The chart's
+                    `kata-qemu` RuntimeClass wraps each Pod in a microVM
+                    with its own kernel — required on Linux pools because
+                    the controller attaches a privileged docker:dind
+                    sidecar to every Linux runner Pod. The microVM keeps
+                    the sidecar's privileged surface off the bare-metal
+                    host.
+                provisioning:
+                  type: object
+                  description: |
+                    Linux Kata sandbox admission controls. Sibling pools that
+                    share `(os, fleetSelector)` also share one provisioning
+                    budget. The controller uses the lowest sibling maximum so
+                    one mismatched pool cannot weaken the fleet safety limit.
+                    Ignored for macOS pools.
+                  properties:
+                    maxConcurrentPerFleetSelector:
+                      type: integer
+                      default: 4
+                      minimum: 1
+                      description: |
+                        Maximum Linux runner Pods across the shared fleet that
+                        may be waiting for their dispatch poller to start.
+                        Excess replica demand remains uncreated and is retried
+                        as existing sandboxes become ready.
+                    startTimeoutSeconds:
+                      type: integer
+                      default: 300
+                      minimum: 0
+                      description: |
+                        Maximum time a Linux runner Pod that is already bound
+                        to a node may wait for its dispatch poller to start.
+                        Timed-out Pods are reaped. Unscheduled Pods are not
+                        timed out. 0 disables the timeout.
                 autoscaling:
                   type: object
                   description: |
@@ -131,10 +176,17 @@ spec:
                       default: 1
                       minimum: 0
                       description: |
-                        Lower bound for the warm pool size. The server-side
-                        rolling p95 of concurrent claims over the last hour
-                        can lift the effective floor higher; this value
-                        only floors it, never caps it.
+                        Preferred lower bound (target) for the warm pool
+                        size. The server-side rolling p95 of concurrent
+                        claims over the last hour can lift the effective
+                        target higher. Not a hard floor: in a shared Linux
+                        fleet (multiple shape pools bin-packing on one
+                        bare-metal node pool), the allocator can squeeze an
+                        idle pool's desired below this value under memory
+                        contention to admit another shape's real queued
+                        work. macOS and uncontended pools honor it as a
+                        floor; real load (claimed + queued) is always funded
+                        above it.
                     maxReplicas:
                       type: integer
                       default: 0
@@ -152,6 +204,26 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                rollout:
+                  type: object
+                  description: |
+                    Optional Pod-template rollout throttle. The controller
+                    bounds unavailable serving capacity while replacing Pods
+                    with a stale image or RuntimeClass revision, and retires
+                    more stale Pods only as current-template Pods become warm.
+                    Absent block means the built-in default (5%, minimum 1).
+                  properties:
+                    maxConcurrentPercent:
+                      type: integer
+                      default: 5
+                      minimum: 1
+                      maximum: 100
+                      description: |
+                        Max share of the pool that may be mid-roll at once, as
+                        a percentage of `spec.replicas`, floored, with a hard
+                        minimum of 1 so a rollout always makes progress. Lower
+                        keeps more of the warm pool serving during a roll at
+                        the cost of a slower rollout.
             status:
               type: object
               properties:

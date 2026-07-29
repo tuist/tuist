@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.AccountTokenProjectTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.AccountTokenProject
   alias TuistTestSupport.Fixtures.AccountsFixtures

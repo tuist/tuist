@@ -7,7 +7,7 @@ defmodule Tuist.Builds.CASOutput do
 
   @derive {
     Flop.Schema,
-    filterable: [:build_run_id, :node_id, :operation, :size, :compressed_size, :type],
+    filterable: [:project_id, :build_run_id, :node_id, :operation, :size, :compressed_size, :type],
     sortable: [:node_id, :size, :compressed_size]
   }
 
@@ -81,14 +81,20 @@ defmodule Tuist.Builds.CASOutput do
 
     field :type, Ch, type: "LowCardinality(String)"
 
+    field :project_id, Ch, type: "Int64"
     field :build_run_id, Ch, type: "UUID"
     field :inserted_at, Ch, type: "DateTime"
   end
 
   def changeset(build_run_id, attrs) do
+    changeset(build_run_id, Map.get(attrs, :project_id), attrs)
+  end
+
+  def changeset(build_run_id, project_id, attrs) do
     %__MODULE__{}
     |> Ecto.Changeset.cast(
       %{
+        project_id: project_id,
         build_run_id: build_run_id,
         node_id: attrs[:node_id],
         checksum: attrs[:checksum],
@@ -99,9 +105,21 @@ defmodule Tuist.Builds.CASOutput do
         type: (attrs[:type] && to_string(attrs[:type])) || "unknown",
         inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
       },
-      [:build_run_id, :node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :inserted_at]
+      [
+        :project_id,
+        :build_run_id,
+        :node_id,
+        :checksum,
+        :size,
+        :duration,
+        :compressed_size,
+        :operation,
+        :type,
+        :inserted_at
+      ]
     )
     |> Ecto.Changeset.validate_required([
+      :project_id,
       :build_run_id,
       :node_id,
       :checksum,

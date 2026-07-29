@@ -29,12 +29,12 @@ defmodule Tuist.Marketing.OpenGraph do
     {:ok, background} = Image.open(template_path)
 
     # Text configuration
-    # Color oklch(21.5% 0.006 236.9) - converted to RGB [46, 48, 57]
+    # Color oklch(21.7% 0.002 247.941) - converted to RGB [25, 26, 27]
     text_options = [
       font: "Inter Variable",
       font_weight: 500,
       font_size: 100,
-      text_fill_color: [46, 48, 57]
+      text_fill_color: [25, 26, 27]
     ]
 
     # Create and composite text overlays
@@ -71,7 +71,7 @@ defmodule Tuist.Marketing.OpenGraph do
       end
 
     # Save as JPEG with high quality and proper color space
-    Image.write!(image, final_path, quality: 95, strip_metadata: false)
+    Image.write!(image, final_path, write_options(final_path))
   end
 
   defp apply_locale_to_path(path, nil), do: path
@@ -81,6 +81,16 @@ defmodule Tuist.Marketing.OpenGraph do
     dirname = Path.dirname(path)
     basename = Path.basename(path)
     Path.join([dirname, locale, basename])
+  end
+
+  defp write_options(path) do
+    options = [quality: 95, strip_metadata: false]
+
+    if Path.extname(path) == "" do
+      Keyword.put(options, :suffix, ".jpg")
+    else
+      options
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

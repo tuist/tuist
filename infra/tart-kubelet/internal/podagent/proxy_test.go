@@ -325,3 +325,56 @@ func itoa(n int) string {
 	}
 	return string(digits)
 }
+
+func TestDirectlyConnectedInterfaceIndex_Loopback(t *testing.T) {
+	lo, err := net.InterfaceByName(loopbackName())
+	if err != nil {
+		t.Skipf("no loopback interface: %v", err)
+	}
+
+	idx, ok := directlyConnectedInterfaceIndex(net.ParseIP("127.0.0.1"))
+	if !ok {
+		t.Fatal("expected loopback to own a directly-connected route to 127.0.0.1")
+	}
+	if idx != lo.Index {
+		t.Fatalf("interface index = %d, want loopback index %d", idx, lo.Index)
+	}
+}
+
+func TestDirectlyConnectedInterfaceIndex_NoMatch(t *testing.T) {
+	// 192.0.2.0/24 is TEST-NET-1 (RFC 5737) — guaranteed not bound to
+	// any real interface, so the dialer leaves routing to the kernel.
+	if _, ok := directlyConnectedInterfaceIndex(net.ParseIP("192.0.2.1")); ok {
+		t.Fatal("did not expect a directly-connected interface for TEST-NET-1")
+	}
+}
+
+func TestBindDialToTargetInterface_NonIPTargetIsNoop(t *testing.T) {
+	// A hostname target (no IP literal) must not error; the forwarder's
+	// resolver always hands the proxy an IP, but the hook should degrade
+	// gracefully rather than fail the dial.
+	if err := bindDialToTargetInterface("tcp", "example.com:9091", nopRawConn{}); err != nil {
+		t.Fatalf("expected no error for non-IP target, got %v", err)
+	}
+}
+
+// nopRawConn satisfies syscall.RawConn for the no-op path, where
+// bindDialToTargetInterface returns before touching the socket.
+type nopRawConn struct{}
+
+func (nopRawConn) Control(func(uintptr)) error    { return nil }
+func (nopRawConn) Read(func(uintptr) bool) error  { return nil }
+func (nopRawConn) Write(func(uintptr) bool) error { return nil }
+
+func loopbackName() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "lo0"
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 {
+			return iface.Name
+		}
+	}
+	return "lo0"
+}

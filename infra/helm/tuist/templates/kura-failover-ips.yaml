@@ -1,0 +1,25 @@
+{{- /*
+One FailoverIP per configured region peer IP. The CAPI provider keeps each IP
+routed to a healthy box of the region's pool, draining it off a box whose peer
+demux is rolling. Parked (renders nothing) until an operator adds an entry to
+server.kuraPeerFailoverIps with the ordered IP.
+*/ -}}
+{{- range .Values.server.kuraPeerFailoverIps }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: FailoverIP
+metadata:
+  name: kura-peer-{{ .region }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+spec:
+  ip: {{ .ip | quote }}
+  vendor: {{ .vendor | quote }}
+  region: {{ .region | quote }}
+  nodePoolSelector:
+    node.cluster.x-k8s.io/pool: {{ .pool | quote }}
+  demuxSelector:
+    app.kubernetes.io/component: peer-demux
+    app.kubernetes.io/instance: {{ .region | quote }}
+  demuxNamespace: {{ .demuxNamespace | default "kura" | quote }}
+{{- end }}

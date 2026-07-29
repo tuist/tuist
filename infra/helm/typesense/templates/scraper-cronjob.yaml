@@ -1,0 +1,75 @@
+{{- if .Values.scraper.enabled }}
+{{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
+{{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
+{{- $env := list
+      (dict "name" "TYPESENSE_HOST" "value" (include "typesense.fullname" .))
+      (dict "name" "TYPESENSE_PORT" "value" (printf "%v" .Values.service.port))
+      (dict "name" "TYPESENSE_PROTOCOL" "value" "http") -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "typesense.fullname" . }}-scraper
+  labels:
+    {{- include "typesense.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-scraper
+spec:
+  schedule: {{ .Values.scraper.schedule | quote }}
+  concurrencyPolicy: {{ .Values.scraper.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.scraper.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "typesense.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: search-scraper
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "typesense.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+          {{- include "typesense.podScheduling" . | nindent 10 }}
+          {{- with $nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # The scraper image runs one config per invocation, so the docs crawl
+          # runs to completion as an init container before the forum crawl.
+          initContainers:
+            - name: scrape-docs
+              image: {{ .Values.scraper.image | quote }}
+              env:
+                {{- toYaml $env | nindent 16 }}
+                - name: TYPESENSE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "typesense.runtimeSecretName" . }}
+                      key: TYPESENSE_API_KEY
+                - name: CONFIG
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ .Values.scraper.configMapName }}
+                      key: docsearch.json
+              resources:
+                {{- toYaml .Values.scraper.resources | nindent 16 }}
+          containers:
+            - name: scrape-forum
+              image: {{ .Values.scraper.image | quote }}
+              env:
+                {{- toYaml $env | nindent 16 }}
+                - name: TYPESENSE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "typesense.runtimeSecretName" . }}
+                      key: TYPESENSE_API_KEY
+                - name: CONFIG
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ .Values.scraper.configMapName }}
+                      key: docsearch-forum.json
+              resources:
+                {{- toYaml .Values.scraper.resources | nindent 16 }}
+{{- end }}

@@ -84,6 +84,13 @@ struct XCActivityLogParserTests {
         #expect(result.issues.contains { $0.type == "error" })
     }
 
+    @Test func xcode27FailedBuild_toleratesEndedStatusToken() async throws {
+        let result = try await parseFixture("xcode_27_failed_build")
+
+        #expect(result.status == "failure")
+        #expect(result.error_count > 0)
+    }
+
     // MARK: - Build With Warnings
 
     @Test func buildWithWarning_parsesWarnings() async throws {

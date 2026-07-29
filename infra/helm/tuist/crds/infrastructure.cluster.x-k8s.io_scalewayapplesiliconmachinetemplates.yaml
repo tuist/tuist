@@ -61,11 +61,11 @@ spec:
                         adoptPoolPrefix:
                           description: |-
                             AdoptPoolPrefix is the Scaleway-side name prefix the controller
-                            scans when claiming a Mac mini for this Machine. Required: the
-                            controller has no auto-order path. Operators pre-order capacity
-                            in the Scaleway console because Mac mini inventory is frequently
-                            out of stock and Apple's 24h licensing floor makes speculative
-                            ordering expensive.
+                            scans when claiming a Mac mini for this Machine. Required:
+                            the controller has no auto-order path. Operators pre-order
+                            capacity in the Scaleway console because Mac mini inventory is
+                            frequently out of stock and Apple's 24h licensing floor makes
+                            speculative ordering expensive.
 
                             Operator workflow:
 
@@ -82,6 +82,15 @@ spec:
 
                             When no compatible pre-ordered host is available, reconcile
                             requeues with a `NoAvailableHost` event.
+
+                            Delete semantics: on Machine deletion the controller renames
+                            the host back into the pool namespace (with a fresh UUID
+                            suffix) and triggers a Scaleway OS reinstall, then drops the
+                            k8s-side state. The host stays alive, is reset to factory-
+                            default state, and becomes eligible for the next AdoptFromPool
+                            scan once Scaleway flips it back to `Delivered + Ready`.
+                            Physical destruction is operator-owned via the Scaleway
+                            console so the 24h billing floor doesn't leak into deploy flows.
                           minLength: 1
                           type: string
                         fleetName:
@@ -102,26 +111,9 @@ spec:
                             `tuist.dev/role=builder:NoSchedule` taint so no Pods land on
                             them) and serve image-bake workflow jobs that run Packer
                             directly against the host's Tart daemon. Independent of
-                            tart-kubelet — both can run on the same host without
+                            tart-kubelet; both can run on the same host without
                             interference because no Pods are ever scheduled.
                           properties:
-                            ghOrg:
-                              default: tuist
-                              description: |-
-                                GHOrg is the GitHub organization to register the Actions
-                                runner against. Org-scope so any repo in the org can use the
-                                runner without per-repo registration.
-                              type: string
-                            ghRunnerLabels:
-                              default: self-hosted,macos,bare-metal,vm-image-builder
-                              description: |-
-                                GHRunnerLabels is the comma-separated label set the runner
-                                advertises to GitHub. Must include every label the workflows
-                                that schedule onto this fleet pin in `runs-on:` (today
-                                runner-image.yml and xcresult-processor-image.yml both pin
-                                `[self-hosted, macos, bare-metal, vm-image-builder]`). Drift
-                                here makes the host invisible to the GitHub scheduler.
-                              type: string
                             ghAppSecretName:
                               description: |-
                                 GHAppSecretName is the name of a Secret in the same namespace
@@ -139,6 +131,23 @@ spec:
                                 Once a host has registered, its agent stores its own long-
                                 lived auth token locally and the Secret isn't consulted
                                 again for that host.
+                              type: string
+                            ghOrg:
+                              default: tuist
+                              description: |-
+                                GHOrg is the GitHub organization to register the Actions
+                                runner against. Org-scope so any repo in the org can use the
+                                runner without per-repo registration.
+                              type: string
+                            ghRunnerLabels:
+                              default: self-hosted,macos,bare-metal,vm-image-builder
+                              description: |-
+                                GHRunnerLabels is the comma-separated label set the runner
+                                advertises to GitHub. Must include every label the workflows
+                                that schedule onto this fleet pin in `runs-on:` (today
+                                runner-image.yml and xcresult-processor-image.yml both pin
+                                `[self-hosted, macos, bare-metal, vm-image-builder]`). Drift
+                                here makes the host invisible to the GitHub scheduler.
                               type: string
                             ghRunnerVersion:
                               default: 2.334.0

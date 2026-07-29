@@ -1,5 +1,14 @@
 {{- if and .Values.capi.enabled .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+{{- /* The OVH reconciler serves the singular ovhFleet (ca-east) and every
+   ovhFleets map entry (us-east/us-west); wire its creds when ANY is enabled,
+   and take the endpoint from whichever is on (all our OVH boxes share one
+   account, so the endpoint is uniform). */ -}}
+{{- $ovhAny := .Values.ovhFleet.enabled -}}
+{{- $ovhEndpoint := .Values.ovhFleet.endpoint | default "ovh-eu" -}}
+{{- range $f := .Values.ovhFleets }}
+{{- if $f.enabled }}{{- $ovhAny = true -}}{{- $ovhEndpoint = $f.endpoint | default $ovhEndpoint -}}{{- end }}
+{{- end }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
 # minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
@@ -27,13 +36,27 @@ rules:
     resources:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
-      - scalewayapplesiliconclusters
+      - tuistclusters
+      - scalewayelasticmetalmachines
+      - scalewayelasticmetalmachinetemplates
+      - ovhdedicatedmachines
+      - ovhdedicatedmachinetemplates
+      - dediboxmachines
+      - dediboxmachinetemplates
+      - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
-      - scalewayapplesiliconclusters/status
+      - tuistclusters/status
+      - scalewayelasticmetalmachines/status
+      - scalewayelasticmetalmachines/finalizers
+      - ovhdedicatedmachines/status
+      - ovhdedicatedmachines/finalizers
+      - dediboxmachines/status
+      - dediboxmachines/finalizers
+      - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
@@ -54,7 +77,31 @@ rules:
     # host is released back to Scaleway (the kubelet can't deregister
     # itself once the VM is gone).
     resources: [nodes]
+    # `patch` lets the Instance reconciler stamp the foreign providerID
+    # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
+    verbs: [get, list, watch, patch, delete]
+  - apiGroups: [""]
+    # The Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
+    # budget as the node's tuist.dev/egress-mbps extended-resource capacity, which
+    # lives on the status subresource.
+    resources: [nodes/status]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    # On Machine (node) delete, the Linux reconcilers reap PVCs bound to
+    # node-local PVs pinned to the departing box's hostname so their
+    # StatefulSets reprovision fresh volumes on the replacement node. PVs are
+    # listed to find the ones pinned to the node; the orphaned PVCs are deleted
+    # (the runner cache they back is regenerable).
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
     verbs: [get, list, watch, delete]
+  - apiGroups: [""]
+    # The failover-IP controller reads peer-demux pod readiness to drain the IP
+    # off a box whose demux is rolling.
+    resources: [pods]
+    verbs: [get, list, watch]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
@@ -79,16 +126,17 @@ rules:
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["rbac.authorization.k8s.io"]
-    # `bind` verb on the specific tart-kubelet ClusterRole — k8s's
-    # privilege-escalation rule otherwise blocks the operator's SA
-    # from creating a ClusterRoleBinding to a Role whose permissions
-    # it doesn't hold itself (Pod read, Node create, etc.). The
-    # `bind` meta-verb is the documented escape hatch for exactly
-    # this controller-creates-binding pattern. Scoped to the one role
-    # by name so the operator can't bind itself to anything broader.
+    # `bind` verb on the two ClusterRoles the operator binds node identities to:
+    # the chart's tart-kubelet role (the macOS shim) and the built-in system:node
+    # (the Linux kura nodes). k8s's privilege-escalation rule otherwise blocks the
+    # operator's SA from creating a ClusterRoleBinding to a role whose permissions
+    # it doesn't hold itself (Pod read, Node create, ...). The `bind` meta-verb is
+    # the documented escape hatch for this controller-creates-binding pattern;
+    # scoped to these roles by name so it can't bind to anything broader.
     resources: [clusterroles]
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+      - system:node
     verbs: [bind]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
@@ -190,6 +238,45 @@ subjects:
     namespace: {{ .Release.Namespace }}
 {{- end }}
 ---
+# Namespaced Role granting the operator's SA read on the single
+# kube-system/kube-dns Service. The Linux self-join reads its
+# ClusterIP (discoverClusterDNS) to set the kubelet's clusterDNS, so
+# cache pods resolve in-cluster DNS for the peer mesh. Scoped to
+# kube-system as a Role rather than a ClusterRole with
+# resourceNames (which would match a kube-dns Service in any
+# namespace); read via the uncached APIReader since the manager's
+# Services cache is scoped to the egress namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kube-dns]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-cluster-dns
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -228,6 +315,15 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # Scrape the operator's controller-runtime + custom metrics
+        # (capt_scaleway_applesilicon_machine_phase) into Grafana Cloud via
+        # the k8s-monitoring chart's annotation autodiscovery. Without this
+        # the :8080 endpoint is served but never scraped, so the
+        # machine-stuck-Failed alert has no metric to fire on.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
     spec:
@@ -248,6 +344,26 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- with .Values.macosFleet.runnerCacheVolume }}
+            {{- if .gib }}
+            # Per-account cache volumes: bootstrap provisions a
+            # quota-bounded APFS volume of this many GiB on each Mac mini
+            # (the aggregate ceiling that keeps cache volumes from ever
+            # starving the VM image path) and turns the feature on in
+            # tart-kubelet. Operator-wide, like the other fleet flags;
+            # 0/unset leaves the feature off and every VM boots cold.
+            - --runner-cache-volume-gib={{ .gib }}
+            {{- with .masterCapGib }}
+            - --cache-volume-master-cap-gib={{ . }}
+            {{- end }}
+            {{- with .casGib }}
+            # Folded Xcode compilation-cache (CAS) budget within each
+            # per-account cache image. 0/unset keeps the compilation cache
+            # VM-local; the binary cache is unaffected.
+            - --cache-volume-cas-gib={{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
             # baked into the operator image at the Dockerfile-pinned
@@ -272,6 +388,47 @@ spec:
             # infra/tailscale/acls.json's tagOwners block.
             - --tailscale-tags={{ join "," . }}
             {{- end }}
+            {{- if .Values.macosFleet.tailscale.acceptRoutes }}
+            # Install the subnet routes this env's cluster-side
+            # Connector advertises into the tailnet (the cluster's
+            # Service CIDR — see infra/helm/tailscale-operator's
+            # per-env values). Host routes are VM routes (vmnet NATs
+            # VM egress through the host routing table), so this is
+            # the route half of the macOS runner-cache path; the
+            # firewall carve-out below is the policy half.
+            - --tailscale-accept-routes=true
+            {{- end }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
+            # Punch the runner-cache carve-out through the VM egress
+            # firewall: Tart VMs may reach the cluster's Service CIDR
+            # on the Kura cache port (4000, co-hosted HTTP + gRPC),
+            # mirroring the Linux runner namespace's NetworkPolicy
+            # egress rule. Source of truth for the CIDR:
+            # infra/k8s/clusters/cluster-<env>.yaml
+            # (.spec.clusterNetwork.services).
+            - --vm-kura-egress-cidr={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.clusterDNSIP }}
+            # kube-dns ClusterIP, additionally reachable on :53 so the
+            # runner VM's /etc/resolver entry resolves
+            # `*.svc.cluster.local`. Verify with
+            # `kubectl -n kube-system get svc kube-dns`.
+            - --vm-cluster-dns-ip={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.name }}
+            # Name of the Scaleway Private Network carrying the kura
+            # runner-cache NodePort endpoints — the same name the kura
+            # fleet attaches to, so the minis and the Elastic Metal
+            # cache node share one PN per env. The operator resolves it
+            # to an ID, attaches every mini, resolves the per-host VLAN,
+            # and bootstrap materializes the VLAN interface + VM egress
+            # pass + NAT — the data plane dispatch's node-port
+            # cache_endpoint_url rides.
+            - --vm-cache-pn-name={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
+            - --vm-cache-pn-cidr={{ . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
@@ -293,6 +450,19 @@ spec:
             - --tailscale-egress-proxy-group={{ .Values.macosFleet.tailscaleEgress.proxyGroup }}
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+            {{- end }}
+            {{- if .Values.macosFleet.adoptPoolPrefix }}
+            # Orphan-reclaim sweep + delete-path pool-prefix fallback.
+            # Pool prefix and swept zones are derived from the fleet
+            # config (the sweep also unions in every live CR's zone at
+            # runtime); the claimed-name prefix is the chart name. The
+            # sweep is report-only unless orphanReclaim.activeReclaim is
+            # set. See controllers/orphan_reclaimer.go.
+            - --default-adopt-pool-prefix={{ .Values.macosFleet.adoptPoolPrefix }}
+            - --orphan-reclaim-zones={{ list (.Values.macosFleet.machine.zone | default "fr-par-1") (.Values.runnersFleet.machine.zone | default "fr-par-1") (.Values.buildersFleet.machine.zone | default "fr-par-1") | uniq | join "," }}
+            {{- if .Values.macosFleet.orphanReclaim.activeReclaim }}
+            - --orphan-reclaim-claim-name-prefix={{ include "tuist.fullname" . }}-
+            {{- end }}
             {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
@@ -316,6 +486,46 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
+            {{- if .Values.dediboxFleet.enabled }}
+            # Dedibox uses a SEPARATE default-project Scaleway IAM key (every
+            # Dedibox in the org lives in the default project, so this one key
+            # serves all envs and the per-fleet tag does the scoping). The
+            # reconciler sends secret-key as X-Auth-Token over raw HTTP. Its
+            # presence also gates the reconciler on (cmd/manager/main.go).
+            - name: DEDIBOX_SCW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: secret-key
+            - name: DEDIBOX_SCW_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: project-id
+            {{- end }}
+            {{- if $ovhAny }}
+            # OVH dedicated-server reconciler creds. The OVH SDK reads these from
+            # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the
+            # rest sync from the OVH_API item. OVH_APPLICATION_KEY's presence also
+            # gates the reconciler on (cmd/manager/main.go).
+            - name: OVH_ENDPOINT
+              value: {{ $ovhEndpoint | quote }}
+            - name: OVH_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-key
+            - name: OVH_APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-secret
+            - name: OVH_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: consumer-key
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

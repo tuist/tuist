@@ -16,9 +16,11 @@ import TuistTesting
 
 public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let fixtureDirectory: AbsolutePath
+    let accountHandle: String?
 
-    init(fixture: String, fixturesDirectory: AbsolutePath = Fixtures.directory) {
+    init(fixture: String, fixturesDirectory: AbsolutePath = Fixtures.directory, accountHandle: String? = nil) {
         fixtureDirectory = fixturesDirectory.appending(component: fixture)
+        self.accountHandle = accountHandle
     }
 
     public func provideScope(
@@ -27,9 +29,10 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         performing function: @Sendable () async throws -> Void
     ) async throws {
         let fileSystem = FileSystem()
-        let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
+        let fixtureAccountHandle = accountHandle ?? String(UUID().uuidString.prefix(12).lowercased())
         let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-        let fullHandle = "\(organizationHandle)/\(projectHandle)"
+        let fullHandle = "\(fixtureAccountHandle)/\(projectHandle)"
+        let createsOrganization = accountHandle == nil
         let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
         let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
 
@@ -38,14 +41,15 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
 
             try await TuistEnvironmentTesting
                 .withMockedEnvironment {
-                    existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
+                    existingEnvVariables
+                        .forEach { Environment.mocked?.variables[$0.key] = $0.value }
 
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
                         component: fixtureDirectory.basename
                     )
                     try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
-                        try await TuistTest.$fixtureAccountHandle.withValue(organizationHandle) {
+                        try await TuistTest.$fixtureAccountHandle.withValue(fixtureAccountHandle) {
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
                                 let serverURL = Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"
 
@@ -73,10 +77,12 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                         serverURL,
                                     ]
                                 )
-                                try await TuistTest.run(
-                                    OrganizationCreateCommand.self,
-                                    [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                                )
+                                if createsOrganization {
+                                    try await TuistTest.run(
+                                        OrganizationCreateCommand.self,
+                                        [fixtureAccountHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                    )
+                                }
                                 try await TuistTest.run(
                                     ProjectCreateCommand.self,
                                     [fullHandle, "--path", fixtureTemporaryDirectory.pathString, "--build-system", "xcode"]
@@ -88,10 +94,12 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                         ProjectDeleteCommand.self,
                                         [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
                                     )
-                                    try await TuistTest.run(
-                                        OrganizationDeleteCommand.self,
-                                        [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                                    )
+                                    if createsOrganization {
+                                        try await TuistTest.run(
+                                            OrganizationDeleteCommand.self,
+                                            [fixtureAccountHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                        )
+                                    }
                                     try await TuistTest.run(
                                         LogoutCommand.self
                                     )
@@ -115,8 +123,9 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
 extension Trait where Self == TuistAcceptanceTestFixtureTestingTrait {
     public static func withFixtureConnectedToCanary(
         _ fixture: String,
-        fixturesDirectory: AbsolutePath = Fixtures.directory
+        fixturesDirectory: AbsolutePath = Fixtures.directory,
+        accountHandle: String? = nil
     ) -> Self {
-        return Self(fixture: fixture, fixturesDirectory: fixturesDirectory)
+        return Self(fixture: fixture, fixturesDirectory: fixturesDirectory, accountHandle: accountHandle)
     }
 }

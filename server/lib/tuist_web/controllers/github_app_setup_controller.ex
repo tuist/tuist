@@ -32,7 +32,7 @@ defmodule TuistWeb.GitHubAppSetupController do
          {:ok, %{account_id: account_id, client_url: client_url}} <- extract_state(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, _installation} <- attach_installation_id(account, client_url, installation_id) do
-      redirect(conn, to: ~p"/#{account.name}/integrations")
+      redirect(conn, to: ~p"/#{account.name}/settings/integrations")
     else
       {:error, :missing_installation_id} ->
         raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")

@@ -1,5 +1,5 @@
 defmodule Tuist.Slack.ReportsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Cache.Analytics

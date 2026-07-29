@@ -56,7 +56,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestRuns do
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
-    - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters).
+    - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters, and richer query expressions such as `-git_branch~"gh-readonly-queue"`).
     - **get_test_run**: Get detailed metrics for a test run (total/failed/flaky counts, duration).
     - **list_test_module_runs**: List per-module results within a test run.
     - **list_test_suite_runs**: List per-suite results (optionally filtered by module).

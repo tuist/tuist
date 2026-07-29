@@ -5,11 +5,17 @@ import Path
 
 public enum XCResultParserError: LocalizedError, Equatable {
     case failedToParseOutput(AbsolutePath)
+    case timedOut(AbsolutePath, seconds: Int)
+    case decodingFailed(step: String, path: AbsolutePath, detail: String)
 
     public var errorDescription: String? {
         switch self {
         case let .failedToParseOutput(path):
             return "Failed to parse xcresult output at \(path.pathString)"
+        case let .timedOut(path, seconds):
+            return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
+        case let .decodingFailed(step, path, detail):
+            return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
         }
     }
 }
@@ -68,9 +74,28 @@ public struct XCResultParser: Sendable {
         return nil
     }
 
-    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
+    /// - Parameters:
+    ///   - rootDirectory: base used to relativize failure file paths for
+    ///     display. This is the caller's *source* root (e.g. the project
+    ///     dir for CLI callers) and is only ever read from.
+    ///   - attachmentsDirectory: directory the parser exports test
+    ///     attachments into. The caller owns it and decides whether and
+    ///     when it's cleaned up, so pass a directory you manage (the server
+    ///     worker's per-run temp dir). When nil, a temporary directory is
+    ///     used — attachments are never written under `rootDirectory`,
+    ///     which for CLI callers is the user's project.
+    public func parse(
+        path: AbsolutePath,
+        rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath? = nil
+    ) async throws -> TestSummary? {
         let testOutput = try await loadTestOutput(path: path)
-        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+        return try await parseTestOutput(
+            testOutput,
+            rootDirectory: rootDirectory,
+            attachmentsDirectory: attachmentsDirectory,
+            xcresultPath: path
+        )
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
@@ -101,7 +126,14 @@ public struct XCResultParser: Sendable {
                 guard let jsonData = jsonString.data(using: .utf8) else {
                     throw XCResultParserError.failedToParseOutput(path)
                 }
-                return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+                do {
+                    return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+                } catch {
+                    throw XCResultParserError.decodingFailed(
+                        step: "test-results", path: path,
+                        detail: describeDecodingFailure(error, output: jsonString)
+                    )
+                }
             }
     }
 
@@ -110,9 +142,9 @@ public struct XCResultParser: Sendable {
         module: String?,
         into results: inout [TestResultStatuses.TestCaseStatus]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
-        if node.nodeType == "Test Case", let name = node.name {
+        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) {
             results.append(
                 TestResultStatuses.TestCaseStatus(
                     name: name,
@@ -137,9 +169,41 @@ public struct XCResultParser: Sendable {
         return String(output[jsonStartIndex ... jsonEndIndex])
     }
 
+    /// Renders a decoding failure into a single Sentry-friendly line: the
+    /// `DecodingError` kind, the JSON key path it choked on, and a short head of
+    /// the offending output. The default `localizedDescription` collapses every
+    /// `DecodingError` to "The data couldn't be read because it isn't in the
+    /// correct format.", which tells us nothing about which xcresulttool output
+    /// drifted from the schema.
+    private func describeDecodingFailure(_ error: Error, output: String) -> String {
+        let head = output.prefix(200).replacingOccurrences(of: "\n", with: " ")
+        let snippet = output.isEmpty ? "<empty>" : "\"\(head)\""
+
+        func path(_ context: DecodingError.Context) -> String {
+            context.codingPath.map(\.stringValue).joined(separator: ".")
+        }
+
+        let reason: String
+        switch error {
+        case let DecodingError.dataCorrupted(context):
+            reason = "dataCorrupted at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.keyNotFound(key, context):
+            reason = "keyNotFound \(key.stringValue) at [\(path(context))]"
+        case let DecodingError.typeMismatch(type, context):
+            reason = "typeMismatch \(type) at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.valueNotFound(type, context):
+            reason = "valueNotFound \(type) at [\(path(context))]"
+        default:
+            reason = error.localizedDescription
+        }
+
+        return "\(reason) (\(output.count) bytes: \(snippet))"
+    }
+
     private func parseTestOutput(
         _ output: XCResultTestOutput,
         rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath?,
         xcresultPath: AbsolutePath
     ) async throws -> TestSummary {
         let actionLog = try await actionLog(from: xcresultPath)
@@ -172,7 +236,10 @@ public struct XCResultParser: Sendable {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
-        let extractedAttachments = await attachmentsByTestIdentifiers(from: xcresultPath)
+        let extractedAttachments = await attachmentsByTestIdentifiers(
+            from: xcresultPath,
+            attachmentsDirectory: attachmentsDirectory
+        )
 
         allTestCases = allTestCases.map { testCase in
             let testIdentifier = normalizeTestIdentifier(
@@ -184,7 +251,13 @@ public struct XCResultParser: Sendable {
             return testCase
         }
 
-        let overallStatus = overallStatus(from: allTestCases)
+        var runErrors: [TestRunError] = []
+        for testNode in output.testNodes {
+            extractErrors(from: testNode, module: nil, into: &runErrors)
+        }
+        let errors = dedupedErrors(runErrors)
+
+        let overallStatus = overallStatus(from: allTestCases, hasErrors: !errors.isEmpty)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
         let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
             guard let name = device.deviceName,
@@ -199,18 +272,71 @@ public struct XCResultParser: Sendable {
             status: overallStatus,
             duration: overallDuration,
             testModules: testModules,
-            runDestinations: runDestinations
+            runDestinations: runDestinations,
+            errors: errors
         )
     }
 
-    private func overallStatus(from testCases: [TestCase]) -> TestStatus {
-        if testCases.contains(where: { $0.status == .failed }) {
+    private func overallStatus(from testCases: [TestCase], hasErrors: Bool) -> TestStatus {
+        if hasErrors || testCases.contains(where: { $0.status == .failed }) {
             return .failed
         } else if testCases.allSatisfy({ $0.status == .skipped }) {
             return .skipped
         } else {
             return .passed
         }
+    }
+
+    /// xctest emits a synthetic "test case" when the runner itself errors — a
+    /// whole target whose `.xctest` bundle can't be loaded, or an app/UI-test
+    /// runner that can't launch. Xcode surfaces these in a separate "Errors"
+    /// section per target, not as test cases, so we do the same: lift them out of
+    /// the test cases (so they don't inflate counts, create unbounded per-pid
+    /// rows, or fire `test_case.created` webhooks) and collect them as
+    /// target-keyed errors. The pid varies per run, so we dedup by (target,
+    /// message) to land one per target like Xcode.
+    ///
+    /// The node is named "<runner-process> (<pid>) encountered an error", but the
+    /// runner process is only `xctest` for unit tests — for UI tests it's the
+    /// app/UI-runner target, so the prefix varies per project and can't be
+    /// hardcoded. We key on structure instead: a real test's `nodeIdentifier` is a
+    /// "Suite/method" id that differs from its display name, whereas the synthetic
+    /// node has no real identifier, so Xcode repeats the sentence there
+    /// (`nodeIdentifier == name`). We also require the machine-generated
+    /// "… encountered an error" grammar and the `Failure Message` child every
+    /// runner error carries, so a real Swift Testing case whose display name
+    /// merely ends this way is kept.
+    private func isRunnerError(_ node: TestNode) -> Bool {
+        guard node.nodeType == "Test Case",
+              let name = node.name,
+              node.nodeIdentifier == name,
+              (node.children ?? []).contains(where: { $0.nodeType == "Failure Message" })
+        else { return false }
+
+        return name.wholeMatch(of: /\S+ \(\d+\) encountered an error/) != nil
+            || name == "The test runner encountered an error"
+            || name.wholeMatch(of: /\S+ encountered an error/) != nil
+    }
+
+    private func extractErrors(from node: TestNode, module: String?, into errors: inout [TestRunError]) {
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
+
+        if isRunnerError(node) {
+            let message = (node.children ?? [])
+                .first { $0.nodeType == "Failure Message" }?.name
+                ?? node.name
+                ?? "The test runner encountered an error"
+            errors.append(TestRunError(target: currentModule, message: message))
+        }
+
+        for child in node.children ?? [] {
+            extractErrors(from: child, module: currentModule, into: &errors)
+        }
+    }
+
+    private func dedupedErrors(_ errors: [TestRunError]) -> [TestRunError] {
+        var seen = Set<String>()
+        return errors.filter { seen.insert("\($0.target ?? "")\u{0}\($0.message)").inserted }
     }
 
     private func extractTestCases(
@@ -222,7 +348,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         captureSuiteDuration(from: node, into: &suiteDurations)
 
@@ -263,7 +389,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> TestCase? {
-        guard node.nodeType == "Test Case", let name = node.name else { return nil }
+        guard node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) else { return nil }
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
 
@@ -539,7 +665,20 @@ public struct XCResultParser: Sendable {
             ).concatenatedString()
 
             let logData = try await fileSystem.readFile(at: tempFile)
-            return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            // An aborted or test-less xcresult has no action log: `xcresulttool
+            // get log --type action` prints "No action log available" and writes
+            // nothing. The action log only enriches durations and failure
+            // locations, so treat its absence as empty rather than failing the
+            // whole parse with an opaque decode error.
+            guard !logData.isEmpty else { return .empty }
+            do {
+                return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                throw XCResultParserError.decodingFailed(
+                    step: "action-log", path: xcresultPath,
+                    detail: describeDecodingFailure(error, output: String(decoding: logData, as: UTF8.self))
+                )
+            }
         }
     }
 
@@ -560,11 +699,11 @@ public struct XCResultParser: Sendable {
 
     // MARK: - Crash Attachment Extraction
 
-    private struct AttachmentManifest: Decodable, Sendable {
+    private struct AttachmentManifest: Decodable {
         let testIdentifier: String?
         let attachments: [Attachment]
 
-        struct Attachment: Decodable, Sendable {
+        struct Attachment: Decodable {
             let exportedFileName: String
             let suggestedHumanReadableName: String?
             let isAssociatedWithFailure: Bool?
@@ -573,11 +712,39 @@ public struct XCResultParser: Sendable {
         }
     }
 
+    /// Resolves where to export attachments, given the caller's optional
+    /// attachments directory.
+    ///
+    /// Attachments are exported for the caller to consume *after* parse
+    /// returns (the server worker uploads them to S3), so they can't live
+    /// in an auto-cleaned `runInTemporaryDirectory` block like the other
+    /// xcresulttool scratch dirs.
+    ///
+    /// When the caller provides a directory — one it owns and cleans up
+    /// (the server worker's per-run temp dir) — we export into an
+    /// `xcresult-attachments` subdirectory of it so the caller's cleanup
+    /// reclaims the (potentially large) attachment files too. Callers that
+    /// don't manage one (the CLI, where the only directory in hand is the
+    /// user's project) get a process-wide temp dir instead, so we never
+    /// drop attachments into a source tree.
+    private func attachmentsExportDirectory(in attachmentsDirectory: AbsolutePath?) async throws -> AbsolutePath {
+        guard let attachmentsDirectory else {
+            return try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+        }
+
+        let directory = attachmentsDirectory.appending(component: "xcresult-attachments")
+        if try await !fileSystem.exists(directory) {
+            try await fileSystem.makeDirectory(at: directory)
+        }
+        return directory
+    }
+
     private func attachmentsByTestIdentifiers(
-        from xcresultPath: AbsolutePath
+        from xcresultPath: AbsolutePath,
+        attachmentsDirectory: AbsolutePath?
     ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
         do {
-            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+            let temporaryDirectory = try await attachmentsExportDirectory(in: attachmentsDirectory)
 
             _ = try await commandRunner.run(
                 arguments: [

@@ -14,27 +14,33 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
 
+  @authorization_code_ttl 300
+
   @impl Clients
   def get_client(client_id) do
-    case tuist_oauth_client() do
-      %Client{id: ^client_id} = client -> client
-      _ -> EctoClients.get_client(client_id)
+    case static_client(client_id) do
+      %Client{} = client ->
+        client
+
+      nil ->
+        case EctoClients.get_client(client_id) do
+          %Client{} = client -> ensure_authorization_code_ttl(client)
+          nil -> nil
+        end
     end
   end
 
   @impl Clients
   def public! do
-    case tuist_oauth_client() do
-      %Client{} = client -> client
-      _ -> EctoClients.public!()
-    end
+    (%Client{} = client) = tuist_oauth_client()
+    client
   end
 
   @impl Clients
   def authorized_scopes(%Client{id: client_id} = client) do
-    case tuist_oauth_client() do
-      %Client{id: ^client_id} -> []
-      _ -> EctoClients.authorized_scopes(client)
+    case static_client(client_id) do
+      %Client{} -> []
+      nil -> EctoClients.authorized_scopes(client)
     end
   end
 
@@ -45,21 +51,19 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
-    EctoClients.create_client(registration_params)
+    registration_params
+    |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> EctoClients.create_client()
   end
 
   @impl Clients
   def list_clients_jwk do
-    tuist_client_jwk =
-      case tuist_oauth_client() do
-        %Client{} = client ->
-          case to_client_jwk(client) do
-            nil -> []
-            jwk -> [{client, jwk}]
-          end
+    %Client{} = client = tuist_oauth_client()
 
-        _ ->
-          []
+    tuist_client_jwk =
+      case to_client_jwk(client) do
+        nil -> []
+        jwk -> [{client, jwk}]
       end
 
     Enum.uniq_by(tuist_client_jwk ++ EctoClients.list_clients_jwk(), fn {_client, jwk} -> jwk["kid"] end)
@@ -67,11 +71,20 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Boruta.Openid.Clients
   def refresh_jwk_from_jwks_uri(client_id) do
-    case tuist_oauth_client() do
-      %Client{id: ^client_id} -> {:error, "JWK refresh from JWKS URI not supported"}
-      _ -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
+    case static_client(client_id) do
+      %Client{} -> {:error, "JWK refresh from JWKS URI not supported"}
+      nil -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
     end
   end
+
+  defp static_client(client_id) when is_binary(client_id) do
+    Enum.find(
+      [kura_introspection_client(), tuist_oauth_client()],
+      &match?(%Client{id: ^client_id}, &1)
+    )
+  end
+
+  defp static_client(_client_id), do: nil
 
   defp android_emulator_redirect_uris do
     base_url = Environment.app_url(path: "/oauth/callback/android")
@@ -97,7 +110,7 @@ defmodule Tuist.OAuth.Clients do
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
       access_token_ttl: 86_400,
-      authorization_code_ttl: 60,
+      authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       id_token_ttl: 86_400,
       id_token_signature_alg: "RS256",
@@ -114,8 +127,7 @@ defmodule Tuist.OAuth.Clients do
         "authorization_code",
         "refresh_token",
         "implicit",
-        "revoke",
-        "introspect"
+        "revoke"
       ],
       pkce: true,
       public_refresh_token: false,
@@ -134,10 +146,32 @@ defmodule Tuist.OAuth.Clients do
     }
   end
 
+  defp kura_introspection_client do
+    if Environment.kura_control_plane_configured?() do
+      %Client{
+        id: Environment.kura_control_plane_client_id(),
+        secret: Environment.kura_control_plane_client_secret(),
+        name: "Kura control plane",
+        supported_grant_types: ["introspect", "kura_usage", "kura_registration"],
+        confidential: true,
+        token_endpoint_auth_methods: [
+          "client_secret_basic",
+          "client_secret_post"
+        ]
+      }
+    end
+  end
+
   defp to_client_jwk(%Client{private_key: private_key}) when is_binary(private_key) do
     jwk = JOSE.JWK.from_pem(private_key)
     Map.put(jwk, "kid", Boruta.Oauth.Client.Crypto.kid_from_private_key(private_key))
   end
 
   defp to_client_jwk(_), do: nil
+
+  defp ensure_authorization_code_ttl(%Client{authorization_code_ttl: ttl} = client) when ttl < @authorization_code_ttl do
+    %{client | authorization_code_ttl: @authorization_code_ttl}
+  end
+
+  defp ensure_authorization_code_ttl(%Client{} = client), do: client
 end

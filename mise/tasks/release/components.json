@@ -8,6 +8,14 @@
       "initial_version": "0.0.0",
       "include_paths": [
         "cli/**/*",
+        "swifterpm/**/*",
+        "cas-plugin/**/*",
+        "mise/tasks/cli/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/cli-release.yml",
+        ".github/workflows/cli-build-publish.yml",
+        ".github/workflows/cli-rc.yml",
+        ".github/workflows/cli-promote.yml",
         ".xcode-version-releases",
         "Package.swift",
         "Package.resolved"
@@ -95,16 +103,16 @@
       "tag_regex": "^helm@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/helm/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/helm/**/*"]
+      "include_paths": ["infra/helm/**/*", "kura/ops/helm/kura/**/*"]
     },
     {
       "name": "capi-scaleway",
       "tag_prefix": "capi-scaleway@",
       "tag_regex": "^capi-scaleway@[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "cliff_config": "infra/cluster-api-provider-scaleway-applesilicon/cliff.toml",
+      "cliff_config": "infra/cluster-api-provider-tuist/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": [
-        "infra/cluster-api-provider-scaleway-applesilicon/**/*",
+        "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
         "infra/tart-kubelet/**/*"
       ]
@@ -117,7 +125,7 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "infra/xcresult-processor-image/**/*",
-        "server/lib/**/*",
+        "server/lib/tuist/**/*",
         "server/native/xcresult_nif/**/*",
         "server/mix.exs",
         "server/mix.lock"
@@ -154,6 +162,22 @@
       "cliff_config": "infra/hetzner-robot-controller/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["infra/hetzner-robot-controller/**/*"]
+    },
+    {
+      "name": "stable-egress-controller",
+      "tag_prefix": "stable-egress-controller@",
+      "tag_regex": "^stable-egress-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/stable-egress-controller/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/stable-egress-controller/**/*"]
+    },
+    {
+      "name": "grafana-datasource",
+      "tag_prefix": "grafana-datasource@",
+      "tag_regex": "^grafana-datasource@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "grafana-datasource/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["grafana-datasource/**/*"]
     }
   ]
 }

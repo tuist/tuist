@@ -1,11 +1,26 @@
 defmodule TuistWeb.API.Automations.AlertsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
 
   alias Tuist.Automations
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+
+  setup do
+    stub(Tuist.License, :get_license, fn ->
+      {:ok,
+       %Tuist.License{
+         id: "test",
+         features: [],
+         expiration_date: Date.add(Date.utc_today(), 365),
+         valid: true
+       }}
+    end)
+
+    :ok
+  end
 
   defp setup_project(%{conn: conn}) do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -52,6 +67,29 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       assert response["name"] == "Auto-quarantine"
       assert response["monitor_type"] == "flakiness_rate"
       assert [%{"type" => "change_state", "state" => "muted"}] = response["trigger_actions"]
+    end
+
+    test "creates a reliability-rate alert rule", %{conn: conn, project: project} do
+      body = %{
+        "name" => "Auto-quarantine unreliable tests",
+        "monitor_type" => "reliability_rate",
+        "trigger_config" => %{
+          "threshold" => 90,
+          "window_type" => "last_days",
+          "window" => "30d",
+          "comparison" => "lt"
+        },
+        "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+      }
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(api_path(project), JSON.encode!(body))
+        |> json_response(:created)
+
+      assert response["monitor_type"] == "reliability_rate"
+      assert response["trigger_config"]["comparison"] == "lt"
     end
 
     test "returns 422 when validation fails (e.g. blank name)", %{conn: conn, project: project} do

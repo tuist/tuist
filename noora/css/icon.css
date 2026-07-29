@@ -1,0 +1,48 @@
+/* Animated icon transitions (see `Noora.Icon.icon/1` with `active_name`). */
+
+/* crossfade_rotate: the two icons are stacked; the inactive one is faded and
+   rotated out while the active one fades and rotates in. The `data-active`
+   attribute is toggled by the NooraIconTransition hook. */
+.noora-icon-transition {
+  display: inline-grid;
+  place-items: center;
+}
+
+.noora-icon-transition > [data-part="icon-from"],
+.noora-icon-transition > [data-part="icon-to"] {
+  grid-area: 1 / 1;
+  display: inline-flex;
+}
+
+/* Transitions are only enabled once the hook flags the element ready (after
+   the initial state has painted), so establishing the starting state on
+   mount — e.g. a collapsible setting its open state after this icon
+   initializes — never animates. */
+.noora-icon-transition[data-ready] > [data-part="icon-from"],
+.noora-icon-transition[data-ready] > [data-part="icon-to"] {
+  transition:
+    opacity 200ms var(--ease-out-cubic),
+    transform 200ms var(--ease-out-cubic);
+}
+
+.noora-icon-transition > [data-part="icon-to"] {
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+
+.noora-icon-transition[data-active] > [data-part="icon-from"] {
+  opacity: 0;
+  transform: rotate(90deg);
+}
+
+.noora-icon-transition[data-active] > [data-part="icon-to"] {
+  opacity: 1;
+  transform: rotate(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-icon-transition > [data-part="icon-from"],
+  .noora-icon-transition > [data-part="icon-to"] {
+    transition: none;
+  }
+}

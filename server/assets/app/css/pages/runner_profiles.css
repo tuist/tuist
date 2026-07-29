@@ -1,0 +1,157 @@
+#account-runner-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="heading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="actions"] {
+      flex-shrink: 0;
+    }
+  }
+
+  /* Monospace the dispatch label so the `tuist-` prefix shares a
+     baseline with the customer-chosen suffix. */
+  & #runner-profiles-table td:nth-child(2) [data-part="label"] {
+    font-family: "Geist Mono", monospace;
+  }
+
+  & #runner-profiles-table {
+    & td:last-child > [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+      width: 100%;
+    }
+  }
+}
+
+#runner-profile-delete-modal {
+  & [data-part="delete-modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & > [data-part="delete-modal-message"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+}
+
+#runner-profile-modal {
+  & > [data-part="positioner"] > [data-part="content"] {
+    width: min(520px, 90vw);
+    max-width: 520px;
+  }
+
+  & [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & [data-part="field"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="field-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="hint"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & > [data-part="prefixed-input"] {
+        display: flex;
+        align-items: stretch;
+        align-self: stretch;
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-primary);
+        overflow: hidden;
+
+        &[data-disabled="true"] {
+          opacity: 0.6;
+        }
+
+        &:focus-within {
+          box-shadow: var(--noora-border-light-focus);
+        }
+
+        & > [data-part="prefix"] {
+          display: flex;
+          align-items: center;
+          background: var(--noora-surface-background-secondary);
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+          color: var(--noora-surface-label-secondary);
+          font-family: "Geist Mono", monospace;
+          white-space: nowrap;
+        }
+
+        & > input {
+          flex-grow: 1;
+          outline: none;
+          border: none;
+          background: none;
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-body-medium);
+
+          &::placeholder {
+            color: var(--noora-surface-label-tertiary);
+          }
+
+          &:disabled {
+            cursor: not-allowed;
+          }
+        }
+      }
+
+      & > [data-part="empty-catalog"] {
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & .noora-dropdown {
+        width: 100%;
+      }
+    }
+  }
+}

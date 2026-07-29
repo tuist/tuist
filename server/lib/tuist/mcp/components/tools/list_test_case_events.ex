@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
   @moduledoc """
-  List events for a test case (e.g. marked_flaky, quarantined, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}.
+  List events for a test case (e.g. marked_flaky, muted, skipped, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}.
   """
 
   use Tuist.MCP.Tool,
@@ -23,6 +23,35 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
         }
       },
       "required" => ["test_case_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "events" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "event_type" => %{"type" => "string"},
+              "inserted_at" => %{"type" => "string"},
+              "actor" => %{
+                "type" => ["object", "null"],
+                "properties" => %{
+                  "id" => %{"type" => "integer"},
+                  "name" => %{"type" => "string"}
+                },
+                "required" => ["id", "name"],
+                "additionalProperties" => false
+              }
+            },
+            "required" => ["event_type", "inserted_at", "actor"],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["events", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter
@@ -35,7 +64,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
   @impl EMCP.Tool
   def description,
     do:
-      "List events for a test case (e.g. marked_flaky, quarantined, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}."
+      "List events for a test case (e.g. marked_flaky, muted, skipped, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}."
 
   @impl EMCP.Tool
   def call(conn, %{"test_case_id" => test_case_id} = args) when is_binary(test_case_id) do
@@ -51,17 +80,20 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
         page_size = MCPTool.page_size(args)
         {events, meta} = Tests.list_test_case_events(test_case.id, %{page: page, page_size: page_size})
 
-        MCPTool.json_response(%{
-          events:
-            Enum.map(events, fn event ->
-              %{
-                event_type: event.event_type,
-                inserted_at: Formatter.iso8601(event.inserted_at, naive: :utc),
-                actor: if(event.actor, do: %{id: event.actor.id, name: event.actor.name})
-              }
-            end),
-          pagination_metadata: MCPTool.pagination_metadata(meta)
-        })
+        MCPTool.json_response(
+          %{
+            events:
+              Enum.map(events, fn event ->
+                %{
+                  event_type: event.event_type,
+                  inserted_at: Formatter.iso8601(event.inserted_at, naive: :utc),
+                  actor: if(event.actor, do: %{id: event.actor.id, name: event.actor.name})
+                }
+              end),
+            pagination_metadata: MCPTool.pagination_metadata(meta)
+          },
+          __MODULE__
+        )
 
       {:error, message} ->
         EMCP.Tool.error(message)

@@ -20,6 +20,7 @@
         size="large"
         variant="secondary"
         underline
+        href={~p"/download"}
         label={dgettext("dashboard_previews", "Download")}
       />
     </:action>
@@ -66,6 +67,7 @@
         phx-hook="ImageFallback"
         alt={dgettext("dashboard_previews", "%{app_name} icon", app_name: @preview.display_name)}
         data-part="icon"
+        decoding="async"
       />
     </div>
     <h1 data-part="title">{@preview.display_name}</h1>
@@ -256,8 +258,18 @@
         }
         data-part="device-not-available"
       >
-        <img data-theme="light" src="/images/macbook_preview_light.png" />
-        <img data-theme="dark" src="/images/macbook_preview_dark.png" />
+        <img
+          data-theme="light"
+          src={~p"/images/macbook_preview_light.png"}
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          data-theme="dark"
+          src={~p"/images/macbook_preview_dark.png"}
+          loading="lazy"
+          decoding="async"
+        />
         <div data-part="explanation">
           <h2 data-part="title">
             {dgettext(

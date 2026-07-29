@@ -13,6 +13,7 @@ node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  max_ttl: [authorization_code: 300],
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
     clients: Tuist.OAuth.Clients,
@@ -107,6 +108,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
@@ -120,13 +122,21 @@ config :logger, :console,
     :auth_account_handle,
     :selected_account_handle,
     :selected_project_handle,
+    # Operator project-access grant (forensic join key for the audit trail)
+    :operator_grant_jti,
+    :operator_grant_sub,
+    :session_payload_bytes,
+    :warning_threshold_bytes,
     # Tuist.Runners structured fields
     :pod_uid,
     :pod_name,
     :pool,
     :pools,
+    :session_id,
     :runner_name,
     :repo,
+    :principal_namespace,
+    :principal_name,
     :action,
     :labels,
     :installation_id,
@@ -138,6 +148,12 @@ config :logger, :console,
     :pod_image,
     :pool_image,
     :fleet,
+    :state,
+    :connection_id,
+    :reported_pod,
+    :reported_pool,
+    :binding,
+    :open_sessions,
     :reason,
     :changeset_errors,
     :account,
@@ -149,10 +165,26 @@ config :logger, :console,
     :original_reason,
     :release_error,
     :owner,
+    :org,
     :count,
     :stale_after_seconds,
+    :verify_after_seconds,
+    :reap_after_seconds,
+    :confirmed_absent_seconds,
+    :observed_pods,
+    :claims,
+    :missing,
+    :newly_marked,
+    :recovered,
+    :released,
+    :eligible,
+    :cap,
+    :workflow_job_ids,
+    :enqueued_at,
+    :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    :repository,
     :conclusion,
     :ours,
     :winner,
@@ -161,8 +193,18 @@ config :logger, :console,
     :stage,
     :client_url,
     :status,
-    :body
+    :body,
+    :url,
+    :dispatch_label,
+    # Tuist.Kura runner-cache reconciler structured fields
+    :region,
+    :cap,
+    :urls,
+    :configured,
+    :reconciling
   ]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 config :mime, :types, %{
   "application/linkset+json" => ["linkset"],
@@ -184,10 +226,16 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+# Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
+# Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
+config :stripity_stripe,
+  hackney_opts: [protocols: [:http1]]
+
 config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
@@ -204,7 +252,7 @@ config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON, "scim+json": TuistWeb.SCIM.ErrorJSON],
     layout: false
   ],
   pubsub_server: Tuist.PubSub,
@@ -327,6 +375,47 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
+# pick when creating a profile. This is the **dev/test/CI default**;
+# managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
+# which Helm injects from the same `runnersFleetLinux.shapes` list it
+# renders the RunnerPool CRs from (see config/runtime.exs). So the
+# cluster's pools and the server's catalog share one source of truth in
+# prod and can't drift. Exactly one entry should carry `default: true`
+# (preselected in the "new profile" form).
+config :tuist, :runner_linux_shapes, [
+  %{vcpus: 1, memory_gb: 2},
+  %{vcpus: 2, memory_gb: 4},
+  %{vcpus: 2, memory_gb: 8, default: true},
+  %{vcpus: 4, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 32}
+]
+
+# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
+# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
+# ships here. Managed deploys override at boot from
+# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+config :tuist, :runner_macos_shapes, [
+  %{vcpus: 6, memory_gb: 14, default: true}
+]
+
+# macOS Xcode catalog. Each entry is a runnable Xcode version on the
+# macOS fleet; the profile's `xcode_version` field validates against
+# this list. The list must stay in sync with the
+# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
+# (the Helm value the chart renders is the source of truth in managed
+# deploys; this config is the dev/test/CI fallback). Exactly one
+# entry should carry `default: true`.
+config :tuist, :runner_macos_xcode_versions, [
+  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "26.4.1"},
+  %{xcode_version: "26.3"},
+  %{xcode_version: "26.0.1"}
+]
+
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
@@ -353,6 +442,8 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

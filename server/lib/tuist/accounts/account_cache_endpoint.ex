@@ -13,7 +13,19 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "account_cache_endpoints" do
     field :url, :string
-    field :technology, Ecto.Enum, values: [default: 0, kura: 1], default: :default
+    # `kura_self_hosted_peer` is an enrolled node's internal peer (mTLS) URL,
+    # used only for mesh discovery and never returned to the CLI as a cache
+    # endpoint. Self-hosted client-facing URLs are not stored here: each node
+    # self-registers its advertised URL via heartbeats.
+    field :technology, Ecto.Enum,
+      values: [default: 0, kura: 1, kura_self_hosted_peer: 3],
+      default: :default
+
+    # Set when a `kura_self_hosted_peer` row's node stops sending mesh
+    # heartbeats: the peer is withheld from the mesh but the row is kept so
+    # the sweep can purge it once the peer certificate can no longer be valid;
+    # the node's recovery re-enrollment clears it.
+    field :deactivated_at, :utc_datetime
 
     belongs_to :account, Account
 

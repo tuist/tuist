@@ -127,29 +127,6 @@ defmodule TuistWeb.RunDetailLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => target_name},
-        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
-      ) do
-    updated_expanded_names =
-      if MapSet.member?(expanded_target_names, target_name) do
-        MapSet.delete(expanded_target_names, target_name)
-      else
-        MapSet.put(expanded_target_names, target_name)
-      end
-
-    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   defp selected_tab(params) do
     tab = params["tab"]
 
@@ -181,6 +158,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_page_count, 0)
     |> assign(:binary_cache_active_filters, [])
     |> assign(:expanded_target_names, MapSet.new())
+    |> assign(:module_cache_metrics, nil)
   end
 
   defp filter_page_param("selective_testing_hit"), do: "selective-testing-page"
@@ -199,7 +177,9 @@ defmodule TuistWeb.RunDetailLive do
   defp assign_tab_data(socket, "module-cache", params) do
     {analytics, meta} = load_binary_cache_data(socket.assigns.run, params)
 
-    assign_binary_cache_data(socket, analytics, meta, params)
+    socket
+    |> assign(:module_cache_metrics, CommandEvents.module_cache_output_metrics(socket.assigns.run.id))
+    |> assign_binary_cache_data(analytics, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do

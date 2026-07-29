@@ -1,6 +1,6 @@
 defmodule TuistWeb.UserResetPasswordLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
   use Mimic
 
   import Phoenix.LiveViewTest
@@ -28,6 +28,13 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
       assert html =~ "New password"
+    end
+
+    test "redirects to log in when email auth is disabled", %{conn: conn, token: token} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/reset_password/#{token}")
+      assert to == ~p"/users/log_in"
     end
 
     test "does not render reset password with invalid token", %{conn: conn} do

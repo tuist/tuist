@@ -1,10 +1,11 @@
 # Storage (Context)
 
-This context owns object storage access (S3-compatible).
+This context owns object storage access (S3-compatible and Azure Blob).
 
 ## Responsibilities
 - Generate presigned URLs for upload/download (including multipart uploads).
 - Stream and upload objects, check existence, and delete by prefix.
+- Enforce Tuist Cloud and opt-in self-hosted artifact-retention windows without deleting analytics metadata.
 - Emit telemetry for storage operations.
 
 ## Boundaries

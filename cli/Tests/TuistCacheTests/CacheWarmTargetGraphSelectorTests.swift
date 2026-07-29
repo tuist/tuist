@@ -58,6 +58,24 @@ struct CacheWarmTargetGraphSelectorTests {
     }
 
     @Test
+    func selection_when_requested_target_is_xctest_support_framework_keeps_it_as_non_test_root() {
+        let graph = makeGraph()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let localPath = try! AbsolutePath(validating: "/Local") // swiftlint:disable:this force_try
+        let localProject = graph.projects[localPath]!
+        let expectedTargets: Set<GraphTarget> = [
+            GraphTarget(path: localPath, target: localProject.targets["TestSupport"]!, project: localProject),
+        ]
+
+        let selection = CacheWarmTargetGraphSelector.selection(
+            graphTraverser: graphTraverser,
+            requestedTargets: [.named("TestSupport")]
+        )
+
+        #expect(selection == .explicit(expectedTargets))
+    }
+
+    @Test
     func selection_when_requested_targets_are_only_tests_returns_noNonTestRoots() {
         let graphTraverser = GraphTraverser(graph: makeGraph())
 
@@ -85,6 +103,11 @@ struct CacheWarmTargetGraphSelectorTests {
             product: .framework,
             dependencies: [.project(target: "ApolloTestSupport", path: externalPath)]
         )
+        let testSupport = Target.test(
+            name: "TestSupport",
+            product: .framework,
+            dependencies: [.xctest]
+        )
         let appUITests = Target.test(
             name: "AppUITests",
             product: .uiTests,
@@ -98,7 +121,7 @@ struct CacheWarmTargetGraphSelectorTests {
         let localProject = Project.test(
             path: localPath,
             name: "Local",
-            targets: [app, appCore, buildingDetailsMocks, appUITests]
+            targets: [app, appCore, buildingDetailsMocks, testSupport, appUITests]
         )
 
         let apolloAPI = Target.test(name: "ApolloAPI", product: .staticFramework)
@@ -126,6 +149,9 @@ struct CacheWarmTargetGraphSelectorTests {
                 ],
                 .target(name: buildingDetailsMocks.name, path: localPath): [
                     .target(name: apolloTestSupport.name, path: externalPath),
+                ],
+                .target(name: testSupport.name, path: localPath): [
+                    .testSDK(name: "XCTest.framework"),
                 ],
                 .target(name: appUITests.name, path: localPath): [
                     .target(name: app.name, path: localPath),

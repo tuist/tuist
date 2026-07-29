@@ -11,7 +11,9 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
+  alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Projects.Project
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Slack.Installation, as: SlackInstallation
   alias Tuist.Vault.Binary
   alias Tuist.VCS.GitHubAppInstallation
@@ -48,8 +50,11 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
-    field :namespace_tenant_id, :string
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
+
+    field :cache_write_policy, Ecto.Enum,
+      values: [members_and_tokens: 0, tokens_only: 1],
+      default: :members_and_tokens
 
     field :s3_bucket_name, :string
     field :s3_access_key_id, Binary
@@ -59,18 +64,14 @@ defmodule Tuist.Accounts.Account do
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
 
-    # Customer-runner concurrency cap. 0 = runners disabled for this
-    # account (the dispatch webhook refuses to enqueue), N>0 = at
-    # most N concurrent runners. Enforced at queue-claim time by
-    # counting active Pods labeled with this account's name.
-    field :runner_max_concurrent, :integer, default: 0
-
     belongs_to :organization, Organization
     belongs_to :user, User
 
     has_many(:projects, Project, on_delete: :delete_all)
+    has_many(:runner_concurrency_limits, ConcurrencyLimit, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
     has_many(:cache_endpoints, AccountCacheEndpoint, on_delete: :delete_all)
+    has_many(:kura_account_region_policies, AccountRegionPolicy, on_delete: :delete_all)
     has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
     has_one(:slack_installation, SlackInstallation, on_delete: :delete_all)
 
@@ -130,10 +131,10 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email, :custom_cache_endpoints_enabled])
+    |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
-    |> unique_constraint(:namespace_tenant_id)
+    |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]
@@ -143,6 +144,15 @@ defmodule Tuist.Accounts.Account do
     |> cast(attrs, @s3_fields)
     |> validate_s3_configuration()
   end
+
+  def custom_s3_storage_configured?(%__MODULE__{
+        s3_bucket_name: bucket,
+        s3_access_key_id: access_key,
+        s3_secret_access_key: secret_key
+      })
+      when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+
+  def custom_s3_storage_configured?(_account), do: false
 
   defp validate_s3_configuration(changeset) do
     bucket_name = get_field(changeset, :s3_bucket_name)

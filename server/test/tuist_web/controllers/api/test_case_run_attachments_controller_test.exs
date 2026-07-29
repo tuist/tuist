@@ -268,6 +268,17 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
       argument_id = UUIDv7.generate()
 
+      Tuist.IngestRepo.insert_all(Tuist.Tests.TestCaseRunArgument, [
+        %{
+          id: argument_id,
+          test_case_run_id: test_case_run.id,
+          name: "iPhone",
+          status: "success",
+          duration: 100,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
       stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
         "https://s3.example.com/upload?signed=true"
       end)
@@ -288,6 +299,23 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       response = json_response(conn, :created)
       assert response["id"]
       assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
+    end
+
+    test "rejects a test case run from another project", %{conn: conn, user: user, project: project} do
+      other_project = ProjectsFixtures.project_fixture()
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: other_project.id)
+
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: test_case_run.id,
+            file_name: "forged-attachment.txt"
+          }
+        )
+
+      assert json_response(conn, :not_found) == %{"message" => "Test case run not found."}
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

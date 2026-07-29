@@ -7,25 +7,62 @@ Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm)
 | Server app metrics | Auto-discovered via `prometheus.io/scrape=true` annotation on the server pods |
 | Application traces | OTLP gRPC :4317 for server/processor and OTLP HTTP :4318 for managed Kura → Grafana Cloud Tempo |
 | Server logs | stdout tailed from `/var/log/pods` by a per-node Alloy DaemonSet → Grafana Cloud Loki |
+| Node logs | host journald (`containerd`, `kubelet`, kernel) read from `/var/log/journal` by the same DaemonSet → Grafana Cloud Loki |
 | kube-state-metrics | Deployed + scraped (workload / pod / deployment / replica state) |
 | node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
 | kubelet + cAdvisor | Scraped (container resource usage) |
 | Kubernetes Events | Streamed to Loki as structured logs |
+| Kubernetes control endpoint | Request latency, requests in flight, rejected requests, and scrape availability |
+| etcd | Leader state, commit latency, write-ahead-log synchronization latency, and peer round-trip time |
+| Stable outbound gateway | Controller reconciliation plus active and prepared gateway state |
+| Management cluster | Desired, current, ready, available, and up-to-date control-plane replicas |
+| Hetzner load balancers | Target health, connections, requests, and inbound/outbound bandwidth |
 
 With these in place the Grafana Cloud **Observability → Kubernetes** app populates automatically (Cluster / Namespace / Workload / Pod / Node views) without importing dashboards by hand.
 
+The recommended incident alerts and Grafana setup steps are in
+[`alerts.md`](alerts.md).
+
 ## Install
 
-Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
+Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.
 
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
 ```bash
-helm dependency update infra/helm/k8s-monitoring
+helm dependency build infra/helm/k8s-monitoring
 helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
   -n observability --create-namespace \
   -f infra/helm/k8s-monitoring/values-staging.yaml
 ```
+
+The Cluster API management cluster is installed by
+`.github/workflows/mgmt-cluster-apply.yml` with `values-management.yaml`. Its
+`tuist-k8s-mgmt` 1Password vault must contain a `PROMETHEUS_TOKEN` password
+item. The workflow creates only the metrics destination Secret; logs and traces
+are intentionally disabled on that small cluster. The Hetzner load-balancer
+exporter reuses the existing `org-tuist/hetzner` Secret and its `hcloud` key
+that the Cluster API provider already requires.
+
+During credential-access recovery, the workflow can preserve an existing
+`observability/k8s-monitoring-grafana-cloud` Secret when the service account
+cannot read `PROMETHEUS_TOKEN`. This does not make the credential optional for
+new clusters: the workflow fails before applying infrastructure when neither
+the 1Password item nor the exact existing Secret with the expected username is
+available. Once the management vault item is readable, the next run refreshes
+the Secret from 1Password automatically. Before applying anything, the workflow
+probes Grafana's remote-write endpoint and rejects a revoked credential. The
+post-apply check also requires a fresh successful remote write, so an
+incorrectly configured collector fails the workflow even when every collector
+Pod is running.
+
+The management cluster enforces the baseline
+[Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+by default. `infra/k8s/mgmt/observability-namespace.yaml` grants only the
+`observability` namespace the host access required by the node and
+control-plane collectors. Restricted-mode audit events and warnings remain
+enabled there and are pinned to the management cluster's Kubernetes minor
+version. Do not deploy unrelated workloads into this privileged namespace.
 
 Prerequisites:
 
@@ -39,7 +76,7 @@ Prerequisites:
    | `TEMPO_TOKEN` | Password | `password` |
 
 3. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
-4. **Worker nodes sized for the footprint.** Four Alloy DaemonSets × 2 workers + kube-state-metrics + node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the Alloy DaemonSets are pinned to the node.
+4. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
 ## Workload-side wiring
 
@@ -57,39 +94,64 @@ Managed Kura pods push OTLP HTTP spans to the same Service:
 http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
 ```
 
-`infra/helm/tuist/values-managed-common.yaml` and `infra/helm/tuist/values-managed-kura-region.yaml` pass this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
+`infra/helm/tuist/values-managed-common.yaml` passes this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
 ## What gets deployed
 
-Four Alloy instances, split by role (managed by the upstream `alloy-operator`):
+Five Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
-- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`
+- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
 - `alloy-singleton` — cluster events (singleton so events aren't duplicated)
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
+- `alloy-control-plane` — one host-networked Pod per control-plane node,
+  scraping the local Kubernetes and etcd endpoints without exposing etcd
+  outside the machine
+
+The management cluster runs only `alloy-metrics` and `alloy-control-plane`.
+It also runs a Hetzner load-balancer exporter and configures kube-state-metrics
+to expose `KubeadmControlPlane` replica state.
 
 Plus the telemetry services themselves:
 
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+## Metrics scrape cadence
+
+Cluster and custom metrics jobs normally use a 60-second scrape interval. The
+local control-plane jobs use 30 seconds so a short control-plane interruption
+still produces enough samples to distinguish process, storage, and network
+pressure. The one-minute default
+matches Grafana Cloud's included rate of one data point per minute for each
+active series, while keeping enough resolution for the infrastructure
+dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
+documented operational requirement justifies the additional ingestion cost.
+See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
+
 ## Local validation
 
 ```bash
-helm dependency update infra/helm/k8s-monitoring
+helm dependency build infra/helm/k8s-monitoring
 helm lint infra/helm/k8s-monitoring -f infra/helm/k8s-monitoring/values-staging.yaml
 helm template k8s-monitoring infra/helm/k8s-monitoring \
   -n observability \
   -f infra/helm/k8s-monitoring/values-staging.yaml \
+  | kubectl apply --dry-run=client -f -
+
+helm lint infra/helm/k8s-monitoring -f infra/helm/k8s-monitoring/values-management.yaml
+helm template k8s-monitoring infra/helm/k8s-monitoring \
+  -n observability \
+  -f infra/helm/k8s-monitoring/values-management.yaml \
   | kubectl apply --dry-run=client -f -
 ```
 
 ## Verify it's working after install
 
 ```bash
-# All four Alloy StatefulSets / DaemonSets ready
+# All Alloy workloads ready
 kubectl -n observability get alloy,statefulset,daemonset
 
 # Grafana Cloud token secret materialized
@@ -118,7 +180,8 @@ Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset nam
 ## RBAC — what access does this chart get?
 
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
-- `alloy-logs` — node-local hostPath to `/var/log/pods`. A compromised pod can only read logs from the single node it runs on.
+- `alloy-control-plane` — one host-networked pod on each control-plane node, with read-only access to the Kubernetes `/metrics` endpoint. etcd metrics remain on the host loopback interface.
+- `alloy-logs` — node-local hostPath to `/var/log/pods` (pod logs) and `/var/log/journal` (host journald: `containerd` / `kubelet` / kernel). No extra Kubernetes API access; a compromised pod can still only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).

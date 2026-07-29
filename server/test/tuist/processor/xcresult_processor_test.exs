@@ -255,7 +255,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws, :request, &handle_multipart_request/1)
+      stub(ExAws, :request, fn op, _config -> handle_multipart_request(op) end)
 
       expect(XCResultNIF, :parse, fn _path, _root ->
         {:ok, parsed_data}
@@ -304,7 +304,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws, :request, &handle_multipart_request/1)
+      stub(ExAws, :request, fn op, _config -> handle_multipart_request(op) end)
 
       expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
@@ -359,7 +359,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         end
       end
 
-      stub(ExAws, :request, &handle_multipart_request(&1, %{on_part: on_part}))
+      stub(ExAws, :request, fn op, _config -> handle_multipart_request(op, %{on_part: on_part}) end)
 
       expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
@@ -420,7 +420,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       stub(
         ExAws,
         :request,
-        &handle_multipart_request(&1, %{on_part: on_part, on_abort: on_abort})
+        fn op, _config -> handle_multipart_request(op, %{on_part: on_part, on_abort: on_abort}) end
       )
 
       expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
@@ -431,11 +431,13 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         project_handle: "MyProject"
       ]
 
-      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+      capture_log(fn ->
+        assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
 
-      [module] = result["test_modules"]
-      [test_case] = module["test_cases"]
-      assert test_case["attachments"] == []
+        [module] = result["test_modules"]
+        [test_case] = module["test_cases"]
+        assert test_case["attachments"] == []
+      end)
 
       state = Agent.get(counters, & &1)
       assert state.part == 3

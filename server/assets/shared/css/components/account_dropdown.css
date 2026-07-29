@@ -20,6 +20,7 @@
       display: flex;
     }
 
+    &:focus-visible .noora-avatar,
     &[data-state="open"] .noora-avatar {
       box-shadow: var(--noora-border-light-focus);
     }

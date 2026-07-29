@@ -123,8 +123,8 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
-          :if={@run.status != "processing" && Tuist.Builds.build_ci_run_url(@run)}
-          href={Tuist.Builds.build_ci_run_url(@run)}
+          :if={@run.status != "processing" && @ci_run_url}
+          href={@ci_run_url}
           label={dgettext("dashboard_builds", "CI Run")}
           variant="secondary"
           size="medium"
@@ -136,8 +136,18 @@
     </div>
     <div :if={@run.status == "processing"} data-part="processing-state">
       <div data-part="image">
-        <img src="/images/processing_build_light.png" data-theme="light" />
-        <img src="/images/processing_build_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/processing_build_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/processing_build_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <div data-part="labels">
         <span data-part="title">
@@ -319,13 +329,13 @@
               </div>
             </div>
           </div>
-          <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
             <span data-part="custom-metadata-label">
               {dgettext("dashboard_builds", "Custom metadata")}
             </span>
             <.table
               id="custom-metadata-table"
-              rows={Map.to_list(@run.custom_values || %{})}
+              rows={Map.to_list(@run.custom_values)}
               row_key={fn {key, _value} -> key end}
             >
               <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
@@ -347,6 +357,10 @@
           </div>
         </.card_section>
       </.card>
+      <.ci_context_card
+        :if={@ci_context}
+        context={@ci_context}
+      />
       <.card
         :if={
           not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)
@@ -525,10 +539,7 @@
                 @module_breakdown_sort_by == "name" &&
                   module_breakdown_column_patch_sort(assigns, "name")
               }
-              icon={
-                @module_breakdown_sort_by == "name" &&
-                  sort_icon(@module_breakdown_sort_order)
-              }
+              sort_order={@module_breakdown_sort_by == "name" && @module_breakdown_sort_order}
             >
               <.text_and_description_cell label={module.name} />
             </:col>
@@ -539,9 +550,8 @@
                 @module_breakdown_sort_by == "build-duration" &&
                   module_breakdown_column_patch_sort(assigns, "build-duration")
               }
-              icon={
-                @module_breakdown_sort_by == "build-duration" &&
-                  sort_icon(@module_breakdown_sort_order)
+              sort_order={
+                @module_breakdown_sort_by == "build-duration" && @module_breakdown_sort_order
               }
             >
               <.text_cell
@@ -560,9 +570,9 @@
                 @module_breakdown_sort_by == "compilation-duration" &&
                   module_breakdown_column_patch_sort(assigns, "compilation-duration")
               }
-              icon={
+              sort_order={
                 @module_breakdown_sort_by == "compilation-duration" &&
-                  sort_icon(@module_breakdown_sort_order)
+                  @module_breakdown_sort_order
               }
             >
               <.text_cell
@@ -674,10 +684,7 @@
                 @file_breakdown_sort_by == "file" &&
                   file_breakdown_column_patch_sort(assigns, "file")
               }
-              icon={
-                @file_breakdown_sort_by == "file" &&
-                  sort_icon(@file_breakdown_sort_order)
-              }
+              sort_order={@file_breakdown_sort_by == "file" && @file_breakdown_sort_order}
             >
               <.text_and_description_cell label={file.path} />
             </:col>
@@ -708,9 +715,8 @@
                 @file_breakdown_sort_by == "compilation-duration" &&
                   file_breakdown_column_patch_sort(assigns, "compilation-duration")
               }
-              icon={
-                @file_breakdown_sort_by == "compilation-duration" &&
-                  sort_icon(@file_breakdown_sort_order)
+              sort_order={
+                @file_breakdown_sort_by == "compilation-duration" && @file_breakdown_sort_order
               }
             >
               <.text_cell
@@ -773,8 +779,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_warnings_light.png" data-theme="light" />
-              <img src="/images/empty_warnings_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_warnings_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_warnings_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
             <span data-part="subtitle">
@@ -816,8 +832,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_errors_light.png" data-theme="light" />
-              <img src="/images/empty_errors_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_errors_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_errors_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
             <span data-part="subtitle">
@@ -1193,9 +1219,8 @@
                     @cacheable_tasks_sort_by == "description" &&
                       cacheable_tasks_column_patch_sort(assigns, "description")
                   }
-                  icon={
-                    @cacheable_tasks_sort_by == "description" &&
-                      sort_icon(@cacheable_tasks_sort_order)
+                  sort_order={
+                    @cacheable_tasks_sort_by == "description" && @cacheable_tasks_sort_order
                   }
                 >
                   <.text_cell label={task.description || dgettext("dashboard_builds", "Unknown")} />
@@ -1230,10 +1255,7 @@
                     @cacheable_tasks_sort_by == "key" &&
                       cacheable_tasks_column_patch_sort(assigns, "key")
                   }
-                  icon={
-                    @cacheable_tasks_sort_by == "key" &&
-                      sort_icon(@cacheable_tasks_sort_order)
-                  }
+                  sort_order={@cacheable_tasks_sort_by == "key" && @cacheable_tasks_sort_order}
                 >
                   <.text_cell label={String.slice(task.key, 0, 30) <> if(String.length(task.key) > 30, do: "...", else: "")} />
                 </:col>
@@ -1246,7 +1268,6 @@
                         size="small"
                         icon_only
                         phx-hook="Clipboard"
-                        phx-click={JS.exec("event.stopPropagation()", to: "window")}
                         data-clipboard-value={task.key}
                       >
                         <.copy />
@@ -1533,10 +1554,7 @@
                     @cas_outputs_sort_by == "node-id" &&
                       cas_outputs_column_patch_sort(assigns, "node-id")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "node-id" &&
-                      sort_icon(@cas_outputs_sort_order)
-                  }
+                  sort_order={@cas_outputs_sort_by == "node-id" && @cas_outputs_sort_order}
                 >
                   <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
                 </:col>
@@ -1564,10 +1582,7 @@
                     @cas_outputs_sort_by == "size" &&
                       cas_outputs_column_patch_sort(assigns, "size")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "size" &&
-                      sort_icon(@cas_outputs_sort_order)
-                  }
+                  sort_order={@cas_outputs_sort_by == "size" && @cas_outputs_sort_order}
                 >
                   <.text_cell label={Tuist.Utilities.ByteFormatter.format_bytes(output.size)} />
                 </:col>
@@ -1578,9 +1593,8 @@
                     @cas_outputs_sort_by == "compressed-size" &&
                       cas_outputs_column_patch_sort(assigns, "compressed-size")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "compressed-size" &&
-                      sort_icon(@cas_outputs_sort_order)
+                  sort_order={
+                    @cas_outputs_sort_by == "compressed-size" && @cas_outputs_sort_order
                   }
                 >
                   <.text_cell label={
@@ -1641,7 +1655,8 @@
         binary_cache_sort_order={@binary_cache_sort_order}
         expanded_target_names={@expanded_target_names}
         uri={@uri}
-        run={@command_event}
+        run={@binary_cache_command_event}
+        module_cache_metrics={@module_cache_metrics}
         available_filters={@binary_cache_available_filters}
         binary_cache_active_filters={@binary_cache_active_filters}
       />

@@ -65,7 +65,7 @@ defmodule TuistWeb.API.OrganizationsController do
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan: get_plan(&1.account),
+          plan: Billing.effective_plan(&1.account),
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
@@ -74,15 +74,6 @@ defmodule TuistWeb.API.OrganizationsController do
       )
 
     json(conn, %{organizations: organizations})
-  end
-
-  defp get_plan(account) do
-    account
-    |> Billing.get_current_active_subscription()
-    |> case do
-      %Billing.Subscription{} = subscription -> subscription.plan
-      nil -> :none
-    end
   end
 
   operation(:create,
@@ -123,7 +114,7 @@ defmodule TuistWeb.API.OrganizationsController do
       is_nil(existing_account) ->
         create_organization(conn, organization_name, user)
 
-      !is_nil(existing_account) ->
+      true ->
         conn
         |> put_status(:bad_request)
         |> json(%{
@@ -142,7 +133,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           members: [],
           invitations: []
         })
@@ -199,7 +190,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         Accounts.delete_organization!(organization)
 
         conn
@@ -232,7 +223,7 @@ defmodule TuistWeb.API.OrganizationsController do
     organization =
       Accounts.get_organization_by_handle(organization_name)
 
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     cond do
       is_nil(organization) ->
@@ -240,12 +231,12 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      Authorization.authorize(:organization_read, user, organization.account) != :ok ->
+      Authorization.authorize(:organization_read, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         admins =
           organization
           |> Accounts.get_organization_members(:admin)
@@ -278,7 +269,7 @@ defmodule TuistWeb.API.OrganizationsController do
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           members: admins ++ users,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
@@ -339,7 +330,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         json(conn, %{
           current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
         })
@@ -376,6 +367,12 @@ defmodule TuistWeb.API.OrganizationsController do
            sso_enforced: %Schema{
              type: :boolean,
              description: "When true, organization members must use SSO and cannot log in with email and password",
+             nullable: true
+           },
+           sso_automatic_enrollment: %Schema{
+             type: :boolean,
+             description:
+               "When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.",
              nullable: true
            }
          }
@@ -417,22 +414,30 @@ defmodule TuistWeb.API.OrganizationsController do
           Accounts.update_organization(organization, %{
             sso_provider: nil,
             sso_organization_id: nil,
-            sso_enforced: false
+            sso_enforced: false,
+            sso_login_domain: nil,
+            sso_automatic_enrollment: false,
+            oauth2_client_id: nil,
+            oauth2_encrypted_client_secret: nil,
+            oauth2_authorize_url: nil,
+            oauth2_token_url: nil,
+            oauth2_user_info_url: nil
           })
 
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
 
       is_nil(
-        Accounts.find_oauth2_identity(%{user: user, provider: String.to_atom(sso_provider)},
+        Accounts.find_oauth2_identity(%{user: user, provider: sso_provider_atom(sso_provider)},
           provider_organization_id: body_params.sso_organization_id
         )
       ) ->
@@ -442,37 +447,60 @@ defmodule TuistWeb.API.OrganizationsController do
           message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
-      !is_nil(organization) ->
+      true ->
+        sso_provider = sso_provider_atom(sso_provider)
+
         update_organization(%{
           organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
-          sso_enforced: Map.get(body_params, :sso_enforced, false),
+          sso_enforced: requested_sso_enforced(body_params, organization, sso_provider),
+          sso_automatic_enrollment: requested_sso_automatic_enrollment(body_params, organization, sso_provider),
           conn: conn
         })
     end
   end
+
+  defp requested_sso_enforced(%{sso_enforced: value}, _organization, _provider) when is_boolean(value), do: value
+
+  defp requested_sso_enforced(_body_params, organization, provider) do
+    organization.sso_provider == provider and organization.sso_enforced
+  end
+
+  defp requested_sso_automatic_enrollment(%{sso_automatic_enrollment: value}, _organization, _provider)
+       when is_boolean(value), do: value
+
+  defp requested_sso_automatic_enrollment(
+         _body_params,
+         %{sso_provider: provider, sso_automatic_enrollment: automatic_enrollment},
+         provider
+       ), do: automatic_enrollment
+
+  defp requested_sso_automatic_enrollment(_body_params, _organization, provider), do: provider == :google
 
   defp update_organization(%{
          organization: organization,
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
          sso_enforced: sso_enforced,
+         sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
     case Accounts.update_organization(organization, %{
-           sso_provider: String.to_atom(sso_provider),
+           sso_provider: sso_provider,
            sso_organization_id: sso_organization_id,
-           sso_enforced: sso_enforced || false
+           sso_enforced: sso_enforced || false,
+           sso_automatic_enrollment: sso_automatic_enrollment
          }) do
       {:ok, organization} ->
         json(conn, %{
           id: organization.id,
           name: organization.account.name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
@@ -489,6 +517,9 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%Error{message: message})
     end
   end
+
+  defp sso_provider_atom("google"), do: :google
+  defp sso_provider_atom("okta"), do: :okta
 
   operation(:remove_member,
     summary: "Removes a member from an organization",
@@ -519,7 +550,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def remove_member(%{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -533,7 +564,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_delete, user, organization.account) != :ok ->
+      Authorization.authorize(:member_delete, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -603,7 +634,7 @@ defmodule TuistWeb.API.OrganizationsController do
         _params
       ) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -617,7 +648,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_update, user, organization.account) != :ok ->
+      Authorization.authorize(:member_update, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})

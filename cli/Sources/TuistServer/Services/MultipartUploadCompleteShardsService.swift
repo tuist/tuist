@@ -7,14 +7,17 @@ public protocol MultipartUploadCompleteShardsServicing {
     func completeUpload(
         fullHandle: String,
         serverURL: URL,
+        shardPlanId: String?,
         reference: String,
         uploadId: String,
-        parts: [(partNumber: Int, etag: String)]
+        parts: [(partNumber: Int, etag: String)],
+        artifact: String?
     ) async throws
 }
 
 public enum MultipartUploadCompleteShardsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
+    case badRequest(String)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
@@ -23,7 +26,7 @@ public enum MultipartUploadCompleteShardsServiceError: LocalizedError, Equatable
         switch self {
         case let .unknownError(statusCode):
             return "Failed to complete shard upload due to an unknown server response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+        case let .badRequest(message), let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -41,9 +44,11 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
     public func completeUpload(
         fullHandle: String,
         serverURL: URL,
+        shardPlanId: String?,
         reference: String,
         uploadId: String,
-        parts: [(partNumber: Int, etag: String)]
+        parts: [(partNumber: Int, etag: String)],
+        artifact: String? = nil
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -62,8 +67,10 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
             ),
             body: .json(
                 .init(
+                    artifact: artifact,
                     parts: partsPayload,
                     reference: reference,
+                    shard_plan_id: shardPlanId,
                     upload_id: uploadId
                 )
             )
@@ -81,6 +88,11 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
             switch unauthorized.body {
             case let .json(error):
                 throw MultipartUploadCompleteShardsServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw MultipartUploadCompleteShardsServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode, _):
             throw MultipartUploadCompleteShardsServiceError.unknownError(statusCode)

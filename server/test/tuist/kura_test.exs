@@ -4,6 +4,7 @@ defmodule Tuist.KuraTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -66,10 +67,62 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == server.id
+    end
+
+    test "creates deployments for degraded servers so a fix can reach them" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
+      {:ok, server} = Kura.fail_server(server)
+
+      assert %Server{status: :failed, current_image_tag: "0.5.2"} = server
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == server.id
+    end
+
+    test "creates deployments for replicating servers so a fix can reach them" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} =
+        Kura.record_observation(server, %{status: :replicating, current_image_tag: "0.5.2"})
+
+      mark_initial_deployment_succeeded(server)
+
+      assert %Server{status: :replicating, current_image_tag: "0.5.2"} = server
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
@@ -90,7 +143,7 @@ defmodule Tuist.KuraTest do
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
     test "schedules a version only once per server" do
@@ -105,17 +158,129 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
       {:ok, _existing} = Kura.create_deployment(server, "0.5.3")
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
+    end
+
+    test "supersedes an open deployment when a newer runtime image is configured" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"} = deployment], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      superseded = Repo.get!(Deployment, open_deployment.id)
+      assert superseded.status == :superseded
+      assert superseded.error_message == "superseded by Kura image 0.5.3"
+      assert superseded.finished_at
+      assert deployment.kura_server_id == server.id
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
+    end
+
+    test "supersedes an older open deployment even when the server already observes the new image" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _server} = Kura.activate_server(server, "0.5.3")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"}], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :superseded
+    end
+
+    test "keeps the open deployment when the replacement image tag is invalid" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      assert {:ok, %{scheduled: [], failures: [%{reason: %Ecto.Changeset{}}]}} =
+               Kura.schedule_version_deployments("bad tag")
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :running
     end
 
     test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
+    end
+
+    test "returns per-server failures without discarding successfully scheduled deployments" do
+      first_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      stale_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, healthy} =
+        Kura.create_server(%{
+          account_id: first_account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, stale} =
+        Kura.create_server(%{
+          account_id: stale_account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, healthy} = Kura.activate_server(healthy, "0.5.2")
+      {:ok, stale} = Kura.activate_server(stale, "0.5.2")
+      mark_initial_deployment_succeeded(healthy)
+      mark_initial_deployment_succeeded(stale)
+      stale = stale |> Ecto.Changeset.change(region: "removed-region") |> Repo.update!()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [deployment], failures: [failure]}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == healthy.id
+      assert failure.server_id == stale.id
+      assert failure.account_id == stale.account_id
+      assert failure.region == "removed-region"
+      assert failure.reason == :not_found
     end
 
     test "schedules the deploy-configured runtime image tag outside dev and test" do
@@ -130,170 +295,62 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.1")
+      mark_initial_deployment_succeeded(server)
 
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
 
-      assert {:ok, [%Deployment{image_tag: "0.5.2"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.2"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
     end
 
-    test "schedules global endpoint deployments for every managed server in the account" do
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
+    test "schedules runtime image deployments in bounded batches" do
+      account_now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      server_now = DateTime.utc_now()
 
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      account_rows =
+        for index <- 1..101 do
+          %{
+            name: "kura-rollout-#{index}",
+            billing_email: "kura-rollout-#{index}@example.com",
+            created_at: account_now,
+            updated_at: account_now
+          }
+        end
 
-      {:ok, us_east_server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
+      {101, accounts} = Repo.insert_all(Account, account_rows, returning: [:id])
 
-      {:ok, eu_central_server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "eu-central",
-          image_tag: "0.5.2"
-        })
+      server_rows =
+        accounts
+        |> Enum.with_index(1)
+        |> Enum.map(fn {account, index} ->
+          %{
+            id: Ecto.UUID.generate(),
+            account_id: account.id,
+            region: "local-controller",
+            status: :active,
+            current_image_tag: "0.5.2",
+            provisioner_node_ref: "kura-rollout-#{index}",
+            move_phase: :none,
+            inserted_at: server_now,
+            updated_at: server_now
+          }
+        end)
 
-      [us_east_deployment] = us_east_server.deployments
-      [eu_central_deployment] = eu_central_server.deployments
+      {101, nil} = Repo.insert_all(Server, server_rows)
 
-      us_east_deployment =
-        us_east_deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
+      assert {:ok, %{scheduled: first_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
 
-      us_east_deployment
-      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-      |> Repo.update!()
+      assert length(first_batch) == 100
 
-      eu_central_deployment =
-        eu_central_deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
+      assert {:ok, %{scheduled: second_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
 
-      eu_central_deployment
-      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-      |> Repo.update!()
-
-      us_east_server =
-        us_east_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      eu_central_server =
-        eu_central_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account.name}-eu-central-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
-
-      assert {:ok, deployments} = Kura.schedule_runtime_image_deployments()
-
-      assert deployments
-             |> Enum.map(& &1.kura_server_id)
-             |> Enum.sort() == Enum.sort([us_east_server.id, eu_central_server.id])
-
-      assert Enum.all?(deployments, &(&1.image_tag == "0.5.2"))
-    end
-
-    test "only schedules global endpoint deployments for accounts missing the active global endpoint" do
-      user_one = AccountsFixtures.user_fixture()
-      account_one = Accounts.get_account_from_user(user_one)
-
-      user_two = AccountsFixtures.user_fixture()
-      account_two = Accounts.get_account_from_user(user_two)
-
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
-
-      {:ok, account_one_server} =
-        Kura.create_server(%{
-          account_id: account_one.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
-
-      {:ok, account_two_server} =
-        Kura.create_server(%{
-          account_id: account_two.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
-
-      for server <- [account_one_server, account_two_server] do
-        [deployment] = server.deployments
-
-        deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
-        |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-        |> Repo.update!()
-      end
-
-      account_one_server =
-        account_one_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account_one.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      account_two_server =
-        account_two_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account_two.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      for {account, regional_url} <- [
-            {account_one, account_one_server.url},
-            {account_two, account_two_server.url}
-          ] do
-        %AccountCacheEndpoint{}
-        |> AccountCacheEndpoint.create_changeset(%{
-          account_id: account.id,
-          technology: :kura,
-          url: regional_url
-        })
-        |> Repo.insert!()
-      end
-
-      %AccountCacheEndpoint{}
-      |> AccountCacheEndpoint.create_changeset(%{
-        account_id: account_one.id,
-        technology: :kura,
-        url: Kura.global_cache_endpoint_candidate_url(account_one)
-      })
-      |> Repo.insert!()
-
-      assert {:ok, [%Deployment{kura_server_id: kura_server_id, image_tag: "0.5.2"}]} =
-               Kura.schedule_runtime_image_deployments()
-
-      assert kura_server_id == account_two_server.id
+      assert length(second_batch) == 1
     end
   end
 
@@ -320,6 +377,18 @@ defmodule Tuist.KuraTest do
 
       assert deployment.kura_server_id == server.id
       assert deployment.cluster_id == "local-controller"
+    end
+
+    test "allows only one open deployment per server", %{server: server} do
+      assert {:ok, %Deployment{}} = Kura.create_deployment(server, "0.5.2")
+      assert {:error, :deployment_in_progress} = Kura.create_deployment(server, "0.5.3")
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
     end
 
     test "rejects an invalid OCI image tag", %{server: server} do
@@ -354,6 +423,8 @@ defmodule Tuist.KuraTest do
         |> Repo.insert()
 
       {:ok, d1} = Kura.create_deployment(server_a, "0.5.0")
+      {:ok, d1} = Kura.mark_running(d1)
+      {:ok, _d1} = Kura.mark_succeeded(d1)
       {:ok, d2} = Kura.create_deployment(server_a, "0.5.1")
       {:ok, _other} = Kura.create_deployment(server_b, "0.5.0")
 
@@ -442,6 +513,98 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "move_server/2" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, source} =
+        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, source} =
+        source
+        |> Server.status_changeset(%{
+          status: :active,
+          url: "https://acme-eu-central-1.kura.tuist.dev",
+          current_image_tag: "0.5.2"
+        })
+        |> Repo.update()
+
+      %{account: account, source: source}
+    end
+
+    test "provisions a moving_in target pinned to the destination box", %{source: source} do
+      assert {:ok, target} = Kura.move_server(source, "box-2")
+
+      assert target.move_phase == :moving_in
+      assert target.target_node == "box-2"
+      assert target.provisioner_node_ref != source.provisioner_node_ref
+      assert [%Deployment{image_tag: "0.5.2", kura_server_id: target_id}] = target.deployments
+      assert target_id == target.id
+
+      # The source stays the steady-state owner until the target is promoted.
+      assert Repo.get!(Server, source.id).move_phase == :none
+    end
+
+    test "rejects moving a server in a single-endpoint (cloud) region", %{account: account} do
+      {:ok, cloud} =
+        %{account_id: account.id, region: "local-controller", provisioner_node_ref: "kura-cloud-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, cloud} =
+        cloud
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      assert {:error, :region_not_movable} = Kura.move_server(cloud, "box-2")
+    end
+
+    test "rejects a second concurrent move", %{source: source} do
+      assert {:ok, _} = Kura.move_server(source, "box-2")
+      assert {:error, :move_in_progress} = Kura.move_server(source, "box-3")
+    end
+
+    test "rejects moving a server that is not a steady-state active server", %{source: source} do
+      assert {:error, :not_movable} = Kura.move_server(%{source | status: :provisioning}, "box-2")
+    end
+
+    test "submits target ownership before source relinquishment and then swaps phases", %{source: source} do
+      {:ok, target} = Kura.move_server(source, "box-2")
+      test_process = self()
+
+      expect(Provisioner, :rollout, 2, fn server, inputs ->
+        send(test_process, {:rollout, server.id, inputs.server.move_phase})
+        :ok
+      end)
+
+      assert {:ok, %Server{id: promoted_id, move_phase: :none}} = Kura.promote_move(target)
+      assert promoted_id == target.id
+
+      assert_receive {:rollout, target_id, :none}
+      assert target_id == target.id
+      assert_receive {:rollout, source_id, :moving_out}
+      assert source_id == source.id
+
+      assert %Server{move_phase: :none} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :moving_out} = Repo.get!(Server, source.id)
+    end
+
+    test "keeps database ownership unchanged when a manifest submission fails", %{source: source} do
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      expect(Provisioner, :rollout, 2, fn server, _inputs ->
+        if server.id == target.id, do: :ok, else: {:error, :source_submission_failed}
+      end)
+
+      assert {:error, :source_submission_failed} = Kura.promote_move(target)
+      assert %Server{move_phase: :moving_in} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, source.id)
+    end
+  end
+
   describe "list_servers_for_account/1" do
     test "returns non-destroyed servers" do
       user = AccountsFixtures.user_fixture()
@@ -469,6 +632,27 @@ defmodule Tuist.KuraTest do
       ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert kept.id in ids
       refute gone.id in ids
+    end
+
+    test "hides transient warm-handoff move rows (customer sees one server per region)" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, source} =
+        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, source} =
+        source
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      {:ok, moving_in} = Kura.move_server(source, "box-2")
+
+      ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
+      assert source.id in ids
+      refute moving_in.id in ids
     end
   end
 
@@ -548,6 +732,400 @@ defmodule Tuist.KuraTest do
 
       assert [_] = Accounts.list_account_cache_endpoints(account, :kura)
     end
+
+    test "prunes the superseded :kura endpoint when the server's public URL changes" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+      # Region template now renders a new host; re-activation must replace the
+      # mirror, not accumulate a second row.
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    end
+
+    test "leaves other regions' :kura endpoints and :default endpoints intact when pruning" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      # Another region's Kura endpoint (distinct URL) and a user-configured
+      # default endpoint that happens to share the pruned URL.
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://other-region.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: "http://localhost:4100", technology: :default})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      kura_urls =
+        account |> Accounts.list_account_cache_endpoints(:kura) |> Enum.map(& &1.url) |> Enum.sort()
+
+      assert kura_urls == ["http://localhost:4200", "https://other-region.example.com"]
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :default)
+    end
+  end
+
+  describe "activate_server/2 for node-port private regions" do
+    # Private regions are env-gated; expose the real catalog entries so
+    # `create_server` accepts them (same pattern as RunnerCacheTest).
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners"]
+      end)
+
+      :ok
+    end
+
+    test "activates with the node-published endpoint instead of cluster DNS" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, "http://172.16.0.2:30080"}
+      end)
+
+      assert {:ok, active} = Kura.activate_server(server, "0.5.2")
+      assert active.status == :active
+      assert active.url == "http://172.16.0.2:30080"
+      # Private servers never mirror into the CLI-facing endpoint
+      # table; a developer machine can't reach the PN address.
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "does not activate until the node-port chain is observed" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
+      assert {:error, :node_port_endpoint_not_ready} = Kura.activate_server(server, "0.5.2")
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
+    end
+  end
+
+  describe "refresh_private_server_url/1" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+      %{server: active}
+    end
+
+    test "updates the URL when the primary pod moved nodes", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, "http://172.16.0.5:30080"}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert %Server{url: "http://172.16.0.5:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps the last known URL while the endpoint is unobservable", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "heartbeats last_ready_at without rewriting the URL when the endpoint is unchanged", %{server: server} do
+      past = ~U[2020-01-01 00:00:00Z]
+      # Re-fetch after backdating so the struct the reconciler passes carries
+      # the stale last_ready_at (mirrors a fresh-from-DB load each tick); else
+      # the changeset sees no change and skips the heartbeat write.
+      backdated = Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: past) |> Repo.update!()
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, "http://172.16.0.2:30080"}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(backdated)
+      refreshed = Repo.get!(Server, server.id)
+      assert refreshed.url == "http://172.16.0.2:30080"
+      assert DateTime.after?(refreshed.last_ready_at, past)
+    end
+
+    test "stops heartbeating last_ready_at while the endpoint is unobservable", %{server: server} do
+      stamp = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stamp) |> Repo.update!()
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      refreshed = Repo.get!(Server, server.id)
+      assert DateTime.compare(refreshed.last_ready_at, stamp) == :eq
+    end
+
+    test "is a no-op outside a node-port region" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # Only a node-port region carries an endpoint worth refreshing; anywhere
+      # else the URL is Service DNS and never moves.
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "eu-central",
+          image_tag: "0.5.2"
+        })
+
+      reject(&Provisioner.external_endpoint/1)
+
+      assert :ok = Kura.refresh_private_server_url(%{server | status: :active})
+    end
+
+    test "is a no-op for non-active servers", %{server: server} do
+      reject(&Provisioner.external_endpoint/1)
+
+      assert :ok = Kura.refresh_private_server_url(%{server | status: :provisioning})
+    end
+  end
+
+  describe "runner_cache_endpoint_url/2 readiness gating" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+
+      %{account: account, server: active}
+    end
+
+    test "routes to the node-port endpoint while the readiness heartbeat is fresh", %{
+      account: account,
+      server: server
+    } do
+      # activate_server/2 stamps last_ready_at, so a just-activated node serves at once.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+    end
+
+    test "falls back to the public cache once the heartbeat goes stale", %{account: account, server: server} do
+      stale = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "falls back when the node was never observed ready", %{account: account, server: server} do
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: nil) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    # The heartbeat-exempt path for cluster-DNS private servers has no test:
+    # every private region is node-port today, so the configuration cannot be
+    # built. `private_runner_cache_url/2` keeps the branch because it is what a
+    # private region that omits `data_plane` would fall back to.
+  end
+
+  describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      %{account: account}
+    end
+
+    test "hands linux fleets the in-cluster form of the instance the CLI resolves",
+         %{account: account} do
+      activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "prefers the account's eu-central instance among the CLI's candidates", %{account: account} do
+      activate_public_server!(account, "us-east")
+      activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "falls back to the account's first instance when it has none in eu-central",
+         %{account: account} do
+      activate_public_server!(account, "us-west")
+      activate_public_server!(account, "us-east")
+
+      handle = String.downcase(account.name)
+
+      # "First" is stable region order: us-east sorts before us-west.
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-us-east-1.kura.svc.cluster.local:4000"
+    end
+
+    test "stages nothing when the account has no Kura endpoints provisioned", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "never stages registered self-hosted endpoints", %{account: account} do
+      stub(Accounts, :kura_cache_endpoint_urls, fn _account ->
+        ["https://kura.customer.example.com"]
+      end)
+
+      # Externally reachable — the CLI's own selection handles them.
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "excludes mirrored URLs whose server is no longer active", %{account: account} do
+      server = activate_public_server!(account, "eu-central")
+
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(status: :failed) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "keeps a moved server's -m instance name", %{account: account} do
+      server = activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      # After a warm-handoff move the Service is named after the -m ref
+      # while the mirrored customer URL — what the candidate match keys
+      # on — is unchanged.
+      Server
+      |> Repo.get!(server.id)
+      |> Ecto.Changeset.change(provisioner_node_ref: "kura-#{handle}-eu-central-1-m")
+      |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1-m.kura.svc.cluster.local:4000"
+    end
+
+    test "never hands macOS fleets a cluster-DNS URL", %{account: account} do
+      activate_public_server!(account, "eu-central")
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "macOS stays on default resolution when its private node's heartbeat is stale, despite an active public server",
+         %{account: account} do
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      stale = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(active_private.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      activate_public_server!(account, "eu-central")
+
+      # The Tart VMs can't resolve cluster Service DNS, so a stale private
+      # node must fail macOS over to the public cache (nil), never to the
+      # in-cluster fallback URL.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
+      activate_public_server!(account, "eu-central")
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      # activate_server/2 stamps last_ready_at, so the node serves at once and
+      # wins over the public server's in-cluster URL.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == active_private.url
+    end
+
+    test "requires an active, CLI-visible public server", %{account: account} do
+      {:ok, _server} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "is nil for accounts without any server", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
   end
 
   describe "destroy_server/1" do
@@ -614,6 +1192,7 @@ defmodule Tuist.KuraTest do
           image_tag: "0.5.2"
         })
 
+      mark_initial_deployment_failed(server)
       {:ok, failed} = Kura.fail_server(server)
 
       assert {:ok, %Server{id: id, status: :provisioning, region: "local-controller"} = retried} =
@@ -644,11 +1223,36 @@ defmodule Tuist.KuraTest do
 
       assert_receive {:kura_server, :created, _}
 
+      mark_initial_deployment_failed(server)
       {:ok, failed} = Kura.fail_server(server)
       {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
 
       assert_receive {:kura_server, :updated, %{id: id, status: :provisioning}}
       assert id == server.id
+    end
+
+    test "rechecks the locked server before appending a retry deployment" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      mark_initial_deployment_failed(server)
+      {:ok, failed} = Kura.fail_server(server)
+
+      assert {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
+      assert {:error, :not_retryable} = Kura.retry_server(failed, "0.5.3")
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
     end
 
     test "refuses to retry a previously-active server" do
@@ -706,5 +1310,40 @@ defmodule Tuist.KuraTest do
       {:ok, _} = Kura.destroy_server(server)
       assert_receive {:kura_server, :updated, %{status: :destroying}}
     end
+  end
+
+  # A public server as `activate_server/2` leaves it: active, public
+  # `url`, and the URL mirrored into `account_cache_endpoints`. The
+  # fallback intersects mirror and active servers, so tests need both.
+  defp mark_initial_deployment_succeeded(server) do
+    deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+  end
+
+  defp mark_initial_deployment_failed(server) do
+    deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+  end
+
+  defp activate_public_server!(account, region) do
+    handle = String.downcase(account.name)
+    url = "https://#{handle}-#{region}-1.kura.tuist.dev"
+
+    {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: "0.5.2"})
+
+    server =
+      Server
+      |> Repo.get!(server.id)
+      |> Ecto.Changeset.change(status: :active, url: url)
+      |> Repo.update!()
+
+    {:ok, _} =
+      %AccountCacheEndpoint{}
+      |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
+      |> Repo.insert()
+
+    server
   end
 end

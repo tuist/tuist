@@ -3,9 +3,24 @@ import Path
 import TuistCore
 import XcodeGraph
 import XCTest
-
 @testable import TuistCacheEE
 @testable import TuistTesting
+
+private struct UnexpectedArtifactLoadError: Error, CustomStringConvertible {
+    let path: AbsolutePath?
+
+    init(path: AbsolutePath? = nil) {
+        self.path = path
+    }
+
+    var description: String {
+        if let path {
+            return "Unexpected load call for \(path)"
+        } else {
+            return "Unexpected load call"
+        }
+    }
+}
 
 // To generate the ASCII graphs: http://asciiflow.com/
 // Alternative: https://dot-to-ascii.ggerganov.com/
@@ -115,7 +130,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cXCFrameworkPath {
                 return cXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -152,6 +167,186 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             [
                 .testXCFramework(path: bXCFrameworkPath),
                 .testXCFramework(path: cXCFrameworkPath),
+            ]
+        )
+    }
+
+    func test_map_keeps_external_bundles_as_source_when_reachable_from_source_framework() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let account = Target.test(name: "Account", destinations: [.iPhone], product: .framework)
+        let accountProject = Project.test(
+            path: path.appending(component: "Account"),
+            name: "Account",
+            targets: [account]
+        )
+        let accountGraphTarget = GraphTarget.test(path: accountProject.path, target: account, project: accountProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                accountProject.path: accountProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: account.name, path: accountGraphTarget.path),
+                ],
+                .target(name: account.name, path: accountGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["Account"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            [
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+            ]
+        )
+        XCTAssertEqual(
+            got.projects[externalProject.path]?.targets[externalBundle.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: accountGraphTarget.path, name: account.name),
+            []
+        )
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .product(target: externalBundle.name, productName: externalBundle.productNameWithExtension),
+            ]
+        )
+    }
+
+    func test_map_replaces_external_bundles_when_reachable_from_source_app() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+            } else if path == externalBundlePath {
+                return .bundle(path: externalBundlePath)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["App"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            [
+                .bundle(path: externalBundlePath),
+            ]
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .bundle(path: externalBundlePath),
             ]
         )
     }
@@ -234,7 +429,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -356,7 +551,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -475,7 +670,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -666,7 +861,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -785,7 +980,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -909,7 +1104,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == eXCFrameworkPath {
                 return eXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1026,7 +1221,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1117,7 +1312,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: bFramework.name, path: bGraphTarget.path), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1131,7 +1326,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == bFrameworkPath {
                 return GraphDependency.testFramework(path: bFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1152,7 +1347,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: GraphDependency.testFramework(path: bFrameworkPath), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1181,7 +1376,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     ///          ┌────▼───┐     ┌───▼──┐
     ///          │  Macro │     │ Macro│
     ///          └────────┘     └──────┘
-    func test_map_when_tenth_scenario() async throws {
+    func test_map_when_tenth_scenario() {
         // TODO: Adjust with the new macro mutation logic
         //        let path = try temporaryPath()
         //
@@ -1265,7 +1460,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         //        artifactLoader.loadStub = { path in
         //            if path == bMacroXCFrameworkPath { return GraphDependency.testFramework(path: bMacroXCFrameworkPath) }
         //            if path == cMacroXCFrameworkPath { return GraphDependency.testFramework(path: cMacroXCFrameworkPath) }
-        //            else { fatalError("Unexpected load call") }
+        //            else { throw UnexpectedArtifactLoadError() }
         //        }
         //
         //        // When
@@ -1335,7 +1530,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         artifactLoader.loadStub = { _ in
-            fatalError("Unexpected load call")
+            throw UnexpectedArtifactLoadError()
         }
 
         // When
@@ -1401,7 +1596,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == staticXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: staticXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1465,7 +1660,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1524,7 +1719,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1721,7 +1916,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == sharedCounterXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -1833,7 +2028,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == featureXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -1929,7 +2124,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == featureXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2030,7 +2225,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == supportLibXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: supportLibXCFrameworkPath, linking: .static)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2138,7 +2333,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == libraryXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 

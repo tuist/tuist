@@ -1,0 +1,182 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: ovhdedicatedmachinetemplates.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: OVHDedicatedMachineTemplate
+    listKind: OVHDedicatedMachineTemplateList
+    plural: ovhdedicatedmachinetemplates
+    shortNames:
+      - odmt
+    singular: ovhdedicatedmachinetemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            OVHDedicatedMachineTemplate is the template MachineDeployment + MachineSet
+            objects clone Machines from.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                OVHDedicatedMachineTemplateSpec wraps the per-Machine spec into the template
+                shape CAPI expects.
+              properties:
+                template:
+                  description: |-
+                    OVHDedicatedMachineTemplateResource is the embedded "spec" CAPI's MachineSet
+                    controller clones from when scaling up a MachineDeployment.
+                  properties:
+                    spec:
+                      description: |-
+                        OVHDedicatedMachineSpec is the desired state of one OVHcloud dedicated
+                        (bare-metal) server backing a customer-facing Kura cache region. Like the
+                        Scaleway Elastic Metal kind it joins as an ordinary Linux worker Node via the
+                        provider-generated self-join cloud-init, and like the Apple Silicon kind it
+                        adopts a pre-ordered server rather than ordering one inline — OVH ordering is
+                        a multi-step cart/checkout flow, so the operator pre-orders capacity and the
+                        controller claims a free box by display-name prefix, then drives the OS
+                        install + self-join.
+
+                        Unlike Elastic Metal there is no Scaleway Private Network: a single
+                        customer-facing box serves public cache traffic over its public IP, so no
+                        VLAN bring-up happens (the shared self-join is rendered with VLAN 0). The
+                        private intra-region mesh over OVH vRack is a multi-box follow-up (VRackID).
+                      properties:
+                        adoptDisplayNamePrefix:
+                          description: |-
+                            AdoptDisplayNamePrefix is the prefix a pre-ordered server's operator-set
+                            displayName must start with for the controller to claim it for this fleet.
+                            It is the ENVIRONMENT BOUNDARY: one OVH account holds every env's boxes and
+                            datacenter+offer repeat across envs, so this marker — set by the operator on
+                            each box at prep time — is what keeps a staging fleet from adopting a prod
+                            box (the OVH analog of the Dedibox tag). Enforced as required by the fleet
+                            helm template, not the CRD: a required CRD field breaks helm rollbacks to
+                            revisions predating it (the rollback patch strips it, the apiserver rejects).
+                          type: string
+                        datacenter:
+                          default: vin
+                          description: |-
+                            Datacenter is the OVH region code the server lives in (e.g. `vin` for
+                            Vint Hill VA, `hil` for Hillsboro OR, `gra`/`rbx` for the EU sites). Used
+                            to scope adoption and to compose the providerID.
+                          type: string
+                        egressBudgetMbps:
+                          description: |-
+                            EgressBudgetMbps is the throughput, in Mbps, this box may assign across
+                            the Kura pods it hosts — its NIC ceiling minus headroom. When set, the
+                            controller advertises it as the Node's `tuist.dev/egress-mbps` extended
+                            resource so the scheduler bin-packs cache pods by their assigned peak
+                            throughput and never oversubscribes the box (the multi-box distribution
+                            follow-up; the per-pod `kubernetes.io/egress-bandwidth` annotation is the
+                            matching NIC-level enforcement). Zero leaves the resource unadvertised.
+                          format: int32
+                          type: integer
+                        fleetName:
+                          description: |-
+                            FleetName groups Machines that share one SSH key, like the Apple Silicon
+                            kind. Set by the MachineTemplate so every Machine the MachineDeployment
+                            clones derives the SAME fleet key the operator authorizes on the
+                            pre-ordered pool boxes; without it the per-Machine-name key would not match
+                            a pre-ordered box (or a box re-adopted after a previous Machine released
+                            it), so the bootstrap SSH would fail.
+                          type: string
+                        nodeTaints:
+                          description: |-
+                            NodeTaints are passed to the kubelet's `--register-with-taints` in the
+                            generated self-join. Customer-facing Kura regions leave this empty (the
+                            region's nodeSelector + pool label do the placement); a dedicated-pool
+                            taint can ride here when a region needs isolation.
+                          items:
+                            description: |-
+                              The node this Taint is attached to has the "effect" on
+                              any pod that does not tolerate the Taint.
+                            properties:
+                              effect:
+                                description: |-
+                                  Required. The effect of the taint on pods
+                                  that do not tolerate the taint.
+                                  Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                                type: string
+                              key:
+                                description: Required. The taint key to be applied to a node.
+                                type: string
+                              timeAdded:
+                                description: |-
+                                  TimeAdded represents the time at which the taint was added.
+                                  It is only written for NoExecute taints.
+                                format: date-time
+                                type: string
+                              value:
+                                description: The taint value corresponding to the taint key.
+                                type: string
+                            required:
+                              - effect
+                              - key
+                            type: object
+                          type: array
+                        offer:
+                          description: |-
+                            Offer is the OVH commercial range the controller restricts adoption to
+                            (e.g. `advance-3`). Informational + an adoption filter so a fleet only
+                            claims boxes of the intended shape; empty adopts any free pre-ordered box
+                            under the prefix.
+                          type: string
+                        os:
+                          default: ubuntu_24.04
+                          description: |-
+                            OS is the OVH install template label the controller installs on the box
+                            after adoption (e.g. `ubuntu_24.04`), resolved to a concrete template at
+                            install time.
+                          type: string
+                        providerID:
+                          description: |-
+                            ProviderID, set by the controller after the self-join completes, takes
+                            the shape `ovh://<datacenter>/<service-name>` — a foreign providerID host
+                            (`ovh`) so the Hetzner CCM never reaps the node, the same guard the
+                            Scaleway bare-metal kind uses. CAPI core expects this to populate, or the
+                            parent Machine never goes Ready.
+                          type: string
+                        vRackID:
+                          description: |-
+                            VRackID is the OVH vRack the server is attached to for the private
+                            intra-region mesh. Unused at Qty-1 (a single public box needs no private
+                            fabric); wired in the multi-box HA follow-up alongside the failover IP.
+                          type: string
+                      type: object
+                  required:
+                    - spec
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true

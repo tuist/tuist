@@ -1,0 +1,23 @@
+# The only env tuist-ops actually deploys to. Per-PR overrides set
+# image.tag from CI; the rest is identical to defaults so this file
+# stays close to empty.
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
+
+# ops.tuist.dev is fronted by Pomerium (infra/helm/pomerium opsRoute).
+# Pomerium owns the host, so tuist-ops's own public Ingress is off and
+# its Slack webhook is served by Pomerium's public route instead.
+ingress:
+  enabled: false
+
+# Public half of Pomerium's assertion-signing key. tuist-ops verifies
+# X-Pomerium-Jwt-Assertion with it. The matching private key lives in
+# the POMERIUM_PRODUCTION 1P item (`signing_key`) and MUST be stored
+# before the pomerium opsRoute flag deploys, or Pomerium CrashLoops.
+pomerium:
+  publicKey: |-
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZB2eXkFlc1y2EnU4c45VjAEW58re
+    INok/Hl6nDVPKJhwdRH7gYuBTk78ebqlt5PbVQo+A/z4jNjsP6rTQckjsg==
+    -----END PUBLIC KEY-----

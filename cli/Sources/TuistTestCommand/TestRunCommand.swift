@@ -50,7 +50,10 @@
         "test-without-building",
     ]
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
+    // swiftlint:disable:next type_body_length
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
+        RunReportingCommand
+    {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -60,8 +63,8 @@
                 abstract: "Tests a project",
                 usage:
                 "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
-                discussion: "Use 'tuist test case' to manage test cases.",
-                shouldDisplay: false
+                discussion:
+                "This is the default subcommand, so 'tuist test --clean' and 'tuist test run --clean' are equivalent."
             )
         }
 
@@ -156,6 +159,13 @@
             envKey: .testResultBundlePath
         )
         var resultBundlePath: String?
+
+        @Option(
+            help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+            completion: .file(),
+            envKey: .runReportPath
+        )
+        public var runReportPath: String?
 
         @Option(
             help:
@@ -274,7 +284,7 @@
 
         @Option(
             name: .long,
-            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max). With suite granularity, the final shard is the catch-all.",
             envKey: .testShardTotal
         )
         var shardTotal: Int?

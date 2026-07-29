@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: 'Tuist'
+    type: 'tuist-metrics-datasource'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      url: 'https://tuist.dev'
+    secureJsonData:
+      apiToken: 'tuist_...'

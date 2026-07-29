@@ -4,7 +4,10 @@ name: tuist-preview
 # Three-node layout that mirrors how preview environments run on the
 # managed cluster: a control plane, a "general" worker for shared
 # workloads, and a dedicated worker labeled `role=preview` and tainted so
-# only ephemeral preview releases land on it. Used by `mise run helm:preview-up`.
+# only ephemeral preview releases land on it. Kura preview runtimes
+# colocate on the preview worker with a role=preview toleration; an
+# explicit infra/perf-test profile can re-introduce dedicated kura
+# workers when it ships.
 nodes:
   - role: control-plane
   - role: worker

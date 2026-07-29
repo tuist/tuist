@@ -474,8 +474,11 @@
             "self-hosting": {
               "text": "Self-hosting",
               "items": {
-                "installation": {
-                  "text": "Installation"
+                "server": {
+                  "text": "Server"
+                },
+                "cache": {
+                  "text": "Cache"
                 },
                 "telemetry": {
                   "text": "Telemetry"

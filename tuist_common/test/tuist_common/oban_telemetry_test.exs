@@ -8,7 +8,7 @@ defmodule TuistCommon.ObanTelemetryTest do
     TuistCommon.ObanTelemetry.attach()
 
     on_exit(fn ->
-      :telemetry.detach("oban-discard-error-reporter")
+      :telemetry.detach("oban-exception-reporter")
     end)
   end
 
@@ -41,9 +41,16 @@ defmodule TuistCommon.ObanTelemetryTest do
     test "reports to Sentry when a job exhausts all attempts" do
       expect(Sentry, :capture_exception, fn exception, opts ->
         assert %RuntimeError{message: "boom"} = exception
-        assert opts[:tags] == %{oban_worker: "MyApp.Worker", oban_queue: "default"}
+
+        assert opts[:tags] == %{
+                 oban_worker: "MyApp.Worker",
+                 oban_queue: "default",
+                 oban_state: "discard"
+               }
+
         assert opts[:extra][:attempt] == 3
         assert opts[:extra][:max_attempts] == 3
+        assert opts[:extra][:oban_state] == :discard
         {:ok, "event-id"}
       end)
 
@@ -62,10 +69,29 @@ defmodule TuistCommon.ObanTelemetryTest do
       })
     end
 
-    test "does not report to Sentry when a job has remaining attempts" do
-      reject(&Sentry.capture_exception/2)
+    test "reports to Sentry when a job has remaining attempts" do
+      expect(Sentry, :capture_exception, fn exception, opts ->
+        assert %RuntimeError{message: "boom"} = exception
+
+        assert opts[:tags] == %{
+                 oban_worker: "MyApp.Worker",
+                 oban_queue: "default",
+                 oban_state: "failure"
+               }
+
+        assert opts[:extra][:attempt] == 1
+        assert opts[:extra][:max_attempts] == 3
+        assert opts[:extra][:oban_state] == :failure
+        {:ok, "event-id"}
+      end)
 
       emit_exception(%{state: :failure})
+    end
+
+    test "does not report non-failure states" do
+      reject(&Sentry.capture_exception/2)
+
+      emit_exception(%{state: :cancelled})
     end
   end
 end

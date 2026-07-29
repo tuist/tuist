@@ -87,14 +87,7 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_params(_params, uri, socket) do
-    params = Query.query_params(uri)
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
 
     {
       :noreply,
@@ -361,9 +354,9 @@ defmodule TuistWeb.TestRunsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp analytics_environment_label(_), do: dgettext("dashboard_tests", "Any")
 
   defp assign_test_runs(%{assigns: %{selected_project: project}} = socket, params) do
     filters =
@@ -414,12 +407,19 @@ defmodule TuistWeb.TestRunsLive do
 
   defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :account_id, op: :==, value: value}
+          ]
 
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :account_id, op: op, value: value}]

@@ -1,0 +1,3 @@
+import FeaturePackage
+
+print(nativeIntegrationMessage)

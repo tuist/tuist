@@ -289,24 +289,25 @@ public struct PluginService: PluginServicing {
         else { throw PluginServiceError.invalidURL(url) }
 
         Logger.current.debug("Cloning plugin release from \(url) @ \(gitTag)")
-        try await fileSystem.runInTemporaryDirectory { _ in
+        try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
             // Download the release.
             // Currently, we assume the release path exists.
-            let downloadPath = try await fileClient.download(url: releaseURL)
-            let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
-            let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+            let downloadZipPath = temporaryDirectory.appending(component: "release.zip")
 
             var thrownError: Error?
+            var fileUnarchiver: FileUnarchiving?
 
             do {
                 if try await fileSystem.exists(downloadZipPath) {
                     try await fileSystem.remove(downloadZipPath)
                 }
-                try await fileSystem.move(from: downloadPath, to: downloadZipPath)
+                try await fileClient.download(url: releaseURL, to: downloadZipPath)
+                let unarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+                fileUnarchiver = unarchiver
 
                 // Unzip
                 let unarchivedContents = try await fileSystem.contentsOfDirectory(
-                    try fileUnarchiver.unzip()
+                    try unarchiver.unzip()
                 )
 
                 try await fileSystem.makeDirectory(at: pluginReleaseDirectory)
@@ -327,8 +328,7 @@ public struct PluginService: PluginServicing {
                 thrownError = error
             }
 
-            try? await fileUnarchiver.delete()
-            try? await fileSystem.remove(downloadPath)
+            try? await fileUnarchiver?.delete()
             try? await fileSystem.remove(downloadZipPath)
 
             if let thrownError { throw thrownError }

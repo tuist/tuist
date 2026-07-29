@@ -20,6 +20,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   plug :put_resp_header_cache_control
   plug :put_resp_header_server
 
+  @newsletter_verification_salt "newsletter_subscription"
+  @newsletter_verification_max_age 2 * 24 * 60 * 60
+
   def qa(conn, _params) do
     read_more_posts = Enum.take(Blog.get_posts(), 3)
 
@@ -307,8 +310,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   def newsletter_signup(conn, %{"email" => email}) do
     email = String.trim(email)
 
-    # Create a verification token (simple base64 encoded email)
-    verification_token = Base.encode64(email)
+    verification_token = sign_newsletter_verification_token(email)
     verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
 
     case Tuist.Loops.send_newsletter_confirmation(email, verification_url) do
@@ -332,76 +334,66 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def newsletter_verify(conn, %{"token" => token} = _params) do
-    case Base.decode64(token) do
+    case verify_newsletter_verification_token(token) do
+      {:ok, email} ->
+        conn
+        |> assign(:head_title, dgettext("marketing", "Confirm Subscription"))
+        |> assign_newsletter_verify_head()
+        |> assign(:email, email)
+        |> assign(:verification_token, token)
+        |> assign(:subscription_confirmed, false)
+        |> assign(:error_message, nil)
+        |> render(:newsletter_verify, layout: false)
+
+      {:error, _reason} ->
+        render_newsletter_verify_error(
+          conn,
+          dgettext("marketing", "Invalid verification link. Please try signing up again.")
+        )
+    end
+  end
+
+  def newsletter_verify(conn, _params) do
+    render_newsletter_verify_error(
+      conn,
+      dgettext("marketing", "Verification link expired or invalid. Please try signing up again.")
+    )
+  end
+
+  def newsletter_confirm(conn, %{"token" => token} = _params) do
+    case verify_newsletter_verification_token(token) do
       {:ok, email} ->
         case Tuist.Loops.add_to_newsletter_list(email) do
           :ok ->
             conn
             |> assign(:head_title, dgettext("marketing", "Successfully Subscribed!"))
-            |> assign(
-              :head_image,
-              Tuist.Environment.app_url(
-                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
-              )
-            )
-            |> assign(:head_twitter_card, "summary_large_image")
+            |> assign_newsletter_verify_head()
             |> assign(:email, email)
+            |> assign(:verification_token, nil)
+            |> assign(:subscription_confirmed, true)
             |> assign(:error_message, nil)
             |> render(:newsletter_verify, layout: false)
 
           {:error, _reason} ->
-            conn
-            |> assign(:head_title, "Newsletter Verification Failed")
-            |> assign(
-              :head_image,
-              Tuist.Environment.app_url(
-                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
-              )
-            )
-            |> assign(:head_twitter_card, "summary_large_image")
-            |> assign(
-              :error_message,
+            render_newsletter_verify_error(
+              conn,
               dgettext("marketing", "Verification failed. Please try signing up again.")
             )
-            |> assign(:email, nil)
-            |> render(:newsletter_verify, layout: false)
         end
 
-      :error ->
-        conn
-        |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
-        |> assign(
-          :head_image,
-          Tuist.Environment.app_url(
-            path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
-          )
-        )
-        |> assign(:head_twitter_card, "summary_large_image")
-        |> assign(
-          :error_message,
+      {:error, _reason} ->
+        render_newsletter_verify_error(
+          conn,
           dgettext("marketing", "Invalid verification link. Please try signing up again.")
         )
-        |> assign(:email, nil)
-        |> render(:newsletter_verify, layout: false)
     end
   end
 
-  def newsletter_verify(conn, _params) do
-    conn
-    |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(
-        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
-      )
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :error_message,
+  def newsletter_confirm(conn, _params) do
+    render_newsletter_verify_error(
+      conn,
       dgettext("marketing", "Verification link expired or invalid. Please try signing up again.")
     )
-    |> assign(:email, nil)
-    |> render(:newsletter_verify, layout: false)
   end
 
   def newsletter_issue(%{params: params} = conn, %{"issue_number" => issue_number}) do
@@ -490,7 +482,8 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     case_study_urls =
       for locale <- Localization.all_locales(),
-          case_study <- Customers.get_case_studies() do
+          case_study <- Customers.get_case_studies(),
+          Customers.local_case_study?(case_study) do
         localized_path = Localization.localized_href(case_study.slug, locale)
         Tuist.Environment.app_url(path: localized_path)
       end
@@ -581,37 +574,42 @@ defmodule TuistWeb.Marketing.MarketingController do
     request_path = Localization.path_without_locale(request_path)
     case_study = Customers.get_case_study(request_path, locale)
 
-    if is_nil(case_study) do
-      raise NotFoundError
-    else
-      related_case_studies =
-        locale
-        |> Customers.get_case_studies()
-        |> Enum.reject(&(&1.slug == case_study.slug))
-        |> Enum.take_random(3)
+    cond do
+      is_nil(case_study) ->
+        raise NotFoundError
 
-      customers_path = Localization.localized_href("/customers", locale)
-      case_study_path = Localization.localized_href(case_study.slug, locale)
+      Customers.external_case_study?(case_study) ->
+        redirect(conn, external: Customers.case_study_href(case_study))
 
-      conn
-      |> assign(:head_title, case_study.title)
-      |> assign(:head_description, case_study.excerpt)
-      |> assign(
-        :head_image,
-        Tuist.Environment.app_url(path: case_study.og_image_path)
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(
-        get_breadcrumbs_structured_data([
-          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
-          {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
-        ])
-      )
-      |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
-      |> assign(:case_study, case_study)
-      |> assign(:related_case_studies, related_case_studies)
-      |> render(:case_study, layout: false)
+      true ->
+        related_case_studies =
+          locale
+          |> Customers.get_case_studies()
+          |> Enum.reject(&(&1.slug == case_study.slug))
+          |> Enum.take_random(3)
+
+        customers_path = Localization.localized_href("/customers", locale)
+        case_study_path = Localization.localized_href(case_study.slug, locale)
+
+        conn
+        |> assign(:head_title, case_study.title)
+        |> assign(:head_description, case_study.excerpt)
+        |> assign(
+          :head_image,
+          Tuist.Environment.app_url(path: case_study.og_image_path)
+        )
+        |> assign(:head_twitter_card, "summary_large_image")
+        |> assign_structured_data(
+          get_breadcrumbs_structured_data([
+            {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+            {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+            {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
+          ])
+        )
+        |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
+        |> assign(:case_study, case_study)
+        |> assign(:related_case_studies, related_case_studies)
+        |> render(:case_study, layout: false)
     end
   end
 
@@ -716,6 +714,38 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
+  end
+
+  defp sign_newsletter_verification_token(email) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, @newsletter_verification_salt, email)
+  end
+
+  defp verify_newsletter_verification_token(token) do
+    Phoenix.Token.verify(TuistWeb.Endpoint, @newsletter_verification_salt, token,
+      max_age: @newsletter_verification_max_age
+    )
+  end
+
+  defp assign_newsletter_verify_head(conn) do
+    conn
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+      )
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+  end
+
+  defp render_newsletter_verify_error(conn, error_message) do
+    conn
+    |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
+    |> assign_newsletter_verify_head()
+    |> assign(:email, nil)
+    |> assign(:verification_token, nil)
+    |> assign(:subscription_confirmed, false)
+    |> assign(:error_message, error_message)
+    |> render(:newsletter_verify, layout: false)
   end
 
   defp put_agent_discovery_links(conn, _opts) do

@@ -5,10 +5,10 @@
   );
   --noora-progress-bar-purple: var(--noora-purple-500);
   --noora-border-progress-bar-empty:
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
     0px 1px 2px 0px oklch(0% 0 0 / 0.05) inset;
   --noora-border-progress-bar-line:
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.2) inset,
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.2) inset,
     0px 1px 0px 0px oklch(100% 0 0 / 0.35) inset;
 
   display: flex;
@@ -20,7 +20,7 @@
       0px 0px 0px 1px oklch(25.4% 0 0 / 0.75),
       0px 1px 2px 0px oklch(0% 0 0 / 0.4) inset;
     --noora-border-progress-bar-line:
-      0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.2) inset,
+      0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.2) inset,
       0px 1px 0px 0px oklch(100% 0 0 / 0.35) inset;
   }
 

@@ -339,7 +339,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn(
                 Tuist.test(project: .generated(.test(
                     installOptions: .test(
-                        passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
+                        passthroughSwiftPackageManagerArguments: [
+                            "--cached-directory-materialization",
+                            "symlink",
+                        ]
                     )
                 )))
             )
@@ -370,7 +373,14 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(1)
         verify(swiftPackageManagerController)
-            .resolve(at: .any, arguments: .value(["--replace-scm-with-registry"]), printOutput: .any)
+            .resolve(
+                at: .any,
+                arguments: .value([
+                    "--cached-directory-materialization",
+                    "symlink",
+                ]),
+                printOutput: .any
+            )
             .called(1)
     }
 

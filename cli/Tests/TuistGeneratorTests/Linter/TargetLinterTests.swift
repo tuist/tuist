@@ -452,6 +452,42 @@ final class TargetLinterTests: TuistUnitTestCase {
         )))
     }
 
+    func test_lint_when_target_has_duplicate_target_dependencies_specified() async throws {
+        let testDependency: TargetDependency = .target(name: "Library")
+
+        // Given
+        let target = Target.test(dependencies: .init(repeating: testDependency, count: 2))
+
+        // When
+        let got = try await subject.lint(target: target, options: .test())
+
+        // Then
+        XCTAssertTrue(got.contains(LintingIssue(
+            reason: "Target '\(target.name)' has duplicate target dependency specified: 'Library'",
+            severity: .warning
+        )))
+    }
+
+    func test_lint_when_target_has_duplicate_xcframework_dependencies_specified() async throws {
+        let testDependency: TargetDependency = .xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+
+        // Given
+        let target = Target.test(dependencies: .init(repeating: testDependency, count: 2))
+
+        // When
+        let got = try await subject.lint(target: target, options: .test())
+
+        // Then
+        XCTAssertTrue(got.contains(LintingIssue(
+            reason: "Target '\(target.name)' has duplicate xcframework dependency specified: 'MyBinary.xcframework'",
+            severity: .warning
+        )))
+    }
+
     func test_lint_when_target_has_non_existing_core_data_models() async throws {
         // Given
         let path = try temporaryPath()

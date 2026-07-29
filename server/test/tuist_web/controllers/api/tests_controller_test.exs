@@ -8,6 +8,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests" do
@@ -125,6 +126,46 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       # Then
       assert json_response(conn, :ok)
+    end
+
+    test "filters test runs with a query expression", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      query = URI.encode_query(%{query: ~s(-git_branch~"gh-readonly-queue")})
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "returns bad request for invalid query expressions", %{conn: conn, user: user, project: project} do
+      # When
+      query = URI.encode_query(%{query: ~s(unknown~"value")})
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}")
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] == "Invalid query parameter"
     end
 
     test "filters test runs by status", %{conn: conn, user: user, project: project} do
@@ -557,6 +598,33 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert run["name"] == "testExample"
     end
 
+    test "rejects an existing test run identifier from another project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      other_project = ProjectsFixtures.project_fixture()
+      {:ok, other_test_run} = RunsFixtures.test_fixture(project_id: other_project.id)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: other_test_run.id,
+            duration: 1000,
+            is_ci: false,
+            status: "success",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, :bad_request) == %{
+               "message" => "The request parameters are invalid"
+             }
+    end
+
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
       test_pid = self()
 
@@ -665,6 +733,115 @@ defmodule TuistWeb.API.TestsControllerTest do
             "git_remote_url_origin" => "https://github.com/tuist/tuist.git",
             "project_id" => project.id
           }
+        }
+      )
+    end
+
+    test "returns service unavailable and marks the test run failed when processing cannot be scheduled", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_pid = self()
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, 2, fn attrs ->
+        send(test_pid, {:created_test_status, attrs.status})
+
+        case attrs.status do
+          "processing" ->
+            {:ok,
+             %Test{
+               id: attrs.id,
+               duration: attrs.duration,
+               project_id: project.id,
+               account_id: attrs.account_id,
+               is_ci: false,
+               build_system: "xcode",
+               status: "processing",
+               test_case_runs: []
+             }}
+
+          "failed_processing" ->
+            {:ok, %{id: attrs.id}}
+        end
+      end)
+
+      expect(Oban, :insert, fn %Ecto.Changeset{} -> {:error, :database_unavailable} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, :service_unavailable) == %{
+               "message" => "The test run could not be scheduled for processing"
+             }
+
+      assert_received {:created_test_status, "processing"}
+      assert_received {:created_test_status, "failed_processing"}
+      refute_enqueued(worker: ProcessXcresultWorker, args: %{"test_run_id" => test_run_id})
+    end
+
+    test "attributes the run to the authenticated user while keeping storage under the project account", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert attrs.account_id == user.account.id
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{organization.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "account_id" => user.account.id,
+          "project_id" => project.id,
+          "storage_key" => "#{organization.account.name}/#{project.name}/runs/#{test_run_id}/result_bundle.zip"
         }
       )
     end

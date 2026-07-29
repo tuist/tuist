@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
@@ -28,6 +29,7 @@ public struct GenerateService {
     private let configLoader: ConfigLoading
     private let installService: InstallServicing
     private let outdatedDependenciesChecker: OutdatedDependenciesChecking
+    private let generationMetadataStore: GenerationMetadataStoring
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -36,7 +38,8 @@ public struct GenerateService {
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
     ) {
         self.init(
             cacheStorageFactory: cacheStorageFactory,
@@ -47,7 +50,8 @@ public struct GenerateService {
             pluginService: pluginService,
             configLoader: configLoader,
             installService: InstallService(),
-            outdatedDependenciesChecker: OutdatedDependenciesChecker()
+            outdatedDependenciesChecker: OutdatedDependenciesChecker(),
+            generationMetadataStore: generationMetadataStore
         )
     }
 
@@ -60,7 +64,8 @@ public struct GenerateService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         installService: InstallServicing,
-        outdatedDependenciesChecker: OutdatedDependenciesChecking
+        outdatedDependenciesChecker: OutdatedDependenciesChecking,
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -71,6 +76,7 @@ public struct GenerateService {
         self.configLoader = configLoader
         self.installService = installService
         self.outdatedDependenciesChecker = outdatedDependenciesChecker
+        self.generationMetadataStore = generationMetadataStore
     }
 
     public func run(
@@ -85,9 +91,16 @@ public struct GenerateService {
         let path = try await self.path(path)
 
         #if canImport(TuistCacheEE)
+            /// Byte budget for the LRU self-prune. On a runner the
+            /// dispatch-poll sets this to ~80% of the mounted cache volume so an
+            /// oversized working set degrades to a hot tier instead of churning
+            /// at ENOSPC; unset elsewhere, so the prune stays age/count-only.
+            /// Read here (not inside the detached task) because Environment's
+            /// TaskLocal value does not propagate into a detached task.
+            let cacheMaxBytes = Environment.current.variables["TUIST_CACHE_MAX_BYTES"].flatMap { Int($0) }
             Task.detached(priority: .background) {
                 let cacheLocalStorage = CacheLocalStorage(cacheDirectoriesProvider: CacheDirectoriesProvider())
-                try? await cacheLocalStorage.clean()
+                try? await cacheLocalStorage.clean(maxBytes: cacheMaxBytes)
             }
         #endif
 
@@ -118,7 +131,19 @@ public struct GenerateService {
             }
         }
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage: CacheStoring
+        do {
+            cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        } catch where
+            ServerErrorClassifier.isTransient(error)
+            || (error as? CacheURLStoreError) == .noReachableEndpoints
+        {
+            AlertController.current.warning(.alert(
+                "The remote cache is temporarily unavailable.",
+                takeaway: "Generation will continue using the local cache."
+            ))
+            cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        }
 
         let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
@@ -137,6 +162,7 @@ public struct GenerateService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
+        await persistGenerationMetadata(workspacePath: workspacePath)
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
@@ -146,6 +172,22 @@ public struct GenerateService {
 
     // MARK: - Helpers
 
+    /// Mints a generation identifier, records it on the run so the generate command event carries it
+    /// alongside the uploaded graph, and persists it keyed by the generated workspace so a later
+    /// `tuist inspect build` can link a local Xcode build back to this generation's module breakdown.
+    private func persistGenerationMetadata(workspacePath: AbsolutePath) async {
+        let generationId = UUID().uuidString.lowercased()
+        await RunMetadataStorage.current.update(generationId: generationId)
+        do {
+            // Keyed by the generated workspace. The build side resolves the same workspace before
+            // reading (see UploadBuildRunService), so this single key matches every build entry point.
+            try await generationMetadataStore.store(generationId: generationId, for: workspacePath)
+            try await generationMetadataStore.prune()
+        } catch {
+            Logger.current.debug("Failed to persist generation metadata: \(error.localizedDescription)")
+        }
+    }
+
     private func path(_ path: String?) async throws -> AbsolutePath {
         try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
@@ -154,7 +196,9 @@ public struct GenerateService {
 enum GenerateServiceError: FatalError, Equatable {
     case outdatedDependencies
 
-    var type: ErrorType { .abort }
+    var type: ErrorType {
+        .abort
+    }
 
     var description: String {
         switch self {

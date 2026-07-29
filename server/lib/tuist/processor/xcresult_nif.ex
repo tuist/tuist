@@ -47,8 +47,12 @@ defmodule Tuist.Processor.XCResultNIF do
           File.exists?(nif_so) ->
             {:error, message}
 
-          Tuist.Environment.env() in [:dev, :test] ->
-            :logger.warning(message <> " — .so missing, skipping (dev/test only)")
+          Tuist.Environment.env() == :test ->
+            :logger.debug(message <> " — .so missing, skipping (test only)")
+            :ok
+
+          Tuist.Environment.env() == :dev ->
+            :logger.warning(message <> " — .so missing, skipping (dev only)")
             :ok
 
           :os.type() != {:unix, :darwin} ->

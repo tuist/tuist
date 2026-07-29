@@ -173,6 +173,38 @@ struct MachineMetricsReaderTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func snapshotMetricsFile_copiesContentsWhenFileExists() async throws {
+        let subject = MachineMetricsReader(fileSystem: fileSystem)
+        try await writeSamples([
+            makeSample(timestamp: 1000),
+            makeSample(timestamp: 1500),
+        ])
+        let expectedContents = try await fileSystem.readTextFile(at: MachineMetricsReader.metricsFilePath)
+
+        let destination = try #require(FileSystem.temporaryTestDirectory)
+            .appending(component: "machine_metrics.jsonl")
+
+        let copied = try await subject.snapshotMetricsFile(to: destination)
+
+        #expect(copied == true)
+        #expect(try await fileSystem.exists(destination))
+        #expect(try await fileSystem.readTextFile(at: destination) == expectedContents)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func snapshotMetricsFile_returnsFalseWhenFileDoesNotExist() async throws {
+        let subject = MachineMetricsReader(fileSystem: fileSystem)
+
+        let destination = try #require(FileSystem.temporaryTestDirectory)
+            .appending(component: "machine_metrics.jsonl")
+
+        let copied = try await subject.snapshotMetricsFile(to: destination)
+
+        #expect(copied == false)
+        #expect(try await !fileSystem.exists(destination))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func readSamples_inclusiveTimeRangeBoundaries() async throws {
         let subject = MachineMetricsReader(fileSystem: fileSystem)
 

@@ -1,6 +1,13 @@
 # Preview workload Cluster, topology mode against tuist-hcloud.
-# Single CP + worker; the worker pool replica count is managed by the
-# preview-deploy / preview-sweep workflows, not by this manifest.
+# Single CP and one preview app worker pool. Kura preview runtimes
+# colocate on the same `md-0` pool with a role=preview toleration, so
+# the preview lifecycle does not depend on dedicated Kura capacity.
+# (See .github/workflows/preview-deploy.yml for the KuraInstance spec.) An
+# explicit infra/performance-test preview profile can re-add a dedicated
+# Kura MachineDeployment when it ships.
+#
+# The app worker pool replica count is managed by the preview-deploy /
+# preview-sweep workflows, not by this manifest.
 #
 # DO NOT `kubectl apply` THIS FILE AFTER INITIAL BOOTSTRAP.
 # The `replicas: 1` on the worker MachineDeployment will fight the

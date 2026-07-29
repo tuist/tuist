@@ -39,7 +39,7 @@ struct PBXScriptsBuildPhaseMapperTests {
         #expect(script.script == .embedded("echo Hello"))
         #expect(script.inputPaths == ["$(SRCROOT)/input.txt"])
         #expect(script.outputPaths == ["$(DERIVED_FILE_DIR)/output.txt"])
-        #expect(script.inputFileListPaths == ["${PODS_ROOT}/${CONFIGURATION}/file-list.xcfilelist"])
+        #expect(script.inputFileListPaths.map(\.path) == ["${PODS_ROOT}/${CONFIGURATION}/file-list.xcfilelist"])
     }
 
     @Test("Maps raw script build phases not covered by other categories")

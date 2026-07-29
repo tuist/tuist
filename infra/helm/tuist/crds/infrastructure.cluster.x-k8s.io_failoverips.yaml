@@ -1,0 +1,75 @@
+# Hand-maintained (no controller-gen in this repo, matching the other provider
+# CRDs here). FailoverIP keeps one vendor failover/additional IP routed to a
+# healthy box of a Kura bare-metal pool, so the region's host-network public peer
+# plane survives a box loss (and a demux roll) without a cloud LoadBalancer.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: failoverips.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: FailoverIP
+    listKind: FailoverIPList
+    plural: failoverips
+    singular: failoverip
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: IP
+          type: string
+          jsonPath: .spec.ip
+        - name: Vendor
+          type: string
+          jsonPath: .spec.vendor
+        - name: ActiveNode
+          type: string
+          jsonPath: .status.activeNode
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required: [ip, vendor, nodePoolSelector]
+              properties:
+                ip:
+                  type: string
+                vendor:
+                  type: string
+                  enum: [ovh, dedibox]
+                region:
+                  type: string
+                nodePoolSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                demuxSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                demuxNamespace:
+                  type: string
+            status:
+              type: object
+              properties:
+                activeNode:
+                  type: string
+                target:
+                  type: string
+                message:
+                  type: string
+                lastReconciledAt:
+                  type: string
+                  format: date-time

@@ -3,3 +3,6 @@
 /log/
 /data/
 /target/
+
+/bazel-*
+/.bazelrc.tuist

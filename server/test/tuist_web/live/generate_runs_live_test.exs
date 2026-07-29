@@ -128,6 +128,14 @@ defmodule TuistWeb.GenerateRunsLiveTest do
         command_arguments: ["generate", "OtherUserApp"]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "ContinuousIntegrationUserApp"],
+        is_ci: true
+      )
+
       {:ok, lv, _html} =
         live(
           conn,
@@ -136,6 +144,162 @@ defmodule TuistWeb.GenerateRunsLiveTest do
 
       assert has_element?(lv, "span", "generate UserApp")
       refute has_element?(lv, "span", "generate OtherUserApp")
+      refute has_element?(lv, "span", "generate ContinuousIntegrationUserApp")
+    end
+
+    test "filters generate runs by displayed command", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      matching_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "DebugStaging"]
+        )
+
+      other_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "Release"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "==",
+          "filter_name_val" => "tuist generate --configuration DebugStaging"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{matching_run.id}")
+      refute has_element?(lv, "tr##{other_run.id}")
+    end
+
+    test "filters generate runs when the command filter contains only the tuist prefix", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      generate_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "DebugStaging"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "=~",
+          "filter_name_val" => "tuist"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{generate_run.id}")
+    end
+
+    test "displays the command name when generate run arguments are empty", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: []
+      )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
+
+      assert has_element?(lv, "span", "tuist generate")
+    end
+
+    test "truncates the command column for runs with a long argument list", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given - a generate run with many target arguments, which otherwise widens the command
+      # column unbounded and pushes every other column off-screen.
+      targets = Enum.map(1..40, &"Target#{&1}")
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate" | targets]
+      )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
+
+      # Then - the command cell truncates (the default for text_and_description cells) so the
+      # column can no longer grow unbounded.
+      assert has_element?(
+               lv,
+               ~s([data-part="cell"][data-type="text_and_description"][data-truncate]),
+               "generate Target1"
+             )
+    end
+
+    test "filters generate runs whose branch does not contain a substring", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "QueuedApp"],
+        git_branch: "feature/gh-readonly-queue/main"
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "RegularApp"],
+        git_branch: "feature/main"
+      )
+
+      query =
+        URI.encode_query(%{
+          "filter_git_branch_op" => "!=~",
+          "filter_git_branch_val" => "gh-readonly-queue"
+        })
+
+      {:ok, lv, html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert html =~ "does not contain"
+      assert has_element?(lv, "span", "generate RegularApp")
+      refute has_element?(lv, "span", "generate QueuedApp")
     end
   end
 end

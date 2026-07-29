@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.UserTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.User
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -65,6 +65,8 @@ defmodule Tuist.Accounts.UserTest do
   end
 
   describe "preferred_locale_changeset/2" do
+    # "es" is only a valid supported locale when TUIST_DEV_ALL_LOCALES=1.
+    @tag :locale
     test "accepts a supported locale" do
       got = User.preferred_locale_changeset(%User{}, %{preferred_locale: "es"})
 

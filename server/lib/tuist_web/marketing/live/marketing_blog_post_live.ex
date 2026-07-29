@@ -64,7 +64,9 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
 
       rendered
     else
-      raw(post.body)
+      post.body
+      |> TuistWeb.Marketing.MarketingHTML.content_html()
+      |> raw()
     end
   end
 end

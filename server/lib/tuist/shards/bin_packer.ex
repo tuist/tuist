@@ -7,6 +7,11 @@ defmodule Tuist.Shards.BinPacker do
   @default_min_shards 1
   @default_max_shards 10
 
+  # Module-affinity packing is accepted only when its slowest shard stays within
+  # this factor of the duration-optimal (plain LPT) packing's slowest shard, so
+  # grouping a module's suites onto one shard never meaningfully hurts balance.
+  @affinity_balance_tolerance 1.05
+
   @doc """
   Packs units into `shard_count` shards using the LPT algorithm.
 
@@ -38,6 +43,63 @@ defmodule Tuist.Shards.BinPacker do
     end)
     |> Enum.map(fn {index, units, total} -> {index, Enum.reverse(units), total} end)
   end
+
+  @doc """
+  Like `pack/2`, but keeps units that share a group (per `group_fn`) on the same
+  shard so a shard pulls fewer per-module artifacts. Falls back to the plain
+  duration-optimal packing whenever grouping would make the slowest shard more
+  than `#{@affinity_balance_tolerance}`x the optimal one, so balance is never
+  meaningfully sacrificed for affinity.
+  """
+  def pack(units, shard_count, group_fn)
+      when is_list(units) and is_integer(shard_count) and shard_count > 0 and is_function(group_fn, 1) do
+    balanced = pack(units, shard_count)
+    grouped = pack_with_affinity(units, shard_count, group_fn)
+
+    if makespan(grouped) <= makespan(balanced) * @affinity_balance_tolerance do
+      grouped
+    else
+      balanced
+    end
+  end
+
+  # Keeps each group's units together as a single packable item (so the whole
+  # module lands on one shard), except for a group whose total duration already
+  # exceeds the per-shard target — those are packed unit-by-unit so a single
+  # heavy module can't blow out one shard.
+  defp pack_with_affinity(units, shard_count, group_fn) do
+    total_duration = units |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    target = total_duration / shard_count
+
+    items =
+      units
+      |> Enum.group_by(fn {name, _duration} -> group_fn.(name) end)
+      |> Enum.flat_map(fn {_group, group_units} ->
+        group_duration = group_units |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+
+        if group_duration > target do
+          Enum.map(group_units, fn {name, duration} -> {[{name, duration}], duration} end)
+        else
+          [{group_units, group_duration}]
+        end
+      end)
+
+    empty_shards = Enum.map(0..(shard_count - 1), &{&1, [], 0})
+
+    items
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.reduce(empty_shards, fn {item_units, item_duration}, shards ->
+      min_index = shards |> Enum.min_by(&elem(&1, 2)) |> elem(0)
+
+      List.update_at(shards, min_index, fn {index, shard_units, total} ->
+        {index, shard_units ++ item_units, total + item_duration}
+      end)
+    end)
+    |> Enum.map(fn {index, shard_units, total} -> {index, Enum.sort_by(shard_units, &elem(&1, 1), :desc), total} end)
+  end
+
+  defp makespan([]), do: 0
+  defp makespan(shards), do: shards |> Enum.map(&elem(&1, 2)) |> Enum.max()
 
   @doc """
   Determines the optimal shard count from constraints.

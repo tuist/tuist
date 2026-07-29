@@ -11,6 +11,17 @@ struct ActionLogSection: Codable, Sendable {
     let title: String?
     let location: Location?
 
+    static let empty = ActionLogSection(
+        subsections: nil,
+        commandInvocationDetails: nil,
+        testDetails: nil,
+        messages: nil,
+        duration: nil,
+        startTime: nil,
+        title: nil,
+        location: nil
+    )
+
     struct CommandInvocationDetails: Codable, Sendable {
         let emittedOutput: String?
     }

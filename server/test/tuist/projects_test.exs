@@ -100,10 +100,13 @@ defmodule Tuist.ProjectsTest do
 
   test "returns all projects associated with a user's based on a google hosted domain" do
     # Given
+    domain = "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true
       )
 
     account = Accounts.get_account_from_organization(organization)
@@ -112,14 +115,14 @@ defmodule Tuist.ProjectsTest do
     user =
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
-          email: "tuist@tuist.dev"
+          email: "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
         },
         extra: %{
           raw_info: %{
             user: %{
-              "hd" => "tuist.io"
+              "hd" => domain
             }
           }
         }
@@ -452,6 +455,37 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == project
+      assert Ecto.assoc_loaded?(got.account)
+      assert got.account.id == account.id
+    end
+
+    test "preloads extra associations" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        name: "tuist",
+        vcs_connection: [
+          provider: :github,
+          repository_full_handle: "tuist/tuist"
+        ]
+      )
+
+      # When
+      got =
+        Projects.get_project_by_account_and_project_handles(
+          account.name,
+          "tuist",
+          preload: [:account, :vcs_connection]
+        )
+
+      # Then
+      assert Ecto.assoc_loaded?(got.account)
+      assert Ecto.assoc_loaded?(got.vcs_connection)
+      assert got.account.id == account.id
+      assert got.vcs_connection.repository_full_handle == "tuist/tuist"
     end
   end
 

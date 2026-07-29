@@ -6,17 +6,73 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-# The production workload cluster still serves per-region Kura HTTPS and
-# gRPC traffic directly via Hetzner LoadBalancer Services. Disable the
-# Cloudflare-fronted global endpoint layer here too until the Cloudflare
-# pool quota is raised.
-kuraGlobalEndpointsEnabled: false
-kuraGlobalEndpointsRequired: false
+registry:
+  # Clients stay on tuist.dev/api/registry while the Worker forwards requests
+  # to this dedicated ingress host. The ingress hostname is not advertised as
+  # a separate registry endpoint.
+  enabled: true
+  publicHost: tuist.dev
+  serverUrl: https://tuist.dev
+  deployEnv: production
+  sentryEnv: prod
+  poolSize: "10"
+  ingress:
+    host: registry.tuist.dev
+    tlsSecretName: registry-tls
+    annotations:
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
 
 server:
   replicaCount: 2
 
   appUrl: https://tuist.dev
+
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    license:
+      item: ""
+      certificateItem: TUIST_LICENSE_CERTIFICATE_BASE64
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
+  # and canary use their own (test-mode) IDs in their overlays. The chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
+        flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
+      pro:
+        usage: ["price_1R7fOMLWue9IBlPSrEgHqsMg"]
+        flat_monthly: ["price_1QMtyXLWue9IBlPSlgeHHDvg"]
+      enterprise:
+        flat_monthly:
+          - price_1OWxeCLWue9IBlPSc6OnjqE4
+          - price_1QPK3YLWue9IBlPS3gmVGJin
+          - price_1RRZ6fLWue9IBlPS51mM1R3s
+          - price_1RRZ68LWue9IBlPSj4xaA8cJ
+          - price_1RRZ3wLWue9IBlPSoL1bMoIY
+        flat_yearly:
+          - price_1PXgu8LWue9IBlPSnE5Kd3S9
+          - price_1RRZ8hLWue9IBlPSDxv2a78d
+          - price_1RRZ8FLWue9IBlPSIP2xXtD2
+          - price_1RRZ7jLWue9IBlPSoPgEg4Ui
+      open_source:
+        usage: ["price_1QAYGqLWue9IBlPSQ6vapx9F"]
+        flat_monthly: ["price_1QAYJZLWue9IBlPSJzMjk1BZ"]
 
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
@@ -27,31 +83,79 @@ server:
     applicationName: tuist
 
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Keep clients on the existing registry base address while the Worker
+    # moves its origin from the cache nodes to the standalone frontend.
+    - name: TUIST_REGISTRY_URL
+      value: https://tuist.dev/api/registry/swift
+    # The legacy cache remains the sole registry writer until its schedule is
+    # disabled as a separate cutover step.
+    - name: SWIFT_REGISTRY_SYNC_ENABLED
+      value: "false"
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-    # Exposes the managed Kura regions in account settings. Each region
-    # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    # Exposes the managed Kura regions in account settings. Regions now
+    # reconcile inside this workload cluster; per-region Kura node pools
+    # decide placement.
+    # scw-fr-par-runners is the macOS-serving private (runner-cache)
+    # region: this cluster's Elastic Metal node (kuraFleet) hosts the
+    # per-account cache pods and dispatch routes the Mac fleet's build
+    # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west
-    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
-    # 1Password before Helm upgrades the production server release.
-    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
-      valueFrom:
-        secretKeyRef:
-          name: tuist-kura-kubeconfigs
-          key: TUIST_KURA_KUBECONFIG_US_EAST_1
-    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
-      valueFrom:
-        secretKeyRef:
-          name: tuist-kura-kubeconfigs
-          key: TUIST_KURA_KUBECONFIG_US_WEST_1
+      value: eu-central,us-east,us-west,scw-fr-par-runners
+    # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
+    # resolves to the node-port form (http://<node PN address>:<NodePort>
+    # on scw-fr-par-runners), reached over the PN the minis attach to
+    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # the public-region fallback (`runner_cache_endpoint_url/2` tier 2):
+    # prod has no Linux private cache region, and the public ingress is
+    # unreachable from runner pods (its host is a cluster node IP, which
+    # the runner egress policy's ipBlock rules never match under
+    # Cilium). Tier 1 takes over once the Linux runners get a node-local
+    # Kura region on Dedibox.
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
+    # Operator project-access grants. The public key verifies grants
+    # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
+    # which MUST be stored before this deploys). The reason-form URL turns
+    # the server→ops redirect ON: a non-member operator hitting a customer
+    # project is bounced to ops to justify access. Audience defaults to
+    # tuist-server on both sides (ops mints with the same default).
+    - name: TUIST_OPERATOR_GRANT_PUBLIC_KEY
+      value: |-
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAbdu2yr3sVDWPTsBOYNK18QoOh1gVYunaGapJkHwC1n8=
+        -----END PUBLIC KEY-----
+    - name: TUIST_OPS_REASON_FORM_URL
+      value: https://ops.tuist.dev/grants/new
+    # Atlas runs in its own Kubernetes cluster, so Tuist verifies Atlas
+    # projected ServiceAccount tokens offline against this pinned public JWKS
+    # instead of using Tuist's in-cluster TokenReview API.
+    - name: TUIST_ATLAS_NAMESPACE
+      value: atlas-production
+    - name: TUIST_ATLAS_SERVICE_ACCOUNT_NAME
+      value: atlas
+    - name: TUIST_ATLAS_TOKEN_ISSUER
+      value: https://kubernetes.default.svc.cluster.local
+    - name: TUIST_ATLAS_TOKEN_AUDIENCE
+      value: tuist-server
+    - name: TUIST_ATLAS_TOKEN_MAX_TTL_SECONDS
+      value: "3600"
+    # The internal Atlas SQL runner drops to the least-privilege tuist_ops_ro role
+    # via `SET LOCAL ROLE`, so writes are blocked by role privileges, not only by
+    # the read-only transaction. The web -> tuist_ops_ro membership that permits
+    # the switch is reconciled by CNPG (`managed.roles[tuist_web].inRoles`).
+    - name: TUIST_ATLAS_DB_READONLY_ROLE
+      value: tuist_ops_ro
+    - name: TUIST_ATLAS_TOKEN_JWKS
+      value: >-
+        {"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}
 
   autoscaling:
     enabled: true
@@ -72,6 +176,10 @@ server:
     className: nginx
     host: tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
@@ -102,21 +210,128 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Grafana load-balances across agents and fails over when one drops, so a
+  # single replica would make a node drain take every PDC-routed panel down.
+  # Three is Grafana's production recommendation.
+  replicas: 3
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+
 kuraController:
-  cloudflareLoadBalancing:
-    # Keep Cloudflare credentials wired so destroy flows can still clean
-    # up any previously provisioned global endpoints after reconciliation
-    # is re-enabled.
-    enabled: true
-    zoneName: tuist.dev
-    apiTokenSecret:
-      managed: true
-      item: cloudflare-tuist-dns
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
+  telemetry:
+    deploymentEnvironment: production
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
+
+# CloudNativePG cluster — production shape. 3 instances (primary + 2
+# sync replicas), 100Gi per instance. Each instance is a streaming
+# replica holding the whole DB, so the size is per-replica capacity,
+# not a pool to split across them. The Hetzner CSI storage class has
+# `allowVolumeExpansion: true`, so we grow in place if the footprint
+# climbs faster than expected. Backups land in the
+# `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
-  external:
-    host: db.tuist.dev  # Supabase pooler endpoint for production.
+  mode: cnpg
+  cnpg:
+    instances: 3
+    # Route the processor through the transaction-mode PgBouncer pooler.
+    # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
+    # that wouldn't benefit from session-mode bouncing); the processor's
+    # short, ingestion-burst connections get pooled.
+    pooler:
+      enabled: true
+      # Stand up a Tailscale operator-managed proxy in front of the
+      # pooler so the xcresult-processor (macOS Tart VMs whose only
+      # interface is Tailscale) can reach the in-cluster pooler without
+      # routing the K8s service CIDR through the existing subnet router.
+      # The processor's ExternalSecret renders an additional URL key
+      # for that hostname; xcresultProcessor.databaseUrlSecretKey below
+      # opts the Tart VM Deployment into using it.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-production
+        tags: tag:tuist-k8s-production
+    # PostgreSQL config sized against the 16 GiB memory limit below. The
+    # CNPG operator otherwise leaves Postgres on its 128 MiB shared_buffers
+    # default, which on a 16 GiB instance means ~99% of the page cache
+    # lives in the Linux file cache instead of Postgres's own buffer pool.
+    # That's functional (the kernel still caches hot pages) but it leaves
+    # Postgres's query planner pessimistic and wastes the headroom; pick
+    # sizes that fit the instance.
+    #   - shared_buffers ≈ 25% of memory limit (Postgres rule of thumb)
+    #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
+    #   - work_mem sized so 200 connections × work_mem stays << memory
+    #     limit even when several sorts run concurrently (here 200 × 32 MB
+    #     = 6.4 GB max footprint, comfortably below 16 GB)
+    #   - maintenance_work_mem bumped from the 64 MB default so VACUUM
+    #     and index rebuilds aren't artificially slow
+    #
+    # The web tier autoscales to 5 replicas, each holding a direct pool of
+    # TUIST_DATABASE_POOL_SIZE (15): 5 x 15 = 75, plus the processor, the
+    # migration job, and replication/monitoring/superuser overhead. The
+    # operator default max_connections of 100 is too tight for that at peak
+    # (and during a deploy surge). Raise it so the direct topology fits with
+    # headroom; ~200 connections cost ~2 GiB, well inside the 16Gi limit.
+    #
+    # pg_stat_statements is preloaded for per-query latency observability:
+    # queries grouped by parameterized fingerprint, with calls / mean /
+    # stddev / max.
+    parameters:
+      max_connections: "200"
+      shared_buffers: "4GB"
+      effective_cache_size: "12GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+    # `shared_preload_libraries` is a fixed parameter managed by the CNPG
+    # operator and rejected by the admission webhook if listed under
+    # `parameters` above — extra libs go in this list instead and the
+    # chart renders them to `spec.postgresql.shared_preload_libraries`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    # Powers the dashboard's read/write query-latency panels.
+    queryStats:
+      enabled: true
+    storage:
+      # Steady-state usage is ~30-40 GiB; oversized to absorb WAL spikes
+      # during large background operations (REINDEX, VACUUM FULL, bulk
+      # imports) without bumping pvc size mid-flight.
+      size: "250Gi"
+    # Requests sized to fit three instances under hard pod anti-affinity
+    # alongside the rest of the pool tenants; limits left generous so
+    # Postgres runtime peaks aren't capped by the scheduling budget.
+    resources:
+      requests:
+        cpu: "1500m"
+        memory: "6Gi"
+      limits:
+        cpu: "4000m"
+        memory: "16Gi"
+    backup:
+      destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
+  poolSize: "15"
+  bufferPoolSize: "15"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
@@ -125,16 +340,34 @@ objectStorage:
     buckets:
       default: tuist-prod-storage
 
+cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
+  s3:
+    bucket: tuist-cas-production
+    xcodeCacheBucket: tuist-xcode-cache-production
+    registryBucket: tuist-registry
+
+# Docker Hub pull-through cache. Reuses the production object-storage
+# bucket under a `docker-mirror` prefix. Runner `docker pull`s route
+# through it (runnersController.features.registryMirror below).
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-prod-storage
+    rootDirectory: docker-mirror
+
 processor:
-  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
-  database:
-    host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -184,8 +417,20 @@ processor:
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
 
-# Same priv/secrets selection as the build processor; the Tart image
-# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+swiftRegistrySync:
+  # The legacy regional cache release remains the production writer until its
+  # registry schedule can be disabled. Enabling both generations violates the
+  # single-writer cutover contract.
+  enabled: false
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Runs as the same env as the build processor; the Tart VM reads its secrets
+# from the environment (config Secret via envFrom + object-storage ESO), same
+# as the Linux pods.
 xcresultProcessor:
   # replicaCount stays at the chart default (2). The topology spread
   # in xcresult-processor-deployment.yaml forces the two replicas onto
@@ -195,17 +440,175 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  # Opt into the Tailscale-fronted URL the processor's ExternalSecret
+  # renders when postgresql.cnpg.pooler.tailscale.enabled is true.
+  # Linux processors keep the direct in-cluster URL via the default
+  # key.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  # Join each Tart VM to the production tailnet so it can dial the
+  # operator-managed pooler proxy at
+  # `postgresql.cnpg.pooler.tailscale.hostname`. The auth key reuses
+  # the macOS-fleet TAILSCALE item (same `tag:tuist-macmini-production`
+  # ACL binding the bootstrap uses for the Mac mini hosts).
+  tailscale:
+    enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Deliberately NOT the in-cluster receiver address the Linux deployments
+    # use. These pods are macOS Tart VMs whose only interface is Tailscale, so
+    # `*.svc.cluster.local` does not resolve inside the guest and every span
+    # was being dropped before it left the VM. This is the tailnet hostname of
+    # the Tailscale-operator proxy in front of the same receiver Service, set
+    # up in the k8s-monitoring chart's production values.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-production:4317
+    # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
+    # in-process handler in Tuist.Application.start_loki_logger/0, which is
+    # the only way these pods can ship logs: Alloy cannot tail a Tart guest
+    # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
+    # appends /loki/api/v1/push, matching the loki.source.api endpoint the
+    # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
+    # forwards to Grafana Cloud with the ones it already holds.
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-production:3100
+
+# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
+# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
+# the runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint. The control
+# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
+# bootstraps the node itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
+    # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
+    # capacity are the per-account density limiters here, not PN bandwidth or
+    # CPU, so we pay for memory + disk rather than a bigger NIC.
+    offerType: EM-I220E-NVME
+
+# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
+# (the env boundary, since all Dedibox share the org's default project) and
+# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
+# box is delivered + tagged tuist-kura-production; an enabled fleet with no
+# adoptable box hangs helm --wait. NOTE: eu-central is a shared public region
+# (many accounts, each with its own storageSize cache), so size the box for the
+# account count; Start-9-M is the staging-validated shape, but a larger Dedibox
+# offer may be needed for production.
+dediboxFleet:
+  enabled: true
+  machine:
+    adoptTag: tuist-kura-production
+    offer: Pro-9-XS
+    datacenter: DC5
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # 250-Mbps-floor cache pods against it.
+    egressBudgetMbps: 1000
+  scaleway:
+    externalSecrets:
+      item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
+
+# Shared OVH config holder. The singular ovhFleet stays disabled in production
+# (it is the ca-east validation fleet); production's OVH regions are the us-east /
+# us-west map fleets below. The shared OVH IAM ExternalSecret + reconciler read
+# the API item + endpoint from here (one OVH account serves every OVH fleet).
+ovhFleet:
+  enabled: false
+  endpoint: ovh-us
+  externalSecrets:
+    item: OVH_API
+
+# US East (Vint Hill VA) and US West (Hillsboro OR) Kura cache regions on OVH
+# bare metal, replacing the former Hetzner ccx13 pools. Each adopts a pre-ordered,
+# operator-installed box by its displayName prefix (the env+region boundary, since
+# one OVH account holds every env's boxes), scoped further by datacenter + offer.
+#
+# replicas is the number of boxes (one per region today). It is independent of an
+# account's pod count: every account's KuraInstance keeps its pods (primary + warm
+# standby, for gapless deploys) co-located on one box via controller pod affinity.
+# Add boxes to grow region capacity (more accounts, distributed across boxes by the
+# egress bin-packing), not to split a single account. PREREQ: the production vault
+# holds OVH_API + OVH_FLEET_SSH and the box is prepped (mise run baremetal:prep-ovh)
+# so the fleet self-joins it as kura-us-east / kura-us-west. Bring the OVH nodes up
+# and serving before retiring the Hetzner us-east/us-west pools (already dropped
+# from cluster-production.yaml).
+ovhFleets:
+  us-east:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: kura-us-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
+      offer: advance-1
+      datacenter: vin
+      os: ubuntu_24.04
+      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  us-west:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: kura-us-west
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-west
+      offer: advance-1
+      datacenter: hil
+      os: ubuntu_24.04
+      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Per-account cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission +
+  # watermark eviction, so space pressure degrades a job to the cold
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling, not the
+  # typical size), so 80 GiB holds ~30 masters — well beyond the accounts
+  # a single host keeps hot once affinity spreads them across the fleet.
+  # Kept well under the 512 GB disk, which is dominated by the ~85 GB
+  # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  # Enabled after the disk-image redesign (#11908): the cache is now a
+  # sparse APFS disk image on the share, not files on it, because virtio-fs
+  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
+  # versioned framework bundles → the ELOOP that broke every macOS job on
+  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
+  # the framework-with-xattr copy that failed on the old share succeeds
+  # inside the image, and a promoted master clones back warm with symlinks
+  # and xattrs intact.
+  runnerCacheVolume:
+    gib: 80
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free. A typical
+    # binary master is ~2.4 GB, so a 10 GiB binary budget still holds ~4x
+    # headroom while the CAS rides the same clone/promote/converge path. The
+    # guest is fail-safe: a store it cannot write falls back to a VM-local cold
+    # compilation cache, so a bad budget costs warmth, not the job.
+    masterCapGib: 28
+    casGib: 16
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -231,6 +634,19 @@ macosFleet:
     hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. Dispatch
+  # hands the Mac fleet the node-port endpoint because
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` above.
+  # Clients treat the cache endpoint as a hard override, so until a mini
+  # is attached/bootstrapped runner_cache_endpoint_url/2 returns nil (no
+  # active KuraInstance) and the build falls back to the public cache, so
+  # the cutover degrades rather than breaks while it converges.
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
 # customer runs. Apple's SLA permits up to two VMs per host; v1
@@ -253,31 +669,81 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  pools:
-    - name: default
-      replicas: 9
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-macos"
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; `maxReplicas: 9` lets either pool absorb the whole
+  # fleet under skewed demand and the allocator caps the joint sum
+  # so the pools don't double-book.
+  #
+  # Floors sum to 1 of the 9-slot budget; the remaining 8 slots are
+  # dynamically apportioned by queue depth across the pools. Older
+  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  #
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
+  xcodeOverrides:
+    "26.6":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 9
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+    "26.4.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+    "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+    "26.0.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+  # Resolved at deploy time from the latest `runner-image@` git tag.
+  runnerImageSemver: ""
+  pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
-# macosFleet and runnersFleet hosts run. Sized at 1 to start so the
-# cluster-managed builder lands alongside the existing hand-
-# bootstrapped `vm-image-builder-01` host (which carries the same
-# `vm-image-builder` runner label, so GitHub's scheduler routes
-# between them). Retire `-01` per the "Migrating from hand-
-# bootstrapped hosts" section of vm-image-builder.md once the
-# cluster-managed builder is comfortably taking jobs; scale up
-# `replicas` here to whatever capacity ends up needed.
+# macosFleet and runnersFleet hosts run. Production is the only env
+# that runs a builder (staging/canary disable theirs to avoid the
+# shared `vm-image-builder` org label routing release jobs cross-env).
+# Sized at 2 so the release's two parallel image bakes (runner image +
+# xcresult processor image) run concurrently instead of serializing on
+# one host. Each builder needs the one-time Local Network access grant
+# (see vm-image-builder.md) before it can reach its Tart guests over
+# SSH. Retire the hand-bootstrapped `vm-image-builder-01` host per the
+# "Migrating from hand-bootstrapped hosts" section of
+# vm-image-builder.md once these cluster-managed builders are
+# comfortably taking jobs.
 #
 # Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (9), so this fleet adds 1 to the pool-demand
+# runnersFleet (9), so this fleet adds 2 to the pool-demand
 # total. The operator's pre-order job for production already
-# tracks the macos + runners side; bump it by 1 ahead of the
-# first `helm upgrade` that flips this fleet's pool-claim path
-# on.
+# tracks the macos + runners side; bump it by 2 ahead of the
+# `helm upgrade` that applies this replica count.
 buildersFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
@@ -285,6 +751,11 @@ buildersFleet:
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
+
+runnersController:
+  features:
+    dindImage: true
+    registryMirror: true
 
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
@@ -303,31 +774,38 @@ kataContainers:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  pools:
-    - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3d6052b299e87fec95f8e03abf8c049bf75d40b03a3858dac6e28db2d4501a32"
-      dispatchLabel: "tuist-production-linux"
-      runnerLabels:
-        - self-hosted
-        - Linux
-        - X64
-      runtimeClass: kata-qemu
-      pod:
-        cpuMilli: 1000
-        memoryMB: 4096
-      # Pod-level autoscaling only. Bare-metal host count is operator-
-      # managed via the cluster topology — see staging values for the
-      # rationale.
+  pools: []
+  # Shape-keyed pools backing Runner Profiles. Keep in sync with
+  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
+  # default shape keeps the warm floor the legacy pool used to carry,
+  # since it absorbs both `tuist-default` traffic and the `linux`
+  # default-profile (`tuist-linux`) jobs that route through it.
+  # Resolved at deploy time from the latest `linux-runner-image@` git tag.
+  shapeRunnerImage: ""
+  shapeRuntimeClass: kata-qemu
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 0
+    maxReplicas: 120
+    scaleDownCooldownSeconds: 300
+  shapes:
+    - { vcpus: 1, memoryGb: 2 }
+    - { vcpus: 2, memoryGb: 4 }
+    # Default shape: ~50% of P95 warm floor (the legacy pool's value),
+    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
+    # traffic lands here. The floor is a slot count, so it absorbs the
+    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    - vcpus: 2
+      memoryGb: 8
+      default: true
       autoscaling:
-        enabled: true
-        # ~50% of P95: keeps warm runners pre-thawed without paying
-        # for steady-state idle capacity equal to peak.
         minWarmPoolFloor: 30
-        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
-        # reserved for system DaemonSets (Cilium agent, kube-proxy
-        # replacement, node-exporter) and per-Pod kata overhead.
-        maxReplicas: 120
-        scaleDownCooldownSeconds: 300
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 32 }
+    - { vcpus: 16, memoryGb: 32 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

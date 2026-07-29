@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -10,6 +11,7 @@ import TuistInitCommand
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
+import XcodeProj
 @testable import TuistKit
 
 struct BuildAcceptanceTestMultiplatformAppWithExtension {
@@ -391,6 +393,124 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
     }
 }
 
+struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
+    @Test(
+        .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(4))
+    )
+    func app_with_swiftpm_prebuilt_macro_dependency_builds_with_host_only_prebuilt_macro_support() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        let prebuiltDirectory = fixtureDirectory.appending(
+            components: "Tuist", ".build", "prebuilts", "swift-syntax"
+        )
+        #expect(try await fileSystem.exists(prebuiltDirectory, isDirectory: true))
+
+        // SwiftPM downloads the prebuilt swift-syntax macro libraries from download.swift.org and
+        // validates the prebuilt manifest's Apple code-signing certificate before extracting them
+        // under a `<hash>-MacroSupport` directory. When that certificate fails validation SwiftPM
+        // extracts nothing and resolves swift-syntax from source instead, and tuist wires the macro
+        // through a module map rather than the prebuilt libraries. The "Swift Package Collection:
+        // Apple Inc. - Swift" certificate signing these manifests expired on 2026-07-10, disabling
+        // the prebuilt path until Apple re-signs it (or the toolchain moves to a signed manifest).
+        //
+        // The assertions below cover the prebuilt integration, so they only apply when SwiftPM
+        // actually extracted the prebuilt libraries. Scope the tolerance narrowly so a tuist-side
+        // regression is still caught rather than masked by the skip:
+        //   - `#expect` above already fails if the prebuilt directory was never set up (e.g. tuist
+        //     stopped requesting prebuilts).
+        //   - Detect extracted `-MacroSupport` libraries across the whole prebuilts tree, not just
+        //     the expected `swift-syntax` package directory. If they were extracted but to an
+        //     unexpected location the assertions still run and fail on the expected-path checks.
+        // Only when nothing was extracted anywhere — the state SwiftPM is left in when it rejects
+        // the manifest — do we tolerate the outage and let the test self-heal once a signed
+        // manifest is available (e.g. on a toolchain whose manifest has been re-signed).
+        let prebuiltsDirectory = fixtureDirectory.appending(
+            components: "Tuist", ".build", "prebuilts"
+        )
+        let extractedPrebuiltModules = try await fileSystem.glob(
+            directory: prebuiltsDirectory,
+            include: ["**/*-MacroSupport/**/*-apple-macos.*"]
+        ).collect()
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable because the signed manifest could not be validated.")
+        }
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(components: "MacroDependency", "MacroDependency.xcodeproj").pathString
+        )
+        let targetNames = xcodeproj.pbxproj.nativeTargets.map(\.name)
+        #expect(!targetNames.contains("SwiftSyntax"))
+        #expect(!targetNames.contains("SwiftSyntaxBuilder"))
+        #expect(!targetNames.contains("SwiftSyntaxMacros"))
+        #expect(!targetNames.contains("SwiftCompilerPlugin"))
+
+        let macroTarget = try TuistAcceptanceTest.requireTarget("MacroDependencyMacros", in: xcodeproj)
+        let buildSettings = try #require(macroTarget.buildConfigurationList?.configuration(name: "Release")?.buildSettings)
+
+        let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+        #expect(otherSwiftFlags.contains("-I"))
+        #expect(otherSwiftFlags.contains(where: {
+            $0.contains(".build/prebuilts/swift-syntax/") && $0.contains("-MacroSupport/Modules")
+        }))
+        #expect(otherSwiftFlags.contains(where: {
+            $0.contains(".build/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include")
+        }))
+
+        let librarySearchPaths = try #require(buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue)
+        #expect(librarySearchPaths.contains(where: {
+            $0.contains(".build/prebuilts/swift-syntax/") && $0.contains("-MacroSupport/lib")
+        }))
+
+        let otherLDFlags = try #require(buildSettings["OTHER_LDFLAGS"]?.arrayValue)
+        #expect(otherLDFlags.contains("-lMacroSupport"))
+
+        #if arch(arm64)
+            let nonHostModulePattern = "**/x86_64-apple-macos.*"
+        #else
+            let nonHostModulePattern = "**/arm64-apple-macos.*"
+        #endif
+
+        let nonHostModulePaths = try await fileSystem.glob(
+            directory: prebuiltDirectory,
+            include: [nonHostModulePattern]
+        ).collect()
+        for nonHostModulePath in nonHostModulePaths {
+            try await fileSystem.remove(nonHostModulePath)
+        }
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "build",
+                "-workspace",
+                fixtureDirectory.appending(component: "App.xcworkspace").pathString,
+                "-scheme",
+                "App",
+                "-configuration",
+                "Release",
+                "-derivedDataPath",
+                derivedDataPath.pathString,
+                "-skipMacroValidation",
+                "CODE_SIGNING_ALLOWED=NO",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGN_IDENTITY=",
+            ]
+        )
+
+        #expect(buildSettings["ONLY_ACTIVE_ARCH"]?.stringValue == "YES")
+    }
+}
+
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
     @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
@@ -426,28 +546,50 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
 }
 
 struct BuildAcceptanceTestMultiplatformAppWithSDK {
-    @Test(.disabled(), .withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
-    func test() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--platform",
-                "macos",
-                "--path",
-                fixtureDirectory.pathString,
-                "--derived-data-path",
-                derivedDataPath.pathString,
-            ]
-        )
-        try await TuistTest.run(
-            BuildCommand.self,
-            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
-        )
+    @Test(.withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
+    func build_and_test_documentation() async throws {
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+
+        let workspace = fixturePath.appending(component: "App.xcworkspace").pathString
+        let codeSigningArgs: [String] = [
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ]
+
+        // iOS — docbuild exercises ExtractAPI, which is the path that needs MODULEMAP_PATH.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        // macOS — ensures the multiplatform scheme still builds on macOS.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=macOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
     }
 }
 

@@ -1,0 +1,134 @@
+# Production workload-cluster overlay. Loaded by k8s:install-platform when
+# CLUSTER_NAME=tuist.
+
+# Stable outbound source IP for hosted Tuist server traffic that reaches
+# customer infrastructure (for example GHES instances behind IP allowlists).
+# The IP is a Hetzner Floating IP in the tuist-workloads project. The gateway
+# role lives on the dedicated ≥2-node `md-egress` pool (see
+# cluster-production.yaml), whose nodes self-apply the
+# `tuist.dev/stable-egress-candidate=server` label at kubelet registration. The
+# failover controller keeps the Floating IP + the active gateway label on one
+# prepared, directly healthy candidate and fails over on node loss, so a node replacement
+# self-heals in seconds, instead of the manual failover that caused the
+# 2026-06-14 outage.
+ciliumEgressGateway:
+  server:
+    enabled: true
+    namespace: tuist
+    egressIP: 116.202.0.10
+    hostConfigurator:
+      enabled: true
+      nodeSelector:
+        tuist.dev/stable-egress-candidate: server
+    failoverController:
+      # The controller keeps the active candidate unless its direct health or
+      # prepared host state remains unhealthy past the configured grace period.
+      # The image tag is resolved at deploy time by k8s:install-platform.
+      enabled: true
+      floatingIpName: tuist-production-server-egress
+      # Reserved egress set customers allowlist: Hetzner Floating IPs
+      # tuist-production-server-egress (116.202.0.10, active) + -2
+      # (116.202.4.195, spare) in the tuist-workloads project. Active/standby —
+      # one is ever live; the spare lets the active migrate without a customer
+      # allowlist change. Keep in lockstep with the customer network guide
+      # (server/priv/docs/en/guides/server/network.md). To grow the set, reserve
+      # more Floating IPs and add their /32s to BOTH places before use.
+      egressIpAllowlist:
+        - 116.202.0.10/32
+        - 116.202.4.195/32
+
+# Main Tuist web/API ingress. Keep the Hetzner location explicit here instead
+# of deriving it from Nodes: production also carries regional Kura pools, and
+# the platform LoadBalancer should stay with the fsn1 general pool.
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
+# Dedicated Kura ingress dataplanes. These are shared per region, not
+# per customer: customer-specific hosts route through the regional
+# ingress class and then to the selected Kura pod. Keep the controller
+# pods on the same regional Kura pools so the Hetzner LoadBalancer,
+# ingress-nginx, and Kura pods stay local to the region.
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    # eu-central is cut over to the Dedibox bare-metal box: the regional gateway
+    # runs on the box's host network so serving traffic hits the box NIC directly
+    # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
+    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
+    # into each Ingress status so external-dns resolves the per-account hosts to
+    # the box.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    # Direct client connections on this hostNetwork path: no Hetzner LB adds a
+    # PROXY header, so the shared regional default (use-proxy-protocol: true)
+    # would mangle every connection. Turn it off here.
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-dedibox
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
+kura-us-east-ingress-nginx:
+  enabled: true
+  controller:
+    # US East is on the OVH Vint Hill (VA) bare-metal box: the regional gateway
+    # runs host-network so serving traffic hits the box NIC directly (OVH has no
+    # Hetzner LB), the same shape as eu-central on Dedibox above.
+    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
+    # into each Ingress status so external-dns resolves the per-account hosts.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-east
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
+kura-us-west-ingress-nginx:
+  enabled: true
+  controller:
+    # US West is on the OVH Hillsboro (OR) bare-metal box; same host-network shape.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-west
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}

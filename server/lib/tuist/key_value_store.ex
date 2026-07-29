@@ -61,14 +61,19 @@ defmodule Tuist.KeyValueStore do
 
   defp get_from_redis(cache_key) do
     case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
-      {:ok, nil} -> nil
-      {:ok, value} -> :erlang.binary_to_term(value)
+      {:ok, nil} ->
+        nil
+
+      {:ok, value} ->
+        case deserialize(value) do
+          {:ok, value} -> value
+          :error -> nil
+        end
     end
   end
 
   defp get_from_cachex(cache_key, opts) do
-    {:ok, cached_value} = Cachex.get(cachex_cache(opts), cache_key(cache_key))
-    cached_value
+    read_from_cachex(cachex_cache(opts), cache_key(cache_key))
   end
 
   @doc ~S"""
@@ -122,7 +127,23 @@ defmodule Tuist.KeyValueStore do
           value
 
         {:ok, value} ->
-          :erlang.binary_to_term(value)
+          case deserialize(value) do
+            :error ->
+              value = func.()
+
+              Redix.command(Environment.redis_conn_name(), [
+                "SET",
+                cache_key,
+                :erlang.term_to_binary(value),
+                "EX",
+                div(cache_ttl, 1000)
+              ])
+
+              value
+
+            {:ok, value} ->
+              value
+          end
       end
     end
 
@@ -140,14 +161,14 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp get_or_update_from_cachex(cache_key, opts, func) do
-    read_or_update = fn cache ->
-      {:ok, cached_value} = Cachex.get(cache, cache_key(cache_key))
+    cache_key = cache_key(cache_key)
 
-      case cached_value do
+    read_or_update = fn cache ->
+      case read_from_cachex(cache, cache_key) do
         nil ->
           value = func.()
 
-          Cachex.put(cache, cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
+          Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
 
           value
 
@@ -157,11 +178,7 @@ defmodule Tuist.KeyValueStore do
     end
 
     if Keyword.get(opts, :locking, true) do
-      case Cachex.transaction(cachex_cache(opts), [cache_key(cache_key)], read_or_update) do
-        {:ok, value} -> value
-        # If the cache is unavailable, we handle it gracefully by obtaining the value without caching it.
-        {:error, _reason} -> func.()
-      end
+      run_cachex_transaction(cachex_cache(opts), [cache_key], read_or_update, func)
     else
       read_or_update.(cachex_cache(opts))
     end
@@ -181,7 +198,55 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp put_in_cachex(cache_key, value, opts) do
-    Cachex.put(cachex_cache(opts), cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
+    opts
+    |> cachex_cache()
+    |> Cachex.put(cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
+    |> normalize_cachex_put()
+  end
+
+  defp read_from_cachex(cache, cache_key) do
+    cache
+    |> Cachex.get(cache_key)
+    |> normalize_cachex_get()
+  rescue
+    _error in ArgumentError -> nil
+  end
+
+  defp normalize_cachex_get({:ok, cached_value}) do
+    if cachex_returns_wrapped_results?(), do: cached_value, else: {:ok, cached_value}
+  end
+
+  defp normalize_cachex_get({:error, reason}) do
+    if cachex_returns_wrapped_results?(), do: nil, else: {:error, reason}
+  end
+
+  defp normalize_cachex_get(cached_value), do: cached_value
+
+  defp normalize_cachex_put(:ok), do: {:ok, true}
+  defp normalize_cachex_put(result), do: result
+
+  defp run_cachex_transaction(cache, keys, operation, fallback) do
+    result = Cachex.transaction(cache, keys, operation)
+
+    if cachex_returns_wrapped_results?() do
+      case result do
+        {:ok, value} -> value
+        # If the cache is unavailable, we handle it gracefully by obtaining the value without caching it.
+        {:error, _reason} -> fallback.()
+        value -> value
+      end
+    else
+      result
+    end
+  rescue
+    _error in ArgumentError -> fallback.()
+  end
+
+  defp cachex_returns_wrapped_results? do
+    case Application.spec(:cachex, :vsn) do
+      nil -> false
+      version -> Version.match?(List.to_string(version), "< 4.1.0")
+    end
   end
 
   defp cachex_cache(opts) do
@@ -195,6 +260,12 @@ defmodule Tuist.KeyValueStore do
   defp cache_key(cache_key) when is_list(cache_key), do: Enum.map_join(cache_key, "-", &to_string/1)
   defp cache_key(cache_key) when is_atom(cache_key), do: Atom.to_string(cache_key)
   defp cache_key(cache_key) when is_binary(cache_key), do: cache_key
+
+  defp deserialize(value) do
+    {:ok, :erlang.binary_to_term(value, [:safe])}
+  rescue
+    _error in ArgumentError -> :error
+  end
 
   defp use_redis?(opts) do
     Keyword.get(opts, :persist_across_deployments, false) and

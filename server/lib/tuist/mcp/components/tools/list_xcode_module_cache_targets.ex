@@ -27,6 +27,60 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
         }
       },
       "required" => ["run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "targets" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string"},
+              "cache_status" => %{"type" => "string"},
+              "cache_hash" => %{"type" => "string"},
+              "product" => %{"type" => ["string", "null"]},
+              "bundle_id" => %{"type" => ["string", "null"]},
+              "product_name" => %{"type" => ["string", "null"]},
+              "subhashes" => %{
+                "type" => "object",
+                "properties" => %{
+                  "sources" => %{"type" => "string"},
+                  "resources" => %{"type" => "string"},
+                  "copy_files" => %{"type" => "string"},
+                  "core_data_models" => %{"type" => "string"},
+                  "target_scripts" => %{"type" => "string"},
+                  "environment" => %{"type" => "string"},
+                  "headers" => %{"type" => "string"},
+                  "deployment_target" => %{"type" => "string"},
+                  "info_plist" => %{"type" => "string"},
+                  "entitlements" => %{"type" => "string"},
+                  "dependencies" => %{"type" => "string"},
+                  "project_settings" => %{"type" => "string"},
+                  "target_settings" => %{"type" => "string"},
+                  "buildable_folders" => %{"type" => "string"},
+                  "additional_hashing_inputs" => %{"type" => "string"},
+                  "external" => %{"type" => "string"}
+                },
+                "additionalProperties" => false
+              }
+            },
+            "required" => [
+              "name",
+              "cache_status",
+              "cache_hash",
+              "product",
+              "bundle_id",
+              "product_name",
+              "subhashes"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["targets", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.CommandEvents
@@ -112,6 +166,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       project_settings: non_empty(target.project_settings_hash),
       target_settings: non_empty(target.target_settings_hash),
       buildable_folders: non_empty(target.buildable_folders_hash),
+      additional_hashing_inputs: non_empty(target.additional_hashing_inputs_hash),
       external: non_empty(target.external_hash)
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)

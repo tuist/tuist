@@ -17,9 +17,9 @@
 //     ServiceAccounts as direct owner-ref children of the pool —
 //     no `RunnerAssignment` intermediate.
 //
-// Per-customer config (`runner_max_concurrent`) lives on the
-// `accounts` Postgres table, not in K8s. The dispatch endpoint
-// reads it at claim time.
+// Runner availability is gated server-side by the `:runners`
+// feature flag, not in K8s. The dispatch endpoint evaluates it
+// per webhook.
 //
 // API group: `tuist.dev/v1alpha1`. Short name: `rpool`.
 package v1alpha1

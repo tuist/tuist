@@ -8,13 +8,11 @@
     public struct CacheStorableTarget: Hashable, Equatable {
         public let target: GraphTarget
         public let hash: String
-        public let time: Double?
         public var name: String { target.target.name }
 
-        public init(target: GraphTarget, hash: String, time: Double? = nil) {
+        public init(target: GraphTarget, hash: String) {
             self.target = target
             self.hash = hash
-            self.time = time
         }
 
         public func hash(into hasher: inout Hasher) {
@@ -49,10 +47,7 @@
     }
 
     public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
-        public let time: Double?
-        public init(time: Double? = nil) {
-            self.time = time
-        }
+        public init() {}
     }
 
     @Mockable
@@ -96,8 +91,7 @@
                     (
                         CacheStorableItem(
                             name: target.name,
-                            hash: target.hash,
-                            metadata: CacheStorableItemMetadata(time: target.time)
+                            hash: target.hash
                         ),
                         paths
                     )

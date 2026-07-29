@@ -1,11 +1,16 @@
-@import "./layouts/header_bar.css";
 @import "./layouts/account.css";
+@import "./layouts/header_bar.css";
 
+/* App shell: the document never scrolls. The headerbar and sidebar are
+   regular flex children that always fit the window, and the content pane
+   scrolls in its own container — no sticky positioning anywhere, so nothing
+   can drift or jitter with the scroll. */
 .layout {
   display: flex;
   flex-direction: column;
-  min-width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .layout__main {
@@ -13,15 +18,14 @@
   flex: 1;
   flex-direction: row;
   background: var(--noora-surface-background-primary);
+  min-height: 0;
 
   & .noora-sidebar {
-    position: sticky;
-    top: 0;
     flex-shrink: 0;
-    align-self: flex-start;
-    margin-top: var(--noora-spacing-5);
-    max-height: 100vh;
-    overflow-y: auto;
+    align-self: stretch;
+    border-right: 1px solid var(--noora-content-divider-line);
+    /* Scrolling happens on the inner viewport with an overlay scrollbar. */
+    overflow: hidden;
   }
 }
 
@@ -34,9 +38,30 @@
 }
 
 .layout__content {
+  /* Page layout tiers: fixed width caps that pages pick from. Pages default
+     to the standard tier; settings-style pages opt into the compact tier by
+     tagging their root with data-layout="compact" (see layouts/account.css).
+     The caps are ceilings, not rendered widths — below the cap a page is
+     fluid with only the base padding as gutter; past it the page centers. No
+     noora token exists for container widths; the two tier values are the raw
+     numbers. */
+  --layout-page-padding-inline: var(--noora-spacing-8);
+  --layout-page-padding-block: var(--noora-spacing-9);
+  --layout-page-width-compact: 914px;
+  --layout-page-width-standard: 1600px;
+  --layout-page-width-current: var(--layout-page-width-standard);
+  --layout-page-width-with-margin-current: calc(
+    var(--layout-page-width-current) + 2 * var(--layout-page-padding-inline)
+  );
+  --layout-page-max-width-with-margin-current: min(100%, var(--layout-page-width-with-margin-current));
   flex: 1;
-
-  padding: var(--noora-spacing-5);
   min-width: 0;
-  overflow: hidden;
+  /* Explicit overflow-x: an auto-scrolling axis forces the other axis from
+     visible to auto, which would surface a horizontal scrollbar for content
+     the old overflow: hidden used to clip. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* scrollbar-width doesn't inherit, so the thin rule on `html` doesn't reach
+     this scroll container — restate it here to match the rest of the app. */
+  scrollbar-width: thin;
 }

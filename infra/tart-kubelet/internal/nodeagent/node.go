@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 )
 
 // Maintainer is a controller-runtime Runnable. Owns the Node object's
@@ -28,6 +30,12 @@ import (
 type Maintainer struct {
 	Client   client.Client
 	NodeName string
+	// ProviderID is the cloud machine ID (scw-applesilicon://<zone>/<id>)
+	// the CAPI provider passes at bootstrap. CAPI core binds a Machine to
+	// its Node by matching Node.spec.providerID == Machine.spec.providerID;
+	// without it the fleet MachineDeployment never reports available.
+	// Empty leaves spec.providerID untouched.
+	ProviderID string
 	// NodeIP is the address advertised as the Node's InternalIP so
 	// in-cluster scrapers (alloy-metrics) targeting the Node role
 	// (host-level node_exporter at :9100, or any future host-bound
@@ -53,7 +61,36 @@ type Maintainer struct {
 	MemoryMB   int
 	MaxPods    int
 	Heartbeat  time.Duration
+	// DiskPressure, when non-nil, is evaluated each heartbeat to set
+	// the Node's DiskPressure condition. A real kubelet always reports
+	// this condition; leaving it unset surfaces as Unknown, which hides
+	// a full guest disk from the scheduler and from alerting. nil keeps
+	// the condition at its False default.
+	DiskPressure DiskPressureProbe
+
+	// DynamicLabels, when non-nil, is evaluated each heartbeat for Node
+	// labels the agent owns that change at runtime (today: the
+	// `tuist.dev/golden-<hash>` advertisements of which golden base VMs
+	// this host holds). They're merged alongside NodeLabels and pruned
+	// the same way — a key that stops being returned (golden GC'd) is
+	// dropped on the next heartbeat. A probe error contributes nothing
+	// this round; the provider is expected to mask transient failures
+	// (e.g. return its last good result) so a momentary `tart list`
+	// hiccup doesn't flap the labels off.
+	DynamicLabels DynamicLabelProvider
 }
+
+// DynamicLabelProvider returns the agent-owned labels to publish this
+// heartbeat. A non-nil error means the probe failed; the maintainer then
+// publishes no dynamic labels for the round rather than guessing.
+type DynamicLabelProvider func(ctx context.Context) (map[string]string, error)
+
+// DiskPressureProbe reports whether the node is under disk pressure plus
+// a human-readable detail for the condition message. A non-nil error
+// means the probe itself failed (e.g. a guest agent was unreachable);
+// the maintainer then leaves the existing condition untouched rather
+// than flapping it to False on a transient failure.
+type DiskPressureProbe func(ctx context.Context) (pressured bool, detail string, err error)
 
 // operatorOwnedLabelPrefix is the prefix tart-kubelet treats as
 // "I own this label." Labels with this prefix that aren't in the
@@ -86,13 +123,26 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
 		node.Name = m.NodeName
-		m.configureNode(node)
+		if m.ProviderID != "" {
+			node.Spec.ProviderID = m.ProviderID
+		}
+		m.configureNode(node, m.evalDynamicLabels(ctx))
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
-	// Node already exists (kubelet restart): just refresh status.
+	// Node already exists (kubelet restart). spec.providerID is immutable
+	// once set, so only fill it when empty — this binds nodes that
+	// registered before tart-kubelet learned to set it. refresh() below
+	// writes only the status subresource, so the spec patch has to happen
+	// here.
+	if m.ProviderID != "" && node.Spec.ProviderID == "" {
+		node.Spec.ProviderID = m.ProviderID
+		if err := m.Client.Update(ctx, node); err != nil {
+			return err
+		}
+	}
 	return m.refresh(ctx)
 }
 
@@ -101,7 +151,38 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	if err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node); err != nil {
 		return err
 	}
-	m.configureNode(node)
+
+	// configureNode edits labels (metadata) and taints (spec); the
+	// Status().Update below writes only the status subresource and the API
+	// server drops any metadata/spec it carries. Static labels survive
+	// because they're set at Create, but the dynamic golden-base labels
+	// first appear here on a heartbeat — without a separate metadata write
+	// they'd never reach etcd, so no Node would carry the label and the
+	// controller's golden node-affinity would silently match nothing. Patch
+	// metadata/spec first (merge patch persists label deletions as null),
+	// then update status.
+	base := node.DeepCopy()
+	m.configureNode(node, m.evalDynamicLabels(ctx))
+
+	// configureNode just set this Node's desired status (Ready=True,
+	// capacity, node info). client.Patch below replaces the in-memory node
+	// — status included — with the API server's response, which carries
+	// whatever status the node holds on the server right now. If the
+	// node-lifecycle controller has flipped Ready to Unknown (it does that
+	// on any heartbeat gap, e.g. during a kubelet restart), the Patch
+	// clobbers our Ready=True back to Unknown, and the Status().Update below
+	// then re-posts that Unknown with only a fresh LastHeartbeatTime — so
+	// the Node is stranded in Unknown forever and the heartbeat can never
+	// lift it back to Ready. Snapshot the desired status before the Patch
+	// and restore it afterward so the status update actually asserts
+	// Ready=True.
+	desiredStatus := node.Status.DeepCopy()
+	if err := m.Client.Patch(ctx, node, client.MergeFrom(base)); err != nil {
+		return err
+	}
+	node.Status = *desiredStatus
+
+	m.applyDiskPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
@@ -110,10 +191,46 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	return m.Client.Status().Update(ctx, node)
 }
 
+// evalDynamicLabels runs the DynamicLabels provider for this heartbeat,
+// returning nil (publish no dynamic labels) when unset or on error. The
+// provider is responsible for masking transient failures so a probe error
+// here is genuinely "no opinion this round", not "flap the labels off".
+func (m *Maintainer) evalDynamicLabels(ctx context.Context) map[string]string {
+	if m.DynamicLabels == nil {
+		return nil
+	}
+	labels, err := m.DynamicLabels(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "dynamic node labels")
+		return nil
+	}
+	return labels
+}
+
+// applyDiskPressure refreshes the DiskPressure condition from the probe.
+// configureNode has already seeded the condition at False, so a nil
+// probe leaves it False and a probe error leaves the prior value in
+// place (logged, not flapped).
+func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
+	if m.DiskPressure == nil {
+		return
+	}
+	pressured, detail, err := m.DiskPressure(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "disk pressure probe")
+		return
+	}
+	if pressured {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", detail)
+	} else {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", detail)
+	}
+}
+
 // configureNode sets labels, taints, capacity, and Node info. Mirrors
 // what a real kubelet reports — minus cAdvisor metrics, which we
 // don't need.
-func (m *Maintainer) configureNode(node *corev1.Node) {
+func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]string) {
 	if node.Labels == nil {
 		node.Labels = map[string]string{}
 	}
@@ -125,12 +242,20 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 	// excluded from the prune below.
 	node.Labels["tuist.dev/runtime"] = "tart"
 
-	// Apply operator-set labels. Any tuist.dev/* label not in the
-	// current NodeLabels map gets dropped — gives the operator a
-	// clean retire path: flip --node-labels and the Node sheds
-	// the old labels on the next heartbeat. The runtime label is
-	// excluded from prune (intrinsic, not operator-tunable).
+	// Effective owned set: operator-set NodeLabels plus the agent-owned
+	// dynamic labels (golden advertisements) this heartbeat. Used for
+	// both apply and prune so a tuist.dev/* label that's no longer owned
+	// — a retired --node-labels entry or a GC'd golden — is dropped on
+	// the next heartbeat. The runtime label is excluded from prune
+	// (intrinsic, not tunable).
+	owned := make(map[string]string, len(m.NodeLabels)+len(dynamicLabels))
 	for k, v := range m.NodeLabels {
+		owned[k] = v
+	}
+	for k, v := range dynamicLabels {
+		owned[k] = v
+	}
+	for k, v := range owned {
 		node.Labels[k] = v
 	}
 	for k := range node.Labels {
@@ -140,7 +265,7 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 		if k == "tuist.dev/runtime" {
 			continue
 		}
-		if _, kept := m.NodeLabels[k]; !kept {
+		if _, kept := owned[k]; !kept {
 			delete(node.Labels, k)
 		}
 	}
@@ -182,6 +307,22 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 		list[corev1.ResourcePods] = resource.MustParse(fmt.Sprintf("%d", maxPods))
 	}
 
+	// Ephemeral storage = the root APFS container that holds every Tart
+	// golden base + clone. A real kubelet reports this; without it the
+	// host disk is absent from `kubectl describe node` and invisible to
+	// ephemeral-storage-aware tooling, so a fill (which silently breaks
+	// the operator's SSH config updates) can't be seen at the k8s layer.
+	// We report the filesystem size for both capacity and allocatable —
+	// tart-kubelet does no ephemeral-storage request accounting, so the
+	// dynamic fill signal is the DiskPressure condition (applyDiskPressure),
+	// not a shrinking allocatable. A statvfs error just omits the resource
+	// this heartbeat rather than failing the whole status update.
+	if st, err := hostdisk.Root("/"); err == nil && st.TotalBytes > 0 {
+		q := resource.NewQuantity(int64(st.TotalBytes), resource.BinarySI)
+		node.Status.Capacity[corev1.ResourceEphemeralStorage] = *q
+		node.Status.Allocatable[corev1.ResourceEphemeralStorage] = *q
+	}
+
 	now := metav1.Now()
 	if !hasCondition(node.Status.Conditions, corev1.NodeReady) {
 		node.Status.Conditions = append(node.Status.Conditions, corev1.NodeCondition{
@@ -192,7 +333,14 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 			LastTransitionTime: now,
 		})
 	} else {
-		setCondition(&node.Status.Conditions, corev1.NodeReady, corev1.ConditionTrue, "TartKubeletReady")
+		setCondition(&node.Status.Conditions, corev1.NodeReady, corev1.ConditionTrue, "TartKubeletReady", "")
+	}
+
+	// Seed DiskPressure at False so the node never sits at Unknown (which
+	// hides a full guest disk). The heartbeat's probe — see
+	// applyDiskPressure — flips it to True when a guest volume fills.
+	if !hasCondition(node.Status.Conditions, corev1.NodeDiskPressure) {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", "")
 	}
 
 	node.Status.NodeInfo.OperatingSystem = "darwin"
@@ -231,7 +379,7 @@ func hasCondition(conds []corev1.NodeCondition, t corev1.NodeConditionType) bool
 	return false
 }
 
-func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s corev1.ConditionStatus, reason string) {
+func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s corev1.ConditionStatus, reason, message string) {
 	now := metav1.Now()
 	for i, c := range *conds {
 		if c.Type == t {
@@ -240,6 +388,7 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 			}
 			(*conds)[i].Status = s
 			(*conds)[i].Reason = reason
+			(*conds)[i].Message = message
 			(*conds)[i].LastHeartbeatTime = now
 			return
 		}
@@ -248,6 +397,7 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 		Type:               t,
 		Status:             s,
 		Reason:             reason,
+		Message:            message,
 		LastHeartbeatTime:  now,
 		LastTransitionTime: now,
 	})

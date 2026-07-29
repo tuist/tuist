@@ -21,7 +21,7 @@ import { CalendarNavigation } from "./CalendarNavigation.js";
 import { DateInputHandler } from "./DateInputHandler.js";
 import { WEEKDAYS, MOBILE_BREAKPOINT } from "./constants.js";
 
-class DatePicker extends Component {
+export class DatePicker extends Component {
   constructor(el, props) {
     super(el, props);
     this.presets = props.presets || [];
@@ -183,13 +183,7 @@ class DatePicker extends Component {
     }
 
     const preset = presets.find((p) => p.id === selectedPreset);
-    if (!preset || !preset.period) return null;
-
-    const range = calculateRangeFromDuration(preset.period);
-    return [
-      datePicker.parse(toISODateString(range.start)),
-      datePicker.parse(toISODateString(range.end)),
-    ];
+    return this.getPresetValue(preset);
   }
 
   initApi() {
@@ -224,25 +218,46 @@ class DatePicker extends Component {
     this.selectedPreset = presetId;
     this.updatePresetSelection(presetId);
 
+    const value = this.getPresetValue(preset);
+    if (value && this.api.setValue) {
+      const [startDate, endDate] = value;
+      this.isSettingPreset = true;
+      this.api.setValue(value);
+      this.calendarNav.updateForSelection(startDate, endDate);
+
+      this.api = this.initApi();
+      this.render();
+
+      // Defer flag reset to ensure onValueChange callbacks have fired
+      queueMicrotask(() => {
+        this.isSettingPreset = false;
+      });
+    }
+  }
+
+  getPresetValue(preset) {
+    if (!preset) return null;
+
     if (preset.period) {
       const range = calculateRangeFromDuration(preset.period);
-      const startDate = datePicker.parse(toISODateString(range.start));
-      const endDate = datePicker.parse(toISODateString(range.end));
-
-      if (startDate && endDate && this.api.setValue) {
-        this.isSettingPreset = true;
-        this.api.setValue([startDate, endDate]);
-        this.calendarNav.updateForSelection(startDate, endDate);
-
-        this.api = this.initApi();
-        this.render();
-
-        // Defer flag reset to ensure onValueChange callbacks have fired
-        queueMicrotask(() => {
-          this.isSettingPreset = false;
-        });
-      }
+      return [
+        datePicker.parse(toISODateString(range.start)),
+        datePicker.parse(toISODateString(range.end)),
+      ];
     }
+
+    const start = parseISODate(preset.start);
+    const end = parseISODate(preset.end);
+    if (!start || !end) return null;
+
+    return [
+      datePicker.parse(
+        `${start.year}-${String(start.month).padStart(2, "0")}-${String(start.day).padStart(2, "0")}`,
+      ),
+      datePicker.parse(
+        `${end.year}-${String(end.month).padStart(2, "0")}-${String(end.day).padStart(2, "0")}`,
+      ),
+    ];
   }
 
   handleCancel() {

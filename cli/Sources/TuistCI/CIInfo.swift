@@ -27,11 +27,13 @@ public struct CIInfo: Equatable {
         self.pipelineId = pipelineId
     }
 
+    /// Stable across the build-for-testing job and its downstream shard execution jobs, and across
+    /// partial re-runs (e.g. GitHub's "Re-run failed jobs"). The CI attempt counter is deliberately
+    /// excluded: re-running only the execution phase must resolve the plan created by the original
+    /// build phase, and a full re-run recreates the plan under the same reference (the server keeps
+    /// the latest one).
     public var shardReference: String? {
         guard let id = pipelineId ?? runId else { return nil }
-        if let attemptNumber {
-            return "\(provider)-\(id)-\(attemptNumber)"
-        }
         return "\(provider)-\(id)"
     }
 

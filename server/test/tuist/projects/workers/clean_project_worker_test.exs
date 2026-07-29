@@ -1,5 +1,5 @@
 defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.CacheActionItems

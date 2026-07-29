@@ -109,6 +109,20 @@ defmodule Tuist.Utilities.DateFormatterTest do
     test "still includes seconds for sub-hour durations when include_seconds: false" do
       assert DateFormatter.format_duration_from_milliseconds(3_500_000, include_seconds: false) == "58m 20s"
     end
+
+    test "drops fractional seconds when fractional_seconds: false" do
+      assert DateFormatter.format_duration_from_milliseconds(5_500, fractional_seconds: false) == "5s"
+    end
+
+    test "omits a trailing zero-seconds component when fractional_seconds: false" do
+      assert DateFormatter.format_duration_from_milliseconds(360_000, fractional_seconds: false) == "6m"
+      assert DateFormatter.format_duration_from_milliseconds(60_000, fractional_seconds: false) == "1m"
+    end
+
+    test "keeps fractional seconds by default" do
+      assert DateFormatter.format_duration_from_milliseconds(5_500) == "5.5s"
+      assert DateFormatter.format_duration_from_milliseconds(360_000) == "6m 0.0s"
+    end
   end
 
   describe "format_full/1" do

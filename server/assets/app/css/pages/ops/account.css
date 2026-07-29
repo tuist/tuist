@@ -53,6 +53,46 @@
     gap: var(--noora-spacing-4);
     max-width: 480px;
   }
+
+  & [data-part="runner-concurrency-description"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & #runner-concurrency-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="runner-concurrency-platforms"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--noora-spacing-6);
+
+    & > fieldset {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      margin: var(--noora-spacing-0);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-large);
+      padding: var(--noora-spacing-6);
+
+      & > legend {
+        padding: 0 var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+      }
+    }
+
+    @media (max-width: 768px) {
+      & {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
 }
 
 /* Deployment detail page — metadata grid + terminal-style log viewer.

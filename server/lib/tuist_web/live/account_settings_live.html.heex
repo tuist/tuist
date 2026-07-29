@@ -2,25 +2,31 @@
   <h1 data-part="title">
     {dgettext("dashboard_account", "Settings")}
   </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
   <%= if is_nil(@selected_account.user_id) do %>
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <.cache_endpoints_section
-      :if={@custom_cache_endpoints_available}
-      cache_endpoints={@cache_endpoints}
-      add_cache_endpoint_form={@add_cache_endpoint_form}
-      custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
-    />
-    <.kura_servers_section
-      :if={@kura_enabled}
-      kura_servers={@kura_servers}
-      available_kura_regions={@available_kura_regions}
-      add_kura_server_form={@add_kura_server_form}
-      latest_kura_version={@latest_kura_version}
-      global_endpoint_url={@kura_global_endpoint_url}
-    />
+    <%= if @managed_kura_visible? do %>
+      <.kura_servers_section
+        kura_servers={@kura_servers}
+        available_kura_regions={@available_kura_regions}
+        add_kura_server_form={@add_kura_server_form}
+        latest_kura_version={@latest_kura_version}
+      />
+    <% end %>
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -172,14 +178,21 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <.kura_servers_section
-      :if={@kura_enabled}
-      kura_servers={@kura_servers}
-      available_kura_regions={@available_kura_regions}
-      add_kura_server_form={@add_kura_server_form}
-      latest_kura_version={@latest_kura_version}
-      global_endpoint_url={@kura_global_endpoint_url}
-    />
+    <%= if @managed_kura_visible? do %>
+      <.kura_servers_section
+        kura_servers={@kura_servers}
+        available_kura_regions={@available_kura_regions}
+        add_kura_server_form={@add_kura_server_form}
+        latest_kura_version={@latest_kura_version}
+      />
+    <% end %>
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">

@@ -18,8 +18,11 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 
 observeThemeChanges();
 
+// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
+const liveSocketFallbackMs = 10000;
+
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: liveSocketFallbackMs,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: {
     ...Noora.Hooks,
@@ -32,8 +35,20 @@ let liveSocket = new LiveSocket("/live", Socket, {
   },
 });
 
+// topbar draws on a canvas and can't resolve var() or light-dark(), so
+// resolve the color through a probe element, which the browser evaluates
+// against the current color scheme. Resolved on every show so runtime theme
+// switches are picked up.
+function loadingBarColor() {
+  const probe = document.createElement("div");
+  probe.style.color = "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#29d";
+}
+
 topbar.config({
-  barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
 function closeMobileSidebar() {
@@ -52,7 +67,10 @@ function maybeScrollToTopForNavigation({ kind, to } = {}) {
   });
 }
 
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.config({ barColors: { 0: loadingBarColor() } });
+  topbar.show(300);
+});
 window.addEventListener("phx:page-loading-stop", (info) => {
   topbar.hide();
   maybeScrollToTopForNavigation(info.detail);

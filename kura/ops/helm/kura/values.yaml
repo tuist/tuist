@@ -18,8 +18,8 @@ serviceAccount:
 # scrapers. The managed clusters' k8s-monitoring release discovers
 # targets via these prometheus.io/* keys (annotationAutodiscovery), and
 # the embedded Prometheus self-hosters opt into reads the same keys.
-# port-name pins discovery to the single `http` container port (the pod
-# also declares grpc and peer) so /metrics is scraped once per pod.
+# port-name pins discovery to the `http` container port (the pod also
+# declares peer) so /metrics is scraped once per pod.
 # Inert when no scraper is present.
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -35,8 +35,10 @@ service:
   annotations: {}
   loadBalancerIP: ""
   externalTrafficPolicy: ""
+  # Kura serves the HTTP cache API and REAPI gRPC (h2c) on one co-hosted
+  # listener (KURA_PORT = httpPort). This chart requires a Kura image with
+  # the co-hosted listener (releases after kura@0.10.15).
   httpPort: 4000
-  grpcPort: 50051
 
 peerTls:
   enabled: false
@@ -60,20 +62,35 @@ ingress:
           pathType: Prefix
   tls: []
 
+grpcIngress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kura-grpc.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 persistence:
   enabled: true
   # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
   # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
     - ReadWriteOncePod
-  size: 20Gi
+  size: 200Gi
   storageClass: ""
   annotations: {}
 
-tmpStorage:
-  sizeLimit: ""
-
-resources: {}
+# Kura derives every memory budget from the container limit. Keep the request
+# equal to the limit so a default install reserves the memory it may consume
+# instead of sizing itself from the shared node's physical memory.
+resources:
+  requests:
+    memory: 1Gi
+  limits:
+    memory: 1Gi
 
 nodeSelector: {}
 tolerations: []
@@ -96,20 +113,46 @@ pdb:
 config:
   tenantId: default
   region: fr-par
+  tmpDirMaxBytes: 8589934592
+  # Artifact-body budget for the CAS segment ring. Leave unset to derive
+  # 50% of the data volume's filesystem size at startup; either way the
+  # runtime caps the budget at 80% of the filesystem so segment rotation
+  # can never run the disk full.
+  casCapacityBytes: null
   fileDescriptors:
-    poolSize: 128
+    # Leave unset to derive from the process RLIMIT_NOFILE after Kura raises
+    # the soft limit to the hard limit at startup.
+    poolSize: null
     acquireTimeoutMs: 5000
-    segmentHandleCacheSize: 32
+    # Leave unset to derive from the effective file descriptor pool size.
+    segmentHandleCacheSize: null
+  acceleratedFileServing:
+    enabled: true
+    mode: splice
+    maxConcurrent: 32
+    chunkBytes: 1048576
   memory:
-    softLimitBytes: 536870912
-    hardLimitBytes: 805306368
-    manifestCacheMaxBytes: 67108864
+    # Leave watermarks and cache capacities unset so Kura derives them from
+    # the container's effective memory limit. Explicit values must remain below
+    # that limit and are intended only for deliberate tuning experiments.
+    softLimitBytes: null
+    hardLimitBytes: null
+    snapshotCacheMaxBytes: null
+    manifestCacheMaxBytes: null
     maxKeyvalueBytes: 1048576
   shutdown:
     drainCompletionTimeoutMs: 240000
   metadataStore:
     maxOpenFiles: 1024
     maxBackgroundJobs: 4
+  replication:
+    # Positive values are adaptive ceilings: Kura lowers the effective sync
+    # rate under public inflight load or elevated public request latency.
+    # Set to 0 to disable application-level peer artifact body throttling.
+    bandwidthLimitBytesPerSecond: 536870912
+    # Public request latency target used to further back off peer sync traffic.
+    # Set to 0 to disable latency-based pressure.
+    publicLatencyTargetMs: 100
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

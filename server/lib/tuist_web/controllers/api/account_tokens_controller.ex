@@ -48,7 +48,7 @@ defmodule TuistWeb.API.AccountTokensController do
                description: "A scope string in format entity:object:access_level."
              },
              description: "The scopes for the new account token.",
-             example: ["project:cache:read", "project:builds:write"]
+             example: ["account:cache:write", "project:builds:write"]
            },
            name: %Schema{
              type: :string,
@@ -147,11 +147,6 @@ defmodule TuistWeb.API.AccountTokensController do
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
-
-      _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Invalid request"})
     end
   end
 

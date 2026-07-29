@@ -1,6 +1,6 @@
 # Contributor License Agreement (Server Components Only)
 
-**This CLA applies ONLY to contributions made to the Tuist Server components (files within the `server/` directory). Contributions to other parts of the Tuist project are covered under the MIT License as outlined in the root CONTRIBUTING.md.**
+**This CLA applies ONLY to contributions made to the Tuist Server components (files within the `server/` directory). Contributions to other parts of the Tuist project are covered by the license terms outlined in the root LICENSE.md and CONTRIBUTING.md.**
 
 ---
 

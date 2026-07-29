@@ -22,17 +22,11 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   end
 
   def assign_handle_params(socket, params) do
+    params = Query.clear_cursors_on_initial_load(params, socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
 
     socket
     |> assign(:uri, uri)
@@ -143,9 +137,6 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     end
   end
 
-  def sort_icon("desc"), do: "square_rounded_arrow_down"
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-
   def column_patch_sort(
         %{uri: uri, build_runs_sort_by: build_runs_sort_by, build_runs_sort_order: build_runs_sort_order},
         column_value
@@ -170,12 +161,19 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
+
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :account_id, op: :==, value: value}
+          ]
 
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :account_id, op: op, value: value}]

@@ -2,30 +2,42 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
-use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH,
+use crate::{
+    constants::{
+        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
+        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+    },
+    runtime::DataDirLock,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
-const KURA_GRPC_PORT: &str = "KURA_GRPC_PORT";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
+const KURA_TMP_DIR_MAX_BYTES: &str = "KURA_TMP_DIR_MAX_BYTES";
+const KURA_CAS_CAPACITY_BYTES: &str = "KURA_CAS_CAPACITY_BYTES";
 const KURA_NODE_URL: &str = "KURA_NODE_URL";
+const KURA_PEER_GATEWAY_URL: &str = "KURA_PEER_GATEWAY_URL";
 const KURA_PEERS: &str = "KURA_PEERS";
 const KURA_DISCOVERY_DNS_NAME: &str = "KURA_DISCOVERY_DNS_NAME";
+const KURA_GLOBAL_DISCOVERY_DNS_NAME: &str = "KURA_GLOBAL_DISCOVERY_DNS_NAME";
 const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
-const KURA_GRPC_TLS_CERT_PATH: &str = "KURA_GRPC_TLS_CERT_PATH";
-const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+const KURA_ACCELERATED_FILE_SERVING_ENABLED: &str = "KURA_ACCELERATED_FILE_SERVING_ENABLED";
+const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
+const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
+    "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
+const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -34,6 +46,7 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
+const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
 const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
@@ -52,9 +65,27 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
+const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
+const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
+    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
+const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
+const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
+const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
+const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
+const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
+const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
+    "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
+const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
+const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
+const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
@@ -67,35 +98,51 @@ const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
+const MEMORY_WATERMARK_MIN_GAP_BYTES: u64 = 64 * BYTES_PER_MIB;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
+const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 512 * BYTES_PER_MIB;
+const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
+#[cfg(target_os = "linux")]
+const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
+    /// dispatching each request to the right subsystem by path. When `public_tls`
+    /// is set the same surface is also served over TLS on `https_port`.
     pub port: u16,
-    pub grpc_port: u16,
     pub internal_port: u16,
     pub tenant_id: String,
     pub region: String,
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
+    pub tmp_dir_max_bytes: u64,
+    /// Operator-provided CAS segment-ring budget. When unset, the store
+    /// derives the budget from the data-dir filesystem size at startup.
+    pub cas_capacity_bytes: Option<u64>,
     pub node_url: String,
+    pub peer_gateway_url: Option<String>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
+    pub global_discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
-    pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
+    /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
+    pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
     pub segment_handle_cache_size: usize,
+    pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
     pub rocksdb_max_open_files: i32,
@@ -105,11 +152,16 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
+    pub replication_bandwidth_limit_bytes_per_second: u64,
+    pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
+    pub multipart_max_active_uploads: usize,
+    pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
+    pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
@@ -136,15 +188,32 @@ pub struct PeerTlsConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrpcTlsConfig {
+pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PublicTlsConfig {
-    pub cert_path: PathBuf,
-    pub key_path: PathBuf,
+pub struct AcceleratedFileServingConfig {
+    pub enabled: bool,
+    pub mode: AcceleratedFileServingMode,
+    pub max_concurrent: usize,
+    pub chunk_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcceleratedFileServingMode {
+    Sendfile,
+    Splice,
+}
+
+impl AcceleratedFileServingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Sendfile => "sendfile",
+            Self::Splice => "splice",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,6 +226,19 @@ pub struct AnalyticsConfig {
     pub request_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UsageConfig {
+    pub control_plane_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub window_secs: u64,
+    pub flush_interval_ms: u64,
+    pub delivery_interval_ms: u64,
+    pub batch_size: usize,
+    pub max_buckets: usize,
+    pub outbox_max_depth: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -192,7 +274,7 @@ impl HostResources {
                 .max(256),
             memory_limit_bytes: detect_memory_limit_bytes()
                 .unwrap_or(FALLBACK_HOST_MEMORY_LIMIT_BYTES)
-                .max(256 * BYTES_PER_MIB),
+                .max(1),
             cpu_count: detect_cpu_count().max(1),
         }
     }
@@ -205,18 +287,17 @@ impl DerivedRuntimeDefaults {
             .file_descriptor_limit
             .saturating_sub(reserved_fds.max(64))
             .max(256);
-        let file_descriptor_pool_size = clamp_usize(usable_fds / 8, 64, 256);
-        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 4, 16, 64)
+        let file_descriptor_pool_size = clamp_usize(usable_fds / 2, 128, 4096);
+        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 8, 16, 256)
             .min(file_descriptor_pool_size.saturating_sub(1).max(1));
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
 
-        let memory_limit_bytes = host_resources.memory_limit_bytes.max(256 * BYTES_PER_MIB);
-        let memory_soft_limit_bytes =
-            round_down_to_mib(memory_limit_bytes * 70 / 100).max(128 * BYTES_PER_MIB);
-        let memory_hard_limit_bytes = round_down_to_mib(
-            (memory_limit_bytes * 85 / 100).max(memory_soft_limit_bytes + 64 * BYTES_PER_MIB),
-        );
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 60 / 100).max(1);
+        let memory_hard_limit_bytes = round_down_to_mib(memory_limit_bytes * 85 / 100)
+            .max(memory_soft_limit_bytes.saturating_add(1))
+            .min(memory_limit_bytes.saturating_sub(1).max(1));
         let manifest_cache_max_bytes = clamp_bytes_to_usize(
             round_down_to_mib(memory_soft_limit_bytes / 16),
             8 * BYTES_PER_MIB,
@@ -289,16 +370,6 @@ impl Config {
                     }
                 }
             });
-        let grpc_port =
-            required_value(&mut lookup, KURA_GRPC_PORT, &mut missing).and_then(|value| match value
-                .parse::<u16>(
-            ) {
-                Ok(port) => Some(port),
-                Err(_) => {
-                    invalid.push(format!("{KURA_GRPC_PORT} must be a valid u16"));
-                    None
-                }
-            });
         let internal_port =
             required_value(&mut lookup, KURA_INTERNAL_PORT, &mut missing).and_then(|value| {
                 value
@@ -314,8 +385,34 @@ impl Config {
         let region = required_value(&mut lookup, KURA_REGION, &mut missing);
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
         let data_dir = required_value(&mut lookup, KURA_DATA_DIR, &mut missing).map(PathBuf::from);
+        let tmp_dir_max_bytes =
+            optional_parsed_value(&mut lookup, KURA_TMP_DIR_MAX_BYTES, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_TMP_DIR_MAX_BYTES} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_TMP_DIR_MAX_BYTES);
+        if tmp_dir_max_bytes == 0 {
+            invalid.push(format!("{KURA_TMP_DIR_MAX_BYTES} must be greater than 0"));
+        }
+        let cas_capacity_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_CAS_CAPACITY_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_CAS_CAPACITY_BYTES} must be a valid u64"))
+            },
+        );
+        if cas_capacity_bytes == Some(0) {
+            invalid.push(format!("{KURA_CAS_CAPACITY_BYTES} must be greater than 0"));
+        }
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
-        let peers = lookup(KURA_PEERS)
+        let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
                     .split(',')
@@ -324,10 +421,75 @@ impl Config {
                     .map(ToOwned::to_owned)
                     .collect()
             })
-            .or_else(|| node_url.as_ref().map(|value| vec![value.clone()]));
+            .unwrap_or_default();
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let global_discovery_dns_name = lookup(KURA_GLOBAL_DISCOVERY_DNS_NAME)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let accelerated_file_serving_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
+        let accelerated_file_serving_mode =
+            lookup(KURA_ACCELERATED_FILE_SERVING_MODE).unwrap_or_else(|| "splice".to_owned());
+        let accelerated_file_serving_mode = match accelerated_file_serving_mode.as_str() {
+            "sendfile" => Some(AcceleratedFileServingMode::Sendfile),
+            "splice" => Some(AcceleratedFileServingMode::Splice),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_ACCELERATED_FILE_SERVING_MODE} must be either sendfile or splice"
+                ));
+                None
+            }
+        };
+        let accelerated_file_serving_max_concurrent = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(32);
+        if accelerated_file_serving_max_concurrent == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving_chunk_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(1024 * 1024);
+        if accelerated_file_serving_chunk_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving =
+            accelerated_file_serving_mode.map(|mode| AcceleratedFileServingConfig {
+                enabled: accelerated_file_serving_enabled,
+                mode,
+                max_concurrent: accelerated_file_serving_max_concurrent,
+                chunk_bytes: accelerated_file_serving_chunk_bytes,
+            });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -351,25 +513,6 @@ impl Config {
             _ => {
                 invalid.push(format!(
                     "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
-                ));
-                None
-            }
-        };
-        let grpc_tls_cert_path = lookup(KURA_GRPC_TLS_CERT_PATH)
-            .map(PathBuf::from)
-            .filter(|value| !value.as_os_str().is_empty());
-        let grpc_tls_key_path = lookup(KURA_GRPC_TLS_KEY_PATH)
-            .map(PathBuf::from)
-            .filter(|value| !value.as_os_str().is_empty());
-        let grpc_tls = match (grpc_tls_cert_path, grpc_tls_key_path) {
-            (None, None) => None,
-            (Some(cert_path), Some(key_path)) => Some(GrpcTlsConfig {
-                cert_path,
-                key_path,
-            }),
-            _ => {
-                invalid.push(format!(
-                    "{KURA_GRPC_TLS_CERT_PATH} and {KURA_GRPC_TLS_KEY_PATH} must either both be set or both be unset"
                 ));
                 None
             }
@@ -468,7 +611,7 @@ impl Config {
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
             ));
         }
-        let memory_soft_limit_bytes = optional_parsed_value(
+        let memory_soft_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_SOFT_LIMIT_BYTES,
             &mut invalid,
@@ -477,14 +620,15 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_SOFT_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or(derived_defaults.memory_soft_limit_bytes);
+        );
+        let memory_soft_limit_bytes =
+            memory_soft_limit_bytes_override.unwrap_or(derived_defaults.memory_soft_limit_bytes);
         if memory_soft_limit_bytes == 0 {
             invalid.push(format!(
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
-        let memory_hard_limit_bytes = optional_parsed_value(
+        let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
             &mut invalid,
@@ -493,15 +637,64 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_HARD_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or_else(|| {
-            derived_defaults
-                .memory_hard_limit_bytes
-                .max(memory_soft_limit_bytes.saturating_add(64 * BYTES_PER_MIB))
+        );
+        let memory_hard_limit_bytes = memory_hard_limit_bytes_override.unwrap_or_else(|| {
+            if memory_soft_limit_bytes_override.is_some() {
+                derived_defaults
+                    .memory_hard_limit_bytes
+                    .max(memory_soft_limit_bytes.saturating_add(MEMORY_WATERMARK_MIN_GAP_BYTES))
+            } else {
+                derived_defaults.memory_hard_limit_bytes
+            }
         });
         if memory_hard_limit_bytes <= memory_soft_limit_bytes {
             invalid.push(format!(
                 "{KURA_MEMORY_HARD_LIMIT_BYTES} must be greater than {KURA_MEMORY_SOFT_LIMIT_BYTES}"
+            ));
+        }
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        if memory_soft_limit_bytes >= memory_limit_bytes {
+            invalid.push(format!(
+                "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+            ));
+        }
+        if memory_hard_limit_bytes >= memory_limit_bytes {
+            if memory_hard_limit_bytes_override.is_none()
+                && memory_soft_limit_bytes_override.is_some()
+            {
+                invalid.push(format!(
+                    "{KURA_MEMORY_SOFT_LIMIT_BYTES} must leave at least {MEMORY_WATERMARK_MIN_GAP_BYTES} bytes below the detected runtime memory limit of {memory_limit_bytes} bytes when {KURA_MEMORY_HARD_LIMIT_BYTES} is unset; lower {KURA_MEMORY_SOFT_LIMIT_BYTES} or set both watermarks explicitly"
+                ));
+            } else {
+                invalid.push(format!(
+                    "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+                ));
+            }
+        }
+        let snapshot_cache_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_SNAPSHOT_CACHE_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be a valid usize"))
+            },
+        )
+        .unwrap_or_else(|| {
+            clamp_bytes_to_usize(
+                round_down_to_mib(memory_soft_limit_bytes / 4),
+                1,
+                256 * BYTES_PER_MIB,
+            )
+        });
+        if snapshot_cache_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be greater than 0"
+            ));
+        } else if snapshot_cache_max_bytes as u64 >= memory_soft_limit_bytes {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be less than {KURA_MEMORY_SOFT_LIMIT_BYTES} so the cache leaves runtime headroom"
             ));
         }
         let manifest_cache_default = clamp_usize(
@@ -542,6 +735,15 @@ impl Config {
         .unwrap_or(derived_defaults.max_keyvalue_bytes);
         if max_keyvalue_bytes == 0 {
             invalid.push(format!("{KURA_MAX_KEYVALUE_BYTES} must be greater than 0"));
+        } else if max_keyvalue_bytes as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            // Key-value entries are stored inline and replicated inline, and the
+            // inline replication receive path is bounded by
+            // MAX_INLINE_REPLICATION_BODY_BYTES. A larger key-value limit would
+            // let an entry be accepted locally but 413'd by every peer — the
+            // poison-outbox loop this ceiling exists to prevent.
+            invalid.push(format!(
+                "{KURA_MAX_KEYVALUE_BYTES} must be at most {MAX_INLINE_REPLICATION_BODY_BYTES} so inline entries stay replicable"
+            ));
         }
         let rocksdb_max_open_files = optional_parsed_value(
             &mut lookup,
@@ -653,6 +855,30 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
+        let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!(
+                        "{KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND} must be a valid u64"
+                    )
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND);
+        let replication_public_latency_target_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -683,6 +909,38 @@ impl Config {
         if multipart_janitor_interval_ms == 0 {
             invalid.push(format!(
                 "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let multipart_max_active_uploads = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_ACTIVE_UPLOADS,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
+        if multipart_max_active_uploads == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
+            ));
+        }
+        let multipart_max_stored_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_STORED_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MULTIPART_MAX_STORED_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(tmp_dir_max_bytes);
+        if multipart_max_stored_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
             ));
         }
         let bootstrap_timeout_ms = optional_parsed_value(
@@ -848,6 +1106,130 @@ impl Config {
                 None
             }
         };
+        let usage_window_secs =
+            optional_parsed_value(&mut lookup, KURA_USAGE_WINDOW_SECS, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_WINDOW_SECS} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_USAGE_WINDOW_SECS);
+        if usage_window_secs == 0 {
+            invalid.push(format!("{KURA_USAGE_WINDOW_SECS} must be greater than 0"));
+        }
+        let usage_flush_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_FLUSH_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_FLUSH_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_FLUSH_INTERVAL_MS);
+        if usage_flush_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_FLUSH_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_delivery_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_DELIVERY_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_DELIVERY_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_DELIVERY_INTERVAL_MS);
+        if usage_delivery_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_DELIVERY_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_batch_size =
+            optional_parsed_value(&mut lookup, KURA_USAGE_BATCH_SIZE, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_BATCH_SIZE} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_BATCH_SIZE);
+        if usage_batch_size == 0 {
+            invalid.push(format!("{KURA_USAGE_BATCH_SIZE} must be greater than 0"));
+        }
+        let usage_max_buckets =
+            optional_parsed_value(&mut lookup, KURA_USAGE_MAX_BUCKETS, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_MAX_BUCKETS} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_MAX_BUCKETS);
+        if usage_max_buckets == 0 {
+            invalid.push(format!("{KURA_USAGE_MAX_BUCKETS} must be greater than 0"));
+        }
+        let usage_outbox_max_depth = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_OUTBOX_MAX_DEPTH,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_OUTBOX_MAX_DEPTH} must be a valid usize"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_OUTBOX_MAX_DEPTH);
+        if usage_outbox_max_depth == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
+            ));
+        }
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let usage = match (
+            control_plane_url,
+            control_plane_client_id,
+            control_plane_client_secret,
+        ) {
+            (None, None, None) => None,
+            (Some(control_plane_url), Some(client_id), Some(client_secret)) => {
+                match reqwest::Url::parse(&control_plane_url) {
+                    Ok(_) => Some(UsageConfig {
+                        control_plane_url,
+                        client_id,
+                        client_secret,
+                        window_secs: usage_window_secs,
+                        flush_interval_ms: usage_flush_interval_ms,
+                        delivery_interval_ms: usage_delivery_interval_ms,
+                        batch_size: usage_batch_size,
+                        max_buckets: usage_max_buckets,
+                        outbox_max_depth: usage_outbox_max_depth,
+                    }),
+                    Err(error) => {
+                        invalid.push(format!(
+                            "{KURA_CONTROL_PLANE_URL} must be a valid URL: {error}"
+                        ));
+                        None
+                    }
+                }
+            }
+            _ => {
+                invalid.push(format!(
+                    "{KURA_CONTROL_PLANE_URL}, {KURA_CONTROL_PLANE_CLIENT_ID}, and {KURA_CONTROL_PLANE_CLIENT_SECRET} must either all be set or all be unset"
+                ));
+                None
+            }
+        };
         let geoip_refresh_interval_secs = optional_parsed_value(
             &mut lookup,
             KURA_GEOIP_REFRESH_INTERVAL_SECS,
@@ -882,24 +1264,15 @@ impl Config {
             ));
         }
 
-        if let (Some(port), Some(grpc_port), Some(internal_port)) = (port, grpc_port, internal_port)
-        {
+        if let (Some(port), Some(internal_port)) = (port, internal_port) {
             if internal_port == port {
                 invalid.push(format!("{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"));
             }
-            if internal_port == grpc_port {
-                invalid.push(format!(
-                    "{KURA_INTERNAL_PORT} must differ from {KURA_GRPC_PORT}"
-                ));
-            }
+            // https_port carries the co-hosted surface over TLS, so it must not
+            // collide with the plaintext port or the internal port.
             if public_tls.is_some() {
                 if https_port == port {
                     invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_PORT}"));
-                }
-                if https_port == grpc_port {
-                    invalid.push(format!(
-                        "{KURA_HTTPS_PORT} must differ from {KURA_GRPC_PORT}"
-                    ));
                 }
                 if https_port == internal_port {
                     invalid.push(format!(
@@ -909,9 +1282,7 @@ impl Config {
             }
         }
 
-        if let (Some(node_url), Some(peers), Some(internal_port)) =
-            (node_url.as_ref(), peers.as_ref(), internal_port)
-        {
+        if let (Some(node_url), Some(internal_port)) = (node_url.as_ref(), internal_port) {
             let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
             let scheme_error = if peer_tls.is_some() {
                 format!("{KURA_NODE_URL} must use https when peer mTLS is enabled")
@@ -948,6 +1319,29 @@ impl Config {
             }
         }
 
+        if let (Some(peer_gateway_url), Some(internal_port)) =
+            (peer_gateway_url.as_ref(), internal_port)
+        {
+            let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
+            match reqwest::Url::parse(peer_gateway_url) {
+                Ok(url) => {
+                    if url.scheme() != expected_scheme {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must use {expected_scheme}"
+                        ));
+                    }
+                    if url.port_or_known_default() != Some(internal_port) {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must target port {internal_port}"
+                        ));
+                    }
+                }
+                Err(error) => invalid.push(format!(
+                    "{KURA_PEER_GATEWAY_URL} must be a valid URL: {error}"
+                )),
+            }
+        }
+
         if !missing.is_empty() || !invalid.is_empty() {
             let mut errors = Vec::new();
             if !missing.is_empty() {
@@ -962,26 +1356,32 @@ impl Config {
 
         Ok(Self {
             port: port.expect("port should be present when configuration is valid"),
-            grpc_port: grpc_port.expect("grpc_port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
+            tmp_dir_max_bytes,
+            cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
-            peers: peers.expect("peers should be present when configuration is valid"),
+            peer_gateway_url,
+            peers,
             discovery_dns_name,
+            global_discovery_dns_name,
             peer_tls,
-            grpc_tls,
             public_tls,
             https_port,
+            accelerated_file_serving: accelerated_file_serving
+                .expect("accelerated_file_serving should be present when configuration is valid"),
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             segment_handle_cache_size,
+            memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
             rocksdb_max_open_files,
@@ -991,11 +1391,16 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
+            replication_bandwidth_limit_bytes_per_second,
+            replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
+            multipart_max_active_uploads,
+            multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             analytics,
+            usage,
             otlp_traces_endpoint,
             otel_service_name: otel_service_name
                 .expect("otel_service_name should be present when configuration is valid"),
@@ -1009,9 +1414,33 @@ impl Config {
         })
     }
 
-    pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+    pub async fn ensure_data_dir_for_lock(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.data_dir).await
+    }
+
+    pub async fn ensure_directories(
+        &self,
+        _data_dir_lock: &DataDirLock,
+    ) -> Result<(), std::io::Error> {
+        // Reclaim transient staging from a previous run before opening the store.
+        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
+        // staging) is dead once the process restarts, and a failed transfer can
+        // leave a partial file behind. Left to accumulate they fill the data disk
+        // and RocksDB then fails to open with "No space left on device", wedging
+        // the pod in a crash loop. Clearing them here — before Store::open — lets
+        // such a pod free space and recover on the next start instead of staying
+        // stuck out-of-space.
+        for staging in ["uploads", "parts", "bootstrap"] {
+            let path = self.tmp_dir.join(staging);
+            match fs::remove_dir_all(&path).await {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
+        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -1092,9 +1521,12 @@ fn detect_memory_limit_bytes() -> Option<u64> {
 fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
     #[cfg(target_os = "linux")]
     {
-        for path in [
-            "/sys/fs/cgroup/memory.max",
-            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        for (path, unlimited_threshold_bytes) in [
+            ("/sys/fs/cgroup/memory.max", None),
+            (
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+                Some(CGROUP_V1_UNLIMITED_THRESHOLD_BYTES),
+            ),
         ] {
             let Ok(raw) = std::fs::read_to_string(path) else {
                 continue;
@@ -1105,6 +1537,7 @@ fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
             }
             if let Ok(value) = trimmed.parse::<u64>()
                 && value > 0
+                && unlimited_threshold_bytes.is_none_or(|threshold| value < threshold)
             {
                 return Some(value);
             }
@@ -1171,7 +1604,6 @@ mod tests {
     fn base_values() -> BTreeMap<String, String> {
         [
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_INTERNAL_PORT, "7443"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
@@ -1199,12 +1631,27 @@ mod tests {
     }
 
     #[test]
+    fn keyvalue_limit_is_bounded_by_the_inline_replication_ceiling() {
+        let at_limit = MAX_INLINE_REPLICATION_BODY_BYTES.to_string();
+        let config = config_from(&[(KURA_MAX_KEYVALUE_BYTES, at_limit.as_str())])
+            .expect("a key-value limit at the inline ceiling is allowed");
+        assert_eq!(
+            config.max_keyvalue_bytes as u64,
+            MAX_INLINE_REPLICATION_BODY_BYTES
+        );
+
+        let over_limit = (MAX_INLINE_REPLICATION_BODY_BYTES + 1).to_string();
+        let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
+            .expect_err("a key-value limit above the inline ceiling must fail");
+        assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
             .expect_err("expected missing config to fail");
 
         assert!(error.contains(KURA_PORT));
-        assert!(error.contains(KURA_GRPC_PORT));
         assert!(error.contains(KURA_INTERNAL_PORT));
         assert!(error.contains(KURA_TENANT_ID));
         assert!(error.contains(KURA_REGION));
@@ -1223,19 +1670,21 @@ mod tests {
             config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(
-            config.peers,
-            vec!["http://kura.example.com:7443".to_owned()]
-        );
-        assert_eq!(config.file_descriptor_pool_size, 256);
+        assert!(config.peers.is_empty());
+        assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
-        assert_eq!(config.segment_handle_cache_size, 64);
-        assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
+        assert_eq!(config.segment_handle_cache_size, 224);
+        assert_eq!(config.memory_limit_bytes, 1024 * BYTES_PER_MIB);
+        assert_eq!(config.memory_soft_limit_bytes, 614 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
+            config.snapshot_cache_max_bytes,
+            (153 * BYTES_PER_MIB) as usize
+        );
+        assert_eq!(
             config.manifest_cache_max_bytes,
-            (44 * BYTES_PER_MIB) as usize
+            (38 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.max_keyvalue_bytes, 1024 * 1024);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1253,14 +1702,118 @@ mod tests {
             (8 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            512 * BYTES_PER_MIB
+        );
+        assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(
+            config.multipart_max_active_uploads,
+            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
+        );
+        assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            }
+        );
         assert_eq!(config.sentry_dsn, None);
+    }
+
+    #[test]
+    fn derived_file_descriptor_defaults_scale_with_high_process_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 16_384,
+            memory_limit_bytes: 1024 * 1024 * 1024,
+            cpu_count: 6,
+        });
+
+        assert_eq!(defaults.file_descriptor_pool_size, 4096);
+        assert_eq!(defaults.segment_handle_cache_size, 256);
+        assert_eq!(defaults.file_descriptor_acquire_timeout_ms, 5_000);
+    }
+
+    #[test]
+    fn memory_watermarks_stay_below_small_runtime_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 4096,
+            memory_limit_bytes: 128 * BYTES_PER_MIB,
+            cpu_count: 2,
+        });
+
+        assert_eq!(defaults.memory_soft_limit_bytes, 76 * BYTES_PER_MIB);
+        assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
+        assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_preserves_proportional_watermarks_for_small_runtime_limits() {
+        let values = base_values();
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected proportional memory defaults to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 153 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 217 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_keeps_headroom_after_an_explicit_soft_watermark() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (160 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected the explicit soft watermark to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 160 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 224 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (200 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect_err("expected the unsafe soft watermark to fail");
+
+        assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
+        assert!(error.contains("set both watermarks explicitly"));
     }
 
     #[test]
     fn from_lookup_parses_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1276,10 +1829,23 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "33554432"),
+            (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
             (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "false"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
+            (
+                KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+                "10485760",
+            ),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
+            (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1290,7 +1856,6 @@ mod tests {
         .expect("expected config overrides to parse");
 
         assert_eq!(config.port, 4500);
-        assert_eq!(config.grpc_port, 5500);
         assert_eq!(config.internal_port, 7443);
         assert_eq!(config.tenant_id, "acme");
         assert_eq!(config.region, "eu_west");
@@ -1306,13 +1871,14 @@ mod tests {
         );
         assert_eq!(config.discovery_dns_name, None);
         assert_eq!(config.peer_tls, None);
-        assert_eq!(config.grpc_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
         assert_eq!(config.drain_completion_timeout_ms, 120000);
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.snapshot_cache_max_bytes, 33_554_432);
+        assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1321,6 +1887,22 @@ mod tests {
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: false,
+                mode: AcceleratedFileServingMode::Sendfile,
+                max_concurrent: 16,
+                chunk_bytes: 2 * 1024 * 1024,
+            }
+        );
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            10_485_760
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1339,7 +1921,6 @@ mod tests {
     fn from_lookup_parses_geoip_refresh_interval_override() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1360,10 +1941,35 @@ mod tests {
     }
 
     #[test]
+    fn cas_capacity_bytes_defaults_to_unset() {
+        let config = config_from(&[]).expect("expected config to parse");
+
+        assert_eq!(config.cas_capacity_bytes, None);
+    }
+
+    #[test]
+    fn from_lookup_parses_cas_capacity_bytes_override() {
+        let config = config_from(&[(KURA_CAS_CAPACITY_BYTES, "21474836480")])
+            .expect("expected cas capacity config to parse");
+
+        assert_eq!(config.cas_capacity_bytes, Some(21_474_836_480));
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_cas_capacity_bytes() {
+        let error = config_from(&[(KURA_CAS_CAPACITY_BYTES, "invalid")])
+            .expect_err("expected invalid cas capacity to be rejected");
+        assert!(error.contains(KURA_CAS_CAPACITY_BYTES));
+
+        let error = config_from(&[(KURA_CAS_CAPACITY_BYTES, "0")])
+            .expect_err("expected zero cas capacity to be rejected");
+        assert!(error.contains(KURA_CAS_CAPACITY_BYTES));
+    }
+
+    #[test]
     fn from_lookup_parses_node_location_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1389,7 +1995,6 @@ mod tests {
     fn from_lookup_reports_invalid_port() {
         let error = config_from(&[
             (KURA_PORT, "invalid"),
-            (KURA_GRPC_PORT, "invalid"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1402,6 +2007,8 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "invalid"),
+            (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "invalid"),
@@ -1410,6 +2017,12 @@ mod tests {
             (KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES, "invalid"),
             (KURA_METADATA_STORE_WRITE_BUFFER_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_WRITE_BUFFERS, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
+            (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1420,7 +2033,6 @@ mod tests {
         .expect_err("expected invalid port to fail");
 
         assert!(error.contains(KURA_PORT));
-        assert!(error.contains(KURA_GRPC_PORT));
         assert!(error.contains("valid u16"));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_POOL_SIZE));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS));
@@ -1428,6 +2040,8 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_SNAPSHOT_CACHE_MAX_BYTES));
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_OPEN_FILES));
@@ -1436,20 +2050,48 @@ mod tests {
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_WRITE_BUFFERS));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_ENABLED));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
+        assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
+        assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_tmp_dir_max_bytes() {
+        let error = config_from(&[(KURA_TMP_DIR_MAX_BYTES, "0")])
+            .expect_err("expected zero tmp dir budget to fail");
+
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
+        assert!(error.contains("must be greater than 0"));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_accelerated_file_serving_limits() {
+        let error = config_from(&[
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "0"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "0"),
+        ])
+        .expect_err("expected invalid accelerated file serving limits to fail");
+
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
     }
 
     #[test]
     fn from_lookup_parses_optional_discovery_dns_name() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
             (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEER_GATEWAY_URL, "http://peer.kura.example.com:7443"),
             (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_DISCOVERY_DNS_NAME, "kura-ring.internal"),
+            (KURA_GLOBAL_DISCOVERY_DNS_NAME, "acme.kura-peers.internal"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1472,13 +2114,20 @@ mod tests {
             config.discovery_dns_name.as_deref(),
             Some("kura-ring.internal")
         );
+        assert_eq!(
+            config.global_discovery_dns_name.as_deref(),
+            Some("acme.kura-peers.internal")
+        );
+        assert_eq!(
+            config.peer_gateway_url.as_deref(),
+            Some("http://peer.kura.example.com:7443")
+        );
     }
 
     #[test]
     fn from_lookup_parses_optional_analytics_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1561,7 +2210,6 @@ mod tests {
     fn from_lookup_requires_complete_analytics_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1595,7 +2243,6 @@ mod tests {
     fn from_lookup_requires_segment_handle_cache_headroom() {
         let error = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1628,7 +2275,6 @@ mod tests {
     fn from_lookup_requires_manifest_cache_to_leave_memory_headroom() {
         let error = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1661,7 +2307,6 @@ mod tests {
     fn from_lookup_parses_peer_tls_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1705,51 +2350,9 @@ mod tests {
     }
 
     #[test]
-    fn from_lookup_parses_grpc_tls_config() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_INTERNAL_PORT, "7443"),
-            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
-            (KURA_GRPC_TLS_KEY_PATH, "/etc/kura/grpc-tls/tls.key"),
-            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
-            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
-            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
-            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
-            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
-            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
-            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
-            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
-            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected gRPC tls config to parse");
-
-        assert_eq!(
-            config.grpc_tls,
-            Some(GrpcTlsConfig {
-                cert_path: PathBuf::from("/etc/kura/grpc-tls/tls.crt"),
-                key_path: PathBuf::from("/etc/kura/grpc-tls/tls.key"),
-            })
-        );
-    }
-
-    #[test]
     fn from_lookup_parses_public_tls_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1792,7 +2395,6 @@ mod tests {
     fn from_lookup_defaults_https_port_when_unset() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1822,7 +2424,6 @@ mod tests {
     fn from_lookup_requires_complete_public_tls_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1853,7 +2454,6 @@ mod tests {
     fn from_lookup_rejects_https_port_colliding_with_other_ports() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1883,45 +2483,9 @@ mod tests {
     }
 
     #[test]
-    fn from_lookup_requires_complete_grpc_tls_config() {
-        let error = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_INTERNAL_PORT, "7443"),
-            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
-            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
-            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
-            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
-            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
-            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
-            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
-            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
-            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
-            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect_err("expected incomplete grpc tls config to fail");
-
-        assert!(error.contains(KURA_GRPC_TLS_CERT_PATH));
-        assert!(error.contains(KURA_GRPC_TLS_KEY_PATH));
-    }
-
-    #[test]
     fn from_lookup_requires_complete_peer_tls_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1957,7 +2521,6 @@ mod tests {
     fn from_lookup_requires_https_peer_urls_when_peer_tls_enabled() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1996,7 +2559,6 @@ mod tests {
         let temp_dir = tempdir().expect("failed to create temp dir");
         let mut config = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "local"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2023,16 +2585,50 @@ mod tests {
         config.tmp_dir = temp_dir.path().join("tmp");
         config.data_dir = temp_dir.path().join("data");
 
+        // Pre-seed stale staging (as a crashed previous run leaves behind) plus a
+        // real data file, to prove ensure_directories reclaims the former without
+        // touching the latter.
+        let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let kept = config.data_dir.join("rocksdb").join("CURRENT");
+        fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
+        fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&kept, b"keep").await.unwrap();
+
         config
-            .ensure_directories()
+            .ensure_data_dir_for_lock()
+            .await
+            .expect("failed to create data directory");
+        let data_dir_lock =
+            DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+        config
+            .ensure_directories(&data_dir_lock)
             .await
             .expect("failed to create Kura directories");
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
+        assert!(config.tmp_dir.join("bootstrap").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
         assert!(config.data_dir.join("multipart").exists());
+
+        assert!(
+            !stale.exists(),
+            "stale staging must be reclaimed on startup"
+        );
+        assert!(kept.exists(), "persistent data must be preserved");
+
+        let active = config.tmp_dir.join("uploads").join("active");
+        fs::write(&active, b"in-flight").await.unwrap();
+        assert!(
+            DataDirLock::acquire(&config.data_dir).is_err(),
+            "a second runtime must fail before staging cleanup"
+        );
+        assert!(
+            active.exists(),
+            "the rejected runtime must not remove the active owner's staging"
+        );
     }
 }

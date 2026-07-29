@@ -1,4 +1,4 @@
-<TuistWeb.Marketing.Layouts.marketing {assigns}>
+<TuistWeb.Marketing.Layouts.marketing>
   <main
     id="marketing-customers"
     phx-hook="ScrollToTop"
@@ -12,7 +12,12 @@
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/customers/logo.webp"} alt="" />
+      <img
+        data-part="logo"
+        src={~p"/marketing/images/customers/logo.webp"}
+        alt=""
+        decoding="async"
+      />
       <h1 data-part="title">
         {dgettext("marketing", "Customers")}
       </h1>
@@ -51,12 +56,20 @@
       <.link
         :for={case <- @filtered_cases}
         data-part="case"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(case.slug)}
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            Tuist.Marketing.Customers.case_study_href(case)
+          )
+        }
+        target={if Tuist.Marketing.Customers.external_case_study?(case), do: "_blank"}
+        rel={if Tuist.Marketing.Customers.external_case_study?(case), do: "noopener noreferrer"}
       >
         <img
           data-part="image"
-          src={case.og_image_path}
+          src={TuistWeb.Marketing.MarketingHTML.static_asset_path(case.og_image_path)}
           alt={dgettext("marketing", "%{company} case study", company: case.company)}
+          loading="lazy"
+          decoding="async"
         />
         <div data-part="content">
           <h3 data-part="title">{case.title}</h3>

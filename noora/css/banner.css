@@ -36,16 +36,18 @@
   );
   --noora-banner-information-border: var(--noora-azure-500);
   --noora-banner-grid-color: light-dark(
-    oklch(21.54% 0.006 236.85),
+    oklch(21.7% 0.002 247.941),
     oklch(99.4% 0 0)
   );
   display: flex;
   position: relative;
+  box-sizing: border-box;
   justify-content: center;
 
   align-items: center;
   gap: var(--noora-spacing-5);
   padding: var(--noora-spacing-5) var(--noora-spacing-11);
+  min-width: 0;
   width: 100%;
   overflow-x: hidden;
   color: var(--noora-banner-label);

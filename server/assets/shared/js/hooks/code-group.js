@@ -1,4 +1,5 @@
-import { flashCopyCheck } from "./code-copy.js";
+import { copyTextToClipboard } from "../clipboard.js";
+import { copySourceText, flashCopyCheck } from "./code-copy.js";
 
 function setupCodeGroups(el) {
   const groups = el.querySelectorAll(".code-group");
@@ -61,8 +62,7 @@ function setupCodeGroups(el) {
         if (activePanel) {
           const codeBlock = activePanel.querySelector('[data-part="code"]');
           if (codeBlock) {
-            navigator.clipboard
-              .writeText(codeBlock.textContent.trim())
+            copyTextToClipboard(copySourceText(activePanel) ?? codeBlock.textContent.trim())
               .then(() => flashCopyCheck(copyBtn))
               .catch((err) => console.error("Failed to copy code:", err));
           }

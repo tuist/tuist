@@ -65,18 +65,19 @@ defmodule Tuist.Kura.Provisioner do
               String.t()
 
   @doc """
-  Global public URL once the backing platform has reconciled it, or
-  `nil` while the platform has not reported it as ready.
-  """
-  @callback global_public_url(ref :: String.t(), Regions.t()) ::
-              String.t() | nil
-
-  @doc """
   Public gRPC (Bazel REAPI) URL for the server, or `nil` if the region
   doesn't expose gRPC publicly. Returned with a `grpcs://` scheme when
   TLS is terminated by the runtime.
   """
   @callback grpc_public_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
+              String.t() | nil
+
+  @doc """
+  In-cluster URL of the server, or `nil` if the region has no
+  cluster-internal form. Never handed to the CLI — only runner dispatch
+  uses it (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  """
+  @callback internal_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
               String.t() | nil
 
   @doc """
@@ -88,8 +89,37 @@ defmodule Tuist.Kura.Provisioner do
   @callback current_image_tag(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
+  @doc """
+  Returns the manifest revision currently applied to the backing resource.
+
+  Provisioners that render declarative resources should use this to let
+  the control plane re-apply config-only changes independently from Kura
+  runtime image changes.
+  """
+  @callback external_endpoint(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t()} | {:error, term()}
+
+  @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t() | nil} | {:error, term()}
+
+  @doc """
+  Returns the manifest revision the provisioner would render for `account` in
+  the given region, folding in any dynamic inputs (such as enrolled self-hosted
+  peers) that must trigger a re-apply when they change.
+  """
+  @callback manifest_revision(Account.t(), Regions.t()) :: String.t() | nil
+
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
+
+  @doc """
+  Whether the server's backing workload has caught up from its mesh peers and
+  passed the bootstrap readiness gate (its pod is Ready). Used to gate the warm
+  handoff: a `:moving_in` target has no public endpoint to probe, so its
+  readiness is the peer-plane bootstrap gate, not a public `/up` check.
+  """
+  @callback caught_up?(ref :: String.t(), Regions.t()) ::
+              {:ok, boolean()} | {:error, term()}
 
   ## Convenience dispatchers
 
@@ -114,13 +144,6 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
-  @doc "Calls `global_public_url/2` on the region's provisioner."
-  def global_public_url(%Server{provisioner_node_ref: ref, region: region_id}) do
-    with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.global_public_url(ref, region)
-    end
-  end
-
   @doc "Calls `grpc_public_url/3` on the region's provisioner."
   def grpc_public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
@@ -128,10 +151,47 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
+  @doc "Calls `internal_url/3` on the region's provisioner."
+  def internal_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) when is_binary(ref) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.internal_url(handle, region, ref)
+    end
+  end
+
+  def internal_url(%Account{}, %Server{}), do: nil
+
   @doc "Calls `current_image_tag/2` on the region's provisioner."
   def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.current_image_tag(ref, region)
+    end
+  end
+
+  @doc "Calls `external_endpoint/2` on the region's provisioner."
+  def external_endpoint(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.external_endpoint(ref, region)
+    end
+  end
+
+  @doc "Calls `current_manifest_revision/2` on the region's provisioner."
+  def current_manifest_revision(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.current_manifest_revision(ref, region)
+    end
+  end
+
+  @doc "Calls `manifest_revision/2` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      {:ok, region.provisioner.manifest_revision(server.account, region)}
+    end
+  end
+
+  @doc "Calls `caught_up?/2` on the region's provisioner."
+  def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.caught_up?(ref, region)
     end
   end
 end

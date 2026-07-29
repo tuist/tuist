@@ -2,21 +2,30 @@ defmodule Tuist.Runners.Dispatch do
   @moduledoc """
   Webhook handler for `workflow_job` events from GitHub.
 
-  Handles two action values:
+  Handles three action values:
 
-    * `queued` — INSERTs a `runner_jobs` row (status='queued') in
-      ClickHouse. A polling Pod's next dispatch claim will pick
-      it up.
+    * `queued` / `waiting` — INSERTs a `runner_jobs` row
+      (status='queued') in ClickHouse only when the job is missing.
+      A polling Pod's next dispatch claim will pick it up. GitHub can
+      redeliver these states after cancellation, so a late duplicate
+      must not regress an already claimed/running/completed job.
     * `completed` — UPDATEs the matching row via RMT (status='completed',
       conclusion, completed_at).
 
   Flow for `queued`:
 
-    1. Parse `repository.owner.login` from the payload; look up
-       the Tuist account by that name (account `name` IS the
-       GitHub org login by convention).
-    2. Reject if `account.runner_max_concurrent` is 0 (runners
-       disabled for this customer).
+    1. Resolve the Tuist account. The authoritative link is the
+       webhook's `installation.id` → `github_app_installations`
+       row → `account_id`, so we resolve by installation first and
+       only fall back to the legacy `repository.owner.login ==
+       account.name` convention when no installation row is found.
+       The convention silently strands any customer whose Tuist
+       handle differs from their GitHub org login (the dominant
+       `no_account` webhook outcome); installation resolution has
+       no such coupling.
+    2. Reject if runners aren't enabled for the customer
+       (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
+       flag in canary and production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -24,21 +33,25 @@ defmodule Tuist.Runners.Dispatch do
     4. Enqueue a ClickHouse row with the full workflow_job
        metadata so the customer UI can surface it.
 
-  `max_concurrent` is enforced at *claim* time, not enqueue, so
-  a capped customer's overflow waits in the queue instead of
-  being dropped on the GitHub side.
-
   Returns `{:ok, :queued}` / `{:ok, :completed}` / `:ignored` /
   `{:error, reason}`. The webhook handler always responds 200.
   """
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.VCS
 
   require Logger
 
@@ -47,26 +60,37 @@ defmodule Tuist.Runners.Dispatch do
   # to ~2/min while keeping post-deploy propagation under a minute.
   @pools_cache_ttl_ms 30_000
 
-  # Only accounts already in the `enabled` state (cap > 0) get
-  # cached. The hard cap is re-enforced in PG inside `Claims.attempt/4`,
-  # so a stale cached value can't overcommit — the only thing the
-  # cached value gates here is the cap=0 vs cap>0 boundary. We
-  # explicitly *don't* cache cap=0 accounts so a customer flipping
-  # the switch from disabled to enabled doesn't have to wait an
-  # entire TTL for their first webhook to dispatch.
+  # Account lookups by org login are cached to keep the webhook path
+  # off Postgres. Enablement isn't part of the cached value — it's
+  # evaluated per call via `FeatureFlags.runners_enabled?/1` (the
+  # `:runners` flag has its own cache + invalidation), so flipping a
+  # customer on takes effect on their next webhook regardless of this
+  # TTL.
   @account_cache_ttl_ms 60_000
 
   @doc """
   Handle a `workflow_job` webhook payload. Branches on `action`.
   """
   def handle_webhook(%{"action" => "queued"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_queued(payload)
+    result = handle_queued(payload, installation_id)
     emit_webhook_telemetry("queued", result)
     result
   end
 
+  def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_waiting(payload, installation_id)
+    emit_webhook_telemetry("waiting", result)
+    result
+  end
+
+  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_in_progress(payload, installation_id)
+    emit_webhook_telemetry("in_progress", result)
+    result
+  end
+
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_completed(payload)
+    result = handle_completed(payload, installation_id)
     emit_webhook_telemetry("completed", result)
     result
   end
@@ -103,27 +127,37 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
 
-  defp handle_queued(payload) do
+  defp handle_queued(payload, installation_id) do
+    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
+  end
+
+  defp handle_waiting(payload, installation_id) do
+    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
+  end
+
+  defp handle_queueable(payload, installation_id, enqueue_fun) do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(owner),
-         {:ok, %{name: fleet_name}} <- match_pool(requested),
-         :ok <- Jobs.enqueue(enqueue_attrs(account, fleet_name, full_name, job)) do
+    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         {:ok, target} <- resolve_dispatch_target(account, requested),
+         :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
         repo: full_name,
-        fleet: fleet_name,
+        fleet: target.pool_name,
+        dispatch_label: target.requested_dispatch_label,
         workflow_job_id: Map.get(job, "id")
       )
 
       {:ok, :queued}
     else
       {:error, :no_account} ->
-        Logger.info("runners: no account match for webhook owner; ignoring",
+        Logger.info("runners: no account match for webhook installation or owner; ignoring",
+          installation_id: installation_id,
           owner: owner,
           repo: full_name,
           requested_labels: requested
@@ -132,7 +166,7 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :no_account}
 
       {:error, :runners_disabled} ->
-        Logger.info("runners: account has runners disabled (max_concurrent=0); ignoring",
+        Logger.info("runners: runners not enabled for account; ignoring",
           owner: owner,
           repo: full_name
         )
@@ -140,10 +174,10 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :runners_disabled}
 
       {:error, :no_matching_pool} ->
-        # The workflow_job's labels don't match any pool's
-        # `spec.dispatchLabel`. Could be a different runner
-        # provider in the same org, or a typo in `runs-on` —
-        # either way, not ours to handle.
+        # Legacy pool fallback path: nothing matched the requested
+        # label. Same outcome as :no_matching_profile but kept as a
+        # distinct telemetry tag so we can see how often workflows
+        # still rely on direct-pool labels vs profiles.
         Logger.info(
           "runners: workflow_job has no matching pool; ignoring (labels=#{inspect(requested)})",
           owner: owner,
@@ -159,68 +193,342 @@ defmodule Tuist.Runners.Dispatch do
       {:error, :ambiguous_pool} ->
         # The chart's render-time check failed and two pools claim
         # the same dispatchLabel. Surface as ignored so the webhook
-        # handler still returns 200 (GitHub won't retry for us —
-        # fixing the chart is the operator action), but the loud
+        # handler still returns 200 (GitHub won't retry for us, so
+        # fixing the chart is the operator action). The loud
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
-
-      {:error, reason} = err ->
-        Logger.warning("runners: enqueue failed: #{inspect(reason)}", repo: full_name)
-        err
     end
   end
 
-  defp handle_completed(payload) do
+  # `workflow_job.in_progress` is the first event that carries the
+  # `runner_name` GitHub actually placed the job on. GitHub assigns
+  # queued jobs to any label-eligible runner independently of the
+  # server's claim, so this is the only real-time proof of the
+  # runner↔job binding. We record it (fixing metrics attribution and
+  # measuring how often the claim was wrong) but never re-enqueue or
+  # re-claim off it — the job is already executing.
+  defp handle_in_progress(payload, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    workflow_job_id = Map.get(job, "id")
+    runner_name = Map.get(job, "runner_name", "") || ""
+
+    with true <- is_integer(workflow_job_id) and runner_name != "",
+         {:ok, account} <- webhook_account(payload, installation_id) do
+      record_execution(runner_name, workflow_job_id, account.id)
+    else
+      _ -> :ignored
+    end
+  end
+
+  # The account that owns the runners this webhook can speak for. A
+  # `runner_name` is only meaningful within the account that minted it —
+  # every other account controls the names of its own self-hosted
+  # runners — so attribution and release must be scoped to the account
+  # the delivery authenticates as, never matched globally by name.
+  defp webhook_account(payload, installation_id) do
+    owner =
+      payload
+      |> Map.get("repository", %{})
+      |> Map.get("full_name", "")
+      |> parse_full_name()
+      |> elem(0)
+
+    case resolve_account(installation_id, owner) do
+      nil -> {:error, :no_account}
+      account -> {:ok, account}
+    end
+  end
+
+  # Binds the runner→job proof onto the live claim (drives metrics
+  # attribution while the job runs) and the durable session (the
+  # backstop that outlives the pod). The claim and session agree in
+  # the common case; when they disagree — or when only one is still
+  # present — we surface `:mismatch` so it's never silently the
+  # weaker `:matched`.
+  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
+    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    case outcome do
+      :mismatch ->
+        Logger.info("runners: claim/execution mismatch",
+          runner_name: runner_name,
+          workflow_job_id: executed_workflow_job_id
+        )
+
+        {:ok, :mismatch}
+
+      :matched ->
+        {:ok, :matched}
+
+      :unknown_runner ->
+        # Neither a live claim nor a session carries this runner_name.
+        # Expected for a runner minted by another provider, or a
+        # dropped/very-late webhook whose rows are long gone.
+        {:ignored, :unknown_runner}
+    end
+  end
+
+  # A real `:matched`/`:mismatch` from either store beats
+  # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
+  # (the claim can be gone while the durable session still proves the
+  # divergence, or vice-versa).
+  defp combine_attribution(:mismatch, _), do: :mismatch
+  defp combine_attribution(_, :mismatch), do: :mismatch
+  defp combine_attribution(:matched, _), do: :matched
+  defp combine_attribution(_, :matched), do: :matched
+  defp combine_attribution(_, _), do: :unknown_runner
+
+  defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    runner_name = Map.get(job, "runner_name", "") || ""
+    repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion)
+      # Attribution and claim release are scoped to the account this
+      # delivery authenticates as; a runner name is only ours to act on
+      # within the account that minted it. Without an account we can
+      # still transition the customer-facing job row, but must touch no
+      # runner state.
+      account_id =
+        case webhook_account(payload, installation_id) do
+          {:ok, account} -> account.id
+          {:error, _} -> nil
+        end
+
+      # Backstop attribution before we free the claim: a dropped
+      # `in_progress` still gets the runner→job binding recorded on
+      # the durable session here. `runner_name` is null for a job
+      # cancelled while still queued (no runner ever ran it), so this
+      # is a no-op for that class.
+      if runner_name != "" and account_id,
+        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+
+      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion) do
-    # Free the PG cap slot FIRST. The customer's next dispatch
-    # poll (potentially seconds away) sees the freed inflight
-    # count immediately rather than waiting on the stale-claims
-    # worker. CH state transition is fire-and-forget — if it
-    # raises, the next dispatch is unaffected because cap
-    # accounting reads PG.
-    :ok = Claims.complete(workflow_job_id)
+  defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do
+    runner_name = payload |> Map.get("workflow_job", %{}) |> Map.get("runner_name", "") || ""
 
-    case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, _} ->
-        Logger.info("runners: completed",
-          workflow_job_id: workflow_job_id,
-          conclusion: conclusion
-        )
+    Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      # Free the PG cap slot FIRST. The customer's next dispatch
+      # poll (potentially seconds away) sees the freed inflight
+      # count immediately rather than waiting on the stale-claims
+      # worker. The ordering lock below only serializes webhook
+      # transitions for this workflow_job so a concurrent queued
+      # redelivery cannot resurrect the completion row.
+      #
+      # Release by EXECUTOR, not by the completed job's id: the Pod that
+      # claimed this job is not necessarily the one that ran it. Freeing
+      # by job id would release a slot still held by a runner executing
+      # someone else's claim, under-counting the account's live runners.
+      # A job cancelled while queued has no runner_name — nothing ran, so
+      # nothing is released; the claiming Pod keeps its slot until it stops
+      # (idle timeout → pod-stop → `Claims.release_by_pod_name/1`). Note
+      # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
+      # below flips the ClickHouse row to `completed`, and the worker only
+      # lists rows still `running` — so the watchdog is what frees it.
+      if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
 
-        {:ok, :completed}
+      case Jobs.complete(workflow_job_id, conclusion) do
+        {:ok, %{account_id: account_id}} ->
+          record_completed_steps_and_logs(
+            workflow_job_id,
+            account_id,
+            raw_steps,
+            installation_id,
+            repository,
+            conclusion
+          )
 
-      {:error, :not_found} ->
-        # We didn't accept this workflow_job at queue time
-        # (a different provider's job, or a delivery race).
-        # Nothing to mark complete; not our concern.
-        :ignored
+        {:error, :not_found} ->
+          # The completed delivery can arrive before the queued delivery.
+          # If this job targets one of our pools, write a completion row now
+          # so a late queued redelivery cannot resurrect canceled work.
+          case record_completed_without_queued(payload, conclusion, installation_id) do
+            {:ok, account_id} ->
+              record_completed_steps_and_logs(
+                workflow_job_id,
+                account_id,
+                raw_steps,
+                installation_id,
+                repository,
+                conclusion
+              )
+
+            ignored ->
+              ignored
+          end
+      end
+    end)
+  end
+
+  defp record_completed_steps_and_logs(workflow_job_id, account_id, raw_steps, installation_id, repository, conclusion) do
+    # Persist steps after marking the job complete: the row's
+    # `account_id` is the denormalisation key on the step row, and
+    # an empty list (cancelled jobs sometimes ship no steps) is a
+    # safe no-op. Webhook retries collapse on the RMT key.
+    :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+
+    # Fetch the full job log from GitHub's Actions Logs API and
+    # ingest it into `runner_job_logs`. The Logs API is the only
+    # stable source of step output — the runner Pod's stdout
+    # carries only Listener lifecycle, the Worker diag log only
+    # framework noise, and step content streams directly from the
+    # .NET Worker to GitHub's `ResultsLog`. See
+    # `Tuist.Runners.Workers.FetchLogsWorker`.
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, raw_steps)
+
+    Logger.info("runners: completed",
+      workflow_job_id: workflow_job_id,
+      conclusion: conclusion
+    )
+
+    {:ok, :completed}
+  end
+
+  defp record_completed_without_queued(payload, conclusion, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    repo = Map.get(payload, "repository", %{})
+    full_name = Map.get(repo, "full_name", "")
+    {owner, _repo_name} = parse_full_name(full_name)
+    requested = Map.get(job, "labels", [])
+
+    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         {:ok, target} <- resolve_dispatch_target(account, requested),
+         :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
+      {:ok, account.id}
+    else
+      {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
+        {:ignored, reason}
     end
   end
 
-  defp enqueue_attrs(account, fleet_name, full_name, job) do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "", _raw_steps) do
+    # Cancelled / synthetic workflow_jobs sometimes ship without a
+    # repository field. Without it we can't address the Logs API.
+    :ok
+  end
+
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, _repository, []) do
+    # A completed job that reports no steps never executed: either it
+    # was `skipped` by an `if:` gate, or `cancelled` while still queued
+    # so no runner ever picked it up. GitHub uploads no log archive for
+    # that class, and its Logs API answers 404 forever — not the
+    # ~30 s finalisation window the fetch worker retries through. Left
+    # unfiltered, every one of these burns all five attempts before
+    # discarding. A job cancelled mid-run does report its steps and
+    # does have a (partial) log, so it still goes through.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, _raw_steps) do
+    %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      installation_id: installation_id,
+      repository: repository
+    }
+    |> FetchLogsWorker.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue log fetch: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
+    end
+  end
+
+  defp enqueue_attrs(account, target, full_name, job) do
     %{
       workflow_job_id: get_integer(job, "id"),
       account_id: account.id,
-      fleet_name: fleet_name,
-      repo: full_name,
+      fleet_name: target.pool_name,
+      requested_dispatch_label: target.requested_dispatch_label,
+      platform: Atom.to_string(target.platform),
+      vcpus: target.vcpus,
+      memory_gb: target.memory_gb,
+      repository: full_name,
       workflow_run_id: get_integer(job, "run_id"),
+      workflow_name: get_string(job, "workflow_name"),
       run_attempt: get_integer(job, "run_attempt", 1),
       job_name: get_string(job, "name"),
       head_branch: get_string(job, "head_branch"),
       head_sha: get_string(job, "head_sha")
     }
+  end
+
+  @doc """
+  Resolve a webhook's `(account, requested_labels)` into the pool
+  name to enqueue against and the customer-facing dispatch label
+  to stamp on the runner at JIT-mint time.
+
+  Resolution order:
+
+    1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
+       e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path. The auto-bootstrapped
+       `linux` and `macos` default profiles mean `<prefix>linux` /
+       `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
+       env-prefixed elsewhere) resolve here too — no separate legacy
+       alias path needed.
+    2. **Legacy pool match** — `spec.dispatchLabel` matched against a
+       Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
+       pool the operator manually renders via `runnersFleet.pools[]`
+       (e.g. an Xcode the catalog has removed but customer workflows
+       still pin).
+  """
+  def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
+    with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
+      resolve_legacy_pool(requested_labels)
+    end
+  end
+
+  defp resolve_profile(account, requested_labels) do
+    case Profiles.match_for_dispatch(account, requested_labels) do
+      {:ok, %Profile{} = profile} ->
+        {:ok,
+         %{
+           pool_name: Catalog.pool_name(profile),
+           requested_dispatch_label: Profile.dispatch_label(profile),
+           platform: profile.platform,
+           vcpus: profile.vcpus,
+           memory_gb: profile.memory_gb
+         }}
+
+      {:error, :no_matching_profile} = err ->
+        err
+    end
+  end
+
+  defp resolve_legacy_pool(requested_labels) do
+    case match_pool(requested_labels) do
+      {:ok, %{name: name, dispatch_label: label} = pool} ->
+        {:ok,
+         %{
+           pool_name: name,
+           requested_dispatch_label: label,
+           platform: pool.platform,
+           vcpus: pool.vcpus,
+           memory_gb: pool.memory_gb
+         }}
+
+      {:error, _} = err ->
+        err
+    end
   end
 
   @doc """
@@ -298,15 +606,17 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp fetch_enabled_account(owner) when is_binary(owner) and owner != "" do
-    case get_account_by_handle_cached(owner) do
+  # Resolve by installation first (the authoritative link the customer
+  # established at connect time), then fall back to the legacy
+  # `owner == account.name` convention. Enablement is checked once the
+  # account resolves, regardless of which path found it.
+  defp fetch_enabled_account(installation_id, owner) do
+    case resolve_account(installation_id, owner) do
       nil ->
         {:error, :no_account}
 
       account ->
-        cap = account.runner_max_concurrent || 0
-
-        if cap > 0 do
+        if FeatureFlags.runners_enabled?(account) do
           {:ok, account}
         else
           {:error, :runners_disabled}
@@ -314,7 +624,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp fetch_enabled_account(_), do: {:error, :no_account}
+  defp resolve_account(installation_id, owner) do
+    account_by_installation_cached(installation_id) || account_by_handle(owner)
+  end
+
+  defp account_by_handle(owner) when is_binary(owner) and owner != "", do: get_account_by_handle_cached(owner)
+  defp account_by_handle(_), do: nil
 
   # We deliberately do NOT cache `{:error, _}` returns from the K8s
   # client. A transient apiserver hiccup should retry on the next
@@ -341,13 +656,51 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # Caches enabled accounts (cap > 0) only. Skipping the cache for
-  # cap=0 / nil accounts keeps the adoption path snappy: a customer
-  # who first flips `runner_max_concurrent` from 0 to N expects the
-  # next webhook to dispatch right away, not after the previous
-  # cap-0 result has aged out of a long TTL. We also skip caching
-  # unknown handles for the same reason — `KeyValueStore.get/1`
-  # can't distinguish "cached nil" from "no entry" anyway.
+  # Resolves and caches the account a GitHub App installation belongs
+  # to, keyed by `installation_id`. This is the authoritative link
+  # (`github_app_installations.account_id`), so it works even when the
+  # customer's Tuist handle differs from their GitHub org login. Same
+  # caching contract as the handle cache: only successful resolutions
+  # are memoised, and enablement is re-evaluated per webhook by the
+  # caller. A nil/absent installation row falls through to the handle
+  # convention.
+  defp account_by_installation_cached(installation_id) when is_integer(installation_id) do
+    cache_key = [__MODULE__, :account_by_installation, installation_id]
+    cache_opts = [cache: __MODULE__.cache_name()]
+
+    case KeyValueStore.get(cache_key, cache_opts) do
+      nil ->
+        case account_for_installation(installation_id) do
+          nil ->
+            nil
+
+          account ->
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
+            account
+        end
+
+      cached ->
+        cached
+    end
+  end
+
+  defp account_by_installation_cached(_), do: nil
+
+  defp account_for_installation(installation_id) do
+    with {:ok, %{account_id: account_id}} <- VCS.get_github_app_installation_by_installation_id(installation_id),
+         {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      account
+    else
+      _ -> nil
+    end
+  end
+
+  # Caches any account resolved for an org login. Enablement is a
+  # feature-flag decision the caller makes per webhook, not a property
+  # of the cached row, so caching every account is safe and a flag
+  # flip still takes effect immediately. Unknown handles aren't cached
+  # — `KeyValueStore.get/1` can't distinguish "cached nil" from "no
+  # entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
     cache_opts = [cache: __MODULE__.cache_name()]
@@ -358,11 +711,8 @@ defmodule Tuist.Runners.Dispatch do
           nil ->
             nil
 
-          %{runner_max_concurrent: cap} = account when is_integer(cap) and cap > 0 ->
-            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
-            account
-
           account ->
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
             account
         end
 
@@ -381,7 +731,17 @@ defmodule Tuist.Runners.Dispatch do
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
-    %{name: name, dispatch_label: label, runner_labels: extract_runner_labels(spec)}
+    platform = extract_pool_platform(spec)
+    default_shape = Catalog.default_shape(platform) || %{vcpus: 1, memory_gb: 1}
+
+    %{
+      name: name,
+      dispatch_label: label,
+      runner_labels: extract_runner_labels(spec),
+      platform: platform,
+      vcpus: extract_pool_vcpus(spec, default_shape.vcpus),
+      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb)
+    }
   end
 
   defp pool_summary(_), do: nil
@@ -398,6 +758,19 @@ defmodule Tuist.Runners.Dispatch do
 
   defp extract_runner_labels(_), do: []
 
+  defp extract_pool_platform(%{"os" => "linux"}), do: :linux
+  defp extract_pool_platform(_), do: :macos
+
+  defp extract_pool_vcpus(%{"podCPUMilli" => cpu_milli}, _default) when is_integer(cpu_milli) and cpu_milli > 0,
+    do: div(cpu_milli + 999, 1000)
+
+  defp extract_pool_vcpus(_spec, default), do: default
+
+  defp extract_pool_memory_gb(%{"podMemoryMB" => memory_mb}, _default) when is_integer(memory_mb) and memory_mb > 0,
+    do: div(memory_mb + 1023, 1024)
+
+  defp extract_pool_memory_gb(_spec, default), do: default
+
   defp namespace, do: Environment.runners_namespace()
 
   defp parse_full_name(full_name) when is_binary(full_name) do
@@ -406,6 +779,50 @@ defmodule Tuist.Runners.Dispatch do
       _ -> {"", ""}
     end
   end
+
+  # GitHub only populates the workflow_job's `steps` array on the
+  # `completed` event. We keep only entries with a usable name so a
+  # malformed payload doesn't leak placeholder rows.
+  defp raw_steps(job) do
+    case Map.get(job, "steps") do
+      steps when is_list(steps) -> Enum.filter(steps, &valid_step?/1)
+      _ -> []
+    end
+  end
+
+  defp valid_step?(%{"name" => name}) when is_binary(name) and name != "", do: true
+  defp valid_step?(_), do: false
+
+  # Convert each raw GitHub step into a `runner_job_steps` row,
+  # parsing the ISO timestamps into DateTime values the CH driver can
+  # bind to `DateTime64(6, 'UTC')`.
+  defp build_step_rows(workflow_job_id, account_id, raw_steps) do
+    Enum.map(raw_steps, fn step ->
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: get_integer(step, "number"),
+        name: get_string(step, "name"),
+        status: get_string(step, "status"),
+        conclusion: get_string(step, "conclusion"),
+        started_at: parse_step_time(Map.get(step, "started_at")),
+        completed_at: parse_step_time(Map.get(step, "completed_at"))
+      }
+    end)
+  end
+
+  # Step start / finish timestamps arrive as ISO-8601 strings or
+  # `null`. `DateTime64(6)` requires microsecond precision, so we
+  # promote the parsed value to 6-digit microseconds (mirrors the
+  # log ingest path).
+  defp parse_step_time(value) when is_binary(value) and value != "" do
+    case DateTime.from_iso8601(value) do
+      {:ok, %DateTime{microsecond: {us, _}} = dt, _offset} -> %{dt | microsecond: {us, 6}}
+      _ -> nil
+    end
+  end
+
+  defp parse_step_time(_), do: nil
 
   defp get_integer(map, key, default \\ 0) do
     case Map.get(map, key) do

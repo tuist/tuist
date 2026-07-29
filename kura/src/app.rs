@@ -5,14 +5,20 @@ use std::{
     time::Duration,
 };
 
+use axum::response::IntoResponse;
 use axum_server::Handle;
-use hyper_util::rt::TokioTimer;
-use tokio::sync::{Notify, Semaphore, oneshot};
+use hyper_util::{
+    rt::{TokioExecutor, TokioTimer},
+    server::conn::auto::Builder as HttpBuilder,
+};
+use tokio::sync::{Notify, Semaphore, oneshot, watch};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{Instrument, info, warn};
 
 use crate::{
+    accelerated_file_serving,
     analytics::Analytics,
+    bandwidth::BandwidthLimiter,
     config::Config,
     extension::ExtensionEngine,
     geoip::GeoIp,
@@ -21,14 +27,31 @@ use crate::{
     memory::{MemoryController, MemoryPressure},
     metrics::Metrics,
     node_location::resolve_node_location,
-    peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
+    peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
-    state::{AppState, ReadinessState},
+    state::{AppState, ReadinessState, SharedState},
     store::Store,
     telemetry::{init_tracing, log_context_span},
+    usage::Usage,
+    utils::directory_size_bytes,
 };
+
+const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
+// The co-hosted listener carries large Bazel REAPI uploads, so it advertises a
+// 4 MiB stream window (a single ByteStream write is otherwise capped at
+// ~window/RTT) over a 16 MiB connection window sized for several concurrent
+// streams.
+const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
+const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
+const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
+const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+#[cfg(target_os = "linux")]
+const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -48,6 +71,10 @@ impl ShutdownBudget {
 }
 
 pub async fn run() -> Result<(), String> {
+    let nofile_raise_error = raise_nofile_soft_to_hard().err();
+
+    let enrollment = crate::enrollment::enroll_on_boot().await?;
+
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
     let node_location = resolve_node_location(
@@ -58,8 +85,11 @@ pub async fn run() -> Result<(), String> {
     )
     .await;
     let telemetry = init_tracing(&config, &node_location);
+    if let Some(error) = nofile_raise_error {
+        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+    }
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip, node_location)
+    let result = run_with_config(config, geoip, node_location, enrollment)
         .instrument(log_context)
         .await;
 
@@ -71,82 +101,159 @@ async fn run_with_config(
     config: Config,
     geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
+    enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
-    if let Err(error) = raise_nofile_soft_to_hard() {
-        tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
-    }
-
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
         .await
-        .map_err(|error| format!("failed to create directories: {error}"))?;
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
+    config
+        .ensure_directories(&data_dir_lock)
+        .await
+        .map_err(|error| format!("failed to create directories: {error}"))?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
+        .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_runtime_limit(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let client = build_peer_client(&config).await?;
+    let local_data_available_at_join = store.has_artifacts()?;
+    let tmp_staging_budget = store.tmp_staging_budget();
+    match store.sweep_orphaned_segments().await {
+        Ok(0) => {}
+        Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
+        Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
+    }
+    establish_initial_memory_baseline(&memory).await?;
+    let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
+    let client = peer_client_factory.build()?;
+    let internal_tls = match &config.peer_tls {
+        Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
+        None => None,
+    };
+    let runtime = RuntimeState::new();
+    let replication_bandwidth_limiter = BandwidthLimiter::new(
+        config.replication_bandwidth_limit_bytes_per_second,
+        config.replication_public_latency_target_ms,
+        runtime.clone(),
+    )
+    .map(Arc::new);
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.bootstrap_staging_budget_bytes()),
+    );
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
+        snapshot_cache,
         metrics,
-        runtime: RuntimeState::new(),
+        runtime,
         extension,
         analytics,
+        usage,
         geoip,
-        client,
+        client: arc_swap::ArcSwap::from_pointee(client),
+        peer_client_factory,
+        internal_tls,
+        dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
+        tmp_staging_budget,
+        bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
+    Usage::spawn_tasks(state.clone());
+
+    if let Some(registration) =
+        crate::registration::RegistrationConfig::from_env(&state.config.node_url)
+    {
+        crate::registration::spawn(state.clone(), registration);
+    }
+
     spawn_snapshot_task(state.clone());
+    spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
+    spawn_segment_promotion_task(state.clone());
+
+    // When the node enrolled on boot, keep its peer certificate fresh in-process
+    // so a short leaf does not require a restart, and prove mesh-membership
+    // liveness to the control plane (which also refreshes the peer list at
+    // heartbeat cadence instead of at certificate renewal). Managed pods don't
+    // enroll; they sync the peer view read-only, with serving gated on the
+    // first successful fetch so a pod booting blind never accepts writes
+    // without enqueuing replication for peers it cannot see.
+    if let Some(enrollment) = enrollment
+        && state.config.peer_tls.is_some()
+    {
+        state
+            .dynamic_peers
+            .store(std::sync::Arc::new(enrollment.peers.clone()));
+        spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+        crate::mesh_heartbeat::spawn(
+            state.clone(),
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_enrollment(&enrollment),
+        );
+    } else if state.config.peer_tls.is_some()
+        && let Some(config) = crate::mesh_heartbeat::MeshPeersSyncConfig::from_config(&state.config)
+    {
+        state.runtime.require_peer_view();
+        crate::mesh_heartbeat::spawn_peers_sync(state.clone(), config);
+    }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
-    let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
     let https_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.https_port));
-    info!("Kura service listening on {address}");
+    info!("Kura HTTP+gRPC service listening on {address}");
     if state.config.public_tls.is_some() {
-        info!("Kura HTTPS service listening on {https_address} (TLS)");
-    }
-    if state.config.grpc_tls.is_some() {
-        info!("Kura REAPI service listening on {grpc_address} (TLS)");
-    } else {
-        info!("Kura REAPI service listening on {grpc_address}");
+        info!("Kura HTTP+gRPC service listening on {https_address} (TLS)");
     }
     let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
@@ -155,36 +262,14 @@ async fn run_with_config(
         info!("Kura internal HTTP service listening on {internal_address}");
     }
 
-    let grpc_listener = tokio::net::TcpListener::bind(grpc_address)
-        .await
-        .map_err(|error| format!("failed to bind gRPC listener: {error}"))?;
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(None::<ShutdownBudget>);
     let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
-    let grpc_shutdown_rx = shutdown_rx.clone();
-    let grpc_state = state.clone();
-    let grpc_handle = tokio::spawn(
-        async move {
-            let grpc_shutdown = async move {
-                let mut shutdown_rx = grpc_shutdown_rx;
-                if shutdown_rx.borrow().is_some() {
-                    return;
-                }
-                while shutdown_rx.changed().await.is_ok() {
-                    if shutdown_rx.borrow().is_some() {
-                        return;
-                    }
-                }
-            };
 
-            if let Err(error) = reapi::serve(grpc_listener, grpc_state, grpc_shutdown).await {
-                tracing::error!("gRPC server failed: {error}");
-            }
-        }
-        .in_current_span(),
-    );
-
-    let internal_handle = if let Some(peer_tls) = state.config.peer_tls.clone() {
-        let tls_config = build_internal_rustls_config(&peer_tls).await?;
+    let internal_handle = if state.config.peer_tls.is_some() {
+        let tls_config = state
+            .internal_tls
+            .clone()
+            .expect("internal_tls is present whenever peer_tls is configured");
         let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
@@ -250,12 +335,9 @@ async fn run_with_config(
         ))
     };
 
-    let router = http::public_router(state.clone());
-    let public_handle = Handle::new();
-    let https_handle = Handle::new();
-    let public_shutdown_handle = public_handle.clone();
-    let https_shutdown_handle = https_handle.clone();
+    let router = cohosted_router(state.clone());
     let public_shutdown_state = state.clone();
+    let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -263,27 +345,35 @@ async fn run_with_config(
             let _ = shutdown_budget_tx.send(budget);
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
-            public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-            https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+            let _ = public_shutdown_tx.send(true);
         }
         .in_current_span(),
     );
 
-    let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
-        let tls_config = build_public_rustls_config(&public_tls).await?;
-        let https_router = http::public_router(state.clone());
+    // The co-hosted HTTP + h2c gRPC surface, also served over TLS when a public
+    // cert is configured, ALPN-negotiated (`h2` for gRPC, `http/1.1` for HTTP).
+    // Both listeners share the per-connection hyper serving path (TCP_NODELAY,
+    // connection aging, drain GOAWAY); TLS is incompatible with the sendfile
+    // accelerator, so its connections take the hyper path directly.
+    let https_task = if let Some(public_tls) = state.config.public_tls.clone() {
+        let tls_config = build_public_rustls_config(&public_tls).await?.get_inner();
+        let https_router = cohosted_router(state.clone());
+        let https_listener = tokio::net::TcpListener::bind(https_address)
+            .await
+            .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
+        let https_shutdown_rx = public_shutdown_rx.clone();
         Some(tokio::spawn(
             async move {
-                let mut server =
-                    axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
-                server
-                    .http_builder()
-                    .http1()
-                    .keep_alive(true)
-                    .timer(TokioTimer::new())
-                    .header_read_timeout(Some(Duration::from_secs(30)));
-                if let Err(error) = server.serve(https_router.into_make_service()).await {
-                    tracing::error!("public HTTPS server failed: {error}");
+                if let Err(error) = accelerated_file_serving::serve_public_tls(
+                    https_listener,
+                    https_router,
+                    tls_config,
+                    https_shutdown_rx,
+                    configure_http_builder,
+                )
+                .await
+                {
+                    tracing::error!("HTTPS server failed: {error}");
                 }
             }
             .in_current_span(),
@@ -292,17 +382,25 @@ async fn run_with_config(
         None
     };
 
-    let mut public_server = axum_server::bind(address).handle(public_handle);
-    public_server
-        .http_builder()
-        .http1()
-        .keep_alive(true)
-        .timer(TokioTimer::new())
-        .header_read_timeout(Some(Duration::from_secs(30)));
-    public_server
-        .serve(router.into_make_service())
+    // The main plaintext listener co-hosts HTTP and h2c gRPC on one port. It
+    // runs through the accelerated server, so HTTP/1 artifact GETs get the
+    // sendfile/splice fast path while gRPC (h2c) and other non-accelerable
+    // requests fall through to hyper — with the fixed gRPC-sized HTTP/2 windows
+    // so co-hosted REAPI uploads run at full speed. When acceleration is
+    // disabled every connection takes the hyper path of the same loop.
+    let public_listener = tokio::net::TcpListener::bind(address)
         .await
-        .map_err(|error| format!("server error: {error}"))?;
+        .map_err(|error| format!("failed to bind public HTTP listener: {error}"))?;
+    accelerated_file_serving::serve_public_http(
+        public_listener,
+        router,
+        state.clone(),
+        state.config.accelerated_file_serving.clone(),
+        public_shutdown_rx,
+        configure_http_builder,
+    )
+    .await
+    .map_err(|error| format!("server error: {error}"))?;
     let shutdown_budget = shutdown_budget_rx.await.unwrap_or_else(|_| {
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
@@ -317,15 +415,64 @@ async fn run_with_config(
             "timed out waiting for inflight requests to drain during shutdown"
         );
     }
-    wait_for_task_shutdown(grpc_handle, "gRPC", shutdown_budget).await;
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }
-    if let Some(https_handle_task) = https_handle_task {
-        wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
+    if let Some(https_task) = https_task {
+        wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
     }
 
     Ok(())
+}
+
+// The co-hosted HTTP + gRPC router served on the plaintext and TLS listeners.
+// tonic's `Routes` router carries a fallback that answers ANY unmatched path
+// with HTTP 200 + `grpc-status: Unimplemented`, which `merge` adopts and which
+// would leak onto the plain-HTTP surface (e.g. `/_internal/status` probing must
+// 404). Override it with a protocol-aware fallback: gRPC requests keep the
+// Unimplemented status their clients expect, everything else gets a plain 404.
+fn cohosted_router(state: SharedState) -> axum::Router {
+    http::public_router(state.clone())
+        .merge(reapi::routes(state))
+        .fallback(cohosted_fallback)
+}
+
+async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::Response {
+    let is_grpc = request
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/grpc"));
+    if is_grpc {
+        tonic::Status::unimplemented("").into_http()
+    } else {
+        axum::http::StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+// HTTP/1 + HTTP/2 tuning for the co-hosted HTTP+gRPC listeners (plaintext and
+// TLS). The window is FIXED, never adaptive: hyper's `adaptive_window(true)`
+// would override `initial_stream_window_size` and ramp a single stream up from
+// hyper's ~64KB default, which under WAN latency halves single-stream REAPI
+// upload throughput (measured 9.84 vs 20.65 MB/s at 100ms RTT). The auto builder
+// serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so one listener
+// handles cache + gRPC.
+fn configure_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    builder
+        .http1()
+        .keep_alive(true)
+        .timer(TokioTimer::new())
+        .header_read_timeout(Some(Duration::from_secs(30)));
+    builder
+        .http2()
+        .initial_stream_window_size(Some(HTTP2_STREAM_WINDOW_BYTES))
+        .initial_connection_window_size(Some(HTTP2_CONNECTION_WINDOW_BYTES))
+        .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
+        .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
+        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
+        .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
+        .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
+        .timer(TokioTimer::new());
 }
 
 async fn shutdown_signal() {
@@ -346,6 +493,42 @@ async fn shutdown_signal() {
     wait_for_shutdown_signal(ctrl_c, terminate).await;
 }
 
+// Drains the store's read-path promotion queue: artifacts served from an
+// Old-generation segment are rewritten into the current segment here instead
+// of inline on the read path (see Store::run_promotion_worker).
+//
+// Unlike the other background tasks, this one has a producer queue behind it:
+// if the worker dies, enqueue_promotion keeps filling the queue and promotion
+// silently stops for the life of the process, so Old-segment artifacts age out
+// wholesale with hit-rate decay as the only symptom. The worker itself only
+// returns by panicking (invariant `expect`s deep in the refresh path that
+// pre-dated backgrounding killed a single request when they ran inline), so
+// supervise it: respawn on panic instead of losing the subsystem.
+fn spawn_segment_promotion_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            loop {
+                let worker_state = state.clone();
+                let worker = tokio::spawn(
+                    async move {
+                        worker_state.store.run_promotion_worker().await;
+                    }
+                    .in_current_span(),
+                );
+                if worker.await.is_ok() {
+                    // run_promotion_worker loops forever; a clean return means
+                    // the runtime is shutting down.
+                    return;
+                }
+                state.metrics.record_promotion_failure();
+                tracing::warn!("segment promotion worker panicked; respawning");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_snapshot_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
@@ -353,12 +536,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 let worker_state = state.clone();
                 match tokio::task::spawn_blocking(move || {
                     let snapshot = worker_state.store.snapshot();
-                    let memory = process_memory_snapshot();
-                    (snapshot, memory)
+                    let jemalloc = jemalloc_stats_snapshot();
+                    (snapshot, jemalloc)
                 })
                 .await
                 {
-                    Ok((Ok(snapshot), memory)) => {
+                    Ok((Ok(snapshot), jemalloc)) => {
                         state
                             .metrics
                             .update_outbox_messages(snapshot.outbox_messages);
@@ -366,6 +549,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_promotion_queue_depth(snapshot.promotion_queue_depth);
+                        state
+                            .metrics
+                            .update_segment_fsyncs(snapshot.segment_fsync_count);
                         for (generation, count) in snapshot.segment_counts {
                             state
                                 .metrics
@@ -378,60 +567,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.rocksdb_write_buffer_usage_bytes,
                             snapshot.rocksdb_write_buffer_capacity_bytes,
                         );
-                        if let Some(memory) = memory {
-                            state
-                                .metrics
-                                .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
-                            let pressure = state.memory.observe(memory.resident_bytes);
-                            let target_bytes = state
-                                .memory
-                                .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
-                            let evicted =
-                                state.store.trim_manifest_cache_to(target_bytes, "pressure");
-                            if evicted > 0 {
-                                state.metrics.record_memory_action("manifest_cache_trim");
-                            }
-                            let existence_evicted = state.store.trim_existence_cache_to(
-                                state.memory.bounded_cache_target_entries(
-                                    crate::store::EXISTENCE_CACHE_CAPACITY,
-                                ),
+                        if let Some(jemalloc) = jemalloc {
+                            state.metrics.update_jemalloc_stats(
+                                jemalloc.allocated_bytes,
+                                jemalloc.resident_bytes,
+                                jemalloc.retained_bytes,
                             );
-                            if existence_evicted > 0 {
-                                state.metrics.record_memory_action("existence_cache_trim");
-                            }
-                            let segment_handle_evicted = state
-                                .store
-                                .trim_segment_handle_cache_to(
-                                    state.memory.bounded_cache_target_entries(
-                                        state.config.segment_handle_cache_size,
-                                    ),
-                                    "pressure",
-                                )
-                                .await;
-                            if segment_handle_evicted > 0 {
-                                state
-                                    .metrics
-                                    .record_memory_action("segment_handle_cache_trim");
-                            }
-                            if pressure == MemoryPressure::Critical
-                                && let Some(extension) = &state.extension
-                            {
-                                let evicted = extension.clear_caches().await;
-                                if evicted > 0 {
-                                    state.metrics.record_memory_action("extension_cache_trim");
-                                }
-                            }
-                            state.metrics.update_background_work_paused(
-                                "outbox",
-                                state.memory.pause_outbox(),
-                            );
-                            state.metrics.update_background_work_paused(
-                                "segment_refresh",
-                                !state.memory.allow_segment_refresh(),
-                            );
-                            state
-                                .metrics
-                                .update_memory_pressure_state(pressure.as_i64());
                         }
                     }
                     Ok((Err(error), _)) => {
@@ -449,6 +590,228 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
     );
 }
 
+fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
+    let sensor_state = state.clone();
+    let watchdog_memory = state.memory.clone();
+    let mut sensor = tokio::spawn(
+        async move {
+            loop {
+                if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                    if let Err(error) =
+                        validate_container_memory_limit(&sensor_state.memory, sample)
+                    {
+                        tracing::error!("{error}; terminating Kura");
+                        eprintln!("{error}; terminating Kura");
+                        std::process::exit(1);
+                    }
+                    let previous = sensor_state.memory.pressure();
+                    let pressure = sensor_state.memory.observe_container(sample);
+                    if pressure != previous {
+                        tracing::warn!(
+                            from = previous.as_str(),
+                            to = pressure.as_str(),
+                            raw_bytes = sample.current_bytes,
+                            working_set_bytes = sample.working_set_bytes,
+                            runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
+                            transient_reserved_bytes =
+                                sensor_state.memory.transient_reserved_bytes(),
+                            "Kura memory pressure changed"
+                        );
+                    }
+                } else {
+                    #[cfg(not(target_os = "linux"))]
+                    if let Some(snapshot) = process_memory_snapshot() {
+                        sensor_state.memory.observe(snapshot.resident_bytes);
+                    }
+                }
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        .in_current_span(),
+    );
+    tokio::spawn(
+        async move {
+            let mut last_sequence = watchdog_memory.observation_sequence();
+            let mut stale_checks = 0_u8;
+            loop {
+                tokio::select! {
+                    result = &mut sensor => {
+                        tracing::error!(?result, "memory pressure sensor exited; terminating Kura");
+                        eprintln!("memory pressure sensor exited; terminating Kura: {result:?}");
+                        std::process::exit(1);
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        let sequence = watchdog_memory.observation_sequence();
+                        if !cfg!(target_os = "linux")
+                            && !watchdog_memory.uses_container_accounting()
+                        {
+                            continue;
+                        }
+                        if sequence == last_sequence {
+                            stale_checks = stale_checks.saturating_add(1);
+                            if stale_checks >= 5 {
+                                tracing::error!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                eprintln!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                std::process::exit(1);
+                            }
+                        } else {
+                            last_sequence = sequence;
+                            stale_checks = 0;
+                        }
+                    }
+                }
+            }
+        }
+        .in_current_span(),
+    );
+
+    tokio::spawn(
+        async move {
+            loop {
+                let process = process_memory_snapshot();
+                if let Some(process) = process {
+                    state
+                        .metrics
+                        .update_process_memory(process.resident_bytes, process.virtual_bytes);
+                    if let (Some(anon_bytes), Some(file_bytes)) =
+                        (process.resident_anon_bytes, process.resident_file_bytes)
+                    {
+                        state
+                            .metrics
+                            .update_process_resident_breakdown(anon_bytes, file_bytes);
+                    }
+                }
+
+                let container = crate::memory::container_memory_snapshot();
+                if let Some(container) = container {
+                    state
+                        .metrics
+                        .update_container_memory(container, state.memory.runtime_limit_bytes());
+                }
+                state
+                    .metrics
+                    .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+
+                let pressure = state.memory.pressure();
+                let snapshot_target = state
+                    .memory
+                    .snapshot_cache_target_bytes(state.config.snapshot_cache_max_bytes);
+                state
+                    .snapshot_cache
+                    .trim_to(snapshot_target, pressure.as_str(), &state.metrics);
+                state.snapshot_cache.update_metrics(&state.metrics);
+                let target_bytes = state
+                    .memory
+                    .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
+                let evicted = state.store.trim_manifest_cache_to(target_bytes, "pressure");
+                if evicted > 0 {
+                    state.metrics.record_memory_action("manifest_cache_trim");
+                }
+                let existence_evicted = state.store.trim_existence_cache_to(
+                    state
+                        .memory
+                        .bounded_cache_target_entries(crate::store::EXISTENCE_CACHE_CAPACITY),
+                );
+                if existence_evicted > 0 {
+                    state.metrics.record_memory_action("existence_cache_trim");
+                }
+                let segment_handle_evicted = state
+                    .store
+                    .trim_segment_handle_cache_to(
+                        state
+                            .memory
+                            .bounded_cache_target_entries(state.config.segment_handle_cache_size),
+                        "pressure",
+                    )
+                    .await;
+                if segment_handle_evicted > 0 {
+                    state
+                        .metrics
+                        .record_memory_action("segment_handle_cache_trim");
+                }
+                if pressure == MemoryPressure::Critical
+                    && let Some(extension) = &state.extension
+                {
+                    let evicted = extension.clear_caches().await;
+                    if evicted > 0 {
+                        state.metrics.record_memory_action("extension_cache_trim");
+                    }
+                }
+                state
+                    .metrics
+                    .update_background_work_paused("outbox", state.memory.pause_outbox());
+                state.metrics.update_background_work_paused(
+                    "bootstrap",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "snapshot_build",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "segment_refresh",
+                    !state.memory.allow_segment_refresh(),
+                );
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+async fn establish_initial_memory_baseline(memory: &MemoryController) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        for attempt in 1..=INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+            if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                validate_container_memory_limit(memory, sample)?;
+                memory.observe_container(sample);
+                return Ok(());
+            }
+            if attempt < INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        Err(format!(
+            "failed to read Linux control-group memory accounting after {INITIAL_MEMORY_SAMPLE_ATTEMPTS} attempts; refusing to serve without bounded memory accounting"
+        ))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(snapshot) = process_memory_snapshot() {
+            memory.observe(snapshot.resident_bytes);
+        }
+        Ok(())
+    }
+}
+
+fn validate_container_memory_limit(
+    memory: &MemoryController,
+    sample: crate::memory::ContainerMemoryPressureSample,
+) -> Result<(), String> {
+    let Some(enforced_limit_bytes) = sample.limit_bytes else {
+        return Ok(());
+    };
+    if enforced_limit_bytes == 0 {
+        return Err("the Linux control-group memory limit is zero".into());
+    }
+    if memory.runtime_limit_bytes() > enforced_limit_bytes {
+        return Err(format!(
+            "the detected runtime memory limit of {} bytes exceeds the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.runtime_limit_bytes()
+        ));
+    }
+    if memory.hard_limit_bytes() >= enforced_limit_bytes {
+        return Err(format!(
+            "the hard memory watermark of {} bytes must stay below the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.hard_limit_bytes()
+        ));
+    }
+    Ok(())
+}
+
 fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
@@ -461,22 +824,82 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     );
 }
 
-fn spawn_multipart_janitor_task(state: Arc<AppState>) {
-    let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
-    let ttl_ms = state.config.multipart_upload_ttl_ms;
+/// Expires REAPI action-cache entries whose write time predates the TTL.
+/// Clients publish new keys on every source change and nothing else removes
+/// the stale ones, so this recency sweep is what bounds a namespace's
+/// keyspace (and with it the snapshot reconcile scan and index memory). An
+/// expired entry that is still genuinely used costs its next cold reader one
+/// recompile + republish, which refreshes it for the whole fleet. Node-local
+/// by design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
+fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
+    use crate::constants::{
+        REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+        REAPI_ACTION_CACHE_TTL_MS,
+    };
+    let interval = Duration::from_millis(REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS);
     tokio::spawn(
         async move {
             loop {
                 tokio::time::sleep(interval).await;
+                let sweep_state = state.clone();
+                let cutoff_ms = crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
+                let expired = tokio::task::spawn_blocking(move || {
+                    sweep_state.store.expire_stale_action_cache_entries(
+                        cutoff_ms,
+                        REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+                    )
+                })
+                .await;
+                match expired {
+                    Ok(Ok(0)) => {}
+                    Ok(Ok(expired)) => {
+                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                    }
+                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
+                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    const SCAN_BATCH: usize = 256;
+
+    let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
+    let ttl_ms = state.config.multipart_upload_ttl_ms;
+    tokio::spawn(
+        async move {
+            let mut cursor = None;
+            loop {
+                tokio::time::sleep(interval).await;
                 let now = crate::utils::now_ms();
                 let cutoff_ms = now.saturating_sub(ttl_ms);
-                let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
-                    Ok(stale) => stale,
-                    Err(error) => {
+                let scan_state = state.clone();
+                let scan_cursor = cursor.clone();
+                let page = tokio::task::spawn_blocking(move || {
+                    scan_state.store.multipart_uploads_older_than_bounded(
+                        cutoff_ms,
+                        scan_cursor.as_deref(),
+                        SCAN_BATCH,
+                    )
+                })
+                .await;
+                let (stale, next_cursor) = match page {
+                    Ok(Ok(page)) => page,
+                    Ok(Err(error)) => {
                         warn!("multipart janitor scan failed: {error}");
                         continue;
                     }
+                    Err(error) => {
+                        warn!("multipart janitor scan task failed: {error}");
+                        continue;
+                    }
                 };
+                cursor = next_cursor;
                 if stale.is_empty() {
                     continue;
                 }
@@ -555,6 +978,62 @@ fn spawn_geoip_refresh_task(state: Arc<AppState>) {
     );
 }
 
+// Re-enrolls before the peer certificate's leaf expires and hot-reloads the new
+// material into both the inbound mTLS server and the outbound peer client, so a
+// short leaf never requires a restart.
+fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u64) {
+    tokio::spawn(
+        async move {
+            let mut renew_after = initial_renew_after_seconds.max(60);
+            loop {
+                tokio::time::sleep(Duration::from_secs(renew_after)).await;
+                match crate::enrollment::renew().await {
+                    Ok(outcome) => match apply_renewed_enrollment(&state, &outcome).await {
+                        Ok(()) => {
+                            info!("renewed peer certificate");
+                            renew_after = outcome.renew_after_seconds.max(60);
+                        }
+                        Err(error) => {
+                            warn!("cert renewal: failed to apply new certificate: {error}");
+                            renew_after = 60;
+                        }
+                    },
+                    Err(error) => {
+                        warn!("cert renewal failed: {error}; retrying in 60s");
+                        renew_after = 60;
+                    }
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+pub(crate) async fn apply_renewed_enrollment(
+    state: &Arc<AppState>,
+    outcome: &crate::enrollment::EnrollmentOutcome,
+) -> Result<(), String> {
+    // Outbound: reload the peer identity and rebuild the cached client so new
+    // dials use the renewed certificate.
+    state
+        .peer_client_factory
+        .reload_from_config(&state.config)
+        .await?;
+    let new_client = state.peer_client_factory.build()?;
+    state.client.store(Arc::new(new_client));
+
+    // Inbound: rebuild the internal mTLS server config (preserving the client
+    // verifier) and hot-swap the leaf.
+    if let (Some(peer_tls), Some(rustls)) = (&state.config.peer_tls, &state.internal_tls) {
+        let server_config = crate::peer_tls::build_internal_server_config(peer_tls).await?;
+        rustls.reload_from_config(server_config);
+    }
+
+    // Pick up any newly-learned peers for discovery.
+    state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    Ok(())
+}
+
 #[cfg(unix)]
 fn raise_nofile_soft_to_hard() -> Result<(), String> {
     let mut limit = libc::rlimit {
@@ -595,28 +1074,6 @@ fn raise_nofile_soft_to_hard() -> Result<(), String> {
     Ok(())
 }
 
-fn directory_size_bytes(path: &std::path::Path) -> u64 {
-    let mut total = 0_u64;
-    let mut stack = vec![path.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            if file_type.is_dir() {
-                stack.push(entry.path());
-            } else if let Ok(metadata) = entry.metadata() {
-                total = total.saturating_add(metadata.len());
-            }
-        }
-    }
-    total
-}
-
 #[cfg(unix)]
 fn spawn_drain_signal_task(state: Arc<AppState>) {
     tokio::spawn(
@@ -641,25 +1098,75 @@ fn spawn_drain_signal_task(state: Arc<AppState>) {
 #[cfg(not(unix))]
 fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 
+#[derive(Clone, Copy, Debug)]
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
+    // Best-effort breakdown of resident memory into RssAnon (private pages:
+    // heap and stacks) and RssFile (pages backed by mapped files: mmap'd
+    // segments and the executable); these plus RssShmem sum to VmRSS. `None`
+    // on kernels < 4.5 that omit the lines, so it never fails the required
+    // resident/virtual sampling that drives memory-pressure control.
+    resident_anon_bytes: Option<u64>,
+    resident_file_bytes: Option<u64>,
 }
 
 #[cfg(target_os = "linux")]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let resident_bytes = parse_status_memory_kib(&status, "VmRSS:")?.saturating_mul(1024);
-    let virtual_bytes = parse_status_memory_kib(&status, "VmSize:")?.saturating_mul(1024);
+    let resident_bytes = parse_status_memory_bytes(&status, "VmRSS:")?;
+    let virtual_bytes = parse_status_memory_bytes(&status, "VmSize:")?;
+    let resident_anon_bytes = parse_status_memory_bytes(&status, "RssAnon:");
+    let resident_file_bytes = parse_status_memory_bytes(&status, "RssFile:");
     Some(ProcessMemorySnapshot {
         resident_bytes,
         virtual_bytes,
+        resident_anon_bytes,
+        resident_file_bytes,
     })
 }
 
 #[cfg(not(target_os = "linux"))]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     None
+}
+
+/// jemalloc's own accounting via mallctl. It sees only jemalloc-managed memory
+/// — not mmap'd segment files or non-Rust (RocksDB/C++) allocations — so it
+/// complements the RssAnon/RssFile split rather than replacing it. `allocated`
+/// is live application bytes; `resident` the physical pages jemalloc holds
+/// (allocations plus metadata, fragmentation, and dirty pages); `retained` the
+/// virtual address space kept back from the OS. Together they can hint at — but
+/// do not prove — a leak (a steadily rising `allocated`) as opposed to
+/// fragmentation or allocator retention (`resident` well above `allocated`).
+struct JemallocStats {
+    allocated_bytes: u64,
+    resident_bytes: u64,
+    retained_bytes: u64,
+}
+
+#[cfg(not(target_env = "msvc"))]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    use tikv_jemalloc_ctl::{epoch, stats};
+    // jemalloc caches these values and only recomputes them when the epoch is
+    // advanced, so refresh first or every read returns a stale, previously
+    // cached snapshot.
+    epoch::advance().ok()?;
+    Some(JemallocStats {
+        allocated_bytes: stats::allocated::read().ok()? as u64,
+        resident_bytes: stats::resident::read().ok()? as u64,
+        retained_bytes: stats::retained::read().ok()? as u64,
+    })
+}
+
+#[cfg(target_env = "msvc")]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn parse_status_memory_bytes(status: &str, field: &str) -> Option<u64> {
+    parse_status_memory_kib(status, field).map(|kib| kib.saturating_mul(1024))
 }
 
 #[cfg(target_os = "linux")]
@@ -732,6 +1239,301 @@ mod tests {
     use super::*;
     use crate::test_support::test_context;
 
+    #[test]
+    fn http_builder_accepts_http1_and_http2() {
+        let mut builder = HttpBuilder::new(TokioExecutor::new());
+
+        configure_http_builder(&mut builder);
+
+        // The co-hosted listener must accept HTTP/1.1 (HTTP cache clients) and
+        // HTTP/2 (h2c REAPI gRPC) on the same socket.
+        assert!(builder.is_http1_available());
+        assert!(builder.is_http2_available());
+    }
+
+    #[test]
+    fn container_limit_validation_rejects_an_oversized_runtime_budget() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        let error = validate_container_memory_limit(
+            &memory,
+            crate::memory::ContainerMemoryPressureSample {
+                current_bytes: 100,
+                working_set_bytes: 100,
+                reclaimable_inactive_file_bytes: 0,
+                limit_bytes: Some(200),
+            },
+        )
+        .expect_err("the runtime budget must fit the enforced limit");
+
+        assert!(error.contains("runtime memory limit"));
+    }
+
+    #[test]
+    fn container_limit_validation_accepts_bounded_and_unlimited_groups() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        for limit_bytes in [Some(256), None] {
+            validate_container_memory_limit(
+                &memory,
+                crate::memory::ContainerMemoryPressureSample {
+                    current_bytes: 100,
+                    working_set_bytes: 100,
+                    reclaimable_inactive_file_bytes: 0,
+                    limit_bytes,
+                },
+            )
+            .expect("the runtime budget should fit the container limit");
+        }
+    }
+
+    #[cfg(not(target_env = "msvc"))]
+    #[test]
+    fn jemalloc_stats_snapshot_reads_live_allocator_stats() {
+        // Hold a sizeable allocation so `allocated` is unambiguously non-zero
+        // when we sample, exercising the real mallctl path (epoch refresh +
+        // typed stat reads) rather than the hardcoded render-test values.
+        let ballast: Vec<u8> = vec![7u8; 8 * 1024 * 1024];
+        let stats = jemalloc_stats_snapshot().expect("jemalloc stats available under jemalloc");
+        assert!(stats.allocated_bytes > 0);
+        assert!(stats.resident_bytes >= stats.allocated_bytes);
+        drop(ballast);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn resident_rss_splits_into_anon_and_file() {
+        let status = "VmSize:\t 4194304 kB\n\
+             VmRSS:\t 1048576 kB\n\
+             RssAnon:\t  786432 kB\n\
+             RssFile:\t  262144 kB\n\
+             RssShmem:\t       0 kB\n";
+        assert_eq!(parse_status_memory_kib(status, "RssAnon:"), Some(786_432));
+        assert_eq!(parse_status_memory_kib(status, "RssFile:"), Some(262_144));
+
+        // The live process snapshot must also carry the split, and the two
+        // resident classes can never exceed total VmRSS (VmRSS = anon + file +
+        // shmem), which is the invariant a dashboard subtracting them relies on.
+        let snapshot = process_memory_snapshot().expect("linux process snapshot");
+        let anon = snapshot
+            .resident_anon_bytes
+            .expect("RssAnon present on kernels >= 4.5");
+        let file = snapshot
+            .resident_file_bytes
+            .expect("RssFile present on kernels >= 4.5");
+        assert!(anon > 0);
+        assert!(anon + file <= snapshot.resident_bytes);
+    }
+
+    // End-to-end proof that the co-hosted listener dispatches by path: an HTTP
+    // cache probe and a REAPI gRPC call both succeed against the same port. This
+    // is the behavior the co-hosted port exists to provide — a client that
+    // derives its gRPC target from the single cache URL reaches REAPI, not the
+    // plain-HTTP listener.
+    #[tokio::test]
+    async fn cohosted_listener_serves_http_and_grpc() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        // The production serving path: the accelerated per-connection loop
+        // (nodelay, aging, drain), with non-accelerable requests on hyper.
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind co-hosted test listener");
+        let addr = listener.local_addr().expect("co-hosted listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        // HTTP cache surface answers on the co-hosted port.
+        let http = reqwest::Client::new()
+            .get(format!("http://{addr}/up"))
+            .send()
+            .await
+            .expect("co-hosted port should answer the HTTP /up probe");
+        assert_eq!(http.status(), reqwest::StatusCode::OK);
+
+        // Unmatched plain-HTTP paths must 404, not fall into tonic's
+        // grpc-Unimplemented fallback (internal routes only exist on the
+        // internal listener).
+        let internal = reqwest::Client::new()
+            .get(format!("http://{addr}/_internal/status"))
+            .send()
+            .await
+            .expect("co-hosted port should answer unmatched HTTP paths");
+        assert_eq!(internal.status(), reqwest::StatusCode::NOT_FOUND);
+
+        // gRPC requests to unknown services keep the tonic semantics:
+        // HTTP 200 with grpc-status Unimplemented.
+        let unknown_grpc = reqwest::Client::builder()
+            .http2_prior_knowledge()
+            .build()
+            .expect("build h2c client")
+            .post(format!("http://{addr}/unknown.Service/Method"))
+            .header("content-type", "application/grpc")
+            .send()
+            .await
+            .expect("co-hosted port should answer unknown gRPC services");
+        assert_eq!(unknown_grpc.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            unknown_grpc
+                .headers()
+                .get("grpc-status")
+                .and_then(|value| value.to_str().ok()),
+            Some("12"),
+            "unknown gRPC service should map to grpc-status Unimplemented"
+        );
+
+        // REAPI gRPC (h2c) answers on the same port.
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+                .expect("valid gRPC endpoint")
+                .connect()
+                .await
+            {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut grpc_client =
+            grpc_client.expect("co-hosted port should accept gRPC (h2c) connections");
+        let capabilities = grpc_client
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("co-hosted port should answer REAPI GetCapabilities")
+            .into_inner();
+        assert!(
+            capabilities.cache_capabilities.is_some(),
+            "REAPI GetCapabilities over the co-hosted port should return cache capabilities"
+        );
+
+        shutdown_tx.send(true).expect("signal shutdown");
+        let _ = server.await;
+    }
+
+    // Same as above but over TLS (reusing the public cert): both HTTPS and REAPI
+    // gRPC ride one TLS port, ALPN-negotiated (http/1.1 for HTTP, h2 for gRPC).
+    #[tokio::test]
+    async fn cohosted_listener_serves_http_and_grpc_over_tls() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        // Self-signed cert for "localhost", loaded through PublicTlsConfig so the
+        // test exercises the real build_public_rustls_config path (ALPN + all).
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+            .expect("generate self-signed cert");
+        let cert_pem = cert.cert.pem();
+        let key_pem = cert.signing_key.serialize_pem();
+        let dir = tempfile::tempdir().expect("temp dir");
+        let cert_path = dir.path().join("tls.crt");
+        let key_path = dir.path().join("tls.key");
+        std::fs::write(&cert_path, &cert_pem).expect("write cert");
+        std::fs::write(&key_path, &key_pem).expect("write key");
+        let public_tls = crate::config::PublicTlsConfig {
+            cert_path,
+            key_path,
+        };
+        let tls_config = crate::peer_tls::build_public_rustls_config(&public_tls)
+            .await
+            .expect("build public rustls config")
+            .get_inner();
+
+        // The production TLS serving path: rustls handshake in front of the
+        // same per-connection hyper loop.
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind co-hosted TLS test listener");
+        let addr = listener
+            .local_addr()
+            .expect("co-hosted TLS listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_tls(
+            listener,
+            cohosted_router(state.clone()),
+            tls_config,
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        // HTTPS cache surface answers on the co-hosted port.
+        let http = reqwest::Client::builder()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(cert_pem.as_bytes()).expect("trust test cert"),
+            )
+            .resolve("localhost", addr)
+            .build()
+            .expect("build https client")
+            .get(format!("https://localhost:{}/up", addr.port()))
+            .send()
+            .await
+            .expect("co-hosted TLS port should answer HTTPS /up");
+        assert_eq!(http.status(), reqwest::StatusCode::OK);
+
+        // REAPI gRPC answers over TLS (ALPN h2) on the same port. Dial the IP and
+        // pin the cert domain so the test never depends on localhost resolution.
+        let client_tls = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(cert_pem.as_bytes()))
+            .domain_name("localhost");
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            let endpoint = tonic::transport::Endpoint::from_shared(format!("https://{addr}"))
+                .expect("valid gRPC endpoint")
+                .tls_config(client_tls.clone())
+                .expect("apply client tls");
+            match endpoint.connect().await {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut grpc_client =
+            grpc_client.expect("co-hosted TLS port should accept gRPC (h2 over TLS) connections");
+        let capabilities = grpc_client
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("co-hosted TLS port should answer REAPI GetCapabilities")
+            .into_inner();
+        assert!(
+            capabilities.cache_capabilities.is_some(),
+            "REAPI GetCapabilities over the co-hosted TLS port should return cache capabilities"
+        );
+
+        shutdown_tx.send(true).expect("signal shutdown");
+        let _ = server.await;
+    }
+
     #[tokio::test]
     async fn wait_for_shutdown_signal_returns_when_ctrl_c_resolves() {
         let (ctrl_c_tx, ctrl_c_rx) = oneshot::channel::<()>();
@@ -781,7 +1583,9 @@ mod tests {
     #[tokio::test]
     async fn wait_for_inflight_drain_returns_when_requests_finish() {
         let context = test_context(|_| {}).await;
-        let guard = context.state.start_http_request();
+        let guard = context
+            .state
+            .start_http_request(crate::runtime::HttpTrafficClass::Public);
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),

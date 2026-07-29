@@ -1,6 +1,6 @@
 defmodule TuistWeb.UserLoginLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
   use Mimic
 
   import Phoenix.LiveViewTest
@@ -11,6 +11,22 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "Log in"
+    end
+
+    test "does not render test user login button by default", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Log in as test user"
+    end
+
+    test "renders test user login button when enabled", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> true end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "Log in as test user"
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -51,11 +67,93 @@ defmodule TuistWeb.UserLoginLiveTest do
       assert html =~ "SSO"
     end
 
+    test "renders SSO button if an organization has SSO configured even when not tuist hosted", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Accounts, :sso_configured?, fn -> true end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "SSO"
+    end
+
+    test "renders GitHub button when GitHub OAuth is configured and GitHub auth is enabled", %{conn: conn} do
+      stub(Tuist.Environment, :github_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :github_auth_enabled?, fn -> true end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "GitHub"
+    end
+
+    test "hides GitHub button when GitHub auth is disabled even if GitHub OAuth is configured", %{conn: conn} do
+      stub(Tuist.Environment, :github_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :github_auth_enabled?, fn -> false end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "GitHub"
+    end
+
     test "renders email and password fields regardless of mail configuration", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       assert has_element?(lv, "input#email")
       assert has_element?(lv, "input#password")
+    end
+
+    test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      {:ok, lv, html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "#login_form")
+      refute has_element?(lv, "input#password")
+      refute html =~ "Sign up"
+    end
+
+    test "still renders the SSO button when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "SSO"
+    end
+
+    test "renders the Google button when Google is configured and enabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      assert has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Google button when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Apple button when Apple auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :apple_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "a[href='/users/auth/apple']")
+    end
+
+    test "drops Okta from the SSO button when Okta auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :okta_auth_enabled?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Accounts, :sso_configured?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Log in with SSO"
     end
   end
 

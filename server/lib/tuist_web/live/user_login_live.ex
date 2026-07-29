@@ -6,6 +6,7 @@ defmodule TuistWeb.UserLoginLive do
   import TuistWeb.AppAuthComponents
 
   alias Phoenix.Flash
+  alias Tuist.Accounts
   alias Tuist.Environment
 
   def mount(_params, _session, socket) do
@@ -16,12 +17,14 @@ defmodule TuistWeb.UserLoginLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:github_configured?, Environment.github_oauth_configured?())
-      |> assign(:google_configured?, Environment.google_oauth_configured?())
-      |> assign(:okta_configured?, Environment.okta_oauth_configured?())
-      |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
+      |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
+      |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
+      |> assign(:apple_configured?, Environment.apple_oauth_configured?() and Environment.apple_auth_enabled?())
+      |> assign(:sso_configured?, Accounts.sso_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
-      |> assign(:dev?, Environment.dev?())
+      |> assign(:email_auth_enabled?, Environment.email_auth_enabled?())
+      |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
 
     {
       :ok,
@@ -36,9 +39,10 @@ defmodule TuistWeb.UserLoginLive do
       <div data-part="frame">
         <div data-part="content">
           <img
-            src="/images/tuist_logo_32x32@2x.png"
+            src={~p"/images/tuist_logo_32x32@2x.png"}
             alt={dgettext("dashboard_auth", "Tuist Logo")}
             data-part="logo"
+            decoding="async"
           />
           <div data-part="dots">
             <.dots_light />
@@ -50,7 +54,7 @@ defmodule TuistWeb.UserLoginLive do
               {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
             </span>
           </div>
-          <div :if={oauth_configured?()} data-part="oauth-providers">
+          <div :if={oauth_configured?(assigns)} data-part="oauth-providers">
             <div
               :if={social_oauth_configured?(assigns)}
               data-part="oauth"
@@ -96,7 +100,7 @@ defmodule TuistWeb.UserLoginLive do
                 </:icon_left>
               </.button>
             </div>
-            <div :if={@okta_configured? or @tuist_hosted?} data-part="sso">
+            <div :if={sso_login_available?(assigns)} data-part="sso">
               <.button
                 href={~p"/users/log_in/sso"}
                 variant="secondary"
@@ -109,7 +113,7 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
             </div>
           </div>
-          <.line_divider :if={oauth_configured?()} text="OR" />
+          <.line_divider :if={oauth_configured?(assigns) and @email_auth_enabled?} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -119,6 +123,7 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
+            :if={@email_auth_enabled?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -179,7 +184,7 @@ defmodule TuistWeb.UserLoginLive do
             />
           </.form>
           <form
-            :if={@dev?}
+            :if={@test_user_login_enabled?}
             action={~p"/users/log_in"}
             method="post"
             style="display: contents;"
@@ -198,7 +203,7 @@ defmodule TuistWeb.UserLoginLive do
             </button>
           </form>
         </div>
-        <div data-part="bottom-link">
+        <div :if={@email_auth_enabled?} data-part="bottom-link">
           <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
@@ -218,10 +223,12 @@ defmodule TuistWeb.UserLoginLive do
     """
   end
 
-  defp oauth_configured? do
-    Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?() ||
-      Environment.tuist_hosted?()
+  defp oauth_configured?(assigns) do
+    social_oauth_configured?(assigns) or sso_login_available?(assigns)
+  end
+
+  defp sso_login_available?(assigns) do
+    assigns.okta_configured? or assigns.tuist_hosted? or assigns.sso_configured?
   end
 
   defp social_oauth_configured?(assigns) do

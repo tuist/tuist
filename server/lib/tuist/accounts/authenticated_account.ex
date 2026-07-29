@@ -10,7 +10,17 @@ defmodule Tuist.Accounts.AuthenticatedAccount do
   - `token_id` - The ID of the token used for authentication
   - `created_by_account_id` - The ID of the account that created this token
   - `issued_by` - The user who authorized the token (set for OAuth tokens to enable cross-org access)
+  - `agent_registration_id` - The auth.md registration that issued the token
   """
   @enforce_keys [:account, :scopes]
-  defstruct [:account, :scopes, :all_projects, :project_ids, :token_id, :created_by_account_id, :issued_by]
+  defstruct [
+    :account,
+    :scopes,
+    :all_projects,
+    :project_ids,
+    :token_id,
+    :created_by_account_id,
+    :issued_by,
+    :agent_registration_id
+  ]
 end

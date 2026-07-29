@@ -5,6 +5,8 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
+  alias Tuist.Authorization
+  alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
@@ -13,6 +15,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
   alias TuistWeb.Headers
 
   plug(
@@ -21,7 +24,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -29,9 +32,11 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:endpoints]
+       when action not in [:access, :endpoints]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+
+  plug :sign
 
   tags(["Cache"])
 
@@ -62,15 +67,30 @@ defmodule TuistWeb.API.CacheController do
                items: %Schema{type: :string}
              }
            }
-         }}
+         }},
+      forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
 
   def endpoints(conn, params) do
     endpoints =
-      Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(conn))
+      params[:account_handle]
+      |> authorized_account_handle(conn)
+      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
+      |> Enum.reject(&is_nil/1)
 
     json(conn, %{endpoints: endpoints})
+  end
+
+  defp authorized_account_handle(nil, _conn), do: nil
+
+  defp authorized_account_handle(account_handle, conn) do
+    account = Accounts.get_account_by_handle(account_handle)
+    subject = Authentication.authenticated_subject(conn)
+
+    if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
+      account_handle
+    end
   end
 
   defp technology(conn) do
@@ -79,6 +99,40 @@ defmodule TuistWeb.API.CacheController do
     else
       :default
     end
+  end
+
+  operation(:access,
+    summary: "Get first-class cache access scopes.",
+    description: "Returns the authenticated subject's account-scoped and project-scoped cache access handles.",
+    operation_id: "getCacheAccess",
+    responses: %{
+      ok:
+        {"Cache access handles", "application/json",
+         %Schema{
+           title: "CacheAccess",
+           description: "Account-scoped and project-scoped cache access handles",
+           type: :object,
+           required: [:accounts, :projects],
+           properties: %{
+             accounts: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             },
+             projects: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+    }
+  )
+
+  def access(conn, _params) do
+    conn
+    |> Authentication.authenticated_subject()
+    |> Cache.accessible_handles()
+    |> then(&json(conn, &1))
   end
 
   operation(:get_cache_action_item,
@@ -609,6 +663,7 @@ defmodule TuistWeb.API.CacheController do
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
+      conflict: {"The multipart upload is no longer active", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -634,17 +689,22 @@ defmodule TuistWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    :ok =
-      Storage.multipart_complete_upload(
-        get_object_key(item),
-        upload_id,
-        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end),
-        selected_project.account
-      )
+    case Storage.multipart_complete_upload(
+           get_object_key(item),
+           upload_id,
+           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end),
+           selected_project.account
+         ) do
+      :ok ->
+        json(conn, %{status: "success", data: %{}})
 
-    json(conn, %{status: "success", data: %{}})
+      {:error, :multipart_upload_not_found} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{message: "The multipart upload is no longer active. Start a new upload and retry."})
+    end
   end
 
   def multipart_complete(conn, _params) do
@@ -691,6 +751,18 @@ defmodule TuistWeb.API.CacheController do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
       "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
+    end
+  end
+
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(conn, _opts), do: conn
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
+    else
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

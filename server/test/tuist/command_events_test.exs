@@ -2,6 +2,7 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Storage
@@ -10,6 +11,20 @@ defmodule Tuist.CommandEventsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create_command_event/1" do
+    test "honors a client-provided id and generates one otherwise" do
+      # Given
+      client_id = UUIDv7.generate()
+
+      # When
+      with_id = CommandEventsFixtures.command_event_fixture(id: client_id)
+      without_id = CommandEventsFixtures.command_event_fixture()
+
+      # Then
+      assert with_id.id == client_id
+      assert without_id.id
+      assert without_id.id != client_id
+    end
+
     test "truncates an error message if it's over 255 chars" do
       # Given
       error_message = String.duplicate("a", 300)
@@ -202,8 +217,8 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_result_bundle_url/1" do
-    test "returns the result bundle URL" do
+  describe "generate_result_bundle_url/1" do
+    test "downloads Apple Archives with an aar extension" do
       # Given
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
@@ -212,13 +227,37 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :generate_download_url, fn ^object_key, _actor -> "https://tuist.io" end)
+      stub(Storage, :get_object_range, fn ^object_key, 0..1, _actor -> {:ok, "pb"} end)
+
+      stub(Storage, :generate_download_url, fn ^object_key,
+                                               _actor,
+                                               [content_disposition: ~s(attachment; filename="result_bundle.aar")] ->
+        "https://tuist.io"
+      end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)
 
       # Then
       assert got == "https://tuist.io"
+    end
+
+    test "downloads Zip archives with a zip extension" do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      stub(Storage, :get_object_range, fn ^object_key, 0..1, _actor -> {:ok, "PK"} end)
+
+      stub(Storage, :generate_download_url, fn ^object_key,
+                                               _actor,
+                                               [content_disposition: ~s(attachment; filename="result_bundle.zip")] ->
+        "https://tuist.io"
+      end)
+
+      assert CommandEvents.generate_result_bundle_url(command_event) == "https://tuist.io"
     end
   end
 
@@ -304,6 +343,190 @@ defmodule Tuist.CommandEventsTest do
       assert got_command_events_third_page == [
                command_event_one.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
+    end
+
+    test "returns name-filtered events ordered by ran_at desc" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      cache_event_old =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          ran_at: ~U[2024-03-04 01:00:00Z],
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"],
+          test_targets: ["AppTests"],
+          local_test_target_hits: ["AppTests"],
+          remote_test_target_hits: ["AppTests"]
+        )
+
+      # A non-matching command interleaved in time must be excluded even though
+      # it is more recent than the older cache event.
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        ran_at: ~U[2024-03-05 02:00:00Z]
+      )
+
+      cache_event_new =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          ran_at: ~U[2024-03-06 03:00:00Z]
+        )
+
+      # When
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :in, value: ["cache"]}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      # Then
+      assert Enum.map(events, & &1.id) == [cache_event_new.id, cache_event_old.id]
+
+      hydrated_old = List.last(events)
+      assert hydrated_old.cacheable_targets == ["App", "Framework"]
+      assert hydrated_old.local_cache_target_hits == ["App"]
+      assert hydrated_old.remote_cache_target_hits == ["Framework"]
+      assert hydrated_old.test_targets == ["AppTests"]
+      assert hydrated_old.local_test_target_hits == ["AppTests"]
+      assert hydrated_old.remote_test_target_hits == ["AppTests"]
+    end
+
+    test "returns fully hydrated events ordered by duration" do
+      project = ProjectsFixtures.project_fixture()
+
+      slow_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 3000,
+          cacheable_targets: ["SlowApp"]
+        )
+
+      fast_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_targets: ["FastApp"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [slow_event.id, fast_event.id]
+      assert Enum.map(events, & &1.cacheable_targets) == [["SlowApp"], ["FastApp"]]
+    end
+
+    test "returns fully hydrated events ordered by hit rate" do
+      project = ProjectsFixtures.project_fixture()
+
+      half_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"]
+        )
+
+      full_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [full_hit_event.id, half_hit_event.id]
+
+      assert Enum.map(events, &{&1.cacheable_targets, &1.local_cache_target_hits, &1.remote_cache_target_hits}) ==
+               [
+                 {["App", "Framework"], ["App"], ["Framework"]},
+                 {["App", "Framework"], ["App"], []}
+               ]
+    end
+
+    test "hydrates optimized rows within the selected project when identifiers collide" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      shared_id = UUIDv7.generate()
+
+      selected_event =
+        CommandEventsFixtures.command_event_fixture(
+          id: shared_id,
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["SelectedApp"]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        id: shared_id,
+        project_id: other_project.id,
+        name: "cache",
+        cacheable_targets: ["OtherApp"]
+      )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
+      assert project_id == project.id
+      assert hd(events).id == selected_event.id
+    end
+
+    test "uses a sequentially consistent read when hydrating optimized rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+      parent = self()
+
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        send(parent, {:clickhouse_read_options, opts})
+        Mimic.call_original(ClickHouseRepo, :all, [query, opts])
+      end)
+
+      CommandEvents.list_command_events(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :==, value: "generate"}
+        ],
+        order_by: [:ran_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      assert_received {:clickhouse_read_options, [settings: [select_sequential_consistency: 1]]}
     end
   end
 
@@ -2141,6 +2364,78 @@ defmodule Tuist.CommandEventsTest do
 
       # Then - Only one event with 50% hit rate
       assert got == 50.0
+    end
+  end
+
+  describe "create_module_cache_outputs/2" do
+    test "persists per-artifact module cache transfers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      CommandEvents.create_module_cache_outputs(command_event, [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "upload", name: "B", hash: "h2", size: 2000, compressed_size: 1000, duration: 200}
+      ])
+
+      # Then
+      %{rows: [[transfer_count, download_count, upload_count]]} =
+        Tuist.IngestRepo.query!(
+          """
+          SELECT count(), countIf(operation = 'download'), countIf(operation = 'upload')
+          FROM module_cache_outputs
+          WHERE command_event_id = {ce:UUID}
+          """,
+          %{ce: command_event.id}
+        )
+
+      assert transfer_count == 2
+      assert download_count == 1
+      assert upload_count == 1
+    end
+  end
+
+  describe "module_cache_output_metrics/1" do
+    test "returns download/upload bytes, counts, and throughput for a command event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      CommandEvents.create_module_cache_outputs(command_event, [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "download", name: "B", hash: "h2", size: 3000, compressed_size: 1500, duration: 300},
+        %{operation: "upload", name: "C", hash: "h3", size: 2000, compressed_size: 1000, duration: 200}
+      ])
+
+      # When
+      summary = CommandEvents.module_cache_output_metrics(command_event.id)
+
+      # Then - byte totals and throughput use compressed_size (the on-the-wire payload):
+      # downloads 500 + 1500 = 2000 over 400ms -> 5000 B/s; upload 1000 over 200ms -> 5000 B/s
+      assert summary.download_bytes == 2000
+      assert summary.download_count == 2
+      assert summary.download_throughput == 5_000.0
+      assert summary.upload_bytes == 1000
+      assert summary.upload_count == 1
+      assert summary.upload_throughput == 5_000.0
+    end
+
+    test "returns zeros when the run has no transfers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      summary = CommandEvents.module_cache_output_metrics(command_event.id)
+
+      # Then
+      assert summary.download_bytes == 0
+      assert summary.download_count == 0
+      assert summary.download_throughput == 0
+      assert summary.upload_bytes == 0
+      assert summary.upload_count == 0
+      assert summary.upload_throughput == 0
     end
   end
 end

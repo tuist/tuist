@@ -129,7 +129,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   def handle_event("search", %{"search" => search_query}, socket) do
     # Reset pagination and category when searching
-    {:noreply, push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}")}
+    {:noreply, push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}", replace: true)}
   end
 
   def handle_event("select_category", %{"category" => category}, socket) do

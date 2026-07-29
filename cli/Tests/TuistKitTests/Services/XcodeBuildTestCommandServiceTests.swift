@@ -45,7 +45,7 @@ struct XcodeBuildTestCommandServiceTests {
 
     init() {
         given(testCaseListService)
-            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
@@ -59,6 +59,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(nil)
@@ -209,6 +212,9 @@ struct XcodeBuildTestCommandServiceTests {
             given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
 
             given(xcodeBuildArgumentParser)
                 .parse(.any)
@@ -431,7 +437,8 @@ struct XcodeBuildTestCommandServiceTests {
                     reference: "ref",
                     shardPlanId: "plan-123",
                     testProductsPath: testProductsPath,
-                    xcTestRunPath: nil,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )

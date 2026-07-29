@@ -4,7 +4,12 @@
 
     <TuistWeb.Marketing.MarketingComponents.header_background />
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/about/logo.webp"} alt="Tuist" />
+      <img
+        data-part="logo"
+        src={~p"/marketing/images/about/logo.webp"}
+        alt="Tuist"
+        decoding="async"
+      />
       <h1 data-part="title">
         {dgettext("marketing", "Building the future of scalable app development")}
       </h1>
@@ -51,11 +56,15 @@
             data-part="background"
             src={~p"/marketing/images/about/values/openness/background.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <img
             data-part="graphic"
             src={~p"/marketing/images/about/values/openness/graphic.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <footer data-part="footer">
             <h3 data-part="title">{dgettext("marketing", "Openness")}</h3>
@@ -72,11 +81,15 @@
             data-part="background"
             src={~p"/marketing/images/about/values/happiness/background.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <img
             data-part="graphic"
             src={~p"/marketing/images/about/values/happiness/graphic.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <footer data-part="footer">
             <h3 data-part="title">{dgettext("marketing", "Happiness")}</h3>
@@ -93,11 +106,15 @@
             data-part="background"
             src={~p"/marketing/images/about/values/standards/background.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <img
             data-part="graphic"
             src={~p"/marketing/images/about/values/standards/graphic.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
           <footer data-part="footer">
             <h3 data-part="title">{dgettext("marketing", "Standards")}</h3>

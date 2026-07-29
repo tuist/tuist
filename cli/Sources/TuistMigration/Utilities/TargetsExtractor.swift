@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import TSCBasic
 import TuistLogging
 import TuistSupport
 import XcodeProj

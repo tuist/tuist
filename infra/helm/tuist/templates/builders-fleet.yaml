@@ -6,7 +6,7 @@
 {{- /*
 Bare-metal Mac mini fleet that bakes Tart VM images for CI workflows.
 Sibling of macos-fleet.yaml and runners-fleet.yaml, provisioned by
-the same cluster-api-provider-scaleway-applesilicon operator from
+the same cluster-api-provider-tuist operator from
 the same Scaleway IAM credentials and pre-ordered host pool.
 
 Hosts register as Kubernetes Nodes via tart-kubelet (same as the

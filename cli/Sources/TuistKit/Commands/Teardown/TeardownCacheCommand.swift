@@ -6,7 +6,7 @@ struct TeardownCacheCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "cache",
             _superCommandName: "teardown",
-            abstract: "Stop the Tuist Xcode cache daemon and remove its LaunchAgent and socket"
+            abstract: "Stop the Tuist Xcode cache proxy and remove its LaunchAgent and socket"
         )
     }
 
