@@ -63,10 +63,12 @@ And some questions are really just am I the only one hitting this, which is wher
 
 So rather than us fielding it a second time, the agent drops them straight into the thread where it is already being worked through, and if it turns out there is no answer there yet, that is a signal for us worth paying attention to.
 
-## Keeping it honest
+## We still do support
 
-We're not walking away from support with any of this, we're changing where it happens, so instead of a question landing in our inbox it gets answered off the same sources we'd have opened anyway, through the agent the person already lives in. It scales the part of support that used to need another human on the team, and it does it far more cheaply than putting that human between the product and the people using it.
+None of this means we stop answering questions. It means fewer questions have to wait for one of us. The agent starts with the same documentation, issues, releases, and source files we would have opened ourselves. When those aren't enough, the question should still reach us.
 
-What it doesn't do is come for free, and the part we're still working out is what it quietly demands of us in return, because the moment agents are the ones answering, we have to be the ones watching how they answer. That's pushing us to invest a lot more in observability inside the MCP server than we would have otherwise. Every time the agent has to reach past the docs and into the source to get something right, that's a small signal that our documentation has drifted from what the code actually does, and if we're instrumented well enough to catch it we can go fix the docs instead of hearing about the gap months later from someone who got bitten by it. The same system that answers the question ends up telling us which answers we should have written down already, which is a nicer problem to have than the silence we used to get.
+We also need to know when the system gets stuck or gives a bad answer. We're adding observability to the [Model Context Protocol](https://modelcontextprotocol.io) server so we can see which questions make it past the docs and into the source, which searches turn up nothing, and where people still end up asking us. Those are the gaps we need to work on. If the source can answer a common question but the docs can't, the docs need fixing.
 
-And the honest reason any of it works is that our source is available for anyone to read, which is a big part of why we can do this and most companies in our shoes can't. If your source is fully closed this particular door is shut, and that's a shame, but if it's public, or even just readable by the people you support, it's worth asking what it could answer if you packaged it the way an agent actually wants to read it.
+We can offer this to customers because our source is available to read. A company with a closed codebase can build the same thing for its own team, but it can't let customers inspect the implementation behind an answer. We can, and that makes the codebase part of support rather than just the thing support talks about.
+
+We'll keep answering the questions that need us. The rest shouldn't have to wait in our inbox.
