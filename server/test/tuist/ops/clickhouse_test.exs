@@ -71,10 +71,28 @@ defmodule Tuist.Ops.ClickHouseTest do
           "SELECT * FROM url('http://169.254.169.254', 'CSV', 'value String')",
           "SELECT * FROM `s3`('https://bucket.example/file.csv')",
           "SELECT * FROM remote/**/('10.0.0.5', system, tables)",
-          "SELECT * FROM executable('cat', 'TabSeparated', 'value String')"
+          "SELECT * FROM executable('cat', 'TabSeparated', 'value String')",
+          "SELECT '-- not a comment', s3('https://bucket.example/file.csv')"
         ] do
       assert {:error, "External and cluster table functions are not allowed"} =
                ClickHouse.execute(statement)
+    end
+  end
+
+  test "ignores blocked tokens inside string literals" do
+    statements = [
+      "SELECT 'system.tables' AS value",
+      "SELECT 's3(' AS value",
+      "SELECT 'INTO OUTFILE result' AS value",
+      "SELECT '-- not a comment' AS value, 'url(' AS function_name"
+    ]
+
+    expect(OpsClickHouseRepo, :query, length(statements), fn _statement, %{}, _options ->
+      {:ok, json_result(["value"], [["allowed"]])}
+    end)
+
+    for statement <- statements do
+      assert {:ok, %{rows: [%{"value" => "allowed"}]}} = ClickHouse.execute(statement)
     end
   end
 

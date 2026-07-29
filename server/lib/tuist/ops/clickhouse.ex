@@ -62,6 +62,7 @@ defmodule Tuist.Ops.ClickHouse do
                                         @prohibited_table_functions,
                                         &Regex.compile!("\\b#{&1}\\s*\\(")
                                       )
+  @string_literal_pattern ~r/'(?:''|\\.|[^'\\])*'/s
   @restricted_database_pattern ~r/\b(?:information_schema|system)\s*\./
   @unsupported_output_clause_pattern ~r/\b(?:format\s+[a-z0-9_]+|into\s+outfile\b[^;]*)\s*$/i
 
@@ -177,7 +178,7 @@ defmodule Tuist.Ops.ClickHouse do
       not allow_system_tables? and Regex.match?(@restricted_database_pattern, validation_statement) ->
         {:error, "System metadata tables are not available through the query endpoint"}
 
-      Regex.match?(@unsupported_output_clause_pattern, normalized_statement) ->
+      Regex.match?(@unsupported_output_clause_pattern, validation_statement) ->
         {:error, "FORMAT and INTO OUTFILE clauses are not supported"}
 
       Regex.match?(~r/^select\b/i, normalized_statement) ->
@@ -290,6 +291,7 @@ defmodule Tuist.Ops.ClickHouse do
 
   defp statement_for_validation(statement) do
     statement
+    |> String.replace(@string_literal_pattern, "''")
     |> String.replace(~r/--[^\n]*(?:\n|$)/, "")
     |> String.replace(~r/\/\*.*?\*\//s, "")
     |> String.replace(["`", "\""], "")
