@@ -234,6 +234,7 @@ defmodule Tuist.Application do
         :method,
         :route,
         :request_path,
+        :status,
         :reason,
         :error,
         :kind,
