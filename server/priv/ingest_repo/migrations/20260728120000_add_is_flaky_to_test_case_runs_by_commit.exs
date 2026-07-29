@@ -33,6 +33,8 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyToTestCaseRunsByCommit do
     "addMicroseconds(inserted_at, 1) AS inserted_at"
   ]
   @deduplication_window 1000
+  @backfill_max_memory_usage 512 * 1024 * 1024
+  @backfill_external_sort_threshold 64 * 1024 * 1024
 
   def up do
     enable_insert_deduplication(@source_table)
@@ -105,7 +107,10 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyToTestCaseRunsByCommit do
           timeout: 1_200_000,
           settings: [
             insert_deduplication_token: "test-case-runs-by-commit-is-flaky-backfill:#{partition}",
-            deduplicate_insert_select: "force_enable"
+            deduplicate_insert_select: "force_enable",
+            max_threads: 1,
+            max_memory_usage: @backfill_max_memory_usage,
+            max_bytes_before_external_sort: @backfill_external_sort_threshold
           ]
         )
       end)

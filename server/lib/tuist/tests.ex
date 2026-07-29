@@ -1868,8 +1868,9 @@ defmodule Tuist.Tests do
 
     query
     |> ClickHouseRepo.all()
-    |> Enum.filter(&(to_string(&1.status) in ["success", "failure"]))
-    |> Enum.filter(&(&1.test_case_id in test_case_id_set))
+    |> Enum.filter(fn run ->
+      to_string(run.status) in ["success", "failure"] and run.test_case_id in test_case_id_set
+    end)
     |> Enum.group_by(& &1.test_case_id)
   end
 
