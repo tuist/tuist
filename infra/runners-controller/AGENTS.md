@@ -56,9 +56,16 @@ independent workqueues:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
-    `MemReserveFraction`, default 0.9); cost = `spec.podMemoryMB`.
-    Memory is the only dimension — kata pins it per microVM and CPU
-    is oversubscribed.
+    `MemReserveFraction`, default 0.9); cost =
+    `spec.podMemoryMB` plus the selected RuntimeClass's live
+    `overhead.podFixed.memory`. Reading the RuntimeClass keeps the
+    allocator aligned with Kubernetes admission and scheduling when
+    Kata's virtual-machine overhead changes. If the RuntimeClass
+    cannot be read, the autoscaler leaves replicas unchanged rather
+    than scaling with an incomplete cost. Pool-list and sibling-signal
+    failures still use the independent per-pool target so a transient
+    read failure cannot freeze scale-up for queued work. Memory is the
+    only dimension — Kata pins it per microVM and CPU is oversubscribed.
   - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
     + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
     mini under the Virtualization.framework SLA). The allocator
@@ -72,10 +79,32 @@ independent workqueues:
   healthy-node gate described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
-  the ClusterRole. Any failure gathering the fleet view falls back to
-  the per-pool target — a node-read blip must never trigger a mass
-  scale-down. A pool with an unrecognised `OS` (or without autoscaling
-  enabled) skips the allocator entirely.
+  the ClusterRole. Fleet-capacity, pool-list, and sibling-signal
+  failures fall back to the per-pool target — a transient read blip
+  must never trigger a mass scale-down or block independent scale-up.
+  A pool with an unrecognised `OS` (or without autoscaling enabled)
+  skips the allocator entirely.
+
+  RuntimeClass overhead is copied into `Pod.spec.overhead` only when
+  Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
+  name and fixed processor and memory overhead into
+  `tuist.dev/runtime-class-revision` on each Linux RunnerPool, and
+  `podtemplate.Build` copies that revision to new Pods. A mismatch makes
+  an idle Pending Linux Pod stale. The reconciler replaces those Pods
+  under `spec.rollout.maxConcurrentPercent`; claimed or Running Pods
+  finish naturally. Current-template idle Pods that are not warm consume
+  the same availability budget even when ordinary scale-up created them.
+  This deliberately follows maximum-unavailable semantics: a scale-up
+  can pause a roll rather than letting the controller remove another
+  warm Pod while serving capacity is already unavailable.
+
+  `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
+  retirement signal. The controller does not apply or clear it. The
+  server returns a drain response before attempting a claim, so an
+  idle runner exits through its normal lifecycle and the reconciler
+  replaces it. Removing the label before the runner's next dispatch
+  poll cancels the retirement; after the runner observes it, the Pod
+  is expected to exit and be replaced.
 
   **Linux Kata provisioning admission.** Capacity and creation velocity
   are separate safety boundaries. A queue spike can fit within the
@@ -154,10 +183,10 @@ independent workqueues:
   `..._autoscaler_occupied_runners{pool}`, and
   `..._autoscaler_queued_jobs{pool}` publish the server's demand signals
   unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
-  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
-  actually accept a job right now. "Can accept" is OS-dependent, for the
-  same reason the un-booted age above is darwin-only: on a Tart pool only
-  `Running` counts, because a Pod still waiting on a Mac mini has no VM
+  alive current-template Pods with no `tuist.dev/runner-pool-owner` that
+  can actually accept a job right now. "Can accept" is OS-dependent, for
+  the same reason the un-booted age above is darwin-only: only `Running`
+  counts on a Tart pool, because a Pod still waiting on a Mac mini has no VM
   and is not capacity however long it has been alive; on Linux `Pending`
   counts, because that is where a warm dispatch poller spends its whole
   idle life. Getting this wrong inverts the reading — a fleet starved of

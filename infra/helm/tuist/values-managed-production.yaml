@@ -92,11 +92,10 @@ server:
     # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
       value: https://tuist.dev/api/registry/swift
-    # Enables the server-owned registry sync writer. Cache still writes
-    # too until it is turned off as a separate step; the two coordinate
-    # through the shared S3 sync lock, so dual-writing is safe.
+    # The legacy cache remains the sole registry writer until its schedule is
+    # disabled as a separate cutover step.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "true"
+      value: "false"
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -419,7 +418,10 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
-  enabled: true
+  # The legacy regional cache release remains the production writer until its
+  # registry schedule can be disabled. Enabling both generations violates the
+  # single-writer cutover contract.
+  enabled: false
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

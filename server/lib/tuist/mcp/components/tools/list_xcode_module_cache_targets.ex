@@ -59,6 +59,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
                   "project_settings" => %{"type" => "string"},
                   "target_settings" => %{"type" => "string"},
                   "buildable_folders" => %{"type" => "string"},
+                  "additional_hashing_inputs" => %{"type" => "string"},
                   "external" => %{"type" => "string"}
                 },
                 "additionalProperties" => false
@@ -165,6 +166,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       project_settings: non_empty(target.project_settings_hash),
       target_settings: non_empty(target.target_settings_hash),
       buildable_folders: non_empty(target.buildable_folders_hash),
+      additional_hashing_inputs: non_empty(target.additional_hashing_inputs_hash),
       external: non_empty(target.external_hash)
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)

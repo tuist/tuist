@@ -1852,6 +1852,17 @@ buildersFleet:
 # in an environment that asked for microVM isolation).
 kataContainers:
   enabled: false
+  # Fixed sandbox memory cost added to every Kata runner Pod by the
+  # RuntimeClass. Kata 3.30 starts each sandbox with 2 GiB of base
+  # guest memory before adding the container's requested memory.
+  # The remaining 512 MiB covers Quick Emulator
+  # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # Keep this aligned with measured guest memory and host resident
+  # usage; the runners-controller reads the live RuntimeClass so its
+  # fleet allocator uses the same cost as the scheduler.
+  podFixed:
+    cpu: "250m"
+    memory: "2560Mi"
 
 runnersController:
   replicaCount: 1

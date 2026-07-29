@@ -750,13 +750,10 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             return newTokens
         } catch let error as ClientError {
-            let underlyingError = error.underlyingError as NSError
-            switch URLError.Code(rawValue: underlyingError.code) {
-            case .notConnectedToInternet:
+            if ServerErrorClassifier.isTransient(error) {
                 throw error
-            default:
-                throw ClientAuthenticationError.notAuthenticated
             }
+            throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
             throw error
         } catch {

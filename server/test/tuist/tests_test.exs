@@ -3387,6 +3387,58 @@ defmodule Tuist.TestsTest do
       assert not_flaky |> Enum.map(& &1.name) |> Enum.sort() == ["mutedTest", "plainTest"]
     end
 
+    test "preserves default state semantics for every supported control-plane filter" do
+      project = ProjectsFixtures.project_fixture()
+
+      plain = RunsFixtures.test_case_fixture(project_id: project.id, name: "plain")
+      enabled = RunsFixtures.test_case_fixture(project_id: project.id, name: "enabled", state: "enabled")
+      muted = RunsFixtures.test_case_fixture(project_id: project.id, name: "muted", state: "muted")
+      skipped = RunsFixtures.test_case_fixture(project_id: project.id, name: "skipped", state: "skipped")
+      flaky = RunsFixtures.test_case_fixture(project_id: project.id, name: "flaky", is_flaky: true)
+
+      muted_flaky =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted_flaky",
+          state: "muted",
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(
+          [plain, enabled, muted, skipped, flaky, muted_flaky],
+          &(&1 |> Map.from_struct() |> Map.delete(:__meta__))
+        )
+      )
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "enabled"}]) ==
+               ~w(enabled flaky plain)
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "enabled"}]) ==
+               ~w(muted muted_flaky skipped)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :in, value: ["enabled", "muted"]}
+             ]) ==
+               ~w(enabled flaky muted muted_flaky plain)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :not_in, value: ["enabled", "muted"]}
+             ]) == ["skipped"]
+
+      assert listed_test_case_names(project.id, [%{field: :is_flaky, op: :==, value: true}]) ==
+               ~w(flaky muted_flaky)
+
+      assert listed_test_case_names(project.id, [%{field: :is_flaky, op: :==, value: false}]) ==
+               ~w(enabled muted plain skipped)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :==, value: "muted"},
+               %{field: :is_flaky, op: :==, value: true}
+             ]) == ["muted_flaky"]
+    end
+
     test "preserves state when an in-flight ingestion read the row before the mute" do
       # Ingestion snapshots the existing test case rows once per report and only
       # stamps `inserted_at` later, per module. A mute landing inside that window
@@ -9381,6 +9433,54 @@ defmodule Tuist.TestsTest do
 
       assert run.status == "success"
     end
+
+    test "does not expire a run whose latest version completed" do
+      project = ProjectsFixtures.project_fixture()
+      seven_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour)
+      one_hour_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :hour)
+      completed_id = UUIDv7.generate()
+
+      common_attrs = %{
+        id: completed_id,
+        project_id: project.id,
+        account_id: project.account.id,
+        duration: 0,
+        model_identifier: "",
+        macos_version: "",
+        xcode_version: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        git_ref: "",
+        ran_at: seven_hours_ago,
+        is_ci: true,
+        is_flaky: false
+      }
+
+      IngestRepo.insert_all(Tests.Test, [
+        Map.merge(common_attrs, %{status: "in_progress", inserted_at: seven_hours_ago}),
+        Map.merge(common_attrs, %{status: "success", duration: 5000, inserted_at: one_hour_ago})
+      ])
+
+      :ok = Tests.expire_stale_in_progress_test_runs()
+
+      latest =
+        Tests.Test
+        |> where([test], test.id == ^completed_id)
+        |> order_by([test], desc: test.inserted_at)
+        |> limit(1)
+        |> ClickHouseRepo.one()
+
+      assert latest.status == "success"
+      assert latest.inserted_at == one_hour_ago
+    end
+  end
+
+  defp listed_test_case_names(project_id, filters) do
+    {test_cases, _meta} = Tests.list_test_cases(project_id, %{filters: filters})
+
+    test_cases
+    |> Enum.map(& &1.name)
+    |> Enum.sort()
   end
 
   defp test_report(project, test_cases) do

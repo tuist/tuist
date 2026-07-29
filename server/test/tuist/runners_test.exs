@@ -37,12 +37,17 @@ defmodule Tuist.RunnersTest do
   end
 
   defp pod_with_image(pod_name, image, opts \\ []) do
+    labels = %{}
+
     labels =
-      if Keyword.get(opts, :drain_eligible, false) do
-        %{"tuist.dev/drain-eligible" => "true"}
-      else
-        %{}
-      end
+      if Keyword.get(opts, :drain_eligible, false),
+        do: Map.put(labels, "tuist.dev/drain-eligible", "true"),
+        else: labels
+
+    labels =
+      if Keyword.get(opts, :operator_drain, false),
+        do: Map.put(labels, "tuist.dev/runner-operator-drain", "true"),
+        else: labels
 
     spec =
       then(%{"containers" => [%{"name" => "runner", "image" => image}]}, fn spec ->
@@ -66,6 +71,23 @@ defmodule Tuist.RunnersTest do
   end
 
   describe "dispatch_for_sa/2 stale-image drain" do
+    test "returns :drain for an operator-marked Pod before attempting a claim" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, operator_drain: true)}
+      end)
+
+      reject(&K8sClient.get_runner_pool/2)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :drain} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "returns :drain when Pod is stale and the controller marked it drain-eligible" do
       old_image = "ghcr.io/tuist/tuist-runner@sha256:old"
       new_image = "ghcr.io/tuist/tuist-runner@sha256:new"

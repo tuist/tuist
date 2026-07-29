@@ -271,6 +271,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      # Kura creates one Service per cache instance. Injecting every Service
+      # as environment variables can exceed the process argument limit and
+      # prevent the controller from starting when it is most needed.
+      enableServiceLinks: false
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

@@ -47,9 +47,9 @@ on:
       - 'infra/k8s/mgmt/observability-namespace.yaml'
       - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
-  # Manual re-runs of the apply path, e.g. to force a re-deploy
-  # without a code change. No inputs — incident-recovery actions
-  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
+  # Manual re-runs only apply the declarative state, e.g. to force a
+  # re-deploy without a code change. No incident-recovery operation is
+  # exposed through this workflow.
   workflow_dispatch:
 
 # Serialize: don't let two pushes apply concurrently and race.

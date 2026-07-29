@@ -1,0 +1,181 @@
+{
+  "name": "Dropdown",
+  "tagName": "noora-dropdown",
+  "elementClassName": "NooraDropdown",
+  "className": "noora-dropdown",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Opens a menu of actions or navigational items.",
+  "usage": "<noora-dropdown label=\"Dropdown\">\n  <noora-dropdown-item value=\"1\">Item 1</noora-dropdown-item>\n</noora-dropdown>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the trigger label."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["medium", "large"],
+      "default": "large",
+      "description": "Controls the trigger dimensions."
+    },
+    {
+      "name": "secondary-text",
+      "property": "secondaryText",
+      "type": "string",
+      "description": "Adds text before the main label."
+    },
+    {
+      "name": "icon-only",
+      "property": "iconOnly",
+      "type": "boolean",
+      "default": false,
+      "description": "Uses the icon slot as the complete trigger."
+    },
+    {
+      "name": "hint",
+      "property": "hint",
+      "type": "string",
+      "description": "Adds supporting text."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the trigger."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls whether the menu is open."
+    },
+    {
+      "name": "close-on-select",
+      "property": "closeOnSelect",
+      "type": "boolean",
+      "default": true,
+      "description": "Closes the menu after selection."
+    },
+    {
+      "name": "keep-open",
+      "property": "keepOpen",
+      "type": "boolean",
+      "default": false,
+      "description": "Keeps the menu open after selection."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines menu items programmatically when declarative noora-dropdown-item children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "The trigger icon."
+    },
+    {
+      "name": "search",
+      "description": "Search content above the item list."
+    },
+    {
+      "name": "",
+      "description": "Declarative noora-dropdown-item children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "trigger",
+      "description": "The menu trigger."
+    },
+    {
+      "name": "content",
+      "description": "The menu content."
+    },
+    {
+      "name": "items",
+      "description": "The item list."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the dropdown opens or closes."
+    },
+    {
+      "name": "noora-select",
+      "type": "CustomEvent<{ item: Record<string, unknown>; value: unknown }>",
+      "description": "Emitted when an enabled item is selected."
+    }
+  ],
+  "notes": ["Selections emit a `noora-select` event with the selected item."],
+  "examples": [
+    {
+      "id": "default",
+      "title": "Default",
+      "description": "Provide structured action items.",
+      "markup": "<noora-dropdown label=\"Dropdown\">\n  <noora-dropdown-item value=\"1\">Item 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\" right-icon=\"chevron_right\">Item 2</noora-dropdown-item>\n  <noora-dropdown-item value=\"3\" secondary-text=\"Foo\">Item 3</noora-dropdown-item>\n  <noora-dropdown-item value=\"4\" icon=\"category\">Item 4</noora-dropdown-item>\n  <noora-dropdown-item value=\"5\">Item 5</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Disable the complete menu when its actions are unavailable.",
+      "markup": "<noora-dropdown label=\"Dropdown\" disabled></noora-dropdown>"
+    },
+    {
+      "id": "large-items",
+      "title": "Large items",
+      "description": "Use larger rows for prominent action menus.",
+      "markup": "<noora-dropdown label=\"Dropdown with large items\">\n  <noora-dropdown-item value=\"1\" size=\"large\" icon=\"category\">Item 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\" size=\"large\" icon=\"category\">Item 2</noora-dropdown-item>\n  <noora-dropdown-item value=\"3\" size=\"large\" icon=\"category\" secondary-text=\"Foo\">Item 3</noora-dropdown-item>\n  <noora-dropdown-item value=\"4\" size=\"large\" icon=\"category\">Item 4</noora-dropdown-item>\n  <noora-dropdown-item value=\"5\" size=\"large\" icon=\"category\">Item 5</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "icons",
+      "title": "Trigger icon",
+      "description": "Add an icon to the dropdown trigger.",
+      "markup": "<noora-dropdown label=\"Dropdown\">\n  <noora-icon slot=\"icon\" name=\"category\"></noora-icon>\n  <noora-dropdown-item value=\"1\">Item 1</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "secondary-text",
+      "title": "Secondary text",
+      "description": "Add concise context beside an item label.",
+      "markup": "<noora-dropdown label=\"Date\" secondary-text=\"Order by\">\n  <noora-dropdown-item value=\"1\" secondary-text=\"Foo\">Item 1</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "icon-and-secondary-text",
+      "title": "Icons and secondary text",
+      "description": "Combine visual cues with supporting text.",
+      "markup": "<noora-dropdown label=\"Date\" secondary-text=\"Order by\">\n  <noora-icon slot=\"icon\" name=\"category\"></noora-icon>\n  <noora-dropdown-item value=\"1\" secondary-text=\"Foo\">Item 1</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "hint",
+      "title": "Hint",
+      "description": "Explain the purpose of the menu below its trigger.",
+      "markup": "<noora-dropdown label=\"Dropdown\" hint=\"This is a hint\">\n  <noora-dropdown-item value=\"1\">Item 1</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "many-options",
+      "title": "Many options",
+      "description": "Allow the menu content to scroll when it contains many choices.",
+      "markup": "<noora-dropdown label=\"Many Options\">\n  <noora-dropdown-item value=\"1\">Option 1</noora-dropdown-item>\n  <noora-dropdown-item value=\"2\">Option 2</noora-dropdown-item>\n  <noora-dropdown-item value=\"3\">Option 3</noora-dropdown-item>\n  <noora-dropdown-item value=\"4\">Option 4</noora-dropdown-item>\n  <noora-dropdown-item value=\"5\">Option 5</noora-dropdown-item>\n  <noora-dropdown-item value=\"6\">Option 6</noora-dropdown-item>\n  <noora-dropdown-item value=\"7\">Option 7</noora-dropdown-item>\n  <noora-dropdown-item value=\"8\">Option 8</noora-dropdown-item>\n  <noora-dropdown-item value=\"9\">Option 9</noora-dropdown-item>\n  <noora-dropdown-item value=\"10\">Option 10</noora-dropdown-item>\n  <noora-dropdown-item value=\"11\">Option 11</noora-dropdown-item>\n  <noora-dropdown-item value=\"12\">Option 12</noora-dropdown-item>\n  <noora-dropdown-item value=\"13\">Option 13</noora-dropdown-item>\n  <noora-dropdown-item value=\"14\">Option 14</noora-dropdown-item>\n  <noora-dropdown-item value=\"15\">Option 15</noora-dropdown-item>\n  <noora-dropdown-item value=\"16\">Option 16</noora-dropdown-item>\n  <noora-dropdown-item value=\"17\">Option 17</noora-dropdown-item>\n  <noora-dropdown-item value=\"18\">Option 18</noora-dropdown-item>\n  <noora-dropdown-item value=\"19\">Option 19</noora-dropdown-item>\n  <noora-dropdown-item value=\"20\">Option 20</noora-dropdown-item>\n</noora-dropdown>"
+    },
+    {
+      "id": "checkboxes",
+      "title": "Checkbox items",
+      "description": "Communicate selected items with checkbox indicators.",
+      "markup": "<noora-dropdown label=\"Select days\" keep-open>\n  <noora-dropdown-item value=\"monday\" checkable checked>Monday</noora-dropdown-item>\n  <noora-dropdown-item value=\"tuesday\" checkable checked>Tuesday</noora-dropdown-item>\n  <noora-dropdown-item value=\"wednesday\" checkable>Wednesday</noora-dropdown-item>\n  <noora-dropdown-item value=\"thursday\" checkable>Thursday</noora-dropdown-item>\n  <noora-dropdown-item value=\"friday\" checkable checked>Friday</noora-dropdown-item>\n  <noora-dropdown-item value=\"saturday\" checkable>Saturday</noora-dropdown-item>\n  <noora-dropdown-item value=\"sunday\" checkable>Sunday</noora-dropdown-item>\n</noora-dropdown>"
+    }
+  ]
+}

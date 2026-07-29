@@ -281,12 +281,18 @@ func TestBuild_ClusterDNSEnvOnMacOSOnly(t *testing.T) {
 func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = "kata-qemu"
+	pool.Annotations = map[string]string{
+		RuntimeClassRevisionAnnotation: "revision-1",
+	}
 	pod := build(t, pool)
 	if pod.Spec.RuntimeClassName == nil {
 		t.Fatalf("RuntimeClassName = nil, want \"kata-qemu\"")
 	}
 	if got := *pod.Spec.RuntimeClassName; got != "kata-qemu" {
 		t.Errorf("RuntimeClassName = %q, want \"kata-qemu\"", got)
+	}
+	if got := pod.Annotations[RuntimeClassRevisionAnnotation]; got != "revision-1" {
+		t.Errorf("RuntimeClass revision annotation = %q, want revision-1", got)
 	}
 }
 

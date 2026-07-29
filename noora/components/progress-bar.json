@@ -1,0 +1,84 @@
+{
+  "name": "ProgressBar",
+  "tagName": "noora-progress-bar",
+  "elementClassName": "NooraProgressBar",
+  "className": "noora-progress-bar",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Visualizes progress toward a maximum value.",
+  "usage": "<noora-progress-bar value=\"75\" max=\"100\" title=\"Upload progress\"></noora-progress-bar>",
+  "previewLayout": "stack",
+  "attributes": [
+    {
+      "name": "value",
+      "property": "value",
+      "type": "number",
+      "default": 0,
+      "description": "Sets the current value."
+    },
+    {
+      "name": "max",
+      "property": "max",
+      "type": "number",
+      "default": 100,
+      "description": "Sets the maximum value."
+    },
+    {
+      "name": "title",
+      "property": "title",
+      "type": "string",
+      "description": "Sets the optional title."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "description",
+      "description": "Supporting content below the bar."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "progress",
+      "description": "The progress container."
+    },
+    {
+      "name": "track",
+      "description": "The complete track."
+    },
+    {
+      "name": "value",
+      "description": "The filled track."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic progress",
+      "description": "Show progress with or without a title.",
+      "markup": "<noora-progress-bar value=\"75\" max=\"100\"></noora-progress-bar>\n<noora-progress-bar value=\"150\" max=\"200\" title=\"Storage Used:\"></noora-progress-bar>",
+      "previewMarkup": "<noora-progress-bar value=\"75\" max=\"100\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"150\" max=\"200\" title=\"Storage Used:\" style=\"width: 75%\"></noora-progress-bar>"
+    },
+    {
+      "id": "levels",
+      "title": "Progress levels",
+      "description": "Compare empty, quarter, half, three-quarter, and complete states.",
+      "markup": "<noora-progress-bar value=\"0\" max=\"100\" title=\"Not started\"></noora-progress-bar>\n<noora-progress-bar value=\"25\" max=\"100\" title=\"25% Complete\"></noora-progress-bar>\n<noora-progress-bar value=\"50\" max=\"100\" title=\"Halfway there\"></noora-progress-bar>\n<noora-progress-bar value=\"75\" max=\"100\" title=\"Almost done\"></noora-progress-bar>\n<noora-progress-bar value=\"100\" max=\"100\" title=\"Complete!\"></noora-progress-bar>",
+      "previewMarkup": "<noora-progress-bar value=\"0\" max=\"100\" title=\"Not started\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"25\" max=\"100\" title=\"25% Complete\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"50\" max=\"100\" title=\"Halfway there\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"75\" max=\"100\" title=\"Almost done\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"100\" max=\"100\" title=\"Complete!\" style=\"width: 75%\"></noora-progress-bar>"
+    },
+    {
+      "id": "scales",
+      "title": "Different scales",
+      "description": "Use any numeric range that suits the measured quantity.",
+      "markup": "<noora-progress-bar value=\"3\" max=\"5\" title=\"Steps completed:\"></noora-progress-bar>\n<noora-progress-bar value=\"750\" max=\"1000\" title=\"Points earned:\"></noora-progress-bar>\n<noora-progress-bar value=\"847\" max=\"1024\" title=\"Download progress (MB):\"></noora-progress-bar>",
+      "previewMarkup": "<noora-progress-bar value=\"3\" max=\"5\" title=\"Steps completed:\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"750\" max=\"1000\" title=\"Points earned:\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"847\" max=\"1024\" title=\"Download progress (MB):\" style=\"width: 75%\"></noora-progress-bar>"
+    },
+    {
+      "id": "edge-cases",
+      "title": "Edge cases",
+      "description": "Show overflowing, very small, and long-title progress values.",
+      "markup": "<noora-progress-bar value=\"120\" max=\"100\" title=\"Exceeded goal:\"></noora-progress-bar>\n<noora-progress-bar value=\"1\" max=\"1000\" title=\"Just started:\"></noora-progress-bar>\n<noora-progress-bar value=\"42\" max=\"100\" title=\"Very Long Progress Bar Title That Might Wrap:\"></noora-progress-bar>",
+      "previewMarkup": "<noora-progress-bar value=\"120\" max=\"100\" title=\"Exceeded goal:\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"1\" max=\"1000\" title=\"Just started:\" style=\"width: 75%\"></noora-progress-bar>\n<noora-progress-bar value=\"42\" max=\"100\" title=\"Very Long Progress Bar Title That Might Wrap:\" style=\"width: 75%\"></noora-progress-bar>"
+    }
+  ]
+}

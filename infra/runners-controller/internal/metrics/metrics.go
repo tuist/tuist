@@ -70,25 +70,23 @@ var (
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
 	}, []string{poolLabel})
 
-	// rollingPods is how many of a pool's Pods are mid-roll right now:
-	// drain-eligible stale-image Pods (committed to retire) plus
-	// current-image Pods not yet Ready (pulling/booting a replacement).
-	// This is the throttled quantity and must stay <= rollCap. Pinned at
-	// the cap with stalePods > 0 is a healthy in-progress roll;
-	// rollingPods > rollCap means the cap isn't being enforced (a bug).
+	// rollingPods is how much of a pool's serving capacity is unavailable
+	// during a roll: drain-eligible stale-image Pods plus current-template
+	// idle Pods that are not warm. The latter deliberately includes
+	// ordinary scale-up, matching Deployment-style maxUnavailable
+	// semantics. This is the throttled quantity and must stay <= rollCap.
 	rollingPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_rolling_pods",
-		Help: "Pods mid-roll (drain-eligible stale + current-image not-Ready) per pool.",
+		Help: "Unavailable serving capacity during a Pod-template roll per pool.",
 	}, []string{poolLabel})
 
-	// stalePods is how many alive Pods are still on a superseded image —
-	// the roll backlog. It decreases to 0 as the roll completes. Stuck
-	// > 0 (flat, not draining) while rollingPods is pinned is the
-	// "roll wedged" signal: a replacement isn't reaching Ready, so the
-	// cap never frees and the rollout can't advance.
+	// stalePods is how many alive Pods still use a superseded image or
+	// RuntimeClass revision. It decreases to 0 as the roll completes.
+	// Stuck above 0 while rollingPods is pinned means unavailable
+	// current-template capacity is intentionally pausing the rollout.
 	stalePods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_stale_pods",
-		Help: "Alive Pods still on a superseded spec.image (image-roll backlog) per pool.",
+		Help: "Alive Pods still on a superseded image or RuntimeClass revision per pool.",
 	}, []string{poolLabel})
 
 	// rollCap is the computed concurrency ceiling:
@@ -144,7 +142,7 @@ var (
 		Help: "Jobs waiting for a runner Pod in this pool (server signal).",
 	}, []string{poolLabel})
 
-	// idleReplicas is how many current-image Pods are alive, unclaimed,
+	// idleReplicas is how many current-template Pods are alive, unclaimed,
 	// and actually able to take work right now. On darwin that means
 	// Running: a Pod still waiting for a Mac mini has no VM and is not
 	// capacity, however long it has been alive. On Linux it includes
@@ -162,7 +160,7 @@ var (
 	// Pods that never received work.
 	idleReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_idle_replicas",
-		Help: "Alive current-image runner Pods with no claim (warm capacity available to take work).",
+		Help: "Alive current-template runner Pods with no claim and able to take work.",
 	}, []string{poolLabel})
 
 	pendingProvisioningPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -252,10 +250,9 @@ func RecordPodStartTimeout(pool, reason string) {
 	podStartTimeoutsTotal.WithLabelValues(pool, reason).Inc()
 }
 
-// RecordRoll publishes a pool's image-roll progress for this reconcile
-// tick: how many Pods are mid-roll, how many remain on the old image,
-// and the concurrency cap they're throttled against. Steady state
-// (no roll) reports rolling=0, stale=0.
+// RecordRoll publishes a pool's Pod-template rollout progress for this
+// reconcile tick: unavailable serving capacity, stale Pods remaining,
+// and the concurrency cap. Steady state reports rolling=0, stale=0.
 func RecordRoll(pool string, rolling, stale, capacity int) {
 	rollingPods.WithLabelValues(pool).Set(float64(rolling))
 	stalePods.WithLabelValues(pool).Set(float64(stale))

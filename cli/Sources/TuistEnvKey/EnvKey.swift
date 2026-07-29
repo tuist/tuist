@@ -319,6 +319,7 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateSSOOrganizationName = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_NAME"
     case organizationUpdateSSOProvider = "TUIST_ORGANIZATION_UPDATE_SSO_PROVIDER"
     case organizationUpdateSSOOrganizationId = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_ID"
+    case organizationUpdateSSOEnrollmentPolicy = "TUIST_ORGANIZATION_UPDATE_SSO_ENROLLMENT_POLICY"
     case organizationUpdateSSOPath = "TUIST_ORGANIZATION_UPDATE_SSO_PATH"
 
     // PROJECT DELETE
@@ -474,6 +475,7 @@ public enum EnvKey: String, CaseIterable {
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
+    case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
 
     // HASH CACHE

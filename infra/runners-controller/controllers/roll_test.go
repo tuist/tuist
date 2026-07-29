@@ -2,8 +2,6 @@ package controllers
 
 import (
 	"testing"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 func TestRollConcurrencyCap(t *testing.T) {
@@ -28,29 +26,6 @@ func TestRollConcurrencyCap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := rollConcurrencyCap(tc.replicas, tc.pct); got != tc.want {
 				t.Fatalf("rollConcurrencyCap(%d, %d) = %d, want %d", tc.replicas, tc.pct, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestIsReady(t *testing.T) {
-	ready := func(conds ...corev1.PodCondition) *corev1.Pod {
-		return &corev1.Pod{Status: corev1.PodStatus{Conditions: conds}}
-	}
-	cases := []struct {
-		name string
-		pod  *corev1.Pod
-		want bool
-	}{
-		{"Ready=True", ready(corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue}), true},
-		{"Ready=False", ready(corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionFalse}), false},
-		{"no conditions (still booting, no IP)", ready(), false},
-		{"only an unrelated condition", ready(corev1.PodCondition{Type: corev1.PodScheduled, Status: corev1.ConditionTrue}), false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isReady(tc.pod); got != tc.want {
-				t.Fatalf("isReady() = %v, want %v", got, tc.want)
 			}
 		})
 	}

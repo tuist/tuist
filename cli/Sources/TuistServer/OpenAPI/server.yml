@@ -8747,6 +8747,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8769,14 +8777,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -9499,6 +9499,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9672,6 +9677,11 @@ paths:
                                     subhashes:
                                       description: Individual component hashes that make up the final hash
                                       properties:
+                                        additional_hashing_inputs:
+                                          description: Additional hashing inputs hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         additional_strings:
                                           description: Additional strings used in the hash
                                           items:
@@ -9921,6 +9931,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -9999,6 +10015,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true

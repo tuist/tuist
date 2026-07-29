@@ -81,52 +81,46 @@ Choose a semantic variant through the variant attribute.
 
 ## Sizes
 
-The default size is large.
+Compare the large, medium, and small button sizes.
 
 ```html
-<noora-button type="button" size="small">Small</noora-button>
-<noora-button type="button" size="medium">Medium</noora-button>
 <noora-button type="button" size="large">Large</noora-button>
+<noora-button type="button" size="medium">Medium</noora-button>
+<noora-button type="button" size="small">Small</noora-button>
 ```
 
-## Icons and states
+## Disabled
 
-Named slots place icons around the label. Icon-only buttons require an accessible label.
+Compare the disabled state across every button variant.
+
+```html
+<noora-button type="button" variant="primary" disabled>Disabled</noora-button>
+<noora-button type="button" variant="secondary" disabled>Disabled</noora-button>
+<noora-button type="button" variant="destructive" disabled>Disabled</noora-button>
+```
+
+## Icons
+
+Place a chevron on the left, right, or both sides of the label, or render an icon-only button.
 
 ```html
 <noora-button type="button">
-  <svg
-    slot="icon-left"
-    aria-hidden="true"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-  >
-    <path d="m15 18-6-6 6-6" stroke-width="2"></path>
-  </svg>
-  Previous
+  <noora-icon slot="icon-left" name="chevron_left"></noora-icon>
+  Icon
 </noora-button>
 
-<noora-button type="button" variant="secondary">
-  Continue
-  <svg
-    slot="icon-right"
-    aria-hidden="true"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-  >
-    <path d="m9 18 6-6-6-6" stroke-width="2"></path>
-  </svg>
+<noora-button type="button">
+  Icon
+  <noora-icon slot="icon-right" name="chevron_right"></noora-icon>
 </noora-button>
 
-<noora-button type="button" icon-only aria-label="Go back">
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-    <path d="m15 18-6-6 6-6" stroke-width="2"></path>
-  </svg>
+<noora-button type="button">
+  <noora-icon slot="icon-left" name="chevron_left"></noora-icon>
+  Icon
+  <noora-icon slot="icon-right" name="chevron_right"></noora-icon>
 </noora-button>
 
-<noora-button type="button" variant="secondary" disabled>
-  Disabled
+<noora-button type="button" icon-only aria-label="Previous">
+  <noora-icon name="chevron_left"></noora-icon>
 </noora-button>
 ```
