@@ -4,6 +4,7 @@ category: "vision"
 tags: ["vision", "support", "ai", "agents", "business"]
 excerpt: "Our fast, technical support is the thing customers love and the thing that doesn't scale. So instead of scaling the support team, we packaged the way we find answers into our MCP and let people's own agents do it."
 author: pepicrft
+og_image_path: /marketing/images/blog/2026/07/17/answers-from-the-source/og.png
 ---
 
 Support is one of the things we've worried about scaling the most, and not because it's going badly but because it's going well, which is exactly the problem. We answer fast, the answers are technical, and they come from the people who actually wrote the code. A prospect told us recently why that mattered to them, and the way they put it was that everywhere else they go there's a support team sitting in front of the product, and you can tell within a message or two that the person on the other side has never opened the codebase, whereas with us it's the opposite, and they love it for that.
