@@ -33,7 +33,7 @@ msgstr ""
 msgid "%{run_duration}s"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:410
+#: lib/tuist_web/components/runs/module_cache_tab.ex:416
 #, elixir-autogen, elixir-format
 msgid "Additional strings"
 msgstr ""
@@ -237,7 +237,7 @@ msgstr ""
 msgid "Cacheable Tasks"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:467
+#: lib/tuist_web/components/runs/module_cache_tab.ex:473
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
 msgstr ""
@@ -636,7 +636,7 @@ msgid "Key"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:248
-#: lib/tuist_web/components/runs/module_cache_tab.ex:482
+#: lib/tuist_web/components/runs/module_cache_tab.ex:488
 #: lib/tuist_web/live/build_run_live.ex:1157
 #: lib/tuist_web/live/build_run_live.ex:1401
 #: lib/tuist_web/live/build_run_live.html.heex:1017
@@ -663,7 +663,7 @@ msgid "Mac device"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:254
-#: lib/tuist_web/components/runs/module_cache_tab.ex:508
+#: lib/tuist_web/components/runs/module_cache_tab.ex:514
 #: lib/tuist_web/live/build_run_live.ex:1159
 #: lib/tuist_web/live/build_run_live.ex:1402
 #: lib/tuist_web/live/build_run_live.html.heex:1045
@@ -831,7 +831,7 @@ msgid "Recent Builds"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:242
-#: lib/tuist_web/components/runs/module_cache_tab.ex:495
+#: lib/tuist_web/components/runs/module_cache_tab.ex:501
 #: lib/tuist_web/live/build_run_live.ex:1158
 #: lib/tuist_web/live/build_run_live.ex:1400
 #: lib/tuist_web/live/build_run_live.html.heex:1031
@@ -1500,4 +1500,9 @@ msgstr ""
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
 msgid "Total data uploaded to the remote cache during this run (%{count} artifacts)."
+msgstr ""
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:410
+#, elixir-autogen, elixir-format
+msgid "Additional hashing inputs"
 msgstr ""

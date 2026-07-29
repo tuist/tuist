@@ -84,7 +84,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareCacheRuns do
 
     ### 4. Analyze cache invalidation and find the root cause
 
-    For targets that went from hit to miss, compare their `subhashes` (`sources`, `resources`, `dependencies`, `target_settings`, `project_settings`, `deployment_target`, `info_plist`, `entitlements`, `headers`, `copy_files`, `core_data_models`, `target_scripts`, `buildable_folders`, `external`).
+    For targets that went from hit to miss, compare their `subhashes` (`sources`, `resources`, `dependencies`, `target_settings`, `project_settings`, `deployment_target`, `info_plist`, `entitlements`, `headers`, `copy_files`, `core_data_models`, `target_scripts`, `buildable_folders`, `additional_hashing_inputs`, `external`).
 
     **Identify the root cause target.** When many targets are invalidated, it is usually because one target changed and its dependents were invalidated through the `dependencies` subhash cascading down. To find the root cause:
     - Look for the target(s) where a subhash **other than** `dependencies` changed (e.g., `sources`, `target_settings`, `resources`). That is the target where the actual change happened.

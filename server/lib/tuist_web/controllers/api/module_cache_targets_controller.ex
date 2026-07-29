@@ -18,7 +18,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
 
   tags ["Runs"]
 
-  @subhash_keys ~w(sources resources copy_files core_data_models target_scripts environment headers deployment_target info_plist entitlements dependencies project_settings target_settings buildable_folders external)a
+  @subhash_keys ~w(sources resources copy_files core_data_models target_scripts environment headers deployment_target info_plist entitlements dependencies project_settings target_settings buildable_folders additional_hashing_inputs external)a
 
   operation(:index,
     summary: "List module cache targets for a run.",

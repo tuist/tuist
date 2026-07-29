@@ -40,10 +40,16 @@ defmodule TuistRegistry.S3 do
         presign_opts =
           case Keyword.fetch(opts, :content_type) do
             {:ok, content_type} ->
-              [expires_in: 600, query_params: [{"response-content-type", content_type}]]
+              [
+                expires_in: 600,
+                query_params: [
+                  {"response-content-type", content_type},
+                  {"x-tigris-consistent", "true"}
+                ]
+              ]
 
             :error ->
-              [expires_in: 600]
+              [expires_in: 600, query_params: [{"x-tigris-consistent", "true"}]]
           end
 
         ExAws.S3.presigned_url(config, :get, bucket, key, presign_opts)
