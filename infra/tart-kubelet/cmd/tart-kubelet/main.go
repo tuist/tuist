@@ -38,6 +38,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -73,6 +74,7 @@ func main() {
 		disableVMGC        bool
 		runnerCacheRoot    string
 		cacheVolumeCapGiB  int
+		cacheVolumeCASGiB  int
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -122,6 +124,12 @@ func main() {
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
+	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
+		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache). "+
+			"This is the CAS's byte BUDGET within that shared image: it sets the CAS's share of --cache-volume-cap-gib "+
+			"(staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes), and the binary cache gets the rest minus a "+
+			"filesystem reserve (max(2 GiB, 5%)), so the two pruners never over-commit the one image. Persisted across VMs, riding the binary "+
+			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -286,8 +294,13 @@ func main() {
 	// Runnable so its watermark evictor + observability sampler run on a
 	// ticker alongside the reconciler.
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
+	volumes.CASGiB = cacheVolumeCASGiB
+	if cacheVolumeCASGiB >= cacheVolumeCapGiB && cacheVolumeCASGiB > 0 {
+		setupLog.Info("WARNING --cache-volume-cas-gib >= --cache-volume-cap-gib; the CAS budget is clamped so the binary cache and reserve keep a slice — lower cas-gib or raise cap-gib",
+			"cas-gib", cacheVolumeCASGiB, "cap-gib", cacheVolumeCapGiB)
+	}
 	if volumes.Enabled() {
-		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB)
+		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB, "cas-gib", cacheVolumeCASGiB)
 		// Wait for the runner-cache volume to actually mount BEFORE recoverState
 		// runs. recoverState reattaches the branches of VMs that survived a kubelet
 		// restart and populates the retained set the startup sweep trusts; if the
@@ -386,6 +399,14 @@ func main() {
 		MaxPods:    maxPods,
 		Heartbeat:  30 * time.Second,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
+			// Host root volume first: it holds every Tart golden + clone,
+			// and a fill there silently breaks the operator's SSH config
+			// updates while the guest volumes still look fine — which the
+			// guest-only probe below can't see. A statvfs error falls
+			// through to the guest check rather than failing the probe.
+			if st, err := hostdisk.Root("/"); err == nil && st.FreePercent() < hostDiskPressureFreePercent {
+				return true, fmt.Sprintf("host root volume %.1f%% free (below %g%% floor)", st.FreePercent(), hostDiskPressureFreePercent), nil
+			}
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
 		DynamicLabels: goldenLabelProvider,
@@ -613,6 +634,15 @@ func pickThisNode(nodeName string) fields.Selector {
 // condition fires (stopping new scheduling and triggering alerts) before
 // the guest actually starts failing writes with ENOSPC.
 const diskPressureThresholdPercent = 90
+
+// hostDiskPressureFreePercent is the host root-volume free-space floor
+// below which the Node reports DiskPressure. The Tart golden bases + clones
+// live here, and a full host disk silently breaks the operator's SSH config
+// updates while guests still look fine — so this is checked in addition to
+// the guest-volume probe. Kept at 10% to match the disk-buffer alert; the
+// golden GC reclaims at 15% (defaultGoldenReclaimFreeFloor), so pressure
+// only trips if reclaim can't keep up (all bases live-backed).
+const hostDiskPressureFreePercent = 10.0
 
 // diskPressureFromGuests reports DiskPressure=True when any running VM's
 // guest root volume is at or above the threshold. Each probe is bounded

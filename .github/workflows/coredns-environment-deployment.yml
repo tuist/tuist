@@ -1,0 +1,89 @@
+name: CoreDNS Environment Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: CoreDNS (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      # Do not restart cluster name resolution during a server rollout.
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Reconcile and verify CoreDNS
+        run: |
+          set -euo pipefail
+
+          manifest="infra/k8s/mgmt/bootstrap/coredns-config.yaml"
+          desired_corefile="$(kubectl create --dry-run=client -f "$manifest" -o jsonpath='{.data.Corefile}')"
+          live_corefile="$(kubectl -n kube-system get configmap coredns -o jsonpath='{.data.Corefile}')"
+
+          if [ "$desired_corefile" != "$live_corefile" ]; then
+            kubectl apply -f "$manifest"
+            kubectl -n kube-system rollout restart deployment/coredns
+            kubectl -n kube-system rollout status deployment/coredns --timeout=5m
+          else
+            echo "CoreDNS Corefile already matches the repository."
+          fi
+
+          live_corefile="$(kubectl -n kube-system get configmap coredns -o jsonpath='{.data.Corefile}')"
+          if [ "$desired_corefile" != "$live_corefile" ]; then
+            echo "::error::CoreDNS Corefile still differs from the repository after reconciliation"
+            exit 1
+          fi
+
+          smoke_pod="coredns-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            kubectl -n kube-system delete pod "$smoke_pod" --ignore-not-found --wait=false >/dev/null
+          }
+          trap cleanup EXIT
+
+          kubectl -n kube-system run "$smoke_pod" \
+            --image=public.ecr.aws/docker/library/busybox@sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028 \
+            --image-pull-policy=IfNotPresent \
+            --restart=Never \
+            --overrides='{"spec":{"activeDeadlineSeconds":180,"automountServiceAccountToken":false}}' \
+            --command -- sh -ec \
+              'nslookup kubernetes.default.svc.cluster.local && nslookup api.github.com'
+
+          if ! kubectl -n kube-system wait \
+            --for=jsonpath='{.status.phase}'=Succeeded \
+            "pod/$smoke_pod" --timeout=2m; then
+            kubectl -n kube-system logs "$smoke_pod" || true
+            exit 1
+          fi
+
+          kubectl -n kube-system logs "$smoke_pod"
+          kubectl -n kube-system get deployment coredns \
+            -o custom-columns='DESIRED:.spec.replicas,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas'

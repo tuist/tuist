@@ -117,6 +117,7 @@ import XcodeGraph
             // Because we only need to pull the binaries, we don't generate a project in this step.
             let graph = try await generator.load(path: path, options: config.project.generatedProject?.generationOptions)
 
+            let requestedConfiguration = configuration
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
@@ -154,7 +155,7 @@ import XcodeGraph
 
             let cacheableTargets = try await cacheableTargets(
                 for: graph,
-                configuration: configuration,
+                configuration: requestedConfiguration,
                 config: config,
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
@@ -343,6 +344,17 @@ import XcodeGraph
             }
         }
 
+        /// Pins Xcode's compilation cache (CAS) to the machine's shared DerivedData instead of letting it
+        /// follow `-derivedDataPath` into this command's throwaway build directory. The plugin's spool
+        /// there is drained asynchronously by the machine-wide CAS proxy and must outlive the build, so
+        /// keeping it at the default location avoids racing the directory's teardown and warms the same
+        /// store regular Xcode builds read.
+        private func compilationCacheCASArgument() async throws -> XcodeBuildArgument {
+            let casPath = try await Environment.current.derivedDataDirectory()
+                .appending(component: "CompilationCache.noindex")
+            return .xcarg("COMPILATION_CACHE_CAS_PATH", casPath.pathString)
+        }
+
         private func productsDirectory(
             platform: Platform,
             configuration: String,
@@ -381,6 +393,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -443,6 +456,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
@@ -699,6 +713,7 @@ import XcodeGraph
                         .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                        try await compilationCacheCASArgument(),
                         // To prevent the rejection when publishing on the App Store
                         // https://developer.apple.com/library/archive/qa/qa1964/_index.html
                     ] + (isReleaseConfiguration ? [
@@ -745,6 +760,7 @@ import XcodeGraph
                 .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
                 // To prevent the rejection when publishing on the App Store
                 // https://developer.apple.com/library/archive/qa/qa1964/_index.html
             ] + (isReleaseConfiguration ? [
@@ -827,6 +843,7 @@ import XcodeGraph
                     .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                    try await compilationCacheCASArgument(),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
@@ -899,7 +916,7 @@ import XcodeGraph
 
         private func cacheableTargets(
             for graph: Graph,
-            configuration: String,
+            configuration: String?,
             config: Tuist,
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,

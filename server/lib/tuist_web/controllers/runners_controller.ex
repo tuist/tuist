@@ -110,13 +110,23 @@ defmodule TuistWeb.RunnersController do
   def report_volume_head(conn, params) do
     digest = Map.get(params, "tree_digest", "")
     node = Map.get(params, "node_name", "")
+    base_generation = parse_base_generation(Map.get(params, "base_generation"))
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest) do
-        :ok -> send_resp(conn, :no_content, "")
-        :error -> conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+      case Runners.report_volume_head(account_id, node, digest, base_generation) do
+        {:ok, generation} ->
+          json(conn, %{generation: generation})
+
+        :conflict ->
+          # The job built on a stale base — another host advanced the HEAD first.
+          # The runner discards its branch rather than moving its master off the
+          # accepted lineage; the next job re-converges and rebuilds.
+          conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
+
+        :error ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
       end
     else
       {:error, :missing_bearer} ->
@@ -126,6 +136,20 @@ defmodule TuistWeb.RunnersController do
         conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
     end
   end
+
+  # The generation the promoting job's branch was cloned from, parsed defensively
+  # from the request body: a missing or non-numeric value is treated as 0 (a cold
+  # job), which the fast-forward accepts only when the account has no HEAD yet.
+  defp parse_base_generation(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_base_generation(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n >= 0 -> n
+      _ -> 0
+    end
+  end
+
+  defp parse_base_generation(_), do: 0
 
   # A runner requests the presigned PUT URL for the master object keyed by the
   # inventory digest it is about to promote, then PUTs its image there and calls

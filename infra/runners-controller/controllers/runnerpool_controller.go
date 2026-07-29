@@ -13,9 +13,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -89,6 +91,10 @@ type RunnerPoolReconciler struct {
 	ClusterDNSIP  string
 	ClusterDomain string
 
+	Recorder record.EventRecorder
+
+	creationReservations creationReservationStore
+
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 }
@@ -161,15 +167,29 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Warm capacity is counted here, in the one pass with no early
+	// returns, rather than alongside the classification below. The reap
+	// path can bail mid-loop, and a deferred publish of a not-yet-
+	// assigned counter would report 0 warm Pods on an error path — which
+	// reads as "no capacity" and masks exactly the starvation this series
+	// exists to surface.
 	phaseReplicas := podPhaseReplicaCounts{}
+	idleCount := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
-			phaseReplicas.add(p)
+		if !isAlive(p) {
+			continue
+		}
+		phaseReplicas.add(p)
+		// Mirrors the classification below: stale Pods are retired
+		// by the roll throttle rather than counted as available.
+		if !isStaleRunner(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+			idleCount++
 		}
 	}
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordIdleReplicas(pool.Name, idleCount)
 		// darwin only: Pending means "no VM yet" for a Tart pool, but it
 		// is the healthy steady state for a Linux one. Linux warm-standby
 		// Pods run their dispatch poller as an init container and kubelet
@@ -187,48 +207,74 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	reaped := 0
 	staleAlive := 0
 	markedStale := 0
-	newNotReady := 0
+	unavailableRolloutCapacity := 0
 	var idleAlive []*corev1.Pod
-	// Stale idle Pods are retired under the roll cap (below), not all at
-	// once: Running ones (macOS) get the drain-eligible label so the
-	// server 410s them; Pending ones (Linux warm pollers, or macOS that
-	// rolled mid-boot) are reaped directly. Both share one budget so a
-	// digest roll can't make the whole fleet pull the new image at once.
+	// Stale idle Pods are retired under the roll cap (below), not all
+	// at once. Running stale-image Pods get the drain-eligible label so
+	// the server can stop them through the normal dispatch lifecycle.
+	// Idle Pending Pods are safe to reap directly, including Linux warm
+	// runners on a stale RuntimeClass revision. Both paths share one
+	// availability budget.
 	var drainCandidates []*corev1.Pod
-	var stalePendingCandidates []*corev1.Pod
+	var reapCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
+		if startTimedOut(p, pool, r.now()) {
+			startedAt, _ := linuxProvisioningStartedAt(p)
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("reap runner pod whose dispatch poller did not start",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"bound", true,
+				"age", r.now().Sub(startedAt).String(),
+				"nodeConditions", nodeConditions,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodStartTimedOut",
+					"Dispatch poller did not start within %d seconds after binding to node %s; node conditions: %s",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault(), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
 
 		switch {
 		case isAlive(p):
 			alive++
+			staleImage := isStaleImage(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool)
 			switch {
-			case isStaleImage(p, pool):
+			case staleImage || staleRuntimeClassRevision:
 				staleAlive++
-				if p.Labels[drainEligibleLabel] == "true" {
+				if staleImage && p.Labels[drainEligibleLabel] == "true" {
 					markedStale++
 				} else if isIdle(p) {
-					// Pending stale idle Pods (Linux warm pollers, macOS
-					// rolled mid-boot) are reaped directly; Running ones
-					// (macOS warm) get the drain-eligible label for the
-					// server to 410. Both retire under the shared roll cap.
 					if p.Status.Phase == corev1.PodPending {
-						stalePendingCandidates = append(stalePendingCandidates, p)
-					} else {
+						reapCandidates = append(reapCandidates, p)
+					} else if staleImage {
 						drainCandidates = append(drainCandidates, p)
 					}
 				}
 			default:
-				// Current-image Pod. Idle ones are scale-down candidates;
-				// not-yet-Ready ones are booting (a roll's replacement when
-				// one is active) and consume roll-concurrency budget. Stale
-				// Pods are excluded from idleAlive on purpose — they're
-				// retired by the roll throttle, not scale-down.
+				// Current-template Pod. Idle ones are scale-down
+				// candidates. A replacement that is not warm yet consumes
+				// roll-concurrency budget. Stale Pods are excluded from
+				// idleAlive on purpose: the roll throttle retires them.
 				if isIdle(p) {
 					idleAlive = append(idleAlive, p)
-				}
-				if !isReady(p) {
-					newNotReady++
+					if !isWarmCapacity(p, pool) {
+						// This deliberately follows Deployment-style
+						// maxUnavailable semantics: ordinary scale-up
+						// Pods consume the same availability budget as
+						// roll replacements until they become warm.
+						unavailableRolloutCapacity++
+					}
 				}
 			}
 		case p.DeletionTimestamp.IsZero():
@@ -267,15 +313,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	// Image-roll throttle (runs before the gap-fill so a reaped Pending
-	// Pod's current-image replacement is created this same reconcile).
-	// Retire stale Pods up to a concurrency cap so a digest roll doesn't
-	// make the whole fleet `tart pull` the new ~tens-of-GB image at once
-	// and collapse the warm pool. In-flight = stale Pods already committed
-	// to drain, plus — while a roll is active — current-image Pods not yet
-	// Ready (booting replacements); we retire more only as those reach
-	// Ready. Both paths share the budget: reap idle Pending Pods directly,
-	// mark idle Running Pods drain-eligible for the server to 410.
+	// Roll throttle (runs before the gap-fill so a reaped Pod's
+	// current-template replacement is created this same reconcile).
+	// Retire stale Pods up to a concurrency cap so an image or
+	// RuntimeClass-revision change cannot collapse the warm pool.
+	// In-flight is stale Pods already committed to drain plus, while
+	// a roll is active, current-template Pods that are not warm. This
+	// includes ordinary scale-up Pods by design: the cap represents
+	// unavailable serving capacity, regardless of why it is unavailable.
 	// Best-effort: a failed reap/patch just retries next tick.
 	rollPct := int32(defaultRollMaxConcurrentPercent)
 	if pool.Spec.Rollout != nil && pool.Spec.Rollout.MaxConcurrentPercent > 0 {
@@ -284,14 +329,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	capN := rollConcurrencyCap(pool.Spec.Replicas, rollPct)
 	rolling := markedStale
 	if staleAlive > 0 {
-		rolling += newNotReady
+		rolling += unavailableRolloutCapacity
 	}
-	for _, p := range stalePendingCandidates {
+	for _, p := range reapCandidates {
 		if rolling >= capN {
 			break
 		}
-		if err := r.reapRunner(ctx, p); err != nil {
-			logger.Error(err, "reap stale pending pod; will retry next tick", "pod", p.Name)
+		if err := r.reapAlivePod(ctx, p); err != nil {
+			logger.Error(err, "reap stale idle pod; will retry next tick", "pod", p.Name)
 			continue
 		}
 		alive--
@@ -326,12 +371,58 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"idleAlive", len(idleAlive),
 	)
 
-	for i := 0; i < gap; i++ {
-		if err := r.createRunner(ctx, pool); err != nil {
+	createLimit := gap
+	admissionBlocked := false
+	pendingProvisioningForPool := 0
+	if isLinuxKataPool(pool) {
+		admission, err := r.provisioningAdmission(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read Linux provisioning admission; leaving replica gap")
+			createLimit = 0
+			admissionBlocked = gap > 0
+			if admissionBlocked {
+				metrics.RecordAdmissionBlocked(pool.Name, "fleet_view_error")
+			}
+		} else if admission.available < createLimit {
+			pendingProvisioningForPool = admission.pendingForPool
+			createLimit = admission.available
+			admissionBlocked = gap > createLimit
+			if admissionBlocked {
+				reason := admission.blockedReason
+				if reason == "" {
+					reason = "fleet_cap"
+				}
+				metrics.RecordAdmissionBlocked(pool.Name, reason)
+				logger.Info("Linux provisioning admission left replica gap",
+					"reason", reason,
+					"gap", gap,
+					"creating", createLimit,
+					"pendingForPool", admission.pendingForPool,
+					"pendingForFleet", admission.pendingForFleet,
+					"cap", admission.cap,
+					"healthyNodes", admission.healthyNodes,
+				)
+			}
+		} else {
+			pendingProvisioningForPool = admission.pendingForPool
+		}
+	}
+
+	created := 0
+	for i := 0; i < createLimit; i++ {
+		name, err := r.createRunner(ctx, pool)
+		if err != nil {
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		if isLinuxKataPool(pool) {
+			r.reserveCreatedRunner(pool, name)
+		}
+		created++
 		phaseReplicas.pending++
+	}
+	if isLinuxKataPool(pool) {
+		metrics.RecordPendingProvisioningPods(pool.Name, pendingProvisioningForPool+created)
 	}
 
 	// Scale-down: alive > target. Delete IDLE Pods first — those
@@ -348,10 +439,13 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		phaseReplicas.remove(p)
+		if isWarmCapacity(p, pool) {
+			idleCount--
+		}
 		scaledDown++
 	}
 
-	observed := alive - scaledDown + gap
+	observed := alive - scaledDown + created
 	pool.Status.ObservedReplicas = int32(observed)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {
@@ -363,6 +457,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Steady-state requeue: re-run every 60 s as a safety net for
 	// missed events. Pod-event-driven reconcile via Owns() is the
 	// primary trigger; this is the catch-all.
+	if admissionBlocked {
+		return ctrl.Result{RequeueAfter: provisioningRequeueAfter}, nil
+	}
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
@@ -428,33 +525,33 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 // both owned by the RunnerPool. Pod and SA share the same name so
 // the dispatch endpoint can look up "which Pod is this SA mounted
 // on" from the validated SA name alone.
-func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) error {
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) (string, error) {
 	suffix, err := randHex(4)
 	if err != nil {
-		return fmt.Errorf("generate suffix: %w", err)
+		return "", fmt.Errorf("generate suffix: %w", err)
 	}
 	name := fmt.Sprintf("%s-runner-%s", pool.Name, suffix)
 
 	sa := podtemplate.BuildServiceAccount(pool, name)
 	if err := controllerutil.SetControllerReference(pool, sa, r.Scheme); err != nil {
-		return fmt.Errorf("sa owner ref: %w", err)
+		return "", fmt.Errorf("sa owner ref: %w", err)
 	}
 	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("create sa: %w", err)
+		return "", fmt.Errorf("create sa: %w", err)
 	}
 
 	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
 	if err != nil {
-		return fmt.Errorf("build pod: %w", err)
+		return "", fmt.Errorf("build pod: %w", err)
 	}
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
-		return fmt.Errorf("pod owner ref: %w", err)
+		return "", fmt.Errorf("pod owner ref: %w", err)
 	}
 	if err := r.Create(ctx, pod); err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("create pod: %w", err)
+		return "", fmt.Errorf("create pod: %w", err)
 	}
 
-	return nil
+	return name, nil
 }
 
 // reapRunner deletes a Pod and its same-named ServiceAccount.
@@ -465,8 +562,8 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 // "nothing left," not "I'm the one that deleted it."
 //
 // Called for both terminal Pods (Succeeded/Failed → natural
-// turnover) and stale Pending Pods (image roll → recycle on
-// current image). The cleanup contract is the same.
+// turnover) and stale Pending Pods (Pod-template rollout →
+// recycle on the current template). The cleanup contract is the same.
 func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
@@ -595,6 +692,49 @@ func isIdle(pod *corev1.Pod) bool {
 	return !pollerTerminated(pod)
 }
 
+// isWarmCapacity reports whether an idle Pod can actually accept a job
+// right now. `isIdle` alone can't answer that: it only asks "unclaimed
+// and still polling", which a Pod that has never been scheduled also
+// satisfies. On a contended Tart fleet such a Pod can sit Pending for
+// hours with no node and no VM, and counting it as available capacity
+// inverts the reading it feeds — a pool starved of hosts would report
+// idle Pods sitting on queued work, the signature of the opposite
+// failure.
+//
+// The test is OS-dependent for the same reason oldestPendingPodAge is
+// darwin-only, but neither platform can use the Pod phase alone:
+//
+//   - darwin: Pending means the VM isn't up, so only Running is capacity.
+//   - linux: Pending is the healthy steady state, because the dispatch
+//     poller is an init container and kubelet holds the Pod in Pending
+//     for as long as it runs. But an *unscheduled* Linux Pod is equally
+//     Pending, equally unowned, and `pollerTerminated` reports false for
+//     it because no poller status exists at all. Treating every non-
+//     darwin Pod as capacity would therefore classify a Linux pool that
+//     is simply out of hosts as starved — the exact inversion this
+//     function exists to prevent, just on the other platform.
+//
+// So Linux asks whether the poller is *actively running*, which is only
+// true once the Pod has a node and kubelet has started the container.
+func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS == "darwin" {
+		return pod.Status.Phase == corev1.PodRunning
+	}
+	return pollerRunning(pod)
+}
+
+// pollerRunning reports whether the Linux `poller` init container is
+// currently executing. Absent status means the Pod has not started it
+// (unscheduled, or still pulling), which is not warm capacity.
+func pollerRunning(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Running != nil
+		}
+	}
+	return false
+}
+
 // pollerTerminated reports whether the Linux `poller` init container
 // has exited. The poller exits 0 the instant it stages a claimed
 // JIT (or drains on a 410), so its termination is a label-independent
@@ -629,6 +769,13 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 	return nil
 }
 
+// isStaleRunner reports whether an alive Pod needs controlled
+// replacement because its image or RuntimeClass revision no longer
+// matches the pool's current template.
+func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool)
+}
+
 // isStaleImage returns true when the Pod's runner container image
 // no longer matches the RunnerPool's spec.image — i.e., the chart
 // has rolled the image pin since this Pod was created. Used to
@@ -641,17 +788,20 @@ func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 	return pod.Spec.Containers[0].Image != pool.Spec.Image
 }
 
-// isReady reports whether the Pod's Ready condition is True. macOS Pods
-// have no per-container readiness (tart-kubelet runs the VM as one
-// opaque unit), but tart-kubelet sets the PodReady condition once the
-// guest has an IP — so this works for both runtimes.
-func isReady(pod *corev1.Pod) bool {
-	for _, c := range pod.Status.Conditions {
-		if c.Type == corev1.PodReady {
-			return c.Status == corev1.ConditionTrue
-		}
+// isStaleRuntimeClassRevision compares the revision Helm stamped on
+// the Linux RunnerPool with the revision copied into the Pod at
+// creation. RuntimeClass admission does not rewrite existing Pods when
+// overhead changes, so a revision mismatch triggers bounded turnover
+// without comparing admission-mutated fields to live cluster state.
+func isStaleRuntimeClassRevision(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass == "" {
+		return false
 	}
-	return false
+	revision := pool.Annotations[podtemplate.RuntimeClassRevisionAnnotation]
+	if revision == "" {
+		return false
+	}
+	return pod.Annotations[podtemplate.RuntimeClassRevisionAnnotation] != revision
 }
 
 // rollConcurrencyCap is max(1, floor(pct/100 * replicas)): at least one
@@ -698,6 +848,10 @@ func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&tuistv1.RunnerPool{}).
 		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
 		Owns(&corev1.ServiceAccount{}).
+		// The shared provisioning admission reads the fleet count and then
+		// creates Pods. Keep that decision serial within the elected manager;
+		// raising this requires an atomic cross-reconcile reservation step.
+		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Complete(r)
 }
 

@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import struct TSCUtility.Version
 import TuistAlert
 import TuistConfig
 import TuistConfigLoader
@@ -29,6 +30,7 @@ struct SetupCacheCommandServiceTests {
     private let manifestLoader = MockManifestLoading()
     private let getProjectService = MockGetProjectServicing()
     private let gitController = MockGitControlling()
+    private let cacheSocketService = MockCacheSocketServicing()
 
     init() {
         subject = SetupCacheCommandService(
@@ -38,7 +40,9 @@ struct SetupCacheCommandServiceTests {
             serverAuthenticationController: serverAuthenticationController,
             manifestLoader: manifestLoader,
             getProjectService: getProjectService,
-            gitController: gitController
+            gitController: gitController,
+            cacheSocketService: cacheSocketService,
+            cacheDaemonStartupTimeout: .zero
         )
 
         // Every kura-path setup resolves the project's default branch to record the
@@ -76,6 +80,10 @@ struct SetupCacheCommandServiceTests {
         given(launchAgentService)
             .teardownLaunchAgent(label: .any, plistFileName: .any)
             .willReturn()
+
+        given(cacheSocketService)
+            .waitUntilListening(at: .any, timeout: .any)
+            .willReturn(true)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
@@ -114,7 +122,6 @@ struct SetupCacheCommandServiceTests {
                 environmentVariables: .any
             )
             .called(1)
-
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("Xcode Cache has been enabled 🎉"))
         #expect(success.takeaways.contains { $0.plain().contains("Xcode Cache is set up") })
@@ -146,6 +153,36 @@ struct SetupCacheCommandServiceTests {
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=")
+    }
+
+    /// On Xcode 27+ the manual instructions must also mention the prefix-mapping
+    /// settings: they are what make cache keys independent of where the project and
+    /// DerivedData live, and — unlike generated projects, which `tuist generate`
+    /// wires up — a non-Tuist project has to set them by hand.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger(),
+        .withMockedXcodeController
+    ) func setupCache_withNonTuistProject_onXcode27_mentionsPrefixMapping() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(27, 0, 0))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {
@@ -488,6 +525,78 @@ struct SetupCacheCommandServiceTests {
                     "--no-upload",
                 ]),
                 environmentVariables: .value(["TUIST_TOKEN": token])
+            )
+            .called(1)
+        verify(cacheSocketService)
+            .waitUntilListening(
+                at: .value(environment.cacheSocketPath(for: "organization/project")),
+                timeout: .value(.zero)
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_restartsTheAgentWhenTheSocketDoesNotStartListening() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        var checks = 0
+        cacheSocketService.reset()
+        given(cacheSocketService)
+            .waitUntilListening(at: .any, timeout: .any)
+            .willProduce { _, _ in
+                checks += 1
+                return checks == 2
+            }
+        given(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .willReturn()
+
+        try await subject.run(path: nil)
+
+        verify(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .called(1)
+        verify(cacheSocketService)
+            .waitUntilListening(
+                at: .value(environment.casProxySocketPath()),
+                timeout: .value(.zero)
+            )
+            .called(2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_failsWhenTheSocketDoesNotListenAfterRestart() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        cacheSocketService.reset()
+        given(cacheSocketService)
+            .waitUntilListening(at: .any, timeout: .any)
+            .willReturn(false)
+        given(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .willReturn()
+        let socketPath = environment.casProxySocketPath()
+        let logPath = environment.stateDirectory.appending(component: "tuist.cas-proxy.stderr.log")
+
+        await #expect(
+            throws: SetupCacheCommandServiceError.cacheDaemonNotReady(
+                label: "tuist.cas-proxy",
+                socketPath: socketPath.pathString,
+                logPath: logPath.pathString
+            )
+        ) {
+            try await subject.run(path: nil)
+        }
+
+        verify(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .called(1)
+        verify(launchAgentService)
+            .teardownLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist")
             )
             .called(1)
     }

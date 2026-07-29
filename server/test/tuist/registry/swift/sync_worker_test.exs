@@ -69,7 +69,7 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     )
   end
 
-  test "does not enqueue skipped versions" do
+  test "does not enqueue versions with a verified skip classification" do
     expect(Lock, :try_acquire, 2, fn
       :sync, _ -> {:ok, :acquired}
       {:package, "newrelic", "newrelic-ios-agent-spm"}, _ -> {:ok, :acquired}
@@ -90,11 +90,20 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
     expect(Metadata, :get_package, fn "newrelic", "newrelic-ios-agent-spm" ->
-      {:ok, %{"releases" => %{}, "skipped_releases" => %{"7.0.0" => %{"reason" => "missing_manifests"}}}}
+      {:ok,
+       %{
+         "releases" => %{},
+         "skipped_releases" => %{
+           "7.0.0" => %{"classification_version" => 2, "reason" => "missing_manifests"}
+         }
+       }}
     end)
 
     expect(Metadata, :put_package, fn "newrelic", "newrelic-ios-agent-spm", metadata ->
-      assert metadata["skipped_releases"] == %{"7.0.0" => %{"reason" => "missing_manifests"}}
+      assert metadata["skipped_releases"] == %{
+               "7.0.0" => %{"classification_version" => 2, "reason" => "missing_manifests"}
+             }
+
       :ok
     end)
 
@@ -104,6 +113,53 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
 
     assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
     refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "rechecks versions skipped before skip classifications were versioned" do
+    expect(Lock, :try_acquire, 2, fn
+      :sync, _ -> {:ok, :acquired}
+      {:package, "adjust", "ios_sdk"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" ->
+      {:ok,
+       [
+         %{
+           scope: "adjust",
+           name: "ios_sdk",
+           repository_full_handle: "adjust/ios_sdk"
+         }
+       ]}
+    end)
+
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    expect(Metadata, :get_package, fn "adjust", "ios_sdk" ->
+      {:ok,
+       %{
+         "releases" => %{},
+         "skipped_releases" => %{"5.6.2" => %{"reason" => "missing_manifests"}}
+       }}
+    end)
+
+    expect(Metadata, :put_package, fn "adjust", "ios_sdk", _metadata -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "adjust/ios_sdk", "token", _ ->
+      {:ok, ["v5.6.2"]}
+    end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "adjust",
+        "name" => "ios_sdk",
+        "repository_full_handle" => "adjust/ios_sdk",
+        "tag" => "v5.6.2"
+      }
+    )
   end
 
   test "ignores tags that do not match the accepted source format" do

@@ -1,0 +1,73 @@
+{{- with .Values.hcloudLoadBalancerExporter }}
+{{- if .enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hcloud-load-balancer-exporter
+  namespace: {{ .namespace }}
+  labels:
+    app.kubernetes.io/name: hcloud-load-balancer-exporter
+    app.kubernetes.io/component: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hcloud-load-balancer-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hcloud-load-balancer-exporter
+        app.kubernetes.io/component: observability
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: exporter
+          image: {{ printf "%s:%s" .image.repository .image.tag | quote }}
+          imagePullPolicy: {{ .image.pullPolicy }}
+          env:
+            - name: LOAD_BALANCER_IDS
+              value: {{ .loadBalancerIds | quote }}
+            - name: ACCESS_TOKEN_PATH
+              value: /etc/hcloud/token
+            - name: SCRAPE_INTERVAL
+              value: {{ .scrapeIntervalSeconds | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 30
+          resources:
+            {{- toYaml .resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 11001
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: hcloud-token
+              mountPath: /etc/hcloud
+              readOnly: true
+      volumes:
+        - name: hcloud-token
+          secret:
+            secretName: {{ .tokenSecretRef.name }}
+            items:
+              - key: {{ .tokenSecretRef.key }}
+                path: token
+{{- end }}
+{{- end }}

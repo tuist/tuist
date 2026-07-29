@@ -251,6 +251,20 @@ defmodule Tuist.Runners.PromExPlugin do
             description: "Age of the oldest still-queued workflow job per fleet, in seconds (0 when the queue is empty).",
             measurement: :oldest_age_seconds,
             tags: [:fleet]
+          ),
+          # Emitted from the autoscaler's signal path, not this poll: it
+          # is the gap between raw queue depth and what dispatch would
+          # actually hand out. Depth alone reads the same whether a
+          # queue is deep with claimable work or deep because one
+          # account is parked at its concurrency cap, and only the
+          # second means "do not grow the fleet for this".
+          last_value(
+            @metric_prefix ++ [:queue, :withheld],
+            event_name: Telemetry.event_name_queue_withheld(),
+            description:
+              "Queued workflow jobs per fleet excluded from the autoscaler's demand signal because their account is at its concurrency limit.",
+            measurement: :count,
+            tags: [:fleet]
           )
         ]
       ),

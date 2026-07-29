@@ -16,17 +16,22 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Storage
   alias Tuist.Time
 
+  @optimized_list_index_fields [:id, :project_id, :ran_at, :duration, :hit_rate]
+
   def list_command_events(attrs, _opts \\ []) do
+    optimized_table = sort_optimized_table(attrs)
+
     queryable =
-      case sort_optimized_table(attrs) do
+      case optimized_table do
         nil -> Event
-        table -> from(_ in {table, Event})
+        table -> from(event in {table, Event}, select: struct(event, @optimized_list_index_fields))
       end
 
     {results, meta} = ClickHouseFlop.validate_and_run!(queryable, attrs, for: Event)
 
     results =
       results
+      |> hydrate_optimized_list_results(optimized_table)
       |> Enum.map(&Event.normalize_enums/1)
       |> attach_user_account_names()
 
@@ -1123,6 +1128,26 @@ defmodule Tuist.CommandEvents do
       user_name = if run.user_id, do: Map.get(user_map, run.user_id)
       {run.id, user_name}
     end)
+  end
+
+  defp hydrate_optimized_list_results(results, nil), do: results
+  defp hydrate_optimized_list_results([], _optimized_table), do: []
+
+  defp hydrate_optimized_list_results(results, _optimized_table) do
+    project_ids = results |> Enum.map(& &1.project_id) |> Enum.uniq()
+    ids = Enum.map(results, & &1.id)
+
+    events_by_key =
+      Event
+      |> where([event], event.project_id in ^project_ids and event.id in ^ids)
+      |> order_by([event], asc: event.project_id, asc: event.id, desc: event.updated_at)
+      # The optimized view can be ahead of the replica serving this canonical table read,
+      # so hydrate with sequential consistency.
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> Enum.uniq_by(&{&1.project_id, &1.id})
+      |> Map.new(&{{&1.project_id, &1.id}, &1})
+
+    Enum.map(results, &Map.fetch!(events_by_key, {&1.project_id, &1.id}))
   end
 
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:duration, "duration"],

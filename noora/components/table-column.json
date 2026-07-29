@@ -1,0 +1,64 @@
+{
+  "name": "TableColumn",
+  "tagName": "noora-table-column",
+  "elementClassName": "NooraTableColumn",
+  "className": "noora-table-column",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative table column.",
+  "usage": "<noora-table-column name=\"project\">Project</noora-table-column>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the column key."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the heading instead of using text content."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Shows an icon in the heading."
+    },
+    {
+      "name": "sort-order",
+      "property": "sortOrder",
+      "type": "string",
+      "values": ["asc", "desc"],
+      "description": "Shows the current sort direction."
+    },
+    {
+      "name": "format",
+      "property": "format",
+      "type": "string",
+      "values": ["date", "number"],
+      "description": "Formats property-driven cell values."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The column heading."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "column",
+      "title": "Column",
+      "description": "Describe one table column.",
+      "markup": "<noora-table-column name=\"project\">Project</noora-table-column>"
+    }
+  ]
+}

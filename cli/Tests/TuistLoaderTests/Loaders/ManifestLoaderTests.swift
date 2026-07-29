@@ -167,7 +167,8 @@ final class ManifestLoaderTests: TuistTestCase {
         import ProjectDescription
 
         let packageSettings = PackageSettings(
-            targetSettings: ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]]
+            targetSettings: ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]],
+            includeLocalPackageTestTargets: true
         )
 
         #endif
@@ -202,7 +203,8 @@ final class ManifestLoaderTests: TuistTestCase {
                     "TargetA": .settings(base: [
                         "OTHER_LDFLAGS": "-ObjC",
                     ]),
-                ]
+                ],
+                includeLocalPackageTestTargets: true
             )
         )
     }

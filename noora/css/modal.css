@@ -28,7 +28,7 @@
     box-sizing: border-box;
 
     /* Prevent flashing of the component before script load */
-    &:not(:has(> div[data-state])) {
+    &:not(:has(> div[data-state="open"])) {
       display: none;
     }
 

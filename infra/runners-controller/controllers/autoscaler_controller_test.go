@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -309,10 +311,149 @@ func linuxNode(name string, allocatableGiB int64) *corev1.Node {
 			Labels: map[string]string{"node.cluster.x-k8s.io/pool": "runners-linux"},
 		},
 		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
 			Allocatable: corev1.ResourceList{
 				corev1.ResourceMemory: *resource.NewQuantity(allocatableGiB*1024*1024*1024, resource.BinarySI),
 			},
 		},
+	}
+}
+
+func TestAutoscaler_PerPodCostIncludesRuntimeClassOverhead(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(runtimeClass).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient}
+
+	got, err := r.perPodCost(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("perPodCost returned error: %v", err)
+	}
+	want := int64(10752 * 1024 * 1024)
+	if got != want {
+		t.Errorf("perPodCost = %d, want %d", got, want)
+	}
+}
+
+func TestAutoscaler_PerPodCostFailsClosedWhenRuntimeClassIsMissing(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	r := &AutoscalerReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+	}
+
+	if _, err := r.perPodCost(context.Background(), pool); err == nil {
+		t.Fatal("perPodCost returned nil error for a missing RuntimeClass")
+	}
+}
+
+func TestAutoscaler_RuntimeClassCostFailureLeavesReplicasUnchanged(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 pool.Name,
+		P95ConcurrentLastHour: 1,
+	})
+	defer server.Close()
+	r.MemReserveFraction = 1
+	if err := r.Create(context.Background(), linuxNode("bm-1", 256)); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 7 {
+		t.Errorf("Replicas = %d, want 7 when RuntimeClass cost is unavailable", got.Spec.Replicas)
+	}
+	if got.Status.LastScaleDownAt != nil {
+		t.Errorf("LastScaleDownAt = %v, want nil when replicas are unchanged", got.Status.LastScaleDownAt)
+	}
+}
+
+func TestAutoscaler_SiblingSignalsFailureFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	sibling := linuxFleetPool("linux-large", 1, 16_384, 1, 30)
+	sibling.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+	node := linuxNode("bm-1", 256)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, sibling, runtimeClass, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("fleet") == sibling.Name {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(scaling.Signals{
+			Fleet:                 pool.Name,
+			P95ConcurrentLastHour: 1,
+		})
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	scalingClient := scaling.NewClient(server.URL)
+	scalingClient.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:             fakeClient,
+		Scheme:             scheme,
+		SignalsClient:      scalingClient,
+		PollInterval:       time.Millisecond,
+		MemReserveFraction: 1,
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 2 {
+		t.Errorf("Replicas = %d, want per-pool fallback 2 when sibling signals fail", got.Spec.Replicas)
 	}
 }
 
@@ -410,6 +551,92 @@ func macosNode(name, fleetSelector string) *corev1.Node {
 				macosNodeOSLabel: macosNodeOSDarwin,
 			},
 		},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+}
+
+func TestAutoscaler_FleetCapacityExcludesUnhealthyNodes(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	ready := linuxNode("ready", 64)
+	notReady := linuxNode("not-ready", 64)
+	notReady.Status.Conditions[0].Status = corev1.ConditionFalse
+	unschedulable := linuxNode("unschedulable", 64)
+	unschedulable.Spec.Unschedulable = true
+	pressured := linuxNode("pressured", 64)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeMemoryPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, ready, notReady, unschedulable, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+
+	got, err := r.fleetAllocatableMemory(context.Background(), pool.Spec.FleetSelector)
+	if err != nil {
+		t.Fatalf("fleetAllocatableMemory: %v", err)
+	}
+	want := int64(64 * 1024 * 1024 * 1024)
+	if got != want {
+		t.Fatalf("fleetAllocatableMemory = %d, want only Ready node memory %d", got, want)
+	}
+}
+
+func TestAutoscaler_MacosFleetCountExcludesUnhealthyNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("ready", fleet)
+	notReady := macosNode("not-ready", fleet)
+	notReady.Status.Conditions[0].Status = corev1.ConditionUnknown
+	pressured := macosNode("pressured", fleet)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeDiskPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, notReady, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.fleetHostCount(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("fleetHostCount: %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("fleetHostCount = %d, want 1 Ready node", got)
+	}
+}
+
+func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 5, 8192, 1, 30)
+	node := linuxNode("not-ready", 64)
+	node.Status.Conditions[0].Status = corev1.ConditionFalse
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
+	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
+
+	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	if got != 8 {
+		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
 }
 

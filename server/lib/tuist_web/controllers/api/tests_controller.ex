@@ -577,7 +577,7 @@ defmodule TuistWeb.API.TestsController do
               build_run_id: test_run.build_run_id,
               shard_plan_id: test_run.shard_plan_id,
               shard_index: Map.get(body_params, :shard_index),
-              ran_at: processing_ran_at(test_run.ran_at),
+              ran_at: XcresultProcessing.serialize_ran_at(test_run.ran_at),
               vcs_comment_params: vcs_comment_params
             })
           else
@@ -646,10 +646,6 @@ defmodule TuistWeb.API.TestsController do
         error
     end
   end
-
-  defp processing_ran_at(%NaiveDateTime{} = ran_at), do: NaiveDateTime.to_iso8601(ran_at)
-  defp processing_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
-  defp processing_ran_at(_), do: NaiveDateTime.to_iso8601(NaiveDateTime.utc_now())
 
   operation(:show,
     summary: "Get a test run by ID.",

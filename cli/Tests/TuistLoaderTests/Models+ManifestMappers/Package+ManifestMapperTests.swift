@@ -257,7 +257,9 @@ struct PackageManifestMapperTests {
             path: "Package",
             traits: ["FeatureA", "FeatureB"]
         )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
 
-        #expect(try JSONEncoder().encode(first) == JSONEncoder().encode(second))
+        #expect(try encoder.encode(first) == encoder.encode(second))
     }
 }

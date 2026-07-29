@@ -42,6 +42,7 @@ pub struct Metrics {
     artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
     artifact_egress_throughput: Family<ArtifactRouteLabels, Histogram>,
+    artifact_serving_paths: Family<ArtifactServingPathLabels, Counter>,
     segment_refreshes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -94,6 +95,9 @@ pub struct Metrics {
     bootstrap_runs: Family<BootstrapResultLabels, Counter>,
     bootstrap_duration: Histogram,
     bootstrap_applied_items: Family<BootstrapItemLabels, Counter>,
+    bootstrap_pass_buckets_divergent: Family<BootstrapPassLabels, Gauge>,
+    bootstrap_pass_buckets_reconciled: Family<BootstrapPassLabels, Gauge>,
+    bootstrap_current_bucket_manifests_walked: Family<BootstrapPassLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
@@ -111,6 +115,21 @@ pub struct Metrics {
     process_resident_anon_bytes: Gauge,
     process_resident_file_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
+    container_memory_current_bytes: Gauge,
+    container_memory_working_set_bytes: Gauge,
+    container_memory_limit_bytes: Gauge,
+    container_memory_anon_bytes: Gauge,
+    container_memory_file_bytes: Gauge,
+    container_memory_kernel_bytes: Gauge,
+    container_memory_inactive_file_bytes: Gauge,
+    container_memory_reclaimable_inactive_file_bytes: Gauge,
+    container_memory_shmem_bytes: Gauge,
+    container_memory_file_dirty_bytes: Gauge,
+    container_memory_file_writeback_bytes: Gauge,
+    container_memory_max_events: Gauge,
+    container_memory_oom_events: Gauge,
+    container_memory_oom_kill_events: Gauge,
+    container_memory_workingset_refault_file: Gauge,
     jemalloc_allocated_bytes: Gauge,
     jemalloc_resident_bytes: Gauge,
     jemalloc_retained_bytes: Gauge,
@@ -122,13 +141,33 @@ pub struct Metrics {
     memory_pressure_state: Gauge,
     memory_soft_limit_bytes: Gauge,
     memory_hard_limit_bytes: Gauge,
+    memory_transient_reserved_bytes: Gauge,
+    foreground_memory_waiters: Gauge,
+    response_stream_pool_capacity_bytes: Gauge,
+    response_stream_foreground_pool_capacity_bytes: Gauge,
+    response_stream_degraded_slots: Gauge,
+    response_stream_reserved_bytes: Family<ResponseStreamProtocolLabels, Gauge>,
+    response_stream_active: Family<ResponseStreamProtocolLabels, Gauge>,
+    response_stream_waiters: Family<ResponseStreamProtocolLabels, Gauge>,
+    response_stream_admissions: Family<ResponseStreamAdmissionLabels, Counter>,
+    response_stream_wait_duration: Family<ResponseStreamProtocolLabels, Histogram>,
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    memory_action_bytes: Family<MemoryActionLabels, Counter>,
+    snapshot_cache_bytes: Gauge,
+    snapshot_cache_capacity_bytes: Gauge,
+    snapshot_cache_namespaces: Gauge,
+    snapshot_cache_entries: Gauge,
+    snapshot_cache_nodes: Gauge,
+    snapshot_cache_served_full_bytes: Gauge,
     geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
+    membership_generation: Gauge,
+    membership_peer_changes: Family<MembershipChangeLabels, Counter>,
+    bootstrap_completions_discarded: Counter,
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
@@ -163,6 +202,7 @@ impl Metrics {
             });
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_serving_paths = Family::<ArtifactServingPathLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
@@ -238,6 +278,10 @@ impl Metrics {
         let bootstrap_runs = Family::<BootstrapResultLabels, Counter>::default();
         let bootstrap_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let bootstrap_applied_items = Family::<BootstrapItemLabels, Counter>::default();
+        let bootstrap_pass_buckets_divergent = Family::<BootstrapPassLabels, Gauge>::default();
+        let bootstrap_pass_buckets_reconciled = Family::<BootstrapPassLabels, Gauge>::default();
+        let bootstrap_current_bucket_manifests_walked =
+            Family::<BootstrapPassLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -266,6 +310,21 @@ impl Metrics {
         let process_resident_anon_bytes = Gauge::default();
         let process_resident_file_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
+        let container_memory_current_bytes = Gauge::default();
+        let container_memory_working_set_bytes = Gauge::default();
+        let container_memory_limit_bytes = Gauge::default();
+        let container_memory_anon_bytes = Gauge::default();
+        let container_memory_file_bytes = Gauge::default();
+        let container_memory_kernel_bytes = Gauge::default();
+        let container_memory_inactive_file_bytes = Gauge::default();
+        let container_memory_reclaimable_inactive_file_bytes = Gauge::default();
+        let container_memory_shmem_bytes = Gauge::default();
+        let container_memory_file_dirty_bytes = Gauge::default();
+        let container_memory_file_writeback_bytes = Gauge::default();
+        let container_memory_max_events = Gauge::default();
+        let container_memory_oom_events = Gauge::default();
+        let container_memory_oom_kill_events = Gauge::default();
+        let container_memory_workingset_refault_file = Gauge::default();
         let jemalloc_allocated_bytes = Gauge::default();
         let jemalloc_resident_bytes = Gauge::default();
         let jemalloc_retained_bytes = Gauge::default();
@@ -277,14 +336,39 @@ impl Metrics {
         let memory_pressure_state = Gauge::default();
         let memory_soft_limit_bytes = Gauge::default();
         let memory_hard_limit_bytes = Gauge::default();
+        let memory_transient_reserved_bytes = Gauge::default();
+        let foreground_memory_waiters = Gauge::default();
+        let response_stream_pool_capacity_bytes = Gauge::default();
+        let response_stream_foreground_pool_capacity_bytes = Gauge::default();
+        let response_stream_degraded_slots = Gauge::default();
+        let response_stream_reserved_bytes =
+            Family::<ResponseStreamProtocolLabels, Gauge>::default();
+        let response_stream_active = Family::<ResponseStreamProtocolLabels, Gauge>::default();
+        let response_stream_waiters = Family::<ResponseStreamProtocolLabels, Gauge>::default();
+        let response_stream_admissions =
+            Family::<ResponseStreamAdmissionLabels, Counter>::default();
+        let response_stream_wait_duration =
+            Family::<ResponseStreamProtocolLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 14))
+            });
         let memory_pressure_transitions =
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let memory_action_bytes = Family::<MemoryActionLabels, Counter>::default();
+        let snapshot_cache_bytes = Gauge::default();
+        let snapshot_cache_capacity_bytes = Gauge::default();
+        let snapshot_cache_namespaces = Gauge::default();
+        let snapshot_cache_entries = Gauge::default();
+        let snapshot_cache_nodes = Gauge::default();
+        let snapshot_cache_served_full_bytes = Gauge::default();
         let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
+        let membership_generation = Gauge::default();
+        let membership_peer_changes = Family::<MembershipChangeLabels, Counter>::default();
+        let bootstrap_completions_discarded = Counter::default();
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
@@ -368,6 +452,11 @@ impl Metrics {
             "kura_artifact_egress_throughput_bytes_per_second",
             "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding",
             artifact_egress_throughput.clone(),
+        );
+        registry.register(
+            "kura_artifact_serving_paths_total",
+            "Artifact responses selected by serving implementation",
+            artifact_serving_paths.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
@@ -595,6 +684,21 @@ impl Metrics {
             bootstrap_inflight_peers.clone(),
         );
         registry.register(
+            "kura_bootstrap_pass_buckets_divergent",
+            "Divergent manifest buckets identified for the peer's current bootstrap pass",
+            bootstrap_pass_buckets_divergent.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_pass_buckets_reconciled",
+            "Divergent manifest buckets reconciled so far in the peer's current bootstrap pass",
+            bootstrap_pass_buckets_reconciled.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_current_bucket_manifests_walked",
+            "Manifest entries walked in the bucket currently being reconciled for the peer",
+            bootstrap_current_bucket_manifests_walked.clone(),
+        );
+        registry.register(
             "kura_bootstrap_runs_total",
             "Bootstrap runs from newly discovered peers by result",
             bootstrap_runs.clone(),
@@ -695,6 +799,81 @@ impl Metrics {
             process_virtual_memory_bytes.clone(),
         );
         registry.register(
+            "kura_container_memory_current_bytes",
+            "Total memory currently charged to the container control group",
+            container_memory_current_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_working_set_bytes",
+            "Estimated container control group memory charge excluding reclaimable inactive file-backed pages",
+            container_memory_working_set_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_limit_bytes",
+            "Memory limit enforced by the container control group",
+            container_memory_limit_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_anon_bytes",
+            "Anonymous memory charged to the container control group",
+            container_memory_anon_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_file_bytes",
+            "File-backed memory charged to the container control group",
+            container_memory_file_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_kernel_bytes",
+            "Kernel memory charged to the container control group",
+            container_memory_kernel_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_inactive_file_bytes",
+            "Inactive file-backed memory charged to the container control group",
+            container_memory_inactive_file_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_reclaimable_inactive_file_bytes",
+            "Inactive file-backed memory treated as safely reclaimable by pressure accounting",
+            container_memory_reclaimable_inactive_file_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_shmem_bytes",
+            "Shared memory charged to the container control group",
+            container_memory_shmem_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_file_dirty_bytes",
+            "Dirty file-backed memory charged to the container control group",
+            container_memory_file_dirty_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_file_writeback_bytes",
+            "File-backed memory under writeback in the container control group",
+            container_memory_file_writeback_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_max_events",
+            "Allocation attempts that reached the container control group memory limit",
+            container_memory_max_events.clone(),
+        );
+        registry.register(
+            "kura_container_memory_oom_events",
+            "Out-of-memory events reported by the container control group",
+            container_memory_oom_events.clone(),
+        );
+        registry.register(
+            "kura_container_memory_oom_kill_events",
+            "Out-of-memory kills reported by the container control group",
+            container_memory_oom_kill_events.clone(),
+        );
+        registry.register(
+            "kura_container_memory_workingset_refault_file",
+            "File-backed working-set refaults reported by the container control group",
+            container_memory_workingset_refault_file.clone(),
+        );
+        registry.register(
             "kura_jemalloc_allocated_bytes",
             "Bytes allocated by the application, as reported by jemalloc stats.allocated",
             jemalloc_allocated_bytes.clone(),
@@ -750,6 +929,56 @@ impl Metrics {
             memory_hard_limit_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_reserved_bytes",
+            "Predicted transient bytes reserved by admitted concurrent work",
+            memory_transient_reserved_bytes.clone(),
+        );
+        registry.register(
+            "kura_foreground_memory_waiters",
+            "Foreground requests currently waiting for memory admission",
+            foreground_memory_waiters.clone(),
+        );
+        registry.register(
+            "kura_response_stream_pool_capacity_bytes",
+            "Configured process-wide byte capacity shared by HTTP and ByteStream response streams",
+            response_stream_pool_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_response_stream_foreground_pool_capacity_bytes",
+            "Share of the response-stream pool a public HTTP or ByteStream response can hold, after the bootstrap reservation",
+            response_stream_foreground_pool_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_response_stream_degraded_slots",
+            "Concurrent degraded response streams allowed, counted at Hyper's per-stream send buffer",
+            response_stream_degraded_slots.clone(),
+        );
+        registry.register(
+            "kura_response_stream_reserved_bytes",
+            "Response-stream bytes currently reserved by protocol",
+            response_stream_reserved_bytes.clone(),
+        );
+        registry.register(
+            "kura_response_stream_active",
+            "Active admitted response streams by protocol",
+            response_stream_active.clone(),
+        );
+        registry.register(
+            "kura_response_stream_waiters",
+            "Response streams waiting for shared byte and memory admission by protocol",
+            response_stream_waiters.clone(),
+        );
+        registry.register(
+            "kura_response_stream_admissions_total",
+            "Response stream admission outcomes by protocol",
+            response_stream_admissions.clone(),
+        );
+        registry.register(
+            "kura_response_stream_wait_duration_seconds",
+            "Time spent acquiring response stream admission by protocol",
+            response_stream_wait_duration.clone(),
+        );
+        registry.register(
             "kura_memory_pressure_transitions_total",
             "Memory pressure state transitions",
             memory_pressure_transitions.clone(),
@@ -763,6 +992,41 @@ impl Metrics {
             "kura_memory_actions_total",
             "Memory pressure actions taken by the node",
             memory_actions.clone(),
+        );
+        registry.register(
+            "kura_memory_action_bytes_total",
+            "Bytes covered by memory pressure actions taken by the node",
+            memory_action_bytes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_bytes",
+            "Estimated bytes retained by action-cache snapshot indexes and encoded full views",
+            snapshot_cache_bytes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_capacity_bytes",
+            "Configured action-cache snapshot retained-byte capacity",
+            snapshot_cache_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_namespaces",
+            "Namespaces currently retained in the action-cache snapshot cache",
+            snapshot_cache_namespaces.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_entries",
+            "Action-cache entries currently retained across snapshot indexes",
+            snapshot_cache_entries.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_nodes",
+            "Output nodes currently retained across snapshot indexes",
+            snapshot_cache_nodes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_served_full_bytes",
+            "Encoded full-snapshot bytes retained for serves during reconciliation",
+            snapshot_cache_served_full_bytes.clone(),
         );
         registry.register(
             "kura_geoip_refresh_total",
@@ -783,6 +1047,21 @@ impl Metrics {
             "kura_drain_state",
             "Current drain state for this node: 1=draining, 0=not draining",
             drain_state.clone(),
+        );
+        registry.register(
+            "kura_membership_generation",
+            "Membership view generation; increments on every peer topology change",
+            membership_generation.clone(),
+        );
+        registry.register(
+            "kura_membership_peer_changes_total",
+            "Peers that entered (change=discovered) or left (change=lost) the membership view",
+            membership_peer_changes.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_completions_discarded_total",
+            "Completed bootstrap passes that did not count toward the readiness gate",
+            bootstrap_completions_discarded.clone(),
         );
         registry.register(
             "kura_initial_discovery_completed",
@@ -839,6 +1118,7 @@ impl Metrics {
             artifact_egress_bytes,
             artifact_egress_duration,
             artifact_egress_throughput,
+            artifact_serving_paths,
             segment_refreshes,
             segment_refresh_bytes,
             segment_refresh_duration,
@@ -887,6 +1167,9 @@ impl Metrics {
             bootstrap_runs,
             bootstrap_duration,
             bootstrap_applied_items,
+            bootstrap_pass_buckets_divergent,
+            bootstrap_pass_buckets_reconciled,
+            bootstrap_current_bucket_manifests_walked,
             analytics_events,
             analytics_batches,
             analytics_batch_duration,
@@ -904,6 +1187,21 @@ impl Metrics {
             process_resident_anon_bytes,
             process_resident_file_bytes,
             process_virtual_memory_bytes,
+            container_memory_current_bytes,
+            container_memory_working_set_bytes,
+            container_memory_limit_bytes,
+            container_memory_anon_bytes,
+            container_memory_file_bytes,
+            container_memory_kernel_bytes,
+            container_memory_inactive_file_bytes,
+            container_memory_reclaimable_inactive_file_bytes,
+            container_memory_shmem_bytes,
+            container_memory_file_dirty_bytes,
+            container_memory_file_writeback_bytes,
+            container_memory_max_events,
+            container_memory_oom_events,
+            container_memory_oom_kill_events,
+            container_memory_workingset_refault_file,
             jemalloc_allocated_bytes,
             jemalloc_resident_bytes,
             jemalloc_retained_bytes,
@@ -915,13 +1213,33 @@ impl Metrics {
             memory_pressure_state,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_transient_reserved_bytes,
+            foreground_memory_waiters,
+            response_stream_pool_capacity_bytes,
+            response_stream_foreground_pool_capacity_bytes,
+            response_stream_degraded_slots,
+            response_stream_reserved_bytes,
+            response_stream_active,
+            response_stream_waiters,
+            response_stream_admissions,
+            response_stream_wait_duration,
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            memory_action_bytes,
+            snapshot_cache_bytes,
+            snapshot_cache_capacity_bytes,
+            snapshot_cache_namespaces,
+            snapshot_cache_entries,
+            snapshot_cache_nodes,
+            snapshot_cache_served_full_bytes,
             geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
+            membership_generation,
+            membership_peer_changes,
+            bootstrap_completions_discarded,
             initial_discovery_completed,
             writer_lock_owned,
             writer_lock_acquire_failures,
@@ -1000,6 +1318,14 @@ impl Metrics {
                 .get_or_create(&labels)
                 .inc_by(bytes);
         }
+    }
+
+    pub fn record_artifact_serving_path(&self, path: &str) {
+        self.artifact_serving_paths
+            .get_or_create(&ArtifactServingPathLabels {
+                path: path.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
@@ -1344,6 +1670,48 @@ impl Metrics {
         self.bootstrap_inflight_peers.set(inflight as i64);
     }
 
+    pub fn set_bootstrap_pass_buckets_divergent(&self, peer: &str, mode: &str, divergent: usize) {
+        self.bootstrap_pass_buckets_divergent
+            .get_or_create(&BootstrapPassLabels {
+                peer: peer.to_owned(),
+                mode: mode.to_owned(),
+            })
+            .set(divergent as i64);
+    }
+
+    pub fn set_bootstrap_pass_buckets_reconciled(&self, peer: &str, mode: &str, reconciled: usize) {
+        self.bootstrap_pass_buckets_reconciled
+            .get_or_create(&BootstrapPassLabels {
+                peer: peer.to_owned(),
+                mode: mode.to_owned(),
+            })
+            .set(reconciled as i64);
+    }
+
+    pub fn set_bootstrap_current_bucket_manifests_walked(
+        &self,
+        peer: &str,
+        mode: &str,
+        walked: usize,
+    ) {
+        self.bootstrap_current_bucket_manifests_walked
+            .get_or_create(&BootstrapPassLabels {
+                peer: peer.to_owned(),
+                mode: mode.to_owned(),
+            })
+            .set(walked as i64);
+    }
+
+    // Zero the pass-progress gauges for a peer when its pass ends, so a
+    // finished or abandoned pass is not left frozen at its last mid-pass value
+    // (which would read as a live wedge). Makes "divergent > 0" imply an
+    // in-flight pass for that peer.
+    pub fn clear_bootstrap_pass_progress(&self, peer: &str, mode: &str) {
+        self.set_bootstrap_pass_buckets_divergent(peer, mode, 0);
+        self.set_bootstrap_pass_buckets_reconciled(peer, mode, 0);
+        self.set_bootstrap_current_bucket_manifests_walked(peer, mode, 0);
+    }
+
     pub fn record_bootstrap_run(
         &self,
         result: &str,
@@ -1490,6 +1858,151 @@ impl Metrics {
         self.process_resident_file_bytes.set(file_bytes as i64);
     }
 
+    pub fn update_container_memory(
+        &self,
+        snapshot: crate::memory::ContainerMemorySnapshot,
+        fallback_limit_bytes: u64,
+    ) {
+        self.container_memory_current_bytes
+            .set(snapshot.current_bytes as i64);
+        self.container_memory_working_set_bytes
+            .set(snapshot.working_set_bytes() as i64);
+        self.container_memory_reclaimable_inactive_file_bytes
+            .set(snapshot.reclaimable_inactive_file_bytes() as i64);
+        self.container_memory_limit_bytes
+            .set(snapshot.limit_bytes.unwrap_or(fallback_limit_bytes) as i64);
+        if let Some(value) = snapshot.anon_bytes {
+            self.container_memory_anon_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.file_bytes {
+            self.container_memory_file_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.kernel_bytes {
+            self.container_memory_kernel_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.inactive_file_bytes {
+            self.container_memory_inactive_file_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.shmem_bytes {
+            self.container_memory_shmem_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.file_dirty_bytes {
+            self.container_memory_file_dirty_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.file_writeback_bytes {
+            self.container_memory_file_writeback_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.max_events {
+            self.container_memory_max_events.set(value as i64);
+        }
+        if let Some(value) = snapshot.oom_events {
+            self.container_memory_oom_events.set(value as i64);
+        }
+        if let Some(value) = snapshot.oom_kill_events {
+            self.container_memory_oom_kill_events.set(value as i64);
+        }
+        if let Some(value) = snapshot.workingset_refault_file {
+            self.container_memory_workingset_refault_file
+                .set(value as i64);
+        }
+    }
+
+    pub fn update_transient_memory_reserved(&self, reserved_bytes: u64) {
+        self.memory_transient_reserved_bytes
+            .set(reserved_bytes as i64);
+    }
+
+    pub fn update_foreground_memory_waiters(&self, waiters: u64) {
+        self.foreground_memory_waiters.set(waiters as i64);
+    }
+
+    pub fn update_response_stream_pool_capacity(
+        &self,
+        bytes: usize,
+        foreground_bytes: usize,
+        degraded_slots: usize,
+    ) {
+        self.response_stream_pool_capacity_bytes.set(bytes as i64);
+        self.response_stream_foreground_pool_capacity_bytes
+            .set(foreground_bytes as i64);
+        self.response_stream_degraded_slots
+            .set(degraded_slots as i64);
+    }
+
+    pub fn add_response_stream_reservation(&self, protocol: &str, bytes: u64) {
+        let labels = ResponseStreamProtocolLabels {
+            protocol: protocol.to_owned(),
+        };
+        self.response_stream_reserved_bytes
+            .get_or_create(&labels)
+            .inc_by(bytes as i64);
+        self.response_stream_active.get_or_create(&labels).inc();
+    }
+
+    pub fn remove_response_stream_reservation(&self, protocol: &str, bytes: u64) {
+        let labels = ResponseStreamProtocolLabels {
+            protocol: protocol.to_owned(),
+        };
+        self.response_stream_reserved_bytes
+            .get_or_create(&labels)
+            .dec_by(bytes as i64);
+        self.response_stream_active.get_or_create(&labels).dec();
+    }
+
+    pub fn add_response_stream_waiter(&self, protocol: &str) {
+        self.response_stream_waiters
+            .get_or_create(&ResponseStreamProtocolLabels {
+                protocol: protocol.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn remove_response_stream_waiter(&self, protocol: &str) {
+        self.response_stream_waiters
+            .get_or_create(&ResponseStreamProtocolLabels {
+                protocol: protocol.to_owned(),
+            })
+            .dec();
+    }
+
+    pub fn record_response_stream_admission(
+        &self,
+        protocol: &str,
+        outcome: &str,
+        duration: Duration,
+    ) {
+        self.response_stream_admissions
+            .get_or_create(&ResponseStreamAdmissionLabels {
+                protocol: protocol.to_owned(),
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+        self.response_stream_wait_duration
+            .get_or_create(&ResponseStreamProtocolLabels {
+                protocol: protocol.to_owned(),
+            })
+            .observe(duration.as_secs_f64());
+    }
+
+    pub fn update_snapshot_cache(
+        &self,
+        bytes: usize,
+        capacity_bytes: usize,
+        namespaces: usize,
+        entries: usize,
+        nodes: usize,
+        served_full_bytes: usize,
+    ) {
+        self.snapshot_cache_bytes.set(bytes as i64);
+        self.snapshot_cache_capacity_bytes
+            .set(capacity_bytes as i64);
+        self.snapshot_cache_namespaces.set(namespaces as i64);
+        self.snapshot_cache_entries.set(entries as i64);
+        self.snapshot_cache_nodes.set(nodes as i64);
+        self.snapshot_cache_served_full_bytes
+            .set(served_full_bytes as i64);
+    }
+
     pub fn update_jemalloc_stats(
         &self,
         allocated_bytes: u64,
@@ -1555,6 +2068,14 @@ impl Metrics {
             .inc();
     }
 
+    pub fn record_memory_action_bytes(&self, action: &str, bytes: u64) {
+        self.memory_action_bytes
+            .get_or_create(&MemoryActionLabels {
+                action: action.to_owned(),
+            })
+            .inc_by(bytes);
+    }
+
     pub fn record_geoip_refresh(&self, result: &str) {
         self.geoip_refresh
             .get_or_create(&GeoIpRefreshLabels {
@@ -1578,6 +2099,26 @@ impl Metrics {
             .set(if initial_discovery_completed { 1 } else { 0 });
         self.writer_lock_owned
             .set(if writer_lock_owned { 1 } else { 0 });
+    }
+
+    pub fn update_membership_generation(&self, generation: u64) {
+        self.membership_generation
+            .set(i64::try_from(generation).unwrap_or(i64::MAX));
+    }
+
+    pub fn record_membership_peer_changes(&self, change: &str, count: usize) {
+        if count == 0 {
+            return;
+        }
+        self.membership_peer_changes
+            .get_or_create(&MembershipChangeLabels {
+                change: change.to_owned(),
+            })
+            .inc_by(count as u64);
+    }
+
+    pub fn record_bootstrap_completion_discarded(&self) {
+        self.bootstrap_completions_discarded.inc();
     }
 
     pub fn record_writer_lock_acquire_failure(&self) {
@@ -1651,6 +2192,11 @@ struct PublicRequestLatencyLabels {
 struct ArtifactOpLabels {
     producer: String,
     result: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ArtifactServingPathLabels {
+    path: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1795,6 +2341,15 @@ struct BootstrapItemLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BootstrapPassLabels {
+    peer: String,
+    // "digest" for the per-bucket anti-entropy path, "full_walk" for the
+    // digest-less fallback — the fallback walks the whole keyspace as one
+    // range, which otherwise renders like a single wedged digest bucket.
+    mode: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct AnalyticsLabels {
     pipeline: String,
     result: String,
@@ -1829,8 +2384,24 @@ struct MemoryActionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ResponseStreamProtocolLabels {
+    protocol: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ResponseStreamAdmissionLabels {
+    protocol: String,
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct GeoIpRefreshLabels {
     result: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct MembershipChangeLabels {
+    change: String,
 }
 
 #[cfg(test)]
@@ -1869,6 +2440,7 @@ mod tests {
             10,
             Duration::from_millis(30),
         );
+        metrics.record_artifact_serving_path("mmap");
         metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
@@ -1909,6 +2481,9 @@ mod tests {
         metrics.update_multipart_uploads(2);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_bootstrap_peers(3, 2, 1);
+        metrics.set_bootstrap_pass_buckets_divergent("https://peer.example", "digest", 12);
+        metrics.set_bootstrap_pass_buckets_reconciled("https://peer.example", "digest", 3);
+        metrics.set_bootstrap_current_bucket_manifests_walked("https://peer.example", "digest", 40);
         metrics.record_bootstrap_run("ok", Duration::from_millis(6), 2, 5);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
@@ -1918,14 +2493,43 @@ mod tests {
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
+        metrics.update_container_memory(
+            crate::memory::ContainerMemorySnapshot {
+                current_bytes: 1_500,
+                limit_bytes: Some(4_096),
+                anon_bytes: Some(700),
+                file_bytes: Some(600),
+                kernel_bytes: Some(200),
+                inactive_file_bytes: Some(100),
+                shmem_bytes: Some(50),
+                file_dirty_bytes: Some(20),
+                file_writeback_bytes: Some(10),
+                max_events: Some(4),
+                oom_events: Some(1),
+                oom_kill_events: Some(0),
+                workingset_refault_file: Some(8),
+            },
+            8_192,
+        );
+        metrics.update_transient_memory_reserved(512);
         metrics.update_jemalloc_stats(700, 900, 200);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
         metrics.update_memory_pressure_state(1);
+        metrics.update_response_stream_pool_capacity(16 * 1024 * 1024, 10 * 1024 * 1024, 32);
+        metrics.add_response_stream_reservation("http", 1024 * 1024);
+        metrics.add_response_stream_waiter("bytestream");
+        metrics.record_response_stream_admission("http", "immediate", Duration::from_millis(1));
         metrics.record_memory_pressure_transition("normal", "constrained");
         metrics.update_background_work_paused("outbox", true);
         metrics.record_memory_action("manifest_cache_trim");
+        metrics.record_memory_action_bytes("manifest_cache_trim", 512);
+        metrics.update_snapshot_cache(1_024, 2_048, 1, 2, 3, 256);
         metrics.update_runtime_state(1, true, false, true, true);
+        metrics.update_membership_generation(7);
+        metrics.record_membership_peer_changes("lost", 1);
+        metrics.record_membership_peer_changes("discovered", 2);
+        metrics.record_bootstrap_completion_discarded();
         metrics.record_writer_lock_acquire_failure();
         metrics.record_node_geo(&NodeLocation {
             country: Some("US".into()),
@@ -1968,6 +2572,7 @@ mod tests {
         assert!(rendered.contains("kura_artifact_egress_bytes_total"));
         assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
         assert!(rendered.contains("kura_artifact_egress_throughput_bytes_per_second"));
+        assert!(rendered.contains("kura_artifact_serving_paths_total"));
         assert!(rendered.contains("kura_public_request_latency_seconds"));
         assert!(rendered.contains("transport=\"http\""));
         assert!(rendered.contains("kura_segment_refreshes_total"));
@@ -2007,6 +2612,9 @@ mod tests {
         assert!(rendered.contains("kura_bootstrap_known_peers"));
         assert!(rendered.contains("kura_bootstrap_completed_peers"));
         assert!(rendered.contains("kura_bootstrap_inflight_peers"));
+        assert!(rendered.contains("kura_bootstrap_pass_buckets_divergent"));
+        assert!(rendered.contains("kura_bootstrap_pass_buckets_reconciled"));
+        assert!(rendered.contains("kura_bootstrap_current_bucket_manifests_walked"));
         assert!(rendered.contains("kura_bootstrap_runs_total"));
         assert!(rendered.contains("kura_bootstrap_duration_seconds"));
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
@@ -2025,6 +2633,16 @@ mod tests {
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));
         assert!(rendered.contains("kura_process_resident_file_bytes"));
+        assert!(rendered.contains("kura_container_memory_current_bytes"));
+        assert!(rendered.contains("kura_container_memory_working_set_bytes"));
+        assert!(rendered.contains("kura_container_memory_reclaimable_inactive_file_bytes"));
+        assert!(rendered.contains("kura_container_memory_file_bytes"));
+        assert!(rendered.contains("kura_container_memory_shmem_bytes"));
+        assert!(rendered.contains("kura_container_memory_file_dirty_bytes"));
+        assert!(rendered.contains("kura_container_memory_file_writeback_bytes"));
+        assert!(rendered.contains("kura_container_memory_max_events"));
+        assert!(rendered.contains("kura_container_memory_oom_kill_events"));
+        assert!(rendered.contains("kura_container_memory_workingset_refault_file"));
         assert!(rendered.contains("kura_jemalloc_allocated_bytes"));
         assert!(rendered.contains("kura_jemalloc_resident_bytes"));
         assert!(rendered.contains("kura_jemalloc_retained_bytes"));
@@ -2035,10 +2653,28 @@ mod tests {
         assert!(rendered.contains("kura_rocksdb_write_buffer_capacity_bytes"));
         assert!(rendered.contains("kura_memory_pressure_state"));
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
+        assert!(rendered.contains("kura_memory_transient_reserved_bytes"));
+        assert!(rendered.contains("kura_foreground_memory_waiters"));
+        assert!(rendered.contains("kura_response_stream_pool_capacity_bytes"));
+        assert!(rendered.contains("kura_response_stream_foreground_pool_capacity_bytes"));
+        assert!(rendered.contains("kura_response_stream_degraded_slots"));
+        assert!(rendered.contains("kura_response_stream_reserved_bytes"));
+        assert!(rendered.contains("kura_response_stream_active"));
+        assert!(rendered.contains("kura_response_stream_waiters"));
+        assert!(rendered.contains("kura_response_stream_admissions_total"));
+        assert!(rendered.contains("kura_response_stream_wait_duration_seconds"));
         assert!(rendered.contains("kura_background_work_paused"));
         assert!(rendered.contains("kura_memory_actions_total"));
+        assert!(rendered.contains("kura_memory_action_bytes_total"));
+        assert!(rendered.contains("kura_snapshot_cache_bytes"));
+        assert!(rendered.contains("kura_snapshot_cache_served_full_bytes"));
         assert!(rendered.contains("kura_traffic_state"));
         assert!(rendered.contains("kura_ready_state"));
+        assert!(rendered.contains("kura_membership_generation"));
+        assert!(rendered.contains("kura_membership_peer_changes_total"));
+        assert!(rendered.contains("change=\"lost\"} 1"));
+        assert!(rendered.contains("change=\"discovered\"} 2"));
+        assert!(rendered.contains("kura_bootstrap_completions_discarded_total"));
         assert!(rendered.contains("kura_drain_state"));
         assert!(rendered.contains("kura_initial_discovery_completed"));
         assert!(rendered.contains("kura_writer_lock_owned"));

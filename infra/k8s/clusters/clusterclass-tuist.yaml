@@ -14,9 +14,17 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: HCloudMachineTemplate
         name: tuist-hcloud-hcloud-machinetemplate
+    deletion:
+      # The default ten-second timeout can expire during a brief control-plane
+      # interruption and leave a Node behind after its Machine is deleted.
+      # Zero keeps retrying until the workload control plane accepts deletion.
+      nodeDeletionTimeoutSeconds: 0
     healthCheck:
       checks:
-        nodeStartupTimeoutSeconds: 900
+        # New members currently reach the infrastructure-ready state but do
+        # not register a Node. Do not delete and recreate them indefinitely
+        # until that bootstrap defect has been diagnosed from the host.
+        nodeStartupTimeoutSeconds: 0
         unhealthyNodeConditions:
           - type: Ready
             status: Unknown
@@ -26,7 +34,10 @@ spec:
             timeoutSeconds: 300
       remediation:
         triggerIf:
-          unhealthyLessThanOrEqualTo: 33%
+          # Allow only one registered unhealthy member to be replaced at a
+          # time. An absolute limit does not change as the control plane
+          # moves between two and three Machines.
+          unhealthyLessThanOrEqualTo: 1
   infrastructure:
     templateRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -249,6 +260,14 @@ spec:
         openAPIV3Schema:
           type: string
           default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Rollout switch for a kubeadm control-plane join failure observed with
+    # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
+    # each environment can validate the compatibility fallback separately.
+    - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -430,6 +449,25 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
               valueFrom:
                 template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
+    # kubeadm's local-mode join points the bootstrap kubelet at the new node's
+    # control-plane endpoint before that endpoint exists. On the affected
+    # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
+    # the local etcd learner never starts and kubeadm aborts the join. This
+    # opt-in patch restores the established load-balancer bootstrap path per
+    # environment.
+    - name: DisableControlPlaneKubeletLocalMode
+      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
+              valueFrom:
+                template: '{"ControlPlaneKubeletLocalMode": false}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -529,11 +567,11 @@ spec:
           # gets cleared. Critical fields below are required for kubelet
           # to talk to containerd (containerRuntimeEndpoint), watch
           # static pods (staticPodPath), and resolve in-cluster DNS
-          # (clusterDNS / clusterDomain). resolvConf is intentionally
-          # unset so kubelet falls back to the host's /etc/resolv.conf,
-          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
-          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
-          # away.
+          # (clusterDNS / clusterDomain). resolvConf must point at the
+          # systemd-resolved upstream file. /etc/resolv.conf points at
+          # the host-local 127.0.0.53 stub, which is unreachable from a
+          # pod network namespace and makes CoreDNS detect a forwarding
+          # loop when it is scheduled on that node.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -724,8 +762,10 @@ spec:
           owner: root:root
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
-        # See KCP files block above for why these fields are mandatory
-        # and why resolvConf is intentionally unset.
+        # See the control-plane files block above for why these fields
+        # are mandatory. CoreDNS receives explicit upstream resolvers
+        # from the workload bootstrap so it does not depend on this
+        # worker's host-local systemd-resolved stub.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration

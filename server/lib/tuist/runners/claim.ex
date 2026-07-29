@@ -33,6 +33,11 @@ defmodule Tuist.Runners.Claim do
     # from `workflow_job_id` (the claim-time guess) or stay NULL for
     # a runner GitHub never assigned work to.
     field :executed_workflow_job_id, :integer
+    # First tick the reconciler saw this claim's Pod missing from a
+    # complete cluster read. NULL means last observed present. Release
+    # requires the absence to persist, so one bad read cannot free a
+    # live runner's slot.
+    field :pod_missing_since, :utc_datetime_usec
 
     belongs_to :account, Account
   end

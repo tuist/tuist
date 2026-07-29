@@ -271,12 +271,14 @@ server:
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    # Sync the Tuist license key from the external store. Independent of
-    # managedSecrets — preview environments use this without the encrypted
-    # priv/secrets blob. Leave `item` empty to skip license sync.
+    # Sync either the online Tuist license key or the air-gapped license
+    # certificate from the external store. These sources are mutually
+    # exclusive. Leave both item names empty to skip license sync.
     license:
       item: ""
       field: password
+      certificateItem: ""
+      certificateField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -1248,6 +1250,11 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
+    # Xcode compilation cache (CAS) budget (GiB) folded into each per-account
+    # cache image: the CAS gets this share of masterCapGib, the binary cache
+    # the rest minus a reserve. 0 (default) leaves the compilation cache
+    # VM-local (dies with the VM); the binary cache is unaffected.
+    casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
@@ -1642,6 +1649,15 @@ runnersFleetLinux:
   # split shape the watchdog runs in the credential-free `run-job.sh`
   # runner container. 0 disables it.
   idleTimeoutSeconds: 300
+  # Linux Kata sandbox admission is shared across every pool using this
+  # fleet selector. Keeping only four sandboxes in the pre-poller start
+  # phase prevents a queue spike from asking both bare-metal kubelets to
+  # boot dozens of virtual machines at once. Per-pool / per-shape values
+  # override these defaults; the controller enforces the lowest sibling maximum.
+  provisioning:
+    maxConcurrentPerFleetSelector: 4
+    # Starts after the scheduler binds the Pod to a node. 0 disables.
+    startTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -1679,6 +1695,9 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   provisioning:
+    #     maxConcurrentPerFleetSelector: 4
+    #     startTimeoutSeconds: 300
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3
@@ -1833,6 +1852,17 @@ buildersFleet:
 # in an environment that asked for microVM isolation).
 kataContainers:
   enabled: false
+  # Fixed sandbox memory cost added to every Kata runner Pod by the
+  # RuntimeClass. Kata 3.30 starts each sandbox with 2 GiB of base
+  # guest memory before adding the container's requested memory.
+  # The remaining 512 MiB covers Quick Emulator
+  # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # Keep this aligned with measured guest memory and host resident
+  # usage; the runners-controller reads the live RuntimeClass so its
+  # fleet allocator uses the same cost as the scheduler.
+  podFixed:
+    cpu: "250m"
+    memory: "2560Mi"
 
 runnersController:
   replicaCount: 1

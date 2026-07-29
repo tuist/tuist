@@ -10,9 +10,12 @@ defmodule TuistWeb.OperatorGrant do
     * `verify/1` — verifies that token OFFLINE with the configured
       Ed25519 public key (no runtime call to ops). EdDSA-strict, with
       `exp`, max-TTL ceiling, and `iss`/`aud` pinning.
+    * `prune_operator_grants/2` — removes expired grants and fields that
+      are not needed for authorization before the session cookie is written.
     * `accept_operator_grant/2` — a plug in `:browser_app` that takes
       the `?operator_grant=` token on the redirect-back, verifies it,
-      pins the resolved `account_id` into the claims, stores them in
+      pins the resolved `account_id` into the claims, stores the minimal
+      authorization fields in
       the session, and immediately redirects to strip the token from
       the URL (so it never lands in a rendered page, Referer, or the
       observability logs).
@@ -23,11 +26,11 @@ defmodule TuistWeb.OperatorGrant do
       non-member operator with no grant to the reason form instead of
       404ing them.
 
-  The grant claims stored on the user are a normalised, atom-keyed map
-  the authorization checks rely on:
+  The session stores only the normalised, atom-keyed fields that the
+  authorization checks and audit logging rely on:
 
       %{tier: :read | :admin, account_id: integer, account_handle: string,
-        sub: string, reason: string, jti: string, iat: integer, exp: integer}
+        sub: string, jti: string, exp: integer}
 
   Revocation is by short TTL (re-checked on every request) plus signing
   key rotation as the break-glass; there is deliberately no server→ops
@@ -46,6 +49,8 @@ defmodule TuistWeb.OperatorGrant do
 
   @issuer "ops.tuist.dev"
   @session_key "operator_grants"
+  @session_grant_keys [:tier, :account_id, :account_handle, :sub, :jti, :exp]
+  @session_payload_warning_bytes 3_000
   # Tolerance for clock drift between the ops signer and this server.
   @clock_skew_seconds 60
   # Account handles are alphanumeric + dashes (mirrors the server's name
@@ -174,6 +179,33 @@ defmodule TuistWeb.OperatorGrant do
   # --- handoff plug (runs in :browser_app) -------------------------------
 
   @doc """
+  Removes expired grants and compacts active grants before the browser
+  session is written back to the cookie.
+  """
+  def prune_operator_grants(conn, _opts) do
+    case get_session(conn, @session_key) do
+      grants when is_map(grants) ->
+        compacted_grants = compact_active_grants(grants)
+
+        cond do
+          compacted_grants == grants ->
+            conn
+
+          map_size(compacted_grants) == 0 ->
+            delete_session(conn, @session_key)
+
+          true ->
+            conn
+            |> put_session(@session_key, compacted_grants)
+            |> maybe_warn_session_payload_size()
+        end
+
+      _ ->
+        conn
+    end
+  end
+
+  @doc """
   If the request carries `?operator_grant=`, verify it, pin the
   account, store it in the session, and redirect to the same path with
   the token stripped. No-ops otherwise.
@@ -194,11 +226,12 @@ defmodule TuistWeb.OperatorGrant do
       grants =
         conn
         |> get_session(@session_key)
-        |> normalize_grants()
-        |> Map.put(grant_key(claims.account_handle), Map.put(claims, :account_id, account_id))
+        |> compact_active_grants()
+        |> Map.put(grant_key(claims.account_handle), session_grant(claims, account_id))
 
       conn
       |> put_session(@session_key, grants)
+      |> maybe_warn_session_payload_size()
       |> redirect(to: stripped_path(conn))
       |> halt()
     else
@@ -237,8 +270,43 @@ defmodule TuistWeb.OperatorGrant do
 
   defp emails_match?(_, _), do: false
 
-  defp normalize_grants(grants) when is_map(grants), do: grants
-  defp normalize_grants(_), do: %{}
+  defp compact_active_grants(grants) when is_map(grants) do
+    now = System.system_time(:second)
+
+    Enum.reduce(grants, %{}, fn
+      {handle, %{exp: exp} = grant}, compacted when is_binary(handle) and is_integer(exp) and exp > now ->
+        Map.put(compacted, grant_key(handle), Map.take(grant, @session_grant_keys))
+
+      _, compacted ->
+        compacted
+    end)
+  end
+
+  defp compact_active_grants(_), do: %{}
+
+  defp session_grant(claims, account_id) do
+    claims
+    |> Map.take(@session_grant_keys)
+    |> Map.put(:account_id, account_id)
+  end
+
+  defp maybe_warn_session_payload_size(conn) do
+    payload_size =
+      conn
+      |> get_session()
+      |> :erlang.term_to_binary()
+      |> Base.url_encode64(padding: false)
+      |> byte_size()
+
+    if payload_size >= @session_payload_warning_bytes do
+      Logger.warning("operator grant session payload is approaching the cookie size limit",
+        session_payload_bytes: payload_size,
+        warning_threshold_bytes: @session_payload_warning_bytes
+      )
+    end
+
+    conn
+  end
 
   defp stripped_path(conn) do
     query =

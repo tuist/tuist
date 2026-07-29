@@ -14,6 +14,20 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   `lifecycle_state = 'claimed'` so a long-running build is
   invisible to this worker.
 
+  ## Second pass: claims held past a recorded completion
+
+  A `running` claim IS released when its workflow_job has a
+  `runner_job_completions` row (`Claims.release_completed/1`). That is
+  proof the job is over rather than a timeout, so the objection above
+  does not apply.
+
+  This pass exists because such a claim is invisible to every other
+  recovery path: the sweep above only sees `claimed`, and
+  `OrphanedRunnersWorker` drives off ClickHouse rows still in
+  `status = 'running'` — recording the completion already moved the row
+  out of that state, so its scan never returns it. The slot would be
+  held until the account is deleted.
+
   ## Why CH first
 
   Order matters. If we DELETEd the PG row first and then crashed
@@ -76,6 +90,8 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
       )
     end
 
+    release_completed_claims(threshold)
+
     # Opportunistically prune volume-affinity rows past their retention
     # window. Cheap indexed range delete, usually 0 rows;
     # piggybacks on this periodic runner-maintenance sweep rather than
@@ -83,6 +99,39 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
     VolumeAffinities.prune()
 
     :ok
+  end
+
+  # Second pass: claims whose workflow_job already has a recorded
+  # completion. Unlike the sweep above these are usually in `running`,
+  # which the time-based pass must never touch — but here the completion
+  # row is independent proof the job is over, not a timeout guess.
+  #
+  # Nothing else reclaims them. `list_stale/1` only sees `claimed`, and
+  # `OrphanedRunnersWorker` scans ClickHouse rows still in
+  # `status = 'running'` — the completion already moved the row out of
+  # that state, so it never appears there. The slot would otherwise be
+  # held for the account's lifetime.
+  #
+  # No ClickHouse write and no GitHub call: the job is already recorded
+  # complete on both sides, so there is nothing to requeue or confirm.
+  defp release_completed_claims(threshold) do
+    case Claims.release_completed(threshold) do
+      0 ->
+        :ok
+
+      count ->
+        Logger.warning("runners: released claims held past a recorded completion",
+          count: count
+        )
+
+        :telemetry.execute(
+          Telemetry.event_name_recovery(),
+          %{count: count},
+          %{kind: "completed_claim"}
+        )
+
+        :ok
+    end
   end
 
   defp recover_one(%{workflow_job_id: id, claimed_at: handle}) do

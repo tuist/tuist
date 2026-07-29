@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import struct TSCUtility.Version
 import TuistAlert
 import TuistConfigLoader
 import TuistConstants
@@ -16,6 +17,7 @@ import TuistSupport
 enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case notAuthenticated
+    case cacheDaemonNotReady(label: String, socketPath: String, logPath: String)
     case registryNotReplaced(String, Int32)
     case registryNotLocked(String, Int32)
 
@@ -27,6 +29,9 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
         case .notAuthenticated:
             return
                 "You must be authenticated to set up the cache. Run `tuist auth login` (or set the `TUIST_TOKEN` environment variable) and run `tuist setup cache` again."
+        case let .cacheDaemonNotReady(label, socketPath, logPath):
+            return
+                "The Xcode cache daemon '\(label)' did not start listening at \(socketPath), so its launch agent was stopped. Check the daemon log at \(logPath), address the reported error, and run `tuist setup cache` again."
         case let .registryNotReplaced(path, code):
             return "Could not update the cache proxy's registry at \(path) (errno \(code))."
         case let .registryNotLocked(path, code):
@@ -85,6 +90,8 @@ struct SetupCacheCommandService {
     private let fileSystem: FileSysteming
     private let getProjectService: GetProjectServicing
     private let gitController: GitControlling
+    private let cacheSocketService: CacheSocketServicing
+    private let cacheDaemonStartupTimeout: Duration
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
@@ -94,7 +101,9 @@ struct SetupCacheCommandService {
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        cacheSocketService: CacheSocketServicing = CacheSocketService(),
+        cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
@@ -104,6 +113,8 @@ struct SetupCacheCommandService {
         self.fileSystem = fileSystem
         self.getProjectService = getProjectService
         self.gitController = gitController
+        self.cacheSocketService = cacheSocketService
+        self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
     }
 
     /// The project's default branch, which is what a trunk-scoped cache snapshot is
@@ -241,6 +252,41 @@ struct SetupCacheCommandService {
         try await body()
     }
 
+    private func ensureCacheDaemonIsListening(label: String, socketPath: AbsolutePath) async throws {
+        if await cacheSocketService.waitUntilListening(
+            at: socketPath,
+            timeout: cacheDaemonStartupTimeout
+        ) {
+            return
+        }
+
+        Logger.current.debug(
+            "The Xcode cache daemon did not start listening at \(socketPath.pathString). Restarting \(label) once."
+        )
+        do {
+            try await launchAgentService.restartLaunchAgent(label: label)
+            if await cacheSocketService.waitUntilListening(
+                at: socketPath,
+                timeout: cacheDaemonStartupTimeout
+            ) {
+                return
+            }
+        } catch {
+            Logger.current.debug("Could not restart \(label): \(error.localizedDescription)")
+        }
+
+        try? await launchAgentService.teardownLaunchAgent(
+            label: label,
+            plistFileName: "\(label).plist"
+        )
+        let logPath = Environment.current.stateDirectory.appending(component: "\(label).stderr.log")
+        throw SetupCacheCommandServiceError.cacheDaemonNotReady(
+            label: label,
+            socketPath: socketPath.pathString,
+            logPath: logPath.pathString
+        )
+    }
+
     func run(
         path: String?
     ) async throws {
@@ -321,6 +367,9 @@ struct SetupCacheCommandService {
             }
         } else if kuraEnabled {
             let proxySocketPath = Environment.current.casProxySocketPathString()
+            // Resolved before the log call: `Logger.info` takes an autoclosure,
+            // which can't await.
+            let prefixMapping = await prefixMappingInstructions()
             Logger.current.info(
                 """
                 Xcode Cache setup is almost complete!
@@ -331,7 +380,7 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
-                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)
+                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too. Without it only Swift is shared, and a machine with a cold cache recompiles the rest.
 
@@ -340,6 +389,7 @@ struct SetupCacheCommandService {
             )
         } else {
             let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
+            let prefixMapping = await prefixMappingInstructions()
             Logger.current.info(
                 """
                 Xcode Cache setup is almost complete!
@@ -348,12 +398,39 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_ENABLE_CACHING=YES
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(socketPath)
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
-                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES\(prefixMapping)
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are not directly exposed by Xcode; add them as user-defined build settings.
                 """
             )
         }
+    }
+
+    /// The prefix-mapping settings to append to the manual build-setting
+    /// instructions, or an empty string on Xcode versions that don't implement
+    /// them.
+    ///
+    /// Without these, a compilation-cache key embeds absolute paths — most
+    /// importantly DerivedData's — so the same compilation caches under a
+    /// different key on every machine and artifacts can't be reused between
+    /// developers or between local and CI. Xcode 27 (Swift 6.4) is the first
+    /// version whose build system implements the source/build directory mappings,
+    /// and Apple ships them off by default (staged adoption), so they have to be
+    /// opted into. `tuist generate` sets them automatically; this is the
+    /// equivalent for projects Tuist doesn't generate.
+    private func prefixMappingInstructions() async -> String {
+        guard let version = try? await XcodeController.current.selectedVersion(),
+              version >= Version(27, 0, 0)
+        else { return "" }
+        return """
+
+        SWIFT_ENABLE_PREFIX_MAPPING=YES
+        SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES
+
+        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once.
+        """
     }
 
     /// Installs the machine-wide CAS proxy (kura path): one launchd agent that
@@ -435,6 +512,10 @@ struct SetupCacheCommandService {
             programArguments: programArguments,
             environmentVariables: environmentVariables
         )
+        try await ensureCacheDaemonIsListening(
+            label: label,
+            socketPath: Environment.current.casProxySocketPath()
+        )
     }
 
     /// Installs the legacy per-project CAS daemon (non-kura path): one launchd
@@ -477,6 +558,10 @@ struct SetupCacheCommandService {
             plistFileName: "\(label).plist",
             programArguments: programArguments,
             environmentVariables: environmentVariables
+        )
+        try await ensureCacheDaemonIsListening(
+            label: label,
+            socketPath: Environment.current.cacheSocketPath(for: fullHandle)
         )
     }
 }

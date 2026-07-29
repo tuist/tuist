@@ -14,6 +14,8 @@ SCIM is configured from the **Authentication** tab in your organization settings
 > [!NOTE]
 > SCIM controls membership and lifecycle. It does not replace <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>. Configure SSO separately if provisioned users should also sign in through your identity provider.
 
+Provisioned users are already organization members. When they sign in with the same email address, that membership can establish trust for linking their provider identity. The <.localized_link href="/guides/integrations/authentication/sso#verify-a-login-email-domain">verified login email domain</.localized_link> and <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">enrollment policy</.localized_link> control users who have not already been provisioned or added to the organization.
+
 ## Okta {#okta}
 
 Okta uses two separate applications for Tuist:

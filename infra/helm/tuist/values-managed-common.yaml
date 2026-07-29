@@ -90,6 +90,9 @@ server:
   # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
+      # Authorization redirects combine a signed session cookie with a long
+      # Location header. Keep enough response-header headroom for both.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 
@@ -111,10 +114,13 @@ server:
       kind: ClusterSecretStore
       name: onepassword
     # Source the Tuist license from 1Password instead of the blob, so the blob
-    # can be removed. Per-env vault holds the TUIST_LICENSE_KEY item.
+    # can be removed. Environments can override this with certificateItem to
+    # use a locally verified air-gapped license.
     license:
       item: TUIST_LICENSE_KEY
       field: password
+      certificateItem: ""
+      certificateField: password
 
   # ESO-synced GitHub App + bot PATs. The PEM file attachment name
   # differs per env (production.pem / staging.pem / canary.pem) and is

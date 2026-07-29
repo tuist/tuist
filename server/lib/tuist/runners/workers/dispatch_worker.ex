@@ -29,7 +29,7 @@ defmodule Tuist.Runners.Workers.DispatchWorker do
 
   GitHub may redeliver the same webhook on its own retry budget.
   The `unique` directive collapses repeated inserts that arrive
-  within five minutes by their `X-GitHub-Delivery` GUID, so a
+  within two hours by their `X-GitHub-Delivery` identifier, so a
   duplicate is a no-op INSERT (and a `pick_queued` race in
   ClickHouse merges duplicate rows on `workflow_job_id` anyway).
   """
@@ -37,7 +37,7 @@ defmodule Tuist.Runners.Workers.DispatchWorker do
   use Oban.Worker,
     queue: :webhooks,
     max_attempts: 6,
-    unique: [period: 300, keys: [:delivery_guid]]
+    unique: [period: 2 * 60 * 60, keys: [:delivery_guid]]
 
   alias Tuist.Runners.Dispatch
 

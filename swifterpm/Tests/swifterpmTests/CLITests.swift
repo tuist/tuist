@@ -126,6 +126,27 @@ struct CLITests {
         }
     }
 
+    @Test(arguments: ["--disable-prefetching", "--enable-prefetching"])
+    func deprecatedSwiftPackageManagerOptionsAreAccepted(option: String) throws {
+        // `tuist install` forwards passthrough arguments verbatim and ahead of the
+        // action, and SwiftPM still exits 0 on these, so rejecting them would break
+        // working invocations the moment SwifterPM becomes the default resolver.
+        let cli = try CLIParser.parse(["--force-resolved-versions", option, "resolve"])
+
+        guard case .resolve = cli.command else {
+            Issue.record("expected resolve command")
+            return
+        }
+        #expect(cli.forceResolvedVersions)
+    }
+
+    @Test
+    func deprecatedSwiftPackageManagerOptionsDoNotSuppressUnknownOptions() {
+        #expect(throws: (any Error).self) {
+            try CLIParser.parse(["--disable-prefetching", "resolve", "--unknown-option"])
+        }
+    }
+
     @Test
     func publicCommandParserBuildsResolutionRequestFromResolveArguments() async throws {
         try await withTemporaryDirectory { root in

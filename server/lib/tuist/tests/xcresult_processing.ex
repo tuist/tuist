@@ -7,6 +7,8 @@ defmodule Tuist.Tests.XcresultProcessing do
   alias Tuist.Tests
   alias Tuist.Tests.Workers.ProcessXcresultWorker
 
+  require Logger
+
   def enqueue(args) do
     args
     |> ProcessXcresultWorker.new()
@@ -29,6 +31,10 @@ defmodule Tuist.Tests.XcresultProcessing do
     end
   end
 
+  def serialize_ran_at(%NaiveDateTime{} = ran_at), do: NaiveDateTime.to_iso8601(ran_at)
+  def serialize_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
+  def serialize_ran_at(_ran_at), do: NaiveDateTime.to_iso8601(NaiveDateTime.utc_now())
+
   def base_test_attrs(args) do
     %{
       id: args["test_run_id"],
@@ -49,7 +55,42 @@ defmodule Tuist.Tests.XcresultProcessing do
       build_run_id: Map.get(args, "build_run_id"),
       shard_plan_id: Map.get(args, "shard_plan_id"),
       shard_index: Map.get(args, "shard_index"),
-      ran_at: Map.get(args, "ran_at", NaiveDateTime.utc_now())
+      ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
     }
+  end
+
+  defp deserialize_ran_at(nil), do: NaiveDateTime.utc_now()
+  defp deserialize_ran_at(%NaiveDateTime{} = ran_at), do: ran_at
+
+  defp deserialize_ran_at(%DateTime{} = ran_at) do
+    ran_at |> DateTime.shift_zone!("Etc/UTC") |> DateTime.to_naive()
+  end
+
+  defp deserialize_ran_at(ran_at) when is_binary(ran_at) do
+    case DateTime.from_iso8601(ran_at) do
+      {:ok, datetime, _offset} ->
+        DateTime.to_naive(datetime)
+
+      {:error, :missing_offset} ->
+        deserialize_naive_ran_at(ran_at)
+
+      {:error, reason} ->
+        fallback_ran_at(ran_at, reason)
+    end
+  end
+
+  defp deserialize_naive_ran_at(ran_at) do
+    case NaiveDateTime.from_iso8601(ran_at) do
+      {:ok, naive_datetime} -> naive_datetime
+      {:error, reason} -> fallback_ran_at(ran_at, reason)
+    end
+  end
+
+  defp fallback_ran_at(ran_at, reason) do
+    Logger.warning(
+      "Invalid Xcode result processing ran_at #{inspect(ran_at)}; using the current time: #{inspect(reason)}"
+    )
+
+    NaiveDateTime.utc_now()
   end
 end

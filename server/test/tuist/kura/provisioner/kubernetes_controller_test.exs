@@ -79,7 +79,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end)
 
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
 
       manifest =
         KubernetesController.manifest(
@@ -101,7 +101,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
-    test "withholds the egress floor from non-enterprise accounts (burst ceiling only)" do
+    test "renders a zero egress floor for non-enterprise accounts" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -109,7 +109,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end)
 
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :air} end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
 
       manifest =
         KubernetesController.manifest(
@@ -125,10 +125,79 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       spec = manifest["spec"]
-      # No floor for the bursty default tenant ...
-      refute Map.has_key?(spec, "egressGuaranteedMbps")
-      # ... but the burst ceiling still applies.
+      # Zero keeps the effective value explicit without requesting the extended resource.
+      assert spec["egressGuaranteedMbps"] == 0
+      # The burst ceiling still applies.
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      # The self-hosting-capable account can enroll a self-hosted peer, so its
+      # pods sync the dynamic peer view and arm Kura's peer-view boot gate.
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      entitled =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      entitled_env = Map.new(entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
+
+      # An account that cannot self-host has a fully static roster, so it must
+      # not sync or arm the gate — it would otherwise block its own readiness on
+      # a peer view it can never populate.
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+
+      non_entitled =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+    end
+
+    test "does not resolve entitlements when the region has no gated manifest fields" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      reject(&Tuist.Billing.effective_plan/1)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(env, "KURA_MESH_PEERS_SYNC")
+      refute Map.has_key?(manifest["spec"], "egressGuaranteedMbps")
     end
 
     test "emits the mesh flag only when the region enables the per-account peer mesh" do
@@ -163,8 +232,112 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(unmeshed["spec"], "mesh")
     end
 
+    test "arms peer-view sync only for a self-hosting-capable account in a mesh region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      region = eu_region(%{mesh: true})
+      account = %Account{id: 1, name: "tuist"}
+      external_peers = ["https://kura.acme.example:7443"]
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      entitled =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          region,
+          %Server{},
+          "return true",
+          external_peers
+        )
+
+      entitled_env = Map.new(entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
+      assert entitled["spec"]["meshExternalPeers"] == external_peers
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+
+      non_entitled =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          region,
+          %Server{},
+          "return true",
+          external_peers
+        )
+
+      non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+      refute Map.has_key?(non_entitled["spec"], "meshExternalPeers")
+    end
+
+    test "resolves the subscription once for every entitlement-dependent manifest field" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      account = %Account{id: 1, name: "tuist"}
+
+      expect(Tuist.Billing, :effective_plan, 1, fn ^account -> :enterprise end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          eu_region(%{mesh: true, egress_guaranteed_mbps: 25}),
+          %Server{},
+          "return true",
+          ["https://kura.acme.example:7443"]
+        )
+
+      assert manifest["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
+      assert manifest["spec"]["egressGuaranteedMbps"] == 25
+
+      assert Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})[
+               "KURA_MESH_PEERS_SYNC"
+             ] == "true"
+    end
+
+    test "withholds peer-view sync outside a mesh region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(env, "KURA_MESH_PEERS_SYNC")
+    end
+
     test "emits the public peer host and external peers for a meshed region" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
@@ -174,7 +347,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
-          %{name: "tuist"},
+          %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
           %Server{},
           "return true",
@@ -252,7 +425,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      region = eu_region(%{gateway: :host_network})
+      region = eu_region(%{gateway: :host_network, mesh: true})
 
       moving_in =
         KubernetesController.manifest(
@@ -269,6 +442,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # source keeps sole ownership until the target is promoted.
       refute Map.has_key?(moving_in["spec"], "publicHost")
       refute Map.has_key?(moving_in["spec"], "grpcPublicHost")
+      assert moving_in["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
       # And it is pinned to the destination box.
       assert moving_in["spec"]["nodeSelector"]["kubernetes.io/hostname"] == "box-2"
 
@@ -285,6 +459,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # The steady-state (:none) server owns the customer host.
       assert is_binary(steady_state["spec"]["publicHost"])
       refute Map.get(steady_state["spec"]["nodeSelector"] || %{}, "kubernetes.io/hostname")
+
+      moving_out =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1-source",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{move_phase: :moving_out},
+          "return true"
+        )
+
+      assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
@@ -700,6 +886,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "manifest_revision/2" do
     test "matches the base revision when no self-hosted peers are enrolled" do
+      # A non-hosted (self-hosted Tuist) deployment grants every feature, so the
+      # account is sync-enabled and no marker is added — the base-revision case.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
       assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
@@ -751,6 +940,65 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
                KubernetesController.manifest_revision()
+    end
+
+    test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      # A non-self-hosting account can never enroll a self-hosted peer, so the
+      # only thing separating the two revisions is the sync marker.
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+
+      region = eu_region(%{mesh: true})
+      account = %Account{id: 1, name: "tuist"}
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+      non_entitled = KubernetesController.manifest_revision(account, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      entitled = KubernetesController.manifest_revision(account, region)
+
+      # The upgrade crosses a revision boundary, so the reconciler re-applies
+      # and arms the peer-view gate instead of leaving the instance ungated.
+      refute non_entitled == entitled
+      # The entitled revision stays byte-identical to the base, so instances
+      # already running with sync on are not rolled by this change.
+      assert entitled == KubernetesController.manifest_revision()
+
+      # The rendered manifest stamps the same revision the reconciler computes,
+      # so the two never disagree and loop.
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          region,
+          %Server{},
+          "return true"
+        )
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
+    end
+
+    test "does not load self-hosted peers without the entitlement" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      revision =
+        KubernetesController.manifest_revision(
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{mesh: true})
+        )
+
+      assert revision == KubernetesController.manifest_revision() <> "+nosync"
     end
   end
 

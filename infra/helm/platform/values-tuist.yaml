@@ -8,7 +8,7 @@
 # cluster-production.yaml), whose nodes self-apply the
 # `tuist.dev/stable-egress-candidate=server` label at kubelet registration. The
 # failover controller keeps the Floating IP + the active gateway label on one
-# Ready candidate and fails over on node loss — so a node replacement
+# prepared, directly healthy candidate and fails over on node loss, so a node replacement
 # self-heals in seconds, instead of the manual failover that caused the
 # 2026-06-14 outage.
 ciliumEgressGateway:
@@ -18,13 +18,12 @@ ciliumEgressGateway:
     egressIP: 116.202.0.10
     hostConfigurator:
       enabled: true
+      nodeSelector:
+        tuist.dev/stable-egress-candidate: server
     failoverController:
-      # Enabled. The controller ADOPTS the node that currently holds the active
-      # label (today the hand-labelled general worker) on first reconcile — no
-      # Floating IP move, no Cilium reconvergence, no egress blip — and only
-      # fails over to an md-egress candidate when that node stops being Ready.
-      # So enabling is a no-op for the live datapath. The image tag is resolved
-      # at deploy time by k8s:install-platform (no pinned tag here).
+      # The controller keeps the active candidate unless its direct health or
+      # prepared host state remains unhealthy past the configured grace period.
+      # The image tag is resolved at deploy time by k8s:install-platform.
       enabled: true
       floatingIpName: tuist-production-server-egress
       # Reserved egress set customers allowlist: Hetzner Floating IPs

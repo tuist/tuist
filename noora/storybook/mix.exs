@@ -34,8 +34,9 @@ defmodule NooraStorybook.MixProject do
       {:floki, ">= 0.30.0", only: :test},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:jason, "~> 1.2"},
-      {:phoenix_storybook, "== 0.9.3"},
-      {:bandit, "~> 1.5"},
+      {:phoenix_storybook, "~> 1.3"},
+      {:bandit, "~> 1.12"},
+      {:hackney, "~> 4.5.2", override: true},
       {:tailwind, "~> 0.4", runtime: false},
       {:noora, path: ".."}
     ]
@@ -44,6 +45,9 @@ defmodule NooraStorybook.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "assets.setup", "assets.build"],
+      # Path dependencies inherit Storybook's compile lock, so Noora must be compiled last for
+      # Phoenix's code reloader to see a current dependency manifest.
+      "phx.server": ["compile", "cmd mix deps.compile noora --force", "phx.server"],
       "assets.setup": ["esbuild.install --if-missing", "tailwind.install --if-missing"],
       "assets.build": ["esbuild noora_storybook"],
       "assets.deploy": [

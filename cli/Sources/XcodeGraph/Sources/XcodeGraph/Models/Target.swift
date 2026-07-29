@@ -52,6 +52,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
     public var scripts: [TargetScript]
+    public var additionalHashingInputs: [TargetHashingInput]
     public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
@@ -92,6 +93,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
         headers: Headers? = nil,
         coreDataModels: [CoreDataModel] = [],
         scripts: [TargetScript] = [],
+        additionalHashingInputs: [TargetHashingInput] = [],
         environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = [],
         filesGroup: ProjectGroup,
@@ -125,6 +127,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
         self.headers = headers
         self.coreDataModels = coreDataModels
         self.scripts = scripts
+        self.additionalHashingInputs = additionalHashingInputs
         self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
@@ -434,6 +437,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             coreDataModels: [CoreDataModel] = [],
             headers: Headers? = nil,
             scripts: [TargetScript] = [],
+            additionalHashingInputs: [TargetHashingInput] = [],
             environmentVariables: [String: EnvironmentVariable] = [:],
             filesGroup: ProjectGroup = .group(name: "Project"),
             dependencies: [TargetDependency] = [],
@@ -464,6 +468,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
                 headers: headers,
                 coreDataModels: coreDataModels,
                 scripts: scripts,
+                additionalHashingInputs: additionalHashingInputs,
                 environmentVariables: environmentVariables,
                 launchArguments: launchArguments,
                 filesGroup: filesGroup,
@@ -496,6 +501,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             coreDataModels: [CoreDataModel] = [],
             headers: Headers? = nil,
             scripts: [TargetScript] = [],
+            additionalHashingInputs: [TargetHashingInput] = [],
             environmentVariables: [String: EnvironmentVariable] = [:],
             filesGroup: ProjectGroup = .group(name: "Project"),
             dependencies: [TargetDependency] = [],
@@ -526,6 +532,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
                 headers: headers,
                 coreDataModels: coreDataModels,
                 scripts: scripts,
+                additionalHashingInputs: additionalHashingInputs,
                 environmentVariables: environmentVariables,
                 launchArguments: launchArguments,
                 filesGroup: filesGroup,

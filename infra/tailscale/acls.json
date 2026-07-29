@@ -134,17 +134,29 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,

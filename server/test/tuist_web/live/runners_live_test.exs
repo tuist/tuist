@@ -80,7 +80,7 @@ defmodule TuistWeb.RunnersLiveTest do
     complete_run(account, 70_003, 700_021, "cancelled")
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
-    html = render_async(lv)
+    html = render_async(lv, @render_async_timeout)
 
     # The cancelled run carries no real duration, so it must not draw a
     # bar. Only the succeeded run remains on each chart.

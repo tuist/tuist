@@ -134,6 +134,17 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "perform/1 success path" do
+    test "adds the test run identifier to the root processing span", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+      expect_local_parse(parsed_data())
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "test_run_id", ^test_run_id -> :ok end)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "downloads + parses + creates the test run", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data())
@@ -165,6 +176,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       assert :ok ==
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
+    test "deserializes ran_at from the persisted job arguments", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+      expect_local_parse(parsed_data())
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.ran_at == ~N[2026-07-21 02:59:14.935065]
+        {:ok, %{id: test_run_id}}
+      end)
+
+      args =
+        job_args(test_run_id, account.id, project.id, extra: %{"ran_at" => "2026-07-21T02:59:14.935065"})
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args))
     end
 
     test "passes failure status through unchanged", %{account: account, project: project} do
