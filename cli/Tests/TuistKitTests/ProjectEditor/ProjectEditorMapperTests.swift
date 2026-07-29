@@ -109,7 +109,7 @@ struct ProjectEditorMapperTests {
             manifestsTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: projectManifestPaths[0]
+                    sourcePaths: [projectManifestPaths[0]]
                 )
         )
         #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
@@ -148,7 +148,10 @@ struct ProjectEditorMapperTests {
         #expect(templatesTarget.product == .staticFramework)
         #expect(
             templatesTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: templates
+                )
         )
         #expect(templatesTarget.sources.map(\.path) == templates)
         #expect(templatesTarget.additionalFiles.map(\.path) == templateResource)
@@ -205,7 +208,7 @@ struct ProjectEditorMapperTests {
             configTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: configPath
+                    sourcePaths: [configPath]
                 )
         )
         #expect(configTarget.sources.map(\.path) == [configPath])
@@ -336,7 +339,7 @@ struct ProjectEditorMapperTests {
             manifestsTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: projectManifestPaths[0]
+                    sourcePaths: [projectManifestPaths[0]]
                 )
         )
         #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
@@ -426,7 +429,7 @@ struct ProjectEditorMapperTests {
             manifestOneTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: try #require(projectManifestPaths.last)
+                    sourcePaths: [try #require(projectManifestPaths.last)]
                 )
         )
         #expect(manifestOneTarget.sources.map(\.path) == [try #require(projectManifestPaths.last)])
@@ -445,7 +448,7 @@ struct ProjectEditorMapperTests {
             manifestTwoTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: try #require(projectManifestPaths.first)
+                    sourcePaths: [try #require(projectManifestPaths.first)]
                 )
         )
         #expect(manifestTwoTarget.sources.map(\.path) == [try #require(projectManifestPaths.first)])
@@ -462,7 +465,7 @@ struct ProjectEditorMapperTests {
             configTarget.settings ==
                 expectedManifestSettings(
                     includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
-                    sourcePath: configPath
+                    sourcePaths: [configPath]
                 )
         )
         #expect(configTarget.sources.map(\.path) == [configPath])
@@ -546,7 +549,10 @@ struct ProjectEditorMapperTests {
         #expect(pluginTarget.product == .staticFramework)
         #expect(
             pluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: pluginManifestPaths
+                )
         )
         #expect(pluginTarget.sources.map(\.path) == pluginManifestPaths)
         #expect(pluginTarget.filesGroup == projectsGroup)
@@ -630,7 +636,10 @@ struct ProjectEditorMapperTests {
         #expect(firstPluginTarget.product == .staticFramework)
         #expect(
             firstPluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPaths[0]]
+                )
         )
         #expect(firstPluginTarget.sources.map(\.path) == [pluginManifestPaths[0]])
         #expect(firstPluginTarget.filesGroup == projectsGroup)
@@ -643,7 +652,10 @@ struct ProjectEditorMapperTests {
         #expect(secondPluginTarget.product == .staticFramework)
         #expect(
             secondPluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPaths[1]]
+                )
         )
         #expect(secondPluginTarget.sources.map(\.path) == [pluginManifestPaths[1]])
         #expect(secondPluginTarget.filesGroup == projectsGroup)
@@ -742,6 +754,15 @@ struct ProjectEditorMapperTests {
             pluginTarget.sources.sorted(by: { $0.path < $1.path }) ==
                 ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
+
+        // Plugin manifest and template sources are excluded from compilation; helpers are not.
+        #expect(
+            pluginTarget.settings ==
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPath] + templateSources
+                )
+        )
     }
 
     @Test(
@@ -803,10 +824,13 @@ struct ProjectEditorMapperTests {
         #expect(localPluginTarget.dependencies.isEmpty)
         #expect(
             localPluginTarget.settings ==
-                expectedSettings(includePaths: [
-                    projectDescriptionPath,
-                    projectDescriptionPath.parentDirectory,
-                ])
+                expectedManifestSettings(
+                    includePaths: [
+                        projectDescriptionPath,
+                        projectDescriptionPath.parentDirectory,
+                    ],
+                    sourcePaths: [localPlugin.path.appending(component: "Plugin.swift")]
+                )
         )
 
         // ProjectDescriptionHelpers target
@@ -849,7 +873,7 @@ struct ProjectEditorMapperTests {
                         // Manifests can include plugins
                         remotePlugin.path.parentDirectory,
                     ],
-                    sourcePath: projectManifestPaths[0]
+                    sourcePaths: [projectManifestPaths[0]]
                 )
         )
 
@@ -910,12 +934,12 @@ struct ProjectEditorMapperTests {
         )
     }
 
-    private func expectedManifestSettings(includePaths: [AbsolutePath], sourcePath: AbsolutePath) -> Settings {
+    private func expectedManifestSettings(includePaths: [AbsolutePath], sourcePaths: [AbsolutePath]) -> Settings {
         let settings = expectedSettings(includePaths: includePaths)
         return settings.with(base: settings.base.merging(
             [
                 "DEFINES_MODULE": "NO",
-                "EXCLUDED_SOURCE_FILE_NAMES": .array([sourcePath.basename]),
+                "EXCLUDED_SOURCE_FILE_NAMES": .array(sourcePaths.map(\.basename)),
             ],
             uniquingKeysWith: { _, new in new }
         ))

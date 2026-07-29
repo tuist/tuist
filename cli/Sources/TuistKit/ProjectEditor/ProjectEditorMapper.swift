@@ -182,7 +182,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
                 sourcePaths: [configPath],
-                excludeSourcesFromBuild: true
+                excludeFromBuildPaths: [configPath]
             )
         }()
 
@@ -216,6 +216,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
                 sourcePaths: templateSources,
+                excludeFromBuildPaths: templateSources,
                 additionalFilePaths: templateResources,
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
@@ -292,7 +293,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                     defaultSettings: .recommended
                 ),
                 sourcePaths: [packageManifestPath],
-                excludeSourcesFromBuild: true,
+                excludeFromBuildPaths: [packageManifestPath],
                 dependencies: dependencies
             )
         }()
@@ -303,7 +304,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: [projectManifestSourcePath],
-                excludeSourcesFromBuild: true,
+                excludeFromBuildPaths: [projectManifestSourcePath],
                 dependencies: helperAndPluginDependencies
             )
         }
@@ -412,6 +413,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,
                 sourcePaths: sourcePaths,
+                excludeFromBuildPaths: [pluginManifest] + pluginTemplates,
                 dependencies: []
             )
         }
@@ -507,8 +509,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
     ///   - filesGroup: File group for target.
     ///   - targetSettings: Target's settings.
     ///   - sourcePaths: Target's sources.
-    ///   - excludeSourcesFromBuild: Whether Xcode should exclude the sources from compilation while retaining
-    ///     their original file references.
+    ///   - excludeFromBuildPaths: Subset of `sourcePaths` that Xcode should keep as file references but exclude
+    ///     from compilation. Used for script-style manifest and template files that produce false-positive
+    ///     diagnostics when compiled as library sources.
     ///   - additionalFilePaths: Additional files shown in the target.
     ///   - dependencies: Target's dependencies.
     /// - Returns: Target for edit project.
@@ -517,19 +520,22 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
-        excludeSourcesFromBuild: Bool = false,
+        excludeFromBuildPaths: [AbsolutePath] = [],
         additionalFilePaths: [AbsolutePath] = [],
         dependencies: [TargetDependency] = []
     ) -> Target {
-        let settings = excludeSourcesFromBuild
-            ? targetSettings.with(base: targetSettings.base.merging(
+        let settings: Settings
+        if excludeFromBuildPaths.isEmpty {
+            settings = targetSettings
+        } else {
+            settings = targetSettings.with(base: targetSettings.base.merging(
                 [
                     "DEFINES_MODULE": "NO",
-                    "EXCLUDED_SOURCE_FILE_NAMES": .array(sourcePaths.map(\.basename)),
+                    "EXCLUDED_SOURCE_FILE_NAMES": .array(excludeFromBuildPaths.map(\.basename)),
                 ],
                 uniquingKeysWith: { _, new in new }
             ))
-            : targetSettings
+        }
         return Target(
             name: name,
             destinations: .macOS,
