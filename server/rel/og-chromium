@@ -1,0 +1,24 @@
+#!/bin/sh
+# Wrapper around Chromium for runtime Open Graph image rendering.
+#
+# The release runs as `nobody`, whose home directory is `/nonexistent`. Chromium
+# needs a writable HOME (and XDG cache/config dirs) for its font cache and, under
+# `--headless=new`, for the crashpad handler's database. Without one it floods
+# stderr with "Fontconfig error: No writable cache directories" and
+# "chrome_crashpad_handler: --database is required", and on the production nodes
+# that broken environment left Chromium never binding its DevTools port, so every
+# render timed out (`:devtools_timeout`) and the renderer fell back to the
+# low-fidelity image. Pointing HOME at a writable tmp directory clears it.
+#
+# `exec` keeps Chromium as the direct child of the caller (MuonTrap), so process
+# supervision and cleanup are unchanged. Extra arguments from the caller are
+# forwarded verbatim.
+set -e
+
+export HOME="${TUIST_OG_IMAGE_CHROME_HOME:-/tmp/tuist-og-chrome}"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME"
+
+exec /usr/bin/chromium "$@"

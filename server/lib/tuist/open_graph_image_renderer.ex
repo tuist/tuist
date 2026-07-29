@@ -25,7 +25,9 @@ defmodule Tuist.OpenGraphImageRenderer do
   end
 
   def start_pool(opts \\ []) do
-    case BrowseChrome.BrowserPool.start_link(name: @pool, pool_size: pool_size(opts)) do
+    pool_opts = maybe_put_chrome_path([name: @pool, pool_size: pool_size(opts)], chrome_path(opts))
+
+    case BrowseChrome.BrowserPool.start_link(pool_opts) do
       {:ok, pid} ->
         {:ok, pid}
 
@@ -67,6 +69,27 @@ defmodule Tuist.OpenGraphImageRenderer do
     case OpenGraph.generate_og_image_binary(title) do
       {:ok, image} -> {:fallback, image}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp maybe_put_chrome_path(pool_opts, nil), do: pool_opts
+  defp maybe_put_chrome_path(pool_opts, path), do: Keyword.put(pool_opts, :chrome_path, path)
+
+  # In the release image this points at the `og-chromium` wrapper, which gives
+  # Chromium a writable HOME so `--headless=new` can bind its DevTools port.
+  # Unset in dev, where BrowseChrome auto-detects the local Chrome.
+  defp chrome_path(opts) do
+    case Keyword.get(opts, :chrome_path) do
+      nil -> chrome_path_from_environment()
+      path -> path
+    end
+  end
+
+  defp chrome_path_from_environment do
+    case System.get_env("TUIST_OG_IMAGE_CHROME_PATH") do
+      nil -> nil
+      "" -> nil
+      path -> path
     end
   end
 
