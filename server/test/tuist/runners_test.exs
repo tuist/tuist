@@ -13,6 +13,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
@@ -1149,6 +1150,22 @@ defmodule Tuist.RunnersTest do
       queue_job(account, 91_001, fleet, resources)
 
       assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "keeps post-job session occupancy in real load after the claim is gone" do
+      account = account_fixture()
+      fleet = "macos-signal-session-tail"
+
+      assert {:ok, _session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 91_050,
+                 account_id: account.id,
+                 fleet_name: fleet,
+                 pod_name: "pod-session-tail",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert %{claimed: 0, occupied: 1} = Runners.scaling_signals_for_fleet(fleet)
     end
 
     # The regression this exists for. An account that queues past its

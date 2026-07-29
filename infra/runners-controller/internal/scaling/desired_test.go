@@ -46,6 +46,12 @@ func TestDesiredReplicas(t *testing.T) {
 			want:    12, // floor=5, target=max(11,5)=11, desired=11+1=12
 		},
 		{
+			name:    "post-job occupancy stays in real load after its claim ends",
+			signals: Signals{Claimed: 1, Occupied: 3, Queued: 2, P95ConcurrentLastHour: 0},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},
+			want:    6,
+		},
+		{
 			name:    "peak inbound beyond claimed",
 			signals: Signals{Claimed: 0, Queued: 10, P95ConcurrentLastHour: 5},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},

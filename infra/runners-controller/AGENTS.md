@@ -34,8 +34,12 @@ independent workqueues:
   competes. The reconciler runs the per-pool target through
   `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
-  (1) real load (`claimed + queued`), (2) each pool's `minWarmPoolFloor`
-  above its load, then (3) the speculative p95 buffer above that. Only
+  (1) real load (`occupied + queued`), (2) each pool's
+  `minWarmPoolFloor` above its load, then (3) the speculative
+  95th-percentile buffer above that. `occupied` is the distinct union of
+  live claims and open runner sessions, so post-job cache and teardown
+  work keeps its host funded after the GitHub completion webhook releases
+  the claim. Only
   tier 1 (real load) is inviolable — granted in full even past capacity,
   with the excess going Pending (the "add a host" signal). Tiers 2+3 are
   idle warm capacity and yield under contention — headroom first, then
@@ -146,9 +150,10 @@ independent workqueues:
   this gauge exists to catch, and one that leaves the Node `Ready` and
   `kube_pod_status_unschedulable` at 0 throughout.
 
-  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
-  `..._autoscaler_queued_jobs{pool}` publish the server's two demand
-  signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
+  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}`,
+  `..._autoscaler_occupied_runners{pool}`, and
+  `..._autoscaler_queued_jobs{pool}` publish the server's demand signals
+  unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
   alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
   actually accept a job right now. "Can accept" is OS-dependent, for the
   same reason the un-booted age above is darwin-only: on a Tart pool only
@@ -176,11 +181,12 @@ independent workqueues:
   remaining concurrency headroom before exporting the count (tuist/tuist#11981),
   which is what makes `..._queued_jobs` trustworthy here. Nothing else shows it: the phase
   count reads a warm idle Pod and a Pod running a customer job
-  identically (both `Running`), `claimed+queued` stays flat while work
-  drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
-  age above only sees Pods that never booted, not booted Pods that never
-  received work. The `Runner queue age` alert fires on either state, so
-  it says something is wrong without saying which lever to pull.
+  identically (both `Running`), `occupied+queued` stays flat while work
+  drains normally (`queued` → `claimed` → post-job occupancy), and the
+  oldest-un-booted-Pod age above only sees Pods that never booted, not
+  booted Pods that never received work. The `Runner queue age` alert
+  fires on either state, so it says something is wrong without saying
+  which lever to pull.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts

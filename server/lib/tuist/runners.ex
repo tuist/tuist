@@ -455,12 +455,15 @@ defmodule Tuist.Runners do
 
     * `claimed` — Pods currently running or in the process of
       claiming (Postgres `runner_claims` grouped by `fleet_name`).
+    * `occupied` — distinct Pods holding fleet capacity across live
+      claims and open runner sessions. Unlike `claimed`, this remains
+      non-zero through cache work and Pod teardown.
     * `queued` — workflow_jobs still in `runner_jobs.status =
       'queued'` for this fleet (ClickHouse).
-    * `p95_concurrent_last_hour` — rolling p95 of concurrent
-      claimed/running jobs over the last 60 one-minute buckets
-      (ClickHouse). Smooths out single-spike noise while keeping
-      the warm pool sized for typical peak load.
+    * `p95_concurrent_last_hour` — rolling 95th percentile of
+      occupied runner sessions over active one-minute buckets in
+      the last hour (Postgres). Keeps sparse but real bursts warm
+      and includes post-job cache and teardown time.
 
   The controller composes these into a desired-replica value
   using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
@@ -468,11 +471,15 @@ defmodule Tuist.Runners do
   source on the server side.
   """
   def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
+    claimed = Map.get(Claims.counts_per_fleet(), fleet_name, 0)
+    occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
+
     %{
       fleet: fleet_name,
-      claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
+      claimed: claimed,
+      occupied: occupied,
       queued: dispatchable_queued_count(fleet_name),
-      p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
+      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
     }
   end
 

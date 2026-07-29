@@ -125,15 +125,18 @@ var (
 		Help: "Age of a darwin pool's oldest alive Pod that has not reached Running (0 when none).",
 	}, []string{poolLabel})
 
-	// claimedJobs and queuedJobs are the server's two demand signals,
-	// published separately rather than as the `claimed+queued` sum the
-	// allocator consumes. The sum answers "how big should this pool be";
-	// only the split answers "is dispatch actually serving this pool",
-	// because the two move independently: work draining normally shifts
-	// queued -> claimed and leaves the sum flat.
+	// Claimed jobs, occupied runners, and queued jobs are the server's
+	// demand signals. Occupied remains high through post-job cache and
+	// teardown work after the GitHub completion webhook releases the
+	// claim.
 	claimedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_claimed_jobs",
 		Help: "Jobs currently claimed by a runner Pod in this pool (server signal).",
+	}, []string{poolLabel})
+
+	occupiedRunners = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_occupied_runners",
+		Help: "Runner Pods currently holding fleet capacity, including post-job cache and teardown work (server signal).",
 	}, []string{poolLabel})
 
 	queuedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -189,11 +192,11 @@ var (
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
-// reconcile tick. `load` is claimed+queued, `floor` is
+// reconcile tick. `load` is occupied+queued, `floor` is
 // minWarmPoolFloor, `targetReplicas` is the pre-allocation
 // DesiredReplicas, `allocatedReplicas` is the post-allocation value
 // patched to spec.replicas.
@@ -204,12 +207,13 @@ func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplica
 	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
 }
 
-// RecordDemand publishes the server's two demand signals for a pool as
+// RecordDemand publishes the server's demand signals for a pool as
 // separate series. Called on every autoscaler tick, including when the
 // fleet allocator falls back to the per-pool target, so the signals stay
 // live even while allocation is degraded.
-func RecordDemand(pool string, claimed, queued int32) {
+func RecordDemand(pool string, claimed, occupied, queued int32) {
 	claimedJobs.WithLabelValues(pool).Set(float64(claimed))
+	occupiedRunners.WithLabelValues(pool).Set(float64(occupied))
 	queuedJobs.WithLabelValues(pool).Set(float64(queued))
 }
 
@@ -287,6 +291,7 @@ func ClearAutoscaler(pool string) {
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
 	claimedJobs.DeleteLabelValues(pool)
+	occupiedRunners.DeleteLabelValues(pool)
 	queuedJobs.DeleteLabelValues(pool)
 }
 
@@ -319,7 +324,7 @@ func Clear(pool string) {
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to
 // fund but couldn't under contention. The allocator funds real load
-// (claimed+queued) inviolably, then the warm floor above it; the floor
+// (occupied+queued) inviolably, then the warm floor above it; the floor
 // is what yields first. So the deficit is the floor portion — (load +
 // floor), capped at the pool's target — left unfunded by `allocated`.
 // Headroom (the speculative p95 buffer above the floor) is excluded:
