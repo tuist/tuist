@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -545,28 +546,50 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
 }
 
 struct BuildAcceptanceTestMultiplatformAppWithSDK {
-    @Test(.disabled(), .withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
-    func test() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--platform",
-                "macos",
-                "--path",
-                fixtureDirectory.pathString,
-                "--derived-data-path",
-                derivedDataPath.pathString,
-            ]
-        )
-        try await TuistTest.run(
-            BuildCommand.self,
-            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
-        )
+    @Test(.withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
+    func build_and_test_documentation() async throws {
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+
+        let workspace = fixturePath.appending(component: "App.xcworkspace").pathString
+        let codeSigningArgs: [String] = [
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ]
+
+        // iOS — docbuild exercises ExtractAPI, which is the path that needs MODULEMAP_PATH.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        // macOS — ensures the multiplatform scheme still builds on macOS.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=macOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
     }
 }
 
