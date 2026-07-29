@@ -15,26 +15,21 @@ defmodule Tuist.Docs.SidebarTest do
   end
 
   test "puts the starting journeys first in the guides sidebar" do
-    [%Sidebar.Group{label: "Get started", items: [chooser]} | rest] = Sidebar.guides_tree()
+    [%Sidebar.Group{label: nil, items: [chooser]} | rest] = Sidebar.guides_tree()
 
-    assert chooser.label == "Choose your path"
+    assert chooser.label == "Get started"
     assert chooser.slug == "/en/guides/get-started"
+    assert chooser.icon == "bulb"
 
     assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
-             {"Existing Xcode project", "/en/guides/get-started/existing-xcode-project"},
-             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
-             {"Gradle project", "/en/guides/get-started/gradle-project"},
-             {"CI runners", "/en/guides/get-started/tuist-runners"}
+             {"Observe", "/en/guides/get-started/observability"},
+             {"Optimize", "/en/guides/get-started/optimization"},
+             {"Run", "/en/guides/get-started/tuist-runners"},
+             {"Ask", "/en/guides/get-started/ask"}
            ]
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
-
-    generated_xcode = Enum.find(chooser.items, &(&1.label == "Generated Xcode project"))
-
-    assert Enum.map(generated_xcode.items, &{&1.label, &1.slug}) == [
-             {"Create a generated project", "/en/tutorials/xcode/create-a-generated-project"}
-           ]
   end
 
   test "all sidebar slugs correspond to actual docs pages" do

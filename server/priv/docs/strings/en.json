@@ -244,7 +244,16 @@
           "text": "Get started",
           "items": {
             "choose-your-path": {
-              "text": "Choose your path"
+              "text": "Get started"
+            },
+            "optimization": {
+              "text": "Optimize"
+            },
+            "observability": {
+              "text": "Observe"
+            },
+            "ask": {
+              "text": "Ask"
             },
             "existing-xcode-project": {
               "text": "Existing Xcode project"
@@ -256,7 +265,7 @@
               "text": "Gradle project"
             },
             "tuist-runners": {
-              "text": "CI runners"
+              "text": "Run"
             }
           }
         },

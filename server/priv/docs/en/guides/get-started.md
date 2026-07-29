@@ -1,36 +1,36 @@
 ---
 {
-  "title": "Choose your path",
+  "title": "Get started",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Choose the Tuist starting path that matches your Xcode project, Gradle project, or GitHub Actions workflow."
+  "description": "Choose the Tuist starting path that matches the outcome you want: observability, optimization, managed runners, or coding-agent context."
 }
 ---
-# Choose your path {#choose-your-path}
+# Get started {#get-started}
 
-Start with the page that matches how your project is built today. You can add Tuist caching, insights, testing, and runners incrementally. Adopting Tuist does not require changing an existing Xcode project into a generated project.
+Start with the outcome you want. Each path includes the next steps for Xcode and Gradle where they differ, and you can adopt the paths independently or combine them over time.
 
-## Existing Xcode project {#existing-xcode-project}
+## Observe {#observe}
 
-Keep your current Xcode project or workspace and add compilation caching, build insights, and test insights.
+Understand build and test performance with insights into duration, failures, flaky behavior, and regressions.
 
-<.localized_link href="/guides/get-started/existing-xcode-project">Start with an existing Xcode project →</.localized_link>
+<.localized_link href="/guides/get-started/observability">Explore build and test insights →</.localized_link>
 
-## Generated Xcode project {#generated-xcode-project}
+## Optimize {#optimize}
 
-Define your Xcode project with Swift manifests, then use project generation, module caching, and selective testing as one integrated workflow.
+Reduce build and test times by reusing build work, running only tests affected by a change, and distributing longer test suites.
 
-<.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated Xcode project →</.localized_link>
+<.localized_link href="/guides/get-started/optimization">Optimize your workflow →</.localized_link>
 
-## Gradle project {#gradle-project}
+## Run {#tuist-runners}
 
-Connect an existing Gradle project to remote caching, build insights, and test insights with the Tuist Gradle plugin.
+Run your continuous integration and continuous delivery automations on managed macOS and Linux runners, close to the same cache used by developer machines.
 
-<.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
+<.localized_link href="/guides/get-started/tuist-runners">Run on Tuist →</.localized_link>
 
-## CI runners {#tuist-runners}
+## Ask {#ask}
 
-Move GitHub Actions jobs to Tuist <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> (CI) runners on managed macOS or Linux infrastructure, then select machine capacity and Xcode versions through runner profiles.
+Give coding agents access to project, build, test, cache, and bundle context so they can answer questions and help your team make informed decisions.
 
-<.localized_link href="/guides/get-started/tuist-runners">Start with CI runners →</.localized_link>
+<.localized_link href="/guides/get-started/ask">Ask about your project →</.localized_link>
 
-If more than one path applies, begin with the build toolchain used by most of your team. You can adopt runners independently and connect additional projects to the same Tuist account later.
+If you are unsure which goal applies, start with Observe or Ask. Both can help identify the bottleneck that costs the team the most time. You can add the other paths without undoing the first integration.

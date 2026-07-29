@@ -5,7 +5,7 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, :url, items: []]
+    defstruct [:label, :slug, :url, :icon, items: []]
   end
 
   defmodule Group do
@@ -124,33 +124,28 @@ defmodule Tuist.Docs.Sidebar do
   def guides_tree do
     [
       %Group{
-        label: "Get started",
+        label: nil,
         items: [
           %Item{
-            label: "Choose your path",
+            label: "Get started",
             slug: "/en/guides/get-started",
+            icon: "bulb",
             items: [
               %Item{
-                label: "Existing Xcode project",
-                slug: "/en/guides/get-started/existing-xcode-project"
+                label: "Observe",
+                slug: "/en/guides/get-started/observability"
               },
               %Item{
-                label: "Generated Xcode project",
-                slug: "/en/guides/get-started/generated-xcode-project",
-                items: [
-                  %Item{
-                    label: "Create a generated project",
-                    slug: "/en/tutorials/xcode/create-a-generated-project"
-                  }
-                ]
+                label: "Optimize",
+                slug: "/en/guides/get-started/optimization"
               },
               %Item{
-                label: "Gradle project",
-                slug: "/en/guides/get-started/gradle-project"
-              },
-              %Item{
-                label: "CI runners",
+                label: "Run",
                 slug: "/en/guides/get-started/tuist-runners"
+              },
+              %Item{
+                label: "Ask",
+                slug: "/en/guides/get-started/ask"
               }
             ]
           }
