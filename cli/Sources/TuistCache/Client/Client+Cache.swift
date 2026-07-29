@@ -23,6 +23,7 @@ extension Client {
             serverURL: cacheURL,
             transport: TuistURLSessionTransport(session: session),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
+                RetryMiddleware(retryableRequestMethods: ["GET"]),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
