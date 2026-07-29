@@ -102,6 +102,11 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [
     :request_id,
+    :method,
+    :route,
+    :request_path,
+    :status,
+    :duration_ms,
     :auth_account_handle,
     :selected_account_handle,
     :selected_project_handle
