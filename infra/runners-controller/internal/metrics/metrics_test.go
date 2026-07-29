@@ -177,23 +177,29 @@ func TestRecordDemandPublishesSignalsUnsummed(t *testing.T) {
 	const pool = "p"
 
 	claimedJobs.Reset()
+	occupiedRunners.Reset()
 	queuedJobs.Reset()
 
-	RecordDemand(pool, 3, 8)
+	RecordDemand(pool, 3, 4, 8)
 
 	if got := testutil.ToFloat64(claimedJobs.WithLabelValues(pool)); got != 3 {
 		t.Fatalf("claimed jobs = %v, want 3", got)
+	}
+	if got := testutil.ToFloat64(occupiedRunners.WithLabelValues(pool)); got != 4 {
+		t.Fatalf("occupied runners = %v, want 4", got)
 	}
 	if got := testutil.ToFloat64(queuedJobs.WithLabelValues(pool)); got != 8 {
 		t.Fatalf("queued jobs = %v, want 8", got)
 	}
 
-	// The whole point of the split: work draining normally moves a job
-	// from queued to claimed and leaves claimed+queued flat, so only the
-	// separate series show that dispatch is making progress.
-	RecordDemand(pool, 4, 7)
+	// The split shows dispatch draining queued work into claims and the
+	// cache/teardown tail keeping runners occupied after claims end.
+	RecordDemand(pool, 4, 5, 7)
 	if got := testutil.ToFloat64(claimedJobs.WithLabelValues(pool)); got != 4 {
 		t.Fatalf("claimed jobs after drain = %v, want 4", got)
+	}
+	if got := testutil.ToFloat64(occupiedRunners.WithLabelValues(pool)); got != 5 {
+		t.Fatalf("occupied runners after drain = %v, want 5", got)
 	}
 	if got := testutil.ToFloat64(queuedJobs.WithLabelValues(pool)); got != 7 {
 		t.Fatalf("queued jobs after drain = %v, want 7", got)
@@ -235,15 +241,19 @@ func TestClearDropsDemandAndIdleSeries(t *testing.T) {
 	const pool = "p"
 
 	claimedJobs.Reset()
+	occupiedRunners.Reset()
 	queuedJobs.Reset()
 	idleReplicas.Reset()
 
-	RecordDemand(pool, 1, 2)
+	RecordDemand(pool, 1, 2, 3)
 	RecordIdleReplicas(pool, 3)
 	Clear(pool)
 
 	if got := testutil.CollectAndCount(claimedJobs); got != 0 {
 		t.Fatalf("claimed jobs series after Clear = %d, want 0", got)
+	}
+	if got := testutil.CollectAndCount(occupiedRunners); got != 0 {
+		t.Fatalf("occupied runners series after Clear = %d, want 0", got)
 	}
 	if got := testutil.CollectAndCount(queuedJobs); got != 0 {
 		t.Fatalf("queued jobs series after Clear = %d, want 0", got)

@@ -198,6 +198,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
+    case testShardPlanId = "TUIST_SHARD_PLAN_ID"
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
     case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
 
@@ -475,6 +476,7 @@ public enum EnvKey: String, CaseIterable {
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
+    case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
 
     // HASH CACHE

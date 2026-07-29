@@ -12,6 +12,7 @@
     import TuistCore
     import TuistHasher
     import TuistServer
+    import TuistSupport
     import TuistXcodeBuildProducts
     import XcodeGraph
 
@@ -68,14 +69,120 @@
             try await run(noUpload: false, configuration: "Release")
         }
 
-        private func run(noUpload: Bool, configuration: String? = nil) async throws {
+        @Test(.inTemporaryDirectory) func run_usesAndPreservesCallerOwnedScratchDirectory() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+
+            try await run(noUpload: false, scratchDirectory: scratchDirectory)
+
+            #expect(try await fileSystem.exists(scratchDirectory, isDirectory: true))
+            #expect(try await fileSystem.exists(scratchDirectory.appending(component: "derived-data"), isDirectory: true))
+            #expect(try await fileSystem.exists(scratchDirectory.appending(component: "Metadatas"), isDirectory: true))
+        }
+
+        @Test(.inTemporaryDirectory) func run_rejectsNonEmptyCallerOwnedScratchDirectoryBeforeLoadingConfig() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let existingFile = scratchDirectory.appending(component: "existing")
+            try await fileSystem.makeDirectory(at: scratchDirectory)
+            try await fileSystem.touch(existingFile)
+
+            await #expect(throws: CacheWarmScratchDirectoryError.notEmpty(scratchDirectory)) {
+                try await run(noUpload: false, scratchDirectory: scratchDirectory)
+            }
+            #expect(try await fileSystem.exists(existingFile))
+            verify(configLoader)
+                .loadConfig(path: .any)
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_rejectsCallerOwnedScratchDirectoryForForeignBuildTargets() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let foreignBuild = ForeignBuild(
+                script: "build",
+                inputs: [],
+                output: .xcframework(
+                    path: temporaryDirectory.appending(component: "Fixtures.xcframework"),
+                    linking: .dynamic
+                )
+            )
+
+            await #expect(throws: CacheWarmForeignBuildOutputValidatorError.unsupported(
+                scratchDirectory: scratchDirectory,
+                targetNames: ["Fixtures"]
+            )) {
+                try await run(
+                    noUpload: false,
+                    scratchDirectory: scratchDirectory,
+                    foreignBuild: foreignBuild
+                )
+            }
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any,
+                    targetsToBinaryCache: .any,
+                    configuration: .any,
+                    cacheStorage: .any
+                )
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_placesCompilationCacheInCallerOwnedScratchDirectory() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let compilationCachePath = scratchDirectory.appending(component: "CompilationCache.noindex")
+
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willReturn()
+
+            try await run(
+                noUpload: false,
+                scratchDirectory: scratchDirectory,
+                schemes: [.test(name: "Bundles-Cache-iOS")]
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .value("Bundles-Cache-iOS"),
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching {
+                        $0.contains(.xcarg("COMPILATION_CACHE_CAS_PATH", compilationCachePath.pathString))
+                    },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(1)
+        }
+
+        private func run(
+            noUpload: Bool,
+            configuration: String? = nil,
+            scratchDirectory: AbsolutePath? = nil,
+            schemes: [Scheme] = [],
+            foreignBuild: ForeignBuild? = nil
+        ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
-            let target = Target.test(name: "Fixtures", product: .bundle)
+            let target = Target.test(name: "Fixtures", product: .bundle, foreignBuild: foreignBuild)
             let project = Project.test(path: temporaryDirectory, targets: [target], schemes: [])
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
             let graph = Graph.test(
                 path: temporaryDirectory,
+                workspace: .test(path: temporaryDirectory, schemes: schemes),
                 projects: [temporaryDirectory: project]
             )
 
@@ -144,7 +251,8 @@
                 externalOnly: false,
                 generateOnly: false,
                 noUpload: noUpload,
-                cacheProfile: nil
+                cacheProfile: nil,
+                scratchDirectory: scratchDirectory?.pathString
             )
         }
 

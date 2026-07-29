@@ -199,6 +199,19 @@ defmodule Tuist.Runners.PromExPlugin do
         ]
       ),
       Event.build(
+        :tuist_runners_session_event_metrics,
+        [
+          last_value(
+            @metric_prefix ++ [:session, :clamped, :count],
+            event_name: Telemetry.event_name_session_clamp(),
+            description:
+              "Open runner sessions per fleet past the six-hour session safety bound; a live claim can still prove current occupancy.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Event.build(
         :tuist_runners_webhook_event_metrics,
         [
           counter(
