@@ -107,9 +107,10 @@ server:
     # advertise the canonical prefix already.
     - name: TUIST_REGISTRY_URL
       value: https://registry-canary.tuist.dev/swift
-    # Cache remains the sole registry writer until the managed cutover.
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     # Single web replica shares this pool between request handling and the
     # in-node Oban queues (default: 10). Sized well above the default-queue
     # concurrency so the steady AlertEvaluationWorker load can't starve web
@@ -293,11 +294,10 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
-# Cache remains the sole registry writer until the managed cutover. The
-# standalone registry continues exercising the read path against the
-# same bucket.
+# The registry sync deployment owns catalog synchronization after the legacy
+# cache writer was disabled. The standalone registry reads from the same bucket.
 swiftRegistrySync:
-  enabled: false
+  enabled: true
   syncAllowlist: alamofire/alamofire
   extraEnv:
     - name: TUIST_DEPLOY_ENV
