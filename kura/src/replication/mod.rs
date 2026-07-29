@@ -1544,7 +1544,7 @@ async fn replicate_message(
                 );
 
                 let response = state
-                    .replication_client()
+                    .client()
                     .put(&url)
                     .headers(headers)
                     .body(body)

@@ -145,10 +145,6 @@ where
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
-    let replication_client = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .expect("failed to build test replication client");
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -176,7 +172,6 @@ where
         usage,
         geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
-        replication_client: arc_swap::ArcSwap::from_pointee(replication_client),
         peer_client_factory: PeerClientFactory::plain(),
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
