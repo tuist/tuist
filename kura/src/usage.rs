@@ -14,6 +14,8 @@ use tracing::warn;
 use crate::{config::UsageConfig, metrics::Metrics, state::SharedState};
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
+const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub struct Usage {
@@ -339,8 +341,8 @@ async fn flush_loop(state: SharedState) {
 
 async fn delivery_loop(state: SharedState) {
     let client = match Client::builder()
-        .connect_timeout(Duration::from_millis(500))
-        .timeout(Duration::from_millis(5_000))
+        .connect_timeout(USAGE_CONNECT_TIMEOUT)
+        .timeout(USAGE_REQUEST_TIMEOUT)
         .build()
     {
         Ok(client) => client,
@@ -424,7 +426,7 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
         })
         .send()
         .await
-        .map_err(|error| format!("request failed: {error}"))?;
+        .map_err(|error| format!("request failed: {error:?}"))?;
 
     if response.status().is_success() {
         state.store.delete_usage_rollups(&keys)?;
