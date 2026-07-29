@@ -9,6 +9,12 @@ use tokio::fs;
 
 use crate::config::{Config, PeerTlsConfig, PublicTlsConfig};
 
+const PEER_READ_TIMEOUT: Duration = Duration::from_secs(30);
+// Replication uploads do not receive response bytes until the whole request
+// body arrives. Their read timeout must therefore cover the largest supported
+// body at the deliberately throttled cross-region rate.
+const REPLICATION_UPLOAD_READ_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+
 struct PeerIdentity {
     identity_pem: Vec<u8>,
     ca_pem: Vec<u8>,
@@ -78,19 +84,27 @@ impl PeerClientFactory {
     }
 
     pub fn build(&self) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PEER_READ_TIMEOUT)?
             .build()
             .map_err(|error| format!("failed to build peer HTTP client: {error}"))
     }
 
+    /// Builds the client used for live replication uploads. Unlike bootstrap
+    /// downloads, a PUT has no response progress until its body is fully sent.
+    pub fn build_replication_upload(&self) -> Result<Client, String> {
+        self.builder(REPLICATION_UPLOAD_READ_TIMEOUT)?
+            .build()
+            .map_err(|error| format!("failed to build replication HTTP client: {error}"))
+    }
+
     pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PEER_READ_TIMEOUT)?
             .resolve_to_addrs(host, &[address])
             .build()
             .map_err(|error| format!("failed to build peer HTTP client for {host}: {error}"))
     }
 
-    fn builder(&self) -> Result<reqwest::ClientBuilder, String> {
+    fn builder(&self, read_timeout: Duration) -> Result<reqwest::ClientBuilder, String> {
         let mut builder = Client::builder()
             .connect_timeout(Duration::from_secs(5))
             // Idle/read timeout, NOT a total request timeout. A bootstrap
@@ -101,7 +115,7 @@ impl PeerClientFactory {
             // (incomplete) response — silently wedging bootstrap. read_timeout
             // resets on each chunk, so a slow-but-progressing transfer
             // completes while a genuinely stalled connection still fails fast.
-            .read_timeout(Duration::from_secs(30));
+            .read_timeout(read_timeout);
 
         if let Some(identity) = self.identity.load_full() {
             let id = Identity::from_pem(&identity.identity_pem)
