@@ -12,7 +12,7 @@ import XcodeGraph
 /// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
-public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
+public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private struct ConditionedXCFramework {
         let xcframework: GraphDependency.XCFramework
         let condition: PlatformCondition?
