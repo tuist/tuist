@@ -7,12 +7,9 @@ ingress. **The pod is a stateless read frontend.** The server-owned writer
 lives under `Tuist.Registry.Swift.*`
 and runs in a separate `TUIST_MODE=swift_registry_sync` pod (see
 `server/AGENTS.md` and
-`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). During
-the managed cutover, the currently deployed legacy cache release remains
-the sole scheduled writer for canary and production while staging and
-previews exercise the server-owned writer. Do not redeploy cache from the
-current main branch before cutover because its registry cron has already
-been removed.
+`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). The
+server-owned writer is the sole scheduled writer in managed environments;
+the legacy cache registry cron remains disabled.
 
 The service currently hosts the **Swift Package Registry** under
 `/api/registry/swift/*`. The same surface is available under `/swift/*` for
@@ -92,8 +89,7 @@ managed environments that expose the registry service directly.
 - Normal deploys run through `.github/workflows/server-deployment.yml`,
   which builds and deploys the registry read image together with the
   server image. In managed canary and production, the
-  `swift_registry_sync` writer remains disabled until cache sync is turned
-  off as a separate, deliberate cutover step.
+  `swift_registry_sync` writer runs as the sole scheduled registry writer.
 
 ### Cluster prereqs
 The chart assumes these are installed in the target cluster (they
