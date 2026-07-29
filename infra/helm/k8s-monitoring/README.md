@@ -100,12 +100,14 @@ Server pod metrics are discovered automatically: the server Deployment carries `
 
 ## What gets deployed
 
-Five Alloy instances, split by role (managed by the upstream `alloy-operator`):
+Six Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
 - `alloy-singleton` — cluster events (singleton so events aren't duplicated)
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
+- `grafana-cloud-traces-sampler` — keeps failed, slow, and sampled healthy
+  traces before they are sent to Grafana Cloud
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine
@@ -130,6 +132,21 @@ active series, while keeping enough resolution for the infrastructure
 dashboards and alerts. Keep other job-specific overrides at 60 seconds unless a
 documented operational requirement justifies the additional ingestion cost.
 See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
+
+## Log and trace sampling
+
+Routine request logs are sampled before they leave the cluster. The pipeline
+keeps 10 percent of Tuist request starts and completions with response codes
+from 200 through 399. It also keeps 10 percent of Kura ingress responses with
+codes from 200 through 299 or 404. The standalone cache hosts apply the same
+rate to request starts and completions with response codes from 200 through 299
+or 404. Every warning, error, and unusual response remains unsampled.
+
+Application traces use [tail sampling](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
+The sampler keeps every trace marked as an error, every trace lasting more than
+two seconds, and 25 percent of the remaining healthy traces. Production runs
+two sampler replicas; staging and canary run one. Trace collection and the
+sampler remain disabled in the management cluster.
 
 ## Local validation
 

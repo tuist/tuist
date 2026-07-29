@@ -17,6 +17,10 @@ k8s-monitoring:
     grafana-cloud-metrics:
       extraLabels:
         env: management
+    grafana-cloud-traces:
+      processors:
+        tailSampling:
+          enabled: false
 
   clusterEvents:
     enabled: false

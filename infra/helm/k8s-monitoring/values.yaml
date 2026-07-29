@@ -144,6 +144,40 @@ k8s-monitoring:
         name: k8s-monitoring-grafana-cloud
         namespace: observability
       extraLabels: {}
+      processors:
+        # Keep all failed and slow traces, then retain a representative sample
+        # of healthy traffic. Sampling after the trace completes preserves the
+        # diagnostic traces that head-based sampling could discard.
+        tailSampling:
+          enabled: true
+          decisionWait: 15s
+          # The chart's default cache object does not validate with Alloy 1.15.
+          decisionCache: null
+          numTraces: 5000
+          expectedNewTracesPerSec: 100
+          policies:
+            - name: errors
+              type: status_code
+              status_codes:
+                - ERROR
+            - name: slow
+              type: latency
+              threshold_ms: 2000
+            - name: healthy-sample
+              type: probabilistic
+              sampling_percentage: 25
+          collector:
+            alloy:
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            controller:
+              type: statefulset
+              replicas: 1
 
   # ───── Features ─────
 
@@ -409,6 +443,57 @@ k8s-monitoring:
   podLogsViaLoki:
     enabled: true
     collector: alloy-logs
+    extraLogProcessingStages: |
+      // Sample routine Tuist request starts and successful completions.
+      // Warning, error, and unsuccessful response lines do not match these
+      // selectors and continue to Grafana in full.
+      stage.match {
+        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"request_id=.*\\[info\\] (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /\""
+
+        stage.sampling {
+          rate = 0.1
+          drop_counter_reason = "tuist_request_start_sampling"
+        }
+      }
+
+      stage.match {
+        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"request_id=.*\\[info\\] Sent (2[0-9]{2}|3[0-9]{2}) in \""
+
+        stage.sampling {
+          rate = 0.1
+          drop_counter_reason = "tuist_request_completion_sampling"
+        }
+      }
+
+      // Kura cache misses return 404 as part of normal operation. Extract the
+      // ingress response status temporarily so successful responses and cache
+      // misses can be sampled without suppressing other client or server errors.
+      stage.match {
+        selector = "{service_name=~\"kura-.*-ingress-nginx\"}"
+
+        stage.regex {
+          expression = "^[^ ]+ - - \\[[^]]+\\] \"[A-Z]+ [^\"]+\" (?P<response_status>[0-9]{3}) "
+        }
+
+        stage.labels {
+          values = {
+            tmp_response_status = "response_status",
+          }
+        }
+      }
+
+      stage.match {
+        selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
+
+        stage.sampling {
+          rate = 0.1
+          drop_counter_reason = "kura_ingress_request_sampling"
+        }
+      }
+
+      stage.label_drop {
+        values = ["tmp_response_status"]
+      }
 
   # Node journald → Loki. The in-guest runner vitals probe is blind to a
   # host-side microVM teardown (kata-shim/qemu kill, containerd restart,
@@ -650,6 +735,17 @@ k8s-monitoring:
         - name: alloy-receiver
           labelSelectors:
             app.kubernetes.io/name: alloy-receiver
+          metrics:
+            tuning:
+              useDefaultAllowList: false
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
+        - name: grafana-cloud-traces-sampler
+          labelSelectors:
+            app.kubernetes.io/name: k8s-monitoring-grafana-cloud-traces-sampler
           metrics:
             tuning:
               useDefaultAllowList: false

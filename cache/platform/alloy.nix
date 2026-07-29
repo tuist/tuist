@@ -178,6 +178,31 @@
         app = "cache-docker",
         instance = "${config.networking.hostName}",
       }
+      forward_to = [loki.process.cache_docker.receiver]
+    }
+
+    loki.process "cache_docker" {
+      // Request start and successful completion lines account for nearly all
+      // cache container log volume. Keep a representative sample for request
+      // debugging while preserving every warning, error, and unusual response.
+      stage.match {
+        selector = "{app=\"cache-docker\"} |~ \"request_id=.*\\[info\\] (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /\""
+
+        stage.sampling {
+          rate                = 0.1
+          drop_counter_reason = "cache_request_start_sampling"
+        }
+      }
+
+      stage.match {
+        selector = "{app=\"cache-docker\"} |~ \"request_id=.*\\[info\\] Sent (2[0-9]{2}|404) in \""
+
+        stage.sampling {
+          rate                = 0.1
+          drop_counter_reason = "cache_request_completion_sampling"
+        }
+      }
+
       forward_to = [loki.write.grafana_cloud.receiver]
     }
 
