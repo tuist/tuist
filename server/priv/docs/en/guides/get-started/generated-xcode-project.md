@@ -13,11 +13,11 @@ If you want to keep an existing Xcode project or workspace unchanged, use the <.
 
 ## Adoption steps {#adoption-steps}
 
-1. Follow the <.localized_link href="/tutorials/xcode/create-a-generated-project">generated project tutorial</.localized_link> to install Tuist, initialize a project, add a dependency, generate the Xcode project, and run the application.
-2. If you are replacing an existing checked-in Xcode project, follow the <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">Xcode project migration guide</.localized_link>. Migrate incrementally rather than recreating the project from memory.
-3. Learn how the <.localized_link href="/guides/features/projects/manifests">manifest files</.localized_link> and <.localized_link href="/guides/features/projects/dependencies">dependencies</.localized_link> model your project.
-4. Connect the project to a Tuist account during `tuist init` so shared capabilities can use the project's full handle.
-5. Choose the first optimization to add:
+1. Choose the starting point that matches your project:
+   - If you are starting a new project, follow the <.localized_link href="/tutorials/xcode/create-a-generated-project">generated project tutorial</.localized_link> to install Tuist, initialize the project, add a dependency, generate the Xcode project, and run the application. You can connect the project to a Tuist account during `tuist init` so shared capabilities can use the project's full handle.
+   - If you are replacing an existing checked-in Xcode project, start with the <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">Xcode project migration guide</.localized_link>. It creates the Tuist manifests alongside your current project so you can migrate incrementally without creating a sample project.
+2. Learn how the <.localized_link href="/guides/features/projects/manifests">manifest files</.localized_link> and <.localized_link href="/guides/features/projects/dependencies">dependencies</.localized_link> model your project.
+3. Choose the first optimization to add:
    - Follow the <.localized_link href="/guides/features/cache/module-cache">module cache guide</.localized_link> to replace unchanged modules with shared binaries.
    - Follow the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache guide</.localized_link> to share compilation outputs produced by Xcode 26 or later.
    - Use <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link> to run only tests affected by a change.
