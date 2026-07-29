@@ -1885,7 +1885,9 @@ jobs:
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
-    timeout-minutes: 25
+    # A degraded remote cache can force a correct cold build, which must still
+    # have enough time to complete before production promotion.
+    timeout-minutes: 45
     environment: server-k8s-canary
     permissions:
       contents: read
