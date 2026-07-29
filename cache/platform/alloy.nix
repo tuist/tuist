@@ -182,20 +182,11 @@
     }
 
     loki.process "cache_docker" {
-      // Request start and successful completion lines account for nearly all
-      // cache container log volume. Keep a representative sample for request
-      // debugging while preserving every warning, error, and unusual response.
+      // Each request produces one completion entry with its method, path,
+      // status, and duration. Sample routine responses while preserving every
+      // warning, error, and unusual response.
       stage.match {
-        selector = "{app=\"cache-docker\"} |~ \"request_id=.*\\[info\\] (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /\""
-
-        stage.sampling {
-          rate                = 0.1
-          drop_counter_reason = "cache_request_start_sampling"
-        }
-      }
-
-      stage.match {
-        selector = "{app=\"cache-docker\"} |~ \"request_id=.*\\[info\\] Sent (2[0-9]{2}|404) in \""
+        selector = "{app=\"cache-docker\"} |~ \"status=(2[0-9]{2}|404).*\\[info\\] Request completed\""
 
         stage.sampling {
           rate                = 0.1

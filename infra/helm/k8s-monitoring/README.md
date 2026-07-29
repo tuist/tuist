@@ -136,11 +136,12 @@ See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/
 ## Log and trace sampling
 
 Routine request logs are sampled before they leave the cluster. The pipeline
-keeps 10 percent of Tuist request starts and completions with response codes
-from 200 through 399. It also keeps 10 percent of Kura ingress responses with
-codes from 200 through 299 or 404. The standalone cache hosts apply the same
-rate to request starts and completions with response codes from 200 through 299
-or 404. Every warning, error, and unusual response remains unsampled.
+keeps 10 percent of the single structured completion entry emitted for Tuist
+requests with response codes from 200 through 399. It also keeps 10 percent of
+Kura ingress responses with codes from 200 through 299 or 404. The standalone
+cache hosts apply the same rate to completion entries with response codes from
+200 through 299 or 404. Every warning, error, and unusual response remains
+unsampled.
 
 Application traces use [tail sampling](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
 The sampler keeps every trace marked as an error, every trace lasting more than
