@@ -1024,7 +1024,7 @@ mod tests {
         );
         assert_eq!(
             large.elastic_foreground_response_streaming_pool_bytes(),
-            262 * 1024 * 1024
+            256 * 1024 * 1024
         );
     }
 
@@ -1089,7 +1089,7 @@ mod tests {
     }
 
     #[test]
-    fn bootstrap_keeps_a_progress_quantum_while_leaving_half_for_public_responses() {
+    fn bootstrap_keeps_a_progress_quantum_without_consuming_public_response_capacity() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(
             metrics,
@@ -1130,17 +1130,20 @@ mod tests {
             .inner
             .response_stream_waiters
             .store(0, Ordering::Release);
-        let background_bytes = controller.response_streaming_pool_bytes() / 2;
-        let permit = controller
-            .try_acquire_background_response_stream_memory(background_bytes, "bootstrap")
-            .expect("background half should be available");
+        let bootstrap = controller
+            .try_acquire_background_response_stream_memory(bootstrap_quantum, "bootstrap")
+            .expect("the reserved bootstrap quantum should be available");
+        let foreground = controller
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("bootstrap must not consume capacity promised to public responses");
         assert!(
             controller
                 .try_acquire_background_response_stream_memory(1, "bootstrap")
                 .is_err(),
-            "bootstrap must leave the other half available for public responses"
+            "bootstrap must remain bounded to its reserved progress quantum"
         );
-        drop(permit);
+        drop(foreground);
+        drop(bootstrap);
     }
 
     #[test]
