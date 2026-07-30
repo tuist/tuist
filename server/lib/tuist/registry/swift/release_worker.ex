@@ -117,6 +117,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
             {:snooze, seconds}
 
+          {:discard, discard_reason} ->
+            {:discard, discard_reason}
+
           :not_skipped ->
             Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
             {:error, reason}
@@ -848,7 +851,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_default_manifest")
   end
 
-  defp maybe_skip_release(_scope, _name, _full_handle, _version, _reason), do: :not_skipped
+  defp maybe_skip_release(_scope, _name, _full_handle, _version, reason) do
+    case rate_limit_status(reason) do
+      nil ->
+        :not_skipped
+
+      status ->
+        Logger.warning("Deferring registry release after GitHub rate limit (HTTP #{status})")
+        {:discard, reason}
+    end
+  end
+
+  defp rate_limit_status({:rate_limited, status}), do: status
+
+  defp rate_limit_status(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&rate_limit_status/1)
+  end
+
+  defp rate_limit_status(list) when is_list(list), do: Enum.find_value(list, &rate_limit_status/1)
+  defp rate_limit_status(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_status/1)
+  defp rate_limit_status(_reason), do: nil
 
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}

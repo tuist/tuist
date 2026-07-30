@@ -215,7 +215,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "retries when a listed manifest cannot be fetched" do
+  test "discards the job when GitHub rate limits a manifest request" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
@@ -230,18 +230,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
 
     expect(TuistCommon.GitHub, :get_file_content, fn
       "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
-        {:error, {:http_error, 403}}
+        {:error, {:rate_limited, 403}}
     end)
 
     stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+
     stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
 
-    assert {:error,
+    assert {:discard,
             {:manifest_fetch_failed,
              [
                %{
                  path: "Package.swift",
-                 reason: {:http_error, 403}
+                 reason: {:rate_limited, 403}
                }
              ]}} =
              ReleaseWorker.perform(%Oban.Job{

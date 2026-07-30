@@ -218,10 +218,10 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     assert {:discard, ^reason} = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
-  test "surfaces an HTTP status error as a hard failure" do
-    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:http_error, 403}} end)
+  test "discards the job when GitHub rate limits the catalog request" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 403}} end)
 
-    assert {:error, {:http_error, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
+    assert {:discard, {:rate_limited, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
   test "force resyncs only the requested package version without taking the catalog lock" do
