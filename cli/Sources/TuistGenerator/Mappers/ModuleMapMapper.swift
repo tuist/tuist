@@ -83,31 +83,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
                 if hasModuleMap {
                     if let moduleMapPath = Self.moduleMapPath(
-                        from: mappedSettingsDictionary[Self.modulemapFileSetting]
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        project: project
                     ) {
                         switch target.product {
-                        case .framework:
-                            target.scripts.append(
-                                TargetScript(
-                                    name: "Copy Module Map",
-                                    order: .post,
-                                    script: .embedded(
-                                        """
-                                        set -eu
-                                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                        cp -f \(Self
-                                            .shellPath(
-                                                from: moduleMapPath
-                                            )) "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                                        """
-                                    ),
-                                    inputPaths: [moduleMapPath],
-                                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                                    showEnvVarsInLog: false,
-                                    basedOnDependencyAnalysis: true
-                                )
-                            )
-                        case .staticFramework:
+                        case .framework, .staticFramework:
                             mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath)
                         default:
                             break
@@ -196,10 +176,14 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     } // swiftlint:enable function_body_length
 
     private static func moduleMapPath(
-        from value: SettingsDictionary.Value?
+        from value: SettingsDictionary.Value?,
+        project: Project
     ) -> String? {
         guard case let .string(moduleMap) = value else { return nil }
 
+        // Combined dependency module maps live under `tuist-derived/` and are referenced as
+        // `$(SRCROOT)/../../tuist-derived/...`. Rewrite them to the canonical `$(PROJECT_DIR)` form
+        // without depending on the project's generated location.
         for sourceRoot in ["$(SRCROOT)", "$(SOURCE_ROOT)"] {
             let derivedDirectoryPrefix = "\(sourceRoot)/../../tuist-derived/"
             if moduleMap.hasPrefix(derivedDirectoryPrefix) {
@@ -208,32 +192,34 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             }
         }
 
+        // Source-root build-setting macros and absolute filesystem paths. `MODULEMAP_FILE` is
+        // authored relative to the source project: `$(SRCROOT)`/`$(SOURCE_ROOT)` resolve to the
+        // checkout (see `PackageInfoMapper`), while `$(PROJECT_DIR)` already anchors to the generated
+        // project. Resolve each macro against its corresponding project, then reanchor to the
+        // generated project's directory as a machine-independent `$(PROJECT_DIR)`-relative path so
+        // cache hashes stay stable across checkouts.
         if moduleMap.hasPrefix("/") || moduleMap.hasPrefix("$(") {
-            return moduleMap
+            let sourceProjectPath = project.path.pathString
+            let generatedProjectPath = project.xcodeProjPath.parentDirectory.pathString
+            let resolved = moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: generatedProjectPath)
+                .replacingOccurrences(of: "$(SRCROOT)", with: sourceProjectPath)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: sourceProjectPath)
+
+            // Macros we don't model here (e.g. `$(DERIVED_FILE_DIR)`) can't be resolved to an absolute
+            // path at generation time. Preserve them verbatim so the module map isn't dropped and Xcode
+            // can evaluate them at build time.
+            guard let resolvedPath = try? AbsolutePath(validating: resolved) else {
+                return moduleMap
+            }
+
+            return "$(PROJECT_DIR)/\(resolvedPath.relative(to: project.xcodeProjPath.parentDirectory).pathString)"
         }
 
         guard (try? RelativePath(validating: moduleMap)) != nil else {
             return nil
         }
         return "$(PROJECT_DIR)/\(moduleMap)"
-    }
-
-    private static func shellPath(from buildSettingPath: String) -> String {
-        let variables = [
-            ("$(PROJECT_DIR)", "$PROJECT_DIR"),
-            ("$(SRCROOT)", "$SRCROOT"),
-            ("$(SOURCE_ROOT)", "$SOURCE_ROOT"),
-        ]
-        var shellPath = buildSettingPath
-        for (buildSetting, shellVariable) in variables {
-            shellPath = shellPath.replacingOccurrences(of: buildSetting, with: shellVariable)
-        }
-        let escapedShellPath = shellPath
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "`", with: "\\`")
-
-        return "\"\(escapedShellPath)\""
     }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
