@@ -82,15 +82,35 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
-                    if target.product.isFramework,
-                       case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting]
-                    {
-                        // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
-                        // source map out of the framework product avoids duplicate module-map discovery and the
-                        // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
-                        // The original $(SRCROOT)-relative value is preserved so cache hashes stay
-                        // environment-independent.
-                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapFile)
+                    if let moduleMapPath = Self.moduleMapPath(
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        projectPath: project.path
+                    ) {
+                        let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
+                        switch target.product {
+                        case .framework:
+                            target.scripts.append(
+                                TargetScript(
+                                    name: "Copy Module Map",
+                                    order: .post,
+                                    script: .embedded(
+                                        """
+                                        set -eu
+                                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
+                                        cp -f '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                        """
+                                    ),
+                                    inputPaths: [moduleMapPath.pathString],
+                                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
+                                    showEnvVarsInLog: false,
+                                    basedOnDependencyAnalysis: true
+                                )
+                            )
+                        case .staticFramework:
+                            mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath.pathString)
+                        default:
+                            break
+                        }
                     }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
@@ -173,6 +193,24 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
+
+    private static func moduleMapPath(
+        from value: SettingsDictionary.Value?,
+        projectPath: AbsolutePath
+    ) -> AbsolutePath? {
+        guard case let .string(moduleMap) = value else { return nil }
+
+        return try? AbsolutePath(
+            validating: moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath.pathString)
+                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
+        )
+    }
+
+    private static func shellEscaped(_ value: String) -> String {
+        value.replacingOccurrences(of: "'", with: "'\\\\''")
+    }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
         if case .external = project.type,
