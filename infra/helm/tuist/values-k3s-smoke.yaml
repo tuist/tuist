@@ -10,6 +10,10 @@ server:
   migrationJob:
     enabled: false
   license:
+    # The Deployment is scaled to zero, so the value is never validated or
+    # sent anywhere. It satisfies the chart's mandatory-source guard while
+    # preserving the rendered server workload in this Kubernetes smoke test.
+    key: k3s-smoke-not-a-valid-license
     selfHostingDevelopmentMode: true
   resources:
     requests:

@@ -1,0 +1,90 @@
+{
+  "name": "Banner",
+  "tagName": "noora-banner",
+  "elementClassName": "NooraBanner",
+  "className": "noora-banner",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays a page-level message with an optional dismiss action.",
+  "usage": "<noora-banner status=\"success\" title=\"Changes saved\"></noora-banner>",
+  "attributes": [
+    {
+      "name": "status",
+      "property": "status",
+      "type": "string",
+      "values": ["primary", "error", "success", "warning", "information"],
+      "default": "primary",
+      "description": "Sets the semantic status."
+    },
+    {
+      "name": "title",
+      "property": "title",
+      "type": "string",
+      "default": "",
+      "description": "Sets the banner title."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Sets the optional description."
+    },
+    {
+      "name": "dismissible",
+      "property": "dismissible",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a dismiss control."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "A custom icon used by primary banners."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "banner",
+      "description": "The banner container."
+    },
+    {
+      "name": "title",
+      "description": "The title."
+    },
+    {
+      "name": "description",
+      "description": "The description."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-dismiss",
+      "type": "CustomEvent<Record<string, never>>",
+      "description": "Emitted after the banner is dismissed."
+    }
+  ],
+  "notes": [
+    "A dismiss action emits a `noora-dismiss` event and hides the element."
+  ],
+  "examples": [
+    {
+      "id": "statuses",
+      "title": "Statuses",
+      "description": "Banners support primary, error, success, warning, and information states.",
+      "markup": "<noora-banner status=\"primary\" title=\"Primary status\" description=\"I am a primary banner\"></noora-banner>\n<noora-banner status=\"error\" title=\"Error status\" description=\"I am an error banner\"></noora-banner>\n<noora-banner status=\"success\" title=\"Success status\" description=\"I am a success banner\"></noora-banner>\n<noora-banner status=\"warning\" title=\"Warning status\" description=\"I am a warning banner\"></noora-banner>\n<noora-banner status=\"information\" title=\"Information status\" description=\"I am an information banner\"></noora-banner>"
+    },
+    {
+      "id": "custom-icon",
+      "title": "Custom icon",
+      "description": "Primary banners accept a custom icon through the icon slot.",
+      "markup": "<noora-banner status=\"primary\" title=\"Primary status\" description=\"I am a primary banner with a custom icon\">\n  <noora-icon slot=\"icon\" name=\"alert_circle\"></noora-icon>\n</noora-banner>"
+    },
+    {
+      "id": "content-variations",
+      "title": "Content variations",
+      "description": "Descriptions are optional, banners can be dismissible, and long content wraps.",
+      "markup": "<noora-banner status=\"primary\" title=\"Title only banner\"></noora-banner>\n<noora-banner dismissible status=\"warning\" title=\"Dismissible banner\" description=\"This banner can be dismissed by the user\"></noora-banner>\n<noora-banner status=\"information\" title=\"Banner with longer content\" description=\"This is a banner with much longer descriptive text that demonstrates how the component handles multiple lines of content and text wrapping behavior\"></noora-banner>"
+    }
+  ]
+}

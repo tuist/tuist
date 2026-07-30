@@ -1063,6 +1063,8 @@ var targets: [Target] = [
             "TuistServer",
             "TuistEnvironmentTesting",
             "TuistNooraTesting",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             mockableDependency,
         ],
         path: "cli/Tests/TuistProjectCommandTests"

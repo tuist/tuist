@@ -72,10 +72,12 @@ defmodule Tuist.PromEx do
         Tuist.Accounts.PromExPlugin,
         Tuist.Projects.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
+        Tuist.Tests.PromExPlugin,
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
+        Tuist.License.PromExPlugin,
         Tuist.Runners.PromExPlugin,
         TuistCommon.HTTP.TransportPromExPlugin
       ]

@@ -42,6 +42,13 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
 
     @Option(
         name: .long,
+        help: "Exact shard plan identifier emitted by the build-for-testing job.",
+        envKey: .testShardPlanId
+    )
+    var shardPlanId: String?
+
+    @Option(
+        name: .long,
         help: "Path to a locally managed shard archive. Tuist extracts this archive instead of downloading test products from remote storage.",
         completion: .file(),
         envKey: .testShardArchivePath
@@ -76,6 +83,7 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
                 skipQuarantine: skipQuarantine,
                 shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 mode: inspectMode
             )

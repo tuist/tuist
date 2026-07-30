@@ -7,7 +7,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.OperatorGrant
-  import TuistWeb.RateLimit.InMemory
+  import TuistWeb.RateLimit
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
@@ -24,6 +24,14 @@ defmodule TuistWeb.Router do
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
+  end
+
+  pipeline :open_graph_image do
+    plug :put_request_kind, "open_graph_image"
+    # Open Graph images belong to the marketing and docs sites, which are not served
+    # on-premise. Forward these requests away there instead of spinning up a
+    # headless browser render the deployment does not need.
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :content_security_policy do
@@ -237,6 +245,12 @@ defmodule TuistWeb.Router do
 
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :open_graph_image]
+
+    get "/open-graph-images/:key", OpenGraphImageController, :show, metadata: %{type: :marketing, robots_txt: false}
   end
 
   # Marketing
@@ -778,6 +792,10 @@ defmodule TuistWeb.Router do
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
+
+    post "/atlas/clickhouse/query", AtlasClickHouseController, :query
+    get "/atlas/clickhouse/tables", AtlasClickHouseController, :tables
+    get "/atlas/clickhouse/tables/:database/:name", AtlasClickHouseController, :describe
   end
 
   scope "/_internal", TuistWeb.Internal do
@@ -889,6 +907,7 @@ defmodule TuistWeb.Router do
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/confirm", UserConfirmationInstructionsLive, :new
       live "/users/choose-username", ChooseUsernameLive, :new
     end
 

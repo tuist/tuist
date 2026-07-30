@@ -8,13 +8,30 @@ package scaling
 
 // Signals is the body returned by the Tuist server's
 // /api/internal/runners/desired_replicas endpoint. The server is
-// the source of these three signals; this package is the policy
+// the source of these signals; this package is the policy
 // engine that combines them with per-pool knobs.
 type Signals struct {
 	Fleet                 string `json:"fleet"`
 	Claimed               int32  `json:"claimed"`
+	Occupied              int32  `json:"occupied"`
 	Queued                int32  `json:"queued"`
 	P95ConcurrentLastHour int32  `json:"p95_concurrent_last_hour"`
+}
+
+// CurrentOccupancy returns the server's complete capacity-held signal.
+// During a rolling deployment, an older server omits Occupied and it
+// decodes as zero, so Claimed remains the safe fallback. The max also
+// protects against a read racing between the server's two source queries.
+func (s Signals) CurrentOccupancy() int32 {
+	if s.Occupied > s.Claimed {
+		return s.Occupied
+	}
+	return s.Claimed
+}
+
+// Load is capacity currently held plus work that can be dispatched now.
+func (s Signals) Load() int32 {
+	return s.CurrentOccupancy() + s.Queued
 }
 
 // PolicyKnobs are the per-pool autoscaling parameters from the
@@ -27,12 +44,13 @@ type PolicyKnobs struct {
 // DesiredReplicas computes the autoscaler's target replica count
 // from server signals and CRD knobs:
 //
-//	desired  = max(Claimed + Queued, P95ConcurrentLastHour) + MinWarmPoolFloor
+//	desired  = max(CurrentOccupancy + Queued, P95ConcurrentLastHour) + MinWarmPoolFloor
 //	clamped  = min(MaxReplicas, max(0, desired))
 //
 // Intuition:
-//   - `Claimed + Queued` is what's in flight or wanting a Pod right
-//     now. The fleet must be at least this big.
+//   - `CurrentOccupancy + Queued` is what's holding a Pod (including
+//     post-job cache and teardown work) or wanting one right now. The
+//     fleet must be at least this big.
 //   - `P95ConcurrentLastHour` lifts the size to the typical peak
 //     observed in the last hour even when current load is below it —
 //     that's the "lead the demand" behavior that keeps the next peak
@@ -55,7 +73,7 @@ func DesiredReplicas(s Signals, k PolicyKnobs) int32 {
 
 	floor := s.P95ConcurrentLastHour
 
-	load := s.Claimed + s.Queued
+	load := s.Load()
 
 	target := load
 	if floor > target {

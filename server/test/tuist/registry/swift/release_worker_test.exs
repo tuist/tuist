@@ -18,6 +18,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     Sandbox.checkout(Tuist.Repo)
     stub(Registry, :swift_registry_github_token, fn -> "token" end)
     stub(Registry, :registry_bucket, fn -> "test-bucket" end)
+    stub(Registry, :registry_s3_config, fn -> [host: "registry.example.com"] end)
     stub(Lock, :release, fn _ -> :ok end)
 
     :ok
@@ -47,13 +48,18 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "downloads, uploads, and updates metadata for a new release" do
+  test "repairs a release that was skipped before skip classifications were versioned" do
+    legacy_metadata = %{
+      "releases" => %{},
+      "skipped_releases" => %{"1.0.0" => %{"reason" => "missing_manifests"}}
+    }
+
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-      {:error, :not_found}
+      {:ok, legacy_metadata}
     end)
 
     expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
@@ -83,7 +89,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _op ->
+    expect(ExAws, :request, 2, fn _op, config ->
+      assert config == [host: "registry.example.com"]
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -92,7 +99,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-      {:error, :not_found}
+      {:ok, legacy_metadata}
     end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
@@ -103,6 +110,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       release = metadata["releases"]["1.0.0"]
       assert is_binary(release["checksum"])
       assert [%{"swift_version" => nil, "swift_tools_version" => "5.9"}] = release["manifests"]
+      refute Map.has_key?(metadata["skipped_releases"], "1.0.0")
       :ok
     end)
 
@@ -153,7 +161,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _operation ->
+    expect(ExAws, :request, 2, fn _operation, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -188,11 +196,55 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
-      assert metadata["skipped_releases"]["1.0.0"] == %{"reason" => "missing_manifests"}
+      assert metadata["skipped_releases"]["1.0.0"] == %{
+               "classification_version" => 2,
+               "reason" => "missing_manifests"
+             }
+
       :ok
     end)
 
     assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "discards the job when GitHub rate limits a manifest request" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:error, {:rate_limited, 403}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    assert {:discard,
+            {:manifest_fetch_failed,
+             [
+               %{
+                 path: "Package.swift",
+                 reason: {:rate_limited, 403}
+               }
+             ]}} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",
@@ -277,7 +329,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _operation ->
+    expect(ExAws, :request, 2, fn _operation, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -346,7 +398,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 4, fn _op ->
+    expect(ExAws, :request, 4, fn _op, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -387,6 +439,74 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     """
 
     assert ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  describe "zip_directory/2" do
+    test "preserves symlinks inside code-signed bundles while flattening other symlinks" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      framework = Path.join([source, "Vendor", "Adyen3DS2.xcframework", "ios-maccatalyst", "Adyen3DS2.framework"])
+      version_a = Path.join([framework, "Versions", "A"])
+      File.mkdir_p!(Path.join(version_a, "Resources"))
+
+      File.write!(Path.join(source, "README.md"), "readme")
+      # Non-bundle symlink: should be flattened into a regular file.
+      File.ln_s!("README.md", Path.join(source, "CLAUDE.md"))
+
+      File.write!(Path.join(version_a, "Adyen3DS2"), "binary")
+      File.write!(Path.join([version_a, "Resources", "Info.plist"]), "plist")
+      # Sealed bundle symlinks: must survive as symlinks.
+      File.ln_s!("A", Path.join([framework, "Versions", "Current"]))
+      File.ln_s!("Versions/Current/Adyen3DS2", Path.join(framework, "Adyen3DS2"))
+      File.ln_s!("Versions/Current/Resources", Path.join(framework, "Resources"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      extracted_framework =
+        Path.join([
+          extract_dir,
+          "repo-v1.0.0",
+          "Vendor",
+          "Adyen3DS2.xcframework",
+          "ios-maccatalyst",
+          "Adyen3DS2.framework"
+        ])
+
+      assert {:ok, %File.Stat{type: :regular}} = File.lstat(Path.join([extract_dir, "repo-v1.0.0", "CLAUDE.md"]))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join([extracted_framework, "Versions", "Current"]))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Adyen3DS2"))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Resources"))
+      assert {:ok, "A"} = File.read_link(Path.join([extracted_framework, "Versions", "Current"]))
+    end
+
+    test "flattens a root-level symlink even when it is named like a code-signed bundle" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_bundle_named_link_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      File.mkdir_p!(source)
+      File.write!(Path.join(source, "README.md"), "readme")
+      # A package-root symlink whose own basename matches a bundle extension must
+      # still be flattened, since it is a root-level symlink SwiftPM mishandles.
+      File.ln_s!("README.md", Path.join(source, "Widget.framework"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      assert {:ok, %File.Stat{type: :regular}} =
+               File.lstat(Path.join([extract_dir, "repo-v1.0.0", "Widget.framework"]))
+    end
   end
 
   defp write_basic_zipball(archive_path) do

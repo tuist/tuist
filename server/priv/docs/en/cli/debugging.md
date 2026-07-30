@@ -102,3 +102,23 @@ export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
 Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
+
+## Trusting a custom CA certificate {#trusting-a-custom-ca-certificate}
+
+By default, Tuist validates TLS certificates against the operating system's root store. When you run a self-hosted Tuist or Kura server that uses a private certificate authority, Tuist needs to trust that CA too. Installing the root in the System keychain (and marking it trusted for SSL) is the standard approach, but that's often impractical on headless CI hosts where there's no GUI session or mobile device management (MDM) to set the trust bit.
+
+In those cases you can point Tuist at a CA certificate bundle directly. The bundle can be PEM (one or more concatenated `-----BEGIN CERTIFICATE-----` blocks) or a single DER file. The system root store stays trusted alongside it, so public certificates keep validating normally and certificate evaluation is never bypassed.
+
+```bash
+# Path to a PEM/DER CA bundle to trust on top of the system root store (default: unset)
+export TUIST_CA_CERTIFICATE=/etc/ssl/certs/self-hosted-ca.pem
+```
+
+You can also declare it in your <.localized_link href="/references/tuist-toml">configuration file</.localized_link>:
+
+```toml
+[network]
+ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
+```
+
+The `TUIST_CA_CERTIFICATE` environment variable takes precedence over the configuration file, which makes it convenient to provide as a CI secret without changing the committed manifest.

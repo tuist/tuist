@@ -7,24 +7,14 @@ defmodule TuistRegistry.S3 do
   Registry metadata and artifacts are stored in the configured registry bucket.
   """
 
-  import Cachex.Spec, only: [limit: 1]
-
   alias TuistRegistry.Config
 
-  require Logger
-
-  @exists_cache :s3_exists_cache
-  @exists_negative_ttl to_timeout(second: 30)
-
-  def child_spec(_) do
-    %{
-      id: __MODULE__,
-      start:
-        {Cachex, :start_link, [@exists_cache, [limit: limit(size: 500_000, policy: Cachex.Policy.LRW, reclaim: 0.1)]]}
-    }
+  @doc false
+  def request(%{headers: headers} = operation) do
+    operation
+    |> Map.put(:headers, Map.put(headers, "X-Tigris-Consistent", "true"))
+    |> ExAws.request()
   end
-
-  def exists_cache_name, do: @exists_cache
 
   @doc """
   Generates a presigned download URL for an artifact.
@@ -50,10 +40,16 @@ defmodule TuistRegistry.S3 do
         presign_opts =
           case Keyword.fetch(opts, :content_type) do
             {:ok, content_type} ->
-              [expires_in: 600, query_params: [{"response-content-type", content_type}]]
+              [
+                expires_in: 600,
+                query_params: [
+                  {"response-content-type", content_type},
+                  {"x-tigris-consistent", "true"}
+                ]
+              ]
 
             :error ->
-              [expires_in: 600]
+              [expires_in: 600, query_params: [{"x-tigris-consistent", "true"}]]
           end
 
         ExAws.S3.presigned_url(config, :get, bucket, key, presign_opts)
@@ -83,7 +79,7 @@ defmodule TuistRegistry.S3 do
         {:error, :registry_disabled}
 
       bucket ->
-        case bucket |> ExAws.S3.get_object(key) |> ExAws.request() do
+        case bucket |> ExAws.S3.get_object(key) |> request() do
           {:ok, %{status_code: 200, body: body}} ->
             {:ok, body}
 
@@ -152,59 +148,6 @@ defmodule TuistRegistry.S3 do
   end
 
   @doc """
-  Checks if an artifact exists in S3, with a short negative Cachex caching layer.
-
-  Positive results are not cached because purge runs from the server sync
-  runtime and cannot invalidate per-pod read-side caches.
-
-  ## Options
-
-    * `:type` - The storage type. Only `:registry` is supported.
-
-  Returns `false` if type is `:registry` and registry storage is not configured.
-  """
-  def exists?(key, opts \\ []) when is_binary(key) do
-    type = Keyword.get(opts, :type, :registry)
-    cache_key = {type, key}
-
-    case Cachex.get(@exists_cache, cache_key) do
-      {:ok, nil} ->
-        case do_exists?(key, opts) do
-          {:ok, true} ->
-            true
-
-          {:ok, false} ->
-            Cachex.put(@exists_cache, cache_key, false, ttl: @exists_negative_ttl)
-            false
-
-          {:error, reason} ->
-            Logger.warning("S3 exists check failed for artifact #{key}: #{inspect(reason)}")
-            false
-        end
-
-      {:ok, cached} ->
-        :telemetry.execute([:tuist_registry, :s3, :head], %{duration: 0}, %{result: :cache_hit})
-        cached
-    end
-  end
-
-  defp do_exists?(key, opts) do
-    type = Keyword.get(opts, :type, :registry)
-
-    case bucket_for_type(type) do
-      nil ->
-        {:ok, false}
-
-      bucket ->
-        case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
-          :exists -> {:ok, true}
-          :not_found -> {:ok, false}
-          {:error, reason} -> {:error, reason}
-        end
-    end
-  end
-
-  @doc """
   Extracts and normalizes the ETag value from S3 response headers.
 
   Handles both `"etag"` and `"ETag"` header keys, strips surrounding quotes,
@@ -228,31 +171,4 @@ defmodule TuistRegistry.S3 do
 
   defp bucket_for_type(:registry), do: Config.registry_bucket()
   defp bucket_for_type(_type), do: Config.registry_bucket()
-
-  defp head_object_status(bucket, key, request_opts) do
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.head_object(key)
-        |> ExAws.request(request_opts)
-      end)
-
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:tuist_registry, :s3, :head], %{duration: duration}, %{result: :found})
-        :exists
-
-      {:error, {:http_error, 404, _}} ->
-        :telemetry.execute([:tuist_registry, :s3, :head], %{duration: duration}, %{result: :not_found})
-        :not_found
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:tuist_registry, :s3, :head], %{duration: duration}, %{result: :rate_limited})
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        :telemetry.execute([:tuist_registry, :s3, :head], %{duration: duration}, %{result: :error})
-        {:error, reason}
-    end
-  end
 end

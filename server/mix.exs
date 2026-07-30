@@ -63,7 +63,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.11.1", override: true},
+      {:bandit, "~> 1.12.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -89,7 +89,7 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.19"},
+      {:oban, "~> 2.20"},
       {:oban_web, "~> 2.11"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},

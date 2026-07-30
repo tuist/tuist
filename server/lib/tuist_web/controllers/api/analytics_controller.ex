@@ -370,6 +370,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                    project_settings: %Schema{type: :string, description: "Project settings hash"},
                                    target_settings: %Schema{type: :string, description: "Target settings hash"},
                                    buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
                                    additional_strings: %Schema{
                                      type: :array,
                                      description: "Additional strings used in the hash",
@@ -412,6 +416,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                    project_settings: %Schema{type: :string, description: "Project settings hash"},
                                    target_settings: %Schema{type: :string, description: "Target settings hash"},
                                    buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
                                    additional_strings: %Schema{
                                      type: :array,
                                      description: "Additional strings used in the hash",

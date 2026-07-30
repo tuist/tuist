@@ -25,7 +25,7 @@ defmodule Tuist.Runners.Dispatch do
        no such coupling.
     2. Reject if runners aren't enabled for the customer
        (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
-       flag in production).
+       flag in canary and production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the

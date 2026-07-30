@@ -1,0 +1,44 @@
+{
+  "name": "FilterOption",
+  "tagName": "noora-filter-option",
+  "elementClassName": "NooraFilterOption",
+  "className": "noora-filter-option",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one allowed value for a filter definition.",
+  "usage": "<noora-filter-option value=\"active\">Active</noora-filter-option>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Sets the option value."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the option label instead of using text content."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The option label."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "option",
+      "title": "Option",
+      "description": "Describe an allowed filter value.",
+      "markup": "<noora-filter-option value=\"active\">Active</noora-filter-option>"
+    }
+  ]
+}

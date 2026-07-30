@@ -110,11 +110,11 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         // Then
         // Children are sorted by hash for determinism
         XCTAssertEqual(got, MerkleNode(
-            hash: "6c5f573450d379898ffa415402ad349c",
+            hash: "5684b5bb1f3e485d53b29c9ad8add44e",
             identifier: "resources",
             children: [
                 MerkleNode(
-                    hash: "67a89904e984196e4081300ca5cfa0fa",
+                    hash: "d8e3e5720f2916804d21060f777499f0",
                     identifier: resource2.parentDirectory.pathString,
                     children: [
                         MerkleNode(
@@ -123,7 +123,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
                             children: []
                         ),
                         MerkleNode(
-                            hash: "c81e728d9d4c2f636f067f89cc14862c",
+                            hash: "ad466924a9a3254ab4d5280a915e0444",
                             identifier: "content",
                             children: []
                         ),

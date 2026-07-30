@@ -1,0 +1,79 @@
+{
+  "name": "Card",
+  "tagName": "noora-card",
+  "elementClassName": "NooraCard",
+  "className": "noora-card",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Groups related content into a titled surface.",
+  "usage": "<noora-card icon=\"layers\" title=\"Overview\">Content</noora-card>",
+  "previewLayout": "stack",
+  "attributes": [
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Sets a Noora icon in the header."
+    },
+    {
+      "name": "title",
+      "property": "title",
+      "type": "string",
+      "default": "",
+      "description": "Sets the card title."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The card body."
+    },
+    {
+      "name": "icon",
+      "description": "A custom icon that takes precedence over the icon attribute."
+    },
+    {
+      "name": "actions",
+      "description": "Header actions."
+    },
+    {
+      "name": "section",
+      "description": "Additional independently styled card sections."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "card",
+      "description": "The card container."
+    },
+    {
+      "name": "header",
+      "description": "The card header."
+    },
+    {
+      "name": "body",
+      "description": "The card body section."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic",
+      "description": "Basic card configurations with different content arrangements.",
+      "markup": "<noora-card style=\"width: 350px\" icon=\"dashboard\" title=\"Dashboard Overview\">\n  <p>This is a simple card with basic content. It contains a title, icon, and some descriptive text.</p>\n</noora-card>\n\n<noora-card style=\"width: 350px\" icon=\"chart_arcs\" title=\"Recent Analytics\">\n  <noora-button slot=\"actions\" variant=\"secondary\" label=\"View Details\" size=\"medium\"></noora-button>\n  <p>This card includes action buttons in the header area. Users can interact with these actions to perform related tasks.</p>\n</noora-card>\n\n<noora-card style=\"width: 400px\" icon=\"settings\" title=\"Project Settings\">\n  <noora-button slot=\"actions\" variant=\"secondary\" label=\"Edit\" size=\"medium\"></noora-button>\n  <noora-button slot=\"actions\" variant=\"primary\" label=\"Save\" size=\"medium\"></noora-button>\n  <p>Cards can contain multiple action buttons for different operations.</p>\n</noora-card>"
+    },
+    {
+      "id": "content",
+      "title": "Content variations",
+      "description": "Cards with different content structures and multiple sections.",
+      "markup": "<noora-card style=\"width: 400px\" icon=\"folders\" title=\"Project Structure\">\n  <section slot=\"section\"><h4>Source Files</h4><p>Contains all the main application source code and modules.</p></section>\n  <section slot=\"section\"><h4>Test Files</h4><p>Unit tests, integration tests, and test utilities.</p></section>\n  <section slot=\"section\"><h4>Documentation</h4><p>API documentation, guides, and project notes.</p></section>\n</noora-card>\n\n<noora-card style=\"width: 450px\" icon=\"chart_donut_4\" title=\"Performance Metrics\">\n  <noora-button slot=\"actions\" variant=\"secondary\" label=\"Export\" size=\"medium\"></noora-button>\n  <section slot=\"section\">\n    <div style=\"margin-bottom: 12px;\"><strong>Response Time:</strong> 245ms</div>\n    <div style=\"margin-bottom: 12px;\"><strong>Throughput:</strong> 1,250 req/sec</div>\n    <div style=\"margin-bottom: 12px;\"><strong>Error Rate:</strong> 0.12%</div>\n  </section>\n  <section slot=\"section\"><em>Last updated: 2 minutes ago</em></section>\n</noora-card>"
+    },
+    {
+      "id": "icons",
+      "title": "Different icons",
+      "description": "Cards showcasing different icon types and purposes.",
+      "markup": "<noora-card style=\"width: 320px\" icon=\"database\" title=\"Database Status\">\n  <p>Current database health and connection status information.</p>\n</noora-card>\n\n<noora-card style=\"width: 320px\" icon=\"user\" title=\"User Profile\">\n  <p>User account information and profile settings.</p>\n</noora-card>\n\n<noora-card style=\"width: 320px\" icon=\"mail\" title=\"Notifications\">\n  <noora-button slot=\"actions\" variant=\"secondary\" label=\"Mark All Read\" size=\"medium\"></noora-button>\n  <p>Recent notifications and system alerts.</p>\n</noora-card>"
+    }
+  ]
+}

@@ -3,6 +3,7 @@
     import Foundation
     import TuistAlert
     import TuistConfig
+    import TuistEnvironment
     import TuistEnvKey
     import TuistExtension
     import TuistSupport
@@ -70,6 +71,10 @@
         )
         var cacheProfile: String?
 
+        var scratchDirectory: String? {
+            Environment.current.variables[EnvKey.cacheWarmScratchDirectory.rawValue]
+        }
+
         @Flag(
             name: .long,
             help: "When passed, the hashes of the cacheable frameworks in the given project are printed.",
@@ -101,7 +106,8 @@
                 externalOnly: externalOnly,
                 generateOnly: generateOnly,
                 noUpload: noUpload,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                scratchDirectory: scratchDirectory
             )
         }
     }

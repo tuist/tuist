@@ -97,6 +97,7 @@ defmodule Cache.Application do
           :method,
           :route,
           :request_path,
+          :status,
           :reason,
           :error,
           :kind,

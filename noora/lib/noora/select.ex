@@ -26,7 +26,7 @@ defmodule Noora.Select do
   attr(:field, FormField, doc: "A Phoenix form field")
 
   attr(:name, :string, doc: "The name attribute for the select input")
-  attr(:value, :string, doc: "The currently selected value")
+  attr(:value, :string, default: nil, doc: "The currently selected value")
   attr(:hint, :string, default: nil, doc: "Hint text for the dropdown")
 
   attr(:disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled")

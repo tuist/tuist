@@ -5,6 +5,8 @@ defmodule Tuist.Automations do
   alias Ecto.Multi
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Alerts.BaselineAttempt
+  alias Tuist.Automations.Alerts.BaselineResult
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
   alias Tuist.Automations.Alerts.Revision
   alias Tuist.Automations.Workers.AlertEvaluationWorker
@@ -12,6 +14,7 @@ defmodule Tuist.Automations do
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
 
   require Logger
@@ -40,6 +43,14 @@ defmodule Tuist.Automations do
     recovery_config
     recovery_actions
   )a
+  @max_scoped_evaluation_window_seconds [minute: 15] |> to_timeout() |> div(1000)
+  @baseline_evaluation_batch_size 2000
+  @baseline_event_batch_size 500
+  @baseline_enumeration_settings [
+    max_threads: 1,
+    max_memory_usage: 128 * 1024 * 1024,
+    optimize_aggregation_in_order: 1
+  ]
 
   def list_alerts(project_id) do
     Alert
@@ -93,16 +104,38 @@ defmodule Tuist.Automations do
     }
   end
 
-  def update_alert(%Alert{} = alert, attrs, opts \\ []) do
-    attrs = maybe_reset_baseline(alert, attrs)
+  def update_alert(%Alert{id: alert_id}, attrs, opts \\ []) do
+    Repo.transaction(fn ->
+      alert =
+        Repo.one!(
+          from(current in Alert,
+            where: current.id == ^alert_id,
+            lock: "FOR UPDATE"
+          )
+        )
 
-    Multi.new()
-    |> Multi.update(:alert, Alert.changeset(alert, attrs))
-    |> Multi.run(:revision, fn repo, %{alert: updated_alert} ->
-      insert_alert_revision(repo, alert, updated_alert, "updated", opts)
+      monitor_definition_changed? = monitor_definition_changed?(alert, attrs)
+      attrs = maybe_reset_baseline(attrs, monitor_definition_changed?)
+      changeset = Alert.changeset(alert, attrs)
+
+      changeset =
+        if monitor_definition_changed? do
+          Ecto.Changeset.put_change(changeset, :baseline_generation, alert.baseline_generation + 1)
+        else
+          changeset
+        end
+
+      updated_alert =
+        case Repo.update(changeset) do
+          {:ok, updated_alert} -> updated_alert
+          {:error, reason} -> Repo.rollback(reason)
+        end
+
+      case insert_alert_revision(Repo, alert, updated_alert, "updated", opts) do
+        {:ok, _revision} -> updated_alert
+        {:error, reason} -> Repo.rollback(reason)
+      end
     end)
-    |> Repo.transaction()
-    |> unwrap_alert_transaction()
   end
 
   defp unwrap_alert_transaction({:ok, %{alert: alert}}), do: {:ok, alert}
@@ -163,13 +196,8 @@ defmodule Tuist.Automations do
 
   defp revision_value(_field, value), do: value
 
-  defp maybe_reset_baseline(alert, attrs) do
-    if monitor_definition_changed?(alert, attrs) do
-      reset_baseline(attrs)
-    else
-      attrs
-    end
-  end
+  defp maybe_reset_baseline(attrs, true), do: reset_baseline(attrs)
+  defp maybe_reset_baseline(attrs, false), do: attrs
 
   defp reset_baseline(attrs) do
     if Enum.any?(Map.keys(attrs), &is_binary/1) do
@@ -206,17 +234,23 @@ defmodule Tuist.Automations do
 
   @doc """
   Returns currently active alert events for an alert (latest status = "triggered").
-  Uses argMax to find the most recent status per test_case_id from the append-only log.
+
+  A publication retry can append a byte-identical deterministic baseline event.
+  Resolving the latest status per test case already makes those retries
+  invisible, without a separate hash aggregation over event identifiers.
   """
   def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+    baseline_generation =
+      Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
+
     AlertEvent
-    |> where(alert_id: ^alert_id)
+    |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
     |> filter_alert_events_by_test_case_ids(test_case_ids)
-    |> group_by([e], e.test_case_id)
-    |> having([e], fragment("argMax(?, ?) = 'triggered'", e.status, e.inserted_at))
-    |> select([e], %{
-      test_case_id: e.test_case_id,
-      triggered_at: fragment("argMax(?, ?)", e.triggered_at, e.inserted_at)
+    |> group_by([event], event.test_case_id)
+    |> having([event], fragment("argMax(?, ?) = 'triggered'", event.status, event.inserted_at))
+    |> select([event], %{
+      test_case_id: event.test_case_id,
+      triggered_at: fragment("argMax(?, ?)", event.triggered_at, event.inserted_at)
     })
     |> ClickHouseRepo.all()
   end
@@ -278,7 +312,7 @@ defmodule Tuist.Automations do
         unique: [
           keys: [:project_id, :cadence_seconds, :evaluate_recent_test_case_runs],
           period: :infinity,
-          states: [:available, :scheduled]
+          states: [:available, :scheduled, :executing, :retryable]
         ]
       )
       |> Oban.insert()
@@ -287,49 +321,415 @@ defmodule Tuist.Automations do
   end
 
   def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
-    recent_test_case_run_changes(alert.project_id, scoped_evaluation_query_since(alert))
+    now = DateTime.utc_now(:second)
+    cursor = scoped_evaluation_cursor(alert, now)
+    recent_test_case_run_changes(alert.project_id, cursor, now)
   end
 
   def recent_test_case_run_changes_for_alerts([%Alert{} = alert | _alerts] = alerts) do
-    since =
+    now = DateTime.utc_now(:second)
+
+    cursor =
       alerts
-      |> Enum.map(&scoped_evaluation_query_since/1)
+      |> Enum.map(&scoped_evaluation_cursor(&1, now))
       |> Enum.min(DateTime)
 
-    recent_test_case_run_changes(alert.project_id, since)
+    recent_test_case_run_changes(alert.project_id, cursor, now)
   end
 
-  defp recent_test_case_run_changes(project_id, since) do
-    rows =
+  defp recent_test_case_run_changes(project_id, cursor, now) do
+    query_start = DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
+
+    window_end = Enum.min([DateTime.add(cursor, @max_scoped_evaluation_window_seconds, :second), now], DateTime)
+
+    test_case_ids =
       ClickHouseRepo.all(
         from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
           where: r.project_id == ^project_id,
           where: not is_nil(r.test_case_id),
-          where: r.inserted_at >= ^DateTime.to_naive(since),
+          where: r.inserted_at >= ^DateTime.to_naive(query_start),
+          where: r.inserted_at < ^DateTime.to_naive(window_end),
           group_by: r.test_case_id,
           order_by: [asc: r.test_case_id],
-          select: %{
-            test_case_id: r.test_case_id,
-            last_inserted_at: max(r.inserted_at)
-          }
+          select: r.test_case_id
         )
       )
 
     %{
-      test_case_ids: Enum.map(rows, & &1.test_case_id),
-      cursor: latest_inserted_at_cursor(rows) || DateTime.utc_now(:second)
+      test_case_ids: test_case_ids,
+      cursor: window_end,
+      more?: DateTime.before?(window_end, now)
     }
   end
 
-  def establish_alert_baseline(%Alert{} = alert) do
-    now = DateTime.utc_now(:second)
+  def establish_alert_baseline(%Alert{} = alert, evaluate_batch) when is_function(evaluate_batch, 1) do
+    case begin_alert_baseline(alert) do
+      {:established, _alert} ->
+        :ok
 
-    alert
-    |> Ecto.Changeset.change(
-      baseline_established_at: now,
-      last_scoped_evaluation_inserted_at: now
+      {:ok, %BaselineAttempt{state: "evaluating"} = attempt} ->
+        case evaluate_alert_baseline(attempt, alert.project_id, evaluate_batch) do
+          {:ok, publishing_attempt} -> publish_and_commit_alert_baseline(publishing_attempt)
+          {:error, :stale} -> :ok
+        end
+
+      {:ok, %BaselineAttempt{state: "publishing"} = attempt} ->
+        publish_and_commit_alert_baseline(attempt)
+
+      {:ok, %BaselineAttempt{state: "committed"}} ->
+        :ok
+    end
+  end
+
+  @doc false
+  def begin_alert_baseline(%Alert{id: alert_id}) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        alert =
+          Repo.one!(
+            from(current in Alert,
+              where: current.id == ^alert_id,
+              lock: "FOR UPDATE"
+            )
+          )
+
+        if alert.baseline_established_at do
+          {:established, alert}
+        else
+          attempt =
+            Repo.get_by(BaselineAttempt,
+              alert_id: alert.id,
+              baseline_generation: alert.baseline_generation
+            ) ||
+              Repo.insert!(
+                BaselineAttempt.changeset(%BaselineAttempt{}, %{
+                  alert_id: alert.id,
+                  baseline_generation: alert.baseline_generation,
+                  cursor: DateTime.utc_now(:second)
+                })
+              )
+
+          {:ok, attempt}
+        end
+      end)
+
+    result
+  end
+
+  @doc false
+  def list_alert_baseline_test_case_page(project_id, cursor) do
+    query =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        group_by: [
+          test_case.module_name,
+          test_case.suite_name,
+          test_case.name,
+          test_case.id
+        ],
+        order_by: [
+          asc: test_case.module_name,
+          asc: test_case.suite_name,
+          asc: test_case.name,
+          asc: test_case.id
+        ],
+        limit: @baseline_evaluation_batch_size,
+        select: %{
+          id: test_case.id,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
+          name: test_case.name
+        }
+      )
+
+    query
+    |> apply_alert_baseline_evaluation_cursor(cursor)
+    |> ClickHouseRepo.all(settings: @baseline_enumeration_settings)
+  end
+
+  defp apply_alert_baseline_evaluation_cursor(query, nil), do: query
+
+  defp apply_alert_baseline_evaluation_cursor(query, %{
+         "module_name" => module_name,
+         "suite_name" => suite_name,
+         "name" => name,
+         "id" => id
+       }) do
+    where(
+      query,
+      [test_case],
+      test_case.module_name > ^module_name or
+        (test_case.module_name == ^module_name and
+           (test_case.suite_name > ^suite_name or
+              (test_case.suite_name == ^suite_name and
+                 (test_case.name > ^name or
+                    (test_case.name == ^name and test_case.id > ^id)))))
     )
-    |> Repo.update()
+  end
+
+  defp evaluate_alert_baseline(attempt, project_id, evaluate_batch) do
+    case list_alert_baseline_test_case_page(project_id, attempt.evaluation_cursor) do
+      [] ->
+        finish_alert_baseline_evaluation(attempt)
+
+      test_cases ->
+        test_case_ids = Enum.map(test_cases, & &1.id)
+        triggered_test_case_ids = test_case_ids |> evaluate_batch.() |> Enum.uniq()
+        evaluation_cursor = baseline_evaluation_cursor(List.last(test_cases))
+
+        case persist_alert_baseline_batch(
+               attempt,
+               evaluation_cursor,
+               triggered_test_case_ids
+             ) do
+          {:ok, %BaselineAttempt{state: "evaluating"} = next_attempt} ->
+            evaluate_alert_baseline(next_attempt, project_id, evaluate_batch)
+
+          {:ok, %BaselineAttempt{} = next_attempt} ->
+            {:ok, next_attempt}
+
+          {:error, :stale} = error ->
+            error
+        end
+    end
+  end
+
+  defp baseline_evaluation_cursor(test_case) do
+    %{
+      "module_name" => test_case.module_name,
+      "suite_name" => test_case.suite_name,
+      "name" => test_case.name,
+      "id" => test_case.id
+    }
+  end
+
+  @doc false
+  def persist_alert_baseline_batch(%BaselineAttempt{} = attempt, evaluation_cursor, triggered_test_case_ids) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) ->
+          Repo.rollback(:stale)
+
+        current_attempt.state != "evaluating" or
+            current_attempt.evaluation_cursor != attempt.evaluation_cursor ->
+          current_attempt
+
+        true ->
+          now = DateTime.utc_now(:second)
+
+          rows =
+            Enum.map(triggered_test_case_ids, fn test_case_id ->
+              %{
+                attempt_id: current_attempt.id,
+                test_case_id: test_case_id,
+                inserted_at: now
+              }
+            end)
+
+          Repo.insert_all(BaselineResult, rows,
+            on_conflict: :nothing,
+            conflict_target: [:attempt_id, :test_case_id]
+          )
+
+          current_attempt
+          |> BaselineAttempt.changeset(%{evaluation_cursor: evaluation_cursor})
+          |> Repo.update!()
+      end
+    end)
+  end
+
+  defp finish_alert_baseline_evaluation(%BaselineAttempt{} = attempt) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) ->
+          Repo.rollback(:stale)
+
+        current_attempt.state != "evaluating" or
+            current_attempt.evaluation_cursor != attempt.evaluation_cursor ->
+          current_attempt
+
+        true ->
+          current_attempt
+          |> BaselineAttempt.changeset(%{state: "publishing"})
+          |> Repo.update!()
+      end
+    end)
+  end
+
+  defp with_locked_alert_baseline_attempt(attempt, fun) do
+    case Repo.transaction(fn ->
+           alert =
+             Repo.one!(
+               from(current in Alert,
+                 where: current.id == ^attempt.alert_id,
+                 lock: "FOR UPDATE"
+               )
+             )
+
+           current_attempt =
+             Repo.one!(
+               from(current in BaselineAttempt,
+                 where: current.id == ^attempt.id,
+                 lock: "FOR UPDATE"
+               )
+             )
+
+           fun.(alert, current_attempt)
+         end) do
+      {:ok, current_attempt} -> {:ok, current_attempt}
+      {:error, :stale} -> {:error, :stale}
+    end
+  end
+
+  defp stale_alert_baseline_attempt?(alert, attempt) do
+    alert.baseline_established_at != nil or
+      alert.baseline_generation != attempt.baseline_generation
+  end
+
+  defp publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt) do
+    test_case_ids =
+      BaselineResult
+      |> where(attempt_id: ^attempt.id)
+      |> maybe_filter_published_baseline_results(attempt.last_published_test_case_id)
+      |> order_by(asc: :test_case_id)
+      |> limit(@baseline_event_batch_size)
+      |> select([result], result.test_case_id)
+      |> Repo.all()
+
+    case test_case_ids do
+      [] ->
+        commit_alert_baseline(attempt)
+
+      test_case_ids ->
+        now =
+          attempt.cursor
+          |> DateTime.to_naive()
+          |> Map.put(:microsecond, {0, 6})
+
+        records =
+          Enum.map(test_case_ids, fn test_case_id ->
+            %{
+              id: deterministic_baseline_event_id(attempt.id, test_case_id),
+              alert_id: attempt.alert_id,
+              baseline_generation: attempt.baseline_generation,
+              test_case_id: test_case_id,
+              status: "triggered",
+              triggered_at: now,
+              inserted_at: now
+            }
+          end)
+
+        IngestRepo.insert_all(AlertEvent, records,
+          settings: [
+            insert_deduplication_token:
+              baseline_event_deduplication_token(
+                attempt.id,
+                attempt.last_published_test_case_id
+              )
+          ]
+        )
+
+        case advance_alert_baseline_publication(attempt, List.last(test_case_ids)) do
+          {:ok, next_attempt} -> publish_and_commit_alert_baseline(next_attempt)
+          {:error, :stale} -> :ok
+        end
+    end
+  end
+
+  defp maybe_filter_published_baseline_results(query, nil), do: query
+
+  defp maybe_filter_published_baseline_results(query, test_case_id) do
+    where(query, [result], result.test_case_id > ^test_case_id)
+  end
+
+  defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id) do
+    "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}"
+  end
+
+  defp advance_alert_baseline_publication(attempt, last_published_test_case_id) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) ->
+          Repo.rollback(:stale)
+
+        current_attempt.state != "publishing" or
+            current_attempt.last_published_test_case_id !=
+              attempt.last_published_test_case_id ->
+          current_attempt
+
+        true ->
+          current_attempt
+          |> BaselineAttempt.changeset(%{
+            last_published_test_case_id: last_published_test_case_id
+          })
+          |> Repo.update!()
+      end
+    end)
+  end
+
+  @doc false
+  def commit_alert_baseline(%BaselineAttempt{} = attempt) do
+    case Repo.transaction(fn ->
+           alert =
+             Repo.one!(
+               from(current in Alert,
+                 where: current.id == ^attempt.alert_id,
+                 lock: "FOR UPDATE"
+               )
+             )
+
+           current_attempt =
+             Repo.one!(
+               from(current in BaselineAttempt,
+                 where: current.id == ^attempt.id,
+                 lock: "FOR UPDATE"
+               )
+             )
+
+           cond do
+             alert.baseline_established_at != nil ->
+               :ok
+
+             alert.baseline_generation != current_attempt.baseline_generation ->
+               Repo.rollback(:stale)
+
+             current_attempt.state != "publishing" ->
+               Repo.rollback(:not_ready)
+
+             true ->
+               current_attempt
+               |> BaselineAttempt.changeset(%{state: "committed"})
+               |> Repo.update!()
+
+               alert
+               |> Ecto.Changeset.change(
+                 baseline_established_at: current_attempt.cursor,
+                 last_scoped_evaluation_inserted_at: current_attempt.cursor
+               )
+               |> Repo.update!()
+
+               Repo.delete_all(
+                 from(result in BaselineResult,
+                   where: result.attempt_id == ^current_attempt.id
+                 )
+               )
+
+               :ok
+           end
+         end) do
+      {:ok, :ok} -> :ok
+      {:error, :stale} -> :ok
+      {:error, :not_ready} -> {:error, :not_ready}
+    end
+  end
+
+  defp deterministic_baseline_event_id(attempt_id, test_case_id) do
+    <<a::32, b::16, c::16, d::16, e::48>> =
+      :sha256
+      |> :crypto.hash("#{attempt_id}:#{test_case_id}")
+      |> binary_part(0, 16)
+
+    Ecto.UUID.cast!(<<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>)
   end
 
   def update_alert_scoped_evaluation_cursor(%Alert{} = alert, cursor) do
@@ -382,13 +782,8 @@ defmodule Tuist.Automations do
     div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
   end
 
-  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: nil}) do
-    DateTime.add(DateTime.utc_now(:second), -scoped_evaluation_cursor_lookback_seconds(), :second)
-  end
-
-  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: cursor}) do
-    DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
-  end
+  defp scoped_evaluation_cursor(%Alert{last_scoped_evaluation_inserted_at: nil}, now), do: now
+  defp scoped_evaluation_cursor(%Alert{last_scoped_evaluation_inserted_at: cursor}, _now), do: cursor
 
   defp scoped_evaluation_cursor_lookback_seconds do
     max(alert_evaluation_schedule_in(), 10)
@@ -400,27 +795,6 @@ defmodule Tuist.Automations do
     Enum.max([current_cursor, cursor], DateTime)
   end
 
-  defp latest_inserted_at_cursor([]), do: nil
-
-  defp latest_inserted_at_cursor(rows) do
-    rows
-    |> Enum.map(&clickhouse_datetime_to_utc_datetime(&1.last_inserted_at))
-    |> Enum.max_by(&DateTime.to_unix(&1, :microsecond))
-    |> DateTime.truncate(:second)
-  end
-
-  defp clickhouse_datetime_to_utc_datetime(%DateTime{} = datetime) do
-    datetime
-    |> DateTime.shift_zone!("Etc/UTC")
-    |> DateTime.truncate(:second)
-  end
-
-  defp clickhouse_datetime_to_utc_datetime(%NaiveDateTime{} = datetime) do
-    datetime
-    |> NaiveDateTime.truncate(:second)
-    |> DateTime.from_naive!("Etc/UTC")
-  end
-
   @doc """
   Appends an alert event to the log.
   """
@@ -430,6 +804,7 @@ defmodule Tuist.Automations do
     record =
       attrs
       |> Map.put_new(:id, UUIDv7.generate())
+      |> Map.put_new(:baseline_generation, 0)
       |> Map.put_new(:inserted_at, now)
 
     IngestRepo.insert_all(AlertEvent, [record])
@@ -531,6 +906,7 @@ defmodule Tuist.Automations do
       :ok ->
         create_alert_event(%{
           alert_id: alert.id,
+          baseline_generation: alert.baseline_generation,
           test_case_id: test_case_id,
           status: "triggered",
           triggered_at: NaiveDateTime.utc_now()

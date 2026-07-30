@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import OpenAPIRuntime
 import Path
 import Testing
 import TuistConstants
@@ -462,6 +463,38 @@ struct ServerAuthenticationControllerTests {
             // Then
             let expiresAt = try #require(result?.expiresAt)
             #expect(expiresAt == date.addingTimeInterval(+570))
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_preserves_transient_client_errors() async throws {
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: refreshToken.token
+            )
+            let error = ClientError(
+                operationID: "refreshToken",
+                operationInput: "",
+                causeDescription: "Request timed out",
+                underlyingError: URLError(.timedOut)
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(refreshAuthTokenService)
+                .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+                .willThrow(error)
+
+            await #expect(throws: ClientError.self) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            }
         }
     }
 

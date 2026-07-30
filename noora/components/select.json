@@ -1,0 +1,162 @@
+{
+  "name": "Select",
+  "tagName": "noora-select",
+  "elementClassName": "NooraSelect",
+  "className": "noora-dropdown",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Selects one value from a list of options.",
+  "usage": "<noora-select label=\"Country\" name=\"country\">\n  <option value=\"es\">Spain</option>\n</noora-select>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the placeholder label."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the submitted field name."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Gets or sets the selected value."
+    },
+    {
+      "name": "hint",
+      "property": "hint",
+      "type": "string",
+      "description": "Adds supporting text."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the select."
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks the field as required."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "description": "Controls whether the options menu is open."
+    }
+  ],
+  "properties": [
+    {
+      "name": "options",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines options programmatically when declarative option children are not used. Each option can include label, value, icon, and disabled fields."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLSelectElement | null",
+      "description": "The native select control."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The associated form."
+    }
+  ],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative native option children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "select",
+      "description": "The visible select trigger."
+    },
+    {
+      "name": "content",
+      "description": "The options menu."
+    },
+    {
+      "name": "items",
+      "description": "The options list."
+    },
+    {
+      "name": "hint",
+      "description": "The supporting text."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the selected value changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted after the selected value changes."
+    },
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the options menu opens or closes."
+    },
+    {
+      "name": "noora-select",
+      "type": "CustomEvent<{ item: Record<string, unknown>; value: string }>",
+      "description": "Emitted with the selected option and value."
+    }
+  ],
+  "notes": [
+    "The component emits standard input and change events.",
+    "Use data-icon on a declarative option to show an icon in the menu and selected trigger."
+  ],
+  "examples": [
+    {
+      "id": "country",
+      "title": "Default",
+      "description": "Select a country from structured options.",
+      "markup": "<noora-select label=\"Country\" name=\"country\">\n  <option value=\"es\">Spain</option>\n  <option value=\"de\">Germany</option>\n  <option value=\"fr\">France</option>\n</noora-select>"
+    },
+    {
+      "id": "selected",
+      "title": "Selected value",
+      "description": "Show the current value in the trigger.",
+      "markup": "<noora-select label=\"Country\" name=\"country\" value=\"de\">\n  <option value=\"es\">Spain</option>\n  <option value=\"de\">Germany</option>\n  <option value=\"fr\">France</option>\n</noora-select>"
+    },
+    {
+      "id": "icons",
+      "title": "Option icons",
+      "description": "Add visual context to options and the selected trigger.",
+      "markup": "<noora-select label=\"Workspace\" name=\"workspace\" value=\"application\">\n  <option value=\"application\" data-icon=\"category\">Application</option>\n  <option value=\"framework\" data-icon=\"category\">Framework</option>\n  <option value=\"package\" data-icon=\"category\">Package</option>\n</noora-select>"
+    },
+    {
+      "id": "hint",
+      "title": "Hint",
+      "description": "Explain how the selected value will be used.",
+      "markup": "<noora-select label=\"Country\" name=\"country\" hint=\"Used for regional settings.\">\n  <option value=\"es\">Spain</option>\n  <option value=\"de\">Germany</option>\n  <option value=\"fr\">France</option>\n</noora-select>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Disable selection when the field is unavailable.",
+      "markup": "<noora-select label=\"Country\" name=\"country\" value=\"de\" disabled>\n  <option value=\"es\">Spain</option>\n  <option value=\"de\">Germany</option>\n  <option value=\"fr\">France</option>\n</noora-select>"
+    }
+  ]
+}

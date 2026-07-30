@@ -456,31 +456,44 @@ one of:
 {{- end }}
 
 {{/*
-License env vars. Resolves to (in order):
-  1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
-     managed envs that sync the license from 1Password via
-     templates/external-secrets.yaml.
-  2. Chart-managed app-secrets Secret — when server.license.key is inlined.
+License env vars. Resolves to one mutually exclusive source:
+  1. ESO-managed Secret (server.externalSecrets.license.item or
+     server.externalSecrets.license.certificateItem set) for managed
+     environments that sync the license from 1Password.
+  2. Chart-managed app-secrets Secret when server.license.key or
+     server.license.certificateBase64 is inlined.
 */}}
 {{- define "tuist.licenseEnv" -}}
 {{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
-{{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
-{{- if and $useEso .Values.server.license.key -}}
-{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
+{{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
+{{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
+{{- if and $useEsoKey $useEsoCertificate -}}
+{{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
-{{- if or $useEso .Values.server.license.key }}
+{{- if and (or $useEsoKey $useEsoCertificate) (or $useInlineKey $useInlineCertificate) -}}
+{{- fail "external and inline license settings are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if and $useInlineKey $useInlineCertificate -}}
+{{- fail "server.license.key and server.license.certificateBase64 are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
+{{- end -}}
+{{- if or $useEsoKey $useInlineKey }}
 - name: TUIST_LICENSE_KEY
   valueFrom:
     secretKeyRef:
-      name: {{ ternary $esoSecret $appSecret $useEso | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
       key: server-license-key
 {{- end }}
-{{- if .Values.server.license.certificateBase64 }}
+{{- if or $useEsoCertificate $useInlineCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
   valueFrom:
     secretKeyRef:
-      name: {{ $appSecret | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
 {{- end }}
 {{- end -}}
@@ -567,9 +580,33 @@ own way).
 {{- end -}}
 
 {{/*
-ClickHouse repo pool sizes are non-secret operational knobs. Render them from
-chart values so the server, migration, processor, and xcresult-processor pods
-stay aligned without relying on the runtime secret bundle.
+Stable credential and desired identifiers for the managed ClickHouse operator
+user. The migration job consumes the same values as the web server, so every
+release converges the database user before the new pods start.
+*/}}
+{{- define "tuist.opsClickHouseSecretName" -}}
+{{- .Values.server.config.opsClickHouse.existingSecret | default (include "tuist.componentName" (dict "root" . "component" "clickhouse-ops")) -}}
+{{- end -}}
+
+{{- define "tuist.opsClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.opsClickHouse.enabled }}
+- name: TUIST_OPS_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.opsClickHouse.username is required when enabled" .Values.server.config.opsClickHouse.username | quote }}
+- name: TUIST_OPS_CLICKHOUSE_ROLE
+  value: {{ required "server.config.opsClickHouse.role is required when enabled" .Values.server.config.opsClickHouse.role | quote }}
+- name: TUIST_OPS_CLICKHOUSE_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.opsClickHouseSecretName" . }}
+      key: {{ .Values.server.config.opsClickHouse.passwordKey | default "password" | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+ClickHouse repo pool sizes and the shared user memory budget are non-secret
+operational knobs. Render them from chart values so the server, migration,
+processor, and xcresult-processor pods stay aligned without relying on the
+runtime secret bundle.
 */}}
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
@@ -578,6 +615,10 @@ stay aligned without relying on the runtime secret bundle.
 {{- end }}
 {{- with .Values.clickhouse.bufferPoolSize }}
 - name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.maxMemoryUsageForUserBytes }}
+- name: TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES
   value: {{ . | quote }}
 {{- end }}
 {{- end -}}

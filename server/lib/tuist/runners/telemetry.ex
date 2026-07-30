@@ -34,4 +34,5 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_queue_withheld, do: [:tuist, :runners, :queue, :withheld]
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
+  def event_name_session_clamp, do: [:tuist, :runners, :session, :clamped]
 end

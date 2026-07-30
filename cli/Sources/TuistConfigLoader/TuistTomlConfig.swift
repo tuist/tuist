@@ -4,9 +4,16 @@ import TuistConfig
 struct TuistTomlConfig: Equatable, Sendable, Decodable {
     struct Network: Equatable, Sendable, Decodable {
         let proxy: Bool?
+        let caCertificate: String?
 
-        init(proxy: Bool? = nil) {
+        init(proxy: Bool? = nil, caCertificate: String? = nil) {
             self.proxy = proxy
+            self.caCertificate = caCertificate
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case proxy
+            case caCertificate = "ca_certificate"
         }
     }
 

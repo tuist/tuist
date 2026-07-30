@@ -289,6 +289,11 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       # writes and backfills go through IngestRepo, which sets its own per-query
       # limits where needed.
       max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+      # Shared across every query issued by the application user on one
+      # ClickHouse replica. Production keeps this below the server ceiling so
+      # concurrent application reads and writes cannot consume the headroom
+      # needed by background merges and allocator overhead.
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -299,6 +304,29 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
 
+  if ops_clickhouse_url = Tuist.Environment.ops_clickhouse_url(secrets) do
+    ops_clickhouse_url =
+      Tuist.Environment.validate_ops_clickhouse_url!(
+        ops_clickhouse_url,
+        Tuist.Environment.clickhouse_url(secrets)
+      )
+
+    config :tuist, Tuist.OpsClickHouseRepo,
+      url: ops_clickhouse_url,
+      pool_size: Tuist.Environment.ops_clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: 2,
+        max_memory_usage: 1024 * 1024 * 1024
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
+
   config :tuist, Tuist.IngestRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
     pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
@@ -307,7 +335,8 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
     settings: [
-      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets),
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets)
     ],
     transport_opts: [
       keepalive: true,
@@ -346,6 +375,7 @@ if env == :dev do
 
   config :tuist, Tuist.ClickHouseRepo, clickhouse_dev_config
   config :tuist, Tuist.IngestRepo, clickhouse_dev_config
+  config :tuist, Tuist.OpsClickHouseRepo, clickhouse_dev_config
   config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
 end
 
@@ -369,6 +399,11 @@ if env == :test do
     database: test_clickhouse_db
 
   config :tuist, Tuist.IngestRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.OpsClickHouseRepo,
     hostname: "127.0.0.1",
     port: clickhouse_http_port,
     database: test_clickhouse_db
@@ -654,14 +689,15 @@ end
 
 # Registry config.
 #
-# The bucket name is shared across ecosystems (one Tigris bucket).
+# The bucket name is shared across ecosystems (one Tigris bucket). The web
+# runtime receives a dedicated registry object-storage configuration so its
+# operations pages do not reuse the account-artifact credentials.
 # `swift_*` keys are scoped to the Swift Package Registry sync workers.
 # `Tuist.Registry.Swift.SyncWorker` is cron-fired by the :web leader
 # and inserts jobs into the `:swift_registry_sync` queue. The
 # swift-registry-sync pod (`TUIST_MODE=swift_registry_sync`) consumes
 # them plus the `:swift_registry_release` jobs each SyncWorker enqueues
-# per missing tag. Reads from the bucket happen on the standalone
-# `registry` Phoenix app, not here.
+# per missing tag.
 swift_registry_sync_allowlist =
   case System.get_env("SWIFT_REGISTRY_SYNC_ALLOWLIST") do
     nil -> nil
@@ -675,77 +711,109 @@ swift_registry_sync_limit =
     value -> String.to_integer(value)
   end
 
+first_registry_env = fn names ->
+  Enum.find_value(names, fn name ->
+    case System.get_env(name) do
+      value when value not in [nil, ""] -> value
+      _ -> nil
+    end
+  end)
+end
+
+legacy_registry_s3_names =
+  if Tuist.Environment.swift_registry_sync_mode?() do
+    %{
+      endpoint: ["S3_ENDPOINT"],
+      host: ["S3_HOST"],
+      region: ["S3_REGION"],
+      access_key_id: ["S3_ACCESS_KEY_ID"],
+      secret_access_key: ["S3_SECRET_ACCESS_KEY"]
+    }
+  else
+    %{endpoint: [], host: [], region: [], access_key_id: [], secret_access_key: []}
+  end
+
+registry_bucket = first_registry_env.(["TUIST_REGISTRY_S3_BUCKET", "S3_REGISTRY_BUCKET"])
+
+registry_s3_endpoint =
+  first_registry_env.(["TUIST_REGISTRY_S3_ENDPOINT"] ++ legacy_registry_s3_names.endpoint)
+
+registry_s3_host =
+  first_registry_env.(["TUIST_REGISTRY_S3_HOST"] ++ legacy_registry_s3_names.host)
+
+registry_s3_region =
+  first_registry_env.(["TUIST_REGISTRY_S3_REGION"] ++ legacy_registry_s3_names.region) || "auto"
+
+registry_s3_access_key_id =
+  first_registry_env.(["TUIST_REGISTRY_S3_ACCESS_KEY_ID"] ++ legacy_registry_s3_names.access_key_id)
+
+registry_s3_secret_access_key =
+  first_registry_env.(["TUIST_REGISTRY_S3_SECRET_ACCESS_KEY"] ++ legacy_registry_s3_names.secret_access_key)
+
+{registry_s3_scheme, registry_s3_host, registry_s3_port} =
+  case registry_s3_endpoint do
+    nil ->
+      {"https://", registry_s3_host, nil}
+
+    endpoint ->
+      uri = URI.parse(endpoint)
+      {"#{uri.scheme || "https"}://", uri.host || registry_s3_host, uri.port}
+  end
+
+registry_s3_values = [
+  {"registry bucket", registry_bucket},
+  {"registry object-storage endpoint or host", registry_s3_host},
+  {"registry object-storage access key", registry_s3_access_key_id},
+  {"registry object-storage secret key", registry_s3_secret_access_key}
+]
+
+missing_registry_s3_values =
+  Enum.filter(registry_s3_values, fn {_name, value} -> value in [nil, ""] end)
+
+if registry_bucket not in [nil, ""] and missing_registry_s3_values != [] do
+  names = Enum.map_join(missing_registry_s3_values, ", ", fn {name, _value} -> name end)
+  raise "Registry object storage requires #{names} to be set; refusing to boot"
+end
+
+registry_s3_config =
+  if missing_registry_s3_values == [] do
+    then(
+      [
+        scheme: registry_s3_scheme,
+        host: registry_s3_host,
+        region: registry_s3_region,
+        virtual_host: false,
+        access_key_id: registry_s3_access_key_id,
+        secret_access_key: registry_s3_secret_access_key
+      ],
+      fn config ->
+        if is_nil(registry_s3_port), do: config, else: Keyword.put(config, :port, registry_s3_port)
+      end
+    )
+  else
+    []
+  end
+
 config :tuist, :registry,
-  bucket: System.get_env("S3_REGISTRY_BUCKET"),
+  bucket: registry_bucket,
+  s3_config: registry_s3_config,
   url: System.get_env("TUIST_REGISTRY_URL"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
   swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
   swift_sync_limit: swift_registry_sync_limit
 
-# In swift-registry-sync mode the BEAM only talks to the registry S3
-# bucket, so override ex_aws to the registry's Tigris key set. No other
-# queue runs in this pod, so the override never reaches a Storage call.
-# We fail fast if any required env is blank: silently falling back to the
-# account-storage credentials would write to the registry bucket with the
-# wrong principal and 403 every upload while the cursor still advances.
+# In swift-registry-sync mode the BEAM only talks to the registry object-storage
+# bucket, so the dedicated configuration can also be the global ExAws
+# configuration. No other queue runs in this pod, so the override never reaches
+# an account-artifact Storage call.
 if Tuist.Environment.swift_registry_sync_mode?() do
-  registry_s3_endpoint = System.get_env("S3_ENDPOINT")
-
-  {registry_s3_scheme, registry_s3_host, registry_s3_port} =
-    case registry_s3_endpoint do
-      endpoint when endpoint in [nil, ""] ->
-        {"https://", System.get_env("S3_HOST"), nil}
-
-      endpoint ->
-        uri = URI.parse(endpoint)
-
-        {host, port} =
-          case {uri.host, uri.port} do
-            {nil, _} -> {System.get_env("S3_HOST"), nil}
-            {host, nil} -> {host, nil}
-            {host, port} -> {host, port}
-          end
-
-        scheme = (uri.scheme || "https") <> "://"
-        {scheme, host, port}
-    end
-
-  registry_s3_region = System.get_env("S3_REGION") || "auto"
-  registry_s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID")
-  registry_s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY")
-  registry_bucket = System.get_env("S3_REGISTRY_BUCKET")
-
-  missing =
-    Enum.filter(
-      [
-        {"S3_REGISTRY_BUCKET", registry_bucket},
-        {"S3_ENDPOINT or S3_HOST", registry_s3_host},
-        {"S3_ACCESS_KEY_ID", registry_s3_access_key_id},
-        {"S3_SECRET_ACCESS_KEY", registry_s3_secret_access_key}
-      ],
-      fn {_name, value} -> value in [nil, ""] end
-    )
-
-  if missing != [] do
-    names = Enum.map_join(missing, ", ", fn {name, _} -> name end)
+  if missing_registry_s3_values != [] do
+    names = Enum.map_join(missing_registry_s3_values, ", ", fn {name, _value} -> name end)
     raise "TUIST_MODE=swift_registry_sync requires #{names} to be set; refusing to boot"
   end
 
-  registry_s3_config =
-    then(
-      [
-        scheme: registry_s3_scheme,
-        host: registry_s3_host,
-        region: registry_s3_region,
-        virtual_host: false
-      ],
-      fn config ->
-        if is_nil(registry_s3_port), do: config, else: Keyword.put(config, :port, registry_s3_port)
-      end
-    )
-
-  config :ex_aws, :s3, registry_s3_config
+  config :ex_aws, :s3, Keyword.drop(registry_s3_config, [:access_key_id, :secret_access_key])
 
   config :ex_aws,
     access_key_id: registry_s3_access_key_id,

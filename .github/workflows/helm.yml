@@ -83,7 +83,7 @@ jobs:
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
-            "infra/helm/tuist|values-ci.yaml"
+            "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"

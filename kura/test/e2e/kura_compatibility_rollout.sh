@@ -10,6 +10,9 @@ KURA_US_PORT="${KURA_US_PORT:-4701}"
 KURA_EU_PORT="${KURA_EU_PORT:-4702}"
 PREVIOUS_IMAGE="${PREVIOUS_IMAGE:-kura-compat-previous:latest}"
 CURRENT_IMAGE="${CURRENT_IMAGE:-kura-compat-current:latest}"
+PREVIOUS_WORKTREE_CANONICAL=""
+
+export KURA_US_PORT KURA_EU_PORT
 
 if [[ -z "${PREVIOUS_REF}" ]]; then
   echo "Set PREVIOUS_REF to the adjacent version ref to validate, for example PREVIOUS_REF=origin/main" >&2
@@ -22,12 +25,13 @@ PREVIOUS_OVERRIDE="${TMP_DIR}/compose.previous.yml"
 MIXED_OVERRIDE="${TMP_DIR}/compose.mixed.yml"
 
 cleanup() {
+  local registered_worktree="${PREVIOUS_WORKTREE_CANONICAL:-${PREVIOUS_WORKTREE}}"
   docker compose -p "${COMPOSE_PROJECT_NAME}" \
     -f "${PROJECT_ROOT}/docker-compose.yml" \
     -f "${PREVIOUS_OVERRIDE}" \
     down -v --remove-orphans >/dev/null 2>&1 || true
-  if git -C "${PROJECT_ROOT}" worktree list --porcelain 2>/dev/null | grep -q "^worktree ${PREVIOUS_WORKTREE}\$"; then
-    git -C "${PROJECT_ROOT}" worktree remove --force "${PREVIOUS_WORKTREE}" >/dev/null 2>&1 || true
+  if git -C "${PROJECT_ROOT}" worktree list --porcelain 2>/dev/null | grep -q "^worktree ${registered_worktree}\$"; then
+    git -C "${PROJECT_ROOT}" worktree remove --force "${registered_worktree}" >/dev/null 2>&1 || true
   fi
   rm -rf "${TMP_DIR}"
 }
@@ -52,7 +56,8 @@ build_image_from_ref() {
   fi
 
   git -C "${PROJECT_ROOT}" worktree add --detach "${context_dir}" "${ref}" >/dev/null
-  docker build -t "${image}" "${context_dir}"
+  PREVIOUS_WORKTREE_CANONICAL="$(cd "${context_dir}" && pwd -P)"
+  docker build -t "${image}" "${context_dir}/kura"
 }
 
 write_override() {

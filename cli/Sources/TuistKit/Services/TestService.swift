@@ -77,7 +77,7 @@ public enum TestServiceError: FatalError, Equatable {
             return "Could not find .xctestproducts bundle. Pass -derivedDataPath explicitly."
         case let .unspecifiedPlatform(target, platforms):
             return
-                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
+                "Could not infer which platform to use for the multi-platform target \(target) (\(platforms.joined(separator: ", "))). Pass --platform or forward a destination to xcodebuild after --."
         case .shardPlanningRequiresBuildOnly:
             return
                 "Shard planning flags (--shard-min/--shard-max/--shard-total) only apply when building tests for sharding. Pass --build-only to create a shard plan, or remove the shard flag(s) to run tests normally."
@@ -243,6 +243,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -303,6 +304,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode
@@ -662,6 +664,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         runId: String,
         shardReference: String?,
+        shardPlanId: String?,
         shardArchivePath: AbsolutePath?,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode
@@ -677,6 +680,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             fullHandle: fullHandle,
             serverURL: serverURL,
             reference: shardReference,
+            shardPlanId: shardPlanId,
             testProductsPath: localTestProductsPath,
             testProductsArchivePath: shardArchivePath
         )
@@ -1897,26 +1901,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        let buildPlatform: XcodeGraph.Platform
-
-        if let platform {
-            buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-        } else if let resolvedPlatform = buildableTarget.target.destinations.first?.platform,
-                  buildableTarget.target.destinations.platforms.count == 1
-        {
-            buildPlatform = resolvedPlatform
-        } else {
-            throw TestServiceError.unspecifiedPlatform(
-                target: buildableTarget.target.name,
-                platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue)
-            )
+        let explicitPlatform = try platform.map {
+            try XcodeGraph.Platform.from(commandLineValue: $0)
         }
-
         let destination: XcodeBuildDestination?
 
         if passthroughXcodeBuildArguments.contains("-destination") {
             destination = nil
         } else {
+            let buildPlatform: XcodeGraph.Platform
+
+            if let explicitPlatform {
+                buildPlatform = explicitPlatform
+            } else if let resolvedPlatform = Self.resolvePlatform(
+                for: buildableTarget,
+                scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                ),
+                graphTraverser: graphTraverser
+            ) {
+                buildPlatform = resolvedPlatform
+            } else {
+                throw TestServiceError.unspecifiedPlatform(
+                    target: buildableTarget.target.name,
+                    platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue).sorted()
+                )
+            }
+
             destination = try await XcodeBuildDestination.find(
                 for: buildableTarget.target,
                 on: buildPlatform,
@@ -2221,6 +2235,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlan: String? = nil,
         graphTraverser: GraphTraversing
     ) -> String? {
+        let testPlanConfiguration = testPlan.map { TestPlanConfiguration(testPlan: $0) }
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
@@ -2231,13 +2246,50 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: .build
             ) else { continue }
 
-            guard let resolvedPlatform = target.target.destinations.first?.platform,
-                  target.target.destinations.platforms.count == 1
-            else { continue }
+            guard let resolvedPlatform = Self.resolvePlatform(
+                for: target,
+                scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: .build
+                ),
+                graphTraverser: graphTraverser
+            ) else { continue }
 
             return resolvedPlatform.xcodebuildPlatformDestination
         }
         return nil
+    }
+
+    static func resolvePlatform(
+        for target: GraphTarget,
+        scheme: Scheme,
+        testActionTargets: [TargetReference],
+        graphTraverser: GraphTraversing
+    ) -> XcodeGraph.Platform? {
+        let targetPlatforms = target.target.supportedPlatforms
+        if targetPlatforms.count == 1 {
+            return targetPlatforms.first
+        }
+
+        let platformConstrainingTargets =
+            (scheme.buildAction?.targets ?? [])
+                + testActionTargets
+        let compatibleSchemePlatformSets = platformConstrainingTargets
+            .compactMap {
+                graphTraverser.target(path: $0.projectPath, name: $0.name)?
+                    .target
+                    .supportedPlatforms
+                    .intersection(targetPlatforms)
+            }
+            .filter { !$0.isEmpty }
+
+        let sharedPlatforms = compatibleSchemePlatformSets.reduce(targetPlatforms) {
+            $0.intersection($1)
+        }
+        guard sharedPlatforms.count == 1 else { return nil }
+        return sharedPlatforms.first
     }
 
     private func xcodebuildDestination(
