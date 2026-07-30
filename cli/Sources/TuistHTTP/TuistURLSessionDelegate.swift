@@ -1,5 +1,5 @@
 import Foundation
-import TuistLogging
+import TuistAlert
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -84,16 +84,20 @@ import TuistLogging
         static func load(from path: String) -> [SecCertificate]? {
             let url = URL(fileURLWithPath: path)
             guard let data = try? Data(contentsOf: url) else {
-                Logger.current
+                AlertController.current
                     .warning(
-                        "Could not read the custom CA certificate bundle at '\(path)'. TLS will use the system trust store only."
+                        .alert(
+                            "Could not read the custom CA certificate bundle at '\(path)'. TLS will use the system trust store only."
+                        )
                     )
                 return nil
             }
             let certificates = parse(from: data)
             if certificates.isEmpty {
-                Logger.current
-                    .warning("No certificates could be parsed from '\(path)'. TLS will use the system trust store only.")
+                AlertController.current
+                    .warning(
+                        .alert("No certificates could be parsed from '\(path)'. TLS will use the system trust store only.")
+                    )
                 return nil
             }
             return certificates
