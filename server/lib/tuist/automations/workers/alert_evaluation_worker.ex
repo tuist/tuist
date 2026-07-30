@@ -199,7 +199,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp establish_baseline(alert) do
     Automations.establish_alert_baseline(alert, fn test_case_ids ->
       %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-      reject_unvalidated_test_cases(alert, triggered_ids)
+
+      triggered_ids
+      |> then(&reject_unvalidated_test_cases(alert, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
     end)
   end
 
@@ -207,7 +210,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     active_events = active_alert_events(alert, scoped_test_case_ids)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
-    newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
+    newly_triggered =
+      triggered_ids
+      |> Enum.reject(&MapSet.member?(already_triggered_ids, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
 
     Enum.each(newly_triggered, fn test_case_id ->
       entity = %{type: :test_case, id: test_case_id}
@@ -250,6 +256,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
+      |> filter_by_current_state(alert, alert.recovery_config)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
     # fire again) happens for every alert once its condition clears — without
@@ -305,6 +312,29 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     evaluated = MapSet.new(scoped_test_case_ids)
     Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
   end
+
+  # A state filter makes an action conditional on the test case's current
+  # control-plane state. It lets a skipped-test recovery leave a test alone
+  # after someone manually changes it to muted. Omitting the filter preserves
+  # the behavior of automations created before this option existed.
+  defp filter_by_current_state(items, _alert, config) when not is_map(config), do: items
+
+  defp filter_by_current_state(items, alert, config) do
+    case Map.get(config, "state") do
+      state when state in ["enabled", "muted", "skipped"] ->
+        states = Tests.get_test_case_states(alert.project_id, Enum.map(items, &test_case_id/1))
+
+        Enum.filter(items, fn item ->
+          Map.get(states, test_case_id(item), %{state: "enabled"}).state == state
+        end)
+
+      _ ->
+        items
+    end
+  end
+
+  defp test_case_id(%{test_case_id: test_case_id}), do: test_case_id
+  defp test_case_id(test_case_id), do: test_case_id
 
   # In `last_days` mode the recovery cooldown is "wait this long without a
   # re-trigger." In `rolling` mode it's "wait for at least this many new runs

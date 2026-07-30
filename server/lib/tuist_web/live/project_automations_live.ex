@@ -66,11 +66,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
+    |> assign(create_automation_form_trigger_state: nil)
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
+    |> assign(create_automation_form_recovery_state: nil)
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
@@ -122,11 +124,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
+      trigger_state: parse_state(automation.trigger_config["state"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
+      recovery_state: parse_state(automation.recovery_config["state"]),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -143,6 +147,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_window_type(window_type) when window_type in @window_types, do: window_type
   defp parse_window_type(_), do: "last_days"
+
+  defp parse_state(state) when state in ["enabled", "muted", "skipped"], do: state
+  defp parse_state(_), do: nil
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -173,11 +180,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
+        |> assign(create_automation_form_trigger_state: form.trigger_state)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
         |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
+        |> assign(create_automation_form_recovery_state: form.recovery_state)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -238,6 +247,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_threshold: value)}
+  end
+
+  def handle_event("update_create_automation_form_trigger_state", %{"data" => state}, socket) do
+    {:noreply, assign(socket, create_automation_form_trigger_state: parse_state(state))}
   end
 
   def handle_event("update_create_automation_form_window", %{"value" => value}, socket) do
@@ -324,6 +337,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_recovery_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_recovery_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_recovery_state", %{"data" => state}, socket) do
+    {:noreply, assign(socket, create_automation_form_recovery_state: parse_state(state))}
   end
 
   def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
@@ -522,27 +539,30 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp trigger_config_for("test_updated", assigns) do
-    %{"events" => assigns.create_automation_form_events}
+    maybe_put_state(%{"events" => assigns.create_automation_form_events}, assigns.create_automation_form_trigger_state)
   end
 
   defp trigger_config_for(metric, assigns) do
-    build_trigger_config(
-      parse_threshold(metric, assigns.create_automation_form_threshold),
+    metric
+    |> parse_threshold(assigns.create_automation_form_threshold)
+    |> build_trigger_config(
       assigns.create_automation_form_comparison,
       assigns.create_automation_form_window_type,
       assigns.create_automation_form_window,
       assigns.create_automation_form_rolling_window_size
     )
+    |> maybe_put_state(assigns.create_automation_form_trigger_state)
   end
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
 
   defp recovery_config_for(_metric, assigns) do
-    build_recovery_config(
-      assigns.create_automation_form_recovery_window_type,
+    assigns.create_automation_form_recovery_window_type
+    |> build_recovery_config(
       assigns.create_automation_form_recovery_window,
       assigns.create_automation_form_recovery_rolling_window_size
     )
+    |> maybe_put_state(assigns.create_automation_form_recovery_state)
   end
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
@@ -576,6 +596,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "window" => window
     }
   end
+
+  defp maybe_put_state(config, nil), do: config
+  defp maybe_put_state(config, state), do: Map.put(config, "state", state)
 
   # The default `add_label flaky` / `remove_label flaky` trigger actions
   # presume the threshold-monitor mental model. For the event-driven

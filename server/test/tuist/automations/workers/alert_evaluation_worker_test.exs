@@ -534,6 +534,35 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
+  test "does not recover a test whose state no longer matches the recovery filter" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "last_days", "window" => "1d", "state" => "skipped"},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)}]
+    end)
+
+    expect(Tests, :get_test_case_states, fn project_id, [^recovered_id] ->
+      assert project_id == automation.project_id
+      %{recovered_id => %{state: "muted", is_flaky: true}}
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
   test "does not run recovery actions when window has not elapsed" do
     automation =
       AutomationsFixtures.automation_alert_fixture(

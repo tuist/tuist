@@ -1097,6 +1097,21 @@ defmodule Tuist.Tests do
   # or flagged, so it resolves to the defaults.
   @default_test_case_state %{state: "enabled", is_flaky: false}
 
+  @doc """
+  Returns the current control-plane state for each requested test case.
+
+  Test cases without a state event are included as enabled so callers can
+  apply state-based policies without treating an absent projection row as an
+  unknown state.
+  """
+  def get_test_case_states(project_id, test_case_ids) do
+    resolved_states = resolve_test_case_states(project_id, test_case_ids)
+
+    Map.new(test_case_ids, fn test_case_id ->
+      {test_case_id, Map.get(resolved_states, test_case_id, @default_test_case_state)}
+    end)
+  end
+
   # Scoped by `project_id` (which the caller already read off the test case) so
   # this rides the `(project_id, test_case_id)` sort prefix instead of leaning
   # on the bloom-filter index across every tenant's rows.

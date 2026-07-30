@@ -318,6 +318,37 @@
                     </label>
                   </div>
                 </div>
+                <div data-part="form-row" data-size="dropdown">
+                  <label data-part="label">
+                    {dgettext("dashboard_projects", "Only apply when the test is")}
+                  </label>
+                  <.dropdown
+                    id="create-automation-trigger-state-dropdown"
+                    label={
+                      @create_automation_form_trigger_state &&
+                        trigger_action_label(@create_automation_form_trigger_state) ||
+                        dgettext("dashboard_projects", "In any state")
+                    }
+                  >
+                    <.dropdown_item
+                      value=""
+                      label={dgettext("dashboard_projects", "In any state")}
+                      on_click="update_create_automation_form_trigger_state"
+                      data-selected={is_nil(@create_automation_form_trigger_state)}
+                    >
+                      <:right_icon><.check /></:right_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
+                      :for={state <- ["enabled", "muted", "skipped"]}
+                      value={state}
+                      label={trigger_action_label(state)}
+                      on_click="update_create_automation_form_trigger_state"
+                      data-selected={@create_automation_form_trigger_state == state}
+                    >
+                      <:right_icon><.check /></:right_icon>
+                    </.dropdown_item>
+                  </.dropdown>
+                </div>
               </div>
 
               <.line_divider />
@@ -698,6 +729,37 @@
                         phx-debounce="300"
                       />
                     </div>
+                  </div>
+                  <div data-part="form-row" data-size="dropdown">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Only apply when the test is")}
+                    </label>
+                    <.dropdown
+                      id="create-automation-recovery-state-dropdown"
+                      label={
+                        @create_automation_form_recovery_state &&
+                          trigger_action_label(@create_automation_form_recovery_state) ||
+                          dgettext("dashboard_projects", "In any state")
+                      }
+                    >
+                      <.dropdown_item
+                        value=""
+                        label={dgettext("dashboard_projects", "In any state")}
+                        on_click="update_create_automation_form_recovery_state"
+                        data-selected={is_nil(@create_automation_form_recovery_state)}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        :for={state <- ["enabled", "muted", "skipped"]}
+                        value={state}
+                        label={trigger_action_label(state)}
+                        on_click="update_create_automation_form_recovery_state"
+                        data-selected={@create_automation_form_recovery_state == state}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                    </.dropdown>
                   </div>
                   <div
                     :for={
