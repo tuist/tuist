@@ -167,6 +167,7 @@ enum PackageInfoCacheWriter {
         let data = try await ManifestLoader.dumpPackageJSON(
             packageDir: packageDir, disableSandbox: disableSandbox)
         try await fileSystem.atomicWrite(data, to: destination)
+        try? await ManifestEnvironmentFingerprint.write(forCacheFile: destination)
         return data
     }
 
@@ -179,7 +180,18 @@ enum PackageInfoCacheWriter {
         else {
             return false
         }
-        return cacheDate >= manifestDate
+        guard cacheDate >= manifestDate else { return false }
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destination) {
+        case .matching:
+            return true
+        case .mismatching:
+            return false
+        case .missing:
+            // Backfill so a later environment change is detected even for caches that
+            // predate the fingerprint sidecar.
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destination)
+            return true
+        }
     }
 
     private static func packageEntry(pin: ResolvedPin, packagePath: URL, packageInfoPath: URL)

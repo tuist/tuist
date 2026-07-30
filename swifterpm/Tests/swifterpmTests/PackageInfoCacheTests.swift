@@ -260,6 +260,51 @@ struct PackageInfoCacheTests {
         }
     }
 
+    @Test
+    func writePackageInfoCacheInvalidatesDestinationWhenEnvironmentChanged() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let cacheDir = root.appendingPathComponent("package-info")
+            let rootPath = cacheDir.appendingPathComponent("root.json")
+
+            // The ManifestLoader cache holds a manifest produced under a previous
+            // environment. Its own sidecar is missing, so it reads as fresh and is
+            // reused to refill the destination without invoking `swift`.
+            try await writeCachedManifest(emptyManifest(name: "FreshFromManifestLoader"), packageDir: package)
+
+            // The package-info destination is newer than `Package.swift`, so the mtime
+            // check alone would consider it fresh, but its env sidecar records a
+            // different environment and must force a refresh.
+            try await Task.sleep(nanoseconds: 10_000_000)
+            try await fileSystem.atomicWrite(
+                try JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")),
+                to: rootPath)
+            try await fileSystem.atomicWrite(
+                Data("a-fingerprint-produced-under-a-different-environment".utf8),
+                to: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootPath))
+
+            try await PackageInfoCacheWriter.write(
+                packageDir: package,
+                scratchDir: scratch,
+                resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                cacheDir: cacheDir,
+                disableSandbox: false,
+                quiet: true
+            )
+
+            let rootInfo = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: rootPath.absolutePath))
+                    as? [String: Any])
+            #expect(rootInfo["name"] as? String == "FreshFromManifestLoader")
+
+            let sidecar = try await fileSystem.readFile(
+                at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootPath).absolutePath)
+            #expect(String(data: sidecar, encoding: .utf8) == ManifestEnvironmentFingerprint.current())
+        }
+    }
+
     private func writeInvalidManifest(packageDir: URL) async throws {
         try await fileSystem.makeDirectory(at: packageDir.absolutePath, options: [.createTargetParentDirectories])
         try await fileSystem.atomicWrite(

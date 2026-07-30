@@ -80,7 +80,9 @@ enum ManifestLoader {
         let result = try await SystemProcess.run(
             "/usr/bin/swift", args, workingDirectory: packageDir
         )
-        try? await fileSystem.atomicWrite(result.stdout, to: cacheFilePath(packageDir: packageDir))
+        let cache = cacheFilePath(packageDir: packageDir)
+        try? await fileSystem.atomicWrite(result.stdout, to: cache)
+        try? await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
         return result.stdout
     }
 
@@ -94,7 +96,17 @@ enum ManifestLoader {
         else {
             return nil
         }
-        return try await fileSystem.readFile(at: cache.absolutePath)
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cache) {
+        case .matching:
+            return try await fileSystem.readFile(at: cache.absolutePath)
+        case .mismatching:
+            return nil
+        case .missing:
+            // Backfill so a later environment change is detected even for caches that
+            // predate the fingerprint sidecar.
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
+            return try await fileSystem.readFile(at: cache.absolutePath)
+        }
     }
 }
 
