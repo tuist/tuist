@@ -5,6 +5,7 @@ defmodule Tuist.Release do
   """
   alias Ecto.Adapters.SQL
   alias Tuist.Environment
+  alias Tuist.IngestRepo
 
   require Logger
 
@@ -54,6 +55,7 @@ defmodule Tuist.Release do
           grant_processor_role(repo)
           grant_swift_registry_sync_role(repo)
           grant_grafana_role(repo)
+          reconcile_ops_clickhouse(repo)
         end)
     end
   end
@@ -162,6 +164,122 @@ defmodule Tuist.Release do
   end
 
   defp ensure_database_schema(_repo), do: :ok
+
+  defp reconcile_ops_clickhouse(repo) when repo == IngestRepo do
+    username = Environment.ops_clickhouse_username()
+    password = Environment.ops_clickhouse_password()
+    role = Environment.ops_clickhouse_role()
+
+    if Enum.all?([username, password, role], &(is_binary(&1) and &1 != "")) do
+      database = repo.config() |> Keyword.fetch!(:database) |> to_string()
+      password_hash = :sha256 |> :crypto.hash(password) |> Base.encode16(case: :lower)
+
+      {setup_queries, assignment_queries} =
+        database
+        |> ops_clickhouse_reconciliation_queries(username, role, password_hash)
+        |> Enum.split(-2)
+
+      Enum.each(setup_queries, &run_clickhouse_access_query(repo, &1))
+      revoke_unexpected_clickhouse_roles(repo, username, role)
+      Enum.each(assignment_queries, &run_clickhouse_access_query(repo, &1))
+    end
+
+    :ok
+  end
+
+  defp reconcile_ops_clickhouse(_repo), do: :ok
+
+  defp revoke_unexpected_clickhouse_roles(repo, username, expected_role) do
+    result =
+      repo.query!(
+        """
+        SELECT granted_role_name
+        FROM system.role_grants
+        WHERE user_name = {username:String}
+          AND granted_role_name != {expected_role:String}
+        """,
+        %{"username" => username, "expected_role" => expected_role},
+        log: false
+      )
+
+    Enum.each(result.rows, fn [role] ->
+      role = quote_clickhouse_identifier!(role, "granted ClickHouse role")
+      username = quote_clickhouse_identifier!(username, "TUIST_OPS_CLICKHOUSE_USERNAME")
+      run_clickhouse_access_query(repo, {"REVOKE #{role} FROM #{username}", []})
+    end)
+  end
+
+  defp run_clickhouse_access_query(repo, {statement, params}) do
+    repo.query!(statement, params, log: false)
+  end
+
+  @doc false
+  def ops_clickhouse_reconciliation_queries(database, username, role, password_hash) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+    username = quote_clickhouse_identifier!(username, "TUIST_OPS_CLICKHOUSE_USERNAME")
+    role = quote_clickhouse_identifier!(role, "TUIST_OPS_CLICKHOUSE_ROLE")
+    password_hash = validate_clickhouse_password_hash!(password_hash)
+
+    # Mode 2 still rejects writes but permits client-supplied query settings.
+    # The bounds below prevent callers from raising or disabling resource limits.
+    [
+      {"CREATE ROLE IF NOT EXISTS #{role}", []},
+      {"REVOKE ALL ON *.* FROM #{role}", []},
+      {
+        """
+        ALTER ROLE #{role} SETTINGS
+          readonly = 2,
+          max_execution_time = 10 MIN 1 MAX 10,
+          max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
+          max_rows_to_read = 100000000 MIN 1 MAX 100000000,
+          max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
+          max_result_rows = 201 MIN 1 MAX 201,
+          max_result_bytes = 5242880 MIN 1 MAX 5242880,
+          max_block_size = 201 MIN 1 MAX 201,
+          max_threads = 2 MIN 1 MAX 2
+        """,
+        []
+      },
+      {"GRANT SELECT ON #{database}.* TO #{role}", []},
+      {"GRANT SELECT ON system.tables TO #{role}", []},
+      {"GRANT SELECT ON system.columns TO #{role}", []},
+      {
+        """
+        CREATE USER IF NOT EXISTS #{username}
+        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+        """,
+        []
+      },
+      {
+        """
+        ALTER USER #{username}
+        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+        """,
+        []
+      },
+      {"REVOKE ALL ON *.* FROM #{username}", []},
+      {"GRANT #{role} TO #{username}", []},
+      {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
+    ]
+  end
+
+  defp quote_clickhouse_identifier!(identifier, source) do
+    identifier = to_string(identifier)
+
+    if Regex.match?(~r/\A[a-zA-Z_][a-zA-Z0-9_]*\z/, identifier) do
+      "`#{identifier}`"
+    else
+      raise "#{source} must be a valid ClickHouse identifier, got: #{inspect(identifier)}"
+    end
+  end
+
+  defp validate_clickhouse_password_hash!(password_hash) do
+    if Regex.match?(~r/\A[0-9a-f]{64}\z/, password_hash) do
+      password_hash
+    else
+      raise "ClickHouse password hash must be a lowercase SHA-256 hash"
+    end
+  end
 
   defp grant_runtime_role(repo) when repo == Tuist.Repo do
     case Environment.database_runtime_role() do

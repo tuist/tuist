@@ -61,6 +61,19 @@ config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
 
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: 2,
+  settings: [
+    readonly: 1,
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

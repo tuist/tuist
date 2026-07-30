@@ -1024,6 +1024,69 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
+  def ops_clickhouse_url(secrets \\ secrets()) do
+    get([:ops, :clickhouse_url], secrets) ||
+      build_ops_clickhouse_url(
+        clickhouse_url(secrets),
+        ops_clickhouse_username(secrets),
+        ops_clickhouse_password(secrets)
+      )
+  end
+
+  def ops_clickhouse_username(secrets \\ secrets()) do
+    get([:ops, :clickhouse_username], secrets)
+  end
+
+  def ops_clickhouse_password(secrets \\ secrets()) do
+    get([:ops, :clickhouse_password], secrets)
+  end
+
+  def ops_clickhouse_role(secrets \\ secrets()) do
+    get([:ops, :clickhouse_role], secrets)
+  end
+
+  def build_ops_clickhouse_url(application_url, username, password)
+      when is_binary(application_url) and application_url != "" and is_binary(username) and username != "" and
+             is_binary(password) and password != "" do
+    uri = URI.parse(application_url)
+
+    if is_binary(uri.host) do
+      encoded_username = URI.encode(username, &URI.char_unreserved?/1)
+      encoded_password = URI.encode(password, &URI.char_unreserved?/1)
+
+      uri
+      |> Map.put(:userinfo, "#{encoded_username}:#{encoded_password}")
+      |> URI.to_string()
+    else
+      raise "TUIST_CLICKHOUSE_URL must be an absolute URL"
+    end
+  end
+
+  def build_ops_clickhouse_url(_application_url, _username, _password), do: nil
+
+  def validate_ops_clickhouse_url!(ops_url, application_url) do
+    ops_username = clickhouse_url_username(ops_url)
+    application_username = clickhouse_url_username(application_url) || "default"
+
+    cond do
+      ops_username in [nil, ""] ->
+        raise "TUIST_OPS_CLICKHOUSE_URL must include a dedicated username"
+
+      ops_username == application_username ->
+        raise "TUIST_OPS_CLICKHOUSE_URL must not reuse the application ClickHouse user"
+
+      true ->
+        ops_url
+    end
+  end
+
+  def ops_clickhouse_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_OPS_CLICKHOUSE_POOL_SIZE") do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      _ -> 2
+    end
+  end
+
   def clickhouse_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
@@ -1597,6 +1660,16 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
+
+  defp clickhouse_url_username(url) do
+    case URI.parse(url) do
+      %URI{userinfo: userinfo} when is_binary(userinfo) ->
+        userinfo |> String.split(":", parts: 2) |> List.first() |> URI.decode()
+
+      _ ->
+        nil
+    end
+  end
 
   defp split_endpoints(endpoints) do
     endpoints

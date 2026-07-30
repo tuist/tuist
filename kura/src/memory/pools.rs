@@ -18,7 +18,6 @@ const MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES: usize =
 const MAX_RESPONSE_STREAM_RESERVATION_BYTES: usize = MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES * 4;
 const MIN_RESPONSE_STREAM_POOL_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + MAX_RESPONSE_STREAM_RESERVATION_BYTES;
-const MAX_RESPONSE_STREAM_POOL_BYTES: usize = 64 * 1024 * 1024;
 const MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + RESPONSE_STREAM_CHUNK_BYTES * 4;
 const MIN_BACKGROUND_RESPONSE_STREAM_POOL_BYTES: usize =
@@ -248,10 +247,10 @@ fn response_streaming_pool_bytes(
 ) -> usize {
     let pressure_gap = headroom_bytes / 2;
     let runtime_gap = runtime_limit_bytes.saturating_sub(hard_limit_bytes) / 2;
-    clamp_u64(
-        pressure_gap.min(runtime_gap),
-        MIN_RESPONSE_STREAM_POOL_BYTES as u64,
-        MAX_RESPONSE_STREAM_POOL_BYTES as u64,
+    semaphore_capacity(
+        pressure_gap
+            .min(runtime_gap)
+            .max(MIN_RESPONSE_STREAM_POOL_BYTES as u64)
+            .min(headroom_bytes),
     )
-    .min(headroom_bytes) as usize
 }

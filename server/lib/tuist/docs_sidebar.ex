@@ -7,12 +7,12 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, :url, items: []]
+    defstruct [:label, :slug, :url, :icon, items: []]
   end
 
   defmodule Group do
     @moduledoc false
-    defstruct [:label, weight: :semibold, items: []]
+    defstruct [:label, :category, weight: :semibold, items: []]
   end
 
   @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
@@ -80,7 +80,7 @@ defmodule Tuist.Docs.Sidebar do
 
   def category_for_slug(slug) do
     english_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
-    Map.get(category_map(), english_slug, "Docs")
+    Map.get_lazy(category_map(), english_slug, fn -> fallback_category(english_slug) end)
   end
 
   def tree_for_tab(tab, locale \\ "en")
@@ -107,9 +107,18 @@ defmodule Tuist.Docs.Sidebar do
 
   defp build_category_map do
     tree()
-    |> Enum.flat_map(fn group -> collect_slugs_with_category(group.label || "Docs", group.items) end)
+    |> Enum.flat_map(fn group ->
+      collect_slugs_with_category(group.category || group.label || "Docs", group.items)
+    end)
     |> Map.new()
   end
+
+  defp fallback_category("/en/guides/" <> _rest), do: "Guides"
+  defp fallback_category("/en/tutorials/" <> _rest), do: "Tutorials"
+  defp fallback_category("/en/references/" <> _rest), do: "References"
+  defp fallback_category("/en/contributors/" <> _rest), do: "Resources"
+  defp fallback_category("/en/cli/" <> _rest), do: "CLI"
+  defp fallback_category(_slug), do: "Docs"
 
   defp collect_slugs_with_category(category, items) do
     Enum.flat_map(items, fn item ->
@@ -160,21 +169,29 @@ defmodule Tuist.Docs.Sidebar do
   def guides_tree do
     [
       %Group{
-        label: "Guides",
-        items: [
-          %Item{label: "Install Tuist", slug: "/en/guides/install-tuist"},
-          %Item{label: "Install the Gradle plugin", slug: "/en/guides/install-gradle-plugin"}
-        ]
-      },
-      %Group{
-        label: "Tutorials",
+        label: nil,
+        category: "Guides",
         items: [
           %Item{
-            label: "Xcode",
+            label: "Get started",
+            slug: "/en/guides/get-started",
+            icon: "bulb",
             items: [
               %Item{
-                label: "Create a generated project",
-                slug: "/en/tutorials/xcode/create-a-generated-project"
+                label: "Observe",
+                slug: "/en/guides/get-started/observability"
+              },
+              %Item{
+                label: "Optimize",
+                slug: "/en/guides/get-started/optimization"
+              },
+              %Item{
+                label: "Run",
+                slug: "/en/guides/get-started/tuist-runners"
+              },
+              %Item{
+                label: "Ask",
+                slug: "/en/guides/get-started/ask"
               }
             ]
           }

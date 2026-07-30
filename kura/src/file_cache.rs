@@ -1,6 +1,4 @@
-use crate::memory::{
-    ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryController, MemoryPressure,
-};
+use crate::memory::{ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryController};
 
 pub const FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
 pub const FOREGROUND_STAGING_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
@@ -36,11 +34,11 @@ impl ForegroundFileCacheReservation {
 }
 
 impl FileCachePolicy {
-    pub fn should_drop(self, pressure: MemoryPressure, transient_reserved_bytes: u64) -> bool {
+    pub fn should_drop(self, reclaim_file_cache: bool, transient_reserved_bytes: u64) -> bool {
         match self {
-            Self::Adaptive => pressure != MemoryPressure::Normal,
+            Self::Adaptive => reclaim_file_cache,
             Self::Foreground { reservation_bytes } => {
-                pressure != MemoryPressure::Normal || transient_reserved_bytes > reservation_bytes
+                reclaim_file_cache || transient_reserved_bytes > reservation_bytes
             }
             Self::Bounded => true,
         }
@@ -167,7 +165,7 @@ mod tests {
         assert!(
             !first
                 .file_cache_policy()
-                .should_drop(MemoryPressure::Normal, memory.transient_reserved_bytes())
+                .should_drop(false, memory.transient_reserved_bytes())
         );
 
         let second = reserve_foreground_staging(&memory, 1024)
@@ -176,10 +174,16 @@ mod tests {
         assert!(
             first
                 .file_cache_policy()
-                .should_drop(MemoryPressure::Normal, memory.transient_reserved_bytes())
+                .should_drop(false, memory.transient_reserved_bytes())
         );
 
         drop(second);
         drop(first);
+    }
+
+    #[test]
+    fn adaptive_policy_drops_cache_when_reclaim_is_requested() {
+        assert!(!FileCachePolicy::Adaptive.should_drop(false, 0));
+        assert!(FileCachePolicy::Adaptive.should_drop(true, 0));
     }
 }

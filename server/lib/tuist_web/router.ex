@@ -792,6 +792,10 @@ defmodule TuistWeb.Router do
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
+
+    post "/atlas/clickhouse/query", AtlasClickHouseController, :query
+    get "/atlas/clickhouse/tables", AtlasClickHouseController, :tables
+    get "/atlas/clickhouse/tables/:database/:name", AtlasClickHouseController, :describe
   end
 
   scope "/_internal", TuistWeb.Internal do
@@ -903,6 +907,7 @@ defmodule TuistWeb.Router do
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/confirm", UserConfirmationInstructionsLive, :new
       live "/users/choose-username", ChooseUsernameLive, :new
     end
 

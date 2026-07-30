@@ -352,7 +352,7 @@ pub async fn read_request_to_temp(
             )));
         }
         if file_cache_policy.should_drop(
-            staging.memory.pressure(),
+            staging.memory.should_reclaim_file_cache(),
             staging.memory.transient_reserved_bytes(),
         ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
         {
