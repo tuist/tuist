@@ -6,17 +6,26 @@ import TuistLogging
 public struct RetryMiddleware: ClientMiddleware {
     private let retryPolicy: HTTPRetryPolicy
     private let retryableRequestMethods: Set<String>?
+    private let retriesTransportErrors: Bool
 
+    /// - Parameters:
+    ///   - retriesTransportErrors: When `true` (the default) a thrown transport error,
+    ///     including a timeout, is retried. Callers on a fail-fast path, such as the CAS
+    ///     downloads that rely on the short `.tuistCAS` timeout to reach the circuit breaker
+    ///     quickly, pass `false` so a hung backend surfaces immediately. Retryable HTTP
+    ///     responses such as 503 are retried regardless of this flag.
     public init(
         maxRetries: Int? = nil,
         baseDelayMilliseconds: UInt64? = nil,
-        retryableRequestMethods: Set<String>? = nil
+        retryableRequestMethods: Set<String>? = nil,
+        retriesTransportErrors: Bool = true
     ) {
         retryPolicy = HTTPRetryPolicy(
             maximumRetryCount: maxRetries,
             baseDelayMilliseconds: baseDelayMilliseconds
         )
         self.retryableRequestMethods = retryableRequestMethods
+        self.retriesTransportErrors = retriesTransportErrors
     }
 
     public func intercept(
@@ -54,6 +63,9 @@ public struct RetryMiddleware: ClientMiddleware {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                if !retriesTransportErrors {
+                    throw error
+                }
                 Logger.current.debug(
                     "HTTP request failed for \(request.method.rawValue) \(request.path ?? ""): \(error.localizedDescription), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )

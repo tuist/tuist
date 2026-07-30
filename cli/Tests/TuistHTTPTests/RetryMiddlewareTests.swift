@@ -109,6 +109,47 @@ struct RetryMiddlewareTests {
         #expect(callCount == 2)
     }
 
+    @Test func does_not_retry_thrown_errors_when_transport_retries_are_disabled() async throws {
+        struct TestError: Error {}
+        let subject = RetryMiddleware(maxRetries: 3, retriesTransportErrors: false)
+        var callCount = 0
+
+        await #expect(throws: TestError.self) {
+            try await subject.intercept(
+                HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+                body: nil,
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "test-op"
+            ) { _, _, _ in
+                callCount += 1
+                throw TestError()
+            }
+        }
+
+        #expect(callCount == 1)
+    }
+
+    @Test func still_retries_retryable_status_codes_when_transport_retries_are_disabled() async throws {
+        let subject = RetryMiddleware(maxRetries: 2, retriesTransportErrors: false)
+        var callCount = 0
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+            body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "test-op"
+        ) { _, _, _ in
+            callCount += 1
+            if callCount == 1 {
+                return (HTTPResponse(status: 503), nil)
+            }
+            return (HTTPResponse(status: 200), nil)
+        }
+
+        #expect(response.status.code == 200)
+        #expect(callCount == 2)
+    }
+
     @Test func returns_last_response_after_max_retries() async throws {
         let subject = RetryMiddleware(maxRetries: 2)
         var callCount = 0
