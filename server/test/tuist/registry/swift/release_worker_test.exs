@@ -440,6 +440,52 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert ReleaseWorker.skippable_submodule_failure?(output)
   end
 
+  describe "zip_directory/2" do
+    test "preserves symlinks inside code-signed bundles while flattening other symlinks" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_test_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      framework = Path.join([source, "Vendor", "Adyen3DS2.xcframework", "ios-maccatalyst", "Adyen3DS2.framework"])
+      version_a = Path.join([framework, "Versions", "A"])
+      File.mkdir_p!(Path.join(version_a, "Resources"))
+
+      File.write!(Path.join(source, "README.md"), "readme")
+      # Non-bundle symlink: should be flattened into a regular file.
+      File.ln_s!("README.md", Path.join(source, "CLAUDE.md"))
+
+      File.write!(Path.join(version_a, "Adyen3DS2"), "binary")
+      File.write!(Path.join([version_a, "Resources", "Info.plist"]), "plist")
+      # Sealed bundle symlinks: must survive as symlinks.
+      File.ln_s!("A", Path.join([framework, "Versions", "Current"]))
+      File.ln_s!("Versions/Current/Adyen3DS2", Path.join(framework, "Adyen3DS2"))
+      File.ln_s!("Versions/Current/Resources", Path.join(framework, "Resources"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      extracted_framework =
+        Path.join([
+          extract_dir,
+          "repo-v1.0.0",
+          "Vendor",
+          "Adyen3DS2.xcframework",
+          "ios-maccatalyst",
+          "Adyen3DS2.framework"
+        ])
+
+      assert {:ok, %File.Stat{type: :regular}} = File.lstat(Path.join([extract_dir, "repo-v1.0.0", "CLAUDE.md"]))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join([extracted_framework, "Versions", "Current"]))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Adyen3DS2"))
+      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Resources"))
+      assert {:ok, "A"} = File.read_link(Path.join([extracted_framework, "Versions", "Current"]))
+    end
+  end
+
   defp write_basic_zipball(archive_path) do
     tmp = Path.join(Path.dirname(archive_path), "zipball_content")
     top_dir = Path.join(tmp, "repo-v1.0.0")
