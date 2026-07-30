@@ -1,0 +1,131 @@
+<div id="project-automation">
+  <.button
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_projects", "Automations")}
+    data-part="back-button"
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="detail-header">
+    <div data-part="title-group">
+      <span data-part="eyebrow">{dgettext("dashboard_projects", "Automation")}</span>
+      <h1 data-part="automation-name">{@automation.name}</h1>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_projects",
+          "Review changes to this automation and see who changed its configuration."
+        )}
+      </span>
+    </div>
+    <.badge
+      label={
+        if @automation.enabled,
+          do: dgettext("dashboard_projects", "Enabled"),
+          else: dgettext("dashboard_projects", "Disabled")
+      }
+      color={if @automation.enabled, do: "success", else: "neutral"}
+      style="light-fill"
+      size="large"
+      dot
+    />
+  </div>
+
+  <.card
+    icon="settings"
+    title={dgettext("dashboard_projects", "Current configuration")}
+    data-part="configuration-card"
+  >
+    <.card_section data-part="configuration-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Condition")}</span>
+          <span data-part="value">{automation_summary(@automation)}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Cadence")}</span>
+          <span data-part="value">{cadence_summary(@automation)}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Actions")}</span>
+          <span data-part="value">{automation_actions_summary(@automation)}</span>
+        </div>
+        <div data-part="metadata">
+          <span data-part="label">{dgettext("dashboard_projects", "Recovery")}</span>
+          <span data-part="value">{recovery_summary(@automation)}</span>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    icon="history"
+    title={dgettext("dashboard_projects", "Edit history")}
+    data-part="history-card"
+  >
+    <.card_section data-part="history-card-section">
+      <p data-part="history-description">
+        {dgettext(
+          "dashboard_projects",
+          "Configuration changes to this automation, newest first."
+        )}
+      </p>
+
+      <div data-part="automation-history">
+        <div data-part="history-list">
+          <div :for={revision <- @revisions} data-part="history-item">
+            <div data-part="timeline">
+              <div data-part="marker">
+                <.icon name={if revision.event == "created", do: "plus", else: "pencil"} />
+              </div>
+              <div data-part="line"></div>
+            </div>
+
+            <div data-part="revision-card">
+              <div data-part="revision-header">
+                <div data-part="revision-identity">
+                  <.avatar
+                    id={"automation-revision-#{revision.id}-avatar"}
+                    name={revision_actor_name(revision)}
+                    image_href={revision_actor_avatar(revision)}
+                    color={revision_actor_color(revision)}
+                    size="small"
+                  />
+                  <div data-part="revision-title-group">
+                    <span data-part="revision-title">{revision_title(revision)}</span>
+                    <span data-part="revision-description">{revision_description(revision)}</span>
+                  </div>
+                </div>
+                <.time time={revision.inserted_at} show_time />
+              </div>
+
+              <div data-part="revision-changes">
+                <div
+                  :for={change <- revision_change_items(revision)}
+                  data-part="revision-change"
+                >
+                  <span data-part="change-icon"><.icon name={change.icon} /></span>
+                  <div data-part="change-copy">
+                    <span data-part="change-title">{change.title}</span>
+                    <div data-part="change-values">
+                      <span :if={change.before} data-part="before">{change.before}</span>
+                      <.icon :if={change.before} name="arrow_narrow_right" />
+                      <span data-part="after">{change.after}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div :if={Enum.empty?(@revisions)} data-part="history-empty-state">
+            <.icon name="history" />
+            <span>{dgettext("dashboard_projects", "No configuration changes recorded yet")}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+</div>

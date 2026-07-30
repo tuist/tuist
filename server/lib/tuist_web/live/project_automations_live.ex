@@ -411,7 +411,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
                    assigns.current_user,
                    assigns.selected_project
                  ) do
-            Automations.create_alert(attrs)
+            Automations.create_alert(attrs, actor: assigns.current_user, source: "dashboard")
           end
 
         id ->
@@ -423,7 +423,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
                  ),
                {:ok, automation} <- Automations.get_alert(id),
                true <- automation.project_id == assigns.selected_project.id do
-            Automations.update_alert(automation, attrs)
+            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
           end
       end
 
@@ -450,7 +450,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
     with :ok <- Authorization.authorize(:automation_alert_update, current_user, project),
          {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
-         {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
+         {:ok, _} <-
+           Automations.update_alert(automation, %{enabled: not automation.enabled},
+             actor: current_user,
+             source: "dashboard"
+           ) do
       {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
     else
       {:error, %Ecto.Changeset{}} ->
