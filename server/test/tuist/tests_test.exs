@@ -8377,6 +8377,23 @@ defmodule Tuist.TestsTest do
       # Then
       assert %{state: "muted", is_flaky: false} = current_test_case_state(project.id, test_case.id)
     end
+
+    test "a flaky-only test case resolves to the enabled default through the reader" do
+      # The aggregate stores a null state for a test case that only ever had a
+      # flaky event; the reader's normalization must turn that null into the
+      # `enabled` default while keeping is_flaky true. Exercised end-to-end via
+      # `get_test_case_by_id/1`, which reads `resolve_test_case_state/2`.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert {:ok, %{state: "enabled", is_flaky: true}} = Tests.get_test_case_by_id(test_case.id)
+    end
   end
 
   # Resolves the current state from the aggregate table the way the PR2 readers
