@@ -490,6 +490,20 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
 }
 
+/// Row key in the action-cache blob-refs CF: one `{blob}\0{entry}` pair per
+/// (referenced blob, referencing entry). Individual pair rows (empty value)
+/// rather than a set-valued row so two entries referencing the same blob write
+/// disjoint keys and never lose an update. Mirrors `segment_artifact_index_key`.
+pub fn action_cache_blob_ref_key(blob_artifact_id: &str, entry_artifact_id: &str) -> String {
+    format!("{blob_artifact_id}\0{entry_artifact_id}")
+}
+
+/// Prefix scan for every entry that references `blob_artifact_id`, used by the
+/// eviction cascade to find the entries an evicted blob strands.
+pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
+    format!("{blob_artifact_id}\0")
+}
+
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT
 /// big-endian so a forward prefix scan yields entries newest-first and can
 /// stop at the snapshot's entry cap without sorting. The action hash keeps

@@ -1,4 +1,5 @@
 mod accelerated_file_serving;
+mod action_cache_refs;
 mod analytics;
 mod app;
 mod artifact;

@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
     time::{Duration, Instant},
@@ -24,6 +24,7 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
+    action_cache_refs::referenced_blob_keys,
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -35,8 +36,8 @@ use crate::{
         CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
         DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES,
         REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        ROCKSDB_CF_ACTION_CACHE_BLOB_REFS, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
+        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -58,11 +59,12 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_index_key,
-        action_cache_index_key_branch, action_cache_index_prefix, action_cache_manifest_hash,
-        artifact_storage_id, drop_staging_cache_range, module_key, namespace_artifact_index_key,
-        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
-        temp_file_path, try_path_size_bytes,
+        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
+        action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
+        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
+        drop_staging_cache_range, module_key, namespace_artifact_index_key, now_ms,
+        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        try_path_size_bytes,
     },
 };
 
@@ -149,6 +151,16 @@ pub struct Store {
     // outcome as the pre-existing memory-pressure skip.
     promotion_queue: StdMutex<PromotionQueue>,
     promotion_notify: Notify,
+    // Whether evicting a blob cascades to the action-cache entries referencing
+    // it. Operator-controlled; the cascade also requires the reverse map to be
+    // backfilled (see `action_cache_blob_refs_ready`).
+    action_cache_eviction_cascade_enabled: bool,
+    // Set once the one-time startup backfill has rebuilt the blob-refs reverse
+    // map from existing entries. The eviction cascade must not consult an
+    // incomplete map (it would miss referencers and under-cascade), so it stays
+    // inert until this flips true. Reverse-row maintenance on the write/delete
+    // paths runs regardless, so the map is live for entries written after start.
+    action_cache_blob_refs_ready: AtomicBool,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -567,6 +579,14 @@ impl Store {
                     &rocksdb_write_buffer_manager,
                 ),
             ),
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_ACTION_CACHE_BLOB_REFS,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
         ];
 
         let db_path = config.data_dir.join("rocksdb");
@@ -638,6 +658,8 @@ impl Store {
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
+            action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
+            action_cache_blob_refs_ready: AtomicBool::new(false),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -1064,6 +1086,13 @@ impl Store {
                 artifact_id.as_bytes(),
             );
             self.bump_action_cache_generation(&manifest.namespace_id);
+            // No blob-refs (reverse index) maintenance here: an action-cache
+            // entry is always persisted inline. `update_action_result` writes it
+            // through the inline path, and a replicated inline entry re-applies
+            // through the same inline path, so its reverse rows are staged there.
+            // Should an entry ever land segment-backed, the startup backfill
+            // reconciles it from the manifests it scans, and the serve-side
+            // presence gates cover it until then.
         }
         if let Some(previous_manifest) = &existing
             && let Some(previous_segment_id) = &previous_manifest.segment_id
@@ -1681,6 +1710,30 @@ impl Store {
                 artifact_id.as_bytes(),
             );
             wrote_action_cache_index = true;
+
+            // Reverse index (blob -> referencing entry) maintenance, committed in
+            // the same batch as the entry so eviction can cascade this entry when
+            // a blob it references is dropped, rather than stranding it. On a
+            // re-publish the previous version's rows are removed first: the entry
+            // id is stable across versions, only the referenced blob set can
+            // change, and a delete-then-put on an unchanged blob leaves the row
+            // in place (the put is applied after the delete within the batch).
+            if existing.is_some()
+                && let Some(previous_bytes) = self.inline_bytes(&artifact_id)?
+            {
+                self.stage_action_cache_blob_refs_delete(
+                    &mut batch,
+                    &manifest.namespace_id,
+                    &artifact_id,
+                    &previous_bytes,
+                );
+            }
+            self.stage_action_cache_blob_refs_put(
+                &mut batch,
+                &manifest.namespace_id,
+                &artifact_id,
+                bytes,
+            );
         }
         self.append_artifact_replication_messages(
             &mut batch,
@@ -2135,6 +2188,12 @@ impl Store {
         let mut saw_entries = false;
         let mut removed_artifacts = BTreeMap::<ArtifactProducer, u64>::new();
         let mut removed_artifact_ids = Vec::new();
+        // The cascade is engaged only when operator-enabled and the reverse map
+        // has been backfilled; otherwise eviction behaves exactly as before and
+        // the serve-side presence gates remain the sole strand safety net.
+        let cascade_active = self.action_cache_cascade_active();
+        let mut cascaded_entries = HashSet::new();
+        let mut cascaded_namespaces = HashSet::new();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
@@ -2160,6 +2219,18 @@ impl Store {
                             .as_bytes(),
                     );
                     batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                    // Cascade: this blob is going away, so every action-cache
+                    // entry that references it must go with it, in this same
+                    // atomic batch, or the entry is stranded pointing at a blob
+                    // that no longer exists. Only REAPI blobs can be referenced.
+                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
+                        self.stage_action_cache_cascade_for_blob(
+                            &mut batch,
+                            &artifact_id,
+                            &mut cascaded_entries,
+                            &mut cascaded_namespaces,
+                        )?;
+                    }
                     *removed_artifacts.entry(manifest.producer).or_default() += 1;
                     removed_artifact_ids.push(artifact_id);
                 }
@@ -2174,6 +2245,23 @@ impl Store {
                 .write(batch)
                 .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
             self.remove_manifest_cache_keys(&removed_artifact_ids);
+            if !cascaded_entries.is_empty() {
+                let cascaded_ids: Vec<String> = cascaded_entries.iter().cloned().collect();
+                self.remove_manifest_cache_keys(&cascaded_ids);
+                // A cached snapshot must rebuild so it drops the entries the
+                // cascade removed; the reconcile reads the now-pruned index CF.
+                for namespace_id in &cascaded_namespaces {
+                    self.bump_action_cache_generation(namespace_id);
+                }
+                self.io
+                    .metrics()
+                    .record_action_cache_cascade(cascaded_entries.len() as u64);
+                tracing::info!(
+                    segment_id,
+                    cascaded_entries = cascaded_entries.len(),
+                    "cascaded action-cache entries stranded by segment eviction"
+                );
+            }
         }
         self.remove_segment_handle(segment_id).await;
         self.io
@@ -2188,6 +2276,108 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    /// Cascade-delete the action-cache entries that reference `blob_artifact_id`
+    /// into `batch`, staging the removal of each entry's manifest, inline bytes,
+    /// namespace/action-cache index rows, and reverse rows, plus the blob's own
+    /// reverse rows. `cascaded_entries` de-duplicates entries referenced by more
+    /// than one evicted blob in the same segment; `cascaded_namespaces` collects
+    /// the namespaces whose snapshot generation must be bumped after commit.
+    ///
+    /// Each candidate is re-validated against the entry's current `ActionResult`
+    /// before removal: a reverse pair left stale by a re-publish that moved the
+    /// entry onto a different blob, or by an already-deleted entry, only deletes
+    /// itself and never takes out a live, unrelated entry.
+    fn stage_action_cache_cascade_for_blob(
+        &self,
+        batch: &mut WriteBatch,
+        blob_artifact_id: &str,
+        cascaded_entries: &mut HashSet<String>,
+        cascaded_namespaces: &mut HashSet<String>,
+    ) -> Result<(), String> {
+        let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        for item in iter {
+            let (ref_key, _) =
+                item.map_err(|error| format!("failed to iterate blob refs: {error}"))?;
+            if !ref_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let entry_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                .map_err(|error| format!("invalid blob-ref key: {error}"))?
+                .to_owned();
+            // The blob is going away, so its reverse row goes regardless of what
+            // we decide about the entry below.
+            batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS), &ref_key);
+
+            if cascaded_entries.contains(&entry_id) {
+                continue;
+            }
+            let Some(entry_manifest) = self.manifest_from_db(&entry_id)? else {
+                // Entry already removed; the reverse row was stale.
+                continue;
+            };
+            if entry_manifest.producer != ArtifactProducer::Reapi
+                || action_cache_manifest_hash(&entry_manifest.key).is_none()
+            {
+                continue;
+            }
+            let Some(entry_bytes) = self.inline_bytes(&entry_id)? else {
+                continue;
+            };
+            let still_references = self
+                .action_cache_entry_blob_ids(&entry_manifest.namespace_id, &entry_bytes)
+                .iter()
+                .any(|id| id == blob_artifact_id);
+            if !still_references {
+                // Stale pair from a re-publish that moved the entry off this
+                // blob; deleting the pair above is enough, leave the live entry.
+                continue;
+            }
+            self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+            cascaded_namespaces.insert(entry_manifest.namespace_id.clone());
+            cascaded_entries.insert(entry_id);
+        }
+        Ok(())
+    }
+
+    /// Stage the full removal of a single action-cache entry into `batch`: its
+    /// manifest, inline bytes, namespace index, action-cache index, and reverse
+    /// rows. Entries are always inline, so there is no segment-index row.
+    fn stage_action_cache_entry_delete(
+        &self,
+        batch: &mut WriteBatch,
+        entry_manifest: &ArtifactManifest,
+        entry_bytes: &[u8],
+    ) {
+        let entry_id = &entry_manifest.artifact_id;
+        batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), entry_id.as_bytes());
+        batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), entry_id.as_bytes());
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            namespace_artifact_index_key(&entry_manifest.namespace_id, entry_id).as_bytes(),
+        );
+        if let Some(action_hash) = action_cache_manifest_hash(&entry_manifest.key) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                action_cache_index_key(
+                    &entry_manifest.namespace_id,
+                    entry_manifest.version_ms,
+                    action_hash,
+                    entry_manifest.branch.as_deref(),
+                ),
+            );
+        }
+        self.stage_action_cache_blob_refs_delete(
+            batch,
+            &entry_manifest.namespace_id,
+            entry_id,
+            entry_bytes,
+        );
     }
 
     /// Removes segment files that the segment ring state no longer
@@ -2703,6 +2893,19 @@ impl Store {
                             manifest.branch.as_deref(),
                         ),
                     );
+                    // Drop the entry's reverse rows. Every blob-refs row for this
+                    // namespace has its entry in this namespace, so deleting each
+                    // removed entry's rows clears the namespace's rows without a
+                    // separate per-blob scan. Read before the KEY_VALUE delete
+                    // above commits.
+                    if let Some(action_result_bytes) = self.inline_bytes(&artifact_id)? {
+                        self.stage_action_cache_blob_refs_delete(
+                            &mut batch,
+                            namespace_id,
+                            &artifact_id,
+                            &action_result_bytes,
+                        );
+                    }
                 }
                 if let Some(blob_path) = manifest.blob_path {
                     blob_paths.push(blob_path);
@@ -3377,6 +3580,19 @@ impl Store {
                         manifest.branch.as_deref(),
                     ),
                 );
+                // Drop this entry's reverse rows so the blob-refs map does not
+                // retain references to an entry that no longer exists: otherwise
+                // a later eviction of those blobs would try to cascade an
+                // already-removed entry, and the rows would leak for blobs that
+                // outlive it. Read before the KEY_VALUE delete above commits.
+                if let Some(action_result_bytes) = self.inline_bytes(&manifest.artifact_id)? {
+                    self.stage_action_cache_blob_refs_delete(
+                        &mut batch,
+                        &manifest.namespace_id,
+                        &manifest.artifact_id,
+                        &action_result_bytes,
+                    );
+                }
             }
             if let Some(segment_id) = &manifest.segment_id {
                 batch.delete_cf(
@@ -3715,6 +3931,169 @@ impl Store {
             "action-cache index backfilled"
         );
         Ok(())
+    }
+
+    /// The physical blob ids an action-cache entry references, derived from its
+    /// inline `ActionResult` bytes. Each referenced blob key resolves to the
+    /// same `artifact_storage_id` the CAS write path assigns it, so the reverse
+    /// index keys line up with the blob ids `evict_segment` iterates.
+    fn action_cache_entry_blob_ids(
+        &self,
+        namespace_id: &str,
+        action_result_bytes: &[u8],
+    ) -> Vec<String> {
+        referenced_blob_keys(action_result_bytes)
+            .into_iter()
+            .map(|blob_key| {
+                artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    namespace_id,
+                    &blob_key,
+                )
+            })
+            .collect()
+    }
+
+    /// Stage the reverse rows for an entry into `batch`: one `{blob}\0{entry}`
+    /// pair per referenced blob. Called in the same batch that writes the entry,
+    /// so the entry and its reverse rows commit together or not at all.
+    fn stage_action_cache_blob_refs_put(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        entry_artifact_id: &str,
+        action_result_bytes: &[u8],
+    ) {
+        for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
+                [],
+            );
+        }
+    }
+
+    /// Stage deletion of an entry's reverse rows into `batch`, derived from the
+    /// entry's (old) `ActionResult` bytes. Used on re-publish (drop the previous
+    /// version's rows) and on every delete path (so the map does not leak rows
+    /// for entries that no longer exist).
+    fn stage_action_cache_blob_refs_delete(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        entry_artifact_id: &str,
+        action_result_bytes: &[u8],
+    ) {
+        for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
+            );
+        }
+    }
+
+    fn action_cache_blob_refs_marker_key() -> &'static str {
+        "action_cache_blob_refs/backfilled"
+    }
+
+    fn action_cache_blob_refs_backfilled(&self) -> Result<bool, String> {
+        self.db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_marker_key().as_bytes(),
+            )
+            .map(|marker| marker.is_some())
+            .map_err(|error| format!("failed to read blob-refs backfill marker: {error}"))
+    }
+
+    /// Whether the eviction cascade should run: operator-enabled AND the reverse
+    /// map has been backfilled on this node. Until both hold, eviction leaves
+    /// entries in place and the serve-side presence gates remain the safety net.
+    fn action_cache_cascade_active(&self) -> bool {
+        self.action_cache_eviction_cascade_enabled
+            && self.action_cache_blob_refs_ready.load(Ordering::Acquire)
+    }
+
+    /// One-time startup migration: rebuild the blob-refs reverse map from the
+    /// action-cache entries already on disk, then arm the readiness flag so the
+    /// eviction cascade may consult it. Idempotent: a marker in the key-value CF
+    /// records completion, so a restart after a completed backfill only reads the
+    /// marker and arms the flag. A crash mid-backfill safely repeats: the rows
+    /// are blind puts (re-adding an existing pair is a no-op) and the marker is
+    /// written last.
+    ///
+    /// Concurrency: entries written or re-published while this runs maintain
+    /// their own rows through the write path. A stale pair this backfill might
+    /// re-add just after a concurrent overwrite removed it is harmless, because
+    /// the eviction cascade re-checks that an entry still references the evicted
+    /// blob before removing it and drops only the stale pair otherwise, so the
+    /// scan does not need to lock each entry.
+    pub fn backfill_action_cache_blob_refs(&self) -> Result<usize, String> {
+        if self.action_cache_blob_refs_backfilled()? {
+            self.action_cache_blob_refs_ready
+                .store(true, Ordering::Release);
+            return Ok(0);
+        }
+
+        const SCAN_PAGE: usize = 4096;
+        let started = std::time::Instant::now();
+        let mut after: Option<String> = None;
+        let mut batch = WriteBatch::default();
+        let mut pending = 0_usize;
+        let mut rows = 0_usize;
+        loop {
+            let page = self.manifests_page_scoped(after.as_deref(), None, SCAN_PAGE)?;
+            for manifest in page.manifests {
+                if manifest.producer != ArtifactProducer::Reapi
+                    || action_cache_manifest_hash(&manifest.key).is_none()
+                {
+                    continue;
+                }
+                let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
+                    continue;
+                };
+                for blob_id in self.action_cache_entry_blob_ids(&manifest.namespace_id, &bytes) {
+                    batch.put_cf(
+                        self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                        action_cache_blob_ref_key(&blob_id, &manifest.artifact_id).as_bytes(),
+                        [],
+                    );
+                    pending += 1;
+                    rows += 1;
+                }
+                if pending >= 1_024 {
+                    self.write_batch_sync(
+                        std::mem::take(&mut batch),
+                        "action-cache blob-refs backfill batch",
+                    )?;
+                    pending = 0;
+                }
+            }
+            match page.next_after {
+                Some(next) => after = Some(next),
+                None => break,
+            }
+        }
+        if pending > 0 {
+            self.write_batch_sync(batch, "action-cache blob-refs backfill batch")?;
+        }
+
+        let mut marker_batch = WriteBatch::default();
+        marker_batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            Self::action_cache_blob_refs_marker_key().as_bytes(),
+            [],
+        );
+        self.write_batch_sync(marker_batch, "action-cache blob-refs backfill marker")?;
+        self.action_cache_blob_refs_ready
+            .store(true, Ordering::Release);
+        tracing::info!(
+            rows,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "action-cache blob-refs backfilled"
+        );
+        Ok(rows)
     }
 
     /// Whether this store has any locally usable cache data.
@@ -5178,7 +5557,12 @@ fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactMan
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bazel_remote_apis::build::bazel::remote::execution::v2::{
+        ActionResult as ReapiActionResult, Digest as ReapiDigest, OutputFile as ReapiOutputFile,
+    };
     use tempfile::TempDir;
+
+    use crate::utils::blob_key;
 
     use crate::{
         config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
@@ -5285,6 +5669,7 @@ mod tests {
                 max_concurrent: 32,
                 chunk_bytes: 1024 * 1024,
             },
+            action_cache_eviction_cascade_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -7587,6 +7972,363 @@ mod tests {
         );
         assert!(!segment_path.exists());
         assert_eq!(store.segment_handles.lock().await.len(), 0);
+    }
+
+    // ---- Action-cache blob-refs reverse index + eviction cascade ----
+
+    fn reapi_digest(marker: u8, size: i64) -> ReapiDigest {
+        ReapiDigest {
+            hash: format!("{:02x}", marker).repeat(32),
+            size_bytes: size,
+        }
+    }
+
+    fn action_result_referencing(digests: &[&ReapiDigest]) -> Vec<u8> {
+        use prost::Message;
+        let output_files = digests
+            .iter()
+            .enumerate()
+            .map(|(index, digest)| ReapiOutputFile {
+                path: format!("out/{index}"),
+                digest: Some((*digest).clone()),
+                ..Default::default()
+            })
+            .collect();
+        ReapiActionResult {
+            output_files,
+            ..Default::default()
+        }
+        .encode_to_vec()
+    }
+
+    async fn persist_reapi_blob(
+        store: &Store,
+        namespace_id: &str,
+        digest: &ReapiDigest,
+        bytes: &[u8],
+    ) -> ArtifactManifest {
+        let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("failed to persist blob")
+    }
+
+    async fn persist_action_cache_entry(
+        store: &Store,
+        namespace_id: &str,
+        action_marker: u8,
+        action_result_bytes: &[u8],
+        version_ms: u64,
+    ) -> ArtifactManifest {
+        let key = crate::utils::action_cache_key(&format!(
+            "{}/0",
+            format!("{:02x}", action_marker).repeat(32)
+        ));
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/octet-stream",
+                action_result_bytes,
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("failed to persist action-cache entry");
+        store
+            .manifest(&artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &store.tenant_id,
+                namespace_id,
+                &key,
+            ))
+            .expect("failed to load entry manifest")
+            .expect("entry manifest should exist")
+    }
+
+    fn blob_ref_entry_ids(store: &Store, blob_artifact_id: &str) -> Vec<String> {
+        let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
+        let iter = store.db.iterator_cf(
+            store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut entry_ids = Vec::new();
+        for item in iter {
+            let (key, _) = item.expect("failed to iterate blob refs");
+            if !key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            entry_ids.push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 entry id"));
+        }
+        entry_ids
+    }
+
+    #[tokio::test]
+    async fn write_path_records_blob_refs_for_action_cache_entries() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob.artifact_id),
+            vec![entry.artifact_id.clone()]
+        );
+    }
+
+    #[tokio::test]
+    async fn republish_moves_blob_refs_to_the_new_referenced_blobs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        let blob_b = persist_reapi_blob(&store, "acme", &digest_b, b"goodbye").await;
+
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_a]),
+            1,
+        )
+        .await;
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id),
+            vec![entry.artifact_id.clone()]
+        );
+
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_b]),
+            2,
+        )
+        .await;
+        assert!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty(),
+            "previous version's reverse row should be dropped on re-publish"
+        );
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob_b.artifact_id),
+            vec![entry.artifact_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_artifact_metadata_drops_blob_refs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        store
+            .delete_artifact_metadata(&[entry])
+            .expect("failed to delete entry metadata");
+
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn namespace_delete_drops_blob_refs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        store
+            .delete_namespace("acme")
+            .await
+            .expect("failed to delete namespace");
+
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn backfill_reconstructs_blob_refs_and_arms_the_cascade() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        // Wipe the reverse rows the write path created so the backfill has to
+        // rebuild them from the entries alone.
+        let mut wipe = WriteBatch::default();
+        for entry_id in blob_ref_entry_ids(&store, &blob.artifact_id) {
+            wipe.delete_cf(
+                store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                action_cache_blob_ref_key(&blob.artifact_id, &entry_id).as_bytes(),
+            );
+        }
+        store.db.write(wipe).expect("failed to wipe blob refs");
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+        assert!(!store.action_cache_cascade_active());
+
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob.artifact_id),
+            vec![entry.artifact_id]
+        );
+        assert!(store.action_cache_cascade_active());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_referenced_blob_cascades_the_action_cache_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        let segment_id = blob
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry stranded by the evicted blob should be cascaded away"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn eviction_does_not_cascade_when_the_reverse_map_is_not_ready() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        // No backfill: the cascade must stay inert (readiness gate), leaving the
+        // entry for the serve-side presence gates to handle.
+        assert!(!store.action_cache_cascade_active());
+        let segment_id = blob.segment_id.clone().expect("segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_some(),
+            "with the cascade inactive the entry must remain in place"
+        );
+    }
+
+    #[tokio::test]
+    async fn cascade_ignores_a_stale_reverse_row_to_a_live_unrelated_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        // Blob B is referenced by the entry but persisted into no segment here, so
+        // evicting A's segment cannot legitimately take the entry (persisting B
+        // would land it in the same current segment as A and evict both).
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        // The entry references B only.
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_b]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        // Inject a stale reverse row claiming the entry references blob A (as a
+        // re-publish that moved off A could momentarily leave), then evict A.
+        let mut stale = WriteBatch::default();
+        stale.put_cf(
+            store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            action_cache_blob_ref_key(&blob_a.artifact_id, &entry.artifact_id).as_bytes(),
+            [],
+        );
+        store.db.write(stale).expect("failed to inject stale row");
+
+        let segment_a = blob_a.segment_id.clone().expect("segment-backed");
+        store
+            .evict_segment(&segment_a)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_some(),
+            "a stale reverse row must not take out a live entry that no longer references the blob"
+        );
+        assert!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty(),
+            "the stale row itself should be cleaned up by the eviction"
+        );
     }
 
     #[tokio::test]
