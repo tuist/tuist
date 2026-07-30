@@ -42,13 +42,29 @@ defmodule Tuist.OpenGraphImageRenderer do
   end
 
   def render(html, fallback_title) do
-    # async_nolink (not Task.async) so a crashing render only surfaces as a
-    # {:exit, reason} we can fall back on, instead of the link killing the
-    # calling HTTP request process before render_fallback/2 runs. A pool that
-    # failed to start arrives here as an exit too, and degrades the same way.
+    run_render(fallback_title, fn ->
+      Carta.render(@pool, html, width: 1920, height: 1080, quality: 95)
+    end)
+  end
+
+  @doc false
+  # Runs `render_fun` in a supervised task and degrades to the fallback renderer
+  # on any failure. `async_nolink` keeps a crashing render from killing the
+  # calling HTTP request; it surfaces here as a `{:exit, reason}` we fall back on.
+  #
+  # We trap the exit inside the task because a saturated pool makes
+  # `NimblePool.checkout!` exit, and `Task.Supervised` logs a "Task ...
+  # terminating" report for every such exit, flooding Sentry (TUIST-3R8) even
+  # though the fallback already handles it. Returning `{:error, reason}` lets
+  # the task exit cleanly while still logging one warning with the reason.
+  def run_render(fallback_title, render_fun) do
     task =
       Task.Supervisor.async_nolink(@task_supervisor, fn ->
-        Carta.render(@pool, html, width: 1920, height: 1080, quality: 95)
+        try do
+          render_fun.()
+        catch
+          :exit, reason -> {:error, reason}
+        end
       end)
 
     case Task.yield(task, @render_timeout) || Task.shutdown(task, :brutal_kill) do
