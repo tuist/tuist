@@ -59,8 +59,8 @@ defmodule TuistCommon.GitHub do
       {:ok, %{status: 404}} ->
         {:error, :not_found}
 
-      {:ok, %{status: status}} ->
-        {:error, {:http_error, status}}
+      {:ok, response} ->
+        http_error(response)
 
       {:error, reason} ->
         {:error, reason}
@@ -83,7 +83,7 @@ defmodule TuistCommon.GitHub do
     |> case do
       {:ok, %{status: 200, body: body}} when is_list(body) -> {:ok, body}
       {:ok, %{status: 404}} -> {:error, :not_found}
-      {:ok, %{status: status}} -> {:error, {:http_error, status}}
+      {:ok, response} -> http_error(response)
       {:error, reason} -> {:error, reason}
     end
   end
@@ -114,8 +114,8 @@ defmodule TuistCommon.GitHub do
       {:ok, %{status: 404}} ->
         {:error, :not_found}
 
-      {:ok, %{status: status}} ->
-        {:error, {:http_error, status}}
+      {:ok, response} ->
+        http_error(response)
 
       {:error, reason} ->
         {:error, reason}
@@ -142,7 +142,7 @@ defmodule TuistCommon.GitHub do
     |> request(url, token, request_opts)
     |> case do
       {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: status}} -> {:error, {:http_error, status}}
+      {:ok, response} -> http_error(response)
       {:error, reason} -> {:error, reason}
     end
   end
@@ -199,6 +199,26 @@ defmodule TuistCommon.GitHub do
       [_, next_url] -> next_url
       _ -> nil
     end
+  end
+
+  defp http_error(%{status: 429}), do: {:error, {:rate_limited, 429}}
+
+  defp http_error(%{status: 403, headers: headers}) do
+    if rate_limited?(headers) do
+      {:error, {:rate_limited, 403}}
+    else
+      {:error, {:http_error, 403}}
+    end
+  end
+
+  defp http_error(%{status: status}), do: {:error, {:http_error, status}}
+
+  defp rate_limited?(headers) do
+    Enum.any?(headers, fn
+      {"retry-after", _value} -> true
+      {"x-ratelimit-remaining", "0"} -> true
+      _header -> false
+    end)
   end
 
   defp request(method, url, token, opts) do
