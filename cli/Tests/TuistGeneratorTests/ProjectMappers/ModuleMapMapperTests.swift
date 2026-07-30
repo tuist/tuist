@@ -387,7 +387,7 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func maps_framework_modulemap_to_modulemap_copy_script() throws {
+    func maps_framework_modulemap_to_extractapi_modulemap_path() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
@@ -418,29 +418,13 @@ struct ModuleMapMapperTests {
             environment: MapperEnvironment()
         )
 
-        // Then — the absolute path is reanchored to the generated project's `$(PROJECT_DIR)` so cache
-        // hashes stay machine-independent.
+        // Then — the module map is passed to ExtractAPI through `MODULEMAP_PATH` (reanchored to the
+        // generated project) rather than copied into the framework bundle, which avoids the invalid
+        // top-level `Modules/` directory reported in #12040.
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.scripts ==
-            [
-                TargetScript(
-                    name: "Copy Module Map",
-                    order: .post,
-                    script: .embedded(
-                        """
-                        set -eu
-                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                        cp -f "$PROJECT_DIR/A/A.modulemap" "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                        """
-                    ),
-                    inputPaths: ["$(PROJECT_DIR)/A/A.modulemap"],
-                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                    showEnvVarsInLog: false,
-                    basedOnDependencyAnalysis: true
-                ),
-            ]
-        )
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(PROJECT_DIR)/A/A.modulemap"))
+        #expect(gotTarget.scripts.isEmpty)
     }
 
     @Test(.inTemporaryDirectory)
@@ -507,14 +491,11 @@ struct ModuleMapMapperTests {
         // correctly in the generated project and stays machine-independent.
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.scripts[0].script == .embedded(
-            """
-            set -eu
-            mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-            cp -f "$PROJECT_DIR/Derived/ModuleMaps/A.modulemap" "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-            """
-        ))
-        #expect(gotTarget.scripts[0].inputPaths == ["$(PROJECT_DIR)/Derived/ModuleMaps/A.modulemap"])
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] ==
+                .string("$(PROJECT_DIR)/Derived/ModuleMaps/A.modulemap")
+        )
+        #expect(gotTarget.scripts.isEmpty)
     }
 
     @Test(.inTemporaryDirectory)
@@ -541,7 +522,9 @@ struct ModuleMapMapperTests {
         // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.scripts[0].inputPaths == ["$(PROJECT_DIR)/../../ModuleMaps/A.modulemap"])
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(PROJECT_DIR)/../../ModuleMaps/A.modulemap")
+        )
     }
 
     @Test(.inTemporaryDirectory)

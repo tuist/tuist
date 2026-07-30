@@ -87,28 +87,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         project: project
                     ) {
                         switch target.product {
-                        case .framework:
-                            target.scripts.append(
-                                TargetScript(
-                                    name: "Copy Module Map",
-                                    order: .post,
-                                    script: .embedded(
-                                        """
-                                        set -eu
-                                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                        cp -f \(Self
-                                            .shellPath(
-                                                from: moduleMapPath
-                                            )) "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                                        """
-                                    ),
-                                    inputPaths: [moduleMapPath],
-                                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                                    showEnvVarsInLog: false,
-                                    basedOnDependencyAnalysis: true
-                                )
-                            )
-                        case .staticFramework:
+                        case .framework, .staticFramework:
                             mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath)
                         default:
                             break
@@ -241,24 +220,6 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             return nil
         }
         return "$(PROJECT_DIR)/\(moduleMap)"
-    }
-
-    private static func shellPath(from buildSettingPath: String) -> String {
-        let variables = [
-            ("$(PROJECT_DIR)", "$PROJECT_DIR"),
-            ("$(SRCROOT)", "$SRCROOT"),
-            ("$(SOURCE_ROOT)", "$SOURCE_ROOT"),
-        ]
-        var shellPath = buildSettingPath
-        for (buildSetting, shellVariable) in variables {
-            shellPath = shellPath.replacingOccurrences(of: buildSetting, with: shellVariable)
-        }
-        let escapedShellPath = shellPath
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "`", with: "\\`")
-
-        return "\"\(escapedShellPath)\""
     }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
