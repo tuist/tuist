@@ -1033,6 +1033,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn small_runtime_keeps_a_full_bootstrap_response_reservation() {
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            128 * 1024 * 1024,
+            76 * 1024 * 1024,
+            108 * 1024 * 1024,
+        );
+
+        assert_eq!(controller.response_streaming_pool_bytes(), 10 * 1024 * 1024);
+        assert_eq!(
+            controller.foreground_response_streaming_pool_bytes(),
+            4 * 1024 * 1024
+        );
+        controller
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
+            .expect("small profiles must bootstrap the largest supported inline artifact");
+    }
+
     #[tokio::test]
     async fn response_stream_permit_is_held_until_the_last_transport_guard_drops() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());

@@ -54,9 +54,8 @@ impl MemoryPools {
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);
         let response_streaming_bytes =
             response_streaming_pool_bytes(runtime_limit_bytes, hard_limit_bytes, headroom_bytes);
-        let bootstrap_reserved_bytes = response_streaming_bytes
-            .saturating_div(2)
-            .min(MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES);
+        let bootstrap_reserved_bytes =
+            response_streaming_bytes.min(MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES);
         let foreground_response_streaming_bytes =
             response_streaming_bytes.saturating_sub(bootstrap_reserved_bytes);
         let elastic_foreground_response_streaming_bytes =
