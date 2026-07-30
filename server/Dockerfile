@@ -205,6 +205,14 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
+# Runtime Open Graph image rendering launches Chromium as `nobody`, whose home is
+# `/nonexistent`. Route it through a wrapper that exports a writable HOME so
+# `--headless=new` can bind its DevTools port instead of timing out. See
+# server/rel/og-chromium for the full rationale.
+COPY server/rel/og-chromium /usr/local/bin/og-chromium
+RUN chmod +x /usr/local/bin/og-chromium
+ENV TUIST_OG_IMAGE_CHROME_PATH=/usr/local/bin/og-chromium
+
 WORKDIR "/app"
 RUN chown nobody /app
 
