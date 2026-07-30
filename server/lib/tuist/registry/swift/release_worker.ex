@@ -454,8 +454,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp within_signed_bundle?(path) do
+    # Inspect only the ancestor directories, not the symlink's own basename: the
+    # bundle whose sealed layout we protect is always a real directory above the
+    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
+    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
+    # the SwiftPM root-level extraction failure on un-patched clients.
     path
     |> Path.split()
+    |> Enum.drop(-1)
     |> Enum.any?(fn component ->
       Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
     end)

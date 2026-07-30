@@ -484,6 +484,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Resources"))
       assert {:ok, "A"} = File.read_link(Path.join([extracted_framework, "Versions", "Current"]))
     end
+
+    test "flattens a root-level symlink even when it is named like a code-signed bundle" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_bundle_named_link_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      File.mkdir_p!(source)
+      File.write!(Path.join(source, "README.md"), "readme")
+      # A package-root symlink whose own basename matches a bundle extension must
+      # still be flattened, since it is a root-level symlink SwiftPM mishandles.
+      File.ln_s!("README.md", Path.join(source, "Widget.framework"))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      extract_dir = Path.join(tmp, "extract")
+      File.mkdir_p!(extract_dir)
+      {_, 0} = System.cmd("unzip", ["-q", archive_path, "-d", extract_dir])
+
+      assert {:ok, %File.Stat{type: :regular}} =
+               File.lstat(Path.join([extract_dir, "repo-v1.0.0", "Widget.framework"]))
+    end
   end
 
   defp write_basic_zipball(archive_path) do
