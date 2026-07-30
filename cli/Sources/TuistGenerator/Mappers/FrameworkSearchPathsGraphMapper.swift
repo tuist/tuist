@@ -212,12 +212,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             .map(\.searchPath)
 
         var values: [String] = []
+        // Always register the cleanup directory so stale symbolic links (for example `.xcframework`
+        // links created by older Tuist versions) are removed even when this target now has no active
+        // `.framework` links to link into the consolidated Swift search directory.
+        var activeLinks = activeFrameworkLinksByDirectory[cleanupDirectory, default: []]
         if !linkableArtifacts.isEmpty {
             values.append(LinkGeneratorPath.absolutePath(swiftFrameworkSearchPath).xcodeValue(sourceRootPath: sourceRootPath))
             let linkPaths = Set(linkableArtifacts.map { artifact in
                 swiftFrameworkSearchPath.appending(component: artifact.path.basename)
             })
-            activeFrameworkLinksByDirectory[cleanupDirectory, default: []].formUnion(linkPaths)
+            activeLinks.formUnion(linkPaths)
             generatedSymbolicLinkSideEffects.append(
                 contentsOf: linkableArtifacts.map { artifact in
                     .symbolicLink(
@@ -229,6 +233,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 }
             )
         }
+        activeFrameworkLinksByDirectory[cleanupDirectory] = activeLinks
 
         values.append(
             contentsOf: xcodeValues(
