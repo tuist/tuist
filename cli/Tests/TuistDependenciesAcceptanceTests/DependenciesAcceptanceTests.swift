@@ -266,7 +266,10 @@ struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies
     @Test(
         .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(1))
+        // Install + generate of local packages wrapped in the `.withFixture` server lifecycle
+        // is highly variable under CI load (observed 15s to >60s cold). Match the headroom of the
+        // analogous `install_then_generate_does_not_deadlock` test rather than the 1-minute default.
+        .timeLimit(.minutes(4))
     )
     func install_then_generate_ignores_local_package_test_only_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -280,7 +283,7 @@ struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies
     @Test(
         .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(4))
     )
     func install_then_generate_whenLocalPackageTestsAreEnabled_failsForExternalProductDependency() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
