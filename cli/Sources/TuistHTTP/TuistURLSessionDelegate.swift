@@ -1,5 +1,8 @@
 import Foundation
-import TuistAlert
+
+#if canImport(TuistAlert)
+    import TuistAlert
+#endif
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -89,20 +92,24 @@ import TuistAlert
         static func load(from path: String) -> [SecCertificate]? {
             let url = URL(fileURLWithPath: path)
             guard let data = try? Data(contentsOf: url) else {
-                AlertController.current
-                    .warning(
-                        .alert(
-                            "Could not read the custom CA certificate bundle at '\(path)'. TLS will use the system trust store only."
+                #if canImport(TuistAlert)
+                    AlertController.current
+                        .warning(
+                            .alert(
+                                "Could not read the custom CA certificate bundle at '\(path)'. TLS will use the system trust store only."
+                            )
                         )
-                    )
+                #endif
                 return nil
             }
             let certificates = parse(from: data)
             if certificates.isEmpty {
-                AlertController.current
-                    .warning(
-                        .alert("No certificates could be parsed from '\(path)'. TLS will use the system trust store only.")
-                    )
+                #if canImport(TuistAlert)
+                    AlertController.current
+                        .warning(
+                            .alert("No certificates could be parsed from '\(path)'. TLS will use the system trust store only.")
+                        )
+                #endif
                 return nil
             }
             return certificates
