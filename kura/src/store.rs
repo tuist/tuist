@@ -1078,13 +1078,17 @@ impl Store {
                 artifact_id.as_bytes(),
             );
             self.bump_action_cache_generation(&manifest.namespace_id);
-            // No blob-refs (reverse index) maintenance here: an action-cache
-            // entry is always persisted inline. `update_action_result` writes it
-            // through the inline path, and a replicated inline entry re-applies
-            // through the same inline path, so its reverse rows are staged there.
-            // Should an entry ever land segment-backed, the startup backfill
-            // reconciles it from the manifests it scans, and the serve-side
-            // presence gates cover it until then.
+            // No blob-refs (reverse index) maintenance for a segment-backed
+            // entry. Every current write path keeps action-cache entries inline
+            // (`update_action_result` rejects a body over
+            // MAX_INLINE_REPLICATION_BODY_BYTES), so their reverse rows are staged
+            // on the inline path. A segment-backed entry is still a structurally
+            // supported shape, but the reverse index deliberately does not cover
+            // it: this path, the startup backfill, and the delete paths all derive
+            // reverse rows from inline bytes and skip a manifest without them. Such
+            // an entry therefore gets no reverse rows and is never cascaded; the
+            // serve-side presence gates (the same backstop the cascade lifts load
+            // from) are its sole cover, which is safe.
         }
         if let Some(previous_manifest) = &existing
             && let Some(previous_segment_id) = &previous_manifest.segment_id
@@ -4056,6 +4060,9 @@ impl Store {
                 {
                     continue;
                 }
+                // Segment-backed entries are skipped here (as on the write and
+                // delete paths): the reverse index only covers inline entries,
+                // and the serve-side gates cover the rest.
                 let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
                     continue;
                 };
@@ -8252,6 +8259,67 @@ mod tests {
             "the entry stranded by the evicted blob should be cascaded away"
         );
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn cascade_removes_an_entry_referencing_two_blobs_in_one_segment_once() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        let blob_b = persist_reapi_blob(&store, "acme", &digest_b, b"goodbye").await;
+        // The one-action-several-outputs shape: both outputs land in the same
+        // current segment, so a single eviction drops both blobs and the second
+        // blob's scan must hit the `cascaded_entries` dedupe rather than
+        // re-removing the entry or double-counting it.
+        let segment_id = blob_a
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        assert_eq!(
+            blob_b.segment_id.as_deref(),
+            Some(segment_id.as_str()),
+            "test assumes both small blobs co-locate in one segment"
+        );
+
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_a, &digest_b]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry should be cascaded away once both of its blobs are evicted"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty());
+        assert!(blob_ref_entry_ids(&store, &blob_b.artifact_id).is_empty());
+        // prometheus-client appends `_total` to a counter's sample line, and this
+        // repo registers counters already suffixed `_total` (so the sample is
+        // `_total_total`, matching every sibling counter). Assert the value is 1,
+        // not 2, to lock in that the entry is counted once, not once per blob.
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .contains("kura_action_cache_cascade_removed_total_total 1"),
+            "the entry must be counted once, not once per referenced blob"
+        );
     }
 
     #[tokio::test]
