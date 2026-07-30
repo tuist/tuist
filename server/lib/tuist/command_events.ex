@@ -502,10 +502,10 @@ defmodule Tuist.CommandEvents do
   end
 
   # Multiple rows may share the same build_run_id because the ID is derived
-  # from the `.xcactivitylog`, which Xcode can reuse across runs (e.g. a
-  # second `tuist test` that short-circuits before building picks up the
-  # previous log). We return the most recent event until we can source the
-  # build_run_id independently of the activity log.
+  # from the `.xcactivitylog`. In a split test run, the test execution event
+  # intentionally reuses the build phase's ID to link its test report to the
+  # build. Prefer the event without a test run so build details retain the
+  # command that produced the build.
   #
   # Pass `project_id:` when known so the lookup hits the
   # `(project_id, name, ran_at)` primary key instead of relying solely on
@@ -516,7 +516,7 @@ defmodule Tuist.CommandEvents do
     Event
     |> scope_to_project(project_id)
     |> where([e], e.build_run_id == ^build_run_id)
-    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> order_by([e], desc: is_nil(e.test_run_id), desc: e.ran_at, desc: e.created_at)
     |> limit(1)
     |> ClickHouseRepo.one()
     |> case do
