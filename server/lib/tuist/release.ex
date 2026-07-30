@@ -10,7 +10,7 @@ defmodule Tuist.Release do
   require Logger
 
   @app :tuist
-  @processor_write_tables ~w(oban_jobs oban_peers)
+  @processor_write_tables ~w(oban_jobs oban_peers test_case_run_flaky_corrections)
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
