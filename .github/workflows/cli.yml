@@ -13,6 +13,9 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -36,6 +39,9 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
