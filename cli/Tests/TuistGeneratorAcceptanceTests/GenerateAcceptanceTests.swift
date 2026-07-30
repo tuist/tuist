@@ -601,8 +601,8 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     }
 }
 
-// This integration test resolves a large external package graph and runs two Xcode builds. Serializing it prevents
-// the intermittent resource contention observed when it runs alongside the rest of the acceptance-test shard.
+/// This integration test resolves a large external package graph and runs two Xcode builds. Serializing it prevents
+/// the intermittent resource contention observed when it runs alongside the rest of the acceptance-test shard.
 @Suite(.serialized)
 struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
     @Test(.withFixture("generated_ios_app_with_modulemap_packages"), .inTemporaryDirectory)
