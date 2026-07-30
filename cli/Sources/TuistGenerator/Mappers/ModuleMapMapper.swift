@@ -83,10 +83,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
                 if hasModuleMap {
                     if let moduleMapPath = Self.moduleMapPath(
-                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
-                        projectPath: project.path
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting]
                     ) {
-                        let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
                         switch target.product {
                         case .framework:
                             target.scripts.append(
@@ -97,17 +95,17 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                         """
                                         set -eu
                                         mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                        cp -f '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                        cp -f \(Self.shellPath(from: moduleMapPath)) "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                         """
                                     ),
-                                    inputPaths: [moduleMapPath.pathString],
+                                    inputPaths: [moduleMapPath],
                                     outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
                                     showEnvVarsInLog: false,
                                     basedOnDependencyAnalysis: true
                                 )
                             )
                         case .staticFramework:
-                            mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath.pathString)
+                            mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath)
                         default:
                             break
                         }
@@ -195,21 +193,44 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     } // swiftlint:enable function_body_length
 
     private static func moduleMapPath(
-        from value: SettingsDictionary.Value?,
-        projectPath: AbsolutePath
-    ) -> AbsolutePath? {
+        from value: SettingsDictionary.Value?
+    ) -> String? {
         guard case let .string(moduleMap) = value else { return nil }
 
-        return try? AbsolutePath(
-            validating: moduleMap
-                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
-        )
+        for sourceRoot in ["$(SRCROOT)", "$(SOURCE_ROOT)"] {
+            let derivedDirectoryPrefix = "\(sourceRoot)/../../tuist-derived/"
+            if moduleMap.hasPrefix(derivedDirectoryPrefix) {
+                let relativePath = String(moduleMap.dropFirst(derivedDirectoryPrefix.count))
+                return "$(PROJECT_DIR)/../../\(relativePath)"
+            }
+        }
+
+        if moduleMap.hasPrefix("/") || moduleMap.hasPrefix("$(") {
+            return moduleMap
+        }
+
+        guard (try? RelativePath(validating: moduleMap)) != nil else {
+            return nil
+        }
+        return "$(PROJECT_DIR)/\(moduleMap)"
     }
 
-    private static func shellEscaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "'", with: "'\\\\''")
+    private static func shellPath(from buildSettingPath: String) -> String {
+        let variables = [
+            ("$(PROJECT_DIR)", "$PROJECT_DIR"),
+            ("$(SRCROOT)", "$SRCROOT"),
+            ("$(SOURCE_ROOT)", "$SOURCE_ROOT"),
+        ]
+        var shellPath = buildSettingPath
+        for (buildSetting, shellVariable) in variables {
+            shellPath = shellPath.replacingOccurrences(of: buildSetting, with: shellVariable)
+        }
+        let escapedShellPath = shellPath
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "`", with: "\\`")
+
+        return "\"\(escapedShellPath)\""
     }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
