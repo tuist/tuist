@@ -291,11 +291,11 @@
       }
     },
     {
-      "identity" : "getguaka.colorizer",
-      "kind" : "registry",
-      "location" : "",
-      "originalLocation" : "https://github.com/getGuaka/Colorizer.git",
+      "identity" : "colorizer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getGuaka/Colorizer.git",
       "state" : {
+        "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
         "version" : "0.2.1"
       }
     },
