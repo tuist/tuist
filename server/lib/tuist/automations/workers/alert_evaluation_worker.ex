@@ -256,7 +256,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
-      |> filter_by_current_state(alert, alert.recovery_config)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
     # fire again) happens for every alert once its condition clears — without
@@ -268,7 +267,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     # because `Alert.changeset` only validates it when recovery is on.
     {recovered, recovery_actions} =
       if alert.recovery_enabled do
-        {filter_recovered_candidates(alert, candidates, alert.recovery_config || %{}), alert.recovery_actions}
+        recovered =
+          candidates
+          |> filter_by_current_state(alert, alert.recovery_config)
+          |> then(&filter_recovered_candidates(alert, &1, alert.recovery_config || %{}))
+
+        {recovered, alert.recovery_actions}
       else
         {candidates, []}
       end

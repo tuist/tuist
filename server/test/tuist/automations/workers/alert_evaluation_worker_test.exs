@@ -866,7 +866,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: false,
-        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000}
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000, "state" => "skipped"}
       )
 
     recovered_id = Ecto.UUID.generate()
@@ -880,8 +880,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     # No dwell evaluation at all on the disabled path → no runs-since-trigger
-    # query, proving the stale rolling config is ignored.
+    # query or state lookup, proving the stale recovery config is ignored.
     reject(&ClickHouseRepo.all/1)
+    reject(&Tests.get_test_case_states/2)
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
       assert actions == []
