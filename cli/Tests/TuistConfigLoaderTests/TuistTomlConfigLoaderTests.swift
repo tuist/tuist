@@ -93,6 +93,32 @@ struct TuistTomlConfigLoaderTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func loadConfig_returns_config_with_network_ca_certificate() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let tomlPath = temporaryDirectory.appending(component: Constants.tuistTomlFileName)
+        try await fileSystem.writeText(
+            """
+            [network]
+            proxy = true
+            caCertificate = "/etc/ssl/certs/ca.pem"
+            """,
+            at: tomlPath
+        )
+
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
+        let config = try await subject.loadConfig(at: temporaryDirectory)
+
+        #expect(config?.network?.proxy == true)
+        #expect(config?.network?.caCertificate == "/etc/ssl/certs/ca.pem")
+    }
+
+    @Test(.inTemporaryDirectory)
     func loadConfig_returns_nil_when_no_root_directory() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
