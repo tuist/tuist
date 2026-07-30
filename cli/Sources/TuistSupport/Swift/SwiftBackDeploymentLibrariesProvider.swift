@@ -1,6 +1,8 @@
 import Command
+import FileSystem
 import Foundation
 import Mockable
+import Path
 import TuistThreadSafe
 
 @Mockable
@@ -35,10 +37,12 @@ public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibr
     private static let spanBackDeploymentSegment = "swift-6.2"
 
     private let commandRunner: CommandRunning
+    private let fileSystem: FileSysteming
     private let cachedRunpathSearchPaths: TuistThreadSafe.ThreadSafe<[String]?> = .init(nil)
 
-    public init(commandRunner: CommandRunning = CommandRunner()) {
+    public init(commandRunner: CommandRunning = CommandRunner(), fileSystem: FileSysteming = FileSystem()) {
         self.commandRunner = commandRunner
+        self.fileSystem = fileSystem
     }
 
     public func runpathSearchPaths() async throws -> [String] {
@@ -56,37 +60,40 @@ public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibr
         // This matches `swift-build`, which hardcodes `swift-6.2` instead of scanning.
         var segments: Set<String> = [Self.spanBackDeploymentSegment]
         if let libraryDirectory = try? await toolchainLibraryDirectory() {
-            segments.formUnion(Self.discoveredCompatibilitySpanSegments(in: libraryDirectory))
+            segments.formUnion(await discoveredCompatibilitySpanSegments(in: libraryDirectory))
         }
         return segments.sorted()
             .map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
     }
 
-    private func toolchainLibraryDirectory() async throws -> String {
-        let swiftcPath = try await commandRunner
+    private func toolchainLibraryDirectory() async throws -> AbsolutePath {
+        let swiftcPath = try AbsolutePath(validating: try await commandRunner
             .capture(arguments: ["/usr/bin/xcrun", "--find", "swiftc"])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .whitespacesAndNewlines))
         // <toolchain>/usr/bin/swiftc -> <toolchain>/usr/lib
-        let usrBinDirectory = (swiftcPath as NSString).deletingLastPathComponent
-        let usrDirectory = (usrBinDirectory as NSString).deletingLastPathComponent
-        return (usrDirectory as NSString).appendingPathComponent("lib")
+        return swiftcPath.parentDirectory.parentDirectory.appending(component: "lib")
     }
 
-    private static func discoveredCompatibilitySpanSegments(in libraryDirectory: String) -> Set<String> {
-        let entries = (try? FileManager.default.contentsOfDirectory(atPath: libraryDirectory)) ?? []
-        return Set(entries.filter { entry in
-            entry.hasPrefix("swift-") &&
-                segmentShipsCompatibilitySpan((libraryDirectory as NSString).appendingPathComponent(entry))
-        })
-    }
-
-    private static func segmentShipsCompatibilitySpan(_ segmentDirectory: String) -> Bool {
-        let platforms = (try? FileManager.default.contentsOfDirectory(atPath: segmentDirectory)) ?? []
-        return platforms.contains { platform in
-            let dylib = ((segmentDirectory as NSString).appendingPathComponent(platform) as NSString)
-                .appendingPathComponent(compatibilitySpanDylib)
-            return FileManager.default.fileExists(atPath: dylib)
+    private func discoveredCompatibilitySpanSegments(in libraryDirectory: AbsolutePath) async -> Set<String> {
+        let entries = (try? await fileSystem.contentsOfDirectory(libraryDirectory)) ?? []
+        var segments = Set<String>()
+        for entry in entries where entry.basename.hasPrefix("swift-") {
+            if await shipsCompatibilitySpan(in: entry) {
+                segments.insert(entry.basename)
+            }
         }
+        return segments
+    }
+
+    private func shipsCompatibilitySpan(in segmentDirectory: AbsolutePath) async -> Bool {
+        let platforms = (try? await fileSystem.contentsOfDirectory(segmentDirectory)) ?? []
+        for platform in platforms {
+            let dylib = platform.appending(component: Self.compatibilitySpanDylib)
+            if (try? await fileSystem.exists(dylib)) == true {
+                return true
+            }
+        }
+        return false
     }
 }
 

@@ -1,6 +1,5 @@
 import FileSystem
 import FileSystemTesting
-import Foundation
 import Testing
 import TuistTesting
 
@@ -22,15 +21,12 @@ struct SwiftBackDeploymentLibrariesProviderTests {
 
     @Test(.inTemporaryDirectory) func runpathSearchPaths_dedupesDiscoveredSegmentWithFallback() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
         // Lay out a fake toolchain whose `swift-6.2` directory ships the compatibility dylib, so
         // discovery finds the same segment the fallback seeds.
-        let libraryDirectory = temporaryDirectory.appending(components: "usr", "lib")
-        let segmentDirectory = libraryDirectory.appending(components: "swift-6.2", "macosx")
-        try FileManager.default.createDirectory(atPath: segmentDirectory.pathString, withIntermediateDirectories: true)
-        try FileManager.default.createFile(
-            atPath: segmentDirectory.appending(component: "libswiftCompatibilitySpan.dylib").pathString,
-            contents: Data()
-        )
+        let segmentDirectory = temporaryDirectory.appending(components: "usr", "lib", "swift-6.2", "macosx")
+        try await fileSystem.makeDirectory(at: segmentDirectory, options: [.createTargetParentDirectories])
+        try await fileSystem.touch(segmentDirectory.appending(component: "libswiftCompatibilitySpan.dylib"))
 
         let commandRunner = MockCommandRunner()
         commandRunner.succeedCommand(
@@ -38,7 +34,7 @@ struct SwiftBackDeploymentLibrariesProviderTests {
             output: temporaryDirectory.appending(components: "usr", "bin", "swiftc").pathString
         )
 
-        let subject = SwiftBackDeploymentLibrariesProvider(commandRunner: commandRunner)
+        let subject = SwiftBackDeploymentLibrariesProvider(commandRunner: commandRunner, fileSystem: fileSystem)
 
         let paths = try await subject.runpathSearchPaths()
 
@@ -49,17 +45,12 @@ struct SwiftBackDeploymentLibrariesProviderTests {
         // The hardcoded `swift-6.2` fallback is always present, while discovery still surfaces any
         // additional `swift-*` segment a future toolchain may ship.
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
         let libraryDirectory = temporaryDirectory.appending(components: "usr", "lib")
         for segment in ["swift-6.2", "swift-9.9"] {
             let segmentDirectory = libraryDirectory.appending(components: segment, "macosx")
-            try FileManager.default.createDirectory(
-                atPath: segmentDirectory.pathString,
-                withIntermediateDirectories: true
-            )
-            try FileManager.default.createFile(
-                atPath: segmentDirectory.appending(component: "libswiftCompatibilitySpan.dylib").pathString,
-                contents: Data()
-            )
+            try await fileSystem.makeDirectory(at: segmentDirectory, options: [.createTargetParentDirectories])
+            try await fileSystem.touch(segmentDirectory.appending(component: "libswiftCompatibilitySpan.dylib"))
         }
 
         let commandRunner = MockCommandRunner()
@@ -68,7 +59,7 @@ struct SwiftBackDeploymentLibrariesProviderTests {
             output: temporaryDirectory.appending(components: "usr", "bin", "swiftc").pathString
         )
 
-        let subject = SwiftBackDeploymentLibrariesProvider(commandRunner: commandRunner)
+        let subject = SwiftBackDeploymentLibrariesProvider(commandRunner: commandRunner, fileSystem: fileSystem)
 
         let paths = try await subject.runpathSearchPaths()
 
