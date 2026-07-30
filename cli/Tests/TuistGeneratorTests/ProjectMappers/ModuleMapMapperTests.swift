@@ -703,8 +703,8 @@ struct ModuleMapMapperTests {
         #expect(firstModuleMapPath == secondModuleMapPath)
     }
 
-    @Test(.inTemporaryDirectory, arguments: ["$(SRCROOT)", "$(SOURCE_ROOT)", "$(PROJECT_DIR)"])
-    func reanchors_static_framework_modulemap_path_from_source_root_macro(sourceRootMacro: String) throws {
+    @Test(.inTemporaryDirectory, arguments: ["$(SRCROOT)", "$(SOURCE_ROOT)"])
+    func reanchors_srcroot_macros_against_the_source_project_path(sourceRootMacro: String) throws {
         // Given
         let workspace = Workspace.test()
         let scratchDirectory = try temporaryPath().appending(component: ".build")
@@ -731,12 +731,87 @@ struct ModuleMapMapperTests {
             environment: MapperEnvironment()
         )
 
-        // Then — every source-root macro resolves to the same generated-project-relative path.
+        // Then — `$(SRCROOT)`/`$(SOURCE_ROOT)` are authored relative to the checkout, so they resolve
+        // through the source project path into a generated-project-relative reference.
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
         #expect(
             gotTarget.settings?.base["MODULEMAP_PATH"] ==
                 .string("$(PROJECT_DIR)/../../../checkouts/A/Derived/ModuleMaps/A.modulemap")
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func keeps_project_dir_anchored_to_the_generated_project() throws {
+        // Given — for a relocated external project the source project (`project.path`) is the checkout
+        // while the generated project lives under `tuist-derived`. `$(PROJECT_DIR)` already anchors to
+        // the generated project, so it must not be redirected into the checkout.
+        let workspace = Workspace.test()
+        let scratchDirectory = try temporaryPath().appending(component: ".build")
+        let projectPath = scratchDirectory.appending(components: "checkouts", "A")
+        let xcodeProjPath = scratchDirectory.appending(components: "tuist-derived", "Projects", "A", "A.xcodeproj")
+        let target = Target.test(
+            name: "A",
+            product: .staticFramework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string("$(PROJECT_DIR)/Generated/A.modulemap"),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            name: "A",
+            targets: [target],
+            type: .external()
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(workspace: workspace, projects: [projectPath: project]),
+            environment: MapperEnvironment()
+        )
+
+        // Then — the generated-project-relative path is preserved, not redirected into the checkout.
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(PROJECT_DIR)/Generated/A.modulemap")
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func preserves_unrecognized_modulemap_macros() throws {
+        // Given — build-setting macros we don't model (e.g. `$(DERIVED_FILE_DIR)`) can't be resolved to
+        // an absolute path at generation time, so they are passed through for Xcode to evaluate.
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let xcodeProjPath = projectPath.appending(component: "A.xcodeproj")
+        let target = Target.test(
+            name: "A",
+            product: .staticFramework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string("$(DERIVED_FILE_DIR)/Generated.modulemap"),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(workspace: workspace, projects: [projectPath: project]),
+            environment: MapperEnvironment()
+        )
+
+        // Then — the macro is preserved verbatim instead of dropping the module map.
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] ==
+                .string("$(DERIVED_FILE_DIR)/Generated.modulemap")
         )
     }
 

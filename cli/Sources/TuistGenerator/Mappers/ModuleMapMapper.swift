@@ -213,20 +213,26 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             }
         }
 
-        // Source-root build-setting macros and absolute filesystem paths. In generated Xcode projects
-        // `$(SRCROOT)` points at the generated project, but for external SwiftPM packages the module
-        // map lives in the checkout, so a verbatim `$(SRCROOT)` path resolves to the wrong place.
-        // Resolve the macros against the source project's path and reanchor to the generated project's
-        // directory so the reference stays correct for external packages and machine-independent,
-        // which keeps cache hashes stable across checkouts.
+        // Source-root build-setting macros and absolute filesystem paths. `MODULEMAP_FILE` is
+        // authored relative to the source project: `$(SRCROOT)`/`$(SOURCE_ROOT)` resolve to the
+        // checkout (see `PackageInfoMapper`), while `$(PROJECT_DIR)` already anchors to the generated
+        // project. Resolve each macro against its corresponding project, then reanchor to the
+        // generated project's directory as a machine-independent `$(PROJECT_DIR)`-relative path so
+        // cache hashes stay stable across checkouts.
         if moduleMap.hasPrefix("/") || moduleMap.hasPrefix("$(") {
-            let projectPath = project.path.pathString
+            let sourceProjectPath = project.path.pathString
+            let generatedProjectPath = project.xcodeProjPath.parentDirectory.pathString
             let resolved = moduleMap
-                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath)
-                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath)
-                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath)
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: generatedProjectPath)
+                .replacingOccurrences(of: "$(SRCROOT)", with: sourceProjectPath)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: sourceProjectPath)
 
-            guard let resolvedPath = try? AbsolutePath(validating: resolved) else { return nil }
+            // Macros we don't model here (e.g. `$(DERIVED_FILE_DIR)`) can't be resolved to an absolute
+            // path at generation time. Preserve them verbatim so the module map isn't dropped and Xcode
+            // can evaluate them at build time.
+            guard let resolvedPath = try? AbsolutePath(validating: resolved) else {
+                return moduleMap
+            }
 
             return "$(PROJECT_DIR)/\(resolvedPath.relative(to: project.xcodeProjPath.parentDirectory).pathString)"
         }
