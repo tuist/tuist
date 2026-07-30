@@ -50,7 +50,7 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
             |> Ch.RowBinary._encode_rows(encoding_types)
             |> IO.iodata_to_binary()
 
-          :ok = Buffer.insert(__MODULE__, row_binary)
+          :ok = Buffer.insert!(__MODULE__, row_binary)
           {:ok, row}
         end
       end
@@ -73,7 +73,7 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
             |> Ch.RowBinary._encode_rows(encoding_types)
             |> IO.iodata_to_binary()
 
-          :ok = Buffer.insert(__MODULE__, row_binary)
+          :ok = Buffer.insert!(__MODULE__, row_binary)
           {length(rows), nil}
         end
       end

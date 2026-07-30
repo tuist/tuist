@@ -22,6 +22,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @attempts_per_window 3
 
   @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 4)
+
+  @impl Oban.Worker
   def perform(
         %Oban.Job{
           args: %{
@@ -133,8 +136,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp evaluate_recent_test_case_runs?(_args), do: false
 
   defp evaluate_and_execute(alert, test_case_ids) do
-    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-    execute_evaluation(alert, triggered_ids, test_case_ids)
+    if alert.baseline_established_at == nil do
+      establish_baseline(alert)
+    else
+      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+      execute_evaluation(alert, triggered_ids, test_case_ids)
+    end
 
     :ok
   end
@@ -160,12 +167,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp execute_evaluation(alert, triggered_ids, test_case_ids) do
     triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-
-    if alert.baseline_established_at == nil do
-      establish_baseline(alert, triggered_ids)
-    else
-      run_transitions(alert, triggered_ids, test_case_ids)
-    end
+    run_transitions(alert, triggered_ids, test_case_ids)
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -194,19 +196,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # `triggered` AlertEvents so subsequent evaluations only fire on
   # transitions, but skip the trigger actions — there's no transition to
   # announce yet, and firing for the entire matching set would spam users.
-  defp establish_baseline(alert, triggered_ids) do
-    now = NaiveDateTime.utc_now()
-
-    Enum.each(triggered_ids, fn test_case_id ->
-      Automations.create_alert_event(%{
-        alert_id: alert.id,
-        test_case_id: test_case_id,
-        status: "triggered",
-        triggered_at: now
-      })
+  defp establish_baseline(alert) do
+    Automations.establish_alert_baseline(alert, fn test_case_ids ->
+      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+      reject_unvalidated_test_cases(alert, triggered_ids)
     end)
-
-    {:ok, _} = Automations.establish_alert_baseline(alert)
   end
 
   defp run_transitions(alert, triggered_ids, scoped_test_case_ids) do
@@ -222,6 +216,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         :ok ->
           Automations.create_alert_event(%{
             alert_id: alert.id,
+            baseline_generation: alert.baseline_generation,
             test_case_id: test_case_id,
             status: "triggered",
             triggered_at: NaiveDateTime.utc_now()
@@ -284,6 +279,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
           Automations.create_alert_event(%{
             alert_id: alert.id,
+            baseline_generation: alert.baseline_generation,
             test_case_id: event.test_case_id,
             status: "recovered",
             triggered_at: now,

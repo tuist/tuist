@@ -31,6 +31,7 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"
+    field :is_flaky, :boolean, default: false
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 end

@@ -86,6 +86,7 @@ defmodule Tuist.AutomationsTest do
                })
 
       assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
     end
 
     test "keeps the baseline when only enabled changes" do
@@ -94,6 +95,7 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
 
       assert updated.baseline_established_at == automation.baseline_established_at
+      assert updated.baseline_generation == automation.baseline_generation
     end
   end
 

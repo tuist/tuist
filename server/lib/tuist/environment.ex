@@ -1212,6 +1212,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def clickhouse_max_memory_usage_for_user_bytes(secrets \\ secrets(), environment \\ System.get_env()) do
+    case Map.get(environment, "TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES") ||
+           get([:clickhouse, :max_memory_usage_for_user_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 0
+    end
+  end
+
   @doc """
   Returns additional Finch pools from the TUIST_ADDITIONAL_FINCH_POOLS environment variable.
 

@@ -2335,6 +2335,10 @@ clickhouse:
   # values-managed-*.yaml so all server-release workloads render the same env.
   poolSize: ""
   bufferPoolSize: ""
+  # Aggregate memory budget for all queries issued by the application user on
+  # one ClickHouse replica. Zero or empty leaves ClickHouse's user-level limit
+  # unchanged.
+  maxMemoryUsageForUserBytes: ""
   external:
     url: ""
     # Optional separate URL for the readiness probe ping check.

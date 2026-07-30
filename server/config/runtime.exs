@@ -289,6 +289,11 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       # writes and backfills go through IngestRepo, which sets its own per-query
       # limits where needed.
       max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+      # Shared across every query issued by the application user on one
+      # ClickHouse replica. Production keeps this below the server ceiling so
+      # concurrent application reads and writes cannot consume the headroom
+      # needed by background merges and allocator overhead.
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -330,7 +335,8 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
     settings: [
-      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets),
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets)
     ],
     transport_opts: [
       keepalive: true,

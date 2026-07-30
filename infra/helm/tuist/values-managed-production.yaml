@@ -332,6 +332,12 @@ postgresql:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist
+  # reads and writes to eight gibibytes in aggregate, leaving ten gibibytes for
+  # background merges and allocator overhead instead of discovering pressure
+  # at the process-wide ceiling. Ingestion retries and retains buffered rows
+  # when the shared application budget is temporarily full.
+  maxMemoryUsageForUserBytes: "8589934592"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 

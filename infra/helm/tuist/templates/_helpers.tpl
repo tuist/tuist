@@ -603,9 +603,10 @@ release converges the database user before the new pods start.
 {{- end -}}
 
 {{/*
-ClickHouse repo pool sizes are non-secret operational knobs. Render them from
-chart values so the server, migration, processor, and xcresult-processor pods
-stay aligned without relying on the runtime secret bundle.
+ClickHouse repo pool sizes and the shared user memory budget are non-secret
+operational knobs. Render them from chart values so the server, migration,
+processor, and xcresult-processor pods stay aligned without relying on the
+runtime secret bundle.
 */}}
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
@@ -614,6 +615,10 @@ stay aligned without relying on the runtime secret bundle.
 {{- end }}
 {{- with .Values.clickhouse.bufferPoolSize }}
 - name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.maxMemoryUsageForUserBytes }}
+- name: TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES
   value: {{ . | quote }}
 {{- end }}
 {{- end -}}
