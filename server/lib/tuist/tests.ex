@@ -38,6 +38,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseBranchPresence
+  alias Tuist.Tests.TestCaseCurrentState
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
@@ -50,7 +51,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseRunRepetition
-  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
@@ -996,7 +996,7 @@ defmodule Tuist.Tests do
   # sits inside the aggregate so it only collapses the rows this report asks
   # about rather than every flagged test case in the project.
   defp test_case_flaky_flags_chunk_query(project_id, ids_chunk) do
-    from(s in TestCaseState,
+    from(s in TestCaseCurrentState,
       where:
         s.project_id == ^project_id and
           fragment("? IN (?)", s.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
@@ -1004,16 +1004,10 @@ defmodule Tuist.Tests do
       select: %{
         test_case_id: s.test_case_id,
         # A test case whose rows all came from state events has `is_flaky` null
-        # on every one of them, and `argMax` skips nulls, so the group exists
-        # but the value is null. Normalizing here rather than at the call site
-        # keeps the null from reaching the ingestion arithmetic below.
-        is_flaky:
-          fragment(
-            "ifNull(argMaxIf(?, ?, isNotNull(?)), false)",
-            s.is_flaky,
-            s.inserted_at,
-            s.is_flaky
-          )
+        # in the aggregate, and `argMaxIfMerge` yields null for it, so the group
+        # exists but the value is null. Normalizing here rather than at the call
+        # site keeps the null from reaching the ingestion arithmetic below.
+        is_flaky: fragment("ifNull(argMaxIfMerge(is_flaky), false)")
       }
     )
   end
@@ -1090,11 +1084,12 @@ defmodule Tuist.Tests do
     end
   end
 
-  # `state` / `is_flaky` live in `test_case_states`, not on the `test_cases`
-  # row (see `Tuist.Tests.TestCaseState`). The columns of the same name on
-  # `test_cases` are legacy leftovers that ingestion still overwrites; they are
-  # never read. A test case with no `test_case_states` row has never been muted
-  # or flagged, so it resolves to the defaults.
+  # `state` / `is_flaky` are resolved from `test_case_current_states` (the
+  # pre-aggregated projection of the `test_case_states` ledger), not from the
+  # `test_cases` row. The columns of the same name on `test_cases` are legacy
+  # leftovers that ingestion still overwrites; they are never read. A test case
+  # with no aggregate row has never been muted or flagged, so it resolves to the
+  # defaults.
   @default_test_case_state %{state: "enabled", is_flaky: false}
 
   @doc """
@@ -1113,16 +1108,17 @@ defmodule Tuist.Tests do
   end
 
   # Scoped by `project_id` (which the caller already read off the test case) so
-  # this rides the `(project_id, test_case_id)` sort prefix instead of leaning
-  # on the bloom-filter index across every tenant's rows.
+  # this rides the `(project_id, test_case_id)` sort prefix. The `GROUP BY` still
+  # matters: partial aggregate states are not merged synchronously, so a key can
+  # have several rows that `argMaxIfMerge` folds together.
   defp resolve_test_case_state(project_id, test_case_id) do
     query =
-      from(s in TestCaseState,
+      from(s in TestCaseCurrentState,
         where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
-        group_by: s.test_case_id,
+        group_by: [s.project_id, s.test_case_id],
         select: %{
-          state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
-          is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+          state: fragment("argMaxIfMerge(state)"),
+          is_flaky: fragment("argMaxIfMerge(is_flaky)")
         }
       )
 
@@ -1151,17 +1147,17 @@ defmodule Tuist.Tests do
   end
 
   # Collapses the projection into the current value per test case. Scoped by
-  # `project_id` so it rides the table's sort prefix. Each column is resolved
-  # from the rows that actually set it, because an event only ever writes the
-  # one column it is about and leaves the other null.
+  # `project_id` so it rides the table's sort prefix. `argMaxIfMerge` folds each
+  # test case's partial aggregate states (state and is_flaky were built from
+  # their own non-null event streams, so they resolve independently).
   defp test_case_states_subquery(project_id) do
-    from(s in TestCaseState,
+    from(s in TestCaseCurrentState,
       where: s.project_id == ^project_id,
       group_by: s.test_case_id,
       select: %{
         test_case_id: s.test_case_id,
-        state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
-        is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+        state: fragment("argMaxIfMerge(state)"),
+        is_flaky: fragment("argMaxIfMerge(is_flaky)")
       }
     )
   end
@@ -2453,7 +2449,7 @@ defmodule Tuist.Tests do
   defp state_filter_mode(project_id, _control_plane_filters) do
     test_case_ids =
       ClickHouseRepo.all(
-        from(state in TestCaseState,
+        from(state in TestCaseCurrentState,
           where: state.project_id == ^project_id,
           group_by: state.test_case_id,
           order_by: [asc: state.test_case_id],
@@ -3170,29 +3166,36 @@ defmodule Tuist.Tests do
   # makes the quarantine listing selective on the small side: only test cases
   # that were ever muted or skipped have a row in `test_case_states`.
   #
-  # Deliberately a bare `argMax`, unlike every other read of this table. It
-  # needs no `isNotNull` guard because `argMax` skips nulls, and none of the
-  # `ifNull(..., 'enabled')` normalisation the other reads apply, because here a
-  # null must *not* become `enabled`: a test case with only flaky rows has no
-  # state, and `NULL IN (...)` is 0 in ClickHouse, so the `HAVING` correctly
-  # drops it. Wrapping this in `ifNull` would start matching test cases that
-  # were never quarantined.
+  # Resolved in two levels on purpose. The inner query finalizes the current
+  # state per test case with `argMaxIfMerge`; the outer query filters on that
+  # plain column. Merging and filtering in one level would collide: aliasing
+  # `argMaxIfMerge(state) AS state` shadows the source aggregate column, so a
+  # `HAVING argMaxIfMerge(state)` re-applies the merge to the finalized String
+  # and ClickHouse rejects it.
+  #
+  # Deliberately no `ifNull(..., 'enabled')` normalisation, because here a null
+  # must *not* become `enabled`. A test case with only flaky rows resolves to a
+  # null state, and `NULL IN (...)` is 0 in ClickHouse, so the outer filter
+  # correctly drops it. Wrapping this in `ifNull` would start matching test
+  # cases that were never quarantined.
   defp quarantined_test_case_states_subquery(project_id, state_filter) do
     states = if state_filter in @active_quarantine_states, do: [state_filter], else: @active_quarantine_states
 
-    from(s in TestCaseState,
-      where: s.project_id == ^project_id,
-      group_by: s.test_case_id,
-      having:
-        fragment(
-          "argMax(?, ?) IN (?)",
-          s.state,
-          s.inserted_at,
-          type(^states, {:array, :string})
-        ),
+    resolved =
+      from(s in TestCaseCurrentState,
+        where: s.project_id == ^project_id,
+        group_by: s.test_case_id,
+        select: %{
+          test_case_id: s.test_case_id,
+          state: fragment("argMaxIfMerge(state)")
+        }
+      )
+
+    from(q in subquery(resolved),
+      where: q.state in ^states,
       select: %{
-        test_case_id: s.test_case_id,
-        state: fragment("argMax(?, ?)", s.state, s.inserted_at)
+        test_case_id: q.test_case_id,
+        state: q.state
       }
     )
   end
