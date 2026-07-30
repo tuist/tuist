@@ -51,7 +51,11 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
-  @version_rollout_batch_size 100
+  # Until the durable rollout controller is deployed, advance runtime updates
+  # one server at a time. A Kura pod replacement briefly removes its cache
+  # endpoint, so fanning an image change out to every account at once turns a
+  # single rollout problem into a fleet-wide outage.
+  @version_rollout_batch_size 1
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
@@ -103,7 +107,17 @@ defmodule Tuist.Kura do
   end
 
   defp schedule_runtime_image_deployments(image_tag) do
-    schedule_version_deployments(image_tag)
+    if open_runtime_deployments?(image_tag) do
+      {:ok, %{scheduled: [], failures: []}}
+    else
+      schedule_version_deployments(image_tag)
+    end
+  end
+
+  defp open_runtime_deployments?(image_tag) do
+    Deployment
+    |> where([deployment], deployment.image_tag == ^image_tag and deployment.status in [:pending, :running])
+    |> Repo.exists?()
   end
 
   defp runtime_image_tag do

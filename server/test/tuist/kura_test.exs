@@ -345,12 +345,35 @@ defmodule Tuist.KuraTest do
       assert {:ok, %{scheduled: first_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
-      assert length(first_batch) == 100
+      assert length(first_batch) == 1
 
       assert {:ok, %{scheduled: second_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
       assert length(second_batch) == 1
+    end
+
+    test "waits for the prior runtime deployment before scheduling the next server" do
+      first_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      second_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      for account <- [first_account, second_account] do
+        {:ok, server} =
+          %Server{}
+          |> Server.create_changeset(%{
+            account_id: account.id,
+            region: "local-controller",
+            provisioner_node_ref: "kura-#{account.name}-local-controller"
+          })
+          |> Repo.insert()
+
+        mark_initial_deployment_succeeded(server)
+      end
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+      assert {:ok, %{scheduled: [_deployment], failures: []}} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
   end
 
