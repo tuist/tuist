@@ -3937,7 +3937,7 @@ mod tests {
             .expect("put request failed");
         assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
 
-        let _held = context
+        let _fixed = context
             .state
             .memory
             .acquire_response_stream_memory(
@@ -3950,6 +3950,19 @@ mod tests {
             )
             .await
             .expect("the full-size response pool should start available");
+        let _elastic = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .elastic_foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the elastic response pool should start available");
 
         let response = app
             .oneshot(
