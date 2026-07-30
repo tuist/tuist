@@ -76,6 +76,16 @@ defmodule Tuist.Tests do
     max_memory_usage: 128 * 1024 * 1024,
     optimize_aggregation_in_order: 1
   ]
+  # The `:joined` listing path joins `test_cases` FINAL against the current-state
+  # aggregate. The right side is now a compact pre-merged table rather than the
+  # raw-ledger aggregation, so it has more headroom, but the `FINAL` over a whole
+  # project's `test_cases` on the left is unchanged and remains the dominant cost
+  # here, and `FINAL` cannot spill. These settings therefore stay conservative
+  # (512 MiB ceiling + grace-hash + external group-by so the join/aggregation can
+  # spill instead of OOMing). Relaxing the ceiling or dropping the spill paths is
+  # deferred to a follow-up gated on measuring the real per-project peak memory of
+  # this query in production; doing it blind risks re-introducing the OOM this
+  # change exists to remove.
   @test_case_state_join_settings [
     max_threads: 1,
     max_memory_usage: 512 * 1024 * 1024,
