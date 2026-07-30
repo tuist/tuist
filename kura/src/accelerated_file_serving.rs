@@ -1402,6 +1402,19 @@ mod tests {
             )
             .await
             .expect("response pool should be available before the test");
+        let elastic_pool_hog = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .elastic_foreground_response_streaming_pool_bytes(),
+                "http",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("elastic response pool should be available before the test");
 
         let path = context.state.config.tmp_dir.join("accelerated-artifact");
         std::fs::write(&path, b"artifact").expect("write accelerated artifact");
@@ -1463,7 +1476,7 @@ mod tests {
         assert!(response.contains("retry-after: 1\r\n"));
         assert!(!response.contains("200 OK"));
 
-        drop(pool_hog);
+        drop((elastic_pool_hog, pool_hog));
     }
 
     #[tokio::test]
