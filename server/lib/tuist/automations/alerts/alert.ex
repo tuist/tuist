@@ -259,6 +259,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
+    |> validate_state_filter(trigger_config, :trigger_config)
     |> validate_recovery_config()
   end
 
@@ -287,6 +288,25 @@ defmodule Tuist.Automations.Alerts.Alert do
       nil -> changeset
       value when value in @comparisons -> changeset
       _ -> add_error(changeset, :trigger_config, "comparison must be one of: #{Enum.join(@comparisons, ", ")}")
+    end
+  end
+
+  defp validate_state_filter(changeset, config, field) do
+    case Map.get(config, "states") do
+      nil ->
+        changeset
+
+      states when is_list(states) ->
+        invalid = Enum.reject(states, &(&1 in @valid_states))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(changeset, field, "states must be one of: #{Enum.join(@valid_states, ", ")}")
+        end
+
+      _ ->
+        add_error(changeset, field, "states must be a list of: #{Enum.join(@valid_states, ", ")}")
     end
   end
 
@@ -334,7 +354,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
       case validate_window_shape(recovery_config, @max_rolling_window_size) do
-        :ok -> changeset
+        :ok -> validate_state_filter(changeset, recovery_config, :recovery_config)
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
     else
