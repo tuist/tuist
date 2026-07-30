@@ -11,13 +11,28 @@ public protocol SwiftBackDeploymentLibrariesProviding: Sendable {
     func runpathSearchPaths() async throws -> [String]
 }
 
-/// The directory holding these dylibs is Swift-version specific (`usr/lib/swift-6.2`, and
-/// `swift-6.3`, ... in future toolchains), so it is discovered from the active toolchain rather
-/// than hardcoded to any Swift version.
+/// Swift ships back-deployment compatibility dylibs in a versioned prebuilt directory inside the
+/// toolchain (`usr/lib/swift-6.2/$(PLATFORM_NAME)`), separate from the runtime in the SDK/OS.
+/// SPM products that adopt back-deployed stdlib types (Span, RawSpan, ...) reference them via
+/// `@rpath`, so the directory has to be exposed to dyld through `LD_RUNPATH_SEARCH_PATHS` or
+/// loading the product fails with `Library not loaded: @rpath/libswiftCompatibilitySpan.dylib`.
+///
+/// `swift-6.2` is a Swift ABI version marker rather than the compiler version: it stays constant
+/// across compiler releases (Swift 6.2, 6.3.x, ... all ship `swift-6.2`), which is why the Xcode
+/// build system hardcodes it in `swift-build` (`LinkerTools.computeRPaths` and
+/// `EmbedSwiftStdLibTaskAction`). We mirror that here by always emitting `swift-6.2`, and only
+/// additionally discover other `swift-*` segments the active toolchain may ship. The toolchain
+/// path is emitted directly (instead of setting `ADD_TOOLCHAIN_SPAN_BACK_DEPLOY_RPATH`) so the run
+/// path is present regardless of the Xcode build-system version, which matters for prebuilt SPM
+/// artifacts that already carry the `@rpath/libswiftCompatibilitySpan.dylib` load command.
 public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibrariesProviding, @unchecked Sendable {
     @TaskLocal public static var current: SwiftBackDeploymentLibrariesProviding = SwiftBackDeploymentLibrariesProvider()
 
     private static let compatibilitySpanDylib = "libswiftCompatibilitySpan.dylib"
+    /// The versioned segment Apple's toolchains ship the Span back-deployment dylibs under. It is a
+    /// Swift ABI marker that stays constant across compiler releases (6.3.x still uses `swift-6.2`),
+    /// so it is hardcoded rather than derived from the active toolchain's compiler version.
+    private static let spanBackDeploymentSegment = "swift-6.2"
 
     private let commandRunner: CommandRunning
     private let cachedRunpathSearchPaths: TuistThreadSafe.ThreadSafe<[String]?> = .init(nil)
@@ -36,11 +51,14 @@ public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibr
     }
 
     private func resolveRunpathSearchPaths() async -> [String] {
-        guard let libraryDirectory = try? await toolchainLibraryDirectory() else {
-            return []
+        // Always include the canonical Span back-deployment segment so a failed or empty toolchain
+        // scan (e.g. `xcrun` unavailable, unexpected layout) doesn't silently drop the run path.
+        // This matches `swift-build`, which hardcodes `swift-6.2` instead of scanning.
+        var segments: Set<String> = [Self.spanBackDeploymentSegment]
+        if let libraryDirectory = try? await toolchainLibraryDirectory() {
+            segments.formUnion(Self.discoveredCompatibilitySpanSegments(in: libraryDirectory))
         }
-        return Self.compatibilitySpanSegments(in: libraryDirectory)
-            .sorted()
+        return segments.sorted()
             .map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
     }
 
@@ -54,12 +72,12 @@ public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibr
         return (usrDirectory as NSString).appendingPathComponent("lib")
     }
 
-    private static func compatibilitySpanSegments(in libraryDirectory: String) -> [String] {
+    private static func discoveredCompatibilitySpanSegments(in libraryDirectory: String) -> Set<String> {
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: libraryDirectory)) ?? []
-        return entries.filter { entry in
+        return Set(entries.filter { entry in
             entry.hasPrefix("swift-") &&
                 segmentShipsCompatibilitySpan((libraryDirectory as NSString).appendingPathComponent(entry))
-        }
+        })
     }
 
     private static func segmentShipsCompatibilitySpan(_ segmentDirectory: String) -> Bool {
