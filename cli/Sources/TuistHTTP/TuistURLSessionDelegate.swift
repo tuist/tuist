@@ -20,6 +20,11 @@ import TuistAlert
     /// `false`, so the system root store keeps validating normally. This lets teams run
     /// a self-hosted Tuist/Kura server with a private CA on hosts where installing a
     /// trusted root in the System keychain isn't practical (for example headless CI).
+    ///
+    /// `@unchecked Sendable` is safe because the only stored state,
+    /// `additionalCertificates`, is an immutable `[SecCertificate]` assigned once at init
+    /// and never mutated, so the instance can be shared across the URLSession delegate
+    /// queue. Adding mutable state here would need to re-establish that invariant.
     final class TuistURLSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         private let additionalCertificates: [SecCertificate]
 
