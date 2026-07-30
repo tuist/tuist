@@ -111,6 +111,45 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
     ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+        )
+    }
+
+    /// Test-only constructor that pins the controller to a forced pressure tier,
+    /// mirroring `KURA_TEST_FORCE_MEMORY_PRESSURE` without touching the process
+    /// environment (which is shared state across parallel tests).
+    #[cfg(test)]
+    pub fn new_with_forced_pressure(
+        metrics: Metrics,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced: MemoryPressure,
+    ) -> Self {
+        let runtime_limit_bytes = hard_limit_bytes
+            .saturating_mul(100)
+            .saturating_div(85)
+            .max(hard_limit_bytes.saturating_add(1));
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            Some(forced),
+        )
+    }
+
+    fn with_runtime_limit_and_forced(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced_pressure: Option<MemoryPressure>,
+    ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
         let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
@@ -124,7 +163,7 @@ impl MemoryController {
                 runtime_limit_bytes,
                 soft_limit_bytes,
                 hard_limit_bytes,
-                forced_pressure: forced_memory_pressure_for_tests(),
+                forced_pressure,
                 container_accounting_selected: AtomicBool::new(false),
                 reclaim_file_cache: AtomicBool::new(false),
                 working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
@@ -140,9 +179,16 @@ impl MemoryController {
     }
 
     pub fn observe(&self, resident_bytes: u64) -> MemoryPressure {
-        // A forced tier is the test override; ignore samples so the pin holds
-        // instead of flickering with the real resident-bytes reading.
+        // A forced tier is the test override; ignore the resident-bytes sample
+        // so the pin holds instead of flickering with the real reading. Still
+        // advance the observation sequence: the stall watchdog in
+        // spawn_memory_pressure_tasks treats an unchanged sequence as a dead
+        // sensor and terminates the process, so a pinned tier must look like
+        // an ongoing observation rather than a frozen sensor.
         if let Some(forced) = self.inner.forced_pressure {
+            self.inner
+                .observation_sequence
+                .fetch_add(1, Ordering::Release);
             self.inner
                 .metrics
                 .update_memory_pressure_state(forced.as_i64());
@@ -868,6 +914,28 @@ mod tests {
         assert_eq!(
             parse_forced_memory_pressure("Critical"),
             Some(MemoryPressure::Critical)
+        );
+    }
+
+    #[test]
+    fn forced_pressure_still_advances_the_observation_sequence() {
+        // The stall watchdog in spawn_memory_pressure_tasks terminates Kura
+        // when observation_sequence stops advancing. A forced tier must still
+        // look like an ongoing observation, or the pinned-pressure scenario
+        // self-terminates within five seconds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new_with_forced_pressure(
+            metrics,
+            100,
+            200,
+            MemoryPressure::Constrained,
+        );
+        let before = controller.observation_sequence();
+        let pressure = controller.observe(50);
+        assert_eq!(pressure, MemoryPressure::Constrained);
+        assert!(
+            controller.observation_sequence() > before,
+            "a forced tier must still advance the observation sequence so the stall watchdog does not terminate the process"
         );
     }
 
