@@ -95,7 +95,10 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                         """
                                         set -eu
                                         mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                        cp -f \(Self.shellPath(from: moduleMapPath)) "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                        cp -f \(Self
+                                            .shellPath(
+                                                from: moduleMapPath
+                                            )) "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                         """
                                     ),
                                     inputPaths: [moduleMapPath],
