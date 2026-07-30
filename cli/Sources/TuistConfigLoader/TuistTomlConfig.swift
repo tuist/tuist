@@ -10,6 +10,11 @@ struct TuistTomlConfig: Equatable, Sendable, Decodable {
             self.proxy = proxy
             self.caCertificate = caCertificate
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case proxy
+            case caCertificate = "ca_certificate"
+        }
     }
 
     let project: String?

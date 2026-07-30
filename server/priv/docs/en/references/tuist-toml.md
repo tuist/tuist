@@ -26,7 +26,7 @@ The `[network]` table configures how Tuist makes outbound HTTP connections.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `proxy` | `Boolean` | No | `true` | When `true`, Tuist uses the proxy defined by `HTTPS_PROXY`/`HTTP_PROXY` when present. See the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>. |
-| `caCertificate` | `String` | No | — | Path to a PEM or DER CA certificate bundle to trust on top of the system root store, for example for a self-hosted server that uses a private CA. The `TUIST_CA_CERTIFICATE` environment variable takes precedence. See <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">trusting a custom CA certificate</.localized_link>. |
+| `ca_certificate` | `String` | No | — | Path to a PEM or DER CA certificate bundle to trust on top of the system root store, for example for a self-hosted server that uses a private CA. The `TUIST_CA_CERTIFICATE` environment variable takes precedence. See <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">trusting a custom CA certificate</.localized_link>. |
 
 ## Example {#example}
 
@@ -36,7 +36,7 @@ url = "https://tuist.dev"
 
 [network]
 proxy = true
-caCertificate = "/etc/ssl/certs/self-hosted-ca.pem"
+ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
 ```
 
 ## Configuration precedence {#configuration-precedence}

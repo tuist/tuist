@@ -118,7 +118,7 @@ You can also declare it in your <.localized_link href="/references/tuist-toml">c
 
 ```toml
 [network]
-caCertificate = "/etc/ssl/certs/self-hosted-ca.pem"
+ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
 ```
 
 The `TUIST_CA_CERTIFICATE` environment variable takes precedence over the configuration file, which makes it convenient to provide as a CI secret without changing the committed manifest.

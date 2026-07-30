@@ -100,7 +100,7 @@ struct TuistTomlConfigLoaderTests {
             """
             [network]
             proxy = true
-            caCertificate = "/etc/ssl/certs/ca.pem"
+            ca_certificate = "/etc/ssl/certs/ca.pem"
             """,
             at: tomlPath
         )
