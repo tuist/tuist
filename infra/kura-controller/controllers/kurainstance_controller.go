@@ -64,6 +64,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// A liveness failure means the serving process is already unable to make
+	// progress. It must not inherit the rollout drain budget: Kubernetes runs
+	// preStop for liveness restarts too, so this gives the hook time to remove
+	// the endpoint while bounding an otherwise unbounded cache outage.
+	livenessTerminationGraceSeconds int64 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -2623,7 +2628,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
-				LivenessProbe:   httpProbe("/up", 20, 20),
+				LivenessProbe:   livenessProbe(),
 				StartupProbe:    httpProbe("/up", 0, 10),
 			}},
 			Volumes: volumes(instance),
@@ -3056,6 +3061,12 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 		PeriodSeconds:       period,
 		TimeoutSeconds:      5,
 	}
+}
+
+func livenessProbe() *corev1.Probe {
+	probe := httpProbe("/up", 20, 20)
+	probe.TerminationGracePeriodSeconds = ptr(livenessTerminationGraceSeconds)
+	return probe
 }
 
 func ports() []corev1.ServicePort {
