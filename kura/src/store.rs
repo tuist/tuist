@@ -36,8 +36,8 @@ use crate::{
         CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
         DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES,
         REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_ACTION_CACHE_BLOB_REFS, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -573,14 +573,6 @@ impl Store {
             ),
             ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_ACTION_CACHE_INDEX,
-                rocksdb_column_family_options(
-                    config,
-                    &rocksdb_block_cache,
-                    &rocksdb_write_buffer_manager,
-                ),
-            ),
-            ColumnFamilyDescriptor::new(
-                ROCKSDB_CF_ACTION_CACHE_BLOB_REFS,
                 rocksdb_column_family_options(
                     config,
                     &rocksdb_block_cache,
@@ -2289,6 +2281,20 @@ impl Store {
     /// before removal: a reverse pair left stale by a re-publish that moved the
     /// entry onto a different blob, or by an already-deleted entry, only deletes
     /// itself and never takes out a live, unrelated entry.
+    ///
+    /// The validation is deliberately not serialized with `artifact_write_lock_for`
+    /// against a concurrent re-publish of the same key. Eviction runs from
+    /// segment rotation *inside* `persist_artifact_from_path_with_version` while
+    /// that path already holds an `artifact_write_lock` stripe, and the striped
+    /// locks can hash-collide a blob id with an entry id, so taking the entry
+    /// lock here could self-deadlock. The residual race (a re-publish commits a
+    /// new version between this read and the batch commit, so the fresh entry is
+    /// removed on a stale validation) is bounded and self-healing: the entry
+    /// degrades to a `NOT_FOUND` the client recomputes and republishes, the
+    /// snapshot reconcile skips any index row whose manifest is gone, and the
+    /// orphaned reverse row is reclaimed when its blob is later evicted. This is
+    /// the same read-then-delete-without-writer-lock race that
+    /// `expire_stale_action_cache_entries` already accepts.
     fn stage_action_cache_cascade_for_blob(
         &self,
         batch: &mut WriteBatch,
@@ -2298,7 +2304,7 @@ impl Store {
     ) -> Result<(), String> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
         let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            self.cf(ROCKSDB_CF_KEY_VALUE),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
         );
         for item in iter {
@@ -2312,7 +2318,7 @@ impl Store {
                 .to_owned();
             // The blob is going away, so its reverse row goes regardless of what
             // we decide about the entry below.
-            batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS), &ref_key);
+            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
 
             if cascaded_entries.contains(&entry_id) {
                 continue;
@@ -3967,7 +3973,7 @@ impl Store {
     ) {
         for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
             batch.put_cf(
-                self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                self.cf(ROCKSDB_CF_KEY_VALUE),
                 action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
                 [],
             );
@@ -3987,7 +3993,7 @@ impl Store {
     ) {
         for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
             batch.delete_cf(
-                self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                self.cf(ROCKSDB_CF_KEY_VALUE),
                 action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
             );
         }
@@ -4055,7 +4061,7 @@ impl Store {
                 };
                 for blob_id in self.action_cache_entry_blob_ids(&manifest.namespace_id, &bytes) {
                     batch.put_cf(
-                        self.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                        self.cf(ROCKSDB_CF_KEY_VALUE),
                         action_cache_blob_ref_key(&blob_id, &manifest.artifact_id).as_bytes(),
                         [],
                     );
@@ -8058,7 +8064,7 @@ mod tests {
     fn blob_ref_entry_ids(store: &Store, blob_artifact_id: &str) -> Vec<String> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
         let iter = store.db.iterator_cf(
-            store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            store.cf(ROCKSDB_CF_KEY_VALUE),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
         );
         let mut entry_ids = Vec::new();
@@ -8193,7 +8199,7 @@ mod tests {
         let mut wipe = WriteBatch::default();
         for entry_id in blob_ref_entry_ids(&store, &blob.artifact_id) {
             wipe.delete_cf(
-                store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+                store.cf(ROCKSDB_CF_KEY_VALUE),
                 action_cache_blob_ref_key(&blob.artifact_id, &entry_id).as_bytes(),
             );
         }
@@ -8306,7 +8312,7 @@ mod tests {
         // re-publish that moved off A could momentarily leave), then evict A.
         let mut stale = WriteBatch::default();
         stale.put_cf(
-            store.cf(ROCKSDB_CF_ACTION_CACHE_BLOB_REFS),
+            store.cf(ROCKSDB_CF_KEY_VALUE),
             action_cache_blob_ref_key(&blob_a.artifact_id, &entry.artifact_id).as_bytes(),
             [],
         );

@@ -134,16 +134,6 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
 
-/// Node-local reverse index from a CAS blob to the action-cache entries that
-/// reference it, so eviction can cascade: dropping a blob atomically drops the
-/// entries whose `ActionResult` graph it belongs to, instead of stranding them.
-/// Rows are individual `{blob_artifact_id}\0{entry_artifact_id}` pairs (empty
-/// value), mirroring `segment_artifacts`/`project_artifacts`, so concurrent
-/// writers referencing the same blob never lose an update. Derived purely from
-/// the entries this node applies (never replicated), and backfilled once at
-/// startup before the eviction cascade consults it.
-pub const ROCKSDB_CF_ACTION_CACHE_BLOB_REFS: &str = "action_cache_blob_refs";
-
 #[cfg(test)]
 mod tests {
     use super::*;
