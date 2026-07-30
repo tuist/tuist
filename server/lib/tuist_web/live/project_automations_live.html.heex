@@ -325,8 +325,8 @@
                   <.dropdown
                     id="create-automation-trigger-state-dropdown"
                     label={
-                      @create_automation_form_trigger_state &&
-                        trigger_action_label(@create_automation_form_trigger_state) ||
+                      (@create_automation_form_trigger_state &&
+                         trigger_action_label(@create_automation_form_trigger_state)) ||
                         dgettext("dashboard_projects", "In any state")
                     }
                   >
@@ -737,8 +737,8 @@
                     <.dropdown
                       id="create-automation-recovery-state-dropdown"
                       label={
-                        @create_automation_form_recovery_state &&
-                          trigger_action_label(@create_automation_form_recovery_state) ||
+                        (@create_automation_form_recovery_state &&
+                           trigger_action_label(@create_automation_form_recovery_state)) ||
                           dgettext("dashboard_projects", "In any state")
                       }
                     >
