@@ -807,8 +807,8 @@ defmodule Tuist.Automations do
       current_state = Map.get(states, test_case_id, %{state: "enabled"}).state
 
       Enum.filter(alerts, fn alert ->
-        case Map.get(alert.trigger_config || %{}, "state") do
-          state when state in ["enabled", "muted", "skipped"] -> current_state == state
+        case Map.get(alert.trigger_config || %{}, "states") do
+          s when is_list(s) and s != [] -> current_state in s
           _ -> true
         end
       end)
@@ -818,7 +818,10 @@ defmodule Tuist.Automations do
   end
 
   defp has_trigger_state_filter?(alert) do
-    Map.get(alert.trigger_config || %{}, "state") in ["enabled", "muted", "skipped"]
+    case Map.get(alert.trigger_config || %{}, "states") do
+      s when is_list(s) and s != [] -> true
+      _ -> false
+    end
   end
 
   defp test_updated_alerts(project_id) do

@@ -292,10 +292,21 @@ defmodule Tuist.Automations.Alerts.Alert do
   end
 
   defp validate_state_filter(changeset, config, field) do
-    case Map.get(config, "state") do
-      nil -> changeset
-      state when state in @valid_states -> changeset
-      _ -> add_error(changeset, field, "state must be one of: #{Enum.join(@valid_states, ", ")}")
+    case Map.get(config, "states") do
+      nil ->
+        changeset
+
+      states when is_list(states) ->
+        invalid = Enum.reject(states, &(&1 in @valid_states))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(changeset, field, "states must be one of: #{Enum.join(@valid_states, ", ")}")
+        end
+
+      _ ->
+        add_error(changeset, field, "states must be a list of: #{Enum.join(@valid_states, ", ")}")
     end
   end
 

@@ -35,10 +35,10 @@ defmodule Tuist.Automations.Alerts.AlertTest do
               "threshold" => 10,
               "window_type" => "last_days",
               "window" => "30d",
-              "state" => "enabled"
+              "states" => ["enabled", "muted"]
             },
             "recovery_enabled" => true,
-            "recovery_config" => %{"window_type" => "last_days", "window" => "14d", "state" => "muted"},
+            "recovery_config" => %{"window_type" => "last_days", "window" => "14d", "states" => ["muted"]},
             "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
           })
         )
@@ -57,7 +57,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
               "threshold" => 10,
               "window_type" => "last_days",
               "window" => "30d",
-              "state" => "unknown"
+              "states" => ["unknown"]
             }
           })
         )

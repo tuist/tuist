@@ -258,33 +258,44 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
-    # fire again) happens for every alert once its condition clears — without
-    # it, an alert latches in `triggered` forever and silently stops acting.
-    # When recovery is enabled the user's dwell and undo actions apply; when
-    # it's disabled we re-arm the moment the condition clears (no dwell, no
-    # undo) and leave any effect in place until a human clears it. The
-    # persisted recovery_config is intentionally ignored on the disabled path
-    # because `Alert.changeset` only validates it when recovery is on.
-    {recovered, recovery_actions} =
+    # fire again) happens for every alert once its condition clears past the
+    # dwell window — without it, an alert latches in `triggered` forever and
+    # silently stops acting. When recovery is enabled the user's dwell gates
+    # re-arming and the undo actions run on top; when it's disabled we re-arm
+    # the moment the condition clears (no dwell, no undo) and leave any effect
+    # in place until a human clears it. The persisted recovery_config is
+    # intentionally ignored on the disabled path because `Alert.changeset`
+    # only validates it when recovery is on.
+    #
+    # The recovery STATE filter only gates whether the undo actions run — it
+    # must not gate re-arming. A test whose state was manually changed away
+    # from the recovery filter (e.g. someone muted a test the automation had
+    # skipped) should be left untouched by recovery, but the alert still has
+    # to re-arm once the dwell elapses, or it latches and can never trigger
+    # again for that test. So we re-arm every dwell-elapsed candidate and run
+    # the actions only on the subset that still matches the filter.
+    {to_rearm, actionable_ids} =
       if alert.recovery_enabled do
-        recovered =
-          candidates
-          |> filter_by_current_state(alert, alert.recovery_config)
-          |> then(&filter_recovered_candidates(alert, &1, alert.recovery_config || %{}))
-
-        {recovered, alert.recovery_actions}
+        elapsed = filter_recovered_candidates(alert, candidates, alert.recovery_config || %{})
+        actionable = filter_by_current_state(elapsed, alert, alert.recovery_config)
+        {elapsed, MapSet.new(actionable, & &1.test_case_id)}
       else
-        {candidates, []}
+        {candidates, MapSet.new([])}
       end
 
-    Enum.each(recovered, fn event ->
+    Enum.each(to_rearm, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
+
+      actions =
+        if MapSet.member?(actionable_ids, event.test_case_id),
+          do: alert.recovery_actions,
+          else: []
 
       # Run recovery actions BEFORE appending the "recovered" event. If we
       # flipped the order, a failure in the Slack ping / label removal /
       # state reset would leave the rule visually resolved while the user's
       # intended side effects never happened.
-      case ActionExecutor.execute_actions(recovery_actions, alert, entity) do
+      case ActionExecutor.execute_actions(actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
 
@@ -321,15 +332,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # control-plane state. It lets a skipped-test recovery leave a test alone
   # after someone manually changes it to muted. Omitting the filter preserves
   # the behavior of automations created before this option existed.
+  defp filter_by_current_state([], _alert, _config), do: []
+
   defp filter_by_current_state(items, _alert, config) when not is_map(config), do: items
 
   defp filter_by_current_state(items, alert, config) do
-    case Map.get(config, "state") do
-      state when state in ["enabled", "muted", "skipped"] ->
-        states = Tests.get_test_case_states(alert.project_id, Enum.map(items, &test_case_id/1))
+    case Map.get(config, "states") do
+      states when is_list(states) and states != [] ->
+        allowed = MapSet.new(states)
+        resolved = Tests.get_test_case_states(alert.project_id, Enum.map(items, &test_case_id/1))
 
         Enum.filter(items, fn item ->
-          Map.get(states, test_case_id(item), %{state: "enabled"}).state == state
+          Map.get(resolved, test_case_id(item), %{state: "enabled"}).state in allowed
         end)
 
       _ ->

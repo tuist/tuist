@@ -516,7 +516,7 @@ defmodule Tuist.AutomationsTest do
     test "skips alerts whose trigger state filter does not match the test case" do
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
-      alert = test_updated_alert(project, trigger_config: %{"events" => ["marked_flaky"], "state" => "skipped"})
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["marked_flaky"], "states" => ["skipped"]})
       project_id = project.id
       test_case_id = test_case.id
 

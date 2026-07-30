@@ -318,36 +318,24 @@
                     </label>
                   </div>
                 </div>
-                <div data-part="form-row" data-size="dropdown">
+                <div data-part="form-row">
                   <label data-part="label">
-                    {dgettext("dashboard_projects", "Only apply when the test is")}
+                    {dgettext("dashboard_projects", "Only apply to tests in these states")}
                   </label>
-                  <.dropdown
-                    id="create-automation-trigger-state-dropdown"
-                    label={
-                      (@create_automation_form_trigger_state &&
-                         trigger_action_label(@create_automation_form_trigger_state)) ||
-                        dgettext("dashboard_projects", "In any state")
-                    }
-                  >
-                    <.dropdown_item
-                      value=""
-                      label={dgettext("dashboard_projects", "In any state")}
-                      on_click="update_create_automation_form_trigger_state"
-                      data-selected={is_nil(@create_automation_form_trigger_state)}
-                    >
-                      <:right_icon><.check /></:right_icon>
-                    </.dropdown_item>
-                    <.dropdown_item
+                  <div id="create-automation-trigger-states" data-part="event-checkbox-list">
+                    <label
                       :for={state <- ["enabled", "muted", "skipped"]}
-                      value={state}
-                      label={trigger_action_label(state)}
-                      on_click="update_create_automation_form_trigger_state"
-                      data-selected={@create_automation_form_trigger_state == state}
+                      id={"create-automation-trigger-state-#{state}"}
+                      data-part="event-checkbox"
+                      phx-click="toggle_create_automation_form_trigger_state"
+                      phx-value-data={state}
                     >
-                      <:right_icon><.check /></:right_icon>
-                    </.dropdown_item>
-                  </.dropdown>
+                      <.checkbox_control checked={state in @create_automation_form_trigger_states} />
+                      <div data-part="body">
+                        <span data-part="label">{trigger_action_label(state)}</span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -730,36 +718,26 @@
                       />
                     </div>
                   </div>
-                  <div data-part="form-row" data-size="dropdown">
+                  <div data-part="form-row">
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Only apply when the test is")}
+                      {dgettext("dashboard_projects", "Only apply to tests in these states")}
                     </label>
-                    <.dropdown
-                      id="create-automation-recovery-state-dropdown"
-                      label={
-                        (@create_automation_form_recovery_state &&
-                           trigger_action_label(@create_automation_form_recovery_state)) ||
-                          dgettext("dashboard_projects", "In any state")
-                      }
-                    >
-                      <.dropdown_item
-                        value=""
-                        label={dgettext("dashboard_projects", "In any state")}
-                        on_click="update_create_automation_form_recovery_state"
-                        data-selected={is_nil(@create_automation_form_recovery_state)}
-                      >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                      <.dropdown_item
+                    <div id="create-automation-recovery-states" data-part="event-checkbox-list">
+                      <label
                         :for={state <- ["enabled", "muted", "skipped"]}
-                        value={state}
-                        label={trigger_action_label(state)}
-                        on_click="update_create_automation_form_recovery_state"
-                        data-selected={@create_automation_form_recovery_state == state}
+                        id={"create-automation-recovery-state-#{state}"}
+                        data-part="event-checkbox"
+                        phx-click="toggle_create_automation_form_recovery_state"
+                        phx-value-data={state}
                       >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                    </.dropdown>
+                        <.checkbox_control checked={
+                          state in @create_automation_form_recovery_states
+                        } />
+                        <div data-part="body">
+                          <span data-part="label">{trigger_action_label(state)}</span>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                   <div
                     :for={

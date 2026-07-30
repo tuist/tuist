@@ -534,11 +534,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "does not recover a test whose state no longer matches the recovery filter" do
+  test "re-arms without running recovery actions when the state no longer matches the filter" do
+    # A test the automation skipped was manually moved to muted, so it no
+    # longer matches the recovery filter ("skipped"). Recovery must leave it
+    # alone, but the alert still re-arms once the dwell elapses — otherwise it
+    # latches and can never trigger again for that test.
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
-        recovery_config: %{"window_type" => "last_days", "window" => "1d", "state" => "skipped"},
+        recovery_config: %{"window_type" => "last_days", "window" => "1d", "states" => ["skipped"]},
         recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
       )
 
@@ -557,8 +561,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{recovered_id => %{state: "muted", is_flaky: true}}
     end)
 
-    reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.create_alert_event/1)
+    # No recovery actions run (the test was manually moved out of the filter),
+    # but the alert re-arms so it can fire again later.
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
   end
@@ -866,7 +876,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: false,
-        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000, "state" => "skipped"}
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000, "states" => ["skipped"]}
       )
 
     recovered_id = Ecto.UUID.generate()
