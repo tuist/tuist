@@ -167,13 +167,16 @@ enum PackageInfoCacheWriter {
         let data = try await ManifestLoader.dumpPackageJSON(
             packageDir: packageDir, disableSandbox: disableSandbox)
         try await fileSystem.atomicWrite(data, to: destination)
-        try? await ManifestEnvironmentFingerprint.write(forCacheFile: destination)
+        if let destinationPath = try? destination.absolutePath {
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destinationPath)
+        }
         return data
     }
 
     private static func isFreshPackageInfo(destination: URL, packageDir: URL) async throws -> Bool {
+        let destinationPath = try destination.absolutePath
         guard
-            let cacheDate = try await fileSystem.fileMetadata(at: destination.absolutePath)?.lastModificationDate,
+            let cacheDate = try await fileSystem.fileMetadata(at: destinationPath)?.lastModificationDate,
             let manifestDate = try await fileSystem.fileMetadata(
                 at: packageDir.appendingPathComponent("Package.swift").absolutePath
             )?.lastModificationDate
@@ -181,16 +184,15 @@ enum PackageInfoCacheWriter {
             return false
         }
         guard cacheDate >= manifestDate else { return false }
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destination) {
+        // A missing sidecar means the destination predates environment fingerprinting, so
+        // the environment it was produced under is unknown. Treat it as stale (see
+        // `ManifestLoader.readCachedManifest`) so an upgrade re-dumps under the current
+        // environment instead of reusing contents of unknown provenance.
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destinationPath) {
         case .matching:
             return true
-        case .mismatching:
+        case .mismatching, .missing:
             return false
-        case .missing:
-            // Backfill so a later environment change is detected even for caches that
-            // predate the fingerprint sidecar.
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destination)
-            return true
         }
     }
 

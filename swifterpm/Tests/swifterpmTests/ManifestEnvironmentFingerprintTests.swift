@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import Testing
 @testable import SwifterPMCore
 
@@ -20,19 +21,29 @@ struct ManifestEnvironmentFingerprintTests {
     }
 
     @Test
-    func sidecarPathAppendsEnvhashExtension() {
-        let cache = URL(fileURLWithPath: "/tmp/Package/.build/swifterpm/manifests/package.json")
+    func digestDistinguishesEmbeddedNewlinesFromSeparateEntries() {
+        // A value containing the delimiter must not collide with two distinct entries.
+        let withNewline = ManifestEnvironmentFingerprint.digest(for: ["A": "x\nB=y"])
+        let split = ManifestEnvironmentFingerprint.digest(for: ["A": "x", "B": "y"])
+
+        #expect(withNewline != split)
+    }
+
+    @Test
+    func sidecarPathAppendsEnvhashExtension() throws {
+        let cache = try AbsolutePath(
+            validating: "/tmp/Package/.build/swifterpm/manifests/package.json")
 
         #expect(
-            ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: cache).path
+            ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: cache).pathString
                 == "/tmp/Package/.build/swifterpm/manifests/package.json.envhash")
     }
 
     @Test
     func validateReturnsMissingWhenNoSidecarExists() async throws {
         try await withTemporaryDirectory { root in
-            let cache = root.appendingPathComponent("package.json")
-            try await fileSystem.atomicWrite(Data("{}".utf8), to: cache)
+            let cache = try root.appendingPathComponent("package.json").absolutePath
+            try await fileSystem.write(Data("{}".utf8), to: cache)
 
             let validation = try await ManifestEnvironmentFingerprint.validate(forCacheFile: cache)
 
@@ -43,8 +54,8 @@ struct ManifestEnvironmentFingerprintTests {
     @Test
     func validateReturnsMatchingWhenSidecarMatchesCurrentEnvironment() async throws {
         try await withTemporaryDirectory { root in
-            let cache = root.appendingPathComponent("package.json")
-            try await fileSystem.atomicWrite(Data("{}".utf8), to: cache)
+            let cache = try root.appendingPathComponent("package.json").absolutePath
+            try await fileSystem.write(Data("{}".utf8), to: cache)
             try await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
 
             let validation = try await ManifestEnvironmentFingerprint.validate(forCacheFile: cache)
@@ -56,9 +67,9 @@ struct ManifestEnvironmentFingerprintTests {
     @Test
     func validateReturnsMismatchingWhenSidecarDiffersFromCurrentEnvironment() async throws {
         try await withTemporaryDirectory { root in
-            let cache = root.appendingPathComponent("package.json")
-            try await fileSystem.atomicWrite(Data("{}".utf8), to: cache)
-            try await fileSystem.atomicWrite(
+            let cache = try root.appendingPathComponent("package.json").absolutePath
+            try await fileSystem.write(Data("{}".utf8), to: cache)
+            try await fileSystem.write(
                 Data("a-fingerprint-produced-under-a-different-environment".utf8),
                 to: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: cache)
             )
@@ -72,13 +83,13 @@ struct ManifestEnvironmentFingerprintTests {
     @Test
     func writeRecordsCurrentEnvironmentFingerprint() async throws {
         try await withTemporaryDirectory { root in
-            let cache = root.appendingPathComponent("package.json")
+            let cache = try root.appendingPathComponent("package.json").absolutePath
 
             try await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
 
             let stored = String(
                 data: try await fileSystem.readFile(
-                    at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: cache).absolutePath),
+                    at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: cache)),
                 encoding: .utf8
             )
             #expect(stored == ManifestEnvironmentFingerprint.current())

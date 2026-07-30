@@ -82,30 +82,34 @@ enum ManifestLoader {
         )
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)
-        try? await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
+        if let cachePath = try? cache.absolutePath {
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath)
+        }
         return result.stdout
     }
 
     private static func readCachedManifest(packageDir: URL) async throws -> Data? {
         let cache = cacheFilePath(packageDir: packageDir)
         let manifest = packageDir.appendingPathComponent("Package.swift")
-        guard try await fileSystem.exists(cache.absolutePath) else { return nil }
-        guard let cacheDate = try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate,
+        let cachePath = try cache.absolutePath
+        guard try await fileSystem.exists(cachePath) else { return nil }
+        guard let cacheDate = try await fileSystem.fileMetadata(at: cachePath)?.lastModificationDate,
               let manifestDate = try await fileSystem.fileMetadata(at: manifest.absolutePath)?.lastModificationDate,
               cacheDate >= manifestDate
         else {
             return nil
         }
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cache) {
+        // A dump is reusable only when it was produced under the current environment. A
+        // missing sidecar means the cache predates environment fingerprinting (or the
+        // sidecar write failed), so the environment that produced the contents is
+        // unknown. Treat that as a miss and re-dump rather than blessing unknown contents
+        // with the current environment, otherwise a legacy cache that was already stale
+        // at upgrade time would stay stale indefinitely.
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cachePath) {
         case .matching:
-            return try await fileSystem.readFile(at: cache.absolutePath)
-        case .mismatching:
+            return try await fileSystem.readFile(at: cachePath)
+        case .mismatching, .missing:
             return nil
-        case .missing:
-            // Backfill so a later environment change is detected even for caches that
-            // predate the fingerprint sidecar.
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cache)
-            return try await fileSystem.readFile(at: cache.absolutePath)
         }
     }
 }
