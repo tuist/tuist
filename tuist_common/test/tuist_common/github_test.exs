@@ -150,13 +150,13 @@ defmodule TuistCommon.GitHubTest do
                GitHub.get_file_content("tuist/tuist", "test-token", "nonexistent.swift", "main")
     end
 
-    test "identifies GitHub throttling responses" do
+    test "identifies GitHub throttling responses with list-valued headers" do
       stub(Req, :request, fn _opts ->
         {:ok,
          %Req.Response{
            status: 403,
            body: %{},
-           headers: %{"x-ratelimit-remaining" => "0"}
+           headers: %{"x-ratelimit-remaining" => ["0"]}
          }}
       end)
 

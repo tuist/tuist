@@ -216,7 +216,7 @@ defmodule TuistCommon.GitHub do
   defp rate_limited?(headers) do
     Enum.any?(headers, fn
       {"retry-after", _value} -> true
-      {"x-ratelimit-remaining", "0"} -> true
+      {"x-ratelimit-remaining", value} when value in ["0", ["0"]] -> true
       _header -> false
     end)
   end
