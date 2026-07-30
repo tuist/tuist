@@ -12,6 +12,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseCurrentState
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByCommit
@@ -8292,6 +8293,103 @@ defmodule Tuist.TestsTest do
         select: %{
           state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
           is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+        }
+      )
+    )
+  end
+
+  describe "test_case_current_states materialized view" do
+    # `test_case_current_states` is the pre-aggregated read counterpart of the
+    # `test_case_states` ledger: the ledger MV cascades into it, and readers
+    # finalize with `argMaxIfMerge`. These mirror the ledger-MV tests above so
+    # the aggregate is proven to resolve state the same way, since PR2 points the
+    # `Tuist.Tests` readers at this table.
+
+    test "cascades control-plane events into the aggregate current state" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      # Then
+      assert %{state: "muted"} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "a flaky event does not clobber the state set by an earlier mute" do
+      # The core invariant, carried through the aggregate: each column is folded
+      # from its own non-null event stream via `argMaxIf`, so a later
+      # `marked_flaky` (state NULL) cannot revert the mute.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert %{state: "muted", is_flaky: true} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "an unmute after a mute resolves back to enabled" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      # Then
+      assert %{state: "enabled"} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "a never-touched test case has no aggregate row" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Then — no control-plane event ever fired, so nothing projects here and
+      # the reader falls back to defaults on its own.
+      assert current_test_case_state(project.id, test_case.id) == nil
+    end
+
+    test "is_flaky resolves back to a real false (not 0) after unmark" do
+      # Guards the Nullable(Bool)-inside-AggregateFunction round-trip: the merge
+      # must yield a boolean `false`, not the integer `0`, and unmarking flaky
+      # must not disturb the mute set on its own column.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: false})
+
+      # Then
+      assert %{state: "muted", is_flaky: false} = current_test_case_state(project.id, test_case.id)
+    end
+  end
+
+  # Resolves the current state from the aggregate table the way the PR2 readers
+  # will: finalize each column's `argMaxIf` state with `argMaxIfMerge`, grouped
+  # by the key (partial states are not merged synchronously).
+  defp current_test_case_state(project_id, test_case_id) do
+    ClickHouseRepo.one(
+      from(s in TestCaseCurrentState,
+        where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
+        group_by: [s.project_id, s.test_case_id],
+        select: %{
+          state: fragment("argMaxIfMerge(state)"),
+          is_flaky: fragment("argMaxIfMerge(is_flaky)")
         }
       )
     )
