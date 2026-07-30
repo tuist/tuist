@@ -805,6 +805,8 @@ impl MemoryController {
 mod tests {
     use super::*;
     use crate::memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
+    use tokio::sync::Barrier;
+    use tokio::task::JoinSet;
 
     #[test]
     fn pressure_uses_hysteresis_before_recovering() {
@@ -1195,6 +1197,62 @@ mod tests {
                 .is_err(),
             "elastic response serving must stop under memory pressure"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn public_response_burst_uses_elastic_capacity_without_displacing_bootstrap() {
+        const REQUEST_BYTES: usize = 512 * 1024;
+        const EXTRA_REQUESTS: usize = 64;
+
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            2 * 1024 * 1024 * 1024,
+            1200 * 1024 * 1024,
+            1700 * 1024 * 1024,
+        );
+        let bootstrap = controller
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
+            .expect("the bootstrap progress quantum should be available");
+        let expected_admitted = (controller.foreground_response_streaming_pool_bytes()
+            + controller.elastic_foreground_response_streaming_pool_bytes())
+            / REQUEST_BYTES;
+        let requests = expected_admitted + EXTRA_REQUESTS;
+        let barrier = Arc::new(Barrier::new(requests));
+        let started_at = Instant::now();
+        let mut tasks = JoinSet::new();
+
+        for _ in 0..requests {
+            let controller = controller.clone();
+            let barrier = barrier.clone();
+            tasks.spawn(async move {
+                barrier.wait().await;
+                controller.try_acquire_response_stream_memory(REQUEST_BYTES, "http")
+            });
+        }
+
+        let mut admitted = Vec::with_capacity(expected_admitted);
+        let mut rejected = 0;
+        while let Some(result) = tasks.join_next().await {
+            match result.expect("burst task should not panic") {
+                Ok((permit, _)) => admitted.push(permit),
+                Err(()) => rejected += 1,
+            }
+        }
+
+        eprintln!(
+            "admitted {} public response streams in {:?}",
+            admitted.len(),
+            started_at.elapsed()
+        );
+        assert_eq!(admitted.len(), expected_admitted);
+        assert_eq!(rejected, EXTRA_REQUESTS);
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            (6 * 1024 * 1024 + admitted.len() * REQUEST_BYTES) as u64
+        );
+
+        drop(admitted);
+        drop(bootstrap);
     }
 
     #[tokio::test]
