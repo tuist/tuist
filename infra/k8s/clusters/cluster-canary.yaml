@@ -71,7 +71,7 @@ spec:
           variables:
             overrides:
               - name: hcloudWorkerMachineType
-                value: cpx22
+                value: cpx32
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
         # Linux runner pool on Hetzner Robot bare metal. The
