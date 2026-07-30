@@ -47,6 +47,11 @@ pub struct Metrics {
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Action-cache entries removed by the eviction cascade (an evicted blob
+    // taking its referencing entries with it). A healthy nonzero rate is the
+    // cascade doing its job; compare against the serve-side presence-gate hit
+    // rate, which should trend to zero once the cascade carries the load.
+    action_cache_cascade_removed: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -206,6 +211,7 @@ impl Metrics {
         let artifact_serving_paths = Family::<ArtifactServingPathLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
+        let action_cache_cascade_removed = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
@@ -424,6 +430,11 @@ impl Metrics {
             "kura_segment_fsyncs_total",
             "Segment durability fsyncs (group-commit + rotation); compare its rate to kura_artifact_writes_total to see fsync batching under concurrent writes",
             segment_fsyncs.clone(),
+        );
+        registry.register(
+            "kura_action_cache_cascade_removed_total",
+            "Action-cache entries removed by the eviction cascade when a blob they reference was evicted",
+            action_cache_cascade_removed.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -1119,6 +1130,7 @@ impl Metrics {
             artifact_reads,
             artifact_writes,
             segment_fsyncs,
+            action_cache_cascade_removed,
             artifact_read_bytes,
             artifact_write_bytes,
             artifact_egress_completions,
@@ -1431,6 +1443,13 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
+    }
+
+    pub fn record_action_cache_cascade(&self, removed_entries: u64) {
+        if removed_entries == 0 {
+            return;
+        }
+        self.action_cache_cascade_removed.inc_by(removed_entries);
     }
 
     pub fn record_replication(

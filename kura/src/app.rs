@@ -219,6 +219,7 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    spawn_action_cache_blob_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
@@ -834,6 +835,31 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
 /// by design: peers apply the same rule over the replicated version_ms and
 /// converge on their own. The manifest-keyspace walk is a full scan, so it
 /// runs on the blocking pool at a long interval.
+/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
+/// from the entries already on disk, then arm the readiness flag that lets the
+/// eviction cascade consult it. Runs on the blocking pool because it scans the
+/// manifest keyspace. Idempotent and marker-gated, so a restart after
+/// completion is cheap; a failure leaves the cascade inert (the serve-side
+/// presence gates keep clients safe) and it retries on the next boot.
+fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            let backfill_state = state.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                backfill_state.store.backfill_action_cache_blob_refs()
+            })
+            .await;
+            match result {
+                Ok(Ok(0)) => {}
+                Ok(Ok(rows)) => info!(rows, "action-cache blob-refs backfill complete"),
+                Ok(Err(error)) => warn!("action-cache blob-refs backfill failed: {error}"),
+                Err(error) => warn!("action-cache blob-refs backfill task panicked: {error}"),
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,

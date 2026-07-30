@@ -131,6 +131,12 @@ config:
     mode: splice
     maxConcurrent: 32
     chunkBytes: 1048576
+  actionCache:
+    # When true, evicting a CAS blob cascades to the action-cache entries that
+    # reference it, so an entry never outlives its blobs. The cascade is
+    # additionally gated on the node's one-time reverse-map backfill completing,
+    # and the serve-side presence gates stay on regardless as the backstop.
+    evictionCascadeEnabled: true
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from
     # the container's effective memory limit. Explicit values must remain below

@@ -38,6 +38,8 @@ const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_
 const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
     "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
+const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
+    "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -135,6 +137,12 @@ pub struct Config {
     /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
+    /// When true, evicting a CAS blob cascades: the action-cache entries that
+    /// reference it are removed in the same atomic batch, so an entry never
+    /// outlives its blobs. Gated additionally on the node's blob-refs backfill
+    /// being complete (an incomplete reverse map must not drive deletes). The
+    /// serve-side presence gates stay on regardless as the backstop.
+    pub action_cache_eviction_cascade_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -490,6 +498,17 @@ impl Config {
                 max_concurrent: accelerated_file_serving_max_concurrent,
                 chunk_bytes: accelerated_file_serving_chunk_bytes,
             });
+        let action_cache_eviction_cascade_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -1374,6 +1393,7 @@ impl Config {
             https_port,
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
+            action_cache_eviction_cascade_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
