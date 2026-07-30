@@ -1,5 +1,5 @@
 {
-  "originHash" : "1465ec8d5fa9379820cc52eec4970022e9c1667d85b39a67b96d47241f7a076c",
+  "originHash" : "c85b672a56e1ce80bd2c8e8909e48cd41a9b0426e7384ed2d88e9795ed461ab9",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types",
+      "originalLocation" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "version" : "1.5.1"
       }
@@ -274,6 +274,15 @@
       }
     },
     {
+      "identity" : "fluid-menu-bar-extra",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lfroms/fluid-menu-bar-extra",
+      "state" : {
+        "revision" : "e152a3a1a25aca24906217f8d4d63afbb08d7f97",
+        "version" : "1.1.0"
+      }
+    },
+    {
       "identity" : "frazer-rbsn.OrderedSet",
       "kind" : "registry",
       "location" : "",
@@ -282,11 +291,11 @@
       }
     },
     {
-      "identity" : "colorizer",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/getGuaka/Colorizer.git",
+      "identity" : "getguaka.colorizer",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/getGuaka/Colorizer.git",
       "state" : {
-        "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
         "version" : "0.2.1"
       }
     },
@@ -430,15 +439,6 @@
       }
     },
     {
-      "identity" : "lfroms.fluid-menu-bar-extra",
-      "kind" : "registry",
-      "location" : "",
-      "originalLocation" : "https://github.com/lfroms/fluid-menu-bar-extra",
-      "state" : {
-        "version" : "1.1.0"
-      }
-    },
-    {
       "identity" : "MobileNativeFoundation.XCLogParser",
       "kind" : "registry",
       "location" : "",
@@ -507,15 +507,6 @@
       "originalLocation" : "https://github.com/pointfreeco/swift-snapshot-testing",
       "state" : {
         "version" : "1.18.7"
-      }
-    },
-    {
-      "identity" : "pointfreeco.xctest-dynamic-overlay",
-      "kind" : "registry",
-      "location" : "",
-      "originalLocation" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
-      "state" : {
-        "version" : "1.7.0"
       }
     },
     {
@@ -693,7 +684,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/path",
+      "originalLocation" : "https://github.com/tuist/Path.git",
       "state" : {
         "version" : "0.3.8"
       }
@@ -729,6 +720,15 @@
       "originalLocation" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
         "version" : "0.9.21"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
+        "version" : "1.7.0"
       }
     }
   ],
