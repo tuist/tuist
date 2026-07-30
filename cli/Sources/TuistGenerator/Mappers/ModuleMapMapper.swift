@@ -83,7 +83,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
                 if hasModuleMap {
                     if let moduleMapPath = Self.moduleMapPath(
-                        from: mappedSettingsDictionary[Self.modulemapFileSetting]
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        project: project
                     ) {
                         switch target.product {
                         case .framework:
@@ -196,10 +197,14 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     } // swiftlint:enable function_body_length
 
     private static func moduleMapPath(
-        from value: SettingsDictionary.Value?
+        from value: SettingsDictionary.Value?,
+        project: Project
     ) -> String? {
         guard case let .string(moduleMap) = value else { return nil }
 
+        // Combined dependency module maps live under `tuist-derived/` and are referenced as
+        // `$(SRCROOT)/../../tuist-derived/...`. Rewrite them to the canonical `$(PROJECT_DIR)` form
+        // without depending on the project's generated location.
         for sourceRoot in ["$(SRCROOT)", "$(SOURCE_ROOT)"] {
             let derivedDirectoryPrefix = "\(sourceRoot)/../../tuist-derived/"
             if moduleMap.hasPrefix(derivedDirectoryPrefix) {
@@ -208,8 +213,22 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             }
         }
 
+        // Source-root build-setting macros and absolute filesystem paths. In generated Xcode projects
+        // `$(SRCROOT)` points at the generated project, but for external SwiftPM packages the module
+        // map lives in the checkout, so a verbatim `$(SRCROOT)` path resolves to the wrong place.
+        // Resolve the macros against the source project's path and reanchor to the generated project's
+        // directory so the reference stays correct for external packages and machine-independent,
+        // which keeps cache hashes stable across checkouts.
         if moduleMap.hasPrefix("/") || moduleMap.hasPrefix("$(") {
-            return moduleMap
+            let projectPath = project.path.pathString
+            let resolved = moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath)
+                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath)
+
+            guard let resolvedPath = try? AbsolutePath(validating: resolved) else { return nil }
+
+            return "$(PROJECT_DIR)/\(resolvedPath.relative(to: project.xcodeProjPath.parentDirectory).pathString)"
         }
 
         guard (try? RelativePath(validating: moduleMap)) != nil else {
