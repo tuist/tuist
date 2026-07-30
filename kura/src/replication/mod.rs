@@ -3894,18 +3894,28 @@ mod tests {
 
     #[tokio::test]
     async fn bootstrap_ticks_progress_per_artifact_within_a_slow_page() {
+        use std::sync::Arc;
+
         use axum::{
-            extract::Request,
+            extract::{Request, State},
             middleware::{self, Next},
             response::IntoResponse,
         };
+        use tokio::sync::Semaphore;
+        use tokio::time::timeout;
 
-        // Fewer artifacts than BOOTSTRAP_MANIFEST_PAGE_LIMIT, so the walk is a single
-        // page, each body fetch delayed. At concurrency 16 that page takes
-        // ~16*40ms to drain — many watchdog windows — with no page boundary in
-        // between.
+        // The property under test is that the no-progress watchdog's counter is
+        // bumped as *each* artifact lands, not once at the end of the page (which
+        // would leave it flat for the whole drain and let the watchdog cancel a
+        // bootstrap that is in fact applying). This asserts that directly by
+        // gating each body fetch on a semaphore the test releases in stages,
+        // rather than racing a real wall-clock watchdog against real body sleeps
+        // — that race inverts under CI load, which made this test flaky.
+        const ARTIFACTS: u64 = 32;
+        const FIRST_RELEASE: u64 = ARTIFACTS / 2;
+
         let remote = test_context(|_| {}).await;
-        for i in 0..256 {
+        for i in 0..ARTIFACTS {
             let key = format!("artifact-{i:05}");
             remote
                 .state
@@ -3921,28 +3931,84 @@ mod tests {
                 .expect("remote persists artifact");
         }
 
-        async fn slow_bodies(request: Request, next: Next) -> axum::response::Response {
+        // A body fetch proceeds only once the test hands out a permit for it, so
+        // exactly `add_permits` bodies can land before the page stalls again.
+        let gate = Arc::new(Semaphore::new(0));
+        async fn gated_bodies(
+            State(gate): State<Arc<Semaphore>>,
+            request: Request,
+            next: Next,
+        ) -> axum::response::Response {
             let path = request.uri().path().to_owned();
             if path == "/_internal/bootstrap/digest" {
+                // Force the full manifest walk (a single page here).
                 return StatusCode::NOT_FOUND.into_response();
             }
             if path.starts_with("/_internal/bootstrap/artifacts/") {
-                sleep(Duration::from_millis(40)).await;
+                gate.acquire()
+                    .await
+                    .expect("the gate is not closed while the test runs")
+                    .forget();
             }
             next.run(request).await
         }
-        let peer = router(remote.state.clone()).layer(middleware::from_fn(slow_bodies));
+        let peer = router(remote.state.clone())
+            .layer(middleware::from_fn_with_state(gate.clone(), gated_bodies));
         let (peer_url, _server) = spawn_server(peer).await;
 
-        // Batching the progress bump to page end (the pre-fix behavior) leaves
-        // the counter flat for the whole ~640ms drain and the 200ms watchdog
-        // cancels mid-page; per-artifact ticks keep it alive to completion.
+        // Drive the real bootstrap with an external progress counter so the test
+        // can observe the counter advance mid-page.
         let local = test_context(|_| {}).await;
-        let stats =
-            bootstrap_from_peer_with_watchdog(&local.state, &peer_url, Duration::from_millis(200))
+        let progress = Arc::new(AtomicU64::new(0));
+        let handle = {
+            let state = local.state.clone();
+            let peer_url = peer_url.clone();
+            let progress = progress.clone();
+            tokio::spawn(
+                async move { bootstrap_from_peer(&state, &peer_url, progress.as_ref()).await },
+            )
+        };
+
+        // Bounded only to fail a genuine regression rather than hang forever;
+        // the correct path settles in milliseconds, so no realistic load inverts
+        // it (unlike the old 200ms-vs-40ms race).
+        let settle = |target: u64| {
+            let progress = progress.clone();
+            async move {
+                timeout(Duration::from_secs(30), async {
+                    while progress.load(Ordering::Relaxed) < target {
+                        sleep(Duration::from_millis(2)).await;
+                    }
+                })
                 .await
-                .expect("per-artifact progress must keep a slow single page alive");
-        assert_eq!(stats.artifacts_applied, 256);
+            }
+        };
+
+        // Release half the page. Per-artifact ticking drives the counter to at
+        // least `FIRST_RELEASE` while the other half is still gated (the page is
+        // not yet complete); page-end batching would leave it at the handful of
+        // page-fetch ticks and this wait would time out.
+        gate.add_permits(FIRST_RELEASE as usize);
+        settle(FIRST_RELEASE)
+            .await
+            .expect("progress must advance per applied artifact, not batch to page end");
+        assert!(
+            !handle.is_finished(),
+            "the bootstrap must still be mid-page with half its bodies gated"
+        );
+
+        // Release the rest and let the page complete.
+        gate.add_permits((ARTIFACTS - FIRST_RELEASE) as usize);
+        let stats = timeout(Duration::from_secs(30), handle)
+            .await
+            .expect("bootstrap completes once every body is released")
+            .expect("bootstrap task did not panic")
+            .expect("bootstrap succeeds");
+        assert_eq!(stats.artifacts_applied, ARTIFACTS);
+        assert!(
+            progress.load(Ordering::Relaxed) >= ARTIFACTS,
+            "every applied artifact must have ticked progress"
+        );
     }
 
     #[tokio::test]
