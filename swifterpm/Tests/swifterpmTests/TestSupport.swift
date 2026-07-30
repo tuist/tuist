@@ -27,10 +27,13 @@ func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throw
     try await fileSystem.makeDirectory(
         at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
-    try await fileSystem.atomicWrite(
-        JSONFormatter.prettyData(manifest),
-        to: ManifestLoader.cacheFilePath(packageDir: packageDir)
-    )
+    let cachePath = ManifestLoader.cacheFilePath(packageDir: packageDir)
+    try await fileSystem.atomicWrite(JSONFormatter.prettyData(manifest), to: cachePath)
+    // A seeded cache is only reusable once it carries a matching environment sidecar;
+    // otherwise the freshness check treats it as a miss (see readCachedManifest).
+    if let cacheAbsolutePath = try? cachePath.absolutePath {
+        try await ManifestEnvironmentFingerprint.write(forCacheFile: cacheAbsolutePath)
+    }
 }
 
 func writeMinimalPackageManifest(at packageDir: URL, name: String) async throws {
