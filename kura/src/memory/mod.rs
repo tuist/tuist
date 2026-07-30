@@ -47,10 +47,37 @@ pub struct MemoryController {
     inner: Arc<MemoryControllerInner>,
 }
 
+/// Parses the `KURA_TEST_FORCE_MEMORY_PRESSURE` override value. Accepts the
+/// [`MemoryPressure::as_str`] spellings (case-insensitive). Any other value
+/// (including the unset variable) yields `None`, so a misspelled override
+/// fails open to real accounting rather than silently pinning the node.
+fn parse_forced_memory_pressure(value: &str) -> Option<MemoryPressure> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some(MemoryPressure::Normal),
+        "constrained" => Some(MemoryPressure::Constrained),
+        "critical" => Some(MemoryPressure::Critical),
+        _ => None,
+    }
+}
+
+/// Reads `KURA_TEST_FORCE_MEMORY_PRESSURE` once at construction. See
+/// [`parse_forced_memory_pressure`].
+fn forced_memory_pressure_for_tests() -> Option<MemoryPressure> {
+    parse_forced_memory_pressure(&std::env::var("KURA_TEST_FORCE_MEMORY_PRESSURE").ok()?)
+}
+
 struct MemoryControllerInner {
     runtime_limit_bytes: u64,
     soft_limit_bytes: u64,
     hard_limit_bytes: u64,
+    /// Test-only override that pins the pressure state regardless of the
+    /// resident-bytes samples, so an end-to-end run can reproduce a
+    /// pressure tier deterministically (a real node never stays exactly on
+    /// a tier for long). Sourced from `KURA_TEST_FORCE_MEMORY_PRESSURE`;
+    /// unset in every non-test environment, so production behaviour is
+    /// untouched. `pressure()` is the single reader, so every admission
+    /// and shedding decision reflects it.
+    forced_pressure: Option<MemoryPressure>,
     container_accounting_selected: AtomicBool,
     reclaim_file_cache: AtomicBool,
     working_set_state: AtomicU8,
@@ -84,6 +111,45 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
     ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+        )
+    }
+
+    /// Test-only constructor that pins the controller to a forced pressure tier,
+    /// mirroring `KURA_TEST_FORCE_MEMORY_PRESSURE` without touching the process
+    /// environment (which is shared state across parallel tests).
+    #[cfg(test)]
+    pub fn new_with_forced_pressure(
+        metrics: Metrics,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced: MemoryPressure,
+    ) -> Self {
+        let runtime_limit_bytes = hard_limit_bytes
+            .saturating_mul(100)
+            .saturating_div(85)
+            .max(hard_limit_bytes.saturating_add(1));
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            Some(forced),
+        )
+    }
+
+    fn with_runtime_limit_and_forced(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced_pressure: Option<MemoryPressure>,
+    ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
         let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
@@ -97,6 +163,7 @@ impl MemoryController {
                 runtime_limit_bytes,
                 soft_limit_bytes,
                 hard_limit_bytes,
+                forced_pressure,
                 container_accounting_selected: AtomicBool::new(false),
                 reclaim_file_cache: AtomicBool::new(false),
                 working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
@@ -112,6 +179,21 @@ impl MemoryController {
     }
 
     pub fn observe(&self, resident_bytes: u64) -> MemoryPressure {
+        // A forced tier is the test override; ignore the resident-bytes sample
+        // so the pin holds instead of flickering with the real reading. Still
+        // advance the observation sequence: the stall watchdog in
+        // spawn_memory_pressure_tasks treats an unchanged sequence as a dead
+        // sensor and terminates the process, so a pinned tier must look like
+        // an ongoing observation rather than a frozen sensor.
+        if let Some(forced) = self.inner.forced_pressure {
+            self.inner
+                .observation_sequence
+                .fetch_add(1, Ordering::Release);
+            self.inner
+                .metrics
+                .update_memory_pressure_state(forced.as_i64());
+            return forced;
+        }
         self.inner
             .observation_sequence
             .fetch_add(1, Ordering::Release);
@@ -182,6 +264,9 @@ impl MemoryController {
     }
 
     pub fn pressure(&self) -> MemoryPressure {
+        if let Some(forced) = self.inner.forced_pressure {
+            return forced;
+        }
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
@@ -810,6 +895,49 @@ mod tests {
     };
     use tokio::sync::Barrier;
     use tokio::task::JoinSet;
+
+    #[test]
+    fn forced_pressure_override_parses_only_known_spellings() {
+        // Fails open: a misspelled or unset value never pins the node.
+        assert_eq!(parse_forced_memory_pressure(""), None);
+        assert_eq!(parse_forced_memory_pressure("nope"), None);
+        assert_eq!(parse_forced_memory_pressure("  Critical-ish "), None);
+        // Known tiers, case- and whitespace-insensitive.
+        assert_eq!(
+            parse_forced_memory_pressure("normal"),
+            Some(MemoryPressure::Normal)
+        );
+        assert_eq!(
+            parse_forced_memory_pressure("  CONSTRAINED "),
+            Some(MemoryPressure::Constrained)
+        );
+        assert_eq!(
+            parse_forced_memory_pressure("Critical"),
+            Some(MemoryPressure::Critical)
+        );
+    }
+
+    #[test]
+    fn forced_pressure_still_advances_the_observation_sequence() {
+        // The stall watchdog in spawn_memory_pressure_tasks terminates Kura
+        // when observation_sequence stops advancing. A forced tier must still
+        // look like an ongoing observation, or the pinned-pressure scenario
+        // self-terminates within five seconds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new_with_forced_pressure(
+            metrics,
+            100,
+            200,
+            MemoryPressure::Constrained,
+        );
+        let before = controller.observation_sequence();
+        let pressure = controller.observe(50);
+        assert_eq!(pressure, MemoryPressure::Constrained);
+        assert!(
+            controller.observation_sequence() > before,
+            "a forced tier must still advance the observation sequence so the stall watchdog does not terminate the process"
+        );
+    }
 
     #[test]
     fn pressure_uses_hysteresis_before_recovering() {

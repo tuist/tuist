@@ -362,6 +362,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if grace := sts.Spec.Template.Spec.TerminationGracePeriodSeconds; grace == nil || *grace < drainCompletionTimeoutMs/1000+preStopDelaySeconds {
 		t.Fatalf("expected terminationGracePeriodSeconds to cover the drain budget, got %v", grace)
 	}
+	if grace := container.LivenessProbe.TerminationGracePeriodSeconds; grace == nil || *grace != livenessTerminationGraceSeconds {
+		t.Fatalf("expected liveness probe grace to be %d seconds, got %v", livenessTerminationGraceSeconds, grace)
+	}
 	if serviceLinks := sts.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
 		t.Fatal("expected service-link environment injection to be disabled")
 	}
