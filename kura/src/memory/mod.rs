@@ -804,7 +804,10 @@ impl MemoryController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
+    use crate::{
+        constants::RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT,
+    };
     use tokio::sync::Barrier;
     use tokio::task::JoinSet;
 
@@ -1231,11 +1234,11 @@ mod tests {
         }
 
         let mut admitted = Vec::with_capacity(expected_admitted);
-        let mut rejected = 0;
+        let mut full_size_unavailable = 0;
         while let Some(result) = tasks.join_next().await {
             match result.expect("burst task should not panic") {
                 Ok((permit, _)) => admitted.push(permit),
-                Err(()) => rejected += 1,
+                Err(()) => full_size_unavailable += 1,
             }
         }
 
@@ -1245,12 +1248,50 @@ mod tests {
             started_at.elapsed()
         );
         assert_eq!(admitted.len(), expected_admitted);
-        assert_eq!(rejected, EXTRA_REQUESTS);
+        assert_eq!(full_size_unavailable, EXTRA_REQUESTS);
         assert_eq!(
             controller.transient_reserved_bytes(),
             (6 * 1024 * 1024 + admitted.len() * REQUEST_BYTES) as u64
         );
 
+        let barrier = Arc::new(Barrier::new(EXTRA_REQUESTS));
+        let mut tasks = JoinSet::new();
+        for _ in 0..EXTRA_REQUESTS {
+            let controller = controller.clone();
+            let barrier = barrier.clone();
+            tasks.spawn(async move {
+                barrier.wait().await;
+                assert!(
+                    controller
+                        .acquire_response_stream_memory(
+                            REQUEST_BYTES,
+                            "http",
+                            ResponseStreamAdmissionPatience::Degradable,
+                        )
+                        .await
+                        .is_err(),
+                    "the full-size tier should remain exhausted"
+                );
+                controller
+                    .acquire_degraded_response_stream_memory(
+                        RESPONSE_STREAM_MIN_CHUNK_BYTES * 4,
+                        "http",
+                    )
+                    .await
+            });
+        }
+
+        let mut degraded = Vec::with_capacity(EXTRA_REQUESTS);
+        while let Some(result) = tasks.join_next().await {
+            degraded.push(
+                result
+                    .expect("degraded burst task should not panic")
+                    .expect("public requests should fall back to bounded degraded streams"),
+            );
+        }
+        assert_eq!(degraded.len(), EXTRA_REQUESTS);
+
+        drop(degraded);
         drop(admitted);
         drop(bootstrap);
     }
