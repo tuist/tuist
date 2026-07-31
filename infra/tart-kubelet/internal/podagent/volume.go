@@ -197,6 +197,14 @@ type VolumeAttachment struct {
 	// job built on a stale base); the host then discards the branch rather than
 	// moving its local master off the accepted lineage.
 	PromotedGeneration int
+	// MasterHadCAS and BranchHasCAS record whether the folded CAS store held any
+	// content when the guest attached the branch and when it detached it. The
+	// guest reports both into the status share (it walks the store for the
+	// inventory digest anyway), so the host learns a branch's CAS content without
+	// attaching the image itself. Finalize compares them: losing the store the
+	// master carried is the content regression this host must not promote.
+	MasterHadCAS bool
+	BranchHasCAS bool
 }
 
 // VolumeManager manages per-account cache-volume master images under a single
@@ -796,6 +804,32 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account || att.PromotedGeneration <= 0 {
 		return discard()
 	}
+
+	// Content regression: the branch lost the CAS store its master carried, on a
+	// host that serves the CAS. The generation gate above only keeps the master
+	// from moving backwards in VERSION — nothing in it stops a newer generation
+	// from carrying strictly less content, so a host that writes no compilation
+	// cache could replace a master that has one and (via the HEAD other hosts
+	// converge to) cost the whole fleet its compilation cache.
+	//
+	// Gated on casEnabled() because a host with the CAS deliberately off is the
+	// one that is SUPPOSED to drop the store — that reclaim has to stay
+	// promotable or the disable could never propagate. And gated on the master
+	// having had one, so an account whose jobs simply never compile still
+	// promotes its binary-cache deltas normally.
+	//
+	// The server enforces the same rule on the HEAD bump, which is the load-
+	// bearing half (it also covers hosts running older code). This is the local,
+	// no-round-trip echo of it. Refusing degrades to "not promoted": the branch is
+	// discarded and the job is unaffected.
+	if m.casEnabled() && att.MasterHadCAS && !att.BranchHasCAS {
+		log.Log.WithName("cache-volumes").Info(
+			"branch lost the compilation cache its master carried; discarding instead of promoting",
+			"account", account, "volume", att.VolumeName, "generation", att.PromotedGeneration)
+		RecordVolumeCASRegression()
+		return discard()
+	}
+
 	image := m.BranchImage(att)
 	if _, err := os.Stat(image); err != nil {
 		return discard()

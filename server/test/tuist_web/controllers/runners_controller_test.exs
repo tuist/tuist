@@ -307,7 +307,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "returns the accepted generation on a fast-forward", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5 -> {:ok, 6} end)
+      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5, _opts -> {:ok, 6} end)
 
       body =
         conn
@@ -323,7 +323,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "409 when the fast-forward is rejected as stale", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base -> :conflict end)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base, _opts -> :conflict end)
 
       body =
         conn
@@ -335,7 +335,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "parses a string base_generation and defaults a missing one to 0", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base -> {:ok, base + 1} end)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base, _opts -> {:ok, base + 1} end)
 
       # A string body value is parsed to an integer.
       assert %{"generation" => 4} =
@@ -350,8 +350,54 @@ defmodule TuistWeb.RunnersControllerTest do
                |> json_response(200)
     end
 
+    test "409 with a distinct error when the promote would drop the compilation cache", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base, _opts -> :cas_regression end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => 1})
+        |> json_response(409)
+
+      # Distinct from the stale-base 409 so the runner reports it as its own
+      # outcome instead of inflating the fast-forward contention rate.
+      assert body["error"] == "cas regression"
+    end
+
+    test "relays the runner's compilation-cache declarations, defaulting both to false", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      test_pid = self()
+
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base, opts ->
+        send(test_pid, {:opts, opts})
+        {:ok, 1}
+      end)
+
+      conn
+      |> post("/api/internal/runners/volume-head", %{
+        "tree_digest" => digest,
+        "cas_present" => true,
+        "cas_disabled" => "true"
+      })
+      |> json_response(200)
+
+      assert_receive {:opts, opts}
+      assert Keyword.get(opts, :cas_present) == true
+      assert Keyword.get(opts, :cas_disabled) == true
+
+      # A runner too old to say anything about the compilation cache reads as
+      # "no CAS, no intent", which is what stops it stripping a HEAD that has one.
+      conn
+      |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest})
+      |> json_response(200)
+
+      assert_receive {:opts, opts}
+      assert Keyword.get(opts, :cas_present) == false
+      assert Keyword.get(opts, :cas_disabled) == false
+    end
+
     test "422 when the digest is invalid", %{conn: conn} do
-      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base -> :error end)
+      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base, _opts -> :error end)
 
       body =
         conn

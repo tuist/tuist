@@ -1086,6 +1086,128 @@ func TestFinalizeDiscardsWhenFastForwardRejected(t *testing.T) {
 	}
 }
 
+// A branch that came back without the compilation cache its master carried must
+// not become the master, even though the server accepted its generation. This is
+// the content half of the fast-forward: the generation gate alone only stops a
+// master moving BACKWARDS in version, never one moving to less content — which is
+// how a host that writes no CAS could strip the account's compilation cache and,
+// through the HEAD other hosts converge to, the whole fleet's.
+func TestFinalizeDiscardsBranchThatDroppedTheCAS(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	m.CASGiB = 4 // this host serves the CAS, so it has no business dropping one
+	seedMasterGen(t, m, "42", "existing-master", 5)
+
+	att := mustAllocate(t, m, "vm-cas-lost")
+	if _, _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+	writeBranchCache(t, m, att, "cas-less-branch")
+	att.PromotedGeneration = 6
+	att.MasterHadCAS = true
+	att.BranchHasCAS = false
+
+	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomeDiscarded {
+		t.Fatalf("Finalize of a CAS-dropping branch = %s, %v; want discarded", out, err)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "existing-master" {
+		t.Fatalf("master after a CAS-dropping promote = %q; want the pre-existing master untouched", got)
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 5 {
+		t.Fatalf("master generation after a CAS-dropping promote = %d; want 5 (unchanged)", got)
+	}
+	if _, err := os.Stat(att.BranchPath); !os.IsNotExist(err) {
+		t.Fatal("branch should be discarded (removed), not promoted")
+	}
+}
+
+// The guard is about LOSS, not about every CAS-less branch: an account whose
+// master never had a compilation cache still promotes its binary-cache deltas,
+// and a branch that ADDS one is exactly what we want to keep.
+func TestFinalizePromotesWhenTheMasterHadNoCAS(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	m.CASGiB = 4
+
+	for _, tc := range []struct {
+		name                    string
+		masterHadCAS, branchHas bool
+	}{
+		{"branch adds a CAS the master lacked", false, true},
+		{"neither side has a CAS", false, false},
+		{"branch keeps the master's CAS", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := "acct-" + tc.name
+			seedMasterGen(t, m, account, "existing-master", 5)
+
+			att := mustAllocate(t, m, "vm-"+tc.name)
+			if _, _, err := m.Materialize(att, account); err != nil {
+				t.Fatalf("Materialize: %v", err)
+			}
+			att.SourceAccount = account
+			writeBranchCache(t, m, att, "promoted-branch")
+			att.PromotedGeneration = 6
+			att.MasterHadCAS = tc.masterHadCAS
+			att.BranchHasCAS = tc.branchHas
+
+			if out, err := m.Finalize(att, account, true, true); err != nil || out != VolumeOutcomePromoted {
+				t.Fatalf("Finalize = %s, %v; want promoted", out, err)
+			}
+			if got, _ := os.ReadFile(m.masterImage(account, ReservedTuistCacheVolume)); string(got) != "promoted-branch" {
+				t.Fatalf("master = %q; want the promoted branch", got)
+			}
+		})
+	}
+}
+
+// A host with the CAS deliberately off is the one that is SUPPOSED to drop the
+// store — reclaiming it is how an operator's disable propagates to every other
+// host. Refusing that promote would pin dead CAS bytes in every master forever,
+// so the guard must not fire here.
+func TestFinalizePromotesIntentionalCASReclaim(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	m.CASGiB = 0 // CAS off on this host: dropping the store is the point
+	seedMasterGen(t, m, "42", "existing-master", 5)
+
+	att := mustAllocate(t, m, "vm-cas-reclaim")
+	if _, _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+	writeBranchCache(t, m, att, "reclaimed-branch")
+	att.PromotedGeneration = 6
+	att.MasterHadCAS = true
+	att.BranchHasCAS = false
+
+	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
+		t.Fatalf("Finalize of an intentional CAS reclaim = %s, %v; want promoted", out, err)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "reclaimed-branch" {
+		t.Fatalf("master after an intentional reclaim = %q; want the cleaned branch", got)
+	}
+}
+
+func TestReadCASPresence(t *testing.T) {
+	if before, after := readCASPresence(""); before || after {
+		t.Fatal("empty status dir should report no CAS either side")
+	}
+	dir := t.TempDir()
+	// A guest image too old to report presence must not look like a CAS loss, or
+	// every one of its promotes would be refused during a VM-image rollout.
+	if before, after := readCASPresence(dir); before || after {
+		t.Fatal("missing markers should report no CAS either side")
+	}
+	if err := os.WriteFile(filepath.Join(dir, casPresenceBeforeFile), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, casPresenceAfterFile), []byte("0"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if before, after := readCASPresence(dir); !before || after {
+		t.Fatalf("readCASPresence = %v, %v; want true, false", before, after)
+	}
+}
+
 func TestReadPromoteResult(t *testing.T) {
 	if got := readPromoteResult(""); got.Result != "" || got.Generation != 0 {
 		t.Fatalf("empty status dir = %+v; want zero", got)
@@ -1115,6 +1237,12 @@ func TestReadPromoteResult(t *testing.T) {
 	if got := readPromoteResult(dir); got.Result != "conflict" || got.Generation != 0 {
 		t.Fatalf("conflict = %+v; want {conflict 0}", got)
 	}
+	// A CAS regression is its own rejection: it shares the 409 with a stale base
+	// but is a fleet problem, not contention, so it must not land in that bucket.
+	write("cas-regression")
+	if got := readPromoteResult(dir); got.Result != "cas-regression" || got.Generation != 0 {
+		t.Fatalf("cas-regression = %+v; want {cas-regression 0}", got)
+	}
 	// An upload/network failure is an error, never a rejection.
 	write("error")
 	if got := readPromoteResult(dir); got.Result != "error" {
@@ -1124,6 +1252,44 @@ func TestReadPromoteResult(t *testing.T) {
 	write("weird garbage")
 	if got := readPromoteResult(dir); got.Result != "error" {
 		t.Fatalf("garbage = %+v; want error", got)
+	}
+}
+
+// The marker has to say "off" out loud. Before it did, "the operator disabled
+// the CAS" and "this host predates the CAS" were both an absent file, so a host
+// stuck on an old binary reclaimed the store it had converged to and published
+// the CAS-less result as the account HEAD.
+func TestWriteCASEnabledIsThreeState(t *testing.T) {
+	statusDir := t.TempDir()
+	read := func() (string, bool) {
+		b, err := os.ReadFile(filepath.Join(statusDir, casEnabledFile))
+		return string(b), err == nil
+	}
+
+	m, _ := newTestManager(t, 100)
+	m.CapGiB = 28
+	m.CASGiB = 16
+	r := &Reconciler{Volumes: m}
+
+	r.writeCASEnabled(statusDir)
+	_, casBytes := cacheImageSplit(28, 16)
+	if got, ok := read(); !ok || got != strconv.FormatUint(casBytes, 10) {
+		t.Fatalf("enabled marker = %q (present=%v); want the CAS byte budget %d", got, ok, casBytes)
+	}
+
+	m.CASGiB = 0
+	r.writeCASEnabled(statusDir)
+	if got, ok := read(); !ok || got != casDisabledMarker {
+		t.Fatalf("disabled marker = %q (present=%v); want %q", got, ok, casDisabledMarker)
+	}
+
+	// A host with the whole cache-volume feature off stages no share at all, so
+	// there is nothing to say and nothing to write.
+	off := &Reconciler{Volumes: NewVolumeManager("", 1, &fakeBackend{})}
+	bare := t.TempDir()
+	off.writeCASEnabled(bare)
+	if _, err := os.Stat(filepath.Join(bare, casEnabledFile)); !os.IsNotExist(err) {
+		t.Fatal("a host with the cache-volume feature off should stage no CAS marker")
 	}
 }
 
