@@ -15,6 +15,10 @@ defmodule Tuist.Registry.S3 do
   require Logger
 
   @doc false
+  def request(%Upload{} = operation) do
+    ExAws.request(operation, Registry.registry_s3_config())
+  end
+
   def request(operation) do
     operation
     |> with_tigris_consistency()
