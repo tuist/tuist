@@ -106,6 +106,13 @@ pub struct Metrics {
     bootstrap_pass_buckets_reconciled: Family<BootstrapPassLabels, Gauge>,
     bootstrap_current_bucket_manifests_walked: Family<BootstrapPassLabels, Gauge>,
     backfill_horizon_age_ms: Gauge,
+    backfill_listing_pages: Counter,
+    backfill_listed_tuples: Family<BackfillDecisionLabels, Counter>,
+    backfill_bodies: Family<BackfillBodyOutcomeLabels, Counter>,
+    backfill_applied_bytes: Counter,
+    backfill_retry_backoffs: Family<BackfillRetryLabels, Counter>,
+    backfill_pass_listed_tuples: Family<BackfillPassPeerLabels, Gauge>,
+    backfill_pass_resolved_tuples: Family<BackfillPassPeerLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
@@ -300,6 +307,13 @@ impl Metrics {
         let bootstrap_current_bucket_manifests_walked =
             Family::<BootstrapPassLabels, Gauge>::default();
         let backfill_horizon_age_ms = Gauge::default();
+        let backfill_listing_pages = Counter::default();
+        let backfill_listed_tuples = Family::<BackfillDecisionLabels, Counter>::default();
+        let backfill_bodies = Family::<BackfillBodyOutcomeLabels, Counter>::default();
+        let backfill_applied_bytes = Counter::default();
+        let backfill_retry_backoffs = Family::<BackfillRetryLabels, Counter>::default();
+        let backfill_pass_listed_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
+        let backfill_pass_resolved_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -738,6 +752,41 @@ impl Metrics {
             "kura_backfill_horizon_age_ms",
             "Milliseconds between the current wall clock and the node's backfill horizon version",
             backfill_horizon_age_ms.clone(),
+        );
+        registry.register(
+            "kura_backfill_listing_pages_total",
+            "Backfill listing pages fetched from peers",
+            backfill_listing_pages.clone(),
+        );
+        registry.register(
+            "kura_backfill_listed_tuples_total",
+            "Backfill tuples listed from peers by local decision",
+            backfill_listed_tuples.clone(),
+        );
+        registry.register(
+            "kura_backfill_bodies_total",
+            "Backfill body fetch resolutions by outcome",
+            backfill_bodies.clone(),
+        );
+        registry.register(
+            "kura_backfill_applied_bytes_total",
+            "Body bytes applied by backfill passes",
+            backfill_applied_bytes.clone(),
+        );
+        registry.register(
+            "kura_backfill_retry_backoffs_total",
+            "Backfill request retry backoffs by retryable class",
+            backfill_retry_backoffs.clone(),
+        );
+        registry.register(
+            "kura_backfill_pass_listed_tuples",
+            "Tuples listed so far by the in-flight backfill pass for the peer",
+            backfill_pass_listed_tuples.clone(),
+        );
+        registry.register(
+            "kura_backfill_pass_resolved_tuples",
+            "Tuples resolved so far by the in-flight backfill pass for the peer",
+            backfill_pass_resolved_tuples.clone(),
         );
         registry.register(
             "kura_bootstrap_runs_total",
@@ -1230,6 +1279,13 @@ impl Metrics {
             bootstrap_pass_buckets_reconciled,
             bootstrap_current_bucket_manifests_walked,
             backfill_horizon_age_ms,
+            backfill_listing_pages,
+            backfill_listed_tuples,
+            backfill_bodies,
+            backfill_applied_bytes,
+            backfill_retry_backoffs,
+            backfill_pass_listed_tuples,
+            backfill_pass_resolved_tuples,
             analytics_events,
             analytics_batches,
             analytics_batch_duration,
@@ -1763,6 +1819,62 @@ impl Metrics {
             .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
     }
 
+    pub fn record_backfill_listing_page(&self) {
+        self.backfill_listing_pages.inc();
+    }
+
+    pub fn record_backfill_listed_tuple(&self, decision: &str) {
+        self.backfill_listed_tuples
+            .get_or_create(&BackfillDecisionLabels {
+                decision: decision.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_backfill_body(&self, outcome: &str) {
+        self.backfill_bodies
+            .get_or_create(&BackfillBodyOutcomeLabels {
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_backfill_applied_bytes(&self, bytes: u64) {
+        self.backfill_applied_bytes.inc_by(bytes);
+    }
+
+    pub fn record_backfill_retry_backoff(&self, class: &str) {
+        self.backfill_retry_backoffs
+            .get_or_create(&BackfillRetryLabels {
+                class: class.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn set_backfill_pass_listed_tuples(&self, peer: &str, listed: u64) {
+        self.backfill_pass_listed_tuples
+            .get_or_create(&BackfillPassPeerLabels {
+                peer: peer.to_owned(),
+            })
+            .set(i64::try_from(listed).unwrap_or(i64::MAX));
+    }
+
+    pub fn set_backfill_pass_resolved_tuples(&self, peer: &str, resolved: u64) {
+        self.backfill_pass_resolved_tuples
+            .get_or_create(&BackfillPassPeerLabels {
+                peer: peer.to_owned(),
+            })
+            .set(i64::try_from(resolved).unwrap_or(i64::MAX));
+    }
+
+    // Zero the pass-progress gauges for a peer when its backfill pass ends —
+    // the bootstrap-pass convention: a finished or abandoned pass must not
+    // freeze at its last mid-pass value, which would read as a live wedge.
+    pub fn clear_backfill_pass_progress(&self, peer: &str) {
+        self.set_backfill_pass_listed_tuples(peer, 0);
+        self.set_backfill_pass_resolved_tuples(peer, 0);
+    }
+
     pub fn set_bootstrap_pass_buckets_divergent(&self, peer: &str, mode: &str, divergent: usize) {
         self.bootstrap_pass_buckets_divergent
             .get_or_create(&BootstrapPassLabels {
@@ -2290,6 +2402,26 @@ struct InternalBackfillRouteLabels {
 struct BackfillBodiesPeerLabels {
     peer: String,
     outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillDecisionLabels {
+    decision: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillBodyOutcomeLabels {
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillRetryLabels {
+    class: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillPassPeerLabels {
+    peer: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

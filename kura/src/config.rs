@@ -4,13 +4,13 @@ use tokio::fs;
 
 use crate::{
     constants::{
-        DEFAULT_BACKFILL_MARGIN_PERCENT, DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS,
-        DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
-        DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-        DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
-        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
-        MAX_INLINE_REPLICATION_BODY_BYTES,
+        BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
+        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
+        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
     },
     runtime::DataDirLock,
 };
@@ -92,6 +92,7 @@ const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -174,8 +175,13 @@ pub struct Config {
     /// boundary segment's seal-time stat becomes the backfill horizon; the
     /// margin's share of the ring's time span is the window's structural
     /// slack.
-    #[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
+    #[allow(dead_code)] // consumed by the backfill lifecycle (Unit 8)
     pub backfill_margin_percent: u64,
+    /// Byte threshold a backfill pass composes one bodies batch against, and
+    /// the cutoff above which a listed entry is fetched through the
+    /// per-artifact endpoint instead of riding a batch. Never exceeds the
+    /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
+    pub backfill_batch_bytes: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -1018,6 +1024,22 @@ impl Config {
                 "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
             ));
         }
+        let backfill_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_BATCH_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_BATCH_BYTES);
+        if backfill_batch_bytes == 0 || backfill_batch_bytes > BACKFILL_BODIES_BATCH_BYTES {
+            invalid.push(format!(
+                "{KURA_BACKFILL_BATCH_BYTES} must be between 1 and {BACKFILL_BODIES_BATCH_BYTES}"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1444,6 +1466,7 @@ impl Config {
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             backfill_margin_percent,
+            backfill_batch_bytes,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1979,6 +2002,23 @@ mod tests {
             let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
                 .expect_err("an out-of-range backfill margin must fail");
             assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_batch_bytes() {
+        let config = config_from(&[]).expect("default backfill batch bytes should be valid");
+        assert_eq!(config.backfill_batch_bytes, DEFAULT_BACKFILL_BATCH_BYTES);
+
+        let config = config_from(&[(KURA_BACKFILL_BATCH_BYTES, "1048576")])
+            .expect("an in-range backfill batch threshold should be valid");
+        assert_eq!(config.backfill_batch_bytes, 1_048_576);
+
+        let above_ceiling = (BACKFILL_BODIES_BATCH_BYTES + 1).to_string();
+        for out_of_range in ["0", above_ceiling.as_str()] {
+            let error = config_from(&[(KURA_BACKFILL_BATCH_BYTES, out_of_range)])
+                .expect_err("an out-of-range backfill batch threshold must fail");
+            assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
         }
     }
 

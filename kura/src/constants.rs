@@ -175,6 +175,36 @@ pub const MAX_BACKFILL_BODIES_ENTRIES: usize = 65_536;
 // MAX_BACKFILL_BODIES_ENTRIES tuples of (kind name, 64-char hex id,
 // version_ms) with JSON overhead.
 pub const MAX_BACKFILL_BODIES_REQUEST_BYTES: u64 = 16 * 1024 * 1024;
+// Requester-side byte threshold for composing one bodies batch
+// (KURA_BACKFILL_BATCH_BYTES default), and the oversized cutoff above which a
+// listed entry routes to the per-artifact endpoint up front. Defaults to the
+// shared response ceiling so batches arrive as full as the serving side will
+// ever stream them; config parsing rejects values above the ceiling because
+// entries between the two bounds would compose into batches the serving side
+// bounces back as fetch-individually frames. The value itself is a
+// deferred-to-implementation measurement: it is finalized against real Bazel
+// small-artifact profiles in the e2e throughput check and a staging mesh
+// before the tuist flag flip.
+pub const DEFAULT_BACKFILL_BATCH_BYTES: u64 = BACKFILL_BODIES_BATCH_BYTES;
+// Deadline for a composed-but-unfilled bodies batch. Bazel workloads list
+// hundreds of thousands of tiny entries, so a byte threshold alone could park
+// claimed tuples in a half-full batch for as long as listing keeps paginating;
+// the interval bounds the listing-to-apply latency of every claimed tuple.
+// Compiled rather than env-exposed: a timing internal with no per-mesh
+// geometry dependence (same standard as the retry backoff bounds below).
+pub const BACKFILL_BATCH_FLUSH_INTERVAL_MS: u64 = 1_000;
+// Bounded backoff for budget-exempt retryable peer responses (index building,
+// endpoint-absent, peer busy, tmp budget, generic Retry-After backpressure).
+// Same shape as the legacy bootstrap backpressure retry; the pass retries
+// without failing and reports cumulative retry-sleep time so the lifecycle
+// layer can enforce the per-peer wall-clock cap.
+pub const BACKFILL_RETRY_BACKOFF_BASE_MS: u64 = 250;
+pub const BACKFILL_RETRY_BACKOFF_MAX_MS: u64 = 5_000;
+// Capacity of the lister→fetcher claimed-tuple queue inside one backfill
+// pass. A full queue blocks the listing walk, which bounds how many claimed
+// tuples a pass can hold un-fetched (claim-set growth and re-list cost after
+// a failure) while still letting listing run well ahead of body transfers.
+pub const BACKFILL_FETCH_QUEUE_TUPLES: usize = 4_096;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 

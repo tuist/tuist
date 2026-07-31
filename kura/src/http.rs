@@ -304,7 +304,7 @@ fn internal_routes() -> Router<SharedState> {
         )
         .route(
             ROUTE_INTERNAL_BACKFILL_ARTIFACT,
-            get(internal_bootstrap_artifact),
+            get(internal_backfill_artifact),
         )
         .route(
             ROUTE_INTERNAL_REPLICATE_ARTIFACT,
@@ -681,11 +681,44 @@ impl BackfillBodyDisposition {
 
 /// Fixed header length of one bodies-stream frame; see
 /// [`encode_backfill_body_frame_header`] for the layout.
-pub const BACKFILL_BODY_FRAME_HEADER_BYTES: usize = 1 + 1 + 2 + 8 + 8;
+pub const BACKFILL_BODY_FRAME_HEADER_BYTES: usize = 1 + 1 + 2 + 8 + 2 + 8;
+
+/// Manifest identity of a `Present` frame's body, resolved from the CURRENT
+/// manifest together with the body (the same read that stamps the frame's
+/// `version_ms`). The live apply paths key artifacts by
+/// (producer, namespace, key) — `artifact_id` is an irreversible hash of them
+/// — so the requester cannot apply a body without this block.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillBodyManifestMeta {
+    pub producer: String,
+    pub namespace_id: String,
+    pub key: String,
+    pub content_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+impl BackfillBodyManifestMeta {
+    pub fn from_manifest(manifest: &ArtifactManifest) -> Self {
+        Self {
+            producer: manifest.producer.as_str().to_owned(),
+            namespace_id: manifest.namespace_id.clone(),
+            key: manifest.key.clone(),
+            content_type: manifest.content_type.clone(),
+            branch: manifest.branch.clone(),
+        }
+    }
+
+    pub fn to_wire_bytes(&self) -> Result<Vec<u8>, String> {
+        serde_json::to_vec(self)
+            .map_err(|error| format!("failed to encode backfill manifest meta: {error}"))
+    }
+}
 
 /// Encodes one frame header of the bodies response stream. This function and
-/// [`read_backfill_body_frame`] are the single definition of the wire layout —
-/// the requester decodes with the same code, so the two can never skew.
+/// [`read_backfill_body_frame_prelude`] are the single definition of the wire
+/// layout — the requester decodes with the same code, so the two can never
+/// skew.
 ///
 /// Frame layout (integers big-endian):
 ///
@@ -695,26 +728,29 @@ pub const BACKFILL_BODY_FRAME_HEADER_BYTES: usize = 1 + 1 + 2 + 8 + 8;
 /// | `disposition`| 1 byte         | [`BackfillBodyDisposition::as_byte`]       |
 /// | `id_len`     | 2 bytes        | length of `record_id`                      |
 /// | `version_ms` | 8 bytes        | see below                                  |
+/// | `meta_len`   | 2 bytes        | manifest meta bytes; 0 unless `Present`    |
 /// | `body_len`   | 8 bytes        | body bytes following; 0 unless `Present`   |
 /// | `record_id`  | `id_len` bytes | UTF-8 record id                            |
+/// | meta         | `meta_len`     | [`BackfillBodyManifestMeta`] JSON          |
 /// | body         | `body_len`     | raw body bytes (`Present` frames only)     |
 ///
-/// `version_ms` semantics are load-bearing:
+/// `version_ms` (and meta) semantics are load-bearing:
 /// - `Present`: the effective version of the CURRENT manifest at body-read
 ///   time, resolved together with the body — NEVER echoed from the request.
 ///   Echoing would let a mid-flight LWW overwrite persist v2 bytes under a v1
 ///   stamp on the requester, whose presence check would then suppress the
-///   correcting re-fetch. `kind` likewise describes the current manifest (a
-///   record can flip inline<->segment across versions).
+///   correcting re-fetch. `kind` and the manifest meta likewise describe the
+///   current manifest (a record can flip inline<->segment across versions).
 /// - `Absent` / `FetchIndividually`: the REQUESTED tuple's version and kind,
 ///   echoed to identify which tuple resolved that way (one batch can carry
 ///   the same record id under two listed versions when a dangling row
-///   coexists with the live one).
+///   coexists with the live one). No meta: there is no body to apply.
 pub fn encode_backfill_body_frame_header(
     kind: BackfillRecordKind,
     disposition: BackfillBodyDisposition,
     version_ms: u64,
     record_id: &str,
+    meta: &[u8],
     body_len: u64,
 ) -> Result<Vec<u8>, String> {
     let id_len = u16::try_from(record_id.len()).map_err(|_| {
@@ -723,19 +759,28 @@ pub fn encode_backfill_body_frame_header(
             record_id.len()
         )
     })?;
-    let mut header = Vec::with_capacity(BACKFILL_BODY_FRAME_HEADER_BYTES + record_id.len());
+    let meta_len = u16::try_from(meta.len()).map_err(|_| {
+        format!(
+            "manifest meta length {} exceeds the frame limit",
+            meta.len()
+        )
+    })?;
+    let mut header =
+        Vec::with_capacity(BACKFILL_BODY_FRAME_HEADER_BYTES + record_id.len() + meta.len());
     header.push(kind.as_byte());
     header.push(disposition.as_byte());
     header.extend_from_slice(&id_len.to_be_bytes());
     header.extend_from_slice(&version_ms.to_be_bytes());
+    header.extend_from_slice(&meta_len.to_be_bytes());
     header.extend_from_slice(&body_len.to_be_bytes());
     header.extend_from_slice(record_id.as_bytes());
+    header.extend_from_slice(meta);
     Ok(header)
 }
 
 /// One decoded frame of the bodies response stream.
-// Decode-side half of the frame codec; consumed by the backfill requester
-// (Unit 7) and by tests until it lands.
+// The pass driver decodes preludes and streams bodies; the whole-frame
+// decode exists for codec and endpoint tests.
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackfillBodyFrame {
@@ -743,20 +788,34 @@ pub struct BackfillBodyFrame {
     pub disposition: BackfillBodyDisposition,
     pub record_id: String,
     pub version_ms: u64,
+    pub meta: Option<BackfillBodyManifestMeta>,
     pub body: Vec<u8>,
 }
 
-/// Reads one frame off a bodies response stream; `Ok(None)` on clean end of
-/// stream. The decoder enforces the same
-/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`] ceiling the sender
-/// spools under, so a mismatched peer cannot make the receiver buffer more
-/// than the shared bound.
-// Decode-side half of the frame codec; consumed by the backfill requester
-// (Unit 7) and by tests until it lands.
-#[allow(dead_code)]
-pub async fn read_backfill_body_frame<R>(
+/// Everything of one frame except the body bytes, which follow on the reader
+/// (`body_len` of them). Lets the requester stream large `Present` bodies to
+/// disk instead of buffering them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillBodyFramePrelude {
+    pub kind: BackfillRecordKind,
+    pub disposition: BackfillBodyDisposition,
+    pub record_id: String,
+    pub version_ms: u64,
+    pub meta: Option<BackfillBodyManifestMeta>,
+    pub body_len: u64,
+}
+
+/// Reads one frame's prelude off a bodies (or per-artifact) response stream;
+/// `Ok(None)` on clean end of stream. The caller must consume exactly
+/// `body_len` following bytes before reading the next frame.
+/// `max_body_bytes` bounds a declared body so a mismatched peer cannot make
+/// the receiver stage more than the caller accounted:
+/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`] for batch streams,
+/// [`crate::constants::MAX_REPLICATION_BODY_BYTES`] for individual fetches.
+pub async fn read_backfill_body_frame_prelude<R>(
     reader: &mut R,
-) -> Result<Option<BackfillBodyFrame>, String>
+    max_body_bytes: u64,
+) -> Result<Option<BackfillBodyFramePrelude>, String>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
@@ -784,19 +843,23 @@ where
         .ok_or_else(|| format!("unknown backfill body disposition byte {}", header[1]))?;
     let id_len = u16::from_be_bytes(header[2..4].try_into().expect("fixed slice"));
     let version_ms = u64::from_be_bytes(header[4..12].try_into().expect("fixed slice"));
-    let body_len = u64::from_be_bytes(header[12..20].try_into().expect("fixed slice"));
+    let meta_len = u16::from_be_bytes(header[12..14].try_into().expect("fixed slice"));
+    let body_len = u64::from_be_bytes(header[14..22].try_into().expect("fixed slice"));
     if id_len == 0 {
         return Err("backfill body frame carries an empty record id".to_owned());
     }
-    if disposition != BackfillBodyDisposition::Present && body_len != 0 {
+    if disposition != BackfillBodyDisposition::Present && (body_len != 0 || meta_len != 0) {
         return Err(format!(
-            "backfill body frame with disposition byte {} carries a {body_len}-byte body",
+            "backfill body frame with disposition byte {} carries a body or manifest meta",
             header[1]
         ));
     }
-    if body_len > BACKFILL_BODIES_BATCH_BYTES {
+    if disposition == BackfillBodyDisposition::Present && meta_len == 0 {
+        return Err("backfill present frame is missing its manifest meta".to_owned());
+    }
+    if body_len > max_body_bytes {
         return Err(format!(
-            "backfill body frame length {body_len} exceeds the shared batch ceiling {BACKFILL_BODIES_BATCH_BYTES}"
+            "backfill body frame length {body_len} exceeds the ceiling {max_body_bytes}"
         ));
     }
 
@@ -807,17 +870,62 @@ where
         .map_err(|error| format!("failed to read backfill body frame record id: {error}"))?;
     let record_id = String::from_utf8(record_id)
         .map_err(|error| format!("invalid backfill body frame record id: {error}"))?;
-    let mut body = vec![0u8; body_len as usize];
+    let meta = if meta_len > 0 {
+        let mut meta = vec![0u8; meta_len as usize];
+        reader
+            .read_exact(&mut meta)
+            .await
+            .map_err(|error| format!("failed to read backfill body frame meta: {error}"))?;
+        Some(
+            serde_json::from_slice::<BackfillBodyManifestMeta>(&meta)
+                .map_err(|error| format!("invalid backfill body frame meta: {error}"))?,
+        )
+    } else {
+        None
+    };
+
+    Ok(Some(BackfillBodyFramePrelude {
+        kind,
+        disposition,
+        record_id,
+        version_ms,
+        meta,
+        body_len,
+    }))
+}
+
+/// Reads one whole frame — body buffered in memory — off a bodies response
+/// stream; `Ok(None)` on clean end of stream. Enforces the same
+/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`] ceiling the sender
+/// spools under, so a mismatched peer cannot make the receiver buffer more
+/// than the shared bound.
+// See BackfillBodyFrame: kept for codec and endpoint tests.
+#[allow(dead_code)]
+pub async fn read_backfill_body_frame<R>(
+    reader: &mut R,
+) -> Result<Option<BackfillBodyFrame>, String>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    use tokio::io::AsyncReadExt;
+
+    let Some(prelude) =
+        read_backfill_body_frame_prelude(reader, BACKFILL_BODIES_BATCH_BYTES).await?
+    else {
+        return Ok(None);
+    };
+    let mut body = vec![0u8; prelude.body_len as usize];
     reader
         .read_exact(&mut body)
         .await
         .map_err(|error| format!("failed to read backfill body frame body: {error}"))?;
 
     Ok(Some(BackfillBodyFrame {
-        kind,
-        disposition,
-        record_id,
-        version_ms,
+        kind: prelude.kind,
+        disposition: prelude.disposition,
+        record_id: prelude.record_id,
+        version_ms: prelude.version_ms,
+        meta: prelude.meta,
         body,
     }))
 }
@@ -2330,6 +2438,94 @@ async fn internal_bootstrap_artifact(
     }
 }
 
+/// The re-homed per-artifact backfill endpoint (R11's oversized path). Unlike
+/// the legacy raw-body `internal_bootstrap_artifact`, the response is a single
+/// bodies-stream frame: the requester needs the manifest meta to apply, and
+/// framing it with the same codec keeps one wire definition and the same
+/// resolved-with-the-body guarantee as the batch endpoint. A record that no
+/// longer resolves is a 404 (the requester's absent case).
+async fn internal_backfill_artifact(
+    AxumPath(artifact_id): AxumPath<String>,
+    State(state): State<SharedState>,
+) -> Response {
+    let manifest = match state
+        .store
+        .fetch_artifact_by_id_for_serving(&artifact_id)
+        .await
+    {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to load backfill artifact: {error}"),
+            );
+        }
+    };
+
+    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    let requested_bytes = stream_chunk_bytes.saturating_mul(4);
+    let permit = match state
+        .memory
+        .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
+    {
+        Ok(permit) => permit,
+        Err(_) => return response_stream_unavailable(),
+    };
+
+    match state
+        .store
+        .open_artifact_reader_range_tolerating_promotion(&manifest, 0, None)
+        .await
+    {
+        Ok(Some((manifest, reader))) => {
+            // Frame identity comes from the manifest the bytes were opened
+            // from, exactly like the batch endpoint.
+            let header = BackfillBodyManifestMeta::from_manifest(&manifest)
+                .to_wire_bytes()
+                .and_then(|meta| {
+                    encode_backfill_body_frame_header(
+                        backfill_record_kind(&manifest),
+                        BackfillBodyDisposition::Present,
+                        manifest_version_ms(&manifest),
+                        &manifest.artifact_id,
+                        &meta,
+                        manifest.size,
+                    )
+                });
+            let header = match header {
+                Ok(header) => header,
+                Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+            };
+            let content_length = (header.len() as u64).saturating_add(manifest.size);
+            let stream = futures_util::stream::once(async move {
+                Ok::<Bytes, std::io::Error>(Bytes::from(header))
+            })
+            .chain(ReaderStream::with_capacity(reader, stream_chunk_bytes));
+            let stream = throttle_body_stream(stream, state.replication_bandwidth_limiter.clone());
+            let mut response = Response::new(Body::from_stream(stream));
+            response.headers_mut().insert(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            );
+            if let Ok(value) = HeaderValue::from_str(&content_length.to_string()) {
+                response
+                    .headers_mut()
+                    .insert(axum::http::header::CONTENT_LENGTH, value);
+            }
+            attach_response_stream_permit(&mut response, permit);
+            response
+        }
+        // Bytes gone between manifest read and open (eviction or reclaim
+        // race): the requester resolves 404 as absent.
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => error_response(
+            StatusCode::NOT_FOUND,
+            format!("Artifact bytes are missing from local storage: {error}"),
+        ),
+    }
+}
+
 async fn internal_backfill_entries(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2604,6 +2800,7 @@ async fn spool_backfill_bodies(
                 BackfillBodyDisposition::Absent,
                 *requested_version_ms,
                 record_id,
+                &[],
                 0,
             )
         };
@@ -2626,22 +2823,29 @@ async fn spool_backfill_bodies(
                                     BackfillBodyDisposition::FetchIndividually,
                                     *requested_version_ms,
                                     record_id,
+                                    &[],
                                     0,
                                 ),
                                 None,
                             )
                         } else {
-                            // Version and kind come from the manifest the
-                            // bytes were actually opened from — current at
-                            // body-read time, never the requested tuple.
+                            // Version, kind, and manifest meta come from the
+                            // manifest the bytes were actually opened from —
+                            // current at body-read time, never the requested
+                            // tuple.
                             (
-                                encode_backfill_body_frame_header(
-                                    backfill_record_kind(&manifest),
-                                    BackfillBodyDisposition::Present,
-                                    manifest_version_ms(&manifest),
-                                    record_id,
-                                    size,
-                                ),
+                                BackfillBodyManifestMeta::from_manifest(&manifest)
+                                    .to_wire_bytes()
+                                    .and_then(|meta| {
+                                        encode_backfill_body_frame_header(
+                                            backfill_record_kind(&manifest),
+                                            BackfillBodyDisposition::Present,
+                                            manifest_version_ms(&manifest),
+                                            record_id,
+                                            &meta,
+                                            size,
+                                        )
+                                    }),
                                 Some((size, reader)),
                             )
                         }
@@ -4952,28 +5156,60 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn backfill_artifact_alias_serves_the_bootstrap_artifact_handler() {
+    async fn backfill_artifact_endpoint_frames_the_body_and_legacy_route_stays_raw() {
         let context = test_context(|_| {}).await;
         put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
         let record_id =
             artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
 
-        for route_prefix in [
-            "/_internal/backfill/artifacts",
-            "/_internal/bootstrap/artifacts",
-        ] {
-            let response = internal_router(context.state.clone())
-                .oneshot(
-                    Request::builder()
-                        .uri(format!("{route_prefix}/{record_id}"))
-                        .body(Body::empty())
-                        .expect("failed to build request"),
-                )
-                .await
-                .expect("request failed");
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response_bytes(response).await, b"artifact-body");
-        }
+        // The re-homed backfill route answers with a single frame carrying
+        // the manifest meta the requester's apply path needs.
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/backfill/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[0].kind, BackfillRecordKind::InlineArtifact);
+        assert_eq!(frames[0].record_id, record_id);
+        assert_eq!(frames[0].version_ms, 500);
+        assert_eq!(frames[0].body, b"artifact-body");
+        let meta = frames[0].meta.as_ref().expect("present frame carries meta");
+        assert_eq!(meta.producer, "xcode");
+        assert_eq!(meta.namespace_id, "ios");
+        assert_eq!(meta.key, "artifact");
+
+        // A missing record is a 404 (the requester's absent case).
+        let missing = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/backfill/artifacts/does-not-exist")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        // The legacy bootstrap route keeps serving the raw body for old peers.
+        let legacy = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/bootstrap/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(legacy.status(), StatusCode::OK);
+        assert_eq!(response_bytes(legacy).await, b"artifact-body");
     }
 
     #[tokio::test]
@@ -5001,11 +5237,20 @@ mod tests {
     #[tokio::test]
     async fn backfill_body_frame_codec_round_trips_and_rejects_malformed_streams() {
         let record_id = "abc123";
+        let meta = BackfillBodyManifestMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "artifact".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            branch: Some("feature".to_owned()),
+        };
+        let meta_bytes = meta.to_wire_bytes().expect("encode meta");
         let mut stream = encode_backfill_body_frame_header(
             BackfillRecordKind::SegmentArtifact,
             BackfillBodyDisposition::Present,
             1_234,
             record_id,
+            &meta_bytes,
             5,
         )
         .expect("encode present header");
@@ -5016,6 +5261,7 @@ mod tests {
                 BackfillBodyDisposition::Absent,
                 777,
                 record_id,
+                &[],
                 0,
             )
             .expect("encode absent header"),
@@ -5030,12 +5276,14 @@ mod tests {
         assert_eq!(first.disposition, BackfillBodyDisposition::Present);
         assert_eq!(first.record_id, record_id);
         assert_eq!(first.version_ms, 1_234);
+        assert_eq!(first.meta, Some(meta));
         assert_eq!(first.body, b"hello");
         let second = read_backfill_body_frame(&mut reader)
             .await
             .expect("decode second frame")
             .expect("second frame present");
         assert_eq!(second.disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(second.meta, None);
         assert!(second.body.is_empty());
         assert!(
             read_backfill_body_frame(&mut reader)
@@ -5056,6 +5304,7 @@ mod tests {
             BackfillBodyDisposition::Present,
             1,
             record_id,
+            &meta_bytes,
             BACKFILL_BODIES_BATCH_BYTES + 1,
         )
         .expect("encode oversized header");
@@ -5065,18 +5314,48 @@ mod tests {
             .expect_err("over-ceiling body length must be rejected");
         assert!(error.contains("ceiling"), "unexpected error: {error}");
 
+        // The per-artifact fetch path decodes the same frame under its own
+        // larger ceiling.
+        let mut reader = oversized.as_slice();
+        let prelude = read_backfill_body_frame_prelude(&mut reader, MAX_REPLICATION_BODY_BYTES)
+            .await
+            .expect("decode oversized prelude")
+            .expect("oversized prelude present");
+        assert_eq!(prelude.body_len, BACKFILL_BODIES_BATCH_BYTES + 1);
+        assert_eq!(
+            prelude.meta.as_ref().map(|meta| meta.key.as_str()),
+            Some("artifact")
+        );
+
         // Non-present frames must not carry bodies.
         let mut absent_with_body = encode_backfill_body_frame_header(
             BackfillRecordKind::InlineArtifact,
             BackfillBodyDisposition::Absent,
             1,
             record_id,
+            &[],
             3,
         )
         .expect("encode malformed header");
         absent_with_body.extend_from_slice(b"abc");
         let mut reader = absent_with_body.as_slice();
         assert!(read_backfill_body_frame(&mut reader).await.is_err());
+
+        // Present frames must carry the manifest meta the apply path needs.
+        let missing_meta = encode_backfill_body_frame_header(
+            BackfillRecordKind::InlineArtifact,
+            BackfillBodyDisposition::Present,
+            1,
+            record_id,
+            &[],
+            0,
+        )
+        .expect("encode meta-less present header");
+        let mut reader = missing_meta.as_slice();
+        let error = read_backfill_body_frame(&mut reader)
+            .await
+            .expect_err("a present frame without meta must be rejected");
+        assert!(error.contains("manifest meta"), "unexpected error: {error}");
     }
 
     #[tokio::test]

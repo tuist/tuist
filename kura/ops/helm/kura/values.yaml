@@ -144,6 +144,11 @@ config:
     # window's structural slack; 40 matches the "new" band under the 1:2:2
     # old/current/new ring ratio.
     marginPercent: 40
+    # Byte threshold a backfill pass composes one bodies batch against, and
+    # the cutoff above which a listed entry is fetched through the
+    # per-artifact endpoint. Must not exceed the compiled 32 MiB response
+    # ceiling shared by both sides of the bodies protocol.
+    batchBytes: 33554432
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from
     # the container's effective memory limit. Explicit values must remain below

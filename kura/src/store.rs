@@ -4640,6 +4640,62 @@ impl Store {
         Ok(manifest)
     }
 
+    /// Snapshot of the ring-fullness inputs of the marginal-trade capacity
+    /// test (`backfill::window::capacity_complete`). Re-read as a pass's
+    /// cursor descends: applies rotate segments, so the live count and the
+    /// next evictee move underneath a running pass.
+    pub(crate) fn backfill_capacity_inputs(&self) -> BackfillCapacityInputs {
+        let snapshot = self.segment_state_snapshot();
+        let state = &snapshot.state;
+        BackfillCapacityInputs {
+            segment_count: state.old.len() + state.current.len() + state.new.len(),
+            ring_total_segments: self.segment_ring_limits.total_segments(),
+            next_evictee_stat_ms: state
+                .next_evictee()
+                .map(SegmentReference::effective_max_version_ms),
+        }
+    }
+
+    /// The backfill presence pre-check: whether a listed tuple is already
+    /// covered locally, so listing it into the claim set (and fetching it)
+    /// would be wasted work. Mirrors [`Self::artifact_apply_outcome`]
+    /// semantics keyed by record id: covered = a local record whose effective
+    /// version is at or above the listed one, or a local state the apply
+    /// path would ignore anyway (blocking tombstone). An older local version
+    /// is NOT covered — it is fetched and LWW-refreshed (R10). Reads only
+    /// the manifest/tombstone row, like the apply-time check; eviction
+    /// deletes manifests in the same batch as the bytes, so manifest
+    /// presence tracks body presence.
+    pub(crate) fn backfill_locally_covered(
+        &self,
+        kind: BackfillRecordKind,
+        record_id: &str,
+        version_ms: u64,
+    ) -> Result<bool, String> {
+        if kind == BackfillRecordKind::NamespaceTombstone {
+            return Ok(self
+                .namespace_tombstone_version(record_id)?
+                .is_some_and(|local_version_ms| local_version_ms >= version_ms));
+        }
+        let Some(manifest) = self.manifest(record_id)? else {
+            return Ok(false);
+        };
+        if manifest_version_ms(&manifest) >= version_ms {
+            return Ok(true);
+        }
+        self.namespace_tombstone_blocks(&manifest.namespace_id, version_ms)
+    }
+
+    /// Test hook: replaces the segment ring state wholesale so tests can
+    /// fabricate ring-full shapes without writing gigabytes of segments.
+    #[cfg(test)]
+    pub(crate) async fn install_segment_state_for_testing(
+        &self,
+        state: SegmentState,
+    ) -> Result<(), String> {
+        self.mutate_segment_state(|current| *current = state).await
+    }
+
     fn retire_backfill_index_row(&self, key: Vec<u8>) -> Result<(), String> {
         let mut batch = WriteBatch::default();
         batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), key);
@@ -5884,6 +5940,15 @@ fn total_disk_bytes(_path: &Path) -> Option<u64> {
     None
 }
 
+/// Ring-fullness inputs of the backfill marginal-trade capacity test, read
+/// through [`Store::backfill_capacity_inputs`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BackfillCapacityInputs {
+    pub segment_count: usize,
+    pub ring_total_segments: usize,
+    pub next_evictee_stat_ms: Option<u64>,
+}
+
 /// Resolved generation counts for the CAS segment ring.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SegmentRingLimits {
@@ -6431,6 +6496,7 @@ mod tests {
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             backfill_margin_percent: 40,
+            backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
             analytics: None,
             usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),

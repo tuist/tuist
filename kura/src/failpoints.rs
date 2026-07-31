@@ -13,6 +13,7 @@ pub(crate) enum FailpointName {
     BeforeApplyReplicatedTombstone,
     AfterApplyReplicatedTombstone,
     AfterBackfillIndexBuildChunk,
+    AfterBackfillBodiesSpoolBeforeApply,
 }
 
 impl FailpointName {
@@ -37,6 +38,7 @@ impl FailpointName {
             Self::BeforeApplyReplicatedTombstone => "before_apply_replicated_tombstone",
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
             Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",
+            Self::AfterBackfillBodiesSpoolBeforeApply => "after_backfill_bodies_spool_before_apply",
         }
     }
 }

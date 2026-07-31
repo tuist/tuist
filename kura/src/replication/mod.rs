@@ -977,7 +977,10 @@ fn bootstrap_backpressure_retry_jitter_ms(attempt: u32, node_url: &str, artifact
     jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS
 }
 
-async fn stream_response_to_temp(
+// Shared with the backfill pass driver: batch and per-artifact downloads
+// inherit the same bandwidth shaping, staging-limit enforcement, and
+// memory-pressure cache dropping as bootstrap body fetches.
+pub(crate) async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
@@ -1178,7 +1181,7 @@ async fn fetch_bootstrap_tombstones_page(
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
 }
 
-async fn read_bounded_body(
+pub(crate) async fn read_bounded_body(
     response: reqwest::Response,
     max_bytes: u64,
     label: &str,
