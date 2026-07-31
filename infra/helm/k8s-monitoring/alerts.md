@@ -187,6 +187,45 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Control-plane desired and ready replica telemetry is missing`
 
+### Orphan Hetzner servers
+
+Servers with no owning CAPI `Machine`, from the `reconciliation-checks`
+CronJob (`infra/k8s/mgmt/reconciliation-checks.yaml`).
+
+```promql
+max by (cluster) (
+  capi_reconciliation_orphan_servers{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `{{ $value }} Hetzner server(s) have no owning CAPI Machine`
+
+### Cluster removed from git still live
+
+Live `Cluster` objects absent from git — the never-prune blind spot the
+Hetzner orphan check misses (their servers still have valid `Machine` owners).
+
+```promql
+max by (cluster) (
+  capi_reconciliation_stale_clusters{cluster="tuist-management"}
+) > 0
+```
+
+- Pending period: 15 minutes
+- Summary: `{{ $value }} live Cluster(s) are absent from git (stale)`
+
+### Reconciliation-check telemetry missing
+
+```promql
+absent_over_time(
+  capi_reconciliation_orphan_servers{cluster="tuist-management"}[30m]
+)
+```
+
+- Pending period: 0 minutes
+- Summary: `Orphan-server / stale-cluster reconciliation telemetry is missing (CronJob or Pushgateway down)`
+
 ### Node exporter coverage incomplete
 
 ```promql
