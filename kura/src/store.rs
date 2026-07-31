@@ -162,14 +162,14 @@ pub struct Store {
     promotion_queue: StdMutex<PromotionQueue>,
     promotion_notify: Notify,
     // Whether evicting a blob cascades to the action-cache entries referencing
-    // it. Operator-controlled; the cascade also requires the reverse map to be
-    // backfilled (see `action_cache_blob_refs_ready`).
+    // it. Operator-controlled (see `action_cache_cascade_active`).
     action_cache_eviction_cascade_enabled: bool,
     // Set once the one-time startup backfill has rebuilt the blob-refs reverse
-    // map from existing entries. The eviction cascade must not consult an
-    // incomplete map (it would miss referencers and under-cascade), so it stays
-    // inert until this flips true. Reverse-row maintenance on the write/delete
-    // paths runs regardless, so the map is live for entries written after start.
+    // map from the entries already on disk. This widens cascade coverage to
+    // entries that predate the reverse map; it does not gate the cascade, which
+    // runs against whatever rows exist. Reverse-row maintenance on the
+    // write/delete paths runs regardless, so the map is live for entries
+    // written after start.
     action_cache_blob_refs_ready: AtomicBool,
     failpoints: Arc<FailpointSet>,
 }
@@ -2194,9 +2194,9 @@ impl Store {
         let mut saw_entries = false;
         let mut removed_artifacts = BTreeMap::<ArtifactProducer, u64>::new();
         let mut removed_artifact_ids = Vec::new();
-        // The cascade is engaged only when operator-enabled and the reverse map
-        // has been backfilled; otherwise eviction behaves exactly as before and
-        // the serve-side presence gates remain the sole strand safety net.
+        // The cascade is engaged whenever the operator has it enabled. It acts on
+        // whatever reverse rows exist, so coverage grows as entries are written;
+        // the serve-side presence gates remain the safety net for the rest.
         let cascade_active = self.action_cache_cascade_active();
         let mut cascaded_entries = HashSet::new();
         let mut cascaded_namespaces = HashSet::new();
@@ -4031,17 +4031,27 @@ impl Store {
             .map_err(|error| format!("failed to read blob-refs backfill marker: {error}"))
     }
 
-    /// Whether the eviction cascade should run: operator-enabled AND the reverse
-    /// map has been backfilled on this node. Until both hold, eviction leaves
-    /// entries in place and the serve-side presence gates remain the safety net.
+    /// Whether the eviction cascade should run. Operator-controlled only: the
+    /// cascade is safe against an incomplete reverse map because it re-validates
+    /// every pair against the entry before removing it, so a missing row can
+    /// only under-cascade (the serve-side presence gates still cover those),
+    /// never remove a live entry.
+    ///
+    /// Deliberately NOT gated on the backfill having completed. The backfill
+    /// waits on background headroom (`app.rs`), and a warm serving node parks
+    /// clean page cache at the hard watermark as its steady state, so that gate
+    /// never opens in production: the cascade stayed inert across every eviction
+    /// sweep since it shipped. Waiting for full coverage bought nothing and cost
+    /// all of it. Rows for entries written since boot are maintained by the
+    /// write path regardless, so the cascade is useful from the first eviction.
     fn action_cache_cascade_active(&self) -> bool {
         self.action_cache_eviction_cascade_enabled
-            && self.action_cache_blob_refs_ready.load(Ordering::Acquire)
     }
 
     /// One-time startup migration: rebuild the blob-refs reverse map from the
-    /// action-cache entries already on disk, then arm the readiness flag so the
-    /// eviction cascade may consult it. Idempotent: a marker in the key-value CF
+    /// action-cache entries already on disk, so the eviction cascade also covers
+    /// entries that predate the reverse map. The cascade does not wait on this;
+    /// it runs against whatever rows exist. Idempotent: a marker in the key-value CF
     /// records completion, so a restart after a completed backfill only reads the
     /// marker and arms the flag. A crash mid-backfill safely repeats: the rows
     /// are blind puts (re-adding an existing pair is a no-op) and the marker is
@@ -8236,7 +8246,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn backfill_reconstructs_blob_refs_and_arms_the_cascade() {
+    async fn backfill_reconstructs_blob_refs_for_entries_predating_the_map() {
         let (_temp_dir, _config, store) = temp_store();
         let digest = reapi_digest(0xaa, 5);
         let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
@@ -8260,7 +8270,9 @@ mod tests {
         }
         store.db.write(wipe).expect("failed to wipe blob refs");
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
-        assert!(!store.action_cache_cascade_active());
+        // The cascade is live throughout: it never waited on the backfill, it
+        // just had no row for this pre-existing entry to act on.
+        assert!(store.action_cache_cascade_active());
 
         store
             .backfill_action_cache_blob_refs()
@@ -8302,7 +8314,7 @@ mod tests {
                 .is_some(),
             "an interrupted migration must leave a cursor for the next start"
         );
-        assert!(!store.action_cache_cascade_active());
+        assert!(store.action_cache_cascade_active());
 
         loop {
             let step = store
@@ -8359,6 +8371,46 @@ mod tests {
                 .expect("failed to load entry manifest")
                 .is_none(),
             "the entry stranded by the evicted blob should be cascaded away"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn cascade_runs_without_the_backfill_having_completed() {
+        // Production regression: the cascade used to wait on the one-time
+        // blob-refs backfill, which waits on background headroom, which a warm
+        // node at the page-cache watermark never grants. The cascade stayed
+        // inert across every eviction sweep and stranded entries kept being
+        // served, failing builds with `missing object`. Entries written since
+        // boot get their rows from the write path, so no backfill is required.
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        let segment_id = blob
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry stranded by the evicted blob should be cascaded away \
+             without any backfill having run"
         );
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
     }
@@ -8425,8 +8477,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn eviction_does_not_cascade_when_the_reverse_map_is_not_ready() {
-        let (_temp_dir, _config, store) = temp_store();
+    async fn eviction_does_not_cascade_when_the_operator_disables_it() {
+        // The operator flag is the only gate left, so it is the only way to get
+        // the pre-cascade behaviour back if this ever needs turning off in
+        // production. Eviction must then leave the entry for the serve-side
+        // presence gates to handle, exactly as before the cascade shipped.
+        let (_temp_dir, _config, store) =
+            temp_store_with(|config| config.action_cache_eviction_cascade_enabled = false);
         let digest = reapi_digest(0xaa, 5);
         let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
         let entry = persist_action_cache_entry(
@@ -8437,9 +8494,10 @@ mod tests {
             1,
         )
         .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
 
-        // No backfill: the cascade must stay inert (readiness gate), leaving the
-        // entry for the serve-side presence gates to handle.
         assert!(!store.action_cache_cascade_active());
         let segment_id = blob.segment_id.clone().expect("segment-backed");
         store
@@ -8452,7 +8510,7 @@ mod tests {
                 .manifest(&entry.artifact_id)
                 .expect("failed to load entry manifest")
                 .is_some(),
-            "with the cascade inactive the entry must remain in place"
+            "with the cascade disabled the entry must remain in place"
         );
     }
 
