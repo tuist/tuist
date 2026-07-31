@@ -233,6 +233,11 @@ defmodule TuistWeb.API.ShardsController do
         required: true,
         description: "The shard plan reference."
       ],
+      shard_plan_id: [
+        in: :query,
+        schema: %Schema{type: :string, format: :uuid},
+        description: "The exact shard plan identifier. When present, it takes precedence over the reference."
+      ],
       shard_index: [
         in: :path,
         type: :integer,
@@ -242,6 +247,7 @@ defmodule TuistWeb.API.ShardsController do
     ],
     responses: %{
       ok: {"The shard", "application/json", Shard},
+      bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
       not_found: {"The session or shard was not found", "application/json", Error}
@@ -251,19 +257,37 @@ defmodule TuistWeb.API.ShardsController do
   def show(
         %{
           assigns: %{selected_project: selected_project},
-          path_params: %{"reference" => reference, "shard_index" => shard_index}
+          path_params: %{"reference" => reference, "shard_index" => shard_index},
+          query_params: query_params
         } = conn,
         _params
       ) do
     shard_index = if is_binary(shard_index), do: String.to_integer(shard_index), else: shard_index
 
-    case Shards.get_shard(
-           selected_project,
-           selected_project.account,
-           reference,
-           shard_index,
-           suite_catch_all?: suite_catch_all_supported?(conn)
-         ) do
+    opts = [suite_catch_all?: suite_catch_all_supported?(conn)]
+
+    result =
+      case Map.get(query_params, "shard_plan_id") do
+        plan_id when is_binary(plan_id) and plan_id != "" ->
+          Shards.get_shard_for_plan_id(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            shard_index,
+            opts
+          )
+
+        _ ->
+          Shards.get_shard(
+            selected_project,
+            selected_project.account,
+            reference,
+            shard_index,
+            opts
+          )
+      end
+
+    case result do
       {:ok, result} ->
         json(conn, %{
           shard_plan_id: result.shard_plan_id,

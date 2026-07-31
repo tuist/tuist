@@ -409,7 +409,7 @@ impl ReapiService {
                     hasher.update(data);
                     written = written.saturating_add(data.len() as u64);
                     if file_cache_policy.should_drop(
-                        self.state.memory.pressure(),
+                        self.state.memory.should_reclaim_file_cache(),
                         self.state.memory.transient_reserved_bytes(),
                     ) && written.saturating_sub(advised_through)
                         >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
@@ -852,20 +852,22 @@ impl ReapiService {
             namespace_id = namespace.as_str(),
             "action-cache snapshot index build started"
         );
+        // Sustained memory pressure denies the expensive reconcile (manifest
+        // scan + action-result load) as background work, but the presence gate
+        // is correctness: a frozen index keeps advertising blobs that CAS
+        // eviction removes, and the build it gates dies on the first missing
+        // object. Run a gate-only pass over the existing index so the served
+        // view stays honest while the load is deferred — this is also how a
+        // frozen index recovers after a long pressure window.
         if !state.memory.allow_background_admission() {
-            tracing::warn!(
-                namespace_id = namespace.as_str(),
-                pressure = state.memory.pressure().as_str(),
-                "action-cache snapshot build skipped under memory pressure"
-            );
-            state
-                .metrics
-                .record_memory_action("snapshot_build_pressure_skipped");
-            return Err("declined under memory pressure".to_owned());
+            return Self::run_snapshot_pressure_gate(cache, state, namespace, cache_key, trigger)
+                .await;
         }
         let _build_guard = cache.build_lock.lock().await;
         if !state.memory.allow_background_admission() {
-            return Err("declined under memory pressure".to_owned());
+            drop(_build_guard);
+            return Self::run_snapshot_pressure_gate(cache, state, namespace, cache_key, trigger)
+                .await;
         }
         let index_max_bytes = cache.index_max_bytes();
         // A build's transient memory rides the response-materialization
@@ -946,35 +948,73 @@ impl ReapiService {
         if trigger == IndexBuildTrigger::Serve {
             index.last_used = Instant::now();
         }
-        if !state.memory.allow_background_admission() {
-            cache.trim_to(
-                state.memory.snapshot_cache_target_bytes(cache.max_bytes),
-                state.memory.pressure().as_str(),
-                &state.metrics,
-            );
-            return Err("snapshot build completed under memory pressure and was discarded".into());
-        }
-        {
-            let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
-            indexes.insert(cache_key.clone(), index);
-            while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
-                let oldest = indexes
-                    .iter()
-                    .min_by_key(|(_, index)| index.last_used)
-                    .map(|(namespace, _)| namespace.clone());
-                let Some(oldest) = oldest else { break };
-                indexes.remove(&oldest);
-                // Drop the evicted namespace's cached full view too, so
-                // `served_full` stays bounded alongside `indexes`.
-                cache
-                    .served_full
-                    .lock()
-                    .expect("snapshot served_full lock poisoned")
-                    .remove(&oldest);
-            }
-        }
+        // The reconcile always presence-gates (it breaks out of the load under
+        // pressure rather than skipping the gate), so the index is honest and
+        // must be reinserted. Discarding it under pressure froze the served
+        // view: serves then fell back to a stale `served_full` that advertised
+        // blobs CAS eviction had since removed. The load only ran because
+        // pressure was Normal when the build started, so the index is already
+        // bounded by its build budget; the trim below keeps the cache in limit.
+        Self::reinsert_index(&cache, cache_key.clone(), index);
         cache.trim_to(cache.max_bytes, "capacity", &state.metrics);
         result
+    }
+
+    /// Reinserts a reconciled index under the namespace-count bound, evicting
+    /// the least-recently-used namespace (and its cached full view) when full.
+    fn reinsert_index(cache: &SnapshotCache, cache_key: String, index: NamespaceSnapshotIndex) {
+        let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
+        indexes.insert(cache_key, index);
+        while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+            let oldest = indexes
+                .iter()
+                .min_by_key(|(_, index)| index.last_used)
+                .map(|(namespace, _)| namespace.clone());
+            let Some(oldest) = oldest else { break };
+            indexes.remove(&oldest);
+            // Drop the evicted namespace's cached full view too, so
+            // `served_full` stays bounded alongside `indexes`.
+            cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned")
+                .remove(&oldest);
+        }
+    }
+
+    /// Pressure-only build: presence-gates the existing index without the
+    /// manifest scan or action-result load (the background work pressure
+    /// denies). The gate is what stops a served snapshot from advertising a
+    /// blob CAS eviction has removed, so it runs regardless of pressure; the
+    /// bounded index is reinserted (not discarded) so serves keep an honest
+    /// view instead of falling back to a stale `served_full`.
+    async fn run_snapshot_pressure_gate(
+        cache: std::sync::Arc<SnapshotCache>,
+        state: SharedState,
+        namespace: String,
+        cache_key: String,
+        trigger: IndexBuildTrigger,
+    ) -> Result<(), String> {
+        let _build_guard = cache.build_lock.lock().await;
+        let generation = state.store.action_cache_generation(&namespace);
+        let index = cache
+            .indexes
+            .lock()
+            .expect("snapshot cache lock poisoned")
+            .remove(&cache_key)
+            .unwrap_or_else(NamespaceSnapshotIndex::new);
+        let mut index = gate_snapshot_index(&state, &namespace, index).await;
+        index.reconciled_at = Instant::now();
+        index.built_at_generation = generation;
+        if trigger == IndexBuildTrigger::Serve {
+            index.last_used = Instant::now();
+        }
+        Self::reinsert_index(&cache, cache_key, index);
+        state
+            .metrics
+            .record_memory_action("snapshot_build_pressure_gated");
+        cache.trim_to(cache.max_bytes, "capacity", &state.metrics);
+        Ok(())
     }
 }
 
@@ -3846,6 +3886,257 @@ mod tests {
             }
         };
         assert!(admitted.entries.contains_key(&action_hash));
+    }
+
+    #[tokio::test]
+    async fn snapshot_presence_gate_runs_even_when_the_load_is_interrupted_by_pressure() {
+        let context = test_context(|_| {}).await;
+        let blob_hash_a = [0x11u8; 32];
+        let blob_key_a = blob_key(&format!("{}/7", hex::encode(blob_hash_a)));
+        let action_hash_a = [0x42u8; 32];
+        let action_key_a = format!("action_cache/{}/10", hex::encode(action_hash_a));
+        let action_result_a = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xAA]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash_a),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (key, bytes) in [
+            (&blob_key_a, b"payload".to_vec()),
+            (&action_key_a, action_result_a),
+        ] {
+            context
+                .state
+                .store
+                .persist_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    if bytes == b"payload" {
+                        "application/octet-stream"
+                    } else {
+                        "application/x-protobuf"
+                    },
+                    &bytes,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+
+        let budgets = SnapshotBuildBudgets {
+            metadata_bytes: 1024 * 1024,
+            index_bytes: 1024 * 1024,
+            encoded_bytes: 1024 * 1024,
+            decoded_bytes: 1024 * 1024,
+        };
+        let index = match reconcile_snapshot_index(
+            &context.state,
+            "ios",
+            None,
+            NamespaceSnapshotIndex::new(),
+            budgets,
+        )
+        .await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("initial reconcile should load entry a: {error}"),
+        };
+        assert!(
+            index.entries.contains_key(&action_hash_a),
+            "entry a loads while its blob exists"
+        );
+
+        // Evict blob a (CAS eviction outlives the action-cache entry), pin the
+        // node to critical pressure, and publish a fresh entry so the reconcile
+        // has a load to do. The old code returned early from the load on
+        // pressure before reaching the presence gate, so entry a stayed
+        // advertised and the snapshot served a missing object.
+        let blob_manifest_a = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &blob_key_a)
+            .expect("manifest lookup")
+            .expect("blob a present");
+        context
+            .state
+            .store
+            .delete_artifact_metadata(&[blob_manifest_a])
+            .expect("blob a eviction");
+        context
+            .state
+            .memory
+            .observe(context.state.config.memory_hard_limit_bytes);
+
+        let blob_hash_b = [0x22u8; 32];
+        let blob_key_b = blob_key(&format!("{}/8", hex::encode(blob_hash_b)));
+        let action_hash_b = [0x43u8; 32];
+        let action_key_b = format!("action_cache/{}/11", hex::encode(action_hash_b));
+        let action_result_b = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xBB]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash_b),
+                    size_bytes: 8,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (key, bytes) in [
+            (&blob_key_b, b"payload-b".to_vec()),
+            (&action_key_b, action_result_b),
+        ] {
+            context
+                .state
+                .store
+                .persist_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    if bytes == b"payload-b" {
+                        "application/octet-stream"
+                    } else {
+                        "application/x-protobuf"
+                    },
+                    &bytes,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+
+        let index =
+            match reconcile_snapshot_index(&context.state, "ios", None, index, budgets).await {
+                Ok(index) => index,
+                // An interrupted reconcile now still presence-gates: it breaks
+                // out of the load, not out of the gate.
+                Err((_, error)) => {
+                    panic!("pressure-interrupted reconcile should still gate: {error}")
+                }
+            };
+        assert!(
+            !index.entries.contains_key(&action_hash_a),
+            "the evicted-blob entry is gated out despite the pressure interruption"
+        );
+        assert!(
+            index.entries.contains_key(&action_hash_b),
+            "the fresh entry loaded before the interruption is retained"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_index_build_presence_gates_under_sustained_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let blob_hash = [0x11u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        let action_hash = [0x42u8; 32];
+        let action_key = format!("action_cache/{}/10", hex::encode(action_hash));
+        let action_result = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xAA]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (key, bytes) in [
+            (&blob_key_name, b"payload".to_vec()),
+            (&action_key, action_result),
+        ] {
+            context
+                .state
+                .store
+                .persist_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    if bytes == b"payload" {
+                        "application/octet-stream"
+                    } else {
+                        "application/x-protobuf"
+                    },
+                    &bytes,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+
+        // Build the index under normal pressure so the entry is cached.
+        let _ = service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("initial serve builds the index");
+        assert!(
+            service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .get("ios")
+                .unwrap()
+                .entries
+                .contains_key(&action_hash),
+            "the entry is cached before eviction"
+        );
+
+        // Evict the blob, then pin the node to critical pressure. Under
+        // sustained pressure the full reconcile (scan + load) is denied as
+        // background work; without the gate-only pass the cached index would
+        // freeze stale and keep advertising the evicted blob.
+        let blob_manifest = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &blob_key_name)
+            .expect("manifest lookup")
+            .expect("blob present");
+        context
+            .state
+            .store
+            .delete_artifact_metadata(&[blob_manifest])
+            .expect("blob eviction");
+        context
+            .state
+            .memory
+            .observe(context.state.config.memory_hard_limit_bytes);
+
+        ReapiService::run_index_build(
+            service.snapshot_cache.clone(),
+            context.state.clone(),
+            "ios".to_owned(),
+            None,
+            "ios".to_owned(),
+            IndexBuildTrigger::Serve,
+        )
+        .await
+        .expect("pressure build gates the index");
+
+        let entry_still_advertised = service
+            .snapshot_cache
+            .indexes
+            .lock()
+            .unwrap()
+            .get("ios")
+            .expect("the gated index is reinserted, not discarded")
+            .entries
+            .contains_key(&action_hash);
+        assert!(
+            !entry_still_advertised,
+            "the evicted-blob entry is gated out under sustained pressure"
+        );
     }
 
     #[tokio::test]

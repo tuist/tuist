@@ -11,6 +11,7 @@ import TuistEnvironment
 import TuistExtension
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistServer
 import TuistSupport
@@ -48,6 +49,8 @@ import XcodeGraph
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
         private let cacheStorageFactory: CacheStorageFactorying
+        private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
+        private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
 
         public init() {
             let contentHasher = ContentHasher()
@@ -62,7 +65,9 @@ import XcodeGraph
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
                 cacheStorageFactory: Extension.cacheStorageFactory,
-                configLoader: ConfigLoader()
+                configLoader: ConfigLoader(),
+                scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparer(),
+                foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidator()
             )
         }
 
@@ -77,7 +82,9 @@ import XcodeGraph
             contentHasher: ContentHashing,
             cacheGraphContentHasher: CacheGraphContentHashing,
             cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
-            configLoader: ConfigLoading = ConfigLoader()
+            configLoader: ConfigLoading = ConfigLoader(),
+            scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
+            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -92,6 +99,8 @@ import XcodeGraph
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
             self.cacheStorageFactory = cacheStorageFactory
+            self.scratchDirectoryPreparer = scratchDirectoryPreparer
+            self.foreignBuildOutputValidator = foreignBuildOutputValidator
         }
 
         // swiftlint:disable:next function_body_length
@@ -102,9 +111,17 @@ import XcodeGraph
             externalOnly: Bool,
             generateOnly: Bool,
             noUpload: Bool,
-            cacheProfile: String?
+            cacheProfile: String?,
+            scratchDirectory: String?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let scratchDirectoryPath: AbsolutePath?
+            if let scratchDirectory {
+                scratchDirectoryPath = try await Environment.current.pathRelativeToWorkingDirectory(scratchDirectory)
+            } else {
+                scratchDirectoryPath = nil
+            }
+            let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
@@ -162,6 +179,11 @@ import XcodeGraph
                 cacheStorage: cacheStorage
             )
 
+            try foreignBuildOutputValidator.validate(
+                targets: cacheableTargets.map(\.0),
+                scratchDirectory: scratchDirectoryMode
+            )
+
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
@@ -201,7 +223,8 @@ import XcodeGraph
                 hashesByTargetToBeCached: cacheableTargets,
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                 noUpload: noUpload,
-                isReleaseConfiguration: isReleaseConfiguration
+                isReleaseConfiguration: isReleaseConfiguration,
+                scratchDirectory: scratchDirectoryMode
             )
 
             Logger.current.info(
@@ -229,7 +252,6 @@ import XcodeGraph
             )
         }
 
-        // swiftlint:disable:next function_body_length
         private func archive(
             _ graph: Graph,
             projectPath: AbsolutePath,
@@ -237,7 +259,48 @@ import XcodeGraph
             hashesByTargetToBeCached: [(GraphTarget, String)],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
-            isReleaseConfiguration: Bool
+            isReleaseConfiguration: Bool,
+            scratchDirectory: CacheWarmScratchDirectory
+        ) async throws {
+            switch scratchDirectory {
+            case .temporary:
+                let compilationCacheCASArgument = try await compilationCacheCASArgument(scratchDirectory: nil)
+                try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
+                    try await archive(
+                        graph,
+                        projectPath: projectPath,
+                        configuration: configuration,
+                        hashesByTargetToBeCached: hashesByTargetToBeCached,
+                        cacheStorage: cacheStorage,
+                        isReleaseConfiguration: isReleaseConfiguration,
+                        in: temporaryDirectory,
+                        compilationCacheCASArgument: compilationCacheCASArgument
+                    )
+                }
+            case let .callerOwned(path):
+                try await archive(
+                    graph,
+                    projectPath: projectPath,
+                    configuration: configuration,
+                    hashesByTargetToBeCached: hashesByTargetToBeCached,
+                    cacheStorage: cacheStorage,
+                    isReleaseConfiguration: isReleaseConfiguration,
+                    in: path,
+                    compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
+                )
+            }
+        }
+
+        // swiftlint:disable:next function_body_length
+        private func archive(
+            _ graph: Graph,
+            projectPath: AbsolutePath,
+            configuration: String,
+            hashesByTargetToBeCached: [(GraphTarget, String)],
+            cacheStorage: CacheStoring,
+            isReleaseConfiguration: Bool,
+            in scratchDirectory: AbsolutePath,
+            compilationCacheCASArgument: XcodeBuildArgument
         ) async throws {
             let binariesSchemes = graph.workspace.schemes
                 .filter { $0.name.contains("Binaries-Cache") && $0.name != "Binaries-Cache-Catalyst" }
@@ -257,101 +320,103 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
-            try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
-                var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
+            var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
+            let derivedDataPath = scratchDirectory.appending(component: "derived-data")
+            try await fileSystem.makeDirectory(at: derivedDataPath)
 
-                let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+            let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
-                try await fileSystem.makeDirectory(at: derivedDataPath)
-
-                let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
-
-                var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
-                for (scheme, _) in binariesSchemes {
-                    try await buildBinarySchemes(
-                        scheme,
-                        configuration: configuration,
-                        xcodebuildTarget: xcodebuildTarget,
-                        graph: graph,
-                        binaryArtifactDirectories: &binaryArtifactDirectories,
-                        temporaryDirectory: temporaryDirectory,
-                        derivedDataPath: derivedDataPath,
-                        isReleaseConfiguration: isReleaseConfiguration
-                    )
-                }
-
-                if let catalystScheme {
-                    try await buildCatalystScheme(
-                        catalystScheme,
-                        configuration: configuration,
-                        xcodebuildTarget: xcodebuildTarget,
-                        binaryArtifactDirectories: &binaryArtifactDirectories,
-                        temporaryDirectory: temporaryDirectory,
-                        derivedDataPath: derivedDataPath,
-                        isReleaseConfiguration: isReleaseConfiguration
-                    )
-                }
-
-                for (scheme, _) in bundlesSchemes {
-                    artifactsToStore.append(contentsOf: try await buildBundles(
-                        scheme,
-                        configuration: configuration,
-                        xcodebuildTarget: xcodebuildTarget,
-                        derivedDataPath: derivedDataPath,
-                        cacheableTargets: hashesByTargetToBeCached
-                    ))
-                }
-
-                for (scheme, _) in macroSchemes {
-                    artifactsToStore.append(contentsOf: try await buildMacros(
-                        scheme,
-                        configuration: configuration,
-                        xcodebuildTarget: xcodebuildTarget,
-                        derivedDataPath: derivedDataPath,
-                        cacheableTargets: hashesByTargetToBeCached,
-                        temporaryDirectory: temporaryDirectory
-                    ))
-                }
-
-                Logger.current.info("Creating XCFrameworks", metadata: .section)
-                artifactsToStore.append(contentsOf: try await buildXCFrameworks(
-                    cacheableTargets: hashesByTargetToBeCached,
-                    binaryArtifactDirectories: binaryArtifactDirectories,
-                    temporaryDirectory: temporaryDirectory
-                ))
-
-                artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
-                    cacheableTargets: hashesByTargetToBeCached,
-                    temporaryDirectory: temporaryDirectory
-                ))
-
-                Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
-
-                let successfullyStoredTargets = try await store(
-                    artifactsToStore,
-                    cacheStorage: cacheStorage,
-                    temporaryDirectory: temporaryDirectory
+            var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
+            for (scheme, _) in binariesSchemes {
+                try await buildBinarySchemes(
+                    scheme,
+                    configuration: configuration,
+                    xcodebuildTarget: xcodebuildTarget,
+                    graph: graph,
+                    binaryArtifactDirectories: &binaryArtifactDirectories,
+                    scratchDirectory: scratchDirectory,
+                    derivedDataPath: derivedDataPath,
+                    isReleaseConfiguration: isReleaseConfiguration,
+                    compilationCacheCASArgument: compilationCacheCASArgument
                 )
+            }
 
-                let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
-                if successfullyStoredTargets.isEmpty {
-                    Logger.current.info("No targets were stored")
-                } else if successfullyStoredTargets.count == 1 {
-                    Logger.current.info("\(successfullyStoredTargets.count) target stored: \(targetsStored)")
-                } else {
-                    Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
-                }
+            if let catalystScheme {
+                try await buildCatalystScheme(
+                    catalystScheme,
+                    configuration: configuration,
+                    xcodebuildTarget: xcodebuildTarget,
+                    binaryArtifactDirectories: &binaryArtifactDirectories,
+                    scratchDirectory: scratchDirectory,
+                    derivedDataPath: derivedDataPath,
+                    isReleaseConfiguration: isReleaseConfiguration,
+                    compilationCacheCASArgument: compilationCacheCASArgument
+                )
+            }
+
+            for (scheme, _) in bundlesSchemes {
+                artifactsToStore.append(contentsOf: try await buildBundles(
+                    scheme,
+                    configuration: configuration,
+                    xcodebuildTarget: xcodebuildTarget,
+                    derivedDataPath: derivedDataPath,
+                    cacheableTargets: hashesByTargetToBeCached,
+                    compilationCacheCASArgument: compilationCacheCASArgument
+                ))
+            }
+
+            for (scheme, _) in macroSchemes {
+                artifactsToStore.append(contentsOf: try await buildMacros(
+                    scheme,
+                    configuration: configuration,
+                    xcodebuildTarget: xcodebuildTarget,
+                    derivedDataPath: derivedDataPath,
+                    cacheableTargets: hashesByTargetToBeCached,
+                    scratchDirectory: scratchDirectory,
+                    compilationCacheCASArgument: compilationCacheCASArgument
+                ))
+            }
+
+            Logger.current.info("Creating XCFrameworks", metadata: .section)
+            artifactsToStore.append(contentsOf: try await buildXCFrameworks(
+                cacheableTargets: hashesByTargetToBeCached,
+                binaryArtifactDirectories: binaryArtifactDirectories,
+                scratchDirectory: scratchDirectory
+            ))
+
+            artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
+                cacheableTargets: hashesByTargetToBeCached,
+                scratchDirectory: scratchDirectory
+            ))
+
+            Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
+
+            let successfullyStoredTargets = try await store(
+                artifactsToStore,
+                cacheStorage: cacheStorage,
+                scratchDirectory: scratchDirectory
+            )
+
+            let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
+            if successfullyStoredTargets.isEmpty {
+                Logger.current.info("No targets were stored")
+            } else if successfullyStoredTargets.count == 1 {
+                Logger.current.info("\(successfullyStoredTargets.count) target stored: \(targetsStored)")
+            } else {
+                Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
             }
         }
 
-        /// Pins Xcode's compilation cache (CAS) to the machine's shared DerivedData instead of letting it
-        /// follow `-derivedDataPath` into this command's throwaway build directory. The plugin's spool
-        /// there is drained asynchronously by the machine-wide CAS proxy and must outlive the build, so
-        /// keeping it at the default location avoids racing the directory's teardown and warms the same
-        /// store regular Xcode builds read.
-        private func compilationCacheCASArgument() async throws -> XcodeBuildArgument {
-            let casPath = try await Environment.current.derivedDataDirectory()
-                .appending(component: "CompilationCache.noindex")
+        /// A caller-owned directory keeps the compilation cache inside the requested boundary and outlives
+        /// the build. The temporary mode uses the machine's shared directory so asynchronous uploads do not
+        /// race the temporary directory's removal.
+        private func compilationCacheCASArgument(scratchDirectory: AbsolutePath?) async throws -> XcodeBuildArgument {
+            let casPath = if let scratchDirectory {
+                scratchDirectory.appending(component: "CompilationCache.noindex")
+            } else {
+                try await Environment.current.derivedDataDirectory()
+                    .appending(component: "CompilationCache.noindex")
+            }
             return .xcarg("COMPILATION_CACHE_CAS_PATH", casPath.pathString)
         }
 
@@ -381,7 +446,8 @@ import XcodeGraph
             xcodebuildTarget: XcodeBuildTarget,
             derivedDataPath: AbsolutePath,
             cacheableTargets: [(GraphTarget, String)],
-            temporaryDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath,
+            compilationCacheCASArgument: XcodeBuildArgument
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             Logger.current.notice("Building scheme \(scheme.name)", metadata: .subsection)
             let arguments: [XcodeBuildArgument] = [
@@ -393,7 +459,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
-                try await compilationCacheCASArgument(),
+                compilationCacheCASArgument,
             ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -420,7 +486,7 @@ import XcodeGraph
                 ])
                 guard try await fileSystem.exists(macroPath) else { continue }
                 // This will help us identify in the storage whether an executable represents or not a macro.
-                let macroWithExtension = temporaryDirectory.appending(component: "\(macroPath.basename).macro")
+                let macroWithExtension = scratchDirectory.appending(component: "\(macroPath.basename).macro")
                 try await fileSystem.copy(macroPath, to: macroWithExtension)
                 macrosToStore.append(CacheGraphTargetBuiltArtifact(
                     type: .macro,
@@ -439,7 +505,8 @@ import XcodeGraph
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
             derivedDataPath: AbsolutePath,
-            cacheableTargets: [(GraphTarget, String)]
+            cacheableTargets: [(GraphTarget, String)],
+            compilationCacheCASArgument: XcodeBuildArgument
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             var bundlesToStore: [CacheGraphTargetBuiltArtifact] = []
 
@@ -456,7 +523,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
-                try await compilationCacheCASArgument(),
+                compilationCacheCASArgument,
             ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
@@ -520,7 +587,7 @@ import XcodeGraph
         private func buildXCFrameworks(
             cacheableTargets: [(GraphTarget, String)],
             binaryArtifactDirectories: [Platform: Set<AbsolutePath>],
-            temporaryDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let cacheableTargets = cacheableTargets.filter {
                 $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
@@ -548,7 +615,7 @@ import XcodeGraph
                     return (artifactPath: artifactPath, publicHeadersPath: publicHeadersPath)
                 }
 
-                let xcframeworkPath = temporaryDirectory.appending(components: [
+                let xcframeworkPath = scratchDirectory.appending(components: [
                     "xcframeworks",
                     "\(cacheableTarget.0.target.name).xcframework",
                 ])
@@ -638,7 +705,7 @@ import XcodeGraph
 
         private func collectForeignBuildArtifacts(
             cacheableTargets: [(GraphTarget, String)],
-            temporaryDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let foreignBuildTargets = cacheableTargets.filter { $0.0.target.foreignBuild != nil }
             guard !foreignBuildTargets.isEmpty else { return [] }
@@ -655,7 +722,7 @@ import XcodeGraph
                     continue
                 }
 
-                let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
+                let destinationPath = scratchDirectory.appending(component: outputPath.basename)
                 try await fileSystem.copy(outputPath, to: destinationPath)
 
                 artifacts.append(CacheGraphTargetBuiltArtifact(
@@ -677,12 +744,13 @@ import XcodeGraph
             xcodebuildTarget: XcodeBuildTarget,
             graph _: Graph,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
-            temporaryDirectory: AbsolutePath,
+            scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
-            isReleaseConfiguration: Bool
+            isReleaseConfiguration: Bool,
+            compilationCacheCASArgument: XcodeBuildArgument
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
-            let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
+            let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
 
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
@@ -713,7 +781,7 @@ import XcodeGraph
                         .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
-                        try await compilationCacheCASArgument(),
+                        compilationCacheCASArgument,
                         // To prevent the rejection when publishing on the App Store
                         // https://developer.apple.com/library/archive/qa/qa1964/_index.html
                     ] + (isReleaseConfiguration ? [
@@ -760,7 +828,7 @@ import XcodeGraph
                 .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
-                try await compilationCacheCASArgument(),
+                compilationCacheCASArgument,
                 // To prevent the rejection when publishing on the App Store
                 // https://developer.apple.com/library/archive/qa/qa1964/_index.html
             ] + (isReleaseConfiguration ? [
@@ -810,11 +878,12 @@ import XcodeGraph
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
-            temporaryDirectory: AbsolutePath,
+            scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
-            isReleaseConfiguration: Bool
+            isReleaseConfiguration: Bool,
+            compilationCacheCASArgument: XcodeBuildArgument
         ) async throws {
-            let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
+            let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "iOS"])
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
@@ -843,7 +912,7 @@ import XcodeGraph
                     .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
-                    try await compilationCacheCASArgument(),
+                    compilationCacheCASArgument,
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
@@ -889,15 +958,15 @@ import XcodeGraph
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             cacheStorage: CacheStoring,
-            temporaryDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
-            try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "Metadatas"))
+            try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Metadatas"))
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
                         acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
                     }.concurrentMap { storableTarget, paths in
-                        let metadataFilePath = temporaryDirectory.appending(
+                        let metadataFilePath = scratchDirectory.appending(
                             components: "Metadatas",
                             "\(storableTarget.name)-\(storableTarget.hash)",
                             "Metadata.plist"

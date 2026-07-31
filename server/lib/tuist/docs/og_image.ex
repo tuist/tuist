@@ -5,6 +5,8 @@ defmodule Tuist.Docs.OgImage do
   """
   use Phoenix.Component
 
+  alias Phoenix.HTML.Safe
+
   @max_title_length 60
   @max_description_length 120
 
@@ -173,13 +175,7 @@ defmodule Tuist.Docs.OgImage do
     }
 
     "<!DOCTYPE html>" <>
-      (assigns |> card() |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary())
-  end
-
-  def slug_to_filename(slug) do
-    [locale | rest] = String.split(slug, "/", trim: true)
-    page_path = rest |> Enum.join("-") |> then(&"#{&1}.jpg")
-    Path.join(locale, page_path)
+      (assigns |> card() |> Safe.to_iodata() |> IO.iodata_to_binary())
   end
 
   defp truncate(nil, _max), do: ""

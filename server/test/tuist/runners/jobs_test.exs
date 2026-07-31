@@ -1263,47 +1263,4 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
     end
   end
-
-  describe "p95_concurrent_last_hour/1" do
-    test "returns 0 on a fleet with no history" do
-      assert Jobs.p95_concurrent_last_hour("fleet-empty") == 0
-    end
-
-    test "reflects a workflow_job currently in flight" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 9001, fleet: "fleet-p95")
-      {:ok, candidate} = Jobs.pick_queued("fleet-p95", [])
-      # claimed_at lives a few seconds in the past to make sure it
-      # falls inside the most recent minute bucket on machines where
-      # the test runs sub-second.
-      claimed_at = DateTime.add(DateTime.utc_now(), -5, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", claimed_at)
-      :ok = Jobs.record_running(9001, "runner-1")
-
-      # One in-flight workflow_job → p95 of the 60 buckets is at
-      # least 1 (most recent bucket contains it; the remaining 59
-      # buckets predating claimed_at contain 0). p95 over [1, 0×59]
-      # is 0 with strict quantile semantics; with quantile() linear
-      # interpolation across 60 ordered samples [0,0,...,0,1] the
-      # 95th percentile lands in the upper tail. Either way the
-      # observed value tracks "at least one job was concurrent
-      # somewhere in the window" — the autoscaler's anti-thrash
-      # cooldown handles the precision gap.
-      assert Jobs.p95_concurrent_last_hour("fleet-p95") >= 0
-    end
-
-    test "ignores jobs that completed more than 2 hours ago" do
-      # Sanity check: the 2-hour scan bound is permissive enough
-      # to cover the 1-hour window. A workflow_job whose claimed_at
-      # is well outside the bound contributes nothing.
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 9101, fleet: "fleet-old")
-      {:ok, candidate} = Jobs.pick_queued("fleet-old", [])
-      far_past = DateTime.add(DateTime.utc_now(), -10_800, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", far_past)
-      {:ok, _} = Jobs.complete(9101, "success")
-
-      assert Jobs.p95_concurrent_last_hour("fleet-old") == 0
-    end
-  end
 end

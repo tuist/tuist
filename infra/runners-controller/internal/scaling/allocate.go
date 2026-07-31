@@ -21,8 +21,8 @@ type PoolDemand struct {
 	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
 	Floor int32
 
-	// Load is `claimed + queued` — real work running or waiting for a
-	// Pod right now.
+	// Load is `occupied + queued` — Pods holding capacity (including
+	// post-job cache and teardown work) plus work waiting for a Pod.
 	Load int32
 
 	// Target is the per-pool `DesiredReplicas` output: the full ask
@@ -34,9 +34,10 @@ type PoolDemand struct {
 // AllocateFleet distributes `fleetCapacity` across pools sharing a
 // capacity domain, in three priority tiers:
 //
-//  1. Load — `claimed + queued`, the real work running or waiting for a
-//     Pod. Genuine demand; granted in full even when it exceeds capacity
-//     (the excess goes Pending, the operator's "add a host" signal).
+//  1. Load — `occupied + queued`, the capacity held by live runner Pods
+//     plus work waiting for one. Genuine demand; granted in full even
+//     when it exceeds capacity (the excess goes Pending, the operator's
+//     "add a host" signal).
 //  2. Floor — `minWarmPoolFloor` above load: the speculative warm
 //     guarantee that keeps the next spike off cold-start. Idle warm Pods.
 //  3. Headroom — the p95 warm buffer (`Target` above floor+load). Also

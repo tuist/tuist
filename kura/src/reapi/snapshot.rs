@@ -745,7 +745,11 @@ pub(super) enum IndexBuildTrigger {
 /// one namespace-index scan, action-result reads only for new-or-changed
 /// entries, the manifest-existence presence gate with its cascade delete,
 /// and node-table compaction. On failure the caller gets the index back so
-/// progress survives transient store errors.
+/// progress survives transient store errors. Memory pressure can interrupt
+/// the action-result *load*, but it never skips the presence gate: a served
+/// snapshot that advertises an evicted blob breaks the build, so the gate is
+/// the one piece that runs unconditionally (see `gate_snapshot_index` for the
+/// pressure-only pass that runs the same gate without the load).
 pub(super) async fn reconcile_snapshot_index(
     state: &SharedState,
     namespace_id: &str,
@@ -875,6 +879,7 @@ pub(super) async fn reconcile_snapshot_index(
             }
         }))
         .buffered(32);
+    let mut interrupted = false;
     while let Some((hash, version_ms, manifest, loaded, load_rejected)) = loading.next().await {
         current.insert(hash, (version_ms, manifest));
         index.remove_entry(&hash);
@@ -941,13 +946,15 @@ pub(super) async fn reconcile_snapshot_index(
             invalid += 1;
         }
         drop(load_permit);
+        // Memory pressure denies the *load* (the expensive part: reading and
+        // decoding action results). It must not skip the presence gate below,
+        // which is what keeps the served snapshot from advertising an evicted
+        // blob. Break out of the load and fall through to the gate so the
+        // index is still honest; the remaining new entries load on the next
+        // reconcile once headroom returns.
         if !state.memory.allow_background_admission() {
-            drop(loading);
-            index.compact_nodes();
-            return Err((
-                index,
-                "memory pressure interrupted snapshot reconcile".into(),
-            ));
+            interrupted = true;
+            break;
         }
     }
     drop(loading);
@@ -955,31 +962,13 @@ pub(super) async fn reconcile_snapshot_index(
 
     // Presence gate: an entry only stays advertised while every node's
     // blob manifest exists (CAS eviction outlives action-cache entries,
-    // and clang fails the build on a missing object). Mostly
-    // existence-cache hits; a dead entry is dropped from the cache too —
-    // a republish bumps its version and reloads it. The store reads are
-    // synchronous, so yield periodically: on a cold cache this loop is
-    // hundreds of thousands of point reads, and unbroken it parks a whole
-    // runtime worker for their duration.
-    let mut dead: Vec<[u8; 32]> = Vec::new();
-    for (gated, (hash, entry)) in index.entries.iter().enumerate() {
-        if gated % 1024 == 1023 {
-            tokio::task::yield_now().await;
-        }
-        let missing = entry.nodes.iter().any(|&node| {
-            !state
-                .store
-                .artifact_manifest_exists(
-                    ArtifactProducer::Reapi,
-                    namespace_id,
-                    &index.nodes[node as usize].blob_key,
-                )
-                .unwrap_or(false)
-        });
-        if missing {
-            dead.push(*hash);
-        }
-    }
+    // and clang fails the build on a missing object). This is correctness,
+    // not background optimization, so it runs even when the load above was
+    // interrupted by memory pressure — the shared helper is also what the
+    // pressure-only gate pass (`gate_snapshot_index`) runs under sustained
+    // pressure. Mostly existence-cache hits; a dead entry is dropped from
+    // the cache too — a republish bumps its version and reloads it.
+    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
     // Cascade: an entry whose blobs were evicted is unserveable by
     // construction (the per-key path would hand out a manifest whose
     // batch_read then misses), so delete it from the store too, not just
@@ -1031,6 +1020,7 @@ pub(super) async fn reconcile_snapshot_index(
         loads_failed,
         invalid,
         budget_rejected,
+        interrupted,
         estimated_bytes = index.estimated_bytes(),
         index_max_bytes = budgets.index_bytes,
         scan_ms,
@@ -1040,4 +1030,71 @@ pub(super) async fn reconcile_snapshot_index(
         "action-cache snapshot index reconciled"
     );
     Ok(index)
+}
+
+/// The presence gate's core: every entry whose referenced blobs no longer have
+/// a manifest (CAS eviction outlives action-cache entries, and a missing
+/// object fails the build) is unserveable, so collect its hash for removal.
+/// Shared by the full reconcile and the pressure-only gate pass so the two
+/// cannot drift. Mostly existence-cache hits; the reads are synchronous, so
+/// yield periodically to keep from parking a runtime worker on a cold cache.
+async fn collect_dead_snapshot_entries(
+    state: &SharedState,
+    namespace_id: &str,
+    index: &NamespaceSnapshotIndex,
+) -> Vec<[u8; 32]> {
+    let mut dead: Vec<[u8; 32]> = Vec::new();
+    for (gated, (hash, entry)) in index.entries.iter().enumerate() {
+        if gated % 1024 == 1023 {
+            tokio::task::yield_now().await;
+        }
+        let missing = entry.nodes.iter().any(|&node| {
+            !state
+                .store
+                .artifact_manifest_exists(
+                    ArtifactProducer::Reapi,
+                    namespace_id,
+                    &index.nodes[node as usize].blob_key,
+                )
+                .unwrap_or(false)
+        });
+        if missing {
+            dead.push(*hash);
+        }
+    }
+    dead
+}
+
+/// Pressure-only reconcile: drops action-cache entries whose blobs were
+/// evicted from the existing in-memory index, without the manifest scan or
+/// action-result load (both denied as background work under memory pressure).
+/// The gate is correctness, not optimization — a snapshot that advertises an
+/// evicted blob breaks the build — so it runs even when admission is denied,
+/// which is exactly when a full reconcile would be skipped and the index
+/// would otherwise freeze stale while CAS eviction keeps removing blobs.
+/// Cascade deletion of the stranded store entries is left to the next full
+/// reconcile and the per-key serve path, both of which already delete dead
+/// entries past the grace window; the index is what the snapshot advertises,
+/// so removing the entry here is what stops the broken serve. Returns the
+/// index with dead entries removed and the node table compacted.
+pub(super) async fn gate_snapshot_index(
+    state: &SharedState,
+    namespace_id: &str,
+    mut index: NamespaceSnapshotIndex,
+) -> NamespaceSnapshotIndex {
+    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
+    let removed = dead.len();
+    for hash in dead {
+        index.remove_entry(&hash);
+    }
+    index.compact_nodes();
+    if removed > 0 {
+        tracing::info!(
+            namespace_id,
+            removed,
+            entries = index.entries.len(),
+            "action-cache snapshot index presence-gated under memory pressure"
+        );
+    }
+    index
 }

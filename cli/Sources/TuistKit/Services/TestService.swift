@@ -243,6 +243,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -303,6 +304,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode
@@ -662,6 +664,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         runId: String,
         shardReference: String?,
+        shardPlanId: String?,
         shardArchivePath: AbsolutePath?,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode
@@ -677,6 +680,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             fullHandle: fullHandle,
             serverURL: serverURL,
             reference: shardReference,
+            shardPlanId: shardPlanId,
             testProductsPath: localTestProductsPath,
             testProductsArchivePath: shardArchivePath
         )

@@ -65,7 +65,10 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(
         :head_image,
         Tuist.Environment.app_url(
-          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/customers.jpg")
+          path:
+            TuistWeb.Helpers.OpenGraph.image_path(:marketing,
+              title: dgettext("marketing", "Customers")
+            )
         )
       )
       |> assign(:head_title, dgettext("marketing", "Customers"))

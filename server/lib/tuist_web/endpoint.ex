@@ -60,7 +60,8 @@ defmodule TuistWeb.Endpoint do
 
   plug Plug.RequestId
   plug TuistCommon.OtelRequestIdPlug
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
+  plug TuistCommon.RequestLoggerPlug
   plug TuistWeb.Plugs.RequestKindPlug
   plug TuistWeb.Plugs.SCIMErrorFormatPlug
   plug Sentry.PlugContext

@@ -108,6 +108,8 @@ server:
   managedSecrets: true
   config:
     managedSecrets: true
+    opsClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:

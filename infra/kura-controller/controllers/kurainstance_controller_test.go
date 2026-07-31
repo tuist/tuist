@@ -292,6 +292,16 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env[environmentEnvVar]; got != "canary" {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
+	for name, expected := range map[string]string{
+		snapshotCacheMaxBytesEnvVar:             "67108864",
+		manifestCacheMaxBytesEnvVar:             "33554432",
+		metadataStoreReadCacheBytesEnvVar:       "33554432",
+		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
+	} {
+		if got := env[name]; got != expected {
+			t.Fatalf("expected managed cache default %s=%s, got %q", name, expected, got)
+		}
+	}
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
 		if mount.Name == "public-tls" {
@@ -338,7 +348,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		"KURA_SEGMENT_HANDLE_CACHE_SIZE",
 		"KURA_MEMORY_SOFT_LIMIT_BYTES",
 		"KURA_MEMORY_HARD_LIMIT_BYTES",
-		"KURA_MANIFEST_CACHE_MAX_BYTES",
 		"KURA_MAX_KEYVALUE_BYTES",
 		"KURA_METADATA_STORE_MAX_OPEN_FILES",
 		"KURA_METADATA_STORE_MAX_BACKGROUND_JOBS",
@@ -352,6 +361,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if grace := sts.Spec.Template.Spec.TerminationGracePeriodSeconds; grace == nil || *grace < drainCompletionTimeoutMs/1000+preStopDelaySeconds {
 		t.Fatalf("expected terminationGracePeriodSeconds to cover the drain budget, got %v", grace)
+	}
+	if grace := container.LivenessProbe.TerminationGracePeriodSeconds; grace == nil || *grace != livenessTerminationGraceSeconds {
+		t.Fatalf("expected liveness probe grace to be %d seconds, got %v", livenessTerminationGraceSeconds, grace)
 	}
 	if serviceLinks := sts.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
 		t.Fatal("expected service-link environment injection to be disabled")
@@ -2824,6 +2836,29 @@ func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
 		}
 	}
 	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
+}
+
+func TestBaseEnvPreservesExplicitManagedCacheOverride(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		ExtraEnv: []corev1.EnvVar{{
+			Name:  snapshotCacheMaxBytesEnvVar,
+			Value: "16777216",
+		}},
+	}}
+	env := append(baseEnv(instance, "", "production"), instance.Spec.ExtraEnv...)
+
+	count := 0
+	for _, envVar := range env {
+		if envVar.Name == snapshotCacheMaxBytesEnvVar {
+			count++
+			if envVar.Value != "16777216" {
+				t.Fatalf("expected explicit managed cache override to be preserved, got %q", envVar.Value)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one %s entry, got %d", snapshotCacheMaxBytesEnvVar, count)
+	}
 }
 
 func TestReconcileStaleDataStorage(t *testing.T) {

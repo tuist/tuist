@@ -18,12 +18,8 @@ const MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES: usize =
 const MAX_RESPONSE_STREAM_RESERVATION_BYTES: usize = MAX_ENCODED_RESPONSE_STREAM_CHUNK_BYTES * 4;
 const MIN_RESPONSE_STREAM_POOL_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + MAX_RESPONSE_STREAM_RESERVATION_BYTES;
-const MAX_RESPONSE_STREAM_POOL_BYTES: usize = 64 * 1024 * 1024;
 const MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
     MAX_INLINE_REPLICATION_BODY_BYTES as usize + RESPONSE_STREAM_CHUNK_BYTES * 4;
-const MIN_BACKGROUND_RESPONSE_STREAM_POOL_BYTES: usize =
-    MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES;
-const MAX_BACKGROUND_RESPONSE_STREAM_POOL_BYTES: usize = RESPONSE_STREAM_CHUNK_BYTES * 4 * 16;
 
 pub(super) struct MemoryPools {
     transient: Arc<Semaphore>,
@@ -32,6 +28,7 @@ pub(super) struct MemoryPools {
     reapi_materialization_limit_bytes: usize,
     response_streaming: Arc<Semaphore>,
     foreground_response_streaming: Arc<Semaphore>,
+    elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
     response_stream_admission: Arc<Mutex<()>>,
@@ -39,6 +36,8 @@ pub(super) struct MemoryPools {
     mmap_serving_bytes: usize,
     response_streaming_bytes: usize,
     foreground_response_streaming_bytes: usize,
+    #[cfg(test)]
+    elastic_foreground_response_streaming_capacity_bytes: usize,
     degraded_response_stream_slots: usize,
 }
 
@@ -56,22 +55,22 @@ impl MemoryPools {
         let response_streaming_bytes =
             response_streaming_pool_bytes(runtime_limit_bytes, hard_limit_bytes, headroom_bytes);
         let bootstrap_reserved_bytes =
-            if response_streaming_bytes >= MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES * 2 {
-                MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES
-            } else {
-                0
-            };
+            response_streaming_bytes.min(MAX_BOOTSTRAP_RESPONSE_STREAM_RESERVATION_BYTES);
         let foreground_response_streaming_bytes =
             response_streaming_bytes.saturating_sub(bootstrap_reserved_bytes);
+        let elastic_foreground_response_streaming_bytes =
+            elastic_foreground_response_streaming_bytes(
+                transient_capacity_bytes,
+                response_streaming_bytes,
+                foreground_response_streaming_bytes,
+            );
         let response_stream_waiters = response_streaming_bytes
             .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
             .max(1);
-        let background_response_streaming_bytes = (response_streaming_bytes / 2)
-            .clamp(
-                MIN_BACKGROUND_RESPONSE_STREAM_POOL_BYTES,
-                MAX_BACKGROUND_RESPONSE_STREAM_POOL_BYTES,
-            )
-            .min(response_streaming_bytes);
+        // Bootstrap may make bounded progress, but it cannot take capacity
+        // promised to binary serving. The global response pool leaves exactly
+        // this quantum outside the foreground pool.
+        let background_response_streaming_bytes = bootstrap_reserved_bytes;
         // A degraded reader uses the 8 KiB chunk floor, but Hyper can still
         // hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer per
         // stream for a slow client. The shared transient budget charges that real
@@ -89,6 +88,9 @@ impl MemoryPools {
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
             )),
+            elastic_foreground_response_streaming: Arc::new(Semaphore::new(
+                elastic_foreground_response_streaming_bytes,
+            )),
             background_response_streaming: Arc::new(Semaphore::new(
                 background_response_streaming_bytes,
             )),
@@ -98,6 +100,9 @@ impl MemoryPools {
             mmap_serving_bytes,
             response_streaming_bytes,
             foreground_response_streaming_bytes,
+            #[cfg(test)]
+            elastic_foreground_response_streaming_capacity_bytes:
+                elastic_foreground_response_streaming_bytes,
             degraded_response_stream_slots,
         }
     }
@@ -177,11 +182,26 @@ impl MemoryPools {
         self.foreground_response_streaming_bytes
     }
 
+    #[cfg(test)]
+    pub(super) fn elastic_foreground_response_streaming_bytes(&self) -> usize {
+        self.elastic_foreground_response_streaming_capacity_bytes
+    }
+
     pub(super) fn try_acquire_foreground_response_streaming(
         &self,
         permits: u32,
     ) -> Result<OwnedSemaphorePermit, ()> {
         self.foreground_response_streaming
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map_err(|_| ())
+    }
+
+    pub(super) fn try_acquire_elastic_foreground_response_streaming(
+        &self,
+        permits: u32,
+    ) -> Result<OwnedSemaphorePermit, ()> {
+        self.elastic_foreground_response_streaming
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
@@ -248,10 +268,25 @@ fn response_streaming_pool_bytes(
 ) -> usize {
     let pressure_gap = headroom_bytes / 2;
     let runtime_gap = runtime_limit_bytes.saturating_sub(hard_limit_bytes) / 2;
-    clamp_u64(
-        pressure_gap.min(runtime_gap),
-        MIN_RESPONSE_STREAM_POOL_BYTES as u64,
-        MAX_RESPONSE_STREAM_POOL_BYTES as u64,
+    semaphore_capacity(
+        pressure_gap
+            .min(runtime_gap)
+            .max(MIN_RESPONSE_STREAM_POOL_BYTES as u64)
+            .min(headroom_bytes),
     )
-    .min(headroom_bytes) as usize
+}
+
+fn elastic_foreground_response_streaming_bytes(
+    transient_capacity_bytes: usize,
+    response_streaming_bytes: usize,
+    foreground_response_streaming_bytes: usize,
+) -> usize {
+    // Keep one quarter of transient capacity available for foreground uploads,
+    // materialization, and allocator growth. Public reads can borrow only the
+    // remainder and only while memory pressure is normal.
+    let foreground_reserve = transient_capacity_bytes / 4;
+    transient_capacity_bytes
+        .saturating_sub(response_streaming_bytes)
+        .saturating_sub(foreground_reserve)
+        .min(foreground_response_streaming_bytes)
 }

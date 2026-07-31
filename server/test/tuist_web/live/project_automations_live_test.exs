@@ -303,6 +303,36 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute Map.has_key?(automation.recovery_config, "rolling_window_size")
     end
 
+    test "persists trigger and recovery state filters", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State-aware recovery"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "toggle_create_automation_form_recovery_state", %{"data" => "muted"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["states"] == ["enabled"]
+      assert automation.recovery_config["states"] == ["muted"]
+    end
+
+    test "state filters are multi-select", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Reliability for live tests"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      # Toggling the same state again removes it.
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["states"] == ["enabled"]
+    end
+
     test "creates a test_updated automation subscribed to the default marked_flaky event", %{
       conn: conn,
       organization: organization,

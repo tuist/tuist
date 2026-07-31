@@ -580,9 +580,33 @@ own way).
 {{- end -}}
 
 {{/*
-ClickHouse repo pool sizes are non-secret operational knobs. Render them from
-chart values so the server, migration, processor, and xcresult-processor pods
-stay aligned without relying on the runtime secret bundle.
+Stable credential and desired identifiers for the managed ClickHouse operator
+user. The migration job consumes the same values as the web server, so every
+release converges the database user before the new pods start.
+*/}}
+{{- define "tuist.opsClickHouseSecretName" -}}
+{{- .Values.server.config.opsClickHouse.existingSecret | default (include "tuist.componentName" (dict "root" . "component" "clickhouse-ops")) -}}
+{{- end -}}
+
+{{- define "tuist.opsClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.opsClickHouse.enabled }}
+- name: TUIST_OPS_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.opsClickHouse.username is required when enabled" .Values.server.config.opsClickHouse.username | quote }}
+- name: TUIST_OPS_CLICKHOUSE_ROLE
+  value: {{ required "server.config.opsClickHouse.role is required when enabled" .Values.server.config.opsClickHouse.role | quote }}
+- name: TUIST_OPS_CLICKHOUSE_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.opsClickHouseSecretName" . }}
+      key: {{ .Values.server.config.opsClickHouse.passwordKey | default "password" | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+ClickHouse repo pool sizes and the shared user memory budget are non-secret
+operational knobs. Render them from chart values so the server, migration,
+processor, and xcresult-processor pods stay aligned without relying on the
+runtime secret bundle.
 */}}
 {{- define "tuist.clickhousePoolEnv" -}}
 {{- with .Values.clickhouse.poolSize }}
@@ -591,6 +615,10 @@ stay aligned without relying on the runtime secret bundle.
 {{- end }}
 {{- with .Values.clickhouse.bufferPoolSize }}
 - name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.maxMemoryUsageForUserBytes }}
+- name: TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES
   value: {{ . | quote }}
 {{- end }}
 {{- end -}}

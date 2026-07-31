@@ -37,8 +37,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             .absolutePath(path.removingLastComponent())
         }
 
+        /// Whether the artifact can be represented by a symbolic link in the consolidated Swift
+        /// framework search directory.
+        ///
+        /// Only single-slice `.framework` artifacts qualify. `.xcframework` artifacts are kept inline:
+        /// Swift's `-F` flag doesn't resolve `.xcframework` bundles (they're resolved by Xcode through
+        /// the project file references), and symlinking one exposes every platform slice to Xcode's
+        /// resource processing, which on some Xcode versions walks the linked bundle as a plain folder
+        /// and emits conflicting "Multiple commands produce" copy commands for the per-slice resources.
         var canBeLinkedIntoSwiftSearchPath: Bool {
-            path.extension == "framework" || path.extension == "xcframework"
+            path.extension == "framework"
         }
     }
 
@@ -197,17 +205,23 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let conflictingFrameworkSearchPaths = frameworkArtifactsByBasename.values
             .filter { $0.count > 1 }
             .flatMap { $0.map(\.searchPath) }
-        let unsupportedSearchPaths = precompiledArtifacts
+        // `.xcframework` and other non-`.framework` artifacts are kept inline because they can't be
+        // safely represented as a symbolic link (see `canBeLinkedIntoSwiftSearchPath`).
+        let inlineSearchPaths = precompiledArtifacts
             .filter { !$0.canBeLinkedIntoSwiftSearchPath }
             .map(\.searchPath)
 
         var values: [String] = []
+        // Always register the cleanup directory so stale symbolic links (for example `.xcframework`
+        // links created by older Tuist versions) are removed even when this target now has no active
+        // `.framework` links to link into the consolidated Swift search directory.
+        var activeLinks = activeFrameworkLinksByDirectory[cleanupDirectory, default: []]
         if !linkableArtifacts.isEmpty {
             values.append(LinkGeneratorPath.absolutePath(swiftFrameworkSearchPath).xcodeValue(sourceRootPath: sourceRootPath))
             let linkPaths = Set(linkableArtifacts.map { artifact in
                 swiftFrameworkSearchPath.appending(component: artifact.path.basename)
             })
-            activeFrameworkLinksByDirectory[cleanupDirectory, default: []].formUnion(linkPaths)
+            activeLinks.formUnion(linkPaths)
             generatedSymbolicLinkSideEffects.append(
                 contentsOf: linkableArtifacts.map { artifact in
                     .symbolicLink(
@@ -219,10 +233,11 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 }
             )
         }
+        activeFrameworkLinksByDirectory[cleanupDirectory] = activeLinks
 
         values.append(
             contentsOf: xcodeValues(
-                of: Set(conflictingFrameworkSearchPaths + unsupportedSearchPaths),
+                of: Set(conflictingFrameworkSearchPaths + inlineSearchPaths),
                 sourceRootPath: sourceRootPath
             )
         )

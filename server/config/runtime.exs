@@ -289,6 +289,11 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       # writes and backfills go through IngestRepo, which sets its own per-query
       # limits where needed.
       max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+      # Shared across every query issued by the application user on one
+      # ClickHouse replica. Production keeps this below the server ceiling so
+      # concurrent application reads and writes cannot consume the headroom
+      # needed by background merges and allocator overhead.
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -299,6 +304,29 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
 
+  if ops_clickhouse_url = Tuist.Environment.ops_clickhouse_url(secrets) do
+    ops_clickhouse_url =
+      Tuist.Environment.validate_ops_clickhouse_url!(
+        ops_clickhouse_url,
+        Tuist.Environment.clickhouse_url(secrets)
+      )
+
+    config :tuist, Tuist.OpsClickHouseRepo,
+      url: ops_clickhouse_url,
+      pool_size: Tuist.Environment.ops_clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: 2,
+        max_memory_usage: 1024 * 1024 * 1024
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
+
   config :tuist, Tuist.IngestRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
     pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
@@ -307,7 +335,8 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
     settings: [
-      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets),
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets)
     ],
     transport_opts: [
       keepalive: true,
@@ -346,6 +375,7 @@ if env == :dev do
 
   config :tuist, Tuist.ClickHouseRepo, clickhouse_dev_config
   config :tuist, Tuist.IngestRepo, clickhouse_dev_config
+  config :tuist, Tuist.OpsClickHouseRepo, clickhouse_dev_config
   config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
 end
 
@@ -369,6 +399,11 @@ if env == :test do
     database: test_clickhouse_db
 
   config :tuist, Tuist.IngestRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.OpsClickHouseRepo,
     hostname: "127.0.0.1",
     port: clickhouse_http_port,
     database: test_clickhouse_db

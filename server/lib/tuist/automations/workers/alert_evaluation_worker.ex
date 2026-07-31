@@ -22,6 +22,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @attempts_per_window 3
 
   @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 4)
+
+  @impl Oban.Worker
   def perform(
         %Oban.Job{
           args: %{
@@ -133,8 +136,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp evaluate_recent_test_case_runs?(_args), do: false
 
   defp evaluate_and_execute(alert, test_case_ids) do
-    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-    execute_evaluation(alert, triggered_ids, test_case_ids)
+    if alert.baseline_established_at == nil do
+      establish_baseline(alert)
+    else
+      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+      execute_evaluation(alert, triggered_ids, test_case_ids)
+    end
 
     :ok
   end
@@ -160,12 +167,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp execute_evaluation(alert, triggered_ids, test_case_ids) do
     triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-
-    if alert.baseline_established_at == nil do
-      establish_baseline(alert, triggered_ids)
-    else
-      run_transitions(alert, triggered_ids, test_case_ids)
-    end
+    run_transitions(alert, triggered_ids, test_case_ids)
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -194,26 +196,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # `triggered` AlertEvents so subsequent evaluations only fire on
   # transitions, but skip the trigger actions — there's no transition to
   # announce yet, and firing for the entire matching set would spam users.
-  defp establish_baseline(alert, triggered_ids) do
-    now = NaiveDateTime.utc_now()
+  defp establish_baseline(alert) do
+    Automations.establish_alert_baseline(alert, fn test_case_ids ->
+      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
 
-    Enum.each(triggered_ids, fn test_case_id ->
-      Automations.create_alert_event(%{
-        alert_id: alert.id,
-        test_case_id: test_case_id,
-        status: "triggered",
-        triggered_at: now
-      })
+      triggered_ids
+      |> then(&reject_unvalidated_test_cases(alert, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
     end)
-
-    {:ok, _} = Automations.establish_alert_baseline(alert)
   end
 
   defp run_transitions(alert, triggered_ids, scoped_test_case_ids) do
     active_events = active_alert_events(alert, scoped_test_case_ids)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
-    newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
+    newly_triggered =
+      triggered_ids
+      |> Enum.reject(&MapSet.member?(already_triggered_ids, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
 
     Enum.each(newly_triggered, fn test_case_id ->
       entity = %{type: :test_case, id: test_case_id}
@@ -222,6 +222,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         :ok ->
           Automations.create_alert_event(%{
             alert_id: alert.id,
+            baseline_generation: alert.baseline_generation,
             test_case_id: test_case_id,
             status: "triggered",
             triggered_at: NaiveDateTime.utc_now()
@@ -257,33 +258,50 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
-    # fire again) happens for every alert once its condition clears — without
-    # it, an alert latches in `triggered` forever and silently stops acting.
-    # When recovery is enabled the user's dwell and undo actions apply; when
-    # it's disabled we re-arm the moment the condition clears (no dwell, no
-    # undo) and leave any effect in place until a human clears it. The
-    # persisted recovery_config is intentionally ignored on the disabled path
-    # because `Alert.changeset` only validates it when recovery is on.
-    {recovered, recovery_actions} =
+    # fire again) happens for every alert once its condition clears past the
+    # dwell window — without it, an alert latches in `triggered` forever and
+    # silently stops acting. When recovery is enabled the user's dwell gates
+    # re-arming and the undo actions run on top; when it's disabled we re-arm
+    # the moment the condition clears (no dwell, no undo) and leave any effect
+    # in place until a human clears it. The persisted recovery_config is
+    # intentionally ignored on the disabled path because `Alert.changeset`
+    # only validates it when recovery is on.
+    #
+    # The recovery STATE filter only gates whether the undo actions run — it
+    # must not gate re-arming. A test whose state was manually changed away
+    # from the recovery filter (e.g. someone muted a test the automation had
+    # skipped) should be left untouched by recovery, but the alert still has
+    # to re-arm once the dwell elapses, or it latches and can never trigger
+    # again for that test. So we re-arm every dwell-elapsed candidate and run
+    # the actions only on the subset that still matches the filter.
+    {to_rearm, actionable_ids} =
       if alert.recovery_enabled do
-        {filter_recovered_candidates(alert, candidates, alert.recovery_config || %{}), alert.recovery_actions}
+        elapsed = filter_recovered_candidates(alert, candidates, alert.recovery_config || %{})
+        actionable = filter_by_current_state(elapsed, alert, alert.recovery_config)
+        {elapsed, MapSet.new(actionable, & &1.test_case_id)}
       else
-        {candidates, []}
+        {candidates, MapSet.new([])}
       end
 
-    Enum.each(recovered, fn event ->
+    Enum.each(to_rearm, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
+
+      actions =
+        if MapSet.member?(actionable_ids, event.test_case_id),
+          do: alert.recovery_actions,
+          else: []
 
       # Run recovery actions BEFORE appending the "recovered" event. If we
       # flipped the order, a failure in the Slack ping / label removal /
       # state reset would leave the rule visually resolved while the user's
       # intended side effects never happened.
-      case ActionExecutor.execute_actions(recovery_actions, alert, entity) do
+      case ActionExecutor.execute_actions(actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
 
           Automations.create_alert_event(%{
             alert_id: alert.id,
+            baseline_generation: alert.baseline_generation,
             test_case_id: event.test_case_id,
             status: "recovered",
             triggered_at: now,
@@ -309,6 +327,32 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     evaluated = MapSet.new(scoped_test_case_ids)
     Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
   end
+
+  # A state filter makes an action conditional on the test case's current
+  # control-plane state. It lets a skipped-test recovery leave a test alone
+  # after someone manually changes it to muted. Omitting the filter preserves
+  # the behavior of automations created before this option existed.
+  defp filter_by_current_state([], _alert, _config), do: []
+
+  defp filter_by_current_state(items, _alert, config) when not is_map(config), do: items
+
+  defp filter_by_current_state(items, alert, config) do
+    case Map.get(config, "states") do
+      states when is_list(states) and states != [] ->
+        allowed = MapSet.new(states)
+        resolved = Tests.get_test_case_states(alert.project_id, Enum.map(items, &test_case_id/1))
+
+        Enum.filter(items, fn item ->
+          Map.get(resolved, test_case_id(item), %{state: "enabled"}).state in allowed
+        end)
+
+      _ ->
+        items
+    end
+  end
+
+  defp test_case_id(%{test_case_id: test_case_id}), do: test_case_id
+  defp test_case_id(test_case_id), do: test_case_id
 
   # In `last_days` mode the recovery cooldown is "wait this long without a
   # re-trigger." In `rolling` mode it's "wait for at least this many new runs

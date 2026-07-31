@@ -140,19 +140,20 @@ defmodule Tuist.Registry.Swift.SyncWorker do
       Logger.warning("Skipping Swift Package Index list fetch after transient error: #{inspect(reason)}")
       {:discard, reason}
     else
-      # Response-status failures (403 rate or abuse limit, 5xx, an authentication or
-      # scope problem) can be persistent and are worth surfacing, so
-      # they stay a hard error that retries and reports.
+      # Non-throttling response-status failures (5xx, authentication, or scope
+      # problems) can be persistent and are worth surfacing, so they stay a hard
+      # error that retries and reports.
       Logger.error("Failed to fetch Swift Package Index list: #{inspect(reason)}")
       {:error, reason}
     end
   end
 
-  # Transport and protocol errors arrive as Req exception structs; a real
-  # response maps to a `{:http_error, status}` tuple upstream and is
-  # deliberately excluded here so 403s and 5xx keep surfacing.
+  # GitHub rate limits are returned separately from other HTTP status errors, so
+  # the cron job can resume at its next scheduled run without replaying an
+  # exhausted job in the meantime.
   defp transient_fetch_error?(%Req.TransportError{}), do: true
   defp transient_fetch_error?(%Req.HTTPError{}), do: true
+  defp transient_fetch_error?({:rate_limited, _status}), do: true
   defp transient_fetch_error?(_reason), do: false
 
   defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token) do

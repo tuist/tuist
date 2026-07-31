@@ -94,6 +94,7 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -234,6 +235,7 @@ defmodule Tuist.Application do
         :method,
         :route,
         :request_path,
+        :status,
         :reason,
         :error,
         :kind,
@@ -295,6 +297,12 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
+    # Oban starts after the endpoint (and, because a :one_for_one supervisor
+    # stops children in reverse order, drains before it). Workers building
+    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
+    # only exists while the endpoint runs; starting Oban first raised
+    # "could not find persistent term for endpoint" on boot/shutdown during
+    # rollouts (Sentry TUIST-3R9).
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -327,16 +335,22 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Queued jobs can run as soon as Oban starts, so their connection pool must already be available.
+        # Oban starts last (after the endpoint, see below), so every dependency
+        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
+        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         TuistWeb.Telemetry
-      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
+      ] ++
+        ops_clickhouse_children() ++
+        open_graph_image_children() ++
+        RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
+        dev_content_children() ++
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
 
     children
     |> Kernel.++(
@@ -390,6 +404,33 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  defp ops_clickhouse_children do
+    config = Application.get_env(:tuist, Tuist.OpsClickHouseRepo, [])
+
+    if Environment.web?() and (config[:url] || config[:hostname]) do
+      [
+        {Tuist.OpsClickHouseRepo, connection_listeners: {[TelemetryListener], :ops_clickhouse_read}}
+      ]
+    else
+      []
+    end
+  end
+
+  # Runtime Open Graph image rendering (headless-browser pool + its task
+  # supervisor) backs the marketing/docs site, which only the hosted service
+  # serves. On-premise instances do not need it, so it is started only when
+  # hosted or in local dev (where the marketing site is developed).
+  defp open_graph_image_children do
+    if Environment.tuist_hosted?() or Environment.dev?() do
+      [
+        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
+        Tuist.OpenGraphImageRenderer
+      ]
+    else
+      []
+    end
   end
 
   defp dev_content_children do

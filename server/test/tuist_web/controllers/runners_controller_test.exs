@@ -10,7 +10,7 @@ defmodule TuistWeb.RunnersControllerTest do
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
-    test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
+    test "returns claimed, occupied, queued, and historical concurrency for the fleet", %{conn: conn} do
       account = account_fixture()
 
       :ok =
@@ -45,6 +45,7 @@ defmodule TuistWeb.RunnersControllerTest do
       body = json_response(conn, 200)
       assert body["fleet"] == "fleet-scale"
       assert body["claimed"] == 1
+      assert body["occupied"] == 1
       assert body["queued"] == 1
       assert is_integer(body["p95_concurrent_last_hour"])
     end
@@ -62,6 +63,7 @@ defmodule TuistWeb.RunnersControllerTest do
       body = json_response(conn, 200)
       assert body["fleet"] == "fleet-empty"
       assert body["claimed"] == 0
+      assert body["occupied"] == 0
       assert body["queued"] == 0
       assert body["p95_concurrent_last_hour"] == 0
     end

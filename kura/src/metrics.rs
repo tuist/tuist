@@ -47,6 +47,11 @@ pub struct Metrics {
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Action-cache entries removed by the eviction cascade (an evicted blob
+    // taking its referencing entries with it). A healthy nonzero rate is the
+    // cascade doing its job; compare against the serve-side presence-gate hit
+    // rate, which should trend to zero once the cascade carries the load.
+    action_cache_cascade_removed: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -116,6 +121,7 @@ pub struct Metrics {
     process_resident_file_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
     container_memory_current_bytes: Gauge,
+    container_memory_pressure_bytes: Gauge,
     container_memory_working_set_bytes: Gauge,
     container_memory_limit_bytes: Gauge,
     container_memory_anon_bytes: Gauge,
@@ -205,6 +211,7 @@ impl Metrics {
         let artifact_serving_paths = Family::<ArtifactServingPathLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
+        let action_cache_cascade_removed = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
@@ -311,6 +318,7 @@ impl Metrics {
         let process_resident_file_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
         let container_memory_current_bytes = Gauge::default();
+        let container_memory_pressure_bytes = Gauge::default();
         let container_memory_working_set_bytes = Gauge::default();
         let container_memory_limit_bytes = Gauge::default();
         let container_memory_anon_bytes = Gauge::default();
@@ -422,6 +430,11 @@ impl Metrics {
             "kura_segment_fsyncs_total",
             "Segment durability fsyncs (group-commit + rotation); compare its rate to kura_artifact_writes_total to see fsync batching under concurrent writes",
             segment_fsyncs.clone(),
+        );
+        registry.register(
+            "kura_action_cache_cascade_removed_total",
+            "Action-cache entries removed by the eviction cascade when a blob they reference was evicted",
+            action_cache_cascade_removed.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -804,6 +817,11 @@ impl Metrics {
             container_memory_current_bytes.clone(),
         );
         registry.register(
+            "kura_container_memory_pressure_bytes",
+            "Container memory charge excluding clean file-backed cache",
+            container_memory_pressure_bytes.clone(),
+        );
+        registry.register(
             "kura_container_memory_working_set_bytes",
             "Estimated container control group memory charge excluding reclaimable inactive file-backed pages",
             container_memory_working_set_bytes.clone(),
@@ -1112,6 +1130,7 @@ impl Metrics {
             artifact_reads,
             artifact_writes,
             segment_fsyncs,
+            action_cache_cascade_removed,
             artifact_read_bytes,
             artifact_write_bytes,
             artifact_egress_completions,
@@ -1188,6 +1207,7 @@ impl Metrics {
             process_resident_file_bytes,
             process_virtual_memory_bytes,
             container_memory_current_bytes,
+            container_memory_pressure_bytes,
             container_memory_working_set_bytes,
             container_memory_limit_bytes,
             container_memory_anon_bytes,
@@ -1423,6 +1443,13 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
+    }
+
+    pub fn record_action_cache_cascade(&self, removed_entries: u64) {
+        if removed_entries == 0 {
+            return;
+        }
+        self.action_cache_cascade_removed.inc_by(removed_entries);
     }
 
     pub fn record_replication(
@@ -1865,6 +1892,8 @@ impl Metrics {
     ) {
         self.container_memory_current_bytes
             .set(snapshot.current_bytes as i64);
+        self.container_memory_pressure_bytes
+            .set(snapshot.pressure_bytes() as i64);
         self.container_memory_working_set_bytes
             .set(snapshot.working_set_bytes() as i64);
         self.container_memory_reclaimable_inactive_file_bytes
@@ -2502,6 +2531,7 @@ mod tests {
                 kernel_bytes: Some(200),
                 inactive_file_bytes: Some(100),
                 shmem_bytes: Some(50),
+                sock_bytes: Some(30),
                 file_dirty_bytes: Some(20),
                 file_writeback_bytes: Some(10),
                 max_events: Some(4),
@@ -2634,6 +2664,7 @@ mod tests {
         assert!(rendered.contains("kura_process_resident_anon_bytes"));
         assert!(rendered.contains("kura_process_resident_file_bytes"));
         assert!(rendered.contains("kura_container_memory_current_bytes"));
+        assert!(rendered.contains("kura_container_memory_pressure_bytes"));
         assert!(rendered.contains("kura_container_memory_working_set_bytes"));
         assert!(rendered.contains("kura_container_memory_reclaimable_inactive_file_bytes"));
         assert!(rendered.contains("kura_container_memory_file_bytes"));

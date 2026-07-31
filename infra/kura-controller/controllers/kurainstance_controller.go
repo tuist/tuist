@@ -64,6 +64,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// A liveness failure means the serving process is already unable to make
+	// progress. It must not inherit the rollout drain budget: Kubernetes runs
+	// preStop for liveness restarts too, so this gives the hook time to remove
+	// the endpoint while bounding an otherwise unbounded cache outage.
+	livenessTerminationGraceSeconds int64 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -76,25 +81,29 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                           = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
-	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
-	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
-	legacyPeerPhaseRepairing                    = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested             = "cutover-requested"
-	legacyPeerPhaseDraining                     = "draining"
-	peerDNSRecordTTLSeconds               int64 = 300
-	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                             = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                      = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                             = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                   = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                   = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar             = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	metadataStoreWriteBufferPoolBytesEnvVar       = "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES"
+	sharedSecretsRVAnnotation                     = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation                 = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                      = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation                 = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation              = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation           = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation               = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation         = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation          = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation         = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                      = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested               = "cutover-requested"
+	legacyPeerPhaseDraining                       = "draining"
+	peerDNSRecordTTLSeconds                 int64 = 300
+	legacyPeerRetirementDelay                     = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation                 = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -2619,7 +2628,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
-				LivenessProbe:   httpProbe("/up", 20, 20),
+				LivenessProbe:   livenessProbe(),
 				StartupProbe:    httpProbe("/up", 0, 10),
 			}},
 			Volumes: volumes(instance),
@@ -2877,12 +2886,11 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 }
 
 // baseEnv carries only the values the controller must set: identity,
-// per-pod paths, peer wiring, and the drain timeout that has to stay in
-// sync with the pod's terminationGracePeriodSeconds. Resource-shaped
-// knobs (FD pool, memory soft/hard limits, manifest cache, RocksDB)
-// are derived from the pod's cgroup and rlimit at runtime startup, so
-// the controller deliberately doesn't override them. See
-// kura/src/config.rs::DerivedRuntimeDefaults.
+// per-pod paths, peer wiring, the drain timeout that has to stay in
+// sync with the pod's terminationGracePeriodSeconds, and bounded cache
+// budgets for the managed two-gibibyte memory profile. Other
+// resource-shaped knobs are derived from the pod's cgroup and rlimit
+// at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
 	if environment == "" {
 		environment = "production"
@@ -2932,6 +2940,11 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
 		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
 	}
+	for _, defaultEnv := range managedCacheEnvDefaults() {
+		if !hasEnvVar(instance.Spec.ExtraEnv, defaultEnv.Name) {
+			env = append(env, defaultEnv)
+		}
+	}
 	if instance.Spec.ExtensionScript != "" {
 		env = append(env,
 			corev1.EnvVar{Name: "KURA_EXTENSION_ENABLED", Value: "true"},
@@ -2958,6 +2971,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
 	return env
+}
+
+func managedCacheEnvDefaults() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
+		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
+		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
+		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
+	}
 }
 
 func hasEnvVar(env []corev1.EnvVar, name string) bool {
@@ -3039,6 +3061,12 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 		PeriodSeconds:       period,
 		TimeoutSeconds:      5,
 	}
+}
+
+func livenessProbe() *corev1.Probe {
+	probe := httpProbe("/up", 20, 20)
+	probe.TerminationGracePeriodSeconds = ptr(livenessTerminationGraceSeconds)
+	return probe
 }
 
 func ports() []corev1.ServicePort {

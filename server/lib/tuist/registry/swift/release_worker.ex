@@ -26,6 +26,17 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
+  # Symlinks nested inside these code-signed bundles are part of the bundle's
+  # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
+  # the `Binary`/`Resources` links). Code signing records them as symlinks in
+  # `_CodeSignature/CodeResources`, so flattening them into real copies
+  # invalidates the signature ("a sealed resource is missing or invalid"). They
+  # always live well below the package root, so the SwiftPM root-level symlink
+  # extraction bug that `resolve_symlinks/1` works around
+  # (https://github.com/swiftlang/swift-package-manager/pull/9411) does not
+  # apply to them, and they are safe to keep as symlinks in the archive.
+  @signed_bundle_extensions ~w(.xcframework .framework .app .appex .bundle .dSYM .plugin .systemextension .xpc)
+
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -105,6 +116,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           {:snooze, seconds} ->
             Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
             {:snooze, seconds}
+
+          {:discard, discard_reason} ->
+            {:discard, discard_reason}
 
           :not_skipped ->
             Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
@@ -413,7 +427,10 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
     with :ok <- remove_symlinks_outside_root(directory),
          :ok <- resolve_symlinks(directory) do
-      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
+      # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
+      # (those inside code-signed bundles) as symlinks instead of following them
+      # and inlining their target, which would otherwise break the signature.
+      case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
       end
@@ -423,7 +440,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp resolve_symlinks(directory) do
     case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
-        symlink_paths = String.split(output, "\n", trim: true)
+        symlink_paths =
+          output
+          |> String.split("\n", trim: true)
+          |> Enum.reject(&within_signed_bundle?/1)
+
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
         with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
@@ -433,6 +454,20 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
+  end
+
+  defp within_signed_bundle?(path) do
+    # Inspect only the ancestor directories, not the symlink's own basename: the
+    # bundle whose sealed layout we protect is always a real directory above the
+    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
+    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
+    # the SwiftPM root-level extraction failure on un-patched clients.
+    path
+    |> Path.split()
+    |> Enum.drop(-1)
+    |> Enum.any?(fn component ->
+      Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
+    end)
   end
 
   defp classify_symlinks(symlink_paths) do
@@ -816,7 +851,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_default_manifest")
   end
 
-  defp maybe_skip_release(_scope, _name, _full_handle, _version, _reason), do: :not_skipped
+  defp maybe_skip_release(_scope, _name, _full_handle, _version, reason) do
+    case rate_limit_status(reason) do
+      nil ->
+        :not_skipped
+
+      status ->
+        Logger.warning("Deferring registry release after GitHub rate limit (HTTP #{status})")
+        {:discard, reason}
+    end
+  end
+
+  defp rate_limit_status({:rate_limited, status}), do: status
+
+  defp rate_limit_status(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&rate_limit_status/1)
+  end
+
+  defp rate_limit_status(list) when is_list(list), do: Enum.find_value(list, &rate_limit_status/1)
+  defp rate_limit_status(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_status/1)
+  defp rate_limit_status(_reason), do: nil
 
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}

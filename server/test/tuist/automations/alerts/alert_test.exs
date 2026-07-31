@@ -24,6 +24,48 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts state filters for trigger and recovery" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "states" => ["enabled", "muted"]
+            },
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days", "window" => "14d", "states" => ["muted"]},
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects an unknown state filter" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "states" => ["unknown"]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
     test "requires project_id, name, monitor_type, trigger_actions" do
       changeset = Alert.changeset(%Alert{}, %{})
       refute changeset.valid?

@@ -92,10 +92,10 @@ server:
     # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
       value: https://tuist.dev/api/registry/swift
-    # The legacy cache remains the sole registry writer until its schedule is
-    # disabled as a separate cutover step.
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -332,6 +332,12 @@ postgresql:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist
+  # reads and writes to eight gibibytes in aggregate, leaving ten gibibytes for
+  # background merges and allocator overhead instead of discovering pressure
+  # at the process-wide ceiling. Ingestion retries and retains buffered rows
+  # when the shared application budget is temporarily full.
+  maxMemoryUsageForUserBytes: "8589934592"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
@@ -418,10 +424,9 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
-  # The legacy regional cache release remains the production writer until its
-  # registry schedule can be disabled. Enabling both generations violates the
-  # single-writer cutover contract.
-  enabled: false
+  # The legacy cache writer is disabled, so this deployment is the sole
+  # registry synchronization writer.
+  enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

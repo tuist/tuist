@@ -47,11 +47,40 @@ pub struct MemoryController {
     inner: Arc<MemoryControllerInner>,
 }
 
+/// Parses the `KURA_TEST_FORCE_MEMORY_PRESSURE` override value. Accepts the
+/// [`MemoryPressure::as_str`] spellings (case-insensitive). Any other value
+/// (including the unset variable) yields `None`, so a misspelled override
+/// fails open to real accounting rather than silently pinning the node.
+fn parse_forced_memory_pressure(value: &str) -> Option<MemoryPressure> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some(MemoryPressure::Normal),
+        "constrained" => Some(MemoryPressure::Constrained),
+        "critical" => Some(MemoryPressure::Critical),
+        _ => None,
+    }
+}
+
+/// Reads `KURA_TEST_FORCE_MEMORY_PRESSURE` once at construction. See
+/// [`parse_forced_memory_pressure`].
+fn forced_memory_pressure_for_tests() -> Option<MemoryPressure> {
+    parse_forced_memory_pressure(&std::env::var("KURA_TEST_FORCE_MEMORY_PRESSURE").ok()?)
+}
+
 struct MemoryControllerInner {
     runtime_limit_bytes: u64,
     soft_limit_bytes: u64,
     hard_limit_bytes: u64,
+    /// Test-only override that pins the pressure state regardless of the
+    /// resident-bytes samples, so an end-to-end run can reproduce a
+    /// pressure tier deterministically (a real node never stays exactly on
+    /// a tier for long). Sourced from `KURA_TEST_FORCE_MEMORY_PRESSURE`;
+    /// unset in every non-test environment, so production behaviour is
+    /// untouched. `pressure()` is the single reader, so every admission
+    /// and shedding decision reflects it.
+    forced_pressure: Option<MemoryPressure>,
     container_accounting_selected: AtomicBool,
+    reclaim_file_cache: AtomicBool,
+    working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
     response_stream_waiters: AtomicU64,
@@ -82,6 +111,45 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
     ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+        )
+    }
+
+    /// Test-only constructor that pins the controller to a forced pressure tier,
+    /// mirroring `KURA_TEST_FORCE_MEMORY_PRESSURE` without touching the process
+    /// environment (which is shared state across parallel tests).
+    #[cfg(test)]
+    pub fn new_with_forced_pressure(
+        metrics: Metrics,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced: MemoryPressure,
+    ) -> Self {
+        let runtime_limit_bytes = hard_limit_bytes
+            .saturating_mul(100)
+            .saturating_div(85)
+            .max(hard_limit_bytes.saturating_add(1));
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            Some(forced),
+        )
+    }
+
+    fn with_runtime_limit_and_forced(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        forced_pressure: Option<MemoryPressure>,
+    ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
         let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
@@ -95,7 +163,10 @@ impl MemoryController {
                 runtime_limit_bytes,
                 soft_limit_bytes,
                 hard_limit_bytes,
+                forced_pressure,
                 container_accounting_selected: AtomicBool::new(false),
+                reclaim_file_cache: AtomicBool::new(false),
+                working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
                 response_stream_waiters: AtomicU64::new(0),
@@ -108,6 +179,21 @@ impl MemoryController {
     }
 
     pub fn observe(&self, resident_bytes: u64) -> MemoryPressure {
+        // A forced tier is the test override; ignore the resident-bytes sample
+        // so the pin holds instead of flickering with the real reading. Still
+        // advance the observation sequence: the stall watchdog in
+        // spawn_memory_pressure_tasks treats an unchanged sequence as a dead
+        // sensor and terminates the process, so a pinned tier must look like
+        // an ongoing observation rather than a frozen sensor.
+        if let Some(forced) = self.inner.forced_pressure {
+            self.inner
+                .observation_sequence
+                .fetch_add(1, Ordering::Release);
+            self.inner
+                .metrics
+                .update_memory_pressure_state(forced.as_i64());
+            return forced;
+        }
         self.inner
             .observation_sequence
             .fetch_add(1, Ordering::Release);
@@ -136,10 +222,51 @@ impl MemoryController {
         self.inner
             .container_accounting_selected
             .store(true, Ordering::Release);
-        self.observe(sample.working_set_bytes)
+        // File-cache reclaim has two independent arms.
+        //
+        // The working-set arm asks demand to trade clean file-cache warmth for request
+        // capacity once the conventional working set crosses the soft watermark. Because that
+        // working set is exactly the quantity that can swing more than a gibibyte between two
+        // 200 ms samples as the kernel reclassifies clean artifact pages, a raw threshold would
+        // flip mmap serving and drop-behind on and off every sample near the soft watermark. It
+        // runs through the same hysteretic pressure state machine as admission so it only clears
+        // after recovering roughly 10% below the soft watermark.
+        //
+        // The raw `memory.current >= hard_limit` arm is deliberately un-hysteresed. On a warm
+        // serving node the kernel keeps clean page cache charged until forced to reclaim, so once
+        // the cumulative footprint crosses the hard watermark this stays effectively steady state.
+        // That is the intended trade for cache nodes: hold drop-behind and mmap-serving denial on
+        // so request serving keeps borrowing from clean file cache instead of the container
+        // sitting close to its limit.
+        let working_set_reclaim =
+            self.observe_working_set(sample.working_set_bytes) != MemoryPressure::Normal;
+        self.inner.reclaim_file_cache.store(
+            working_set_reclaim || sample.current_bytes >= self.inner.hard_limit_bytes,
+            Ordering::Relaxed,
+        );
+        self.observe(sample.pressure_bytes)
+    }
+
+    fn observe_working_set(&self, working_set_bytes: u64) -> MemoryPressure {
+        let current = MemoryPressure::from_u8(self.inner.working_set_state.load(Ordering::Relaxed));
+        let next = transition(
+            current,
+            working_set_bytes,
+            self.inner.soft_limit_bytes,
+            self.inner.hard_limit_bytes,
+        );
+        if next != current {
+            self.inner
+                .working_set_state
+                .store(next.as_u8(), Ordering::Relaxed);
+        }
+        next
     }
 
     pub fn pressure(&self) -> MemoryPressure {
+        if let Some(forced) = self.inner.forced_pressure {
+            return forced;
+        }
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
@@ -185,6 +312,11 @@ impl MemoryController {
         self.inner
             .container_accounting_selected
             .load(Ordering::Acquire)
+    }
+
+    pub fn should_reclaim_file_cache(&self) -> bool {
+        self.inner.reclaim_file_cache.load(Ordering::Relaxed)
+            || self.pressure() != MemoryPressure::Normal
     }
 
     pub fn observation_sequence(&self) -> u64 {
@@ -295,12 +427,12 @@ impl MemoryController {
         requested_bytes: usize,
         protocol: &'static str,
     ) -> Option<ResponseStreamMemoryPermit> {
-        let permit = self
+        let (permit, elastic) = self
             .try_acquire_response_stream_memory(requested_bytes, protocol)
             .ok()?;
         self.inner.metrics.record_response_stream_admission(
             protocol,
-            "immediate",
+            if elastic { "elastic" } else { "immediate" },
             std::time::Duration::ZERO,
         );
         Some(permit)
@@ -376,6 +508,7 @@ impl MemoryController {
             concurrency: Some(slot),
             foreground_concurrency: None,
             background_concurrency: None,
+            elastic_concurrency: None,
             transient: Some(transient),
             metrics: self.inner.metrics.clone(),
             protocol,
@@ -443,7 +576,7 @@ impl MemoryController {
     }
 
     pub fn try_acquire_mmap_serving(&self, requested_bytes: usize) -> Option<MmapMemoryPermit> {
-        if requested_bytes == 0 || self.pressure() != MemoryPressure::Normal {
+        if requested_bytes == 0 || self.should_reclaim_file_cache() {
             return None;
         }
         let permits = u32::try_from(requested_bytes).ok()?;
@@ -468,6 +601,13 @@ impl MemoryController {
         self.inner.pools.foreground_response_streaming_bytes()
     }
 
+    #[cfg(test)]
+    pub fn elastic_foreground_response_streaming_pool_bytes(&self) -> usize {
+        self.inner
+            .pools
+            .elastic_foreground_response_streaming_bytes()
+    }
+
     pub async fn acquire_response_stream_memory(
         &self,
         requested_bytes: usize,
@@ -476,11 +616,12 @@ impl MemoryController {
     ) -> Result<ResponseStreamMemoryPermit, ResponseStreamAdmissionError> {
         let started_at = Instant::now();
         if self.inner.response_stream_waiters.load(Ordering::Acquire) == 0
-            && let Ok(permit) = self.try_acquire_response_stream_memory(requested_bytes, protocol)
+            && let Ok((permit, elastic)) =
+                self.try_acquire_response_stream_memory(requested_bytes, protocol)
         {
             self.inner.metrics.record_response_stream_admission(
                 protocol,
-                "immediate",
+                if elastic { "elastic" } else { "immediate" },
                 started_at.elapsed(),
             );
             return Ok(permit);
@@ -518,10 +659,10 @@ impl MemoryController {
                 let changed = self.inner.pressure_changed.notified();
                 tokio::pin!(changed);
                 changed.as_mut().enable();
-                if let Ok(permit) =
+                if let Ok((permit, elastic)) =
                     self.try_acquire_response_stream_memory(requested_bytes, protocol)
                 {
-                    return permit;
+                    return (permit, elastic);
                 }
                 changed.await;
             }
@@ -529,10 +670,10 @@ impl MemoryController {
         .await;
 
         match result {
-            Ok(permit) => {
+            Ok((permit, elastic)) => {
                 self.inner.metrics.record_response_stream_admission(
                     protocol,
-                    "waited",
+                    if elastic { "elastic" } else { "waited" },
                     started_at.elapsed(),
                 );
                 Ok(permit)
@@ -552,22 +693,48 @@ impl MemoryController {
         &self,
         requested_bytes: usize,
         protocol: &'static str,
-    ) -> Result<ResponseStreamMemoryPermit, ()> {
+    ) -> Result<(ResponseStreamMemoryPermit, bool), ()> {
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let foreground_concurrency = self
+        let fixed: Result<ResponseStreamMemoryPermit, ()> = (|| {
+            let foreground_concurrency = self
+                .inner
+                .pools
+                .try_acquire_foreground_response_streaming(permits)?;
+            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
+            let transient =
+                self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
+            Ok(self.response_stream_memory_permit(
+                (Some(concurrency), Some(foreground_concurrency), None, None),
+                transient,
+                protocol,
+                requested_bytes as u64,
+            ))
+        })();
+        if let Ok(permit) = fixed {
+            return Ok((permit, false));
+        }
+
+        // A normal-memory node may lend unused transient capacity to public
+        // response streams. The dedicated elastic semaphore and the retained
+        // foreground reserve keep this from starving uploads or turning a
+        // burst of slow clients into unbounded memory use.
+        if self.pressure() != MemoryPressure::Normal {
+            return Err(());
+        }
+        let elastic_concurrency = self
             .inner
             .pools
-            .try_acquire_foreground_response_streaming(permits)?;
-        let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
+            .try_acquire_elastic_foreground_response_streaming(permits)?;
         let transient =
             self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
-        Ok(self.response_stream_memory_permit(
-            concurrency,
-            Some(foreground_concurrency),
-            None,
-            transient,
-            protocol,
-            requested_bytes as u64,
+        Ok((
+            self.response_stream_memory_permit(
+                (None, None, None, Some(elastic_concurrency)),
+                transient,
+                protocol,
+                requested_bytes as u64,
+            ),
+            true,
         ))
     }
 
@@ -590,9 +757,7 @@ impl MemoryController {
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::PeerResponse)?;
             Ok(self.response_stream_memory_permit(
-                concurrency,
-                None,
-                Some(background_concurrency),
+                (Some(concurrency), None, Some(background_concurrency), None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -620,9 +785,12 @@ impl MemoryController {
 
     fn response_stream_memory_permit(
         &self,
-        concurrency: tokio::sync::OwnedSemaphorePermit,
-        foreground_concurrency: Option<tokio::sync::OwnedSemaphorePermit>,
-        background_concurrency: Option<tokio::sync::OwnedSemaphorePermit>,
+        (concurrency, foreground_concurrency, background_concurrency, elastic_concurrency): (
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+        ),
         transient: TransientMemoryReservation,
         protocol: &'static str,
         bytes: u64,
@@ -631,9 +799,10 @@ impl MemoryController {
             .metrics
             .add_response_stream_reservation(protocol, bytes);
         ResponseStreamMemoryPermit {
-            concurrency: Some(concurrency),
+            concurrency,
             foreground_concurrency,
             background_concurrency,
+            elastic_concurrency,
             transient: Some(transient),
             metrics: self.inner.metrics.clone(),
             protocol,
@@ -720,7 +889,55 @@ impl MemoryController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
+    use crate::{
+        constants::RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT,
+    };
+    use tokio::sync::Barrier;
+    use tokio::task::JoinSet;
+
+    #[test]
+    fn forced_pressure_override_parses_only_known_spellings() {
+        // Fails open: a misspelled or unset value never pins the node.
+        assert_eq!(parse_forced_memory_pressure(""), None);
+        assert_eq!(parse_forced_memory_pressure("nope"), None);
+        assert_eq!(parse_forced_memory_pressure("  Critical-ish "), None);
+        // Known tiers, case- and whitespace-insensitive.
+        assert_eq!(
+            parse_forced_memory_pressure("normal"),
+            Some(MemoryPressure::Normal)
+        );
+        assert_eq!(
+            parse_forced_memory_pressure("  CONSTRAINED "),
+            Some(MemoryPressure::Constrained)
+        );
+        assert_eq!(
+            parse_forced_memory_pressure("Critical"),
+            Some(MemoryPressure::Critical)
+        );
+    }
+
+    #[test]
+    fn forced_pressure_still_advances_the_observation_sequence() {
+        // The stall watchdog in spawn_memory_pressure_tasks terminates Kura
+        // when observation_sequence stops advancing. A forced tier must still
+        // look like an ongoing observation, or the pinned-pressure scenario
+        // self-terminates within five seconds.
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new_with_forced_pressure(
+            metrics,
+            100,
+            200,
+            MemoryPressure::Constrained,
+        );
+        let before = controller.observation_sequence();
+        let pressure = controller.observe(50);
+        assert_eq!(pressure, MemoryPressure::Constrained);
+        assert!(
+            controller.observation_sequence() > before,
+            "a forced tier must still advance the observation sequence so the stall watchdog does not terminate the process"
+        );
+    }
 
     #[test]
     fn pressure_uses_hysteresis_before_recovering() {
@@ -733,6 +950,105 @@ mod tests {
         assert_eq!(controller.observe(220), MemoryPressure::Critical);
         assert_eq!(controller.observe(185), MemoryPressure::Critical);
         assert_eq!(controller.observe(180), MemoryPressure::Constrained);
+    }
+
+    #[test]
+    fn clean_file_cache_triggers_reclaim_without_constraining_admission() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 220,
+                pressure_bytes: 60,
+                working_set_bytes: 180,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+        assert!(controller.try_acquire_mmap_serving(1).is_none());
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 80,
+                pressure_bytes: 60,
+                working_set_bytes: 60,
+                reclaimable_inactive_file_bytes: 20,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(!controller.should_reclaim_file_cache());
+        assert!(controller.try_acquire_mmap_serving(1).is_some());
+    }
+
+    #[test]
+    fn working_set_reclaim_arm_recovers_with_hysteresis() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        // soft = 100, hard = 200, recovery clears at 90 (10% below the soft watermark).
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 150,
+                pressure_bytes: 40,
+                working_set_bytes: 180,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+
+        // Working set dips below the soft watermark but stays above the recovery
+        // threshold. A raw threshold would clear reclaim here; hysteresis keeps it on.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 120,
+                pressure_bytes: 40,
+                working_set_bytes: 95,
+                reclaimable_inactive_file_bytes: 25,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+
+        // Only once the working set recovers below the hysteresis threshold does the
+        // reclaim signal clear.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 110,
+                pressure_bytes: 40,
+                working_set_bytes: 85,
+                reclaimable_inactive_file_bytes: 25,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(!controller.should_reclaim_file_cache());
+    }
+
+    #[test]
+    fn raw_hard_limit_arm_keeps_reclaim_on_without_hysteresis() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        // Container charge at the hard watermark with a low working set: the raw arm
+        // holds reclaim on so a warm cache node keeps borrowing from clean file cache.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 200,
+                pressure_bytes: 40,
+                working_set_bytes: 40,
+                reclaimable_inactive_file_bytes: 160,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
     }
 
     #[test]
@@ -814,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn response_streaming_pool_preserves_memory_headroom() {
+    fn response_streaming_pool_scales_with_memory_headroom() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let small = MemoryController::with_runtime_limit(
             metrics.clone(),
@@ -834,11 +1150,34 @@ mod tests {
             small.foreground_response_streaming_pool_bytes(),
             13 * 1024 * 1024
         );
-        assert_eq!(large.response_streaming_pool_bytes(), 64 * 1024 * 1024);
+        assert_eq!(large.response_streaming_pool_bytes(), 512 * 1024 * 1024);
         assert_eq!(
             large.foreground_response_streaming_pool_bytes(),
-            58 * 1024 * 1024
+            506 * 1024 * 1024
         );
+        assert_eq!(
+            large.elastic_foreground_response_streaming_pool_bytes(),
+            256 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn small_runtime_keeps_a_full_bootstrap_response_reservation() {
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            128 * 1024 * 1024,
+            76 * 1024 * 1024,
+            108 * 1024 * 1024,
+        );
+
+        assert_eq!(controller.response_streaming_pool_bytes(), 10 * 1024 * 1024);
+        assert_eq!(
+            controller.foreground_response_streaming_pool_bytes(),
+            4 * 1024 * 1024
+        );
+        controller
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
+            .expect("small profiles must bootstrap the largest supported inline artifact");
     }
 
     #[tokio::test]
@@ -902,7 +1241,7 @@ mod tests {
     }
 
     #[test]
-    fn bootstrap_keeps_a_progress_quantum_while_leaving_half_for_public_responses() {
+    fn bootstrap_keeps_a_progress_quantum_without_consuming_public_response_capacity() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(
             metrics,
@@ -943,17 +1282,165 @@ mod tests {
             .inner
             .response_stream_waiters
             .store(0, Ordering::Release);
-        let background_bytes = controller.response_streaming_pool_bytes() / 2;
-        let permit = controller
-            .try_acquire_background_response_stream_memory(background_bytes, "bootstrap")
-            .expect("background half should be available");
+        let bootstrap = controller
+            .try_acquire_background_response_stream_memory(bootstrap_quantum, "bootstrap")
+            .expect("the reserved bootstrap quantum should be available");
+        let foreground = controller
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("bootstrap must not consume capacity promised to public responses");
         assert!(
             controller
                 .try_acquire_background_response_stream_memory(1, "bootstrap")
                 .is_err(),
-            "bootstrap must leave the other half available for public responses"
+            "bootstrap must remain bounded to its reserved progress quantum"
         );
-        drop(permit);
+        drop(foreground);
+        drop(bootstrap);
+    }
+
+    #[test]
+    fn public_response_streams_borrow_a_bounded_elastic_tier_only_while_normal() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            512 * 1024 * 1024,
+            256 * 1024 * 1024,
+            384 * 1024 * 1024,
+        );
+        let foreground_bytes = controller.foreground_response_streaming_pool_bytes();
+        let elastic_bytes = controller.elastic_foreground_response_streaming_pool_bytes();
+        let (_fixed, fixed_elastic) = controller
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("fixed response-stream capacity should be available");
+        assert!(!fixed_elastic);
+        let (_elastic, elastic) = controller
+            .try_acquire_response_stream_memory(elastic_bytes, "http")
+            .expect("normal-memory nodes should lend bounded transient capacity");
+        assert!(elastic);
+        assert!(
+            controller
+                .try_acquire_response_stream_memory(1, "http")
+                .is_err(),
+            "the elastic tier must remain a bounded pool"
+        );
+        assert!(
+            controller
+                .try_reserve_foreground_memory(32 * 1024 * 1024)
+                .is_ok(),
+            "elastic serving must retain foreground capacity for uploads"
+        );
+
+        let constrained = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            512 * 1024 * 1024,
+            256 * 1024 * 1024,
+            384 * 1024 * 1024,
+        );
+        let foreground_bytes = constrained.foreground_response_streaming_pool_bytes();
+        let _fixed = constrained
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("fixed capacity should be available");
+        constrained.observe(256 * 1024 * 1024);
+        assert!(
+            constrained
+                .try_acquire_response_stream_memory(1, "http")
+                .is_err(),
+            "elastic response serving must stop under memory pressure"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn public_response_burst_uses_elastic_capacity_without_displacing_bootstrap() {
+        const REQUEST_BYTES: usize = 512 * 1024;
+        const EXTRA_REQUESTS: usize = 64;
+
+        let controller = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            2 * 1024 * 1024 * 1024,
+            1200 * 1024 * 1024,
+            1700 * 1024 * 1024,
+        );
+        let bootstrap = controller
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
+            .expect("the bootstrap progress quantum should be available");
+        let expected_admitted = (controller.foreground_response_streaming_pool_bytes()
+            + controller.elastic_foreground_response_streaming_pool_bytes())
+            / REQUEST_BYTES;
+        let requests = expected_admitted + EXTRA_REQUESTS;
+        let barrier = Arc::new(Barrier::new(requests));
+        let started_at = Instant::now();
+        let mut tasks = JoinSet::new();
+
+        for _ in 0..requests {
+            let controller = controller.clone();
+            let barrier = barrier.clone();
+            tasks.spawn(async move {
+                barrier.wait().await;
+                controller.try_acquire_response_stream_memory(REQUEST_BYTES, "http")
+            });
+        }
+
+        let mut admitted = Vec::with_capacity(expected_admitted);
+        let mut full_size_unavailable = 0;
+        while let Some(result) = tasks.join_next().await {
+            match result.expect("burst task should not panic") {
+                Ok((permit, _)) => admitted.push(permit),
+                Err(()) => full_size_unavailable += 1,
+            }
+        }
+
+        eprintln!(
+            "admitted {} public response streams in {:?}",
+            admitted.len(),
+            started_at.elapsed()
+        );
+        assert_eq!(admitted.len(), expected_admitted);
+        assert_eq!(full_size_unavailable, EXTRA_REQUESTS);
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            (6 * 1024 * 1024 + admitted.len() * REQUEST_BYTES) as u64
+        );
+
+        let barrier = Arc::new(Barrier::new(EXTRA_REQUESTS));
+        let mut tasks = JoinSet::new();
+        for _ in 0..EXTRA_REQUESTS {
+            let controller = controller.clone();
+            let barrier = barrier.clone();
+            tasks.spawn(async move {
+                barrier.wait().await;
+                assert!(
+                    controller
+                        .acquire_response_stream_memory(
+                            REQUEST_BYTES,
+                            "http",
+                            ResponseStreamAdmissionPatience::Degradable,
+                        )
+                        .await
+                        .is_err(),
+                    "the full-size tier should remain exhausted"
+                );
+                controller
+                    .acquire_degraded_response_stream_memory(
+                        RESPONSE_STREAM_MIN_CHUNK_BYTES * 4,
+                        "http",
+                    )
+                    .await
+            });
+        }
+
+        let mut degraded = Vec::with_capacity(EXTRA_REQUESTS);
+        while let Some(result) = tasks.join_next().await {
+            degraded.push(
+                result
+                    .expect("degraded burst task should not panic")
+                    .expect("public requests should fall back to bounded degraded streams"),
+            );
+        }
+        assert_eq!(degraded.len(), EXTRA_REQUESTS);
+
+        drop(degraded);
+        drop(admitted);
+        drop(bootstrap);
     }
 
     #[tokio::test]
@@ -967,12 +1454,18 @@ mod tests {
         );
         controller.observe(0);
         // Occupy the whole pool so neither caller can be admitted.
-        let _held = controller
+        let _fixed = controller
             .try_acquire_response_stream_memory(
                 controller.foreground_response_streaming_pool_bytes(),
                 "http",
             )
             .expect("the pool should start empty");
+        let _elastic = controller
+            .try_acquire_response_stream_memory(
+                controller.elastic_foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the elastic pool should start empty");
 
         let started_at = Instant::now();
         assert!(

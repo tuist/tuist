@@ -352,7 +352,7 @@ pub async fn read_request_to_temp(
             )));
         }
         if file_cache_policy.should_drop(
-            staging.memory.pressure(),
+            staging.memory.should_reclaim_file_cache(),
             staging.memory.transient_reserved_bytes(),
         ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
         {
@@ -488,6 +488,31 @@ pub fn segment_artifact_index_key(segment_id: &str, artifact_id: &str) -> String
 
 pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
+}
+
+/// Key prefix for the action-cache blob-refs reverse index. The rows live in
+/// the existing `key_value` column family rather than a dedicated one so that a
+/// rollback to a binary that predates this index can still reopen the database:
+/// `DB::open_cf_descriptors` rejects an on-disk column family it was not asked
+/// to open, so introducing one would crash-loop a rolled-back pod. An older
+/// binary simply never point-reads these prefixed keys. The prefix cannot
+/// collide with an inline artifact row (those are keyed by a 64-char hex
+/// `artifact_id`, which never contains `/`).
+const ACTION_CACHE_BLOB_REF_PREFIX: &str = "blob_ref/";
+
+/// Row key in the action-cache blob-refs reverse index: one `{blob}\0{entry}`
+/// pair per (referenced blob, referencing entry). Individual pair rows (empty
+/// value) rather than a set-valued row so two entries referencing the same blob
+/// write disjoint keys and never lose an update. Mirrors the
+/// `segment_artifact_index_key` shape, prefixed to share the `key_value` CF.
+pub fn action_cache_blob_ref_key(blob_artifact_id: &str, entry_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0{entry_artifact_id}")
+}
+
+/// Prefix scan for every entry that references `blob_artifact_id`, used by the
+/// eviction cascade to find the entries an evicted blob strands.
+pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0")
 }
 
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT

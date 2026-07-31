@@ -9,6 +9,7 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -86,6 +87,7 @@ defmodule Tuist.AutomationsTest do
                })
 
       assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
     end
 
     test "keeps the baseline when only enabled changes" do
@@ -94,6 +96,7 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
 
       assert updated.baseline_established_at == automation.baseline_established_at
+      assert updated.baseline_generation == automation.baseline_generation
     end
   end
 
@@ -508,6 +511,23 @@ defmodule Tuist.AutomationsTest do
       reject(&ActionExecutor.execute_actions/3)
 
       assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts whose trigger state filter does not match the test case" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["marked_flaky"], "states" => ["skipped"]})
+      project_id = project.id
+      test_case_id = test_case.id
+
+      expect(Tests, :get_test_case_states, fn ^project_id, [^test_case_id] ->
+        %{test_case_id => %{state: "muted", is_flaky: false}}
+      end)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+      assert Automations.list_active_alert_events(alert.id) == []
     end
 
     test ":unmarked_flaky fires an alert subscribed to unmarked_flaky" do

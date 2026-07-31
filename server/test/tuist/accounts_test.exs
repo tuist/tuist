@@ -1654,6 +1654,21 @@ defmodule Tuist.AccountsTest do
       assert second_account_handle == "find-or-create-user-from-oauth1"
     end
 
+    test "confirms accounts created from an OAuth2 sign-in" do
+      # Given
+      oauth_identity = %{
+        provider: :github,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "oauth-confirmed-#{System.unique_integer([:positive])}@tuist.io"}
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+
+      # Then
+      assert user.confirmed_at
+    end
+
     test "assigns user role to SSO users for Google SSO" do
       # Given
       domain = unique_sso_domain()
@@ -2285,6 +2300,32 @@ defmodule Tuist.AccountsTest do
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
       assert user_token.context == "confirm"
+    end
+
+    test "returns :ok without issuing a new token within the cooldown window", %{user: user} do
+      extract_user_token(fn confirmation_url ->
+        Accounts.deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
+      end)
+
+      assert Accounts.deliver_user_confirmation_instructions(%{
+               user: user,
+               confirmation_url: &"https://tuist.dev/users/confirm/#{&1}"
+             }) == :ok
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "confirm"),
+               :count,
+               :id
+             ) == 1
+    end
+
+    test "returns an already-confirmed error for a confirmed user" do
+      user = user_fixture(confirmed_at: DateTime.utc_now())
+
+      assert Accounts.deliver_user_confirmation_instructions(%{
+               user: user,
+               confirmation_url: &"https://tuist.dev/users/confirm/#{&1}"
+             }) == {:error, :already_confirmed}
     end
   end
 

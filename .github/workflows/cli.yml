@@ -388,7 +388,7 @@ jobs:
     name: Linux Build
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swiftlang/swift:nightly-6.4.x-jammy@sha256:763b14501faf5ecd4400316aeea94cc3f5419850230742236e8b3eb6261aa0b0
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -417,7 +417,7 @@ jobs:
     name: Linux Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swiftlang/swift:nightly-6.4.x-jammy@sha256:763b14501faf5ecd4400316aeea94cc3f5419850230742236e8b3eb6261aa0b0
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
