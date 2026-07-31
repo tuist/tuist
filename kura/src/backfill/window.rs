@@ -24,12 +24,13 @@ pub struct BackfillWindow {
 /// needs.
 pub fn compute_window(
     age_ordered_stats_ms: &[u64],
+    ring_total_segments: usize,
     margin_percent: u64,
     peer_watermark_ms: Option<u64>,
     now_ms: u64,
     metrics: &Metrics,
 ) -> BackfillWindow {
-    let horizon = horizon_version_ms(age_ordered_stats_ms, margin_percent);
+    let horizon = horizon_version_ms(age_ordered_stats_ms, ring_total_segments, margin_percent);
     if let Some(horizon) = horizon {
         metrics.set_backfill_horizon_age_ms(now_ms.saturating_sub(horizon));
     }
@@ -43,12 +44,26 @@ pub fn compute_window(
 /// segment at the margin boundary, i.e. the oldest segment inside the newest
 /// `margin_percent` of the ring (margin 40%, ring of 100 → the segment at
 /// age-order position 60). `None` on an empty ring: a cold node's window is
-/// unbounded. Pre-upgrade references fall back to `created_at_ms`, which
-/// overstates recency for segments populated by the legacy hash-order
-/// bootstrap; on such rings the horizon is conservative — shallower — until
-/// the ring turns over.
-pub fn horizon_version_ms(age_ordered_stats_ms: &[u64], margin_percent: u64) -> Option<u64> {
-    if age_ordered_stats_ms.is_empty() {
+/// unbounded.
+///
+/// The horizon is a ring rule, so it only engages once the ring holds its
+/// desired total: below that count admitting older entries forces no
+/// eviction, and a partially-filled ring's stats describe only the newest
+/// data — bounding by them would permanently skip anything older. The
+/// restart-mid-backfill shape makes that concrete: the interrupted walk
+/// leaves one segment holding the newest bodies, and a horizon computed from
+/// it would exclude the entire unapplied (older, still recent) tail, turning
+/// a restart into permanent data loss instead of a bounded re-walk.
+///
+/// Pre-upgrade references fall back to `created_at_ms`, which overstates
+/// recency for segments populated by the legacy hash-order bootstrap; on such
+/// rings the horizon is conservative — shallower — until the ring turns over.
+pub fn horizon_version_ms(
+    age_ordered_stats_ms: &[u64],
+    ring_total_segments: usize,
+    margin_percent: u64,
+) -> Option<u64> {
+    if age_ordered_stats_ms.is_empty() || age_ordered_stats_ms.len() < ring_total_segments {
         return None;
     }
     let count = age_ordered_stats_ms.len();
@@ -148,7 +163,7 @@ mod tests {
                 let margin_segments = count * margin_percent as usize / 100;
                 let ring_position_answer = stats[(count - margin_segments).min(count - 1)];
                 assert_eq!(
-                    horizon_version_ms(&stats, margin_percent),
+                    horizon_version_ms(&stats, count, margin_percent),
                     Some(ring_position_answer),
                     "count {count} margin {margin_percent}"
                 );
@@ -161,7 +176,7 @@ mod tests {
         // Origin R4 example, verbatim: "margin 40%, ring of 100 segments →
         // segment 60" (segments ordered 0 = oldest to N = most recent).
         let stats: Vec<u64> = (0..100).map(|segment| 1_000 + segment).collect();
-        assert_eq!(horizon_version_ms(&stats, 40), Some(1_060));
+        assert_eq!(horizon_version_ms(&stats, 100, 40), Some(1_060));
     }
 
     #[test]
@@ -170,7 +185,7 @@ mod tests {
         // default matches the 'new' band on a warm node" — the margin band is
         // the two new segments and the horizon is the older one's stat.
         let stats = vec![10, 20, 30, 40, 50];
-        assert_eq!(horizon_version_ms(&stats, 40), Some(40));
+        assert_eq!(horizon_version_ms(&stats, 5, 40), Some(40));
     }
 
     #[test]
@@ -195,7 +210,7 @@ mod tests {
         // The margin band is the two age-newest segments (700, 900) and the
         // horizon is its boundary stat; ring-position indexing would have
         // landed on s4's 100 instead.
-        assert_eq!(horizon_version_ms(&stats, 40), Some(700));
+        assert_eq!(horizon_version_ms(&stats, 5, 40), Some(700));
     }
 
     #[test]
@@ -217,13 +232,32 @@ mod tests {
         }
 
         let stats = age_ordered_stats(&state);
-        assert_eq!(horizon_version_ms(&stats, 40), Some(5_030));
+        assert_eq!(horizon_version_ms(&stats, 5, 40), Some(5_030));
+    }
+
+    #[test]
+    fn partially_filled_ring_carries_no_horizon() {
+        // The restart-mid-backfill shape: the interrupted newest-first walk
+        // left one segment holding only the newest applied bodies. A horizon
+        // computed from that segment would exclude the entire unapplied
+        // (older) tail and turn the restart into permanent loss; below the
+        // desired total the ring has no eviction pressure, so no bound.
+        let metrics = test_metrics();
+        for count in 1usize..5 {
+            let stats: Vec<u64> = (0..count as u64).map(|index| 9_000 + index).collect();
+            assert_eq!(horizon_version_ms(&stats, 5, 40), None, "count {count}");
+            let window = compute_window(&stats, 5, 40, None, 10_000, &metrics);
+            assert_eq!(window.min_version_ms, None, "count {count}");
+        }
+        // The watermark term still bounds a re-join pass on a partial ring.
+        let window = compute_window(&[9_000], 5, 40, Some(8_500), 10_000, &metrics);
+        assert_eq!(window.min_version_ms, Some(8_500));
     }
 
     #[test]
     fn cold_node_window_is_unbounded() {
         let metrics = test_metrics();
-        let window = compute_window(&[], 40, None, 10_000, &metrics);
+        let window = compute_window(&[], 5, 40, None, 10_000, &metrics);
         assert_eq!(window.min_version_ms, None);
     }
 
@@ -233,15 +267,15 @@ mod tests {
         let stats = vec![100, 200, 300, 400, 500];
 
         // A watermark above the horizon bounds the re-join pass.
-        let window = compute_window(&stats, 40, Some(450), 10_000, &metrics);
+        let window = compute_window(&stats, 5, 40, Some(450), 10_000, &metrics);
         assert_eq!(window.min_version_ms, Some(450));
 
         // A watermark below the horizon never deepens the window past it.
-        let window = compute_window(&stats, 40, Some(150), 10_000, &metrics);
+        let window = compute_window(&stats, 5, 40, Some(150), 10_000, &metrics);
         assert_eq!(window.min_version_ms, Some(400));
 
         // No watermark: the horizon alone bounds the pass.
-        let window = compute_window(&stats, 40, None, 10_000, &metrics);
+        let window = compute_window(&stats, 5, 40, None, 10_000, &metrics);
         assert_eq!(window.min_version_ms, Some(400));
     }
 
@@ -309,7 +343,7 @@ mod tests {
             (vec![250], 40, 1_000, 750),
         ] {
             let metrics = test_metrics();
-            compute_window(&stats, margin_percent, None, now_ms, &metrics);
+            compute_window(&stats, stats.len(), margin_percent, None, now_ms, &metrics);
             let rendered = metrics.render();
             assert!(
                 rendered.contains(&format!("kura_backfill_horizon_age_ms {expected_age}")),
@@ -321,7 +355,7 @@ mod tests {
     #[test]
     fn cold_node_leaves_the_horizon_age_span_gauge_untouched() {
         let metrics = test_metrics();
-        compute_window(&[], 40, None, 1_000, &metrics);
+        compute_window(&[], 5, 40, None, 1_000, &metrics);
         assert!(metrics.render().contains("kura_backfill_horizon_age_ms 0"));
     }
 
@@ -340,8 +374,8 @@ mod tests {
 
             let mut previous_horizon = None;
             for margin_percent in 1u64..=100 {
-                let horizon = horizon_version_ms(&sorted, margin_percent)
-                    .expect("non-empty ring always has a horizon");
+                let horizon = horizon_version_ms(&sorted, count, margin_percent)
+                    .expect("full ring always has a horizon");
                 // The horizon is always one of the retained stats.
                 assert!(sorted.contains(&horizon));
                 // More margin means more slack: the horizon never rises as
@@ -352,7 +386,7 @@ mod tests {
                 previous_horizon = Some(horizon);
             }
             // Full margin reaches the oldest stat.
-            assert_eq!(horizon_version_ms(&sorted, 100), Some(sorted[0]));
+            assert_eq!(horizon_version_ms(&sorted, count, 100), Some(sorted[0]));
         }
     }
 }

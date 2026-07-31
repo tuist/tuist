@@ -790,8 +790,10 @@ async fn run_managed_pass_with_cap(
         }
     };
     let age_ordered_stats = app.store.backfill_age_ordered_stats();
+    let ring_total_segments = app.store.backfill_capacity_inputs().ring_total_segments;
     let window = compute_window(
         &age_ordered_stats,
+        ring_total_segments,
         app.config.backfill_margin_percent,
         existing_watermark,
         pass_start_wallclock_ms,
@@ -1677,7 +1679,7 @@ mod tests {
             .backfill_watermark(node_url)
             .expect("watermark should read after reopen");
         assert_eq!(watermark, Some(5_000));
-        let window = compute_window(&[], 40, watermark, now_ms(), &reopened.state.metrics);
+        let window = compute_window(&[], 5, 40, watermark, now_ms(), &reopened.state.metrics);
         assert_eq!(window.min_version_ms, Some(5_000));
     }
 
@@ -1725,7 +1727,7 @@ mod tests {
                 .expect("stale watermark should read"),
             None
         );
-        let window = compute_window(&[], 40, None, now, &context.state.metrics);
+        let window = compute_window(&[], 5, 40, None, now, &context.state.metrics);
         assert_eq!(window.min_version_ms, None);
     }
 }

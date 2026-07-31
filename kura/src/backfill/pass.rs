@@ -604,10 +604,39 @@ async fn admit(
         // Reclaimed tombstone (the lister applies its own claims inline).
         return apply_tombstone(context, &item.key).await;
     }
-    if item.key.kind == BackfillRecordKind::SegmentArtifact && context.capacity_fired() {
-        // The claim was stripped by mark_capacity_complete and resolved
-        // capacity-skipped for this pass; nothing to fetch.
-        return Ok(());
+    if item.key.kind == BackfillRecordKind::SegmentArtifact {
+        // Re-evaluate the marginal trade before dispatch, not only at listing
+        // time: listing can enumerate (and claim) an entire dataset while the
+        // ring is still empty — a page of few, large entries fills the fetch
+        // queue before a single segment seals — and the queue then decouples
+        // fetching from the listing-time check by up to its whole depth.
+        // Without this admit-time re-read those already-claimed tuples all
+        // apply after the ring fills, rotating out the newest segments: the
+        // #12047 eviction churn the trade exists to stop, with overshoot
+        // bounded only by dataset size. With it, overshoot is bounded by the
+        // one in-flight batch per pass, as designed.
+        if !context.capacity_fired() {
+            let inputs = context.state.store.backfill_capacity_inputs();
+            if capacity_complete(
+                inputs.segment_count,
+                inputs.ring_total_segments,
+                inputs.next_evictee_stat_ms,
+                item.key.version_ms,
+            ) {
+                context.guard.mark_capacity_complete();
+                context.capacity_fired.store(true, Ordering::Relaxed);
+                tracing::info!(
+                    peer = context.peer,
+                    cursor_version_ms = item.key.version_ms,
+                    "backfill pass capacity-completed at dispatch; segmented fetches stop"
+                );
+            }
+        }
+        if context.capacity_fired() {
+            // The claim was stripped by mark_capacity_complete and resolved
+            // capacity-skipped for this pass; nothing to fetch.
+            return Ok(());
+        }
     }
     if item
         .size
