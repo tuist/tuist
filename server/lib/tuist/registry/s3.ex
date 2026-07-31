@@ -16,13 +16,15 @@ defmodule Tuist.Registry.S3 do
 
   @doc false
   def request(operation) do
-    ExAws.request(operation, Registry.registry_s3_config())
+    operation
+    |> with_tigris_consistency()
+    |> ExAws.request(Registry.registry_s3_config())
   end
 
   def get_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
 
-    case bucket |> ExAws.S3.get_object(key) |> with_tigris_consistency() |> request() do
+    case bucket |> ExAws.S3.get_object(key) |> request() do
       {:ok, %{status_code: 200, body: body}} -> {:ok, body}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
