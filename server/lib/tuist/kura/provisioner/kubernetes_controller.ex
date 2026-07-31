@@ -175,11 +175,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def caught_up?(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"phase" => "Ready"}}} -> {:ok, true}
+      {:ok, %{"status" => %{"phase" => "Ready"} = status}} -> {:ok, backfill_caught_up(status)}
       {:ok, _} -> {:ok, false}
       {:error, reason} -> {:error, reason}
     end
   end
+
+  # Under the backfill flag a move target latches Ready at partial ring
+  # fullness, so Ready alone no longer implies the dataset transferred — and
+  # the reconciler destroys the move source shortly after promotion. The
+  # kura-controller mirrors the runtime's backfill_initial_cycle mode into the
+  # CR status; promotion accepts only "complete". "degraded" (real-failure
+  # budget exhaustion) surfaces distinctly so the reconciler can alarm; it is
+  # not terminal — background retries can still advance it to "complete". Any
+  # unknown mode from a newer runtime holds like "pending". An absent field is
+  # a pre-backfill instance, for which Ready keeps today's meaning.
+  defp backfill_caught_up(%{"backfillInitialCycle" => "complete"}), do: true
+  defp backfill_caught_up(%{"backfillInitialCycle" => "degraded"}), do: :degraded
+  defp backfill_caught_up(%{"backfillInitialCycle" => _mode}), do: false
+  defp backfill_caught_up(_status), do: true
 
   @impl true
   def current_manifest_revision(name, %Regions{} = region) do

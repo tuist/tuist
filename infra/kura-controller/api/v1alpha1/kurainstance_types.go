@@ -158,6 +158,15 @@ type KuraInstanceStatus struct {
 	// ports and the primary pod is placed on a labeled node.
 	NodeAddress   string `json:"nodeAddress,omitempty"`
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
+
+	// BackfillInitialCycle mirrors the runtime's `backfill_initial_cycle`
+	// mode ("pending", "complete", or "degraded"; worst-of across pods).
+	// Empty when the runtime does not report the field (pre-backfill image
+	// or flag off). The server's region-move promotion gates on "complete";
+	// the field must be declared in the CRD structural schema or the
+	// apiserver prunes it and a backfilling target silently looks like a
+	// pre-backfill node.
+	BackfillInitialCycle string `json:"backfillInitialCycle,omitempty"`
 }
 
 // +kubebuilder:object:root=true

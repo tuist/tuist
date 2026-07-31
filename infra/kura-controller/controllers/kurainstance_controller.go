@@ -182,6 +182,13 @@ type runtimeStatus struct {
 	State           string `json:"state"`
 	RingMembers     int    `json:"ring_members"`
 	WriterLockOwned bool   `json:"writer_lock_owned"`
+
+	// BackfillInitialCycle is the runtime's backfill mode ("pending",
+	// "complete", or "degraded"). Empty on runtimes that predate the
+	// backfill flag or run with it off. It only feeds the instance status
+	// (the server gates region-move promotion on it); routing keeps using
+	// Ready/State/WriterLockOwned untouched.
+	BackfillInitialCycle string `json:"backfill_initial_cycle"`
 }
 
 type httpRuntimeStatusClient struct {
@@ -334,7 +341,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
-	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	primaryPod, runtimeStatuses, err := r.selectPrimaryPod(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -398,6 +405,13 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Message = rollout.message
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
+	// Only rewrite the backfill mode when at least one pod's runtime status
+	// was observed this reconcile: clearing it on a probe outage would make a
+	// backfilling instance indistinguishable from a pre-backfill node to the
+	// server's move-promotion gate.
+	if len(runtimeStatuses) > 0 {
+		instance.Status.BackfillInitialCycle = aggregateBackfillInitialCycle(runtimeStatuses)
+	}
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -1634,8 +1648,10 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 // selectPrimaryPod resolves which pod the public Services should route
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
-// controller restart without a dedicated status field.
-func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// controller restart without a dedicated status field. It also returns
+// the runtime statuses fetched along the way so the reconcile loop can
+// surface the backfill mode without probing every pod a second time.
+func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, []runtimeStatus, error) {
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -1643,17 +1659,18 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 		current = service.Spec.Selector[podNameLabel]
 	case apierrors.IsNotFound(err):
 	default:
-		return "", err
+		return "", nil, err
 	}
 
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+	routable, statuses := r.primaryPodHealth(ctx, instance, pods.Items)
+	return choosePrimaryPod(current, instance.Name, pods.Items, routable), statuses, nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (map[string]bool, []runtimeStatus) {
 	now := time.Now()
 
 	statusClient := r.RuntimeStatusClient
@@ -1673,7 +1690,7 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	// therefore probed for every Ready pod, not just the age-eligible ones.
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
-	runtimeStatuses := 0
+	var statuses []runtimeStatus
 	for i := range pods {
 		if !podReady(&pods[i]) {
 			continue
@@ -1686,14 +1703,14 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
 			continue
 		}
-		runtimeStatuses++
+		statuses = append(statuses, status)
 		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
 	}
 
-	if runtimeStatuses == 0 {
-		return fallbackReady
+	if len(statuses) == 0 {
+		return fallbackReady, nil
 	}
-	return runtimeHealthy
+	return runtimeHealthy, statuses
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
@@ -1729,6 +1746,37 @@ func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
 		return false
 	}
 	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
+}
+
+// aggregateBackfillInitialCycle folds the per-pod backfill modes into the
+// instance-level mode the server's move promotion gates on: the worst mode
+// across pods wins, and the result is empty only when no pod reports the
+// field (pre-backfill image or flag off — today's promotion semantics). A
+// mode this controller doesn't know ranks between "pending" and "degraded"
+// so a newer runtime's vocabulary holds promotion instead of passing it.
+func aggregateBackfillInitialCycle(statuses []runtimeStatus) string {
+	worst := ""
+	for _, status := range statuses {
+		if backfillInitialCycleRank(status.BackfillInitialCycle) > backfillInitialCycleRank(worst) {
+			worst = status.BackfillInitialCycle
+		}
+	}
+	return worst
+}
+
+func backfillInitialCycleRank(mode string) int {
+	switch mode {
+	case "":
+		return 0
+	case "complete":
+		return 1
+	case "pending":
+		return 2
+	case "degraded":
+		return 4
+	default:
+		return 3
+	}
 }
 
 func requiredPrimaryRingMembers(replicas int32) int {

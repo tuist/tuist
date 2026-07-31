@@ -393,10 +393,54 @@ defmodule Tuist.Kura.Reconciler do
         # the bootstrap gate. Surface :replicating so the move shows progress.
         record(server, :replicating, image_tag, now())
 
+      {:ok, :degraded} ->
+        # The target's backfill cycle stalled on real peer failures — which
+        # fires exactly when the move source is unhealthy — so promoting would
+        # destroy the source with the dataset untransferred. Alarm and hold:
+        # the mode is not terminal, so a later tick observing `complete`
+        # promotes the held move; the only thing the hold pins is this
+        # server's own open deployment, and the operator abort path is
+        # `Kura.destroy_server/1` on the target, which cancels that deployment
+        # and leaves the still-serving source in place.
+        alarm_degraded_move_target(server)
+        record(server, :replicating, image_tag, now())
+
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe readiness of move target #{server.id}: #{inspect(reason)}")
 
         :ok
+    end
+  end
+
+  # Alarmed once per move target per BEAM node: the reconciler ticks every
+  # 30s and a degraded cycle can persist for hours, while Sentry treats every
+  # capture as a fresh event. Keyed by the target row's id — each move creates
+  # a new target row, so a later move alarms again. Entries are single small
+  # tuples that live for the node's lifetime, which is fine at the rate
+  # operators start moves.
+  defp alarm_degraded_move_target(%Server{} = server) do
+    key = {__MODULE__, :degraded_move_alarm, server.id}
+
+    if :persistent_term.get(key, false) do
+      :ok
+    else
+      :persistent_term.put(key, true)
+
+      Logger.error(
+        "[Kura.Reconciler] move target #{server.id} in #{server.region} reports a degraded backfill cycle; holding promotion"
+      )
+
+      Sentry.capture_message("Kura move target backfill degraded",
+        level: :error,
+        tags: %{region: server.region},
+        extra: %{
+          server_id: server.id,
+          account_id: server.account_id,
+          region: server.region
+        }
+      )
+
+      :ok
     end
   end
 
