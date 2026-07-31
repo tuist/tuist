@@ -53,8 +53,16 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
+  # Cache is read-only for the registry. Nothing enqueues registry uploads any
+  # more, but a row queued before the writer was removed would otherwise still
+  # be drained by this cron and push an object into the shared registry bucket.
+  defp execute_transfer(:upload, %{artifact_type: :registry, key: key}) do
+    Logger.warning("Dropping stale registry upload for #{key}: cache is not a registry writer")
+    :ok
+  end
+
   defp execute_transfer(:upload, %{artifact_type: artifact_type, key: key})
-       when artifact_type in [:registry, :xcode_cache] do
+       when artifact_type in [:xcode_cache] do
     local_path = Disk.artifact_path(key)
 
     if File.exists?(local_path) do
