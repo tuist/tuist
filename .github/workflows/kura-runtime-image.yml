@@ -37,7 +37,8 @@ jobs:
   build-and-push:
     name: Build and push (amd64)
     runs-on: tuist-linux
-    timeout-minutes: 60
+    # Cold build: no remote cache, so rocksdb/aws-lc compile from scratch.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -49,16 +50,14 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
-      # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking.
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
-        continue-on-error: true
-      - name: Warn when the Tuist remote cache is unavailable
-        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
-        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+      # The remote cache is deliberately NOT set up on this branch. The cache
+      # nodes are shedding reads (`RESOURCE_EXHAUSTED: 0 bytes remain in the
+      # REAPI materialization budget`), so asking for an artifact and being
+      # refused costs a local rebuild plus the retry ladder, and mid-build
+      # `Lost inputs no longer available remotely` fails the build outright.
+      # This branch exists to build the image that carries the fix for exactly
+      # that, so it must not depend on the cache it repairs. Delete this branch
+      # once the fix is deployed and the nodes serve again.
 
       - name: Build the Kura binary with Bazel
         run: |
