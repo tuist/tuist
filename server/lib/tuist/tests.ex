@@ -1483,16 +1483,14 @@ defmodule Tuist.Tests do
 
   defp fetch_full_test_case_runs(slim_results) do
     ids = Enum.map(slim_results, & &1.id)
-    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
-    test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
-    {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
+    # `test_case_runs.proj_by_id` is ordered by id. Adding the project, test
+    # case, and ran-at predicates from the slim result turns this into a wide
+    # intersection and prevents ClickHouse from selecting that point-lookup
+    # projection. Run identifiers are globally unique, so the ids alone
+    # identify the rows we need to hydrate.
     base_query =
       from(tcr in TestCaseRun,
-        where: tcr.project_id in ^project_ids,
-        where: tcr.test_case_id in ^test_case_ids,
-        where: tcr.ran_at >= ^min_ran_at,
-        where: tcr.ran_at <= ^max_ran_at,
         where: tcr.id in ^ids,
         order_by: [desc: tcr.inserted_at]
       )
@@ -1546,26 +1544,6 @@ defmodule Tuist.Tests do
     if Enum.all?(versions, fn {_id, inserted_at} -> not is_nil(inserted_at) end) do
       Map.new(versions)
     end
-  end
-
-  defp ran_at_bounds([first | rest]) do
-    Enum.reduce(rest, {first.ran_at, first.ran_at}, fn run, {min_ran_at, max_ran_at} ->
-      min_ran_at =
-        if NaiveDateTime.before?(run.ran_at, min_ran_at) do
-          run.ran_at
-        else
-          min_ran_at
-        end
-
-      max_ran_at =
-        if NaiveDateTime.after?(run.ran_at, max_ran_at) do
-          run.ran_at
-        else
-          max_ran_at
-        end
-
-      {min_ran_at, max_ran_at}
-    end)
   end
 
   # Filter precedence for routing: a narrower scope wins so we use the
