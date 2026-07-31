@@ -14,6 +14,7 @@ pub(crate) enum FailpointName {
     AfterApplyReplicatedTombstone,
     AfterBackfillIndexBuildChunk,
     AfterBackfillBodiesSpoolBeforeApply,
+    BetweenBackfillGroupCommits,
     AfterBackfillBatchCommitBeforeWalFlush,
 }
 
@@ -40,6 +41,7 @@ impl FailpointName {
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
             Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",
             Self::AfterBackfillBodiesSpoolBeforeApply => "after_backfill_bodies_spool_before_apply",
+            Self::BetweenBackfillGroupCommits => "between_backfill_group_commits",
             Self::AfterBackfillBatchCommitBeforeWalFlush => {
                 "after_backfill_batch_commit_before_wal_flush"
             }

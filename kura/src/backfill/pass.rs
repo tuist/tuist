@@ -44,7 +44,7 @@ use crate::{
     },
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{BackfillApplyBatch, StagedArtifactPath},
+    store::{BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -801,20 +801,26 @@ async fn spool_batch_response(
 /// uses the LISTED key.
 ///
 /// Durability is batched (see [`BackfillApplyBatch`]): segmented bodies are
-/// staged into the active segment as the frames stream and their manifests
-/// commit — after one covering segment fsync — at the end, followed by one
-/// WAL flush; inline bodies commit WAL-only as they arrive and ride the same
-/// batch-end barrier. Claims still resolve per record as they always did:
-/// if the batch commit then fails (or the pass is cancelled first), the pass
-/// fails without advancing the watermark, so the next pass re-lists every
-/// tuple this batch resolved and LWW absorbs the replays — the same
-/// crash-replay contract the per-record path relied on.
+/// staged into the active segment and inline bodies into memory as the
+/// frames stream, and everything staged commits at the end — after one
+/// covering segment fsync — in group commits of one shared non-sync
+/// WriteBatch per up to `BACKFILL_APPLY_GROUP_RECORDS` records, followed by
+/// one WAL flush. A staged record's claim resolves in the group-commit
+/// callback, right after the WriteBatch that makes it readable lands (a
+/// record whose phase-1 pre-check finds it already converged still resolves
+/// immediately). If the batch commit fails partway (or the pass is cancelled
+/// first), the pass fails without advancing the watermark, so the next pass
+/// re-lists every tuple this batch resolved and LWW absorbs the replays —
+/// the same crash-replay contract the per-record path relied on.
 async fn apply_spooled_batch(
     context: &PassContext<'_>,
     items: &[QueuedFetch],
     spool: &SpooledResponse,
 ) -> Result<(), PassAbort> {
     let mut apply_batch = BackfillApplyBatch::new();
+    // Listed keys and transfer sizes of staged records, in staging order —
+    // the group-commit callback below resolves them group by group.
+    let mut staged_resolutions: Vec<(ClaimKey, u64)> = Vec::new();
     context
         .state
         .store
@@ -871,6 +877,9 @@ async fn apply_spooled_batch(
                         });
                         context.note_body("applied");
                     }
+                    PresentApply::Staged => {
+                        staged_resolutions.push((item.key.clone(), prelude.body_len));
+                    }
                     PresentApply::SkippedUnusable => {
                         // Unusable through this peer (e.g. an inline body over
                         // the replication bound): per-peer absent lets waiters
@@ -893,18 +902,44 @@ async fn apply_spooled_batch(
         ));
     }
     // Phases 2–4: fsync the batch's segment bytes, commit the staged
-    // manifests WAL-only, and flush the WAL as the durability barrier.
+    // manifests in group WriteBatches WAL-only, and flush the WAL as the
+    // durability barrier. Each group's records resolve as soon as their
+    // shared WriteBatch lands (groups cover staged records in staging
+    // order); records of a group that never commits stay unresolved and are
+    // released by the guard when the failed pass drops it.
+    let mut resolved_through = 0_usize;
     context
         .state
         .store
-        .commit_backfill_apply_batch(apply_batch)
+        .commit_backfill_apply_batch(apply_batch, |group_len| {
+            for (key, body_len) in
+                &staged_resolutions[resolved_through..resolved_through + group_len]
+            {
+                context.guard.resolve_applied(key);
+                context
+                    .state
+                    .metrics
+                    .record_backfill_applied_bytes(*body_len);
+                context.update_stats(|stats| {
+                    stats.bytes_applied += *body_len;
+                });
+                context.note_body("applied");
+            }
+            resolved_through += group_len;
+        })
         .await
         .map_err(PassAbort::Hard)?;
+    debug_assert_eq!(resolved_through, staged_resolutions.len());
     Ok(())
 }
 
 enum PresentApply {
+    /// Converged now: applied through a per-record sync commit, or found
+    /// already covered (equal/newer local copy, tombstone) by a pre-check.
     Applied,
+    /// Staged into the deferred batch; readable — and resolvable — only
+    /// after its phase-3 group commit.
+    Staged,
     SkippedUnusable,
 }
 
@@ -914,11 +949,12 @@ enum PresentApply {
 /// record is locally converged either way.
 ///
 /// With `deferred` set (the spooled batch path), the record takes the
-/// batched-durability route: segmented bodies stage into the accumulator for
-/// the batch-end commit, inline bodies commit WAL-only. Without it (the
-/// per-artifact fetch path — the up-front oversized route and bounced
-/// fetch-individually frames, a handful per pass), the record keeps the
-/// per-record sync apply.
+/// batched-durability route: segmented and inline bodies alike stage into
+/// the accumulator for the batch-end group commits and return
+/// [`PresentApply::Staged`] (unless the advisory pre-check finds them
+/// already converged, which returns `Applied`). Without it (the per-artifact
+/// fetch path — the up-front oversized route and bounced fetch-individually
+/// frames, a handful per pass), the record keeps the per-record sync apply.
 async fn apply_present_frame<R>(
     context: &PassContext<'_>,
     prelude: &BackfillBodyFramePrelude,
@@ -964,9 +1000,9 @@ where
             })?;
             match deferred {
                 Some(batch) => {
-                    state
+                    let staged = state
                         .store
-                        .apply_replicated_inline_artifact_from_bytes_deferred(
+                        .stage_backfill_inline_apply(
                             batch,
                             producer,
                             &meta.namespace_id,
@@ -978,6 +1014,10 @@ where
                         )
                         .await
                         .map_err(PassAbort::Hard)?;
+                    Ok(match staged {
+                        BackfillStageOutcome::Staged => PresentApply::Staged,
+                        BackfillStageOutcome::Converged => PresentApply::Applied,
+                    })
                 }
                 None => {
                     state
@@ -994,9 +1034,9 @@ where
                         )
                         .await
                         .map_err(PassAbort::Hard)?;
+                    Ok(PresentApply::Applied)
                 }
             }
-            Ok(PresentApply::Applied)
         }
         BackfillRecordKind::SegmentArtifact => {
             let reservation = state
@@ -1029,20 +1069,22 @@ where
             drop(file);
             let staged_path = StagedArtifactPath::new(&path, FileCachePolicy::Bounded);
             let result = match deferred {
-                Some(batch) => {
-                    state
-                        .store
-                        .stage_backfill_segmented_apply(
-                            batch,
-                            producer,
-                            &meta.namespace_id,
-                            &meta.key,
-                            &meta.content_type,
-                            staged_path,
-                            prelude.version_ms,
-                        )
-                        .await
-                }
+                Some(batch) => state
+                    .store
+                    .stage_backfill_segmented_apply(
+                        batch,
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        staged_path,
+                        prelude.version_ms,
+                    )
+                    .await
+                    .map(|staged| match staged {
+                        BackfillStageOutcome::Staged => PresentApply::Staged,
+                        BackfillStageOutcome::Converged => PresentApply::Applied,
+                    }),
                 None => state
                     .store
                     .apply_replicated_artifact_from_path(
@@ -1054,11 +1096,10 @@ where
                         prelude.version_ms,
                     )
                     .await
-                    .map(|_| ()),
+                    .map(|_| PresentApply::Applied),
             };
             cleanup.remove_and_disarm(&state.io).await;
-            result.map_err(PassAbort::Hard)?;
-            Ok(PresentApply::Applied)
+            result.map_err(PassAbort::Hard)
         }
     }
 }
@@ -1206,6 +1247,13 @@ async fn apply_individual_response(
                         .record_backfill_applied_bytes(prelude.body_len);
                     context.update_stats(|stats| stats.bytes_applied += prelude.body_len);
                     context.note_body("applied");
+                }
+                PresentApply::Staged => {
+                    // Unreachable by construction: the individual path applies
+                    // without a deferred batch, so nothing can stage.
+                    return Err(PassAbort::Hard(
+                        "individual backfill apply unexpectedly staged".to_owned(),
+                    ));
                 }
                 PresentApply::SkippedUnusable => {
                     context.guard.resolve_absent(key);
@@ -1373,6 +1421,7 @@ mod tests {
     use crate::{
         artifact::manifest::ArtifactManifest,
         backfill::claims::ClaimSet,
+        constants::BACKFILL_APPLY_GROUP_RECORDS,
         failpoints::FailpointAction,
         http::router,
         segment::{reference::SegmentReference, state::SegmentState},
@@ -2028,6 +2077,77 @@ mod tests {
             .expect("inline artifact should be intact");
         assert_eq!(inline.version_ms, 900);
         assert_eq!(read_body(&local, &inline).await, b"inline-body");
+    }
+
+    #[tokio::test]
+    async fn crash_between_group_commits_replays_clean() {
+        let peer = test_context(|_| {}).await;
+        // One record over the group bound, so the spooled batch's phase 3
+        // takes two group commits.
+        let total = BACKFILL_APPLY_GROUP_RECORDS + 1;
+        for index in 0..total {
+            seed_inline(
+                &peer,
+                &format!("grp-{index:03}"),
+                b"group-body",
+                1_000 + index as u64,
+            )
+            .await;
+        }
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // Interrupt between the two group commits: the first group's records
+        // are committed (readable, replay-recoverable) while the second
+        // group's never reach the WAL — and the batch never confirms its
+        // durability barrier, so the pass fails and the watermark stays put.
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_once(
+            FailpointName::BetweenBackfillGroupCommits,
+            FailpointAction::Error("backfill interrupted between groups".into()),
+        );
+
+        // A large flush interval keeps the whole listing composing into ONE
+        // bodies batch (flushed when listing completes), so the two-group
+        // phase 3 is deterministic.
+        let one_batch_tuning = BackfillPassTuning {
+            flush_interval: Duration::from_secs(3_600),
+            ..tuning()
+        };
+        let (first, first_set) = run_pass(&local, &peer_url, one_batch_tuning.clone()).await;
+        let BackfillPassOutcome::Failed { error, .. } = first else {
+            panic!("expected failure, got {first:?}");
+        };
+        assert!(
+            error.contains("backfill interrupted between groups"),
+            "{error}"
+        );
+        assert!(first_set.is_empty(), "claims released on failure");
+
+        // Restart shape: the pass re-lists, finds the first group's records
+        // covered, fetches and applies only the group that never committed,
+        // and converges.
+        let (second, _) = run_pass(&local, &peer_url, one_batch_tuning).await;
+        let BackfillPassOutcome::Completed { stats, .. } = second else {
+            panic!("expected completion, got {second:?}");
+        };
+        assert_eq!(
+            stats.tuples_present as usize, BACKFILL_APPLY_GROUP_RECORDS,
+            "the committed group's records are already covered"
+        );
+        assert_eq!(
+            stats.bodies_applied as usize, 1,
+            "only the uncommitted group re-applies"
+        );
+
+        for index in 0..total {
+            let manifest =
+                fetch_manifest(&local, ArtifactProducer::Xcode, &format!("grp-{index:03}"))
+                    .await
+                    .expect("record should converge");
+            assert_eq!(manifest.version_ms, 1_000 + index as u64);
+            assert_eq!(read_body(&local, &manifest).await, b"group-body");
+        }
     }
 
     #[tokio::test]

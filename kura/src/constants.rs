@@ -212,6 +212,22 @@ pub const DEFAULT_BACKFILL_BATCH_BYTES: u64 = BACKFILL_BODIES_BATCH_BYTES;
 // Compiled rather than env-exposed: a timing internal with no per-mesh
 // geometry dependence (same standard as the retry backoff bounds below).
 pub const BACKFILL_BATCH_FLUSH_INTERVAL_MS: u64 = 1_000;
+// Records per phase-3 group commit of one backfill bodies batch: staged
+// applies (segmented and inline alike) commit through ONE shared non-sync
+// WriteBatch per group of up to this many records, instead of one WriteBatch
+// per record. A live cold-node pass showed the per-record commits dominating
+// disk IOPS (~4,110 WAL appends per batch at 85–92% device utilization for
+// only 25–35 MB/s); grouping cuts that to ~ceil(records / this) appends. The
+// value bounds three things at once: how many artifact write-lock stripes one
+// group holds across its commit (lock-hold time for concurrent live writers),
+// how large the shared WriteBatch grows (inline bodies ride inside it), and
+// how much work a mid-commit failure re-lists. 64 matches the write-lock
+// stripe count — one group can at worst sweep every stripe once (inline
+// bytes are additionally bounded by the spooled batch itself, at most
+// BACKFILL_BODIES_BATCH_BYTES across ALL groups of a batch). Compiled rather
+// than env-exposed: a durability-batching internal with no per-mesh geometry
+// dependence.
+pub const BACKFILL_APPLY_GROUP_RECORDS: usize = 64;
 // Bounded backoff for budget-exempt retryable peer responses (index building,
 // endpoint-absent, peer busy, tmp budget, generic Retry-After backpressure).
 // Same shape as the legacy bootstrap backpressure retry; the pass retries
