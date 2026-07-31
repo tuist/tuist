@@ -116,6 +116,8 @@ pub struct Metrics {
     backfill_pass_events: Family<BackfillPassEventLabels, Counter>,
     backfill_backfilling_peers: Gauge,
     backfill_budget_exhausted_peers: Gauge,
+    backfill_initial_cycle_mode: Gauge,
+    backfill_ring_fullness_percent: Gauge,
     backfill_watermark_age_ms: Family<BackfillPassPeerLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
@@ -321,6 +323,8 @@ impl Metrics {
         let backfill_pass_events = Family::<BackfillPassEventLabels, Counter>::default();
         let backfill_backfilling_peers = Gauge::default();
         let backfill_budget_exhausted_peers = Gauge::default();
+        let backfill_initial_cycle_mode = Gauge::default();
+        let backfill_ring_fullness_percent = Gauge::default();
         let backfill_watermark_age_ms = Family::<BackfillPassPeerLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
@@ -810,6 +814,16 @@ impl Metrics {
             "kura_backfill_budget_exhausted_peers",
             "Initial-cycle peers whose backfill failure budget is exhausted",
             backfill_budget_exhausted_peers.clone(),
+        );
+        registry.register(
+            "kura_backfill_initial_cycle_mode",
+            "Initial backfill cycle mode (0=pending, 1=complete, 2=degraded)",
+            backfill_initial_cycle_mode.clone(),
+        );
+        registry.register(
+            "kura_backfill_ring_fullness_percent",
+            "Segment count as a percentage of the segment ring's desired total",
+            backfill_ring_fullness_percent.clone(),
         );
         registry.register(
             "kura_backfill_watermark_age_ms",
@@ -1317,6 +1331,8 @@ impl Metrics {
             backfill_pass_events,
             backfill_backfilling_peers,
             backfill_budget_exhausted_peers,
+            backfill_initial_cycle_mode,
+            backfill_ring_fullness_percent,
             backfill_watermark_age_ms,
             analytics_events,
             analytics_batches,
@@ -1919,6 +1935,15 @@ impl Metrics {
         self.backfill_backfilling_peers.set(backfilling as i64);
         self.backfill_budget_exhausted_peers
             .set(budget_exhausted as i64);
+    }
+
+    pub fn set_backfill_initial_cycle_mode(&self, mode: i64) {
+        self.backfill_initial_cycle_mode.set(mode);
+    }
+
+    pub fn set_backfill_ring_fullness_percent(&self, percent: u64) {
+        self.backfill_ring_fullness_percent
+            .set(i64::try_from(percent).unwrap_or(i64::MAX));
     }
 
     pub fn set_backfill_watermark_age_ms(&self, peer: &str, age_ms: u64) {

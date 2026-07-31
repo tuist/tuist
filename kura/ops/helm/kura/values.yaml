@@ -150,6 +150,12 @@ config:
     # window's structural slack; 40 matches the "new" band under the 1:2:2
     # old/current/new ring ratio.
     marginPercent: 40
+    # Segment-ring fullness percent at which a node still running its initial
+    # backfill cycle marks itself ready (readiness then latches for the
+    # process lifetime). Leave unset to derive half of marginPercent inside
+    # the binary — set it only to decouple the readiness point from the
+    # margin.
+    readyRingPercent: null
     # Byte threshold a backfill pass composes one bodies batch against, and
     # the cutoff above which a listed entry is fetched through the
     # per-artifact endpoint. Must not exceed the compiled 32 MiB response

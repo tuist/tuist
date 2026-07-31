@@ -11,6 +11,7 @@ use crate::{
         DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
         DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
         DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -93,6 +94,7 @@ const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
 const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
@@ -183,6 +185,12 @@ pub struct Config {
     /// margin's share of the ring's time span is the window's structural
     /// slack.
     pub backfill_margin_percent: u64,
+    /// Segment-ring fullness (segment count vs the ring's desired total, as a
+    /// percentage) at which a node still running its initial backfill cycle
+    /// marks itself ready. Defaults to half the backfill margin
+    /// ([`default_backfill_ready_ring_percent`]); an explicit env value
+    /// overrides the derivation. Only consulted while `backfill_enabled`.
+    pub backfill_ready_ring_percent: u64,
     /// Byte threshold a backfill pass composes one bodies batch against, and
     /// the cutoff above which a listed entry is fetched through the
     /// per-artifact endpoint instead of riding a batch. Never exceeds the
@@ -1037,6 +1045,22 @@ impl Config {
                 "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
             ));
         }
+        let backfill_ready_ring_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_READY_RING_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_READY_RING_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or_else(|| default_backfill_ready_ring_percent(backfill_margin_percent));
+        if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
         let backfill_batch_bytes = optional_parsed_value(
             &mut lookup,
             KURA_BACKFILL_BATCH_BYTES,
@@ -1480,6 +1504,7 @@ impl Config {
             bootstrap_max_concurrent_peers,
             backfill_enabled,
             backfill_margin_percent,
+            backfill_ready_ring_percent,
             backfill_batch_bytes,
             analytics,
             usage,
@@ -2030,6 +2055,40 @@ mod tests {
             let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
                 .expect_err("an out-of-range backfill margin must fail");
             assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_ready_ring_percent() {
+        let config = config_from(&[]).expect("default backfill ready percent should be valid");
+        assert_eq!(
+            config.backfill_ready_ring_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT / 2,
+            "the default derives from the margin, not a fixed value"
+        );
+
+        // The derivation follows an overridden margin.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "30")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 15);
+
+        // A 1% margin derives the 1 floor rather than 0.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "1")])
+            .expect("a 1% backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 1);
+
+        // An explicit value overrides the derivation.
+        let config = config_from(&[
+            (KURA_BACKFILL_MARGIN_PERCENT, "30"),
+            (KURA_BACKFILL_READY_RING_PERCENT, "60"),
+        ])
+        .expect("an in-range backfill ready percent should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 60);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_READY_RING_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill ready percent must fail");
+            assert!(error.contains(KURA_BACKFILL_READY_RING_PERCENT));
         }
     }
 

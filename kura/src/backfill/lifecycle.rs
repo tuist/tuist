@@ -92,9 +92,45 @@ pub enum PeerBackfillStatus {
     Removed,
 }
 
-/// Snapshot of the initial join cycle for Unit 9's readiness gate and the
+/// Mode of the initial join cycle, reported as `backfill_initial_cycle` in
+/// the rollout-status JSON and consumed by the kura-controller's promotion
+/// gate (Unit 9b). A mode rather than a boolean: a budget-exhausted cycle
+/// must not read as caught-up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillInitialCycleMode {
+    /// The cycle is still running (membership not fixed yet, or in-cycle
+    /// peers have passes outstanding under budget).
+    Pending,
+    /// The cycle settled and every in-cycle peer resolved cleanly: completed,
+    /// removed, or capability-excluded (a never-capable bystander must not
+    /// degrade the cycle).
+    Complete,
+    /// The cycle settled with at least one in-cycle peer exhausting its
+    /// budget through real failures. Not terminal: background retries that
+    /// complete the pass advance the mode to `Complete`.
+    Degraded,
+}
+
+impl BackfillInitialCycleMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Complete => "complete",
+            Self::Degraded => "degraded",
+        }
+    }
+
+    pub fn as_i64(&self) -> i64 {
+        match self {
+            Self::Pending => 0,
+            Self::Complete => 1,
+            Self::Degraded => 2,
+        }
+    }
+}
+
+/// Snapshot of the initial join cycle for the latched readiness gate and the
 /// rollout report.
-#[allow(dead_code)] // consumed by Unit 9 (latched readiness) and the rollout report
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackfillCycleSnapshot {
     /// Whether the cycle membership has been fixed (initial discovery ∪ first
@@ -113,9 +149,24 @@ pub struct BackfillCycleSnapshot {
 }
 
 impl BackfillCycleSnapshot {
-    #[allow(dead_code)] // consumed by Unit 9 (latched readiness)
     pub fn is_backfilling(&self) -> bool {
         !self.settled
+    }
+
+    /// Derives the cycle mode: `pending` until settled, then `degraded` while
+    /// any in-cycle peer sits budget-exhausted on real failures, `complete`
+    /// otherwise (completed, removed, and capability-excluded peers all count
+    /// complete). Statuses are recomputed per snapshot, so a real-failure
+    /// peer whose background retries later complete moves the mode
+    /// `degraded → complete` without the readiness latch ever regressing.
+    pub fn initial_cycle_mode(&self) -> BackfillInitialCycleMode {
+        if !self.settled {
+            BackfillInitialCycleMode::Pending
+        } else if self.budget_exhausted_real > 0 {
+            BackfillInitialCycleMode::Degraded
+        } else {
+            BackfillInitialCycleMode::Complete
+        }
     }
 }
 
@@ -541,14 +592,34 @@ impl BackfillLifecycle {
         self.refresh_gauges(app);
     }
 
-    /// Snapshot of the initial join cycle for the readiness gate (Unit 9) and
-    /// the rollout report.
-    #[allow(dead_code)] // consumed by Unit 9 (latched readiness)
+    /// Snapshot of the initial join cycle for the readiness gate and the
+    /// rollout report.
     pub fn cycle_snapshot(&self) -> BackfillCycleSnapshot {
         self.machine
             .lock()
             .expect("backfill lifecycle machine lock")
             .snapshot()
+    }
+
+    /// Drives the scheduling machine without spawning pass tasks, so state
+    /// and router tests can shape the cycle (peers in flight, settled,
+    /// budget-exhausted) deterministically and without a network.
+    #[cfg(test)]
+    pub(crate) fn test_evaluate(&self, tick: &MembershipTick<'_>, now: Instant) {
+        let _ = self
+            .machine
+            .lock()
+            .expect("backfill lifecycle machine lock")
+            .evaluate(tick, now);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_finish_pass(&self, peer: &str, resolution: PassResolution, now: Instant) {
+        let _ = self
+            .machine
+            .lock()
+            .expect("backfill lifecycle machine lock")
+            .on_pass_finished(peer, resolution, now);
     }
 
     fn apply_actions(self: &Arc<Self>, app: &SharedState, actions: Vec<Action>) {
@@ -1185,6 +1256,50 @@ mod tests {
         assert_eq!(snapshot.budget_exhausted_real, 0);
         assert_eq!(snapshot.backfilling_peers, 0);
         assert!(snapshot.settled);
+    }
+
+    #[test]
+    fn initial_cycle_mode_derivation_and_wire_values() {
+        // The wire values are the Unit 9b promotion-gate contract: the
+        // kura-controller and server reconciler parse these exact strings
+        // out of `backfill_initial_cycle`.
+        assert_eq!(BackfillInitialCycleMode::Pending.as_str(), "pending");
+        assert_eq!(BackfillInitialCycleMode::Complete.as_str(), "complete");
+        assert_eq!(BackfillInitialCycleMode::Degraded.as_str(), "degraded");
+        assert_eq!(BackfillInitialCycleMode::Pending.as_i64(), 0);
+        assert_eq!(BackfillInitialCycleMode::Complete.as_i64(), 1);
+        assert_eq!(BackfillInitialCycleMode::Degraded.as_i64(), 2);
+
+        let mut machine = LifecycleMachine::default();
+        let mut now = Instant::now();
+        let peers = vec![peer_url(1)];
+        machine.evaluate(&tick(&peers, &[]), now);
+        assert_eq!(
+            machine.snapshot().initial_cycle_mode(),
+            BackfillInitialCycleMode::Pending
+        );
+
+        // Real-failure exhaustion settles the cycle degraded.
+        for _ in 0..BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
+            machine.on_pass_finished(&peer_url(1), PassResolution::Failed, now);
+            now += Duration::from_secs(3_600);
+            machine.evaluate(&tick(&[], &[]), now);
+        }
+        assert_eq!(
+            machine.snapshot().initial_cycle_mode(),
+            BackfillInitialCycleMode::Degraded
+        );
+
+        // Degraded is not terminal: the background retry (and seam
+        // follow-up) completing advances the mode to complete.
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, now);
+        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        machine.evaluate(&tick(&[], &[]), seam);
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, seam);
+        assert_eq!(
+            machine.snapshot().initial_cycle_mode(),
+            BackfillInitialCycleMode::Complete
+        );
     }
 
     #[test]

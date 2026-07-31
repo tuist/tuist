@@ -124,6 +124,19 @@ pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 // under the legacy 1:2:2 old/current/new ring ratio, so on a warm ordered
 // ring the default slack is exactly the new band.
 pub const DEFAULT_BACKFILL_MARGIN_PERCENT: u64 = 40;
+
+/// Default for `KURA_BACKFILL_READY_RING_PERCENT` — the segment-ring fullness
+/// at which a node still running its initial backfill cycle marks itself
+/// ready. Derived as half the backfill margin (margin 40 → ready at 20)
+/// rather than fixed: the margin's share of the ring is the recency band a
+/// backfill re-covers first, so half of it is data the node has provably
+/// caught up on before taking traffic, and retuning the margin per mesh moves
+/// the readiness point with it. Floored at 1 so a 1% margin cannot derive a
+/// zero threshold (which would mark every cold node ready immediately).
+pub const fn default_backfill_ready_ring_percent(margin_percent: u64) -> u64 {
+    let derived = margin_percent / 2;
+    if derived == 0 { 1 } else { derived }
+}
 // Clock-skew allowance subtracted from a pass's start point before it becomes
 // the per-peer watermark. `version_ms` values are stamped by writer clocks, so
 // a writer running behind the requester's clock can stamp entries below an

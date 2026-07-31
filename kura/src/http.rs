@@ -1619,7 +1619,7 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
 
 async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     let status = state.rollout_status_report().await;
-    Json(serde_json::json!({
+    let mut body = serde_json::json!({
         "generation": status.generation,
         "ready": status.ready,
         "state": status.state.as_str(),
@@ -1634,7 +1634,36 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
-    }))
+    });
+    // The backfill field family appears only under KURA_BACKFILL_ENABLED, so
+    // a flag-off node's report is byte-compatible with pre-backfill releases
+    // and field presence is how mode-aware consumers (gate.sh, the
+    // kura-controller) tell the walkers apart. `backfill_initial_cycle` is
+    // the promotion-gate contract: pending | complete | degraded.
+    if let Some(backfill) = &status.backfill {
+        let object = body.as_object_mut().expect("rollout status is an object");
+        object.insert(
+            "backfill_initial_cycle".into(),
+            backfill.initial_cycle.as_str().into(),
+        );
+        object.insert(
+            "backfill_backfilling_peers".into(),
+            backfill.backfilling_peers.into(),
+        );
+        object.insert(
+            "backfill_budget_exhausted_real_peers".into(),
+            backfill.budget_exhausted_real.into(),
+        );
+        object.insert(
+            "backfill_budget_exhausted_capability_peers".into(),
+            backfill.budget_exhausted_capability.into(),
+        );
+        object.insert(
+            "backfill_ring_fullness_percent".into(),
+            backfill.ring_fullness_percent.into(),
+        );
+    }
+    Json(body)
 }
 
 async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
@@ -4274,6 +4303,216 @@ mod tests {
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
+        // Flag-off reports carry exactly the legacy field family.
+        assert!(body.get("backfill_initial_cycle").is_none());
+        assert!(body.get("backfill_backfilling_peers").is_none());
+    }
+
+    fn backfill_tick<'a>(
+        discovered: &'a [String],
+        lost: &'a [String],
+    ) -> crate::backfill::lifecycle::MembershipTick<'a> {
+        crate::backfill::lifecycle::MembershipTick {
+            discovered,
+            lost,
+            view_settled: true,
+            control_plane_peers: &[],
+            admission: true,
+        }
+    }
+
+    /// Settles the initial backfill cycle over one peer: first pass plus the
+    /// seam follow-up, driven through the machine without pass tasks.
+    fn settle_backfill_cycle_over(state: &SharedState, peer: &str, now: tokio::time::Instant) {
+        use crate::backfill::lifecycle::PassResolution;
+        let discovered = vec![peer.to_string()];
+        state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        state
+            .backfill
+            .test_finish_pass(peer, PassResolution::Completed, now);
+        let seam = now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        state.backfill.test_evaluate(&backfill_tick(&[], &[]), seam);
+        state
+            .backfill
+            .test_finish_pass(peer, PassResolution::Completed, seam);
+    }
+
+    async fn get_ready_status(state: &SharedState) -> (StatusCode, Value) {
+        let response = public_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let status = response.status();
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        (status, body)
+    }
+
+    #[tokio::test]
+    async fn ready_latches_under_backfill_and_survives_peer_flap_and_recovery_reenrollment() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
+        context.state.expire_readiness_settle_window().await;
+
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["state"], "serving");
+
+        // The 2026-07-24 class: the peer flaps out and back (its re-join
+        // backfill makes the node "backfilling" again) while a recovery
+        // re-enrollment resets bootstrap progress. Readiness must not
+        // regress.
+        let flapped = vec![peer.clone()];
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &flapped), tokio::time::Instant::now());
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&flapped, &[]), tokio::time::Instant::now());
+        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
+        context.state.reset_bootstrap_progress().await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK, "readiness never regresses");
+        assert_eq!(body["state"], "serving");
+        assert_eq!(body["ready"], true);
+    }
+
+    #[tokio::test]
+    async fn ready_reports_draining_after_the_backfill_latch() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+                true,
+            )
+            .await;
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), tokio::time::Instant::now());
+        context.state.expire_readiness_settle_window().await;
+        let (status, _) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK);
+
+        // The orthogonal /ready inputs survive the latch: draining still
+        // takes the node out of rotation.
+        context.state.enter_draining();
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["ready"], false);
+        assert!(body["reasons"].to_string().contains("draining"));
+    }
+
+    #[tokio::test]
+    async fn rollout_status_reports_backfill_fields_with_terminal_compatible_legacy_values() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        // Mid-cycle: the mode is pending and the legacy in-flight counter
+        // mirrors the gating peer count.
+        let discovered = vec![peer.clone()];
+        let now = tokio::time::Instant::now();
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["backfill_initial_cycle"], "pending");
+        assert_eq!(body["backfill_backfilling_peers"], 1);
+        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
+        assert_eq!(body["backfill_ring_fullness_percent"], 0);
+        assert_eq!(body["bootstrap_known_peers"], 1);
+        assert_eq!(body["bootstrap_inflight_peers"], 1);
+        assert_eq!(body["bootstrap_completed_peers"], 0);
+
+        // Settled: the mode is complete and the legacy counters read
+        // terminal (in-flight 0), which is what gate.sh's legacy check and
+        // the fleet-rollout flow act on.
+        {
+            use crate::backfill::lifecycle::PassResolution;
+            context
+                .state
+                .backfill
+                .test_finish_pass(&peer, PassResolution::Completed, now);
+            let seam =
+                now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+            context
+                .state
+                .backfill
+                .test_evaluate(&backfill_tick(&[], &[]), seam);
+            context
+                .state
+                .backfill
+                .test_finish_pass(&peer, PassResolution::Completed, seam);
+        }
+        context.state.expire_readiness_settle_window().await;
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["backfill_initial_cycle"], "complete");
+        assert_eq!(body["backfill_backfilling_peers"], 0);
+        assert_eq!(body["bootstrap_inflight_peers"], 0);
+        assert_eq!(body["bootstrap_completed_peers"], 1);
+        assert_eq!(body["ready"], true, "the settled node latched serving");
+        assert_eq!(body["state"], "serving");
     }
 
     #[tokio::test]

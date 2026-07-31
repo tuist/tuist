@@ -93,6 +93,7 @@ where
         bootstrap_max_concurrent_peers: 8,
         backfill_enabled: false,
         backfill_margin_percent: 40,
+        backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
         backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
         analytics: None,
         usage: None,
