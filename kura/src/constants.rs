@@ -116,6 +116,23 @@ pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // presence recheck.
 pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
+// Backfill horizon margin (KURA_BACKFILL_MARGIN_PERCENT default): the share
+// of the age-ordered segment ring, counted from the newest, whose boundary
+// segment's seal-time stat becomes the horizon. The margin's share of the
+// ring's time span is the backfill window's structural slack — a peer absence
+// shorter than that span is always re-covered. 40% matches the "new" band
+// under the legacy 1:2:2 old/current/new ring ratio, so on a warm ordered
+// ring the default slack is exactly the new band.
+pub const DEFAULT_BACKFILL_MARGIN_PERCENT: u64 = 40;
+// Clock-skew allowance subtracted from a pass's start point before it becomes
+// the per-peer watermark. `version_ms` values are stamped by writer clocks, so
+// a writer running behind the requester's clock can stamp entries below an
+// exact start-point watermark, and later windows over that peer would skip
+// them for good. One minute comfortably covers NTP-disciplined fleet drift;
+// its cost is one minute of re-listed (presence-checked, not re-fetched)
+// entries per completed pass. Compiled rather than env-exposed: no
+// demonstrated per-mesh tuning need.
+pub const BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS: u64 = 60_000;
 // Backfill index maintenance-stamp cadence. Each stamp is one tiny put of the
 // DB's latest sequence number into `backfill/meta/last_maintained_seq`; a
 // short cadence keeps the unclean-shutdown staleness slack (below) small.

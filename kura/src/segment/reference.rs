@@ -25,9 +25,10 @@ impl SegmentReference {
 
     /// The seal-time stat with the pre-upgrade fallback applied: a reference
     /// without it reports the segment's creation time, the accepted
-    /// conservative proxy for the age of its contents. Test-gated until the
-    /// age-based ring rules consume it.
-    #[cfg(test)]
+    /// conservative proxy for the age of its contents. An absent stat is
+    /// always a legitimate state (pre-upgrade rings, or a seal whose stat
+    /// persist was lost to a crash between rotation's two ring persists),
+    /// never an invariant violation.
     pub fn effective_max_version_ms(&self) -> u64 {
         self.max_version_ms.unwrap_or(self.created_at_ms)
     }

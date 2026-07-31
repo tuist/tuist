@@ -91,6 +91,7 @@ where
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
+        backfill_margin_percent: 40,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),

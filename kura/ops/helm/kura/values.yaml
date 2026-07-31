@@ -137,6 +137,13 @@ config:
     # additionally gated on the node's one-time reverse-map backfill completing,
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
+  backfill:
+    # Share of the age-ordered segment ring (counted from the newest) whose
+    # boundary segment's seal-time age stat bounds how far back a backfill
+    # pass reaches. The margin's share of the ring's time span is the
+    # window's structural slack; 40 matches the "new" band under the 1:2:2
+    # old/current/new ring ratio.
+    marginPercent: 40
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from
     # the container's effective memory limit. Explicit values must remain below

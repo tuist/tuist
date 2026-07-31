@@ -105,6 +105,7 @@ pub struct Metrics {
     bootstrap_pass_buckets_divergent: Family<BootstrapPassLabels, Gauge>,
     bootstrap_pass_buckets_reconciled: Family<BootstrapPassLabels, Gauge>,
     bootstrap_current_bucket_manifests_walked: Family<BootstrapPassLabels, Gauge>,
+    backfill_horizon_age_ms: Gauge,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
@@ -298,6 +299,7 @@ impl Metrics {
         let bootstrap_pass_buckets_reconciled = Family::<BootstrapPassLabels, Gauge>::default();
         let bootstrap_current_bucket_manifests_walked =
             Family::<BootstrapPassLabels, Gauge>::default();
+        let backfill_horizon_age_ms = Gauge::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -731,6 +733,11 @@ impl Metrics {
             "kura_bootstrap_current_bucket_manifests_walked",
             "Manifest entries walked in the bucket currently being reconciled for the peer",
             bootstrap_current_bucket_manifests_walked.clone(),
+        );
+        registry.register(
+            "kura_backfill_horizon_age_ms",
+            "Milliseconds between the current wall clock and the node's backfill horizon version",
+            backfill_horizon_age_ms.clone(),
         );
         registry.register(
             "kura_bootstrap_runs_total",
@@ -1222,6 +1229,7 @@ impl Metrics {
             bootstrap_pass_buckets_divergent,
             bootstrap_pass_buckets_reconciled,
             bootstrap_current_bucket_manifests_walked,
+            backfill_horizon_age_ms,
             analytics_events,
             analytics_batches,
             analytics_batch_duration,
@@ -1748,6 +1756,11 @@ impl Metrics {
         self.bootstrap_known_peers.set(known as i64);
         self.bootstrap_completed_peers.set(completed as i64);
         self.bootstrap_inflight_peers.set(inflight as i64);
+    }
+
+    pub fn set_backfill_horizon_age_ms(&self, age_ms: u64) {
+        self.backfill_horizon_age_ms
+            .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
     }
 
     pub fn set_bootstrap_pass_buckets_divergent(&self, peer: &str, mode: &str, divergent: usize) {

@@ -4,12 +4,13 @@ use tokio::fs;
 
 use crate::{
     constants::{
-        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
-        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        DEFAULT_BACKFILL_MARGIN_PERCENT, DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS,
+        DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
+        DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
+        DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+        MAX_INLINE_REPLICATION_BODY_BYTES,
     },
     runtime::DataDirLock,
 };
@@ -90,6 +91,7 @@ const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOA
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -168,6 +170,12 @@ pub struct Config {
     pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
+    /// Share of the age-ordered segment ring (counted from the newest) whose
+    /// boundary segment's seal-time stat becomes the backfill horizon; the
+    /// margin's share of the ring's time span is the window's structural
+    /// slack.
+    #[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
+    pub backfill_margin_percent: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -994,6 +1002,22 @@ impl Config {
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
             ));
         }
+        let backfill_margin_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_MARGIN_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_MARGIN_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_MARGIN_PERCENT);
+        if backfill_margin_percent == 0 || backfill_margin_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1419,6 +1443,7 @@ impl Config {
             multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            backfill_margin_percent,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1936,6 +1961,25 @@ mod tests {
             config.geoip_refresh_interval_secs,
             DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_margin_percent() {
+        let config = config_from(&[]).expect("default backfill margin should be valid");
+        assert_eq!(
+            config.backfill_margin_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT
+        );
+
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "25")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_margin_percent, 25);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill margin must fail");
+            assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
     }
 
     #[test]
