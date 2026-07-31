@@ -130,6 +130,16 @@ defmodule Cache.Config do
   """
   def registry_enabled?, do: registry_bucket() != nil and registry_github_token() != nil
 
+  @doc """
+  Returns true if this node may write to the registry.
+
+  Scheduled writes moved to the server-owned `Tuist.Registry.Swift.SyncWorker`,
+  so this defaults to false: cache serves registry reads but is not a writer
+  unless an operator opts in explicitly. Reads are gated by `registry_enabled?/0`
+  and are unaffected by this flag.
+  """
+  def registry_sync_enabled?, do: Application.get_env(:cache, :registry_sync_enabled, false) == true
+
   def s3_protocols do
     case Application.get_env(:cache, :s3)[:protocols] do
       protocols when is_list(protocols) and protocols != [] -> protocols

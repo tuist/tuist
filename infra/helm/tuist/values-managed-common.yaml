@@ -330,6 +330,10 @@ swiftRegistrySync:
     databasePassword:
       item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
       field: password
+  # Conservative default so the pod still schedules on the cramped
+  # staging/canary nodepools. Envs that actually sync a real catalog
+  # override this — see values-managed-production.yaml, where the
+  # measured working set needs considerably more than 1Gi.
   resources:
     requests:
       cpu: "250m"

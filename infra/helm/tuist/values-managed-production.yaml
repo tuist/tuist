@@ -431,6 +431,29 @@ swiftRegistrySync:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Production is the only env syncing the full catalog, so it's the only
+  # one that outgrows the common 512Mi/1Gi default. Enabling the sync
+  # (#12136) took this pod from idle to real work and it started getting
+  # OOMKilled every 10-60 minutes: idle working set is 750-850Mi and
+  # per-release jobs peak at 930-995Mi, leaving no room under a 1Gi cap.
+  #
+  # The request matches the measured idle baseline. At 512Mi the pod
+  # permanently exceeded its own request, which made it a first-choice
+  # eviction target whenever a processor node came under memory pressure.
+  # The limit is deliberately well clear of observed peak rather than
+  # just above it — peak scales with :swift_registry_release running 5
+  # jobs concurrently (server/config/runtime.exs), and each one unpacks
+  # and re-zips a package archive under /tmp, so page cache on that
+  # emptyDir counts against this cgroup too. Archive sizes are set by
+  # whatever upstream publishes, so the ceiling isn't ours to predict.
+  # If this OOMs again, lower queueConcurrency before raising memory.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "4Gi"
 
 # Runs as the same env as the build processor; the Tart VM reads its secrets
 # from the environment (config Secret via envFrom + object-storage ESO), same
