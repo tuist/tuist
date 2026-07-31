@@ -142,6 +142,12 @@ pub struct Store {
     // use it without holding the mutex (unlike the sibling caches below, which
     // are read and mutated in place under their lock).
     segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
+    // Running max effective `version_ms` of manifests committed into the
+    // active segment, keyed by segment id; drained into the outgoing
+    // `SegmentReference::max_version_ms` when the segment seals (rotation).
+    // In-memory only — `rederive_active_segment_max_version` restores it at
+    // boot so a restart mid-segment does not under-report the eventual seal.
+    active_segment_max_versions: StdMutex<HashMap<String, u64>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: ShardedExistenceCache,
@@ -650,6 +656,7 @@ impl Store {
             segment_refresh_lock: Mutex::new(()),
             segment_state_lock: Mutex::new(()),
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
+            active_segment_max_versions: StdMutex::new(HashMap::new()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: ShardedExistenceCache::new(
@@ -668,6 +675,7 @@ impl Store {
         // constructed (with a placeholder snapshot) before it can be seeded.
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
+        store.rederive_active_segment_max_version()?;
         let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
@@ -1125,6 +1133,8 @@ impl Store {
 
         self.write_batch_sync(batch, "manifest batch")?;
         outbox_reservation.commit();
+        self.note_segment_version(&location.segment_id, manifest_version_ms(&manifest))
+            .await?;
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
         self.maybe_cache_manifest(manifest.clone());
@@ -1582,6 +1592,11 @@ impl Store {
             [],
         );
         self.write_batch_sync(batch, "refreshed manifest")?;
+        // The promoted entry keeps its original version, which the max-only
+        // stat semantics absorb without dragging the destination segment's
+        // seal-time max down.
+        self.note_segment_version(&location.segment_id, manifest_version_ms(&refreshed))
+            .await?;
         self.maybe_cache_manifest(refreshed.clone());
 
         self.io.metrics().record_segment_refresh(
@@ -2079,6 +2094,10 @@ impl Store {
                     })?;
                 }
             }
+            let outgoing_segment_id = snapshot
+                .state
+                .active()
+                .map(|active| active.segment_id.clone());
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             // The rotate decision above used a snapshot taken before the
             // state lock; that stays valid because evictions, the only other
@@ -2093,6 +2112,24 @@ impl Store {
                     )
                 })
                 .await?;
+            // Seal stat: drain the outgoing segment's running max only after
+            // the snapshot above was replaced (the new segment is active), so
+            // a manifest commit racing this rotation either landed in the map
+            // before the drain or observes "not active" in
+            // `note_segment_version` and raises the sealed reference itself.
+            if let Some(outgoing_segment_id) = outgoing_segment_id {
+                let sealed_max = self
+                    .active_segment_max_versions
+                    .lock()
+                    .expect("active segment max versions lock poisoned")
+                    .remove(&outgoing_segment_id);
+                if let Some(sealed_max) = sealed_max {
+                    self.mutate_segment_state(|state| {
+                        state.raise_max_version_ms(&outgoing_segment_id, sealed_max)
+                    })
+                    .await?;
+                }
+            }
             Ok((segment, evicted_segments))
         } else {
             Ok((
@@ -2104,6 +2141,83 @@ impl Store {
                 Vec::new(),
             ))
         }
+    }
+
+    fn is_active_segment(&self, segment_id: &str) -> bool {
+        self.segment_state_snapshot()
+            .state
+            .active()
+            .is_some_and(|active| active.segment_id == segment_id)
+    }
+
+    /// Records a committed manifest's effective `version_ms` against the
+    /// segment holding its bytes, feeding the seal-time `max_version_ms`
+    /// stat. The bytes append and the metadata commit sit on opposite sides
+    /// of the segment write lock, so a commit can land after its segment
+    /// already sealed; such a commit raises the sealed reference in place
+    /// (max-only, so replays and promotion-driven old entries never lower
+    /// the stat).
+    async fn note_segment_version(&self, segment_id: &str, version_ms: u64) -> Result<(), String> {
+        {
+            let mut maxes = self
+                .active_segment_max_versions
+                .lock()
+                .expect("active segment max versions lock poisoned");
+            if self.is_active_segment(segment_id) {
+                let entry = maxes.entry(segment_id.to_owned()).or_default();
+                *entry = (*entry).max(version_ms);
+                // Re-check after inserting: the seal drains the map after
+                // replacing the snapshot, so if the segment is still active
+                // here the drain has not run yet and will pick this entry up.
+                if self.is_active_segment(segment_id) {
+                    return Ok(());
+                }
+                // Sealed while inserting — the drain may have missed the
+                // entry; fall through to the in-place raise (idempotent).
+                maxes.remove(segment_id);
+            }
+        }
+        self.mutate_segment_state(|state| state.raise_max_version_ms(segment_id, version_ms))
+            .await
+    }
+
+    /// Restores the active segment's running max `version_ms` at boot. The
+    /// running max is in-memory only, so without this a restart mid-segment
+    /// would seal the segment under-reported. Bounded by one segment's
+    /// `segment_artifacts` rows and runs once at startup.
+    fn rederive_active_segment_max_version(&self) -> Result<(), String> {
+        let snapshot = self.segment_state_snapshot();
+        let Some(active) = snapshot.state.active() else {
+            return Ok(());
+        };
+        let prefix = segment_artifact_index_prefix(&active.segment_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut max_version_ms: Option<u64> = None;
+        for item in iter {
+            let (index_key, _) =
+                item.map_err(|error| format!("failed to iterate segment index: {error}"))?;
+            if !index_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                .map_err(|error| format!("invalid segment index key: {error}"))?;
+            if let Some(manifest) = self.manifest_from_db(artifact_id)?
+                && manifest.segment_id.as_deref() == Some(active.segment_id.as_str())
+            {
+                let version_ms = manifest_version_ms(&manifest);
+                max_version_ms = Some(max_version_ms.map_or(version_ms, |max| max.max(version_ms)));
+            }
+        }
+        if let Some(max_version_ms) = max_version_ms {
+            self.active_segment_max_versions
+                .lock()
+                .expect("active segment max versions lock poisoned")
+                .insert(active.segment_id.clone(), max_version_ms);
+        }
+        Ok(())
     }
 
     /// Reads the segment ring state from the metadata store. Only seeds the
@@ -7204,6 +7318,286 @@ mod tests {
             read_manifest_bytes(&reopened, &rebuilt).await,
             b"module-bytes"
         );
+    }
+
+    fn reopen_store(config: &Config) -> Store {
+        let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+        let io = IoController::new(
+            metrics,
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        Store::open(config, io, memory).expect("failed to reopen store")
+    }
+
+    /// Forces a rotation of the (non-empty) active segment and returns the
+    /// sealed segment's id.
+    async fn seal_active_segment(store: &Store) -> String {
+        let outgoing = store
+            .segment_state_snapshot()
+            .state
+            .active()
+            .expect("an active segment should exist")
+            .segment_id
+            .clone();
+        store
+            .active_segment(MAX_SEGMENT_BYTES)
+            .await
+            .expect("rotation should seal the active segment");
+        outgoing
+    }
+
+    fn ring_reference(store: &Store, segment_id: &str) -> SegmentReference {
+        let snapshot = store.segment_state_snapshot();
+        snapshot
+            .state
+            .old
+            .iter()
+            .chain(snapshot.state.current.iter())
+            .chain(snapshot.state.new.iter())
+            .find(|reference| reference.segment_id == segment_id)
+            .expect("segment should still be in the ring")
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn sealing_stamps_the_max_version_of_mixed_appends() {
+        let (_temp_dir, _config, store) = temp_store();
+        for (key, version_ms) in [
+            ("artifact-a", 300),
+            ("artifact-b", 100),
+            ("artifact-c", 200),
+        ] {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"bytes",
+                    version_ms,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+
+        let sealed_id = seal_active_segment(&store).await;
+
+        assert_eq!(ring_reference(&store, &sealed_id).max_version_ms, Some(300));
+        // The freshly opened active segment starts without the stat.
+        assert_eq!(
+            store
+                .segment_state_snapshot()
+                .state
+                .active()
+                .expect("rotation should open a new active segment")
+                .max_version_ms,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn promotion_of_an_old_entry_never_lowers_the_running_max() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "old-artifact",
+                "application/octet-stream",
+                b"old-bytes",
+                1_000,
+            )
+            .await
+            .expect("old artifact should apply");
+        let old_artifact_id = artifact_storage_id(
+            ArtifactProducer::Xcode,
+            &store.tenant_id,
+            "ios",
+            "old-artifact",
+        );
+        let old_manifest = store
+            .manifest(&old_artifact_id)
+            .expect("manifest lookup should succeed")
+            .expect("old artifact manifest should exist");
+        let old_segment_id = old_manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment_id, 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "hot-artifact",
+                "application/octet-stream",
+                b"hot-bytes",
+                9_000,
+            )
+            .await
+            .expect("hot artifact should apply");
+        let promoted = store
+            .maybe_refresh_manifest(old_manifest)
+            .await
+            .expect("promotion should succeed")
+            .expect("promoted manifest should exist");
+        assert_eq!(promoted.segment_id.as_deref(), Some("fresh-segment"));
+
+        let sealed_id = seal_active_segment(&store).await;
+
+        assert_eq!(sealed_id, "fresh-segment");
+        assert_eq!(
+            ring_reference(&store, &sealed_id).max_version_ms,
+            Some(9_000)
+        );
+    }
+
+    #[tokio::test]
+    async fn restart_mid_active_segment_rederives_the_running_max() {
+        let (_temp_dir, config, store) = temp_store();
+        for (key, version_ms) in [("artifact-a", 300), ("artifact-b", 100)] {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"bytes",
+                    version_ms,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+        drop(store);
+
+        let store = reopen_store(&config);
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-c",
+                "application/octet-stream",
+                b"bytes",
+                200,
+            )
+            .await
+            .expect("artifact should apply after restart");
+
+        // The sealed stat matches what a run without the restart would stamp.
+        let sealed_id = seal_active_segment(&store).await;
+        assert_eq!(ring_reference(&store, &sealed_id).max_version_ms, Some(300));
+    }
+
+    #[tokio::test]
+    async fn rederivation_falls_back_to_created_at_for_zero_version_manifests() {
+        let (_temp_dir, config, store) = temp_store();
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "legacy-artifact",
+                "application/octet-stream",
+                b"legacy-bytes",
+                1_111,
+            )
+            .await
+            .expect("artifact should apply");
+        let artifact_id = artifact_storage_id(
+            ArtifactProducer::Xcode,
+            &store.tenant_id,
+            "ios",
+            "legacy-artifact",
+        );
+        // Rewrite the stored manifest into the legacy shape (version_ms == 0),
+        // which no current write path produces.
+        let mut manifest = store
+            .manifest_from_db(&artifact_id)
+            .expect("manifest lookup should succeed")
+            .expect("manifest should exist");
+        manifest.version_ms = 0;
+        manifest.created_at_ms = 4_321;
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_id.as_bytes(),
+                encode_manifest_record(&manifest).expect("manifest should encode"),
+            )
+            .expect("manifest rewrite should succeed");
+        drop(store);
+
+        let store = reopen_store(&config);
+        let sealed_id = seal_active_segment(&store).await;
+
+        assert_eq!(
+            ring_reference(&store, &sealed_id).max_version_ms,
+            Some(4_321)
+        );
+    }
+
+    #[tokio::test]
+    async fn late_manifest_commit_raises_a_sealed_reference_in_place() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-a",
+                "application/octet-stream",
+                b"bytes",
+                500,
+            )
+            .await
+            .expect("artifact should apply");
+        let sealed_id = seal_active_segment(&store).await;
+        assert_eq!(ring_reference(&store, &sealed_id).max_version_ms, Some(500));
+
+        // A manifest commit that lost the race with the rotation raises the
+        // sealed reference directly; a stale one never lowers it.
+        store
+            .note_segment_version(&sealed_id, 900)
+            .await
+            .expect("late raise should succeed");
+        assert_eq!(ring_reference(&store, &sealed_id).max_version_ms, Some(900));
+        store
+            .note_segment_version(&sealed_id, 700)
+            .await
+            .expect("stale raise should succeed");
+        assert_eq!(ring_reference(&store, &sealed_id).max_version_ms, Some(900));
+    }
+
+    #[tokio::test]
+    async fn segment_state_persisted_by_the_previous_release_loads_cleanly() {
+        let (_temp_dir, _config, store) = temp_store();
+        // The exact JSON a pre-stat release persists for the ring.
+        let legacy_json =
+            br#"{"old":[],"current":[],"new":[{"segment_id":"legacy-segment","created_at_ms":5}]}"#;
+        store
+            .db
+            .put_cf(store.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", legacy_json)
+            .expect("legacy ring state should persist");
+
+        let state = store
+            .load_segment_state_from_db()
+            .expect("legacy ring state should load");
+
+        let active = state.active().expect("active segment should exist");
+        assert_eq!(active.max_version_ms, None);
+        assert_eq!(active.effective_max_version_ms(), 5);
     }
 
     #[tokio::test]

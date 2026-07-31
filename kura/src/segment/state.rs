@@ -39,6 +39,22 @@ impl SegmentState {
         evicted
     }
 
+    /// Raises `segment_id`'s `max_version_ms` stat, never lowering it: a
+    /// promotion re-appends an old entry into the active segment, and its
+    /// stale version must not drag the stat back down.
+    pub fn raise_max_version_ms(&mut self, segment_id: &str, version_ms: u64) {
+        if let Some(reference) = self
+            .old
+            .iter_mut()
+            .chain(self.current.iter_mut())
+            .chain(self.new.iter_mut())
+            .find(|reference| reference.segment_id == segment_id)
+            && reference.max_version_ms.is_none_or(|max| max < version_ms)
+        {
+            reference.max_version_ms = Some(version_ms);
+        }
+    }
+
     pub fn remove_segment(&mut self, segment_id: &str) -> bool {
         remove_from_segments(&mut self.old, segment_id)
             || remove_from_segments(&mut self.current, segment_id)
@@ -62,6 +78,22 @@ fn remove_from_segments(segments: &mut Vec<SegmentReference>, segment_id: &str) 
 mod tests {
     use super::SegmentState;
     use crate::segment::reference::SegmentReference;
+
+    #[test]
+    fn raise_max_version_ms_is_max_only() {
+        let mut state = SegmentState::default();
+        state.push_new(SegmentReference::new("segment-1".into(), 1), 1, 2, 2);
+
+        state.raise_max_version_ms("segment-1", 300);
+        assert_eq!(state.new[0].max_version_ms, Some(300));
+
+        state.raise_max_version_ms("segment-1", 100);
+        assert_eq!(state.new[0].max_version_ms, Some(300));
+
+        // Unknown segments (already evicted) are a no-op.
+        state.raise_max_version_ms("segment-2", 500);
+        assert_eq!(state.new.len(), 1);
+    }
 
     #[test]
     fn push_new_rebalances_generations() {
