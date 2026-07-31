@@ -67,6 +67,10 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
         "tag" => "v1.2.3"
       }
     )
+
+    # A catalog pass enqueues only versions the catalog is missing, so it never
+    # asks the release worker to rebuild one that is already published.
+    refute_enqueued(worker: ReleaseWorker, args: %{"force" => true})
   end
 
   test "does not enqueue versions with a verified skip classification" do
@@ -224,7 +228,7 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     assert {:discard, {:rate_limited, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
-  test "force resyncs only the requested package version without taking the catalog lock" do
+  test "force resyncs the requested version in place, without purging it first" do
     package = %{
       scope: "apple",
       name: "swift-argument-parser",
@@ -233,23 +237,15 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
 
     expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
 
-    expect(Lock, :try_acquire, 2, fn
-      {:release, "apple", "swift-argument-parser", "1.2.3"}, _ -> {:ok, :acquired}
-      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
-    end)
-
-    expect(Lock, :release, 2, fn
-      {:release, "apple", "swift-argument-parser", "1.2.3"} -> :ok
-      {:package, "apple", "swift-argument-parser"} -> :ok
-    end)
-
     expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
       {:ok, ["v1.2.3", "2.0.0"]}
     end)
 
-    expect(Purge, :purge_version, fn "apple", "swift-argument-parser", "1.2.3" ->
-      {:ok, %{artifacts_deleted: 1, metadata: %{removed_from: ["releases"]}}}
-    end)
+    # The rebuild replaces the archive and rewrites the catalog entry in place,
+    # so the version keeps resolving for the whole repair instead of going
+    # missing between the purge and a rebuild that may never land.
+    reject(Purge, :purge_version, 3)
+    reject(Lock, :try_acquire, 2)
 
     assert :ok =
              SyncWorker.perform(%Oban.Job{
@@ -266,9 +262,12 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
         "scope" => "apple",
         "name" => "swift-argument-parser",
         "repository_full_handle" => "apple/swift-argument-parser",
-        "tag" => "v1.2.3"
+        "tag" => "v1.2.3",
+        "force" => true
       }
     )
+
+    refute_enqueued(worker: ReleaseWorker, args: %{"allow_checksum_change" => true})
 
     refute_enqueued(
       worker: ReleaseWorker,
@@ -372,7 +371,7 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     refute_enqueued(worker: ReleaseWorker)
   end
 
-  test "snoozes a version resync while the package is locked" do
+  test "carries an explicit checksum-change override through to the release worker" do
     package = %{
       scope: "apple",
       name: "swift-argument-parser",
@@ -385,52 +384,21 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
       {:ok, ["1.2.3"]}
     end)
 
-    expect(Lock, :try_acquire, 2, fn
-      {:release, "apple", "swift-argument-parser", "1.2.3"}, _ -> {:ok, :acquired}
-      {:package, "apple", "swift-argument-parser"}, _ -> {:error, :already_locked}
-    end)
-
-    expect(Lock, :release, fn {:release, "apple", "swift-argument-parser", "1.2.3"} -> :ok end)
     reject(Purge, :purge_version, 3)
 
-    assert {:snooze, 30} =
+    assert :ok =
              SyncWorker.perform(%Oban.Job{
                args: %{
                  "force" => true,
-                 "repository_full_handle" => "apple/swift-argument-parser",
-                 "version" => "1.2.3"
-               }
-             })
-  end
-
-  test "snoozes a version resync while the release is being synced" do
-    package = %{
-      scope: "apple",
-      name: "swift-argument-parser",
-      repository_full_handle: "apple/swift-argument-parser"
-    }
-
-    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
-
-    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
-      {:ok, ["1.2.3"]}
-    end)
-
-    expect(Lock, :try_acquire, fn
-      {:release, "apple", "swift-argument-parser", "1.2.3"}, _ -> {:error, :already_locked}
-    end)
-
-    reject(Purge, :purge_version, 3)
-
-    assert {:snooze, 30} =
-             SyncWorker.perform(%Oban.Job{
-               args: %{
-                 "force" => true,
+                 "allow_checksum_change" => true,
                  "repository_full_handle" => "apple/swift-argument-parser",
                  "version" => "1.2.3"
                }
              })
 
-    refute_enqueued(worker: ReleaseWorker)
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{"tag" => "1.2.3", "force" => true, "allow_checksum_change" => true}
+    )
   end
 end
