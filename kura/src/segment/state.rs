@@ -60,7 +60,6 @@ impl SegmentState {
     /// — newest-first fetching writes old data into young segments — which is
     /// exactly when the age-based window rules need this view. Ties keep the
     /// eviction cascade order (old, current, new).
-    #[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
     pub fn age_ordered_references(&self) -> Vec<&SegmentReference> {
         let mut references: Vec<&SegmentReference> = self
             .old
@@ -76,7 +75,6 @@ impl SegmentState {
     /// new → current → old and pops evictions from the front of `old`, so the
     /// next evictee is the front of the first non-empty band in that cascade
     /// order.
-    #[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
     pub fn next_evictee(&self) -> Option<&SegmentReference> {
         self.old
             .first()

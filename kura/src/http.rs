@@ -47,8 +47,9 @@ use crate::{
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::{
-        BackfillIndexPage, ManifestDigest, StagedArtifactPath, backfill_record_kind,
-        is_disk_full_error, is_multipart_capacity_error, is_outbox_full_error, manifest_version_ms,
+        BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, ManifestDigest, StagedArtifactPath,
+        backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
+        is_outbox_full_error, manifest_version_ms,
     },
     telemetry::{attach_parent_context, record_trace_context},
     utils::{
@@ -666,9 +667,7 @@ impl BackfillBodyDisposition {
         }
     }
 
-    // Decode-side half of the frame codec; consumed by the backfill
-    // requester (Unit 7) and by tests until it lands.
-    #[allow(dead_code)]
+    // Decode-side half of the frame codec.
     pub fn from_byte(byte: u8) -> Option<Self> {
         match byte {
             0 => Some(Self::Present),
@@ -2794,9 +2793,27 @@ struct BackfillBodiesSpool {
 /// Spools the whole bodies response to a temp file before any byte is sent:
 /// resolution work (manifest reads, retirement writes, body copies) happens
 /// off the wire, and the response itself is a plain bounded file stream.
+///
+/// Stale index rows the resolution discovers are retired batched — flushed
+/// every [`BACKFILL_STALE_RETIRE_BATCH`] rows and once when spooling finishes
+/// (on every path) — so a request full of dangling rows costs a handful of
+/// WAL fsyncs, not one per row.
 async fn spool_backfill_bodies(
     state: &SharedState,
     tuples: &[(BackfillRecordKind, String, u64)],
+) -> Result<BackfillBodiesSpool, BackfillSpoolError> {
+    let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+    let result = spool_backfill_bodies_inner(state, tuples, &mut stale_rows).await;
+    if let Err(error) = state.store.retire_backfill_index_rows(&mut stale_rows) {
+        tracing::warn!(error, "failed to retire stale backfill index rows");
+    }
+    result
+}
+
+async fn spool_backfill_bodies_inner(
+    state: &SharedState,
+    tuples: &[(BackfillRecordKind, String, u64)],
+    stale_rows: &mut Vec<Vec<u8>>,
 ) -> Result<BackfillBodiesSpool, BackfillSpoolError> {
     let directory = state.config.tmp_dir.join("backfill");
     state
@@ -2816,13 +2833,24 @@ async fn spool_backfill_bodies(
     let mut file_len = 0_u64;
     let mut body_bytes = 0_u64;
     for (requested_kind, record_id, requested_version_ms) in tuples {
-        // Resolves against the CURRENT manifest and retires index rows that
-        // no longer match it (the read-side half of the eventually-exact
-        // index).
+        // Resolves against the CURRENT manifest and collects index rows that
+        // no longer match it for batched retirement (the read-side half of
+        // the eventually-exact index).
         let record = state
             .store
-            .resolve_backfill_body(*requested_kind, record_id, *requested_version_ms)
+            .resolve_backfill_body(
+                *requested_kind,
+                record_id,
+                *requested_version_ms,
+                stale_rows,
+            )
             .map_err(BackfillSpoolError::Internal)?;
+        if stale_rows.len() >= BACKFILL_STALE_RETIRE_BATCH {
+            state
+                .store
+                .retire_backfill_index_rows(stale_rows)
+                .map_err(BackfillSpoolError::Internal)?;
+        }
         let absent_header = || {
             encode_backfill_body_frame_header(
                 *requested_kind,
@@ -5176,36 +5204,52 @@ mod tests {
     #[tokio::test]
     async fn backfill_bodies_retire_dangling_rows_and_frame_them_absent() {
         let context = test_context(|_| {}).await;
-        let record_id = "0000000000000000000000000000000000000000000000000000000000000000";
-        context
-            .state
-            .store
-            .insert_backfill_index_row_for_testing(
-                700,
-                BackfillRecordKind::InlineArtifact,
-                record_id,
-                Some(9),
-            )
-            .expect("plant dangling row");
+        // Two dangling rows in one request: retirement is collected across
+        // the request and flushed as one batched write, so both must be gone
+        // after the response.
+        let first_record_id = "0000000000000000000000000000000000000000000000000000000000000000";
+        let second_record_id = "1111111111111111111111111111111111111111111111111111111111111111";
+        for (record_id, version_ms) in [(first_record_id, 700), (second_record_id, 800)] {
+            context
+                .state
+                .store
+                .insert_backfill_index_row_for_testing(
+                    version_ms,
+                    BackfillRecordKind::InlineArtifact,
+                    record_id,
+                    Some(9),
+                )
+                .expect("plant dangling row");
+        }
         assert_eq!(
-            backfill_index_versions_for(&context.state, record_id),
+            backfill_index_versions_for(&context.state, first_record_id),
             vec![700]
+        );
+        assert_eq!(
+            backfill_index_versions_for(&context.state, second_record_id),
+            vec![800]
         );
 
         let response = post_backfill_bodies(
             &context.state,
-            &[bodies_entry("inline_artifact", record_id, 700)],
+            &[
+                bodies_entry("inline_artifact", first_record_id, 700),
+                bodies_entry("inline_artifact", second_record_id, 800),
+            ],
             None,
         )
         .await;
         assert_eq!(response.status(), StatusCode::OK);
         let frames = decode_backfill_frames(&response_bytes(response).await).await;
-        assert_eq!(frames.len(), 1);
+        assert_eq!(frames.len(), 2);
         assert_eq!(frames[0].disposition, BackfillBodyDisposition::Absent);
         assert_eq!(frames[0].version_ms, 700);
+        assert_eq!(frames[1].disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(frames[1].version_ms, 800);
         assert!(
-            backfill_index_versions_for(&context.state, record_id).is_empty(),
-            "dangling row must be retired during serve"
+            backfill_index_versions_for(&context.state, first_record_id).is_empty()
+                && backfill_index_versions_for(&context.state, second_record_id).is_empty(),
+            "dangling rows must be retired during serve"
         );
     }
 
@@ -5471,6 +5515,79 @@ mod tests {
                 .expect("request failed");
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {uri}");
         }
+    }
+
+    #[tokio::test]
+    async fn internal_backfill_artifact_sheds_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        // Critical pressure fails the background response-stream admission
+        // the handler takes before streaming (internal reads pass the write
+        // middleware, so this exercises the handler's own shed path).
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/backfill/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+    }
+
+    #[tokio::test]
+    async fn internal_backfill_bodies_shed_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        let record_id = "0000000000000000000000000000000000000000000000000000000000000000";
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        // The combined test router carries no internal write-shed middleware,
+        // so the POST reaches the handler and fails its own background
+        // response-stream admission after spooling — the shed path under
+        // test (behind the real internal router the middleware sheds the
+        // write earlier with the same retryable 503).
+        let body = serde_json::to_vec(&BackfillBodiesRequest {
+            entries: vec![bodies_entry("inline_artifact", record_id, 700)],
+        })
+        .expect("encode bodies request");
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/_internal/backfill/bodies")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("outcome=\"backpressure\"")
+        }));
     }
 
     #[tokio::test]

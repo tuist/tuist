@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -34,6 +35,7 @@ pub struct Metrics {
     http_request_duration: Histogram,
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
+    backfill_bodies_peer_label_set: Arc<Mutex<HashSet<String>>>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -1256,6 +1258,7 @@ impl Metrics {
             http_request_duration,
             internal_backfill_request_duration,
             backfill_bodies_peer_requests,
+            backfill_bodies_peer_label_set: Arc::new(Mutex::new(HashSet::new())),
             public_request_latency,
             http_exceptions,
             artifact_reads,
@@ -1484,6 +1487,26 @@ impl Metrics {
     }
 
     pub fn record_backfill_bodies_peer_request(&self, peer: &str, outcome: &str) {
+        // prometheus_client families never evict a label set, so unbounded
+        // client-certificate identities (routine rotation or a hostile
+        // certificate mill) would grow the series set forever. Mesh peers are
+        // few: the first BACKFILL_BODIES_PEER_LABEL_CAPACITY distinct
+        // identities keep per-peer series; churn beyond that is rotation
+        // noise or abuse and folds into a fixed "other" label.
+        let peer = {
+            let mut seen = self
+                .backfill_bodies_peer_label_set
+                .lock()
+                .expect("backfill bodies peer label set lock poisoned");
+            if seen.contains(peer) {
+                peer
+            } else if seen.len() < BACKFILL_BODIES_PEER_LABEL_CAPACITY {
+                seen.insert(peer.to_owned());
+                peer
+            } else {
+                BACKFILL_BODIES_PEER_LABEL_OTHER
+            }
+        };
         self.backfill_bodies_peer_requests
             .get_or_create(&BackfillBodiesPeerLabels {
                 peer: peer.to_owned(),
@@ -2460,6 +2483,12 @@ impl Metrics {
 
 const INTERNAL_BACKFILL_ROUTE_PREFIX: &str = "/_internal/backfill/";
 
+// Cap on distinct `peer` label values for the bodies-request counter, sized
+// well above any real mesh's peer count. See
+// [`Metrics::record_backfill_bodies_peer_request`].
+const BACKFILL_BODIES_PEER_LABEL_CAPACITY: usize = 64;
+const BACKFILL_BODIES_PEER_LABEL_OTHER: &str = "other";
+
 fn records_public_http_metrics(route: &str) -> bool {
     !matches!(
         route,
@@ -2753,6 +2782,33 @@ mod tests {
         assert!(!records_public_http_metrics("/metrics"));
         assert!(!records_public_http_metrics("/_internal/status"));
         assert!(!records_public_http_metrics("/_unmatched"));
+    }
+
+    #[test]
+    fn backfill_bodies_peer_labels_beyond_the_capacity_fold_into_other() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        for index in 0..BACKFILL_BODIES_PEER_LABEL_CAPACITY + 3 {
+            metrics.record_backfill_bodies_peer_request(&format!("peer-{index}"), "ok");
+        }
+        // An already-seen identity keeps its own series after the fold cut.
+        metrics.record_backfill_bodies_peer_request("peer-0", "ok");
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-0\"")
+                && line.ends_with(" 2")
+        }));
+        let over_capacity = format!("peer=\"peer-{BACKFILL_BODIES_PEER_LABEL_CAPACITY}\"");
+        assert!(
+            !rendered.contains(&over_capacity),
+            "identities beyond the capacity must not mint their own series"
+        );
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"other\"")
+                && line.ends_with(" 3")
+        }));
     }
 
     #[test]

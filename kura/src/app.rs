@@ -32,7 +32,7 @@ use crate::{
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
-    replication::{spawn_membership_task, spawn_outbox_task},
+    replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState, SharedState},
     store::Store,
@@ -911,6 +911,15 @@ fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
 /// maintenance stamp fresh for rollback-window staleness detection. Serving is
 /// never gated on any of this.
 fn spawn_backfill_index_task(state: Arc<AppState>) {
+    // Supervised like the membership/outbox loops: a panic in the maintenance
+    // loop restarts the task (counted as background_panic_backfill_index)
+    // instead of silently stopping stamping and watermark GC. A restart
+    // re-enters the build loop, which is idempotent (a completed build is a
+    // no-op).
+    spawn_supervised("backfill_index", state, backfill_index_task_loop);
+}
+
+async fn backfill_index_task_loop(state: SharedState) {
     const BUILD_RETRY_DELAY: Duration = Duration::from_secs(60);
     let stamp_interval = Duration::from_millis(crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS);
     // Watermark GC piggybacks on the stamping loop: once at startup, then at
@@ -918,45 +927,38 @@ fn spawn_backfill_index_task(state: Arc<AppState>) {
     let gc_every_stamps = (crate::constants::BACKFILL_WATERMARK_GC_INTERVAL_MS
         / crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS)
         .max(1);
-    tokio::spawn(
-        async move {
-            loop {
-                let build_state = state.clone();
-                match tokio::task::spawn_blocking(move || {
-                    build_state.store.run_backfill_index_build()
-                })
-                .await
-                {
-                    Ok(Ok(_)) => break,
-                    Ok(Err(error)) => warn!("backfill index build failed: {error}"),
-                    Err(error) => warn!("backfill index build task panicked: {error}"),
+    loop {
+        let build_state = state.clone();
+        match tokio::task::spawn_blocking(move || build_state.store.run_backfill_index_build())
+            .await
+        {
+            Ok(Ok(_)) => break,
+            Ok(Err(error)) => warn!("backfill index build failed: {error}"),
+            Err(error) => warn!("backfill index build task panicked: {error}"),
+        }
+        tokio::time::sleep(BUILD_RETRY_DELAY).await;
+    }
+    let mut stamps_until_gc = 0_u64;
+    loop {
+        if stamps_until_gc == 0 {
+            stamps_until_gc = gc_every_stamps;
+            match state.store.gc_backfill_watermarks(
+                crate::utils::now_ms(),
+                crate::constants::BACKFILL_WATERMARK_RETENTION_MS,
+            ) {
+                Ok(removed) if removed > 0 => {
+                    info!(removed, "backfill watermark gc removed expired rows");
                 }
-                tokio::time::sleep(BUILD_RETRY_DELAY).await;
-            }
-            let mut stamps_until_gc = 0_u64;
-            loop {
-                if stamps_until_gc == 0 {
-                    stamps_until_gc = gc_every_stamps;
-                    match state.store.gc_backfill_watermarks(
-                        crate::utils::now_ms(),
-                        crate::constants::BACKFILL_WATERMARK_RETENTION_MS,
-                    ) {
-                        Ok(removed) if removed > 0 => {
-                            info!(removed, "backfill watermark gc removed expired rows");
-                        }
-                        Ok(_) => {}
-                        Err(error) => warn!("backfill watermark gc failed: {error}"),
-                    }
-                }
-                stamps_until_gc -= 1;
-                tokio::time::sleep(stamp_interval).await;
-                if let Err(error) = state.store.stamp_backfill_maintained_seq() {
-                    warn!("failed to stamp backfill maintenance sequence: {error}");
-                }
+                Ok(_) => {}
+                Err(error) => warn!("backfill watermark gc failed: {error}"),
             }
         }
-        .in_current_span(),
-    );
+        stamps_until_gc -= 1;
+        tokio::time::sleep(stamp_interval).await;
+        if let Err(error) = state.store.stamp_backfill_maintained_seq() {
+            warn!("failed to stamp backfill maintenance sequence: {error}");
+        }
+    }
 }
 
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {

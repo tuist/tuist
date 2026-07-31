@@ -161,8 +161,14 @@ pub const BACKFILL_SEQ_STAMP_INTERVAL_MS: u64 = 5_000;
 // load triggers a spurious multi-hour rebuild. The cost of the margin is the
 // documented residual band: a crash immediately followed by a pre-AB binary
 // window that writes fewer than this many sequence numbers goes undetected
-// (known limitation; the common rollback shape — drain, roll back, roll
-// forward — is fully covered by the clean-shutdown stamp instead).
+// on that boot (known limitation; the common rollback shape — drain, roll
+// back, roll forward — is fully covered by the clean-shutdown stamp instead).
+// The band is bounded cumulatively, not per boot: each forgiven sub-slack gap
+// is added to the persisted `backfill/meta/forgiven_seqs` ledger, and once
+// the running total exceeds this same slack the next boot rebuilds anyway —
+// so repeated crash→foreign-window→reboot cycles can never push the total
+// undetected exposure past one slack's worth of sequence numbers. The ledger
+// resets on any full rebuild and on a gap-free clean-shutdown boot.
 pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // Per-chunk row budget for the one-off backfill index build. The build resumes
 // each chunk from a key cursor with a fresh short-lived iterator: one

@@ -282,6 +282,14 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the extension authenticate/authorize caches. New entries are dropped (with metric `extension_cache{result="rejected"}`) once the cap is reached and no expired entries remain. | Yes | `100000` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
 
+### Backfill operations
+
+- `KURA_BACKFILL_ENABLED` is flipped per mesh, and only after `backfill/meta/build_complete` is set on every node of that mesh — observable as `GET /_internal/backfill/entries` no longer answering `503 index_building`, or via the `kura_backfill_*` metrics. Tuist's own meshes flip first; customer meshes follow.
+- The rollout report shows the initial cycle per node as `pending` (passes still running or retrying with budget left), `complete` (every in-cycle peer resolved cleanly), or `degraded` (a peer exhausted its failure budget on real failures).
+- A `degraded` cycle holds region-move promotion and alarms. To abort a held move, destroy the move TARGET server (`Kura.destroy_server` via the server ops surface); the source keeps serving.
+- Rollback is flipping the flag off plus a pod restart: the node resumes the legacy bootstrap walker, and `backfill/` watermarks and index rows sit inert on disk.
+- Index-build progress: a node still building answers listing requests with `503 index_building`; rebuilds (rollback-window staleness, cumulative crash forgiveness) are logged with the reason.
+
 Kura also enforces a few hard-coded budgets that are not configurable:
 
 - Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages, and the manifest digest response, are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.

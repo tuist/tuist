@@ -45,7 +45,6 @@ pub struct ClaimKey {
 
 /// What a pass must do with a tuple it just listed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 pub enum ListDecision {
     /// This pass holds the exclusive claim and fetches through its peer.
     Claimed,
@@ -98,6 +97,9 @@ struct Core {
 enum ReleaseCause {
     /// Batch failure: the releaser stays a re-claim candidate, queued
     /// behind the waiters.
+    // The pass driver retries failed batches in place instead of releasing,
+    // so this cause is reached only through `release_failed` in tests.
+    #[allow(dead_code)]
     Failure,
     /// The releaser's reference is already being torn down by the guard's
     /// `Drop`; only the waiters matter.
@@ -191,14 +193,12 @@ pub struct ClaimSet {
 /// Pass-scoped handle to the claim set. Dropping it cancels the pass:
 /// every claim it holds is released (waiters re-claim), every tuple it
 /// merely waits on is de-referenced, and entries it alone listed disappear.
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 pub struct PassClaimGuard {
     set: Arc<ClaimSet>,
     pass_id: PassId,
     notify: Arc<Notify>,
 }
 
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 impl ClaimSet {
     pub fn new() -> Arc<Self> {
         Arc::new(Self::default())
@@ -227,6 +227,7 @@ impl ClaimSet {
     }
 
     /// True when no tuple is listed by any in-flight pass.
+    #[allow(dead_code)] // invariant probe used by the claims and lifecycle tests
     pub fn is_empty(&self) -> bool {
         self.lock_core().entries.is_empty()
     }
@@ -239,7 +240,6 @@ impl ClaimSet {
     }
 }
 
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 impl PassClaimGuard {
     /// Records that this pass listed `key` and decides who fetches it.
     /// Re-listing a tuple that is still unresolved for this pass is
@@ -320,6 +320,7 @@ impl PassClaimGuard {
     /// (a sole-reference pass re-wins its own claim). Every re-claim —
     /// including a self re-win — is delivered through
     /// [`Self::take_reclaimed`].
+    #[allow(dead_code)] // the pass driver retries batches in place; exercised by tests
     pub fn release_failed(&self, key: &ClaimKey) {
         self.set
             .lock_core()
@@ -386,6 +387,7 @@ impl PassClaimGuard {
     }
 
     /// Resolves once every tuple in the drain set is resolved.
+    #[allow(dead_code)] // the pass driver inlines this wait loop; exercised by tests
     pub async fn drained(&self) {
         loop {
             let changed = self.changed();

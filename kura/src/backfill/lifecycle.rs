@@ -18,7 +18,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     pin::pin,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, MutexGuard, PoisonError,
         atomic::{AtomicU64, Ordering},
     },
     time::Duration,
@@ -566,6 +566,25 @@ impl BackfillLifecycle {
         })
     }
 
+    // The three lock helpers below recover from poisoning instead of
+    // propagating it: `evaluate` runs inside the supervised membership loop,
+    // so a poisoned lock would panic every restart and take peer discovery
+    // down with it. Critical sections mutate atomically (the claims.rs
+    // precedent), so a poisoned value is still consistent.
+    fn lock_machine(&self) -> MutexGuard<'_, LifecycleMachine> {
+        self.machine.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_passes(&self) -> MutexGuard<'_, HashMap<String, ActivePass>> {
+        self.passes.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_watermark_gauge_peers(&self) -> MutexGuard<'_, BTreeSet<String>> {
+        self.watermark_gauge_peers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// One level-triggered evaluation, called from the membership loop at its
     /// cadence with that tick's membership delta.
     pub fn evaluate(self: &Arc<Self>, app: &SharedState, update: &MembershipUpdate) {
@@ -583,11 +602,7 @@ impl BackfillLifecycle {
             control_plane_peers: &control_plane_peers,
             admission: app.memory.allow_background_admission(),
         };
-        let actions = self
-            .machine
-            .lock()
-            .expect("backfill lifecycle machine lock")
-            .evaluate(&tick, Instant::now());
+        let actions = self.lock_machine().evaluate(&tick, Instant::now());
         self.apply_actions(app, actions);
         self.refresh_gauges(app);
     }
@@ -595,10 +610,7 @@ impl BackfillLifecycle {
     /// Snapshot of the initial join cycle for the readiness gate and the
     /// rollout report.
     pub fn cycle_snapshot(&self) -> BackfillCycleSnapshot {
-        self.machine
-            .lock()
-            .expect("backfill lifecycle machine lock")
-            .snapshot()
+        self.lock_machine().snapshot()
     }
 
     /// Drives the scheduling machine without spawning pass tasks, so state
@@ -606,20 +618,12 @@ impl BackfillLifecycle {
     /// budget-exhausted) deterministically and without a network.
     #[cfg(test)]
     pub(crate) fn test_evaluate(&self, tick: &MembershipTick<'_>, now: Instant) {
-        let _ = self
-            .machine
-            .lock()
-            .expect("backfill lifecycle machine lock")
-            .evaluate(tick, now);
+        let _ = self.lock_machine().evaluate(tick, now);
     }
 
     #[cfg(test)]
     pub(crate) fn test_finish_pass(&self, peer: &str, resolution: PassResolution, now: Instant) {
-        let _ = self
-            .machine
-            .lock()
-            .expect("backfill lifecycle machine lock")
-            .on_pass_finished(peer, resolution, now);
+        let _ = self.lock_machine().on_pass_finished(peer, resolution, now);
     }
 
     fn apply_actions(self: &Arc<Self>, app: &SharedState, actions: Vec<Action>) {
@@ -631,12 +635,7 @@ impl BackfillLifecycle {
                         peer,
                         "cancelling backfill pass: peer left the membership view"
                     );
-                    if let Some(pass) = self
-                        .passes
-                        .lock()
-                        .expect("backfill lifecycle passes lock")
-                        .get(&peer)
-                    {
+                    if let Some(pass) = self.lock_passes().get(&peer) {
                         pass.cancel.cancel();
                     }
                 }
@@ -675,7 +674,7 @@ impl BackfillLifecycle {
         // The passes lock is held across the spawn so the task's own
         // `finish_pass` (which removes the slot) can never observe the map
         // before this insert.
-        let mut passes = self.passes.lock().expect("backfill lifecycle passes lock");
+        let mut passes = self.lock_passes();
         let handle = tokio::spawn(
             async move {
                 let resolution =
@@ -698,14 +697,9 @@ impl BackfillLifecycle {
     /// successor pass the next tick starts) can never re-claim before the
     /// predecessor released.
     fn finish_pass(self: &Arc<Self>, app: &SharedState, peer: &str, resolution: PassResolution) {
-        self.passes
-            .lock()
-            .expect("backfill lifecycle passes lock")
-            .remove(peer);
+        self.lock_passes().remove(peer);
         let actions = self
-            .machine
-            .lock()
-            .expect("backfill lifecycle machine lock")
+            .lock_machine()
             .on_pass_finished(peer, resolution, Instant::now());
         self.apply_actions(app, actions);
         self.refresh_gauges(app);
@@ -713,10 +707,7 @@ impl BackfillLifecycle {
 
     fn refresh_gauges(&self, app: &SharedState) {
         let (backfilling, exhausted, present_peers) = {
-            let machine = self
-                .machine
-                .lock()
-                .expect("backfill lifecycle machine lock");
+            let machine = self.lock_machine();
             let snapshot = machine.snapshot();
             (
                 snapshot.backfilling_peers,
@@ -728,10 +719,7 @@ impl BackfillLifecycle {
             .update_backfill_cycle_peers(backfilling, exhausted);
 
         let now = now_ms();
-        let mut exported = self
-            .watermark_gauge_peers
-            .lock()
-            .expect("backfill watermark gauge lock");
+        let mut exported = self.lock_watermark_gauge_peers();
         for peer in exported.iter() {
             if !present_peers.contains(peer) {
                 app.metrics.clear_backfill_watermark_age(peer);
@@ -1596,7 +1584,7 @@ mod tests {
             &membership_update(vec![peer_url.clone()], vec![]),
         );
         wait_for(
-            || !lifecycle.passes.lock().expect("passes lock").is_empty(),
+            || !lifecycle.lock_passes().is_empty(),
             "pass task registration",
         )
         .await;
@@ -1606,7 +1594,7 @@ mod tests {
             &membership_update(vec![], vec![peer_url.clone()]),
         );
         wait_for(
-            || lifecycle.passes.lock().expect("passes lock").is_empty(),
+            || lifecycle.lock_passes().is_empty(),
             "cancelled pass termination",
         )
         .await;

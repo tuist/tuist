@@ -121,7 +121,7 @@ pub fn spawn_outbox_task(state: SharedState) {
     spawn_supervised("outbox", state, outbox_task_loop);
 }
 
-fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+pub(crate) fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
 where
     F: Fn(SharedState) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,

@@ -417,7 +417,9 @@ defmodule Tuist.Kura.Reconciler do
   # capture as a fresh event. Keyed by the target row's id — each move creates
   # a new target row, so a later move alarms again. Entries are single small
   # tuples that live for the node's lifetime, which is fine at the rate
-  # operators start moves.
+  # operators start moves. The dedup does not survive a restart, so a deploy
+  # re-alarms a still-degraded move — deliberate: a held move outliving a
+  # release cadence deserves a fresh page rather than indefinite silence.
   defp alarm_degraded_move_target(%Server{} = server) do
     key = {__MODULE__, :degraded_move_alarm, server.id}
 

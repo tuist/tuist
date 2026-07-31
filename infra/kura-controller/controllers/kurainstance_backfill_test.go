@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
@@ -22,9 +23,10 @@ import (
 
 func TestAggregateBackfillInitialCycle(t *testing.T) {
 	cases := []struct {
-		name  string
-		modes []string
-		want  string
+		name       string
+		modes      []string
+		unobserved bool
+		want       string
 	}{
 		{name: "no statuses", modes: nil, want: ""},
 		{name: "all absent (pre-backfill pods)", modes: []string{"", ""}, want: ""},
@@ -34,6 +36,17 @@ func TestAggregateBackfillInitialCycle(t *testing.T) {
 		{name: "complete outranks absent (mixed rolling update)", modes: []string{"", "complete"}, want: "complete"},
 		{name: "unknown mode outranks pending so the server holds", modes: []string{"pending", "later-vocabulary"}, want: "later-vocabulary"},
 		{name: "degraded outranks unknown", modes: []string{"later-vocabulary", "degraded"}, want: "degraded"},
+		// An unobserved replica must never let the aggregate claim a mode
+		// good enough to promote a region move: the source is destroyed
+		// after promotion, so "complete" with a replica unseen is
+		// unrecoverable if that replica was still pending.
+		{name: "unobserved replica degrades complete to unknown", modes: []string{"complete", "complete"}, unobserved: true, want: backfillCycleUnknown},
+		{name: "unobserved replica degrades pending to unknown", modes: []string{"pending"}, unobserved: true, want: backfillCycleUnknown},
+		{name: "unobserved replica keeps degraded (worse than unknown)", modes: []string{"complete", "degraded"}, unobserved: true, want: "degraded"},
+		// Pre-backfill meshes report no field at all; the aggregate must
+		// stay absent even with unobserved replicas so the server keeps
+		// today's absent-field promotion semantics for them.
+		{name: "unobserved replica keeps pre-backfill absence", modes: []string{"", ""}, unobserved: true, want: ""},
 	}
 
 	for _, tc := range cases {
@@ -42,7 +55,8 @@ func TestAggregateBackfillInitialCycle(t *testing.T) {
 			for _, mode := range tc.modes {
 				statuses = append(statuses, runtimeStatus{BackfillInitialCycle: mode})
 			}
-			if got := aggregateBackfillInitialCycle(statuses); got != tc.want {
+			observation := runtimeObservation{statuses: statuses, unobservedReplicas: tc.unobserved}
+			if got := aggregateBackfillInitialCycle(observation); got != tc.want {
 				t.Fatalf("expected %q, got %q", tc.want, got)
 			}
 		})
@@ -111,7 +125,95 @@ func TestKuraInstanceReconcileRetainsBackfillCycleWhenRuntimeStatusUnavailable(t
 	assertBackfillInitialCycle(t, reconciler, req, "pending")
 }
 
+func TestKuraInstanceReconcileAggregatesBackfillFromNotReadyPods(t *testing.T) {
+	// The TOCTOU shape behind the P1: Phase is derived from a fresh
+	// ReadyReplicas read well after the pod probes, so a pod that is
+	// NotReady at probe time can flip Ready before Phase is written. Its
+	// backfill mode must therefore be part of the aggregation even while it
+	// is NotReady — here it answers "pending" and must hold the aggregate
+	// despite every Ready pod reporting "complete".
+	ctx := context.Background()
+	reconciler, req := newBackfillTestReconcilerWithPods(t, "", fakeRuntimeStatusClient{
+		statuses: map[string]runtimeStatus{
+			"kura-tuist-eu-1-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+			"kura-tuist-eu-1-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+			"kura-tuist-eu-1-2": {BackfillInitialCycle: "pending"},
+		},
+	}, true, true, false)
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertBackfillInitialCycle(t, reconciler, req, "pending")
+}
+
+func TestKuraInstanceReconcileHoldsBackfillWhenPodProbeFails(t *testing.T) {
+	// A pod that exists but cannot be probed is unobserved: its backfill
+	// state may still be pending, and promoting a region move on it would
+	// destroy the move source unrecoverably. The aggregate must degrade to
+	// "unknown" (which the server holds on) instead of "complete".
+	ctx := context.Background()
+	reconciler, req := newBackfillTestReconcilerWithPods(t, "", fakeRuntimeStatusClient{
+		statuses: map[string]runtimeStatus{
+			"kura-tuist-eu-1-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+			"kura-tuist-eu-1-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+			// kura-tuist-eu-1-2 has no fake status: its probe errors.
+		},
+	}, true, true, true)
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertBackfillInitialCycle(t, reconciler, req, backfillCycleUnknown)
+}
+
+func TestKuraInstanceReconcileHoldsBackfillWhenReplicaPodMissing(t *testing.T) {
+	// A replica whose pod is missing from the list entirely (e.g. being
+	// recreated mid-rolling-update) is unobserved too: two pods exist
+	// against the default of three replicas, so "complete" must degrade to
+	// "unknown" until the third pod's mode is seen.
+	ctx := context.Background()
+	reconciler, req := newBackfillTestReconcilerWithPods(t, "", fakeRuntimeStatusClient{
+		statuses: map[string]runtimeStatus{
+			"kura-tuist-eu-1-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+			"kura-tuist-eu-1-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: "complete"},
+		},
+	}, true, true)
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertBackfillInitialCycle(t, reconciler, req, backfillCycleUnknown)
+}
+
+func TestKuraInstanceReconcileKeepsBackfillAbsentOnPreBackfillMeshWithFlappingPod(t *testing.T) {
+	// Pre-backfill meshes report no backfill_initial_cycle field at all, and
+	// the server's promotion gate treats the absent CR field with today's
+	// semantics — that fallback is load-bearing. A flapping pod whose probe
+	// fails must not flip such a mesh to "unknown": the field stays absent.
+	ctx := context.Background()
+	reconciler, req := newBackfillTestReconcilerWithPods(t, "", fakeRuntimeStatusClient{
+		statuses: map[string]runtimeStatus{
+			"kura-tuist-eu-1-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			"kura-tuist-eu-1-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			// kura-tuist-eu-1-2 (NotReady) has no fake status: its probe errors.
+		},
+	}, true, true, false)
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertBackfillInitialCycle(t, reconciler, req, "")
+}
+
 func newBackfillTestReconciler(t *testing.T, initialCycle string, statusClient RuntimeStatusClient) (*KuraInstanceReconciler, ctrl.Request) {
+	t.Helper()
+	return newBackfillTestReconcilerWithPods(t, initialCycle, statusClient, true, true, true)
+}
+
+// newBackfillTestReconcilerWithPods creates one pod per entry of readiness,
+// with the entry controlling the pod's Kubernetes Ready condition.
+func newBackfillTestReconcilerWithPods(t *testing.T, initialCycle string, statusClient RuntimeStatusClient, readiness ...bool) (*KuraInstanceReconciler, ctrl.Request) {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -136,15 +238,13 @@ func newBackfillTestReconciler(t *testing.T, initialCycle string, statusClient R
 	sharedSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "1"},
 	}
-	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
-		instance,
-		sharedSecret,
-		kuraPod(instance.Name, instance.Namespace, 0, true),
-		kuraPod(instance.Name, instance.Namespace, 1, true),
-		kuraPod(instance.Name, instance.Namespace, 2, true),
-	).Build()
+	objects := []client.Object{instance, sharedSecret}
+	for ordinal, ready := range readiness {
+		objects = append(objects, kuraPod(instance.Name, instance.Namespace, ordinal, ready))
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(objects...).Build()
 	reconciler := &KuraInstanceReconciler{
-		Client:              client,
+		Client:              fakeClient,
 		Scheme:              scheme,
 		RuntimeStatusClient: statusClient,
 	}

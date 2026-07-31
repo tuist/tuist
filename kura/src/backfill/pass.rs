@@ -175,18 +175,6 @@ impl BackfillPassTuning {
 ///
 /// `cancel` is checked at every await point that can block (page fetches,
 /// body requests, backoff sleeps, queue handoffs, per-frame applies).
-#[allow(dead_code)] // the lifecycle uses the tuning variant; kept as the plain entry point
-pub async fn run_backfill_pass(
-    state: &SharedState,
-    peer: &str,
-    window: BackfillWindow,
-    guard: PassClaimGuard,
-    cancel: &CancellationToken,
-) -> BackfillPassOutcome {
-    let tuning = BackfillPassTuning::from_config(&state.config);
-    run_backfill_pass_with_tuning(state, peer, window, guard, cancel, tuning).await
-}
-
 pub async fn run_backfill_pass_with_tuning(
     state: &SharedState,
     peer: &str,

@@ -107,7 +107,6 @@ pub fn advance_watermark(existing_watermark_ms: Option<u64>, pass_start_wallcloc
 /// segments at the capacity boundary, but each pass individually honors the
 /// marginal trade, so the ring converges to the newest ring-worth of
 /// segmented data.
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 pub fn capacity_complete(
     segment_count: usize,
     ring_total_segments: usize,

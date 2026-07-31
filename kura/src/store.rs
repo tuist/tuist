@@ -78,6 +78,9 @@ const MAX_MULTIPART_PARTS: usize = 10_000;
 const MAX_MULTIPART_RECORD_BYTES: usize = 8 << 20;
 const MULTIPART_RECONCILE_DELETE_BATCH: usize = 256;
 const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
+// Flush threshold for stale backfill-index row retirement collected across
+// one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
+pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
@@ -97,6 +100,7 @@ pub struct ActionCacheBlobRefsBackfillStep {
 
 const BACKFILL_META_BUILD_COMPLETE: &str = "build_complete";
 const BACKFILL_META_LAST_MAINTAINED_SEQ: &str = "last_maintained_seq";
+const BACKFILL_META_FORGIVEN_SEQS: &str = "forgiven_seqs";
 
 pub fn is_outbox_full_error(error: &str) -> bool {
     error.starts_with(OUTBOX_FULL_ERROR)
@@ -4606,11 +4610,14 @@ impl Store {
     ///
     /// The requested (kind, id, version) key is recomputed from the current
     /// manifest; a requested row that no longer matches it is RETIRED
-    /// (deleted) here, because the unlocked delete paths and the build/live
+    /// (deleted), because the unlocked delete paths and the build/live
     /// race can leave rows nothing will ever delete (the
     /// `delete_stale_action_cache_rows` precedent). Retirement is what keeps a
     /// dangling row a one-time absent round-trip instead of a permanent
-    /// per-pass listing tax.
+    /// per-pass listing tax. The stale key is pushed onto `stale_rows` rather
+    /// than deleted here: each delete is a WAL-fsynced write, so the caller
+    /// accumulates keys across a request and flushes them batched through
+    /// [`Self::retire_backfill_index_rows`].
     ///
     /// Returns `None` when the record has no current manifest (framed absent
     /// by the caller, never an error). When a manifest exists it is the
@@ -4626,6 +4633,7 @@ impl Store {
         requested_kind: BackfillRecordKind,
         record_id: &str,
         requested_version_ms: u64,
+        stale_rows: &mut Vec<Vec<u8>>,
     ) -> Result<Option<ArtifactManifest>, String> {
         let requested_key = backfill_index_key(requested_version_ms, requested_kind, record_id);
         let manifest = self.manifest(record_id)?;
@@ -4637,7 +4645,7 @@ impl Store {
             )
         });
         if current_key.as_deref() != Some(requested_key.as_slice()) {
-            self.retire_backfill_index_row(requested_key)?;
+            stale_rows.push(requested_key);
         }
         Ok(manifest)
     }
@@ -4663,11 +4671,16 @@ impl Store {
     /// would be wasted work. Mirrors [`Self::artifact_apply_outcome`]
     /// semantics keyed by record id: covered = a local record whose effective
     /// version is at or above the listed one, or a local state the apply
-    /// path would ignore anyway (blocking tombstone). An older local version
-    /// is NOT covered — it is fetched and LWW-refreshed (R10). Reads only
-    /// the manifest/tombstone row, like the apply-time check; eviction
-    /// deletes manifests in the same batch as the bytes, so manifest
-    /// presence tracks body presence.
+    /// path would ignore anyway (blocking tombstone). The tombstone
+    /// short-circuit is only reachable pre-purge, while a stale local
+    /// manifest still exists to supply the namespace id — the listing tuple
+    /// carries none. Once the purge removes the manifest this returns
+    /// `Ok(false)`, so tombstone-blocked entries are re-fetched and rejected
+    /// at apply time by `namespace_tombstone_blocks` (wasted work, not
+    /// resurrection). An older local version is NOT covered — it is fetched
+    /// and LWW-refreshed (R10). Reads only the manifest/tombstone row, like
+    /// the apply-time check; eviction deletes manifests in the same batch as
+    /// the bytes, so manifest presence tracks body presence.
     pub(crate) fn backfill_locally_covered(
         &self,
         kind: BackfillRecordKind,
@@ -4698,10 +4711,22 @@ impl Store {
         self.mutate_segment_state(|current| *current = state).await
     }
 
-    fn retire_backfill_index_row(&self, key: Vec<u8>) -> Result<(), String> {
+    /// Retires collected stale `backfill/idx/` rows in ONE durable write and
+    /// drains the collector, mirroring [`Self::delete_stale_action_cache_rows`]:
+    /// batching keeps a request that resolves many dangling rows to a handful
+    /// of WAL fsyncs instead of one per row.
+    pub(crate) fn retire_backfill_index_rows(
+        &self,
+        stale_rows: &mut Vec<Vec<u8>>,
+    ) -> Result<(), String> {
+        if stale_rows.is_empty() {
+            return Ok(());
+        }
         let mut batch = WriteBatch::default();
-        batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), key);
-        self.write_batch_sync(batch, "backfill index retired row")
+        for row in std::mem::take(stale_rows) {
+            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), row);
+        }
+        self.write_batch_sync(batch, "backfill index retired rows")
     }
 
     /// Test hook: plants a raw `backfill/idx/` row so tests can fabricate the
@@ -4863,7 +4888,9 @@ impl Store {
 
         // Stamp completion and a fresh maintenance sequence together, so a
         // crash immediately after the build still has a stamp to check the
-        // next boot's sequence gap against.
+        // next boot's sequence gap against. A full build also resets the
+        // crash-forgiveness ledger: everything previously forgiven is now
+        // indexed.
         let mut batch = WriteBatch::default();
         batch.put_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
@@ -4874,6 +4901,10 @@ impl Store {
             self.cf(ROCKSDB_CF_KEY_VALUE),
             backfill_meta_key(BACKFILL_META_LAST_MAINTAINED_SEQ).as_bytes(),
             encode_backfill_seq_stamp(self.db.latest_sequence_number(), false),
+        );
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_meta_key(BACKFILL_META_FORGIVEN_SEQS).as_bytes(),
         );
         self.write_batch_sync(batch, "backfill index build completion")?;
         self.backfill_index_built.store(true, Ordering::Release);
@@ -5032,13 +5063,56 @@ impl Store {
         Ok(())
     }
 
+    /// The cumulative crash-forgiveness ledger (`backfill/meta/forgiven_seqs`):
+    /// the sum of sub-slack sequence gaps forgiven across unclean-shutdown
+    /// boots. Without it, every crash→foreign-window→reboot cycle would get a
+    /// fresh slack allowance and the cumulative undetected loss would be
+    /// unbounded.
+    fn backfill_forgiven_seqs(&self) -> Result<u64, String> {
+        Ok(self
+            .db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_meta_key(BACKFILL_META_FORGIVEN_SEQS).as_bytes(),
+            )
+            .map_err(|error| format!("failed to read backfill forgiveness ledger: {error}"))?
+            .as_deref()
+            .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
+            .map(u64::from_le_bytes)
+            .unwrap_or(0))
+    }
+
+    fn write_backfill_forgiven_seqs(&self, forgiven_seqs: u64) -> Result<(), String> {
+        self.db
+            .put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_meta_key(BACKFILL_META_FORGIVEN_SEQS).as_bytes(),
+                forgiven_seqs.to_le_bytes(),
+            )
+            .map_err(|error| format!("failed to write backfill forgiveness ledger: {error}"))
+    }
+
+    fn clear_backfill_forgiven_seqs(&self) -> Result<(), String> {
+        self.db
+            .delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_meta_key(BACKFILL_META_FORGIVEN_SEQS).as_bytes(),
+            )
+            .map_err(|error| format!("failed to clear backfill forgiveness ledger: {error}"))
+    }
+
     /// Startup half of rollback-window staleness detection (see the stamp
     /// writers above). Runs once in `Store::open`, before any traffic. When a
     /// completed index cannot be trusted — a sequence gap after a
-    /// clean-shutdown stamp, a beyond-slack gap after an unclean one, or a
-    /// missing stamp — `build_complete` is cleared so the startup build task
-    /// rebuilds. A crash followed by a foreign window smaller than the slack
-    /// is the documented undetected band.
+    /// clean-shutdown stamp, a beyond-slack gap after an unclean one, a
+    /// missing stamp, or a cumulative forgiven total beyond the slack — the
+    /// `build_complete` marker is cleared so the startup build task rebuilds.
+    /// A crash followed by a foreign window smaller than the slack is the
+    /// documented undetected band, but only until the forgiveness ledger
+    /// (`backfill/meta/forgiven_seqs`) fills: forgiven gaps accumulate across
+    /// unclean boots and force a rebuild once their sum exceeds the slack, so
+    /// the total undetected exposure is bounded by one slack's worth of
+    /// sequence numbers rather than N crashes × slack.
     fn init_backfill_index_state(&self) -> Result<(), String> {
         let build_complete_key = backfill_meta_key(BACKFILL_META_BUILD_COMPLETE);
         let build_complete = self
@@ -5068,7 +5142,7 @@ impl Store {
                     // The stamp write itself consumed one sequence number
                     // after `stamped_seq` was read.
                     let gap = latest.saturating_sub(stamped_seq.saturating_add(1));
-                    let rebuild = backfill_rebuild_required(
+                    let mut rebuild = backfill_rebuild_required(
                         clean_shutdown,
                         gap,
                         BACKFILL_SEQ_STAMP_SLACK_SEQS,
@@ -5079,6 +5153,29 @@ impl Store {
                             clean_shutdown,
                             "backfill index missed writes from an index-unaware binary; rebuilding"
                         );
+                    } else if clean_shutdown {
+                        // A gap-free clean boot proves no foreign window ran,
+                        // so the crash-forgiveness ledger resets (any clean-
+                        // shutdown gap already rebuilds above).
+                        self.clear_backfill_forgiven_seqs()?;
+                    } else if gap > 0 {
+                        // A sub-slack gap after a crash is individually
+                        // forgiven, but repeated crash→foreign-window→reboot
+                        // cycles must not each earn a fresh allowance: the
+                        // forgiven gaps accumulate in the persisted ledger
+                        // and force a rebuild once their sum exceeds the
+                        // same slack bound.
+                        let forgiven_seqs = self.backfill_forgiven_seqs()?.saturating_add(gap);
+                        if forgiven_seqs > BACKFILL_SEQ_STAMP_SLACK_SEQS {
+                            rebuild = true;
+                            tracing::warn!(
+                                gap,
+                                forgiven_seqs,
+                                "cumulative forgiven sequence gaps across unclean shutdowns exceed the staleness slack; rebuilding"
+                            );
+                        } else {
+                            self.write_backfill_forgiven_seqs(forgiven_seqs)?;
+                        }
                     }
                     rebuild
                 }
@@ -10597,6 +10694,163 @@ mod tests {
                 .iter()
                 .any(|row| row.record_id == artifact_id),
             "the foreign write is missing from the index: the documented crash+light-traffic band"
+        );
+    }
+
+    #[tokio::test]
+    async fn repeated_forgiven_crash_windows_accumulate_until_a_rebuild() {
+        let (_temp_dir, config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        // Crash (no clean-shutdown stamp), then a small foreign window.
+        drop(store);
+        let (first_artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "foreign-window-one",
+            8_888,
+            8_888,
+            b"foreign",
+        );
+        {
+            let foreign = open_foreign_db(&config);
+            let manifests = foreign
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests CF should exist");
+            foreign
+                .put_cf(manifests, first_artifact_id.as_bytes(), record)
+                .expect("foreign manifest should write");
+        }
+
+        // First boot after the crash: the sub-slack gap is forgiven but
+        // recorded in the persisted ledger.
+        let store = reopen_store(&config);
+        assert!(
+            store.backfill_index_built(),
+            "a single sub-slack window is forgiven"
+        );
+        let first_forgiven = store.backfill_forgiven_seqs().expect("ledger should read");
+        assert!(first_forgiven > 0, "the forgiven gap must be recorded");
+
+        // Crash again with a second sub-slack foreign window. The prior
+        // forgiven windows are simulated by pre-filling the ledger to the
+        // slack (writing millions of real foreign rows would be
+        // prohibitive); what matters is that this window's gap is under the
+        // slack on its own while the accumulated sum is not.
+        drop(store);
+        let (second_artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "foreign-window-two",
+            9_999,
+            9_999,
+            b"foreign",
+        );
+        {
+            let foreign = open_foreign_db(&config);
+            let manifests = foreign
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests CF should exist");
+            foreign
+                .put_cf(manifests, second_artifact_id.as_bytes(), record)
+                .expect("foreign manifest should write");
+            let key_value = foreign
+                .cf_handle(ROCKSDB_CF_KEY_VALUE)
+                .expect("key_value CF should exist");
+            foreign
+                .put_cf(
+                    key_value,
+                    backfill_meta_key(BACKFILL_META_FORGIVEN_SEQS).as_bytes(),
+                    BACKFILL_SEQ_STAMP_SLACK_SEQS.to_le_bytes(),
+                )
+                .expect("forgiveness ledger should write");
+        }
+
+        let store = reopen_store(&config);
+        assert!(
+            !store.backfill_index_built(),
+            "a cumulative forgiven total past the slack forces a rebuild"
+        );
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("rebuild should succeed")
+        );
+        assert!(
+            backfill_rows(&store)
+                .iter()
+                .any(|row| row.record_id == second_artifact_id),
+            "the rebuild indexes the previously missed foreign writes"
+        );
+        assert_eq!(
+            store.backfill_forgiven_seqs().expect("ledger should read"),
+            0,
+            "a full rebuild resets the forgiveness ledger"
+        );
+    }
+
+    #[tokio::test]
+    async fn forgiven_crash_window_then_clean_restart_keeps_the_index_and_resets_the_ledger() {
+        let (_temp_dir, config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        drop(store);
+        let (artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "written-after-crash",
+            8_888,
+            8_888,
+            b"foreign",
+        );
+        {
+            let foreign = open_foreign_db(&config);
+            let manifests = foreign
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests CF should exist");
+            foreign
+                .put_cf(manifests, artifact_id.as_bytes(), record)
+                .expect("foreign manifest should write");
+        }
+
+        let store = reopen_store(&config);
+        assert!(
+            store.backfill_index_built(),
+            "a single sub-slack window is forgiven"
+        );
+        assert!(
+            store.backfill_forgiven_seqs().expect("ledger should read") > 0,
+            "the forgiven gap must be recorded"
+        );
+
+        store
+            .stamp_backfill_maintained_seq_clean_shutdown()
+            .expect("clean-shutdown stamp should write");
+        drop(store);
+
+        let store = reopen_store(&config);
+        assert!(
+            store.backfill_index_built(),
+            "a gap-free clean restart does not rebuild"
+        );
+        assert_eq!(
+            store.backfill_forgiven_seqs().expect("ledger should read"),
+            0,
+            "a gap-free clean boot resets the forgiveness ledger"
+        );
+        assert!(
+            !backfill_rows(&store)
+                .iter()
+                .any(|row| row.record_id == artifact_id),
+            "the forgiven window stays the documented undetected band"
         );
     }
 
