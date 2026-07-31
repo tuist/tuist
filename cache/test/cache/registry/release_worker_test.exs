@@ -22,8 +22,26 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     stub(Config, :registry_github_token, fn -> "token" end)
     stub(Config, :registry_bucket, fn -> "test-bucket" end)
     stub(Config, :registry_enabled?, fn -> true end)
+    stub(Config, :registry_sync_enabled?, fn -> true end)
     stub(Lock, :release, fn _ -> :ok end)
     :ok
+  end
+
+  @tag capture_log: true
+  test "skips the release when the node is not a registry writer" do
+    stub(Config, :registry_sync_enabled?, fn -> false end)
+
+    stub(Lock, :try_acquire, fn _, _ -> flunk("unexpected lock acquisition") end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "1.0.0"
+               }
+             })
   end
 
   test "skips when release already exists" do

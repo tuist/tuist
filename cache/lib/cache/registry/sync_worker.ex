@@ -7,6 +7,10 @@ defmodule Cache.Registry.SyncWorker do
   worker stays around so an operator can still trigger a one-shot
   cache-side sync via `Oban.insert(Cache.Registry.SyncWorker.new(%{}))`
   during the cutover window.
+
+  Writing is off unless `REGISTRY_SYNC_ENABLED` is set, so neither a
+  re-added cron nor a job left over in the queue can make cache a second
+  writer. Registry reads are gated separately by `registry_enabled?/0`.
   """
 
   use Oban.Worker, queue: :registry_sync
@@ -28,6 +32,15 @@ defmodule Cache.Registry.SyncWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
+    if Config.registry_sync_enabled?() do
+      perform_sync(args)
+    else
+      Logger.debug("Registry sync skipped: cache is not a registry writer")
+      :ok
+    end
+  end
+
+  defp perform_sync(args) do
     if Config.registry_enabled?() do
       case Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
         {:ok, :acquired} ->

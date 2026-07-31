@@ -24,6 +24,7 @@ defmodule Cache.Registry.SyncWorkerTest do
 
     stub(Config, :registry_bucket, fn -> "test-bucket" end)
     stub(Config, :registry_enabled?, fn -> true end)
+    stub(Config, :registry_sync_enabled?, fn -> true end)
     stub(Lock, :try_acquire, fn _, _ -> {:ok, :acquired} end)
     stub(SwiftPackageIndex, :list_packages, fn _ -> {:ok, []} end)
     stub(Lock, :release, fn _ -> :ok end)
@@ -202,6 +203,18 @@ defmodule Cache.Registry.SyncWorkerTest do
         "tag" => "0.0.24b"
       }
     )
+  end
+
+  @tag capture_log: true
+  test "skips sync when the node is not a registry writer" do
+    stub(Config, :registry_sync_enabled?, fn -> false end)
+
+    stub(SwiftPackageIndex, :list_packages, fn _ ->
+      flunk("unexpected package list fetch")
+    end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+    refute_enqueued(worker: ReleaseWorker)
   end
 
   @tag capture_log: true

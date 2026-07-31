@@ -38,6 +38,15 @@ defmodule Cache.Registry.ReleaseWorker do
   def perform(%Oban.Job{
         args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}
       }) do
+    if Config.registry_sync_enabled?() do
+      sync_release(scope, name, full_handle, tag)
+    else
+      Logger.debug("Registry release sync skipped for #{scope}/#{name}@#{tag}: cache is not a registry writer")
+      :ok
+    end
+  end
+
+  defp sync_release(scope, name, full_handle, tag) do
     lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
 
     case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
