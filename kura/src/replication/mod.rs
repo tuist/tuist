@@ -152,6 +152,13 @@ where
 }
 
 async fn membership_task_loop(state: SharedState) {
+    // Walker selection happens once at process start: `KURA_BACKFILL_ENABLED`
+    // routes membership changes to the backfill lifecycle instead of the
+    // legacy bootstrap walker. The two paths share no state and never run
+    // together; a flip is an env change plus pod restart, and a flipped-off
+    // node resumes legacy bootstrap cleanly (bootstrap bookkeeping is
+    // in-memory; `backfill/` rows sit inert).
+    let backfill_enabled = state.config.backfill_enabled;
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
@@ -230,8 +237,12 @@ async fn membership_task_loop(state: SharedState) {
         state
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
-        for peer in state.peers_needing_bootstrap().await {
-            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        if backfill_enabled {
+            state.backfill.evaluate(&state, &membership_update);
+        } else {
+            for peer in state.peers_needing_bootstrap().await {
+                maybe_spawn_bootstrap_task(state.clone(), peer).await;
+            }
         }
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;

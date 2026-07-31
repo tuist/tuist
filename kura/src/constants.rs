@@ -205,6 +205,52 @@ pub const BACKFILL_RETRY_BACKOFF_MAX_MS: u64 = 5_000;
 // tuples a pass can hold un-fetched (claim-set growth and re-list cost after
 // a failure) while still letting listing run well ahead of body transfers.
 pub const BACKFILL_FETCH_QUEUE_TUPLES: usize = 4_096;
+// Per-peer failure budget for the initial join cycle: how many budget-charged
+// pass failures (hard errors plus wall-clock-cap conversions) one peer may
+// accumulate before it stops counting toward the node's "backfilling" state.
+// Keyed by peer identity and never reset within the cycle — a flapping peer
+// that reset its own budget would hold first readiness open forever, the
+// exact livelock class the backfill redesign removes. Sized so routine
+// transience (a rolling peer restart costs one or two charges) never
+// exhausts it, while the worst case bounds the cycle at budget × max pass
+// backoff per peer. Background retries continue after exhaustion.
+pub const BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET: u32 = 5;
+// Wall-clock cap on one pass's cumulative budget-exempt retry backoff
+// (index building, not-capable/endpoint-absent, backpressure, tmp budget).
+// Past the cap the lifecycle cancels the pass and charges the failure budget:
+// uncapped, a cold node whose in-cycle peers are all stuck in an exempt class
+// (a peer at sustained Critical memory pressure sheds bodies responses for
+// hours) never charges budget and never latches ready — the politeness
+// exemption would recreate the never-ready livelock. Sized to ride out an
+// index build on a large peer without holding first readiness open
+// indefinitely.
+pub const BACKFILL_RETRYABLE_WAIT_CAP_MS: u64 = 30 * 60 * 1000;
+// Poll cadence of the cap watchdog above. Coarse is fine: the cap is a
+// livelock backstop measured in minutes, not a precise deadline.
+pub const BACKFILL_CAP_POLL_INTERVAL_MS: u64 = 1_000;
+// Bounded backoff between passes over a peer whose previous pass was
+// budget-charged. Distinct from BACKFILL_RETRY_BACKOFF_* (which paces
+// request retries inside a pass): this paces whole-pass retries, including
+// the metered background retries that continue after budget exhaustion.
+pub const BACKFILL_PASS_RETRY_BACKOFF_BASE_MS: u64 = 5_000;
+pub const BACKFILL_PASS_RETRY_BACKOFF_MAX_MS: u64 = 300_000;
+// Delay of the single follow-up pass after a newly discovered peer's first
+// completed pass: ~2× the 2s membership cadence, long enough for the peer to
+// have discovered this node and applied writes that raced the bilateral
+// discovery seam. Cost is one listing re-walk of the slack window. Sub-tick
+// flaps remain an accepted residual (see the dirty-flag site).
+pub const BACKFILL_SEAM_FOLLOWUP_DELAY_MS: u64 = 4_000;
+// Retention for per-peer `backfill/wm/` watermark rows, judged by the row's
+// completion-time `refreshed_at` against the local clock. A live peer that
+// completes no pass for 90 days is pathological; the cost of a GC'd row is
+// one unbounded-window listing re-walk on the next pass, not a correctness
+// loss. A GC delete racing a late completion write is benign (the row
+// resurrects and is GC'd again).
+pub const BACKFILL_WATERMARK_RETENTION_MS: u64 = 90 * 24 * 60 * 60 * 1000;
+// How often watermark GC runs, piggybacked on the maintenance-stamp loop (it
+// also runs once at startup). The keyspace is tens of tiny rows, so daily is
+// generous.
+pub const BACKFILL_WATERMARK_GC_INTERVAL_MS: u64 = 24 * 60 * 60 * 1000;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 

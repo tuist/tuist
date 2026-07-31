@@ -674,9 +674,49 @@ pub fn backfill_meta_key(name: &str) -> String {
 /// Key of a per-peer backfill watermark row, keyed by the peer's node URL.
 /// Reserved here with the rest of the `backfill/` keyspace; the watermark
 /// read/write lifecycle lives with the backfill walker.
-#[allow(dead_code)]
 pub fn backfill_wm_key(node_url: &str) -> String {
     format!("{BACKFILL_WM_PREFIX}{node_url}")
+}
+
+/// Row value of a `backfill/wm/` watermark row: the watermark and the
+/// local-clock completion stamp retention GC judges the row by, both 8-byte
+/// big-endian. Every read and write goes through this pair of helpers so the
+/// two sides can never disagree on layout.
+pub fn encode_backfill_watermark_value(watermark_ms: u64, refreshed_at_ms: u64) -> Vec<u8> {
+    let mut value = Vec::with_capacity(16);
+    value.extend_from_slice(&watermark_ms.to_be_bytes());
+    value.extend_from_slice(&refreshed_at_ms.to_be_bytes());
+    value
+}
+
+/// Decodes a `backfill/wm/` row into `(watermark_ms, refreshed_at_ms)`.
+pub fn decode_backfill_watermark_value(value: &[u8]) -> Result<(u64, u64), String> {
+    let (watermark_bytes, refreshed_at_bytes) = value.split_at_checked(8).ok_or_else(|| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let refreshed_at_bytes: [u8; 8] = refreshed_at_bytes.try_into().map_err(|_| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let watermark_bytes: [u8; 8] = watermark_bytes.try_into().expect("split at 8");
+    Ok((
+        u64::from_be_bytes(watermark_bytes),
+        u64::from_be_bytes(refreshed_at_bytes),
+    ))
+}
+
+/// Exclusive upper bound for a range scan over the whole `backfill/wm/`
+/// keyspace (`/` + 1 = `0`).
+pub fn backfill_wm_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_WM_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
 }
 
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT

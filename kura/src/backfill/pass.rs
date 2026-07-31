@@ -8,8 +8,8 @@
 //! consume.
 
 use std::sync::{
-    Mutex,
-    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Duration;
 
@@ -97,6 +97,11 @@ pub struct BackfillPassStats {
     pub bytes_applied: u64,
     /// Total time slept in budget-exempt retry backoffs.
     pub retryable_wait: Duration,
+    /// The share of `retryable_wait` spent in the capability classes
+    /// (not-capable, index-building): the lifecycle layer's input for
+    /// resolving a cap conversion as capability-only rather than a real
+    /// failure.
+    pub capability_wait: Duration,
 }
 
 /// Terminal result of one pass.
@@ -142,6 +147,10 @@ pub struct BackfillPassTuning {
     pub retry_backoff_base: Duration,
     pub retry_backoff_max: Duration,
     pub page_limit: usize,
+    /// Cumulative budget-exempt backoff, in milliseconds, mirrored as it
+    /// accrues so the lifecycle's wall-clock-cap watchdog can observe a pass
+    /// mid-flight (the outcome's stats only arrive at termination).
+    pub retryable_wait_observer: Option<Arc<AtomicU64>>,
 }
 
 impl BackfillPassTuning {
@@ -152,6 +161,7 @@ impl BackfillPassTuning {
             retry_backoff_base: Duration::from_millis(BACKFILL_RETRY_BACKOFF_BASE_MS),
             retry_backoff_max: Duration::from_millis(BACKFILL_RETRY_BACKOFF_MAX_MS),
             page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
+            retryable_wait_observer: None,
         }
     }
 }
@@ -165,7 +175,7 @@ impl BackfillPassTuning {
 ///
 /// `cancel` is checked at every await point that can block (page fetches,
 /// body requests, backoff sleeps, queue handoffs, per-frame applies).
-#[allow(dead_code)] // consumed by the backfill lifecycle (Unit 8)
+#[allow(dead_code)] // the lifecycle uses the tuning variant; kept as the plain entry point
 pub async fn run_backfill_pass(
     state: &SharedState,
     peer: &str,
@@ -1223,7 +1233,16 @@ async fn retry_backoff(
     let exponential_ms = base_ms.saturating_mul(1_u64 << attempt.min(4)).min(max_ms);
     let delay = Duration::from_millis(exponential_ms.max(retry_after_ms.min(max_ms)));
     context.state.metrics.record_backfill_retry_backoff(class);
-    context.update_stats(|stats| stats.retryable_wait += delay);
+    let capability_class = matches!(class, "not_capable" | "index_building");
+    context.update_stats(|stats| {
+        stats.retryable_wait += delay;
+        if capability_class {
+            stats.capability_wait += delay;
+        }
+    });
+    if let Some(observer) = &context.tuning.retryable_wait_observer {
+        observer.fetch_add(delay.as_millis() as u64, Ordering::Relaxed);
+    }
     cancellable(context, sleep(delay)).await
 }
 
@@ -1298,6 +1317,7 @@ mod tests {
             retry_backoff_base: Duration::from_millis(10),
             retry_backoff_max: Duration::from_millis(40),
             page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
+            retryable_wait_observer: None,
         }
     }
 

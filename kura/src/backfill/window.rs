@@ -10,7 +10,6 @@ use crate::{constants::BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS, metrics::Metrics};
 /// Min-age bound of one backfill pass. Entries with `version_ms` at or above
 /// `min_version_ms` are inside the window; `None` means the window is
 /// unbounded and extends to the peer's oldest entry (cold node).
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BackfillWindow {
     pub min_version_ms: Option<u64>,
@@ -23,7 +22,6 @@ pub struct BackfillWindow {
 /// re-walks only the slack rather than history. Also exports the horizon
 /// age-span gauge, so window computation is the single call a pass driver
 /// needs.
-#[allow(dead_code)] // consumed by the backfill pass driver (Unit 7)
 pub fn compute_window(
     age_ordered_stats_ms: &[u64],
     margin_percent: u64,
@@ -72,7 +70,6 @@ pub fn horizon_version_ms(age_ordered_stats_ms: &[u64], margin_percent: u64) -> 
 /// cannot currently occur; the guard is retained as defense-in-depth (one
 /// comparison, protects against future lifecycle changes) — do not simplify
 /// it away.
-#[allow(dead_code)] // consumed by the backfill lifecycle (Unit 8)
 pub fn advance_watermark(existing_watermark_ms: Option<u64>, pass_start_wallclock_ms: u64) -> u64 {
     let candidate = pass_start_wallclock_ms.saturating_sub(BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS);
     existing_watermark_ms.map_or(candidate, |existing| existing.max(candidate))

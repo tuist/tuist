@@ -60,12 +60,14 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        BACKFILL_IDX_PREFIX, BackfillIndexRow, BackfillRecordKind, IndexRowBranch, TempFileCleanup,
-        TmpBudget, action_cache_blob_ref_key, action_cache_blob_ref_prefix, action_cache_index_key,
-        action_cache_index_key_branch, action_cache_index_prefix, action_cache_manifest_hash,
-        artifact_storage_id, backfill_index_key, backfill_index_prefix_upper_bound,
-        backfill_index_value, backfill_meta_key, decode_backfill_index_row,
-        drop_staging_cache_range, module_key, namespace_artifact_index_key, now_ms,
+        BACKFILL_IDX_PREFIX, BACKFILL_WM_PREFIX, BackfillIndexRow, BackfillRecordKind,
+        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
+        action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
+        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
+        backfill_index_key, backfill_index_prefix_upper_bound, backfill_index_value,
+        backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
+        decode_backfill_index_row, decode_backfill_watermark_value, drop_staging_cache_range,
+        encode_backfill_watermark_value, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
         try_path_size_bytes,
     },
@@ -4722,6 +4724,98 @@ impl Store {
         self.write_batch_sync(batch, "backfill index test row")
     }
 
+    // ---- Backfill per-peer watermarks (`backfill/wm/` keyspace) ----
+
+    /// Reads a peer's persisted backfill watermark. An unreadable row decodes
+    /// to an error the caller may treat as "no watermark" — the cost is an
+    /// unshallowed (wider) window, never a correctness loss.
+    pub fn backfill_watermark(&self, node_url: &str) -> Result<Option<u64>, String> {
+        let value = self
+            .db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_wm_key(node_url).as_bytes(),
+            )
+            .map_err(|error| format!("failed to read backfill watermark: {error}"))?;
+        match value {
+            Some(value) => {
+                let (watermark_ms, _refreshed_at_ms) = decode_backfill_watermark_value(&value)?;
+                Ok(Some(watermark_ms))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Persists a peer's watermark under a monotonic max guard: a stale write
+    /// (an older pass completing after a newer one, or a completion racing
+    /// peer removal) can never regress the row. `refreshed_at_ms` is the
+    /// local-clock completion stamp retention GC judges the row by — written
+    /// on completion only, never periodically touched.
+    pub fn write_backfill_watermark(
+        &self,
+        node_url: &str,
+        watermark_ms: u64,
+        refreshed_at_ms: u64,
+    ) -> Result<(), String> {
+        let watermark_ms = self
+            .backfill_watermark(node_url)?
+            .map_or(watermark_ms, |existing| existing.max(watermark_ms));
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_wm_key(node_url).as_bytes(),
+            encode_backfill_watermark_value(watermark_ms, refreshed_at_ms),
+        );
+        self.write_batch_sync(batch, "backfill watermark")
+    }
+
+    /// Removes watermark rows whose completion-time `refreshed_at` is older
+    /// than the retention by the local clock, plus rows that no longer decode.
+    /// Returns how many rows were removed. A GC'd row's only cost is one
+    /// unbounded-window listing re-walk on the next pass over that peer.
+    pub fn gc_backfill_watermarks(&self, now_ms: u64, retention_ms: u64) -> Result<usize, String> {
+        let prefix = BACKFILL_WM_PREFIX.as_bytes();
+        let upper_bound = backfill_wm_prefix_upper_bound();
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix, rocksdb::Direction::Forward),
+        );
+        let mut batch = WriteBatch::default();
+        let mut removed = 0_usize;
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate backfill watermarks: {error}"))?;
+            if key.as_ref() >= upper_bound.as_slice() {
+                break;
+            }
+            let expired = match decode_backfill_watermark_value(&value) {
+                Ok((_watermark_ms, refreshed_at_ms)) => {
+                    now_ms.saturating_sub(refreshed_at_ms) > retention_ms
+                }
+                Err(_) => true,
+            };
+            if expired {
+                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), key);
+                removed += 1;
+            }
+        }
+        if removed > 0 {
+            self.write_batch_sync(batch, "backfill watermark gc")?;
+        }
+        Ok(removed)
+    }
+
+    /// The ring's age-ordered seal-time stats, the horizon input of
+    /// `backfill::window::compute_window`.
+    pub(crate) fn backfill_age_ordered_stats(&self) -> Vec<u64> {
+        self.segment_state_snapshot()
+            .state
+            .age_ordered_references()
+            .iter()
+            .map(|reference| reference.effective_max_version_ms())
+            .collect()
+    }
+
     /// One-off background build of the backfill index over a pre-existing
     /// dataset, run at startup when `backfill/meta/build_complete` is absent.
     /// Returns whether a build ran.
@@ -6495,6 +6589,7 @@ mod tests {
             multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
+            backfill_enabled: false,
             backfill_margin_percent: 40,
             backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
             analytics: None,

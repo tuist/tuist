@@ -3,5 +3,6 @@
 //! are guaranteed, completeness is best-effort.
 
 pub mod claims;
+pub mod lifecycle;
 pub mod pass;
 pub mod window;

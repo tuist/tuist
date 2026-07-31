@@ -91,6 +91,7 @@ const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOA
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
 const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
@@ -171,11 +172,16 @@ pub struct Config {
     pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
+    /// Boot-time selection of the peer catch-up walker: `true` runs the
+    /// recency-first backfill lifecycle, `false` (the default) the legacy
+    /// bootstrap walker. Read once at process start — the two paths share no
+    /// state and never run together; flipping is an env change plus restart,
+    /// with `backfill/` rows sitting inert while the flag is off.
+    pub backfill_enabled: bool,
     /// Share of the age-ordered segment ring (counted from the newest) whose
     /// boundary segment's seal-time stat becomes the backfill horizon; the
     /// margin's share of the ring's time span is the window's structural
     /// slack.
-    #[allow(dead_code)] // consumed by the backfill lifecycle (Unit 8)
     pub backfill_margin_percent: u64,
     /// Byte threshold a backfill pass composes one bodies batch against, and
     /// the cutoff above which a listed entry is fetched through the
@@ -1008,6 +1014,13 @@ impl Config {
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
             ));
         }
+        let backfill_enabled =
+            optional_parsed_value(&mut lookup, KURA_BACKFILL_ENABLED, &mut invalid, |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_BACKFILL_ENABLED} must be a valid bool"))
+            })
+            .unwrap_or(false);
         let backfill_margin_percent = optional_parsed_value(
             &mut lookup,
             KURA_BACKFILL_MARGIN_PERCENT,
@@ -1465,6 +1478,7 @@ impl Config {
             multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            backfill_enabled,
             backfill_margin_percent,
             backfill_batch_bytes,
             analytics,
@@ -1984,6 +1998,20 @@ mod tests {
             config.geoip_refresh_interval_secs,
             DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_enabled() {
+        let config = config_from(&[]).expect("default backfill selection should be valid");
+        assert!(!config.backfill_enabled, "the flag must default off");
+
+        let config = config_from(&[(KURA_BACKFILL_ENABLED, "true")])
+            .expect("an explicit backfill flag should be valid");
+        assert!(config.backfill_enabled);
+
+        let error = config_from(&[(KURA_BACKFILL_ENABLED, "definitely")])
+            .expect_err("a non-bool backfill flag must fail");
+        assert!(error.contains(KURA_BACKFILL_ENABLED));
     }
 
     #[test]

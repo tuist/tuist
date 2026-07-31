@@ -113,6 +113,10 @@ pub struct Metrics {
     backfill_retry_backoffs: Family<BackfillRetryLabels, Counter>,
     backfill_pass_listed_tuples: Family<BackfillPassPeerLabels, Gauge>,
     backfill_pass_resolved_tuples: Family<BackfillPassPeerLabels, Gauge>,
+    backfill_pass_events: Family<BackfillPassEventLabels, Counter>,
+    backfill_backfilling_peers: Gauge,
+    backfill_budget_exhausted_peers: Gauge,
+    backfill_watermark_age_ms: Family<BackfillPassPeerLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
@@ -314,6 +318,10 @@ impl Metrics {
         let backfill_retry_backoffs = Family::<BackfillRetryLabels, Counter>::default();
         let backfill_pass_listed_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let backfill_pass_resolved_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
+        let backfill_pass_events = Family::<BackfillPassEventLabels, Counter>::default();
+        let backfill_backfilling_peers = Gauge::default();
+        let backfill_budget_exhausted_peers = Gauge::default();
+        let backfill_watermark_age_ms = Family::<BackfillPassPeerLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -787,6 +795,26 @@ impl Metrics {
             "kura_backfill_pass_resolved_tuples",
             "Tuples resolved so far by the in-flight backfill pass for the peer",
             backfill_pass_resolved_tuples.clone(),
+        );
+        registry.register(
+            "kura_backfill_pass_events_total",
+            "Backfill pass scheduler events by type",
+            backfill_pass_events.clone(),
+        );
+        registry.register(
+            "kura_backfill_backfilling_peers",
+            "Initial-cycle peers with backfill passes outstanding",
+            backfill_backfilling_peers.clone(),
+        );
+        registry.register(
+            "kura_backfill_budget_exhausted_peers",
+            "Initial-cycle peers whose backfill failure budget is exhausted",
+            backfill_budget_exhausted_peers.clone(),
+        );
+        registry.register(
+            "kura_backfill_watermark_age_ms",
+            "Milliseconds between the current wall clock and the peer's persisted backfill watermark",
+            backfill_watermark_age_ms.clone(),
         );
         registry.register(
             "kura_bootstrap_runs_total",
@@ -1286,6 +1314,10 @@ impl Metrics {
             backfill_retry_backoffs,
             backfill_pass_listed_tuples,
             backfill_pass_resolved_tuples,
+            backfill_pass_events,
+            backfill_backfilling_peers,
+            backfill_budget_exhausted_peers,
+            backfill_watermark_age_ms,
             analytics_events,
             analytics_batches,
             analytics_batch_duration,
@@ -1875,6 +1907,34 @@ impl Metrics {
         self.set_backfill_pass_resolved_tuples(peer, 0);
     }
 
+    pub fn record_backfill_pass_event(&self, event: &str) {
+        self.backfill_pass_events
+            .get_or_create(&BackfillPassEventLabels {
+                event: event.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
+        self.backfill_backfilling_peers.set(backfilling as i64);
+        self.backfill_budget_exhausted_peers
+            .set(budget_exhausted as i64);
+    }
+
+    pub fn set_backfill_watermark_age_ms(&self, peer: &str, age_ms: u64) {
+        self.backfill_watermark_age_ms
+            .get_or_create(&BackfillPassPeerLabels {
+                peer: peer.to_owned(),
+            })
+            .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
+    }
+
+    // Zeroed rather than removed when the peer leaves the membership view, the
+    // clear_backfill_pass_progress convention.
+    pub fn clear_backfill_watermark_age(&self, peer: &str) {
+        self.set_backfill_watermark_age_ms(peer, 0);
+    }
+
     pub fn set_bootstrap_pass_buckets_divergent(&self, peer: &str, mode: &str, divergent: usize) {
         self.bootstrap_pass_buckets_divergent
             .get_or_create(&BootstrapPassLabels {
@@ -2417,6 +2477,11 @@ struct BackfillBodyOutcomeLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct BackfillRetryLabels {
     class: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillPassEventLabels {
+    event: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

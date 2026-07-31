@@ -18,6 +18,7 @@ use tracing::{info, warn};
 
 use crate::{
     analytics::Analytics,
+    backfill::lifecycle::BackfillLifecycle,
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
@@ -85,6 +86,10 @@ pub struct AppState {
     /// Serving-side per-peer-identity concurrency gate for the backfill bodies
     /// endpoint (see [`BackfillBodiesPeerSlots`]).
     pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
+    /// The backfill walker's node-side state machine, driven by the
+    /// membership loop when `KURA_BACKFILL_ENABLED` selects it at boot; idle
+    /// under the legacy bootstrap walker.
+    pub backfill: Arc<BackfillLifecycle>,
 }
 
 /// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
@@ -478,10 +483,16 @@ impl AppState {
             self.store.has_artifacts().unwrap_or(false),
             Ordering::Release,
         );
-        self.readiness
-            .lock()
-            .await
-            .reset_bootstrap_progress(Instant::now());
+        // Under the backfill walker there is no progress to reset: watermarks
+        // are durable and monotonic, so passes after a recovery re-enrollment
+        // re-walk only from the persisted watermarks. The serving anti-latch
+        // below still applies to both walkers until latched readiness lands.
+        if !self.config.backfill_enabled {
+            self.readiness
+                .lock()
+                .await
+                .reset_bootstrap_progress(Instant::now());
+        }
         self.runtime.clear_serving();
     }
 
@@ -1012,6 +1023,32 @@ mod tests {
         assert_eq!(serving.state, TrafficState::Serving);
         assert_eq!(serving.bootstrap_inflight_peers, vec![peer]);
         assert!(serving.bootstrapped_peers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn reset_bootstrap_progress_under_the_backfill_flag_resets_no_progress() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        let epoch = context.state.current_bootstrap_epoch().await;
+        context.state.note_bootstrap_succeeded(&peer, epoch).await;
+
+        // A recovery re-enrollment under the backfill walker: watermarks are
+        // durable, so no progress is reset — the bootstrap epoch and
+        // bookkeeping stand untouched (they are unused under the flag), and
+        // only the serving anti-latch applies.
+        context.state.reset_bootstrap_progress().await;
+        assert_eq!(context.state.current_bootstrap_epoch().await, epoch);
+        let report = context.state.readiness_report().await;
+        assert_eq!(report.bootstrapped_peers, vec![peer]);
+        assert!(!context.state.runtime.is_serving());
     }
 
     fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {

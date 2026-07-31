@@ -91,6 +91,7 @@ where
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
+        backfill_enabled: false,
         backfill_margin_percent: 40,
         backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
         analytics: None,
@@ -194,6 +195,7 @@ where
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
 

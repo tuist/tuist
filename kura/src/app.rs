@@ -207,6 +207,7 @@ async fn run_with_config(
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -912,6 +913,11 @@ fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
 fn spawn_backfill_index_task(state: Arc<AppState>) {
     const BUILD_RETRY_DELAY: Duration = Duration::from_secs(60);
     let stamp_interval = Duration::from_millis(crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS);
+    // Watermark GC piggybacks on the stamping loop: once at startup, then at
+    // its own (much longer) cadence expressed in stamp intervals.
+    let gc_every_stamps = (crate::constants::BACKFILL_WATERMARK_GC_INTERVAL_MS
+        / crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS)
+        .max(1);
     tokio::spawn(
         async move {
             loop {
@@ -927,7 +933,22 @@ fn spawn_backfill_index_task(state: Arc<AppState>) {
                 }
                 tokio::time::sleep(BUILD_RETRY_DELAY).await;
             }
+            let mut stamps_until_gc = 0_u64;
             loop {
+                if stamps_until_gc == 0 {
+                    stamps_until_gc = gc_every_stamps;
+                    match state.store.gc_backfill_watermarks(
+                        crate::utils::now_ms(),
+                        crate::constants::BACKFILL_WATERMARK_RETENTION_MS,
+                    ) {
+                        Ok(removed) if removed > 0 => {
+                            info!(removed, "backfill watermark gc removed expired rows");
+                        }
+                        Ok(_) => {}
+                        Err(error) => warn!("backfill watermark gc failed: {error}"),
+                    }
+                }
+                stamps_until_gc -= 1;
                 tokio::time::sleep(stamp_interval).await;
                 if let Err(error) = state.store.stamp_backfill_maintained_seq() {
                     warn!("failed to stamp backfill maintenance sequence: {error}");
