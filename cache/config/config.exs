@@ -54,9 +54,7 @@ config :cache, Oban,
   queues: [
     clean: 10,
     maintenance: 1,
-    s3_transfers: 1,
-    registry_sync: 1,
-    registry_release: 5
+    s3_transfers: 1
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
@@ -99,8 +97,7 @@ config :cache,
   key_value_read_busy_timeout_ms: 2_000,
   key_value_maintenance_busy_timeout_ms: 50,
   key_value_eviction_max_duration_ms: 300_000,
-  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
-  registry_sync_limit: 1_000
+  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 
