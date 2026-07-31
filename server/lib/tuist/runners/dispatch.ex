@@ -198,6 +198,15 @@ defmodule Tuist.Runners.Dispatch do
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
+
+      {:error, reason} ->
+        Logger.error("runners: failed to enqueue webhook job",
+          repo: full_name,
+          workflow_job_id: Map.get(job, "id"),
+          reason: inspect(reason)
+        )
+
+        {:error, reason}
     end
   end
 

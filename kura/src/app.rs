@@ -12,7 +12,10 @@ use hyper_util::{
     server::conn::auto::Builder as HttpBuilder,
 };
 use tokio::sync::{Notify, Semaphore, oneshot, watch};
-use tokio::{task::JoinHandle, time::Instant};
+use tokio::{
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{Instrument, info, warn};
 
 use crate::{
@@ -50,6 +53,7 @@ const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEN
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
 #[cfg(target_os = "linux")]
 const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
@@ -165,6 +169,7 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS));
     let bootstrap_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
@@ -194,6 +199,7 @@ async fn run_with_config(
             local_data_available_at_join,
         ),
         bootstrap_semaphore,
+        bootstrap_artifact_semaphore,
         tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
@@ -219,7 +225,9 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
-    spawn_action_cache_blob_refs_backfill_task(state.clone());
+    if state.config.action_cache_eviction_cascade_enabled {
+        spawn_action_cache_blob_refs_backfill_task(state.clone());
+    }
     spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
@@ -844,16 +852,37 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
 fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
-            let backfill_state = state.clone();
-            let result = tokio::task::spawn_blocking(move || {
-                backfill_state.store.backfill_action_cache_blob_refs()
-            })
-            .await;
-            match result {
-                Ok(Ok(0)) => {}
-                Ok(Ok(rows)) => info!(rows, "action-cache blob-refs backfill complete"),
-                Ok(Err(error)) => warn!("action-cache blob-refs backfill failed: {error}"),
-                Err(error) => warn!("action-cache blob-refs backfill task panicked: {error}"),
+            let mut rows = 0_usize;
+            loop {
+                state.memory.wait_for_background_headroom().await;
+                let backfill_state = state.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                })
+                .await;
+                match result {
+                    Ok(Ok(step)) => {
+                        rows += step.rows;
+                        if step.complete {
+                            if rows > 0 {
+                                info!(rows, "action-cache blob-refs backfill complete");
+                            }
+                            break;
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        warn!("action-cache blob-refs backfill failed: {error}");
+                        break;
+                    }
+                    Err(error) => {
+                        warn!("action-cache blob-refs backfill task panicked: {error}");
+                        break;
+                    }
+                }
+                // Rate-limit historical index writes between persisted cursor
+                // checkpoints. The next step is admitted only while the shared
+                // memory controller stays normal.
+                sleep(Duration::from_millis(200)).await;
             }
         }
         .in_current_span(),

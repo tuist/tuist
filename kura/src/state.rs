@@ -69,6 +69,9 @@ pub struct AppState {
     /// bootstrap pass.
     pub local_data_available_at_join: AtomicBool,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    /// Shared across peer bootstrap tasks. Per-peer concurrency alone lets a
+    /// node fan out every body fetch once for each peer during a rollout.
+    pub bootstrap_artifact_semaphore: Arc<Semaphore>,
     /// Process-wide byte budget shared by every transient disk writer.
     pub tmp_staging_budget: Arc<TmpBudget>,
     pub bootstrap_staging_budget: Arc<TmpBudget>,

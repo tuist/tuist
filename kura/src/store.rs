@@ -79,6 +79,16 @@ const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
+// The production backfill averaged thousands of reverse rows per action-cache
+// manifest. Checkpoint every manifest so a large historical cache cannot turn
+// the one-time migration into an unbounded RocksDB and page-cache burst.
+const ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1;
+const ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH: usize = 1_024;
+
+pub struct ActionCacheBlobRefsBackfillStep {
+    pub rows: usize,
+    pub complete: bool,
+}
 
 pub fn is_outbox_full_error(error: &str) -> bool {
     error.starts_with(OUTBOX_FULL_ERROR)
@@ -4007,6 +4017,10 @@ impl Store {
         "action_cache_blob_refs/backfilled"
     }
 
+    fn action_cache_blob_refs_cursor_key() -> &'static str {
+        "action_cache_blob_refs/cursor"
+    }
+
     fn action_cache_blob_refs_backfilled(&self) -> Result<bool, String> {
         self.db
             .get_cf(
@@ -4039,43 +4053,59 @@ impl Store {
     /// the eviction cascade re-checks that an entry still references the evicted
     /// blob before removing it and drops only the stale pair otherwise, so the
     /// scan does not need to lock each entry.
-    pub fn backfill_action_cache_blob_refs(&self) -> Result<usize, String> {
+    pub fn backfill_action_cache_blob_refs_step(
+        &self,
+    ) -> Result<ActionCacheBlobRefsBackfillStep, String> {
         if self.action_cache_blob_refs_backfilled()? {
             self.action_cache_blob_refs_ready
                 .store(true, Ordering::Release);
-            return Ok(0);
+            return Ok(ActionCacheBlobRefsBackfillStep {
+                rows: 0,
+                complete: true,
+            });
         }
 
-        const SCAN_PAGE: usize = 4096;
-        let started = std::time::Instant::now();
-        let mut after: Option<String> = None;
+        let after = self
+            .db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+            )
+            .map_err(|error| format!("failed to read blob-refs backfill cursor: {error}"))?
+            .map(|cursor| {
+                String::from_utf8(cursor.to_vec())
+                    .map_err(|error| format!("invalid blob-refs backfill cursor: {error}"))
+            })
+            .transpose()?;
+        let page = self.manifests_page_scoped(
+            after.as_deref(),
+            None,
+            ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP,
+        )?;
         let mut batch = WriteBatch::default();
         let mut pending = 0_usize;
         let mut rows = 0_usize;
-        loop {
-            let page = self.manifests_page_scoped(after.as_deref(), None, SCAN_PAGE)?;
-            for manifest in page.manifests {
-                if manifest.producer != ArtifactProducer::Reapi
-                    || action_cache_manifest_hash(&manifest.key).is_none()
-                {
-                    continue;
-                }
-                // Segment-backed entries are skipped here (as on the write and
-                // delete paths): the reverse index only covers inline entries,
-                // and the serve-side gates cover the rest.
-                let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
-                    continue;
-                };
-                for blob_id in self.action_cache_entry_blob_ids(&manifest.namespace_id, &bytes) {
-                    batch.put_cf(
-                        self.cf(ROCKSDB_CF_KEY_VALUE),
-                        action_cache_blob_ref_key(&blob_id, &manifest.artifact_id).as_bytes(),
-                        [],
-                    );
-                    pending += 1;
-                    rows += 1;
-                }
-                if pending >= 1_024 {
+        for manifest in &page.manifests {
+            if manifest.producer != ArtifactProducer::Reapi
+                || action_cache_manifest_hash(&manifest.key).is_none()
+            {
+                continue;
+            }
+            // Segment-backed entries are skipped here (as on the write and
+            // delete paths): the reverse index only covers inline entries,
+            // and the serve-side gates cover the rest.
+            let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
+                continue;
+            };
+            for blob_id in self.action_cache_entry_blob_ids(&manifest.namespace_id, &bytes) {
+                batch.put_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    action_cache_blob_ref_key(&blob_id, &manifest.artifact_id).as_bytes(),
+                    [],
+                );
+                pending += 1;
+                rows += 1;
+                if pending == ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH {
                     self.write_batch_sync(
                         std::mem::take(&mut batch),
                         "action-cache blob-refs backfill batch",
@@ -4083,30 +4113,48 @@ impl Store {
                     pending = 0;
                 }
             }
-            match page.next_after {
-                Some(next) => after = Some(next),
-                None => break,
-            }
         }
         if pending > 0 {
             self.write_batch_sync(batch, "action-cache blob-refs backfill batch")?;
         }
 
-        let mut marker_batch = WriteBatch::default();
-        marker_batch.put_cf(
-            self.cf(ROCKSDB_CF_KEY_VALUE),
-            Self::action_cache_blob_refs_marker_key().as_bytes(),
-            [],
-        );
-        self.write_batch_sync(marker_batch, "action-cache blob-refs backfill marker")?;
-        self.action_cache_blob_refs_ready
-            .store(true, Ordering::Release);
-        tracing::info!(
-            rows,
-            elapsed_ms = started.elapsed().as_millis() as u64,
-            "action-cache blob-refs backfilled"
-        );
-        Ok(rows)
+        let complete = page.next_after.is_none();
+        let mut progress_batch = WriteBatch::default();
+        if complete {
+            progress_batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_marker_key().as_bytes(),
+                [],
+            );
+            progress_batch.delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+            );
+        } else if let Some(cursor) = page.manifests.last() {
+            progress_batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+                cursor.artifact_id.as_bytes(),
+            );
+        }
+        self.write_batch_sync(progress_batch, "action-cache blob-refs backfill progress")?;
+        if complete {
+            self.action_cache_blob_refs_ready
+                .store(true, Ordering::Release);
+        }
+        Ok(ActionCacheBlobRefsBackfillStep { rows, complete })
+    }
+
+    #[cfg(test)]
+    fn backfill_action_cache_blob_refs(&self) -> Result<usize, String> {
+        let mut rows = 0_usize;
+        loop {
+            let step = self.backfill_action_cache_blob_refs_step()?;
+            rows += step.rows;
+            if step.complete {
+                return Ok(rows);
+            }
+        }
     }
 
     /// Whether this store has any locally usable cache data.
@@ -8223,6 +8271,60 @@ mod tests {
             vec![entry.artifact_id]
         );
         assert!(store.action_cache_cascade_active());
+    }
+
+    #[tokio::test]
+    async fn blob_refs_backfill_resumes_from_its_persisted_cursor() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        let first = store
+            .backfill_action_cache_blob_refs_step()
+            .expect("first backfill step failed");
+        assert!(!first.complete);
+        assert!(
+            store
+                .db
+                .get_cf(
+                    store.cf(ROCKSDB_CF_KEY_VALUE),
+                    Store::action_cache_blob_refs_cursor_key().as_bytes(),
+                )
+                .expect("failed to read persisted cursor")
+                .is_some(),
+            "an interrupted migration must leave a cursor for the next start"
+        );
+        assert!(!store.action_cache_cascade_active());
+
+        loop {
+            let step = store
+                .backfill_action_cache_blob_refs_step()
+                .expect("resumed backfill step failed");
+            if step.complete {
+                break;
+            }
+        }
+
+        assert_eq!(blob_ref_entry_ids(&store, &blob.artifact_id).len(), 1);
+        assert!(store.action_cache_cascade_active());
+        assert!(
+            store
+                .db
+                .get_cf(
+                    store.cf(ROCKSDB_CF_KEY_VALUE),
+                    Store::action_cache_blob_refs_cursor_key().as_bytes(),
+                )
+                .expect("failed to read cleared cursor")
+                .is_none()
+        );
     }
 
     #[tokio::test]

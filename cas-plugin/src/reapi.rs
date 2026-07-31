@@ -288,20 +288,23 @@ type BlobOutcome = (Option<reapi::Digest>, i32, Vec<u8>);
 /// factored out of `batch_read` so it is exercised without a live server:
 /// `fetch` performs one pass. Served blobs (status 0) accumulate; retryable
 /// declines (see `retryable_blob_status`) are re-requested with backoff up to
-/// `BLOB_STATUS_ATTEMPTS`; `NOT_FOUND` and other statuses are left out for the
-/// caller to skip. A decline that survives every attempt arms
+/// `BLOB_STATUS_ATTEMPTS`. Action-result materialization may also retry a
+/// `NOT_FOUND`, because it can observe metadata before its blob is readable.
+/// A pressure decline that survives every attempt arms
 /// `pressure_backoff_until_ms` so subsequent reads make a single fail-fast pass
 /// rather than pile the retry ladder onto a struggling node, and logs the
 /// transition once (`backing_off` already means it was armed).
 fn batch_read_retrying(
     pressure_backoff_until_ms: &AtomicU64,
     blobs: &[reapi::Digest],
+    retry_not_found: bool,
     mut fetch: impl FnMut(&[reapi::Digest]) -> Result<Vec<BlobOutcome>, String>,
 ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
     let backing_off = now_ms() < pressure_backoff_until_ms.load(Ordering::Relaxed);
     let attempts = if backing_off { 1 } else { BLOB_STATUS_ATTEMPTS };
     let mut contents = std::collections::HashMap::new();
     let mut pending: Vec<reapi::Digest> = blobs.to_vec();
+    let mut saw_pressure_decline = false;
     for round in 1..=attempts {
         let outcomes = fetch(&pending)?;
         let mut retry: Vec<reapi::Digest> = Vec::new();
@@ -310,10 +313,13 @@ fn batch_read_retrying(
                 if let Some(digest) = digest {
                     contents.insert(digest.hash, data);
                 }
-            } else if retryable_blob_status(code) {
+            } else if retryable_blob_status(code)
+                || (retry_not_found && code == tonic::Code::NotFound as i32)
+            {
                 if let Some(digest) = digest {
                     retry.push(digest);
                 }
+                saw_pressure_decline |= retryable_blob_status(code);
             }
             // Any other status (NOT_FOUND, ...) is a genuine miss: leave it out
             // of the map so the caller's skip-and-recompile path takes over.
@@ -330,7 +336,7 @@ fn batch_read_retrying(
             // genuinely transient declines on the same Remote for 30s.
             // `contents.is_empty()` is that signature and needs no fragile
             // parse of the per-blob status message.
-            if contents.is_empty() {
+            if contents.is_empty() && saw_pressure_decline {
                 arm_pressure_backoff(pressure_backoff_until_ms, retry.len(), round);
             }
             break;
@@ -653,9 +659,31 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
-        let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, |pending| {
-            self.batch_read_once(pending)
-        });
+        let result = batch_read_retrying(
+            &self.pressure_backoff_until_ms,
+            blobs,
+            false,
+            |pending| self.batch_read_once(pending),
+        );
+        self.get_stats.record(started.elapsed());
+        result
+    }
+
+    /// Reads blobs immediately following an action-cache hit. A Kura node can
+    /// briefly report a blob absent while the action result that references it
+    /// is already visible, so this path gives NOT_FOUND the same bounded retry
+    /// budget as a transient serving decline.
+    pub fn batch_read_after_action_result(
+        &self,
+        blobs: &[reapi::Digest],
+    ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
+        let started = Instant::now();
+        let result = batch_read_retrying(
+            &self.pressure_backoff_until_ms,
+            blobs,
+            true,
+            |pending| self.batch_read_once(pending),
+        );
         self.get_stats.record(started.elapsed());
         result
     }
@@ -1001,7 +1029,7 @@ mod tests {
         let digest = super::Digest { hash: "aa".into(), size_bytes: 3 };
         let mut round = 0;
         let served =
-            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
                 round += 1;
                 if round == 1 {
                     exhausted(pending)
@@ -1022,7 +1050,7 @@ mod tests {
 
         let mut first_calls = 0;
         let served =
-            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
                 first_calls += 1;
                 exhausted(pending)
             })
@@ -1032,7 +1060,7 @@ mod tests {
         assert!(breaker.load(Ordering::Relaxed) > 0, "a sustained decline arms the backoff");
 
         let mut second_calls = 0;
-        let _ = super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+        let _ = super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
             second_calls += 1;
             exhausted(pending)
         })
@@ -1046,7 +1074,7 @@ mod tests {
         let digest = super::Digest { hash: "cc".into(), size_bytes: 1 };
         let mut calls = 0;
         let served =
-            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
                 calls += 1;
                 Ok(vec![(Some(pending[0].clone()), tonic::Code::NotFound as i32, Vec::new())])
             })
@@ -1054,6 +1082,36 @@ mod tests {
         assert!(served.is_empty(), "an evicted blob is not served");
         assert_eq!(calls, 1, "a genuine miss is not retried");
         assert_eq!(breaker.load(Ordering::Relaxed), 0, "a miss does not arm the backoff");
+    }
+
+    #[test]
+    fn action_result_materialization_retries_a_transient_not_found_without_backoff() {
+        let breaker = AtomicU64::new(0);
+        let digest = super::Digest { hash: "dd".into(), size_bytes: 1 };
+        let mut calls = 0;
+
+        let served = super::batch_read_retrying(
+            &breaker,
+            std::slice::from_ref(&digest),
+            true,
+            |pending| {
+                calls += 1;
+                if calls == 1 {
+                    Ok(vec![(
+                        Some(pending[0].clone()),
+                        tonic::Code::NotFound as i32,
+                        Vec::new(),
+                    )])
+                } else {
+                    Ok(vec![(Some(pending[0].clone()), 0, vec![1])])
+                }
+            },
+        )
+        .unwrap();
+
+        assert_eq!(served.get("dd"), Some(&vec![1]));
+        assert_eq!(calls, 2);
+        assert_eq!(breaker.load(Ordering::Relaxed), 0);
     }
 
     #[test]
@@ -1069,7 +1127,7 @@ mod tests {
             super::Digest { hash: "bb".into(), size_bytes: 1 },
         ];
         let mut calls = 0;
-        let served = super::batch_read_retrying(&breaker, &pending, |pending| {
+        let served = super::batch_read_retrying(&breaker, &pending, false, |pending| {
             calls += 1;
             Ok(pending
                 .iter()
