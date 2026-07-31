@@ -80,6 +80,14 @@ struct MemoryControllerInner {
     forced_pressure: Option<MemoryPressure>,
     container_accounting_selected: AtomicBool,
     reclaim_file_cache: AtomicBool,
+    /// Set while the raw cgroup charge (`memory.current`, which includes clean
+    /// file cache) sits at or above the hard watermark. Background work must
+    /// stop in that state because the charge counts against the container limit
+    /// until the kernel actually reclaims it, but it is deliberately kept out of
+    /// the global pressure tier: a warm serving node parks clean artifact pages
+    /// there as a matter of course, and denying foreground admission for that
+    /// would shed customer reads that cost no additional memory.
+    container_at_hard_limit: AtomicBool,
     working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
@@ -166,6 +174,7 @@ impl MemoryController {
                 forced_pressure,
                 container_accounting_selected: AtomicBool::new(false),
                 reclaim_file_cache: AtomicBool::new(false),
+                container_at_hard_limit: AtomicBool::new(false),
                 working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
@@ -248,17 +257,26 @@ impl MemoryController {
         // most of it is clean file cache. Reclaim alone is not enough once it
         // reaches the hard watermark: a concurrent bootstrap or database write
         // can consume the remaining headroom before the kernel reclaims it.
-        // Promote that condition to critical immediately so every background
-        // admission gate closes before the kernel has to kill the process.
-        let observed_bytes =
-            sample
-                .pressure_bytes
-                .max(if sample.current_bytes >= self.inner.hard_limit_bytes {
-                    self.inner.hard_limit_bytes
-                } else {
-                    0
-                });
-        self.observe(observed_bytes)
+        // Close every background admission gate on that condition so the node
+        // stops adding charge before the kernel has to kill the process.
+        //
+        // This deliberately does not move the global pressure tier. That tier
+        // also gates foreground admission (public reads and writes, REAPI, and
+        // response-stream reservations), and a warm serving node holds clean
+        // artifact pages at the hard watermark as its normal steady state.
+        // Folding the raw charge into the tier sheds customer traffic that a
+        // single reclaim would have made room for. The tier stays driven by
+        // `pressure_bytes`, which already excludes clean file cache.
+        let at_hard_limit = sample.current_bytes >= self.inner.hard_limit_bytes;
+        if self
+            .inner
+            .container_at_hard_limit
+            .swap(at_hard_limit, Ordering::Release)
+            != at_hard_limit
+        {
+            self.inner.pressure_changed.notify_waiters();
+        }
+        self.observe(sample.pressure_bytes)
     }
 
     fn observe_working_set(&self, working_set_bytes: u64) -> MemoryPressure {
@@ -284,20 +302,28 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
+    /// True while the raw cgroup charge sits at or above the hard watermark.
+    /// Background gates consult this alongside the pressure tier; foreground
+    /// admission deliberately does not, because the charge is dominated by
+    /// reclaimable clean file cache on a warm serving node.
+    pub fn container_at_hard_limit(&self) -> bool {
+        self.inner.container_at_hard_limit.load(Ordering::Acquire)
+    }
+
     pub fn allow_manifest_cache_admission(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal
+        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
     }
 
     pub fn allow_segment_refresh(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal
+        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
     }
 
     pub fn pause_outbox(&self) -> bool {
-        self.pressure() == MemoryPressure::Critical
+        self.pressure() == MemoryPressure::Critical || self.container_at_hard_limit()
     }
 
     pub fn allow_background_admission(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal
+        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
     }
 
     pub async fn wait_for_background_headroom(&self) {
@@ -979,11 +1005,22 @@ mod tests {
                 reclaimable_inactive_file_bytes: 40,
                 limit_bytes: Some(240),
             }),
-            MemoryPressure::Critical
+            // The tier follows `pressure_bytes`, which excludes the clean file
+            // cache making up the bulk of the charge, so foreground admission
+            // stays open and public reads keep being served.
+            MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_none());
+        assert!(controller.container_at_hard_limit());
         assert!(!controller.allow_background_admission());
+        assert!(!controller.allow_segment_refresh());
+        assert!(!controller.allow_manifest_cache_admission());
+        assert!(controller.pause_outbox());
+        assert!(
+            controller.allow_transient_admission(AdmissionClass::Foreground),
+            "clean file cache at the hard watermark must not shed public reads"
+        );
 
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
@@ -997,6 +1034,8 @@ mod tests {
         );
         assert!(!controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_some());
+        assert!(!controller.container_at_hard_limit());
+        assert!(controller.allow_background_admission());
     }
 
     #[test]
@@ -1054,6 +1093,8 @@ mod tests {
         // Container charge at the hard watermark with a low working set must stop
         // background work immediately. Clean file cache is reclaimable, but it is
         // still charged against the hard container limit until that reclaim happens.
+        // Foreground serving is left alone: the working set is far below the soft
+        // watermark, so the charge is page cache the kernel can hand back.
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
                 current_bytes: 200,
@@ -1062,10 +1103,65 @@ mod tests {
                 reclaimable_inactive_file_bytes: 160,
                 limit_bytes: Some(240),
             }),
-            MemoryPressure::Critical
+            MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
+        assert!(controller.container_at_hard_limit());
         assert!(!controller.allow_background_admission());
+        assert!(controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // The raw arm is un-hysteresed: dropping back below the watermark reopens
+        // background work on the next sample.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 150,
+                pressure_bytes: 40,
+                working_set_bytes: 40,
+                reclaimable_inactive_file_bytes: 110,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(!controller.container_at_hard_limit());
+        assert!(controller.allow_background_admission());
+    }
+
+    #[test]
+    fn a_warm_serving_node_keeps_admitting_public_reads_with_page_cache_at_the_limit() {
+        // Mirrors a production 2 GiB cache node: the cgroup charge sits just over
+        // the 85% hard watermark because the kernel is holding clean artifact
+        // pages, while the real working set is a small fraction of the limit.
+        // This is the steady state of a warm node, not an overload, and it must
+        // not shed reads.
+        let metrics = Metrics::new("us-east".into(), "tenant".into());
+        let runtime_limit = 2 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let controller =
+            MemoryController::with_runtime_limit(metrics, runtime_limit, soft_limit, hard_limit);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 1_852_125_184,
+                pressure_bytes: 192_602_112,
+                working_set_bytes: 191_483_904,
+                reclaimable_inactive_file_bytes: 1_600_000_000,
+                limit_bytes: Some(runtime_limit),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.container_at_hard_limit());
+        assert!(controller.should_reclaim_file_cache());
+        assert!(!controller.allow_background_admission());
+        assert!(
+            controller
+                .try_acquire_response_stream_memory(
+                    crate::constants::response_stream_chunk_bytes(4 * 1024 * 1024),
+                    "http"
+                )
+                .is_ok(),
+            "a public artifact read must be admitted while the charge is clean file cache"
+        );
     }
 
     #[test]
