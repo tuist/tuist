@@ -4,8 +4,11 @@ mod analytics;
 mod app;
 mod artifact;
 mod bandwidth;
+pub mod cli;
+mod command;
 mod config;
 mod constants;
+mod control;
 mod enrollment;
 mod extension;
 mod failpoints;
@@ -35,3 +38,4 @@ mod utils;
 mod test_support;
 
 pub use app::run;
+pub use command::execute;

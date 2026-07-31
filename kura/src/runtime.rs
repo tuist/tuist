@@ -16,7 +16,7 @@ use tokio::sync::{Notify, futures::Notified};
 
 use crate::metrics::Metrics;
 
-const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
+pub const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
 const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
 const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
@@ -151,7 +151,6 @@ impl RuntimeState {
         self.public_http_inflight() + self.grpc_inflight()
     }
 
-    #[cfg(test)]
     pub fn public_request_latency_ewma(&self) -> Option<Duration> {
         let micros = self
             .public_request_latency_ewma_micros
@@ -402,6 +401,18 @@ impl DataDirLock {
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
+
+/// Reads the pid recorded in a data directory's writer lock, if the file exists
+/// and is well formed. Used to detect a runtime file left behind by a process
+/// that no longer holds the lock; it says nothing about whether that pid is
+/// still alive.
+pub fn read_lock_file_pid(data_dir: &Path) -> Option<u32> {
+    let contents = std::fs::read_to_string(data_dir.join(DATA_DIR_LOCK_FILE)).ok()?;
+    contents
+        .lines()
+        .find_map(|line| line.strip_prefix("pid="))
+        .and_then(|pid| pid.trim().parse().ok())
 }
 
 #[cfg(unix)]

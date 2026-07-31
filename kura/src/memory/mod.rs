@@ -530,7 +530,6 @@ impl MemoryController {
         })
     }
 
-    #[cfg(test)]
     pub fn degraded_response_stream_slots(&self) -> usize {
         self.inner.pools.degraded_response_stream_slots()
     }
@@ -610,12 +609,10 @@ impl MemoryController {
         self.inner.pools.response_streaming_bytes()
     }
 
-    #[cfg(test)]
     pub fn foreground_response_streaming_pool_bytes(&self) -> usize {
         self.inner.pools.foreground_response_streaming_bytes()
     }
 
-    #[cfg(test)]
     pub fn elastic_foreground_response_streaming_pool_bytes(&self) -> usize {
         self.inner
             .pools
