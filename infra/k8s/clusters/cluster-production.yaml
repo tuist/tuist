@@ -38,6 +38,10 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      # The kubelet must expose the real systemd-resolved resolver file to
+      # pods, not Ubuntu's loopback stub at /etc/resolv.conf.
+      - name: workerResolvConf
+        value: /run/systemd/resolve/resolv.conf
       # Scopes bare-metal HBM claims to this cluster (see the
       # `HetznerBareMetalMachineTemplateClusterSelector` patch in
       # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
@@ -69,6 +73,11 @@ spec:
           name: md-0
           replicas: 3
           failureDomain: fsn1
+          rollout:
+            strategy:
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: general
@@ -92,6 +101,11 @@ spec:
           name: md-egress
           replicas: 2
           failureDomain: fsn1
+          rollout:
+            strategy:
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: egress
@@ -138,6 +152,11 @@ spec:
           name: md-processor
           replicas: 2
           failureDomain: fsn1
+          rollout:
+            strategy:
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: processor
