@@ -561,8 +561,7 @@ impl BackfillRecordKind {
         }
     }
 
-    // Wire names for the backfill listing endpoint; unused until it lands.
-    #[allow(dead_code)]
+    /// Wire names for the backfill listing endpoint.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::SegmentArtifact => "segment_artifact",

@@ -32,6 +32,7 @@ pub struct Metrics {
     http_requests: Family<HttpRequestLabels, Counter>,
     http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
+    internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -204,6 +205,10 @@ impl Metrics {
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
         let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
+        let internal_backfill_request_duration =
+            Family::<InternalBackfillRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
         let public_request_latency =
             Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
@@ -409,6 +414,11 @@ impl Metrics {
             "kura_http_request_duration_seconds",
             "Public HTTP request latency excluding probes and internal endpoints",
             http_request_duration.clone(),
+        );
+        registry.register(
+            "kura_internal_backfill_http_request_duration_seconds",
+            "Internal backfill HTTP request latency by route",
+            internal_backfill_request_duration.clone(),
         );
         registry.register(
             "kura_public_request_latency_seconds",
@@ -1139,6 +1149,7 @@ impl Metrics {
             http_requests,
             http_client_requests,
             http_request_duration,
+            internal_backfill_request_duration,
             public_request_latency,
             http_exceptions,
             artifact_reads,
@@ -1331,6 +1342,15 @@ impl Metrics {
                 })
                 .inc();
             self.http_request_duration.observe(duration.as_secs_f64());
+        }
+        // Internal routes are excluded from the public duration histogram, so
+        // backfill endpoints get their own route-labeled timing family.
+        if route.starts_with(INTERNAL_BACKFILL_ROUTE_PREFIX) {
+            self.internal_backfill_request_duration
+                .get_or_create(&InternalBackfillRouteLabels {
+                    route: route.clone(),
+                })
+                .observe(duration.as_secs_f64());
         }
 
         if status.is_server_error() {
@@ -2211,6 +2231,8 @@ impl Metrics {
     }
 }
 
+const INTERNAL_BACKFILL_ROUTE_PREFIX: &str = "/_internal/backfill/";
+
 fn records_public_http_metrics(route: &str) -> bool {
     !matches!(
         route,
@@ -2227,6 +2249,11 @@ struct HttpRequestLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpClientCountryLabels {
     client_country: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct InternalBackfillRouteLabels {
+    route: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2468,6 +2495,38 @@ mod tests {
         assert!(!records_public_http_metrics("/metrics"));
         assert!(!records_public_http_metrics("/_internal/status"));
         assert!(!records_public_http_metrics("/_unmatched"));
+    }
+
+    #[test]
+    fn internal_backfill_routes_record_route_labeled_durations() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_http(
+            "/_internal/backfill/entries".into(),
+            StatusCode::OK,
+            None,
+            Duration::from_millis(10),
+        );
+        metrics.record_http(
+            "/_internal/status".into(),
+            StatusCode::OK,
+            None,
+            Duration::from_millis(10),
+        );
+
+        let rendered = metrics.render();
+
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_internal_backfill_http_request_duration_seconds_count")
+                && line.contains("route=\"/_internal/backfill/entries\"")
+        }));
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| {
+                    line.starts_with("kura_internal_backfill_http_request_duration_seconds")
+                })
+                .all(|line| !line.contains("/_internal/status"))
+        );
     }
 
     #[test]

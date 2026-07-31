@@ -4563,8 +4563,6 @@ impl Store {
     /// resumes strictly after it. The cursor is a key position, not a
     /// snapshot: rows written or removed between pages are reflected, and the
     /// scan always terminates because keys only move forward.
-    // Consumed by the backfill listing endpoint; test-only until it lands.
-    #[allow(dead_code)]
     pub fn backfill_index_page(
         &self,
         after: Option<&[u8]>,

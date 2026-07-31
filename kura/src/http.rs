@@ -19,7 +19,7 @@ use axum::{
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use http_body::{Body as HttpBody, Frame, SizeHint};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
@@ -44,13 +44,13 @@ use crate::{
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::{
-        ManifestDigest, StagedArtifactPath, is_disk_full_error, is_multipart_capacity_error,
-        is_outbox_full_error,
+        BackfillIndexPage, ManifestDigest, StagedArtifactPath, is_disk_full_error,
+        is_multipart_capacity_error, is_outbox_full_error,
     },
     telemetry::{attach_parent_context, record_trace_context},
     utils::{
-        BodyReadError, RequestBodyStaging, action_cache_key, blob_key, module_key,
-        read_request_to_temp,
+        BACKFILL_IDX_PREFIX, BodyReadError, RequestBodyStaging, action_cache_key, blob_key,
+        module_key, read_request_to_temp,
     },
 };
 
@@ -79,11 +79,12 @@ const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST: &str = "/_internal/bootstrap/di
 const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
     "/_internal/bootstrap/namespace_tombstones";
 const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
+const ROUTE_INTERNAL_BACKFILL_ENTRIES: &str = "/_internal/backfill/entries";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -97,6 +98,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
     ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
+    ROUTE_INTERNAL_BACKFILL_ENTRIES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
 ];
@@ -281,6 +283,10 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
             get(internal_bootstrap_artifact),
+        )
+        .route(
+            ROUTE_INTERNAL_BACKFILL_ENTRIES,
+            get(internal_backfill_entries),
         )
         .route(
             ROUTE_INTERNAL_REPLICATE_ARTIFACT,
@@ -498,6 +504,100 @@ impl PageQuery {
             limit,
         })
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BackfillEntriesQuery {
+    after: Option<Vec<u8>>,
+    limit: usize,
+}
+
+impl BackfillEntriesQuery {
+    fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+        let after = params
+            .get("after")
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                let key = hex::decode(value).map_err(|error| format!("Invalid after: {error}"))?;
+                if !key.starts_with(BACKFILL_IDX_PREFIX.as_bytes()) {
+                    return Err("Invalid after: not a backfill index cursor".to_owned());
+                }
+                Ok(key)
+            })
+            .transpose()?;
+        let limit = params
+            .get("limit")
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|error| format!("Invalid limit: {error}"))
+            })
+            .transpose()?
+            .unwrap_or(256);
+        if limit == 0 {
+            return Err("Invalid limit: must be greater than 0".to_owned());
+        }
+        // Clamped rather than rejected: the ceiling bounds one response's
+        // work, and a requester asking for more just pages more often.
+        Ok(Self {
+            after,
+            limit: limit.min(MAX_BOOTSTRAP_PAGE_ITEMS),
+        })
+    }
+}
+
+/// Wire page of the backfill listing endpoint (the `ManifestPage` shape).
+/// `next_after` is the hex-encoded raw index key of the last returned row,
+/// opaque to requesters and fed back as the next request's `after`; `None`
+/// means the index is exhausted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillEntriesPage {
+    pub entries: Vec<BackfillEntry>,
+    pub next_after: Option<String>,
+}
+
+/// One backfill index tuple on the wire. `record_kind` is a
+/// [`crate::utils::BackfillRecordKind::as_str`] name; `size` is absent for
+/// namespace tombstones (no body to fetch).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillEntry {
+    pub record_kind: String,
+    pub record_id: String,
+    pub version_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
+impl From<BackfillIndexPage> for BackfillEntriesPage {
+    fn from(page: BackfillIndexPage) -> Self {
+        Self {
+            entries: page
+                .entries
+                .into_iter()
+                .map(|row| BackfillEntry {
+                    record_kind: row.kind.as_str().to_owned(),
+                    record_id: row.record_id,
+                    version_ms: row.version_ms,
+                    size: row.size,
+                })
+                .collect(),
+            next_after: page.next_after.map(hex::encode),
+        }
+    }
+}
+
+/// The `error` discriminant of [`BackfillUnavailable`] while the per-entry
+/// index build has not yet covered the pre-existing dataset.
+pub const BACKFILL_ERROR_INDEX_BUILDING: &str = "index_building";
+
+/// Typed 503 body of the backfill listing endpoint. Requesters match `error`
+/// against [`BACKFILL_ERROR_INDEX_BUILDING`] to treat the peer as not yet
+/// capable (retry later) rather than failing, distinct from the generic
+/// `{"message": ...}` error shape.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillUnavailable {
+    pub error: String,
+    pub message: String,
 }
 
 impl ReplicateArtifactQuery {
@@ -2008,6 +2108,38 @@ async fn internal_bootstrap_artifact(
     }
 }
 
+async fn internal_backfill_entries(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let query = match BackfillEntriesQuery::from_params(&params) {
+        Ok(query) => query,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+
+    if !state.store.backfill_index_built() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(BackfillUnavailable {
+                error: BACKFILL_ERROR_INDEX_BUILDING.to_owned(),
+                message: "backfill index is building; retry later".to_owned(),
+            }),
+        )
+            .into_response();
+    }
+
+    match state
+        .store
+        .backfill_index_page(query.after.as_deref(), query.limit)
+    {
+        Ok(page) => Json(BackfillEntriesPage::from(page)).into_response(),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to list backfill entries: {error}"),
+        ),
+    }
+}
+
 async fn internal_replicate_artifact(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2822,7 +2954,7 @@ mod tests {
         artifact::producer::ArtifactProducer,
         config::{AnalyticsConfig, UsageConfig},
         test_support::{response_text, test_context},
-        utils::blob_key,
+        utils::{artifact_storage_id, blob_key},
     };
 
     fn test_usage_config() -> UsageConfig {
@@ -3415,6 +3547,354 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn put_backfill_inline(
+        state: &SharedState,
+        namespace_id: &str,
+        key: &str,
+        version_ms: u64,
+    ) {
+        state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                namespace_id,
+                key,
+                "application/octet-stream",
+                b"payload",
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("inline artifact should apply");
+    }
+
+    async fn backfill_entries_response(state: &SharedState, uri: &str) -> Response {
+        internal_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed")
+    }
+
+    async fn backfill_entries_page(
+        state: &SharedState,
+        after: Option<&str>,
+        limit: usize,
+    ) -> BackfillEntriesPage {
+        let mut uri = format!("/_internal/backfill/entries?limit={limit}");
+        if let Some(after) = after {
+            uri.push_str(&format!("&after={after}"));
+        }
+        let response = backfill_entries_response(state, &uri).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode backfill entries page")
+    }
+
+    /// Walks the listing to exhaustion through the real router, bounded so a
+    /// cursor regression can never hang the test.
+    async fn walk_backfill_entries(state: &SharedState, limit: usize) -> Vec<BackfillEntry> {
+        let mut entries = Vec::new();
+        let mut after: Option<String> = None;
+        for _ in 0..32 {
+            let page = backfill_entries_page(state, after.as_deref(), limit).await;
+            entries.extend(page.entries);
+            match page.next_after {
+                Some(cursor) => after = Some(cursor),
+                None => return entries,
+            }
+        }
+        panic!("backfill entries pagination did not terminate");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_list_tuples_newest_first_with_kinds_and_sizes() {
+        let context = test_context(|_| {}).await;
+        let store = &context.state.store;
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                b"segmented-body",
+                600,
+            )
+            .await
+            .expect("segmented artifact should apply");
+        put_backfill_inline(&context.state, "ios", "inline", 500).await;
+        store
+            .apply_replicated_namespace_delete("android", 250)
+            .await
+            .expect("tombstone should apply");
+        store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let response =
+            backfill_entries_response(&context.state, "/_internal/backfill/entries").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode backfill entries response");
+
+        assert_eq!(
+            body["entries"],
+            serde_json::json!([
+                {
+                    "record_kind": "segment_artifact",
+                    "record_id":
+                        artifact_storage_id(ArtifactProducer::Gradle, "test-tenant", "ios", "segmented"),
+                    "version_ms": 600,
+                    "size": 14,
+                },
+                {
+                    "record_kind": "inline_artifact",
+                    "record_id":
+                        artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "inline"),
+                    "version_ms": 500,
+                    "size": 7,
+                },
+                {
+                    "record_kind": "namespace_tombstone",
+                    "record_id": "android",
+                    "version_ms": 250,
+                },
+            ]),
+            "tuples list newest-first; tombstones carry no size field"
+        );
+        assert_eq!(body["next_after"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_paginate_to_exhaustion_with_stable_cursors() {
+        let context = test_context(|_| {}).await;
+        for version_ms in [100_u64, 200, 300, 400, 500] {
+            put_backfill_inline(&context.state, "ios", &format!("k{version_ms}"), version_ms).await;
+        }
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let first = backfill_entries_page(&context.state, None, 2).await;
+        assert_eq!(
+            first
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![500, 400]
+        );
+        let cursor = first.next_after.clone().expect("more pages should remain");
+
+        // Writes between pages must not disturb an already-issued cursor.
+        put_backfill_inline(&context.state, "ios", "k250", 250).await;
+
+        let entries = walk_backfill_entries(&context.state, 2).await;
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![500, 400, 300, 250, 200, 100]
+        );
+
+        // The pre-write cursor resumes exactly where it left off and sees the
+        // interleaved row.
+        let resumed = backfill_entries_page(&context.state, Some(&cursor), 100).await;
+        assert_eq!(
+            resumed
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![300, 250, 200, 100]
+        );
+        assert_eq!(resumed.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_cursor_never_repeats_or_skips_across_deletions() {
+        let context = test_context(|_| {}).await;
+        for version_ms in [100_u64, 200, 300, 400, 500, 600] {
+            put_backfill_inline(&context.state, "ios", &format!("k{version_ms}"), version_ms).await;
+        }
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let first = backfill_entries_page(&context.state, None, 2).await;
+        assert_eq!(
+            first
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![600, 500]
+        );
+        let mut after = first.next_after.clone();
+
+        // Between pages: two upcoming rows are LWW-overwritten (their index
+        // rows move ahead of the cursor) and a brand-new row lands behind it.
+        put_backfill_inline(&context.state, "ios", "k300", 700).await;
+        put_backfill_inline(&context.state, "ios", "k400", 800).await;
+        put_backfill_inline(&context.state, "ios", "k450", 450).await;
+
+        let mut entries = first.entries;
+        for _ in 0..32 {
+            let Some(cursor) = after else { break };
+            let page = backfill_entries_page(&context.state, Some(&cursor), 2).await;
+            entries.extend(page.entries);
+            after = page.next_after;
+        }
+        assert!(after.is_none(), "pagination did not terminate");
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![600, 500, 450, 200, 100],
+            "surviving rows appear exactly once; moved rows are neither repeated nor resurrected"
+        );
+        let mut record_ids: Vec<_> = entries.iter().map(|entry| &entry.record_id).collect();
+        record_ids.sort();
+        record_ids.dedup();
+        assert_eq!(record_ids.len(), entries.len(), "no record listed twice");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_empty_index_returns_empty_page_without_cursor() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let page = backfill_entries_page(&context.state, None, 10).await;
+        assert_eq!(page.entries, vec![]);
+        assert_eq!(page.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_reject_malformed_cursors() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        for after in ["not-hex".to_owned(), hex::encode("some/other/key")] {
+            let response = backfill_entries_response(
+                &context.state,
+                &format!("/_internal/backfill/entries?after={after}"),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode error response");
+            assert!(
+                body["message"]
+                    .as_str()
+                    .expect("message should be a string")
+                    .starts_with("Invalid after"),
+                "unexpected message: {}",
+                body["message"]
+            );
+        }
+    }
+
+    #[test]
+    fn backfill_entries_query_clamps_oversized_limits() {
+        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
+        assert_eq!(
+            BackfillEntriesQuery::from_params(&oversized)
+                .expect("oversized limit should be clamped")
+                .limit,
+            MAX_BOOTSTRAP_PAGE_ITEMS
+        );
+        assert_eq!(
+            BackfillEntriesQuery::from_params(&HashMap::new())
+                .expect("defaults should be accepted"),
+            BackfillEntriesQuery {
+                after: None,
+                limit: 256
+            }
+        );
+        BackfillEntriesQuery::from_params(&HashMap::from([("limit".to_owned(), "0".to_owned())]))
+            .expect_err("zero limit must be rejected");
+        BackfillEntriesQuery::from_params(&HashMap::from([("limit".to_owned(), "abc".to_owned())]))
+            .expect_err("non-numeric limit must be rejected");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_clamp_oversized_limits_through_the_router() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline(&context.state, "ios", "artifact", 100).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let page = backfill_entries_page(&context.state, None, usize::MAX).await;
+        assert_eq!(page.entries.len(), 1);
+        assert_eq!(page.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_report_index_building_with_a_typed_retryable_body() {
+        let context = test_context(|_| {}).await;
+        assert!(!context.state.store.backfill_index_built());
+
+        let response =
+            backfill_entries_response(&context.state, "/_internal/backfill/entries").await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: BackfillUnavailable = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode index-building response");
+        assert_eq!(body.error, BACKFILL_ERROR_INDEX_BUILDING);
+
+        // The internal route is counted and timed under its route label even
+        // while the node answers "index building".
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_http_requests_total")
+                && line.contains("route=\"/_internal/backfill/entries\"")
+                && line.contains("status=\"503\"")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_internal_backfill_http_request_duration_seconds_count")
+                && line.contains("route=\"/_internal/backfill/entries\"")
+        }));
+    }
+
+    #[tokio::test]
+    async fn public_router_does_not_serve_backfill_entries() {
+        let context = test_context(|_| {}).await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/backfill/entries")
                     .body(Body::empty())
                     .expect("failed to build request"),
             )
