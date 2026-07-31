@@ -4599,6 +4599,73 @@ impl Store {
         })
     }
 
+    /// Resolves one requested backfill tuple against the CURRENT manifest —
+    /// the read side of the eventually-exact index contract.
+    ///
+    /// The requested (kind, id, version) key is recomputed from the current
+    /// manifest; a requested row that no longer matches it is RETIRED
+    /// (deleted) here, because the unlocked delete paths and the build/live
+    /// race can leave rows nothing will ever delete (the
+    /// `delete_stale_action_cache_rows` precedent). Retirement is what keeps a
+    /// dangling row a one-time absent round-trip instead of a permanent
+    /// per-pass listing tax.
+    ///
+    /// Returns `None` when the record has no current manifest (framed absent
+    /// by the caller, never an error). When a manifest exists it is the
+    /// CURRENT one, so a tuple LWW-overwritten between listing and fetch
+    /// resolves to the current version and current body (stamped by the
+    /// caller via [`manifest_version_ms`] / [`backfill_record_kind`]).
+    ///
+    /// Deliberately does NOT enqueue read-path promotion: bulk backfill reads
+    /// are peer catch-up, not client demand, and promoting them would rewrite
+    /// cold data into the active segment wholesale.
+    pub fn resolve_backfill_body(
+        &self,
+        requested_kind: BackfillRecordKind,
+        record_id: &str,
+        requested_version_ms: u64,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        let requested_key = backfill_index_key(requested_version_ms, requested_kind, record_id);
+        let manifest = self.manifest(record_id)?;
+        let current_key = manifest.as_ref().map(|manifest| {
+            backfill_index_key(
+                manifest_version_ms(manifest),
+                backfill_record_kind(manifest),
+                &manifest.artifact_id,
+            )
+        });
+        if current_key.as_deref() != Some(requested_key.as_slice()) {
+            self.retire_backfill_index_row(requested_key)?;
+        }
+        Ok(manifest)
+    }
+
+    fn retire_backfill_index_row(&self, key: Vec<u8>) -> Result<(), String> {
+        let mut batch = WriteBatch::default();
+        batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), key);
+        self.write_batch_sync(batch, "backfill index retired row")
+    }
+
+    /// Test hook: plants a raw `backfill/idx/` row so tests can fabricate the
+    /// dangling-row states (build/live races, unlocked deletes) that normal
+    /// write paths clean up after themselves.
+    #[cfg(test)]
+    pub fn insert_backfill_index_row_for_testing(
+        &self,
+        version_ms: u64,
+        kind: BackfillRecordKind,
+        record_id: &str,
+        size: Option<u64>,
+    ) -> Result<(), String> {
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_index_key(version_ms, kind, record_id),
+            backfill_index_value(size),
+        );
+        self.write_batch_sync(batch, "backfill index test row")
+    }
+
     /// One-off background build of the backfill index over a pre-existing
     /// dataset, run at startup when `backfill/meta/build_complete` is absent.
     /// Returns whether a build ran.
@@ -6028,7 +6095,7 @@ fn blob_handle_cache_key(blob_path: &str) -> String {
     format!("blob:{blob_path}")
 }
 
-fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
+pub(crate) fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     if manifest.version_ms == 0 {
         manifest.created_at_ms
     } else {
@@ -6039,7 +6106,7 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
 /// The backfill index kind of a manifest. Legacy blob-backed artifacts ride
 /// as `SegmentArtifact`: the kind distinguishes "body is inline bytes" from
 /// "body is file-backed", which is what the transfer path cares about.
-fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
+pub(crate) fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
     if manifest.inline {
         BackfillRecordKind::InlineArtifact
     } else {

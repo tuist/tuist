@@ -569,6 +569,16 @@ impl BackfillRecordKind {
             Self::NamespaceTombstone => "namespace_tombstone",
         }
     }
+
+    /// Inverse of [`Self::as_str`], for requests that carry wire names.
+    pub fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "segment_artifact" => Some(Self::SegmentArtifact),
+            "inline_artifact" => Some(Self::InlineArtifact),
+            "namespace_tombstone" => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
 }
 
 /// Row key in the backfill per-entry index:

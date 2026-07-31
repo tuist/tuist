@@ -33,6 +33,7 @@ pub struct Metrics {
     http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
+    backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -209,6 +210,7 @@ impl Metrics {
             Family::<InternalBackfillRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
+        let backfill_bodies_peer_requests = Family::<BackfillBodiesPeerLabels, Counter>::default();
         let public_request_latency =
             Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
@@ -419,6 +421,11 @@ impl Metrics {
             "kura_internal_backfill_http_request_duration_seconds",
             "Internal backfill HTTP request latency by route",
             internal_backfill_request_duration.clone(),
+        );
+        registry.register(
+            "kura_backfill_bodies_peer_requests_total",
+            "Backfill bodies requests by peer identity and outcome",
+            backfill_bodies_peer_requests.clone(),
         );
         registry.register(
             "kura_public_request_latency_seconds",
@@ -1150,6 +1157,7 @@ impl Metrics {
             http_client_requests,
             http_request_duration,
             internal_backfill_request_duration,
+            backfill_bodies_peer_requests,
             public_request_latency,
             http_exceptions,
             artifact_reads,
@@ -1361,6 +1369,15 @@ impl Metrics {
                 })
                 .inc();
         }
+    }
+
+    pub fn record_backfill_bodies_peer_request(&self, peer: &str, outcome: &str) {
+        self.backfill_bodies_peer_requests
+            .get_or_create(&BackfillBodiesPeerLabels {
+                peer: peer.to_owned(),
+                outcome: outcome.to_owned(),
+            })
+            .inc();
     }
 
     pub fn record_artifact_read(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
@@ -2254,6 +2271,12 @@ struct HttpClientCountryLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct InternalBackfillRouteLabels {
     route: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BackfillBodiesPeerLabels {
+    peer: String,
+    outcome: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

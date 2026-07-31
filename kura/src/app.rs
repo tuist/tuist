@@ -206,6 +206,7 @@ async fn run_with_config(
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -301,7 +302,14 @@ async fn run_with_config(
         );
         Some(tokio::spawn(
             async move {
-                if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
+                // The identity acceptor wraps the plain rustls acceptor to
+                // stamp each request with the handshake-verified client-cert
+                // identity, which the backfill bodies endpoint uses for its
+                // per-peer concurrency cap.
+                if let Err(error) = axum_server::bind(internal_address)
+                    .acceptor(crate::peer_tls::InternalPeerIdentityAcceptor::new(
+                        tls_config,
+                    ))
                     .handle(handle)
                     .serve(internal_router.into_make_service())
                     .await

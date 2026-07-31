@@ -140,6 +140,24 @@ pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
 // on multi-million-entry nodes), blocking compaction of everything written
 // since it opened.
 pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
+// Byte ceiling of one backfill bodies batch: the sum of body bytes one
+// `POST /_internal/backfill/bodies` response may carry, and the per-entry
+// oversized cutoff (entries larger than this route to the per-artifact
+// endpoint). The requester composes batches from listed sizes against this
+// SAME constant and the serving side enforces it — sender and receiver limits
+// pinned to one definition so they can never diverge (the inline-413 lesson:
+// a receive limit keyed off a different constant than the send path 413'd
+// every 1–4 MiB inline artifact and poisoned replication passes).
+pub const BACKFILL_BODIES_BATCH_BYTES: u64 = 32 * 1024 * 1024;
+// Tuple-count bound for one bodies request, shared by the requester (batch
+// composition) and the serving side (request validation). Bounds the request
+// JSON and the per-frame header overhead of a batch composed entirely of tiny
+// entries.
+pub const MAX_BACKFILL_BODIES_ENTRIES: usize = 65_536;
+// Read cap for the bodies request JSON itself. Sized for
+// MAX_BACKFILL_BODIES_ENTRIES tuples of (kind name, 64-char hex id,
+// version_ms) with JSON overhead.
+pub const MAX_BACKFILL_BODIES_REQUEST_BYTES: u64 = 16 * 1024 * 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 

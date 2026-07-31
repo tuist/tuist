@@ -1450,7 +1450,7 @@ impl Config {
         // the pod in a crash loop. Clearing them here — before Store::open — lets
         // such a pod free space and recover on the next start instead of staying
         // stuck out-of-space.
-        for staging in ["uploads", "parts", "bootstrap"] {
+        for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
                 Ok(()) => {}
@@ -1461,6 +1461,7 @@ impl Config {
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
         fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
+        fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -2609,10 +2610,15 @@ mod tests {
         // real data file, to prove ensure_directories reclaims the former without
         // touching the latter.
         let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let stale_backfill = config.tmp_dir.join("backfill").join("bodies-leftover");
         let kept = config.data_dir.join("rocksdb").join("CURRENT");
         fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(stale_backfill.parent().unwrap())
+            .await
+            .unwrap();
         fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
         fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&stale_backfill, b"stale").await.unwrap();
         fs::write(&kept, b"keep").await.unwrap();
 
         config
@@ -2629,6 +2635,7 @@ mod tests {
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
         assert!(config.tmp_dir.join("bootstrap").exists());
+        assert!(config.tmp_dir.join("backfill").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
@@ -2637,6 +2644,10 @@ mod tests {
         assert!(
             !stale.exists(),
             "stale staging must be reclaimed on startup"
+        );
+        assert!(
+            !stale_backfill.exists(),
+            "stale backfill spool must be reclaimed on startup"
         );
         assert!(kept.exists(), "persistent data must be preserved");
 

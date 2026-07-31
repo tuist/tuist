@@ -82,6 +82,55 @@ pub struct AppState {
     // live-replication apply path, which the node still serves while joining.
     pub bootstrap_fetch_locks: Vec<Mutex<()>>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+    /// Serving-side per-peer-identity concurrency gate for the backfill bodies
+    /// endpoint (see [`BackfillBodiesPeerSlots`]).
+    pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
+}
+
+/// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
+///
+/// The requester side already limits itself to one in-flight bodies request
+/// per peer, but that bound is politeness: self-hosted peers hold account-CA
+/// client certificates on customer infrastructure, and a hostile or buggy
+/// peer must not be able to pin the shared tmp budget and bandwidth limiter
+/// with parallel bulk requests. Identities come from the internal mTLS
+/// listener's verified client certificate
+/// ([`crate::peer_tls::InternalPeerIdentity`]).
+#[derive(Debug, Default)]
+pub struct BackfillBodiesPeerSlots {
+    active: std::sync::Mutex<BTreeSet<Arc<str>>>,
+}
+
+impl BackfillBodiesPeerSlots {
+    /// Claims the identity's slot, or `None` while another request from the
+    /// same identity is still in flight. The returned guard must live for the
+    /// whole request, response streaming included.
+    pub fn try_acquire(self: &Arc<Self>, identity: Arc<str>) -> Option<BackfillBodiesPeerSlot> {
+        let mut active = self.active.lock().expect("backfill peer slots lock");
+        if !active.insert(identity.clone()) {
+            return None;
+        }
+        Some(BackfillBodiesPeerSlot {
+            slots: self.clone(),
+            identity,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct BackfillBodiesPeerSlot {
+    slots: Arc<BackfillBodiesPeerSlots>,
+    identity: Arc<str>,
+}
+
+impl Drop for BackfillBodiesPeerSlot {
+    fn drop(&mut self) {
+        self.slots
+            .active
+            .lock()
+            .expect("backfill peer slots lock")
+            .remove(&self.identity);
+    }
 }
 
 pub struct ReplicationBackoff {
