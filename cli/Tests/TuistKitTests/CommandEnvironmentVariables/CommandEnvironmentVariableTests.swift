@@ -973,6 +973,13 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.scratchDirectory == "/cache/warm-scratch-directory")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
 
+        let commandWithUpload = try CacheWarmCommand.parse(["--upload"])
+        #expect(commandWithUpload.noUpload == false)
+
+        #expect(throws: (any Error).self) {
+            try CacheWarmCommand.parse(["--no-no-upload"])
+        }
+
         #expect(throws: (any Error).self) {
             try CacheWarmCommand.parse(["--scratch-directory", "/cache/warm-scratch-directory"])
         }
