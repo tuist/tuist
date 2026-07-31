@@ -9,10 +9,17 @@ defmodule Cache.KeyValueEvictionWorker do
   already deleted.
   """
 
+  # The unique period must sit between the worker deadline
+  # (KEY_VALUE_EVICTION_MAX_DURATION_MS, 5m) and the cron interval (15m): long
+  # enough that a pass still running blocks a second one onto the single-writer
+  # KV database, short enough that it always lapses before the next tick. It was
+  # :infinity until an orphaned `executing` row — left by a container stopped
+  # mid-pass, which nothing rescued — silently blocked every subsequent insert
+  # and let the KV database grow unbounded.
   use Oban.Worker,
     queue: :maintenance,
     max_attempts: 1,
-    unique: [period: :infinity, states: [:available, :scheduled, :executing, :retryable]]
+    unique: [period: 600, states: [:available, :scheduled, :executing, :retryable]]
 
   alias Cache.Config
   alias Cache.KeyValueEntries

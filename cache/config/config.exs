@@ -60,6 +60,10 @@ config :cache, Oban,
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
+    # Containers are stopped mid-job on every deploy, which strands `executing`
+    # rows that no other plugin clears. `rescue_after` has to clear the longest
+    # legitimate run: Registry.SyncWorker holds its lock for up to 50m.
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(hour: 2)},
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
