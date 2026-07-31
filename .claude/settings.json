@@ -1,14 +1,1 @@
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "mise run claude:bootstrap || true"
-          }
-        ]
-      }
-    ]
-  }
-}
+{}
