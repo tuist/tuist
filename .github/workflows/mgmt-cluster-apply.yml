@@ -42,6 +42,7 @@ on:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
+      - 'infra/k8s/mgmt/capi-webhook-cert-reloader.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
@@ -242,6 +243,7 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
+          kubectl apply -f infra/k8s/mgmt/capi-webhook-cert-reloader.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
 
           # These regional clusters were retired, but kubectl apply does not

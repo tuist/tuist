@@ -1,0 +1,157 @@
+# Watchdog that stops the CAPI / CAPH admission webhooks from serving an
+# EXPIRED serving certificate — the root cause of the 2026-07-30 fleet incident.
+#
+# What happened: cert-manager renewed the four webhook serving certs in their
+# Secrets on schedule, but the controller-manager pods (running for ~2 months)
+# never reloaded the new cert from the mounted Secret and kept presenting the
+# old one. When the old cert expired, the API server could no longer call the
+# mutating webhooks (failurePolicy: Fail), so EVERY write to a cluster.x-k8s.io
+# object was rejected across the WHOLE fleet — canary, staging AND production.
+# Node replacement and autoscaling were frozen for all clusters; production was
+# spared only because nothing needed replacing during the window. Canary went
+# down because its two egress Machines had just been deleted and could not be
+# recreated, so the server lost outbound internet.
+#
+# This CronJob rolls the four controller Deployments on a schedule so a renewed
+# cert is always reloaded. cert-manager renews 30 days before expiry, so a
+# weekly restart guarantees pickup with ~23 days of margin. `rollout restart`
+# is a rolling, surge-first update, so the single-replica webhook Deployments
+# stay available throughout (no admission blip).
+#
+# This is the reliable stopgap for the reload gap. The durable follow-up is to
+# bring the CAPI cert-manager Certificate objects into GitOps and/or add
+# event-driven reload (e.g. stakater/Reloader keyed on the cert Secrets), plus
+# a Grafana alert on the SERVED cert expiry (not just the Certificate resource,
+# which looked healthy while the served cert was stale).
+#
+# Namespace `mgmt-system` is created by etcd-snapshot.yaml, which
+# mgmt-cluster-apply.yml applies before this file.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: mgmt-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capi-webhook-cert-reloader
+rules:
+  # rollout restart = patch the Deployment's pod-template restartedAt annotation.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+# Least privilege: grant the SA those verbs only in the four provider
+# namespaces, not cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: capi-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capi-webhook-cert-reloader
+subjects:
+  - kind: ServiceAccount
+    name: capi-webhook-cert-reloader
+    namespace: mgmt-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: capi-kubeadm-bootstrap-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capi-webhook-cert-reloader
+subjects:
+  - kind: ServiceAccount
+    name: capi-webhook-cert-reloader
+    namespace: mgmt-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: capi-kubeadm-control-plane-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capi-webhook-cert-reloader
+subjects:
+  - kind: ServiceAccount
+    name: capi-webhook-cert-reloader
+    namespace: mgmt-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: caph-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capi-webhook-cert-reloader
+subjects:
+  - kind: ServiceAccount
+    name: capi-webhook-cert-reloader
+    namespace: mgmt-system
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: capi-webhook-cert-reloader
+  namespace: mgmt-system
+spec:
+  # Mondays 04:00 UTC. cert-manager renews 30 days before expiry, so weekly is
+  # ample to reload a freshly renewed cert well before the old one lapses.
+  schedule: "0 4 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: capi-webhook-cert-reloader
+          restartPolicy: OnFailure
+          # Single-node mgmt cluster: the only node is a control-plane, so the
+          # Job must tolerate its taint to schedule.
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: reload
+              image: registry.k8s.io/kubectl:v1.34.6
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  kubectl -n capi-system rollout restart deploy/capi-controller-manager
+                  kubectl -n capi-kubeadm-bootstrap-system rollout restart deploy/capi-kubeadm-bootstrap-controller-manager
+                  kubectl -n capi-kubeadm-control-plane-system rollout restart deploy/capi-kubeadm-control-plane-controller-manager
+                  kubectl -n caph-system rollout restart deploy/caph-controller-manager
+                  echo "rolled 4 CAPI/CAPH controllers so they reload renewed webhook serving certs"
