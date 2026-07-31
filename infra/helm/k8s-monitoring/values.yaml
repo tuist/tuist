@@ -448,7 +448,7 @@ k8s-monitoring:
       // status, and duration. Sample routine responses while preserving every
       // warning, error, and unsuccessful response.
       stage.match {
-        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\[info\\] Request completed\""
+        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\\\[info\\\\] Request completed\""
 
         stage.sampling {
           rate = 0.1
