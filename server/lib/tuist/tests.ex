@@ -1483,17 +1483,37 @@ defmodule Tuist.Tests do
 
   defp fetch_full_test_case_runs(slim_results) do
     ids = Enum.map(slim_results, & &1.id)
-    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
-    test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
-    {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
+
+    {runs_with_test_case_id, runs_without_test_case_id} =
+      Enum.split_with(slim_results, &(not is_nil(&1.test_case_id)))
+
+    ids_without_test_case_id = Enum.map(runs_without_test_case_id, & &1.id)
+
+    # `test_case_runs` is ordered by `(project_id, test_case_id, ran_at, id)`,
+    # so hydrating by `id` alone reads the whole table. Correlating each run's
+    # full primary key turns the hydration into one point read per run. Ecto
+    # cannot compile a tuple `in` against an interpolated list, so the same
+    # condition is expressed as an OR of per-run key equalities, which
+    # ClickHouse still resolves through the primary key. Runs without a test
+    # case id fall back to the id predicate because NULL never matches a key
+    # comparison.
+    key_condition =
+      Enum.reduce(
+        runs_with_test_case_id,
+        dynamic([tcr], tcr.id in ^ids_without_test_case_id),
+        fn run, acc ->
+          dynamic(
+            [tcr],
+            ^acc or
+              (tcr.project_id == ^run.project_id and tcr.test_case_id == ^run.test_case_id and
+                 tcr.ran_at == ^run.ran_at and tcr.id == ^run.id)
+          )
+        end
+      )
 
     base_query =
       from(tcr in TestCaseRun,
-        where: tcr.project_id in ^project_ids,
-        where: tcr.test_case_id in ^test_case_ids,
-        where: tcr.ran_at >= ^min_ran_at,
-        where: tcr.ran_at <= ^max_ran_at,
-        where: tcr.id in ^ids,
+        where: ^key_condition,
         order_by: [desc: tcr.inserted_at]
       )
 
@@ -1546,26 +1566,6 @@ defmodule Tuist.Tests do
     if Enum.all?(versions, fn {_id, inserted_at} -> not is_nil(inserted_at) end) do
       Map.new(versions)
     end
-  end
-
-  defp ran_at_bounds([first | rest]) do
-    Enum.reduce(rest, {first.ran_at, first.ran_at}, fn run, {min_ran_at, max_ran_at} ->
-      min_ran_at =
-        if NaiveDateTime.before?(run.ran_at, min_ran_at) do
-          run.ran_at
-        else
-          min_ran_at
-        end
-
-      max_ran_at =
-        if NaiveDateTime.after?(run.ran_at, max_ran_at) do
-          run.ran_at
-        else
-          max_ran_at
-        end
-
-      {min_ran_at, max_ran_at}
-    end)
   end
 
   # Filter precedence for routing: a narrower scope wins so we use the
