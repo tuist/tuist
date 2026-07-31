@@ -113,6 +113,13 @@ final class ResolutionProgressReporter: @unchecked Sendable {
         }
     }
 
+    /// A standalone line outside the progress state machine, for explaining something the
+    /// user would otherwise have to infer from a subprocess' output.
+    func note(_ message: String) {
+        guard enabled else { return }
+        withLock { writeLine("\(TerminalStyle.dim("note:")) \(message)") }
+    }
+
     private func emitProgress() {
         guard enabled else { return }
         withLock {

@@ -37,6 +37,87 @@ struct ResolveTests {
     }
 
     @Test
+    func resolutionSurvivesSwiftPMFailingToFetchABinaryArtifact() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                // Unroutable, so SwiftPM's artifact stage always fails while version solving,
+                // which is the only stage swifterpm needs from it, still succeeds.
+                binaryArtifactURL: "https://127.0.0.1:1/Artifact.xcframework.zip"
+            )
+
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let resolved = try await PackageResolver.resolve(
+                packageDir: package,
+                scratchDir: root.appendingPathComponent("scratch"),
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                disableSandbox: true,
+                writeResolvedFile: false
+            )
+
+            let pin = try #require(resolved.pins.first)
+            #expect(pin.identity == "dependency")
+            #expect(pin.state.version == "1.0.0")
+        }
+    }
+
+    @Test
+    func binaryArtifactFailuresAreTheOnlySwiftPMFailuresResolutionIgnores() {
+        let collision = """
+        Downloading binary artifact https://example.com/Artifact.xcframework.zip
+        error: failed downloading 'https://example.com/Artifact.xcframework.zip' which is \
+        required by binary target 'Artifact': /cache/artifacts/https___example_com already \
+        exists in file system
+        error: fatalError
+        """
+        #expect(PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: collision)))
+
+        let checksum = """
+        error: checksum of downloaded artifact of binary target 'Artifact' (abc) does not \
+        match checksum specified by the manifest (def)
+        """
+        #expect(PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: checksum)))
+
+        let transport = """
+        error: failed downloading 'https://example.com/Artifact.xcframework.zip' which is \
+        required by binary target 'Artifact': The request timed out.
+        """
+        #expect(PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: transport)))
+
+        let unresolvable = """
+        error: Dependencies could not be resolved because no versions of 'dependency' match \
+        the requirement 9.9.9..<10.0.0.
+        """
+        #expect(!PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: unresolvable)))
+
+        // A manifest that merely mentions a binary target is still a resolution failure.
+        let manifest = """
+        error: invalid URL scheme for binary target 'Artifact'; valid schemes are: 'https'
+        """
+        #expect(!PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: manifest)))
+
+        #expect(!PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: collision + "\n" + unresolvable)))
+        #expect(!PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: "")))
+        #expect(!PackageResolver.failedOnlyOnBinaryArtifacts(outcome(stderr: "error: fatalError")))
+    }
+
+    private func outcome(stderr: String) -> SystemProcess.Outcome {
+        SystemProcess.Outcome(
+            succeeded: false,
+            terminationStatusDescription: "exited(1)",
+            stdout: Data(),
+            stderr: Data(stderr.utf8)
+        )
+    }
+
+    @Test
     func localSourceControlPackageLocationRequiresPackageManifest() async throws {
         try await withTemporaryDirectory { root in
             #expect(try await PackageResolver.localSourceControlPackageLocation(root.path) == nil)
@@ -199,12 +280,24 @@ struct ResolveTests {
     private func writeAppPackageManifest(
         at packageDir: URL,
         dependencyURL: String,
-        exactVersion: String = "1.0.0"
+        exactVersion: String = "1.0.0",
+        binaryArtifactURL: String? = nil
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
             options: [.createTargetParentDirectories]
         )
+        let binaryTarget =
+            binaryArtifactURL.map {
+                """
+                        .binaryTarget(
+                            name: "Artifact",
+                            url: "\($0)",
+                            checksum: "\(String(repeating: "0", count: 64))"
+                        ),
+
+                """
+            } ?? ""
         try await fileSystem.atomicWrite(
             """
             // swift-tools-version: 6.0
@@ -219,7 +312,7 @@ struct ResolveTests {
                     .package(url: "\(dependencyURL)", exact: "\(exactVersion)"),
                 ],
                 targets: [
-                    .target(name: "App", dependencies: [
+            \(binaryTarget)        .target(name: "App", dependencies: [
                         .product(name: "Dependency", package: "Dependency"),
                     ]),
                 ]

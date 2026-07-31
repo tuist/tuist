@@ -65,7 +65,7 @@ enum PackageResolver {
             scmToRegistryTransformation: scmToRegistryTransformation,
             useExistingResolvedFile: useExistingResolvedFile,
             writeResolvedFile: writeResolvedFile,
-            forwardOutput: progress != nil
+            progress: progress
         )
         resolved.originHash = originHash
         resolved.pins = dedupePinsByIdentity(resolved.pins)
@@ -93,8 +93,9 @@ enum PackageResolver {
         scmToRegistryTransformation: SCMToRegistryTransformation,
         useExistingResolvedFile: Bool,
         writeResolvedFile: Bool,
-        forwardOutput: Bool
+        progress: ResolutionProgressReporter?
     ) async throws -> ResolvedPins {
+        let forwardOutput = progress != nil
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         let snapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
@@ -104,7 +105,7 @@ enum PackageResolver {
         }
 
         do {
-            try await SystemProcess.run(
+            let outcome = try await SystemProcess.outcome(
                 "swift",
                 swiftPackageResolveArguments(
                     packageDir: packageDir,
@@ -118,7 +119,21 @@ enum PackageResolver {
                 workingDirectory: packageDir,
                 forwardOutput: forwardOutput
             )
+
+            if !outcome.succeeded, !failedOnlyOnBinaryArtifacts(outcome) {
+                throw resolveFailure(outcome, forwardedOutput: forwardOutput)
+            }
             let resolved = try await ResolvedFile.read(packageDir: packageDir)
+            if !outcome.succeeded, resolved.pins.isEmpty {
+                // Resolution is only proven to have finished by the pins SwiftPM wrote before
+                // it moved on to artifacts. Without them there is nothing to carry forward.
+                throw resolveFailure(outcome, forwardedOutput: forwardOutput)
+            }
+            if !outcome.succeeded {
+                progress?.note(
+                    "swift package resolve failed to fetch binary artifacts; swifterpm restores them itself and continued with the resolved versions"
+                )
+            }
             if !writeResolvedFile, let snapshot {
                 try await restoreResolvedFile(snapshot, at: resolvedPath)
             }
@@ -130,6 +145,63 @@ enum PackageResolver {
             throw error
         }
     }
+
+    /// A forwarded run already printed its diagnostics, so the thrown error carries only the
+    /// exit status to avoid repeating them.
+    private static func resolveFailure(
+        _ outcome: SystemProcess.Outcome,
+        forwardedOutput: Bool
+    ) -> ToolError {
+        ToolError.message(
+            forwardedOutput ? outcome.terminationStatusDescription : outcome.failureMessage
+        )
+    }
+
+    /// `swift package resolve` runs two independent stages: it solves versions and writes
+    /// Package.resolved, then it downloads the graph's binary artifacts. swifterpm only needs
+    /// the first stage, since it downloads, verifies and materializes binary artifacts itself
+    /// right after resolution, so a failure confined to SwiftPM's artifact stage says nothing
+    /// about the resolution swifterpm asked for and must not fail it.
+    ///
+    /// That stage fails for reasons swifterpm's own restore does not share. SwiftPM keys its
+    /// shared artifact cache on the URL alone and checks that entry for existence before
+    /// downloading rather than when moving the finished file into place, so two downloads of
+    /// one URL (two binary targets declaring it, or two resolves sharing a cache directory)
+    /// both miss, both download, and the loser fails moving its copy onto the winner's. The
+    /// failure also deletes the entry, so the next resolve starts cold and fails identically:
+    /// for a graph with a duplicated artifact URL, resolution never succeeds on its own.
+    ///
+    /// Only SwiftPM's own binary-artifact diagnostics count. Anything else in the output,
+    /// including a manifest error that merely mentions a binary target, propagates as before.
+    static func failedOnlyOnBinaryArtifacts(_ outcome: SystemProcess.Outcome) -> Bool {
+        let errors = (outcome.stderrString + "\n" + outcome.stdoutString)
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("error: ") }
+            .map { String($0.dropFirst("error: ".count)) }
+            // swift-package prints this after the diagnostics that caused it to give up.
+            .filter { $0 != "fatalError" }
+
+        guard !errors.isEmpty else { return false }
+        return errors.allSatisfy { error in
+            binaryArtifactDiagnosticPrefixes.contains { error.hasPrefix($0) }
+                && error.contains("binary target '")
+        }
+    }
+
+    /// Only the diagnostics for fetching an artifact and proving it matches the manifest, all of
+    /// which swifterpm repeats itself: it downloads over its own retrying client, compares the
+    /// checksum against the same manifest value, and rejects an archive that carries no binary
+    /// artifact. SwiftPM's verdicts about an archive's *contents* that swifterpm does not repeat,
+    /// such as refusing an archive whose symlinks escape it, are deliberately absent so they stay
+    /// fatal.
+    private static let binaryArtifactDiagnosticPrefixes = [
+        "failed downloading '",
+        "failed extracting '",
+        "failed validating archive from '",
+        "invalid archive returned from '",
+        "checksum of downloaded artifact of binary target '",
+    ]
 
     private static func swiftPackageResolveArguments(
         packageDir: URL,
