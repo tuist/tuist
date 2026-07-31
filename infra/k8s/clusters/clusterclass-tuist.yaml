@@ -251,6 +251,14 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Resolver file for cloud-worker pods. It remains a per-cluster value
+    # because resolver paths depend on the operating-system configuration.
+    - name: workerResolvConf
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -444,6 +452,23 @@ spec:
               path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
               valueFrom:
                 template: '{"name":"register-with-taints","value":{{ .workerNodeTaints | quote }}}'
+    # Configure the resolver file through the kubelet's supported flag for
+    # every cloud-worker MachineDeployment in a Cluster that sets the value.
+    - name: KubeadmConfigTemplateWorkerResolvConf
+      enabledIf: '{{ if ne .workerResolvConf "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"resolv-conf","value":{{ .workerResolvConf | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the
@@ -799,9 +824,8 @@ spec:
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
         # See the control-plane files block above for why these fields
-        # are mandatory. CoreDNS receives explicit upstream resolvers
-        # from the workload bootstrap so it does not depend on this
-        # worker's host-local systemd-resolved stub.
+        # are mandatory. The workerResolvConf ClusterClass variable supplies
+        # the kubelet's resolver-file flag.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration
