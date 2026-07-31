@@ -1483,15 +1483,23 @@ defmodule Tuist.Tests do
 
   defp fetch_full_test_case_runs(slim_results) do
     ids = Enum.map(slim_results, & &1.id)
+    {runs_with_test_case_id, runs_without_test_case_id} =
+      Enum.split_with(slim_results, &(not is_nil(&1.test_case_id)))
 
-    # `test_case_runs.proj_by_id` is ordered by id. Adding the project, test
-    # case, and ran-at predicates from the slim result turns this into a wide
-    # intersection and prevents ClickHouse from selecting that point-lookup
-    # projection. Run identifiers are globally unique, so the ids alone
-    # identify the rows we need to hydrate.
+    lookup_keys =
+      Enum.map(runs_with_test_case_id, &{&1.project_id, &1.test_case_id, &1.ran_at, &1.id})
+
+    ids_without_test_case_id = Enum.map(runs_without_test_case_id, & &1.id)
+
+    # A correlated tuple preserves the primary-key lookup. Independent IN
+    # predicates create a wide cross-product for a page of runs. Nullable test
+    # case identifiers use the id index because ClickHouse does not compare NULL
+    # values in tuple sets.
     base_query =
       from(tcr in TestCaseRun,
-        where: tcr.id in ^ids,
+        where:
+          {tcr.project_id, tcr.test_case_id, tcr.ran_at, tcr.id} in ^lookup_keys or
+            tcr.id in ^ids_without_test_case_id,
         order_by: [desc: tcr.inserted_at]
       )
 
