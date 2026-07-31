@@ -103,6 +103,23 @@ defmodule TuistWeb.RunnersControllerTest do
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end
+
+    test "returns 503 when ClickHouse is unavailable", %{conn: conn} do
+      stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
+      end)
+
+      stub(Runners, :scaling_signals_for_fleet, fn "fleet-unavailable" ->
+        raise DBConnection.ConnectionError, message: "connection not available"
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/internal/runners/desired_replicas?fleet=fleet-unavailable")
+
+      assert json_response(conn, 503)["error"] =~ "scaling signals"
+    end
   end
 
   describe "POST /api/internal/runners/dispatch" do

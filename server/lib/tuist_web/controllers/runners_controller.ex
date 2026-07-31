@@ -202,8 +202,8 @@ defmodule TuistWeb.RunnersController do
   """
   def desired_replicas(conn, %{"fleet" => fleet}) when is_binary(fleet) and fleet != "" do
     with {:ok, token} <- bearer_token(conn),
-         {:ok, _} <- K8sClient.create_controller_token_review(token) do
-      signals = Runners.scaling_signals_for_fleet(fleet)
+         {:ok, _} <- K8sClient.create_controller_token_review(token),
+         {:ok, signals} <- scaling_signals_for_fleet(fleet) do
       json(conn, signals)
     else
       {:error, :missing_bearer} ->
@@ -220,6 +220,9 @@ defmodule TuistWeb.RunnersController do
       {:error, :not_in_cluster} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
 
+      {:error, :clickhouse_unavailable} ->
+        conn |> put_status(:service_unavailable) |> json(%{error: "scaling signals unavailable"})
+
       {:error, reason} ->
         Logger.error("runners: desired_replicas failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "scaling signals failed"})
@@ -228,6 +231,17 @@ defmodule TuistWeb.RunnersController do
 
   def desired_replicas(conn, _params) do
     conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
+  end
+
+  defp scaling_signals_for_fleet(fleet) do
+    {:ok, Runners.scaling_signals_for_fleet(fleet)}
+  rescue
+    error in [DBConnection.ConnectionError, Mint.TransportError] ->
+      Logger.warning("runners: ClickHouse unavailable when retrieving desired replicas",
+        exception: Exception.message(error)
+      )
+
+      {:error, :clickhouse_unavailable}
   end
 
   # Hands the polling Pod its JIT config plus, when the account has a
