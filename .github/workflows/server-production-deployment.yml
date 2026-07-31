@@ -385,11 +385,9 @@ jobs:
     if: needs.check-releases.outputs.kura-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    # id-token: OIDC for `tuist bazel setup`. Job permissions replace (not merge) the workflow's,
-    # so contents:read must be restated for checkout.
+    # Job permissions replace, rather than merge with, the workflow defaults.
     permissions:
       contents: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -426,17 +424,8 @@ jobs:
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # Best-effort: continue-on-error + `.bazelrc` try-imports `.bazelrc.tuist`, so a failed setup
-      # falls back to a cold local build instead of blocking the release.
-      - name: Set up the Tuist remote cache
-        working-directory: kura
-        run: |
-          tuist auth login
-          tuist bazel setup
-        continue-on-error: true
-      - name: Warn when the Tuist remote cache is unavailable
-        if: hashFiles('kura/.bazelrc.tuist') == ''
-        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+      # The remote cache is temporarily disabled while its action results can
+      # reference unavailable blobs. Bazel has no fallback after such a hit.
 
       - name: Build Kura binary
         working-directory: kura
