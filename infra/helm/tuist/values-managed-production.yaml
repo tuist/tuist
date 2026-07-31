@@ -40,9 +40,8 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    license:
-      item: ""
-      certificateItem: TUIST_LICENSE_CERTIFICATE_BASE64
+    # The offline-certificate license config is now the shared default in
+    # values-managed-common.yaml, so production no longer overrides it here.
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 

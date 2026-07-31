@@ -36,6 +36,7 @@ k8s-monitoring:
       metricsTuning:
         includeMetrics:
           - kube_customresource_kubeadmcontrolplane_.*
+          - kube_customresource_machinedeployment_.*
 
   integrations:
     alloy:
@@ -70,6 +71,9 @@ k8s-monitoring:
             verbs: ["list", "watch"]
           - apiGroups: ["controlplane.cluster.x-k8s.io"]
             resources: ["kubeadmcontrolplanes"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["cluster.x-k8s.io"]
+            resources: ["machinedeployments"]
             verbs: ["list", "watch"]
       customResourceState:
         enabled: true
@@ -116,3 +120,34 @@ k8s-monitoring:
                       type: Gauge
                       gauge:
                         path: [status, upToDateReplicas]
+              # Worker MachineDeployments (md-egress, processor, kura, ...).
+              # Exposes desired vs ready so a pool running below its replica
+              # count — e.g. MHC deleting nodes CAPI can't recreate — is alertable
+              # beyond just the control plane and the egress-gateway signal.
+              - groupVersionKind:
+                  group: cluster.x-k8s.io
+                  version: v1beta2
+                  kind: MachineDeployment
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  machinedeployment: [metadata, name]
+                  workload_cluster: [metadata, labels, "cluster.x-k8s.io/cluster-name"]
+                metrics:
+                  - name: machinedeployment_spec_replicas
+                    help: Desired worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, replicas]
+                  - name: machinedeployment_ready_replicas
+                    help: Ready worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, readyReplicas]
+                  - name: machinedeployment_available_replicas
+                    help: Available worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, availableReplicas]
