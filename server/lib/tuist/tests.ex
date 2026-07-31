@@ -1483,23 +1483,37 @@ defmodule Tuist.Tests do
 
   defp fetch_full_test_case_runs(slim_results) do
     ids = Enum.map(slim_results, & &1.id)
+
     {runs_with_test_case_id, runs_without_test_case_id} =
       Enum.split_with(slim_results, &(not is_nil(&1.test_case_id)))
 
-    lookup_keys =
-      Enum.map(runs_with_test_case_id, &{&1.project_id, &1.test_case_id, &1.ran_at, &1.id})
-
     ids_without_test_case_id = Enum.map(runs_without_test_case_id, & &1.id)
 
-    # A correlated tuple preserves the primary-key lookup. Independent IN
-    # predicates create a wide cross-product for a page of runs. Nullable test
-    # case identifiers use the id index because ClickHouse does not compare NULL
-    # values in tuple sets.
+    # `test_case_runs` is ordered by `(project_id, test_case_id, ran_at, id)`,
+    # so hydrating by `id` alone reads the whole table. Correlating each run's
+    # full primary key turns the hydration into one point read per run. Ecto
+    # cannot compile a tuple `in` against an interpolated list, so the same
+    # condition is expressed as an OR of per-run key equalities, which
+    # ClickHouse still resolves through the primary key. Runs without a test
+    # case id fall back to the id predicate because NULL never matches a key
+    # comparison.
+    key_condition =
+      Enum.reduce(
+        runs_with_test_case_id,
+        dynamic([tcr], tcr.id in ^ids_without_test_case_id),
+        fn run, acc ->
+          dynamic(
+            [tcr],
+            ^acc or
+              (tcr.project_id == ^run.project_id and tcr.test_case_id == ^run.test_case_id and
+                 tcr.ran_at == ^run.ran_at and tcr.id == ^run.id)
+          )
+        end
+      )
+
     base_query =
       from(tcr in TestCaseRun,
-        where:
-          {tcr.project_id, tcr.test_case_id, tcr.ran_at, tcr.id} in ^lookup_keys or
-            tcr.id in ^ids_without_test_case_id,
+        where: ^key_condition,
         order_by: [desc: tcr.inserted_at]
       )
 
