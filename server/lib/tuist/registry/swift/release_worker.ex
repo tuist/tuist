@@ -122,7 +122,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
-         :ok <- verify_archive_extractable(archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
          :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, opts),
          :ok <- upload_source_archive(scope, name, version, archive_path, checksum),
@@ -176,8 +175,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
-    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-      zip_directory(source_directory, archive_path)
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir),
+         :ok <- zip_directory(source_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -198,17 +198,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
   # This workaround resolves symlinks by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
+  # A single listing answers both questions asked of a downloaded archive, so
+  # the archive it passes through untouched is inspected exactly once. An
+  # archive whose directories are already unreadable is rejected rather than
+  # repacked: extracting it lays the same modes down on disk and `zip` records
+  # them again, so repacking cannot repair it.
   defp normalize_archive(tmp_dir, archive_path) do
-    case archive_has_symlinks?(archive_path) do
-      {:ok, has_symlinks} ->
-        if has_symlinks do
-          repackage_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, listing} <- inspect_archive(archive_path),
+         :ok <- reject_unreadable_directories(listing) do
+      if listing.symlinks?, do: repackage_archive(tmp_dir, archive_path), else: :ok
     end
   end
 
@@ -563,8 +561,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
          {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
-         :ok <- remove_archive(archive_path) do
-      zip_directory(top_level_directory, archive_path)
+         :ok <- remove_archive(archive_path),
+         :ok <- zip_directory(top_level_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -701,56 +700,62 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     path == root_directory or String.starts_with?(path, root_directory <> "/")
   end
 
-  defp archive_has_symlinks?(archive_path) do
-    with {:ok, entries} <- archive_entries(archive_path) do
-      {:ok, Enum.any?(entries, &String.starts_with?(&1.permissions, "l"))}
-    end
-  end
-
-  # `zipinfo` lines are `<permissions> <version> <os> <size> <bx> <method>
-  # <date> <time> <name>`. The name is captured as the remainder rather than a
-  # field because entry names contain spaces, and the permission column is
-  # length-bounded so the listing's header and summary lines do not match.
-  @zipinfo_entry_regex ~r/^([drwxlstST?bcp-]{7,10})\s+\S+\s+\S+\s+\d+\s+\S+\s+\S+\s+\S+\s+\S+\s+(.+)$/
-
-  defp archive_entries(archive_path) do
+  # Walks the `zipinfo` listing lazily and keeps only the tallies, because a
+  # large package carries tens of thousands of entries and none of them are
+  # needed once counted.
+  defp inspect_archive(archive_path) do
     case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
       {output, 0} ->
-        entries =
-          output
-          |> String.split("\n")
-          |> Enum.map(&Regex.run(@zipinfo_entry_regex, &1, capture: :all_but_first))
-          |> Enum.reject(&is_nil/1)
-          |> Enum.map(fn [permissions, name] -> %{permissions: permissions, name: name} end)
-
-        {:ok, entries}
+        {:ok,
+         output
+         |> String.splitter("\n")
+         |> Enum.reduce(%{symlinks?: false, unreadable_directories: 0, first_unreadable: nil}, &tally_entry/2)}
 
       {output, status} ->
         {:error, {:invalid_archive, status, output}}
     end
   end
 
-  # A stored directory entry whose recorded mode has no owner-execute bit
-  # extracts into a directory nobody can descend into, so SwiftPM fails with a
-  # permission error on an archive that is otherwise well-formed and whose
-  # checksum matches its metadata. Entries written by non-Unix hosts carry no
-  # mode at all and extractors apply their own defaults, which is why this
-  # reads the permission column rather than the raw external attributes.
-  defp verify_archive_extractable(archive_path) do
-    with {:ok, entries} <- archive_entries(archive_path) do
-      case Enum.filter(entries, &unreadable_directory?/1) do
-        [] ->
-          :ok
+  defp tally_entry("l" <> _rest, tally), do: %{tally | symlinks?: true}
 
-        unreadable ->
-          {:error,
-           {:archive_directories_not_traversable, length(unreadable), unreadable |> Enum.take(3) |> Enum.map(& &1.name)}}
-      end
+  defp tally_entry(line, tally) do
+    if unreadable_directory_line?(line) do
+      %{
+        tally
+        | unreadable_directories: tally.unreadable_directories + 1,
+          first_unreadable: tally.first_unreadable || String.trim(line)
+      }
+    else
+      tally
     end
   end
 
-  defp unreadable_directory?(%{name: name, permissions: permissions}) do
-    String.ends_with?(name, "/") and String.at(permissions, 3) != "x"
+  # A stored directory entry whose recorded mode has no owner-execute bit
+  # extracts into a directory nobody can descend into, so SwiftPM fails with a
+  # permission error on an archive that is otherwise well-formed and whose
+  # checksum matches its metadata. `zipinfo` renders a healthy directory as
+  # `drwxr-xr-x` and the entry this rejects as `?rw-r--r--`, so the
+  # owner-execute column is the whole test and the trailing slash is what
+  # marks a directory. Entries written by non-Unix hosts carry no mode at all
+  # and extractors apply their own defaults, which is why this reads the
+  # rendered permissions rather than the raw external attributes.
+  defp unreadable_directory_line?(line) do
+    String.ends_with?(line, "/") and not traversable_directory?(line)
+  end
+
+  defp traversable_directory?(<<_type, _read, _write, ?x, _rest::binary>>), do: true
+  defp traversable_directory?(_line), do: false
+
+  defp verify_archive_directories(archive_path) do
+    with {:ok, listing} <- inspect_archive(archive_path) do
+      reject_unreadable_directories(listing)
+    end
+  end
+
+  defp reject_unreadable_directories(%{unreadable_directories: 0}), do: :ok
+
+  defp reject_unreadable_directories(listing) do
+    {:error, {:archive_directories_not_traversable, listing.unreadable_directories, listing.first_unreadable}}
   end
 
   # Republishing a version with different bytes turns a working pin into

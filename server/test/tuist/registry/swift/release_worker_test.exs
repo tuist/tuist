@@ -497,7 +497,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     reject(ExAws.S3, :upload, 4)
     reject(Metadata, :put_package, 3)
 
-    assert {:error, {:archive_directories_not_traversable, 1, ["repo-v1.0.0/"]}} =
+    assert {:error, {:archive_directories_not_traversable, 1, sample}} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",
@@ -506,6 +506,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+
+    assert sample =~ "repo-v1.0.0/"
   end
 
   test "refuses to republish a version whose bytes differ from the published checksum" do
