@@ -47,8 +47,8 @@ jobs:
       - name: Check formatting
         run: mise run --skip-tools format -- --check
 
-  # Split non-fork / fork (like gradle.yml / android.yml): forks keep the same
-  # cold-build isolation as trusted runs.
+  # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
+  # and authenticate; forks get `contents: read` alone and never see the OIDC token.
   bazel-compile:
     name: Bazel Compile
     runs-on: tuist-linux
@@ -56,6 +56,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
     if: |
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
@@ -70,8 +71,17 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # The remote cache is temporarily disabled while its action results can
-      # reference unavailable blobs. Bazel has no fallback after such a hit.
+      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
+      # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking the merge.
+      # (Bazel has no local fallback for a gRPC cache that errors mid-build.)
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
         run: mise run compile --skip-tools -- --define=kura_deny_warnings=true
@@ -115,13 +125,15 @@ jobs:
           } >> "$HOME/.bazelrc"
           mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
-  # Split non-fork / fork like bazel-compile so both paths build cold.
+  # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
+  # cache; forks run with `contents: read` and the local cache.
   bazel-clippy:
     name: Bazel Clippy
     runs-on: tuist-linux
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
     if: |
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
@@ -136,8 +148,14 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # The remote cache is temporarily disabled while its action results can
-      # reference unavailable blobs. Bazel has no fallback after such a hit.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run clippy
         run: mise run --skip-tools clippy
@@ -181,13 +199,15 @@ jobs:
           } >> "$HOME/.bazelrc"
           mise run --skip-tools clippy
 
-  # Split non-fork / fork like bazel-compile so both paths build cold.
+  # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
+  # cache; forks run with `contents: read` and the local cache.
   bazel-test:
     name: Bazel Test
     runs-on: tuist-linux
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
     if: |
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
@@ -202,8 +222,15 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # The remote cache is temporarily disabled while its action results can
-      # reference unavailable blobs. Bazel has no fallback after such a hit.
+      # Remote cache is best-effort here too (see bazel-compile): falls back to a cold local build.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run tests
         run: mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
@@ -283,6 +310,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
     if: |
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
@@ -300,8 +328,14 @@ jobs:
       # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
-      # The remote cache is temporarily disabled while its action results can
-      # reference unavailable blobs. Bazel has no fallback after such a hit.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Build the Kura binary with Bazel
         run: |
