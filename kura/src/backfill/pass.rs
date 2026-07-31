@@ -1,10 +1,12 @@
 //! Per-peer backfill pass driver: one pass walks a peer's listing newest →
 //! oldest inside its window while a concurrent fetcher composes byte/time
-//! bounded bodies batches (one body request in flight per peer), routes
-//! oversized entries to the per-artifact endpoint, and applies everything
-//! through the unchanged live apply paths (R12). Scheduling — who spawns
-//! passes, failure budgets, watermark persistence — is the lifecycle layer's
-//! job (Unit 8); a pass only reports a rich [`BackfillPassOutcome`] for it to
+//! bounded bodies batches (one body request in flight per peer) and routes
+//! oversized entries to the per-artifact endpoint; a third stage — the
+//! applier — receives each fully spooled batch over a capacity-1 channel and
+//! applies it through the unchanged live apply paths (R12) while the fetcher
+//! downloads and spools the next batch. Scheduling — who spawns passes,
+//! failure budgets, watermark persistence — is the lifecycle layer's job
+//! (Unit 8); a pass only reports a rich [`BackfillPassOutcome`] for it to
 //! consume.
 
 use std::sync::{
@@ -201,15 +203,30 @@ pub async fn run_backfill_pass_with_tuning(
     };
 
     let (queue_tx, queue_rx) = mpsc::channel(BACKFILL_FETCH_QUEUE_TUPLES);
+    // Capacity 1 = double buffering: one batch applying, one spooled batch
+    // awaiting apply in the channel, and the fetcher blocked at handoff on
+    // the next until the applier takes it. The fetcher drops the sender once
+    // listing, queue, and reclaims are exhausted, which drains the applier;
+    // pass completion stays drain-set-based (the fetcher only returns once
+    // the guard reports every listed tuple resolved, which includes every
+    // apply the applier performs).
+    let (apply_tx, apply_rx) = mpsc::channel(1);
+    // Fetch-individually frames the applier discovers are bounced back to
+    // the fetcher so individual fetches keep sharing the one-request-in-
+    // flight bound with batch bodies requests. Unbounded so the applier
+    // never blocks sending while the fetcher is blocked handing off a batch
+    // (a bounded bounce channel could deadlock that cycle).
+    let (bounce_tx, bounce_rx) = mpsc::unbounded_channel();
     let result = tokio::try_join!(
         list_entries(&context, queue_tx),
-        fetch_bodies(&context, queue_rx),
+        fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
+        apply_batches(&context, apply_rx, bounce_tx),
     );
 
     let capacity_completed = context.capacity_fired.load(Ordering::Relaxed);
     let stats = context.snapshot_stats();
     match result {
-        Ok((end, ())) => {
+        Ok((end, (), ())) => {
             tracing::info!(
                 peer,
                 ?end,
@@ -533,22 +550,35 @@ struct BatchState {
 async fn fetch_bodies(
     context: &PassContext<'_>,
     mut queue: mpsc::Receiver<QueuedFetch>,
+    applies: mpsc::Sender<SpooledBatch>,
+    mut bounces: mpsc::UnboundedReceiver<ClaimKey>,
 ) -> Result<(), PassAbort> {
     let mut batch = BatchState::default();
     let mut listing_done = false;
+    // Defensive only: the applier holds the bounce sender for the fetcher's
+    // whole lifetime (it exits after this future drops `applies`), so a
+    // closed bounce channel is unreachable here; the flag just keeps a
+    // future refactor from busy-looping on a closed receiver.
+    let mut bounces_open = true;
     loop {
         // Re-claim wins (batch failures elsewhere, absent scoping, holder
         // cancellation) arrive through the guard and are fetched through
         // THIS pass's peer.
         for key in context.guard.take_reclaimed() {
-            admit(context, &mut batch, QueuedFetch { key, size: None }).await?;
+            admit(
+                context,
+                &mut batch,
+                &applies,
+                QueuedFetch { key, size: None },
+            )
+            .await?;
         }
 
         let deadline_passed = batch
             .deadline
             .is_some_and(|deadline| Instant::now() >= deadline);
         if !batch.items.is_empty() && (deadline_passed || listing_done) {
-            flush_batch(context, &mut batch).await?;
+            flush_batch(context, &mut batch, &applies).await?;
             continue;
         }
 
@@ -559,7 +589,18 @@ async fn fetch_bodies(
             if context.guard.is_drained() {
                 return Ok(());
             }
-            cancellable(context, changed).await?;
+            // Bounced fetch-individually claims resolve through this pass's
+            // fetcher, so the drain wait must keep serving them or the pass
+            // would wedge on a claim only this loop can resolve.
+            tokio::select! {
+                biased;
+                _ = context.cancel.cancelled() => return Err(PassAbort::Cancelled),
+                bounced = bounces.recv(), if bounces_open => match bounced {
+                    Some(key) => fetch_individual(context, &key).await?,
+                    None => bounces_open = false,
+                },
+                _ = changed => {}
+            }
             continue;
         }
 
@@ -570,8 +611,12 @@ async fn fetch_bodies(
         tokio::select! {
             biased;
             _ = context.cancel.cancelled() => return Err(PassAbort::Cancelled),
+            bounced = bounces.recv(), if bounces_open => match bounced {
+                Some(key) => fetch_individual(context, &key).await?,
+                None => bounces_open = false,
+            },
             item = queue.recv() => match item {
-                Some(item) => admit(context, &mut batch, item).await?,
+                Some(item) => admit(context, &mut batch, &applies, item).await?,
                 None => listing_done = true,
             },
             _ = sleep_until(flush_deadline), if batch.deadline.is_some() => {}
@@ -586,6 +631,7 @@ async fn fetch_bodies(
 async fn admit(
     context: &PassContext<'_>,
     batch: &mut BatchState,
+    applies: &mpsc::Sender<SpooledBatch>,
     item: QueuedFetch,
 ) -> Result<(), PassAbort> {
     if item.key.kind == BackfillRecordKind::NamespaceTombstone {
@@ -634,7 +680,7 @@ async fn admit(
     }
     let size = item.size.unwrap_or(0);
     if !batch.items.is_empty() && batch.bytes.saturating_add(size) > context.tuning.batch_bytes {
-        flush_batch(context, batch).await?;
+        flush_batch(context, batch, applies).await?;
     }
     if batch.items.is_empty() {
         batch.deadline = Some(Instant::now() + context.tuning.flush_interval);
@@ -643,12 +689,16 @@ async fn admit(
     batch.items.push(item);
     if batch.bytes >= context.tuning.batch_bytes || batch.items.len() >= MAX_BACKFILL_BODIES_ENTRIES
     {
-        flush_batch(context, batch).await?;
+        flush_batch(context, batch, applies).await?;
     }
     Ok(())
 }
 
-async fn flush_batch(context: &PassContext<'_>, batch: &mut BatchState) -> Result<(), PassAbort> {
+async fn flush_batch(
+    context: &PassContext<'_>,
+    batch: &mut BatchState,
+    applies: &mpsc::Sender<SpooledBatch>,
+) -> Result<(), PassAbort> {
     let mut items = std::mem::take(&mut batch.items);
     batch.bytes = 0;
     batch.deadline = None;
@@ -662,13 +712,45 @@ async fn flush_batch(context: &PassContext<'_>, batch: &mut BatchState) -> Resul
         return Ok(());
     }
     // In-flight marking happens before the request leaves: in-flight claims
-    // are exempt from capacity stripping (their batch runs to completion).
+    // are exempt from capacity stripping (their batch runs to completion) —
+    // which now also covers a spooled batch waiting in the apply channel or
+    // being applied by the applier while capacity completion fires.
     for item in &items {
         context.guard.mark_in_flight(&item.key);
     }
     let response = send_bodies_request(context, &items).await?;
     let spool = spool_batch_response(context, &items, response).await?;
-    apply_spooled_batch(context, &items, &spool).await
+    // Hand the spooled batch to the applier and move on to composing the
+    // next one; the batch owns its spool cleanup, so an abort that drops the
+    // channel reclaims the tmp file and its disk reservation.
+    cancellable(context, applies.send(SpooledBatch { items, spool }))
+        .await?
+        .map_err(|_| PassAbort::Hard("backfill apply channel closed".to_owned()))
+}
+
+/// A composed batch whose bodies response is fully spooled to disk, awaiting
+/// apply. Owns the spool (and through it the tmp file cleanup guard plus its
+/// disk reservation): dropping the batch on any abort path — sitting in the
+/// apply channel when `try_join!` unwinds, or mid-apply — unlinks the spool
+/// file and releases the reservation.
+struct SpooledBatch {
+    items: Vec<QueuedFetch>,
+    spool: SpooledResponse,
+}
+
+/// Applier stage of the pass pipeline: applies one spooled batch while the
+/// fetcher downloads and spools the next. Fetch-individually frames are
+/// bounced back to the fetcher over `bounces`. Exits when the fetcher drops
+/// the channel sender (listing exhausted, queue and reclaims drained).
+async fn apply_batches(
+    context: &PassContext<'_>,
+    mut batches: mpsc::Receiver<SpooledBatch>,
+    bounces: mpsc::UnboundedSender<ClaimKey>,
+) -> Result<(), PassAbort> {
+    while let Some(batch) = cancellable(context, batches.recv()).await? {
+        apply_spooled_batch(context, &batch.items, &batch.spool, &bounces).await?;
+    }
+    Ok(())
 }
 
 async fn send_bodies_request(
@@ -759,7 +841,12 @@ async fn spool_batch_response(
     };
     let state = context.state;
     // The waiting reservation serializes bounded staging like bootstrap; the
-    // disk reservation enforces the local tmp ceiling.
+    // disk reservation enforces the local tmp ceiling. The staging and
+    // memory reservations end with the spool (at most one per pass), but the
+    // disk reservation rides in the returned spool's cleanup guard until the
+    // batch's apply finishes — with the pipelined applier, up to two spools
+    // (one applying, one awaiting apply) hold batch-sized reservations
+    // concurrently, which the tmp budget must absorb.
     let _staging_reservation =
         cancellable(context, state.bootstrap_staging_budget.reserve(limit)).await?;
     let disk_reservation = state
@@ -816,6 +903,7 @@ async fn apply_spooled_batch(
     context: &PassContext<'_>,
     items: &[QueuedFetch],
     spool: &SpooledResponse,
+    bounces: &mpsc::UnboundedSender<ClaimKey>,
 ) -> Result<(), PassAbort> {
     let mut apply_batch = BackfillApplyBatch::new();
     // Listed keys and transfer sizes of staged records, in staging order —
@@ -860,7 +948,14 @@ async fn apply_spooled_batch(
             }
             BackfillBodyDisposition::FetchIndividually => {
                 context.update_stats(|stats| stats.bodies_rerouted_individual += 1);
-                fetch_individual(context, &item.key).await?;
+                // Bounce to the fetcher instead of fetching here: individual
+                // fetches share the one-request-in-flight bound with batch
+                // bodies requests, and only the fetcher is sequential with
+                // them. The claim stays in the drain set until the fetcher
+                // resolves it, so the pass cannot complete under the bounce.
+                bounces.send(item.key.clone()).map_err(|_| {
+                    PassAbort::Hard("backfill individual re-route channel closed".to_owned())
+                })?;
             }
             BackfillBodyDisposition::Present => {
                 match apply_present_frame(context, &prelude, &mut reader, Some(&mut apply_batch))
@@ -1108,8 +1203,9 @@ where
 
 /// Fetches one claimed tuple through the per-artifact endpoint: the up-front
 /// route for entries whose listed size exceeds the batch threshold, and the
-/// re-route for fetch-individually frames. Runs inline in the fetcher, so it
-/// shares the one-request-in-flight bound with batch fetches.
+/// re-route for fetch-individually frames bounced back by the applier. Runs
+/// inline in the fetcher, so it shares the one-request-in-flight bound with
+/// batch fetches (it may overlap an apply, like any fetch does now).
 async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(), PassAbort> {
     context.guard.mark_in_flight(key);
     context.update_stats(|stats| stats.individual_fetches += 1);
@@ -1423,7 +1519,7 @@ mod tests {
         backfill::claims::ClaimSet,
         constants::BACKFILL_APPLY_GROUP_RECORDS,
         failpoints::FailpointAction,
-        http::router,
+        http::{encode_backfill_body_frame_header, router},
         segment::{reference::SegmentReference, state::SegmentState},
         test_support::{TestContext, test_context},
     };
@@ -1593,6 +1689,28 @@ mod tests {
                 }
             },
         ))
+    }
+
+    /// Spool cleanup is Drop-based and the unlink runs on the blocking pool,
+    /// so give abandoned tmp files a moment to leave disk before asserting.
+    async fn assert_backfill_tmp_dir_empties(context: &TestContext) {
+        let directory = context.state.config.tmp_dir.join("backfill");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let remaining = match std::fs::read_dir(&directory) {
+                Ok(entries) => entries.count(),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+                Err(error) => panic!("failed to read backfill tmp dir: {error}"),
+            };
+            if remaining == 0 {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "backfill tmp dir still holds {remaining} spool file(s)"
+            );
+            sleep(Duration::from_millis(50)).await;
+        }
     }
 
     #[tokio::test]
@@ -2241,5 +2359,313 @@ mod tests {
                 .await
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_of_the_next_batch_overlaps_a_slow_apply() {
+        let peer = test_context(|_| {}).await;
+        for index in 0..6_u64 {
+            seed_inline(&peer, &format!("k{index}"), &[0x42_u8; 40], 1_000 + index).await;
+        }
+        build_index(&peer);
+
+        // Record every bodies request's arrival instant, plus the maximum
+        // number of concurrently in-flight bodies requests.
+        let arrivals = Arc::new(std::sync::Mutex::new(Vec::<Instant>::new()));
+        let max_inflight = Arc::new(AtomicUsize::new(0));
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let recorded = arrivals.clone();
+        let max_inflight_writer = max_inflight.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let arrivals = recorded.clone();
+                let inflight = inflight.clone();
+                let max_inflight = max_inflight_writer.clone();
+                async move {
+                    let is_bodies = request.uri().path() == "/_internal/backfill/bodies";
+                    if is_bodies {
+                        arrivals
+                            .lock()
+                            .expect("arrival log poisoned")
+                            .push(Instant::now());
+                        let now = inflight.fetch_add(1, AtomicOrdering::SeqCst) + 1;
+                        max_inflight.fetch_max(now, AtomicOrdering::SeqCst);
+                    }
+                    let response = next.run(request).await;
+                    if is_bodies {
+                        inflight.fetch_sub(1, AtomicOrdering::SeqCst);
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
+
+        // Stall every batch apply. Batch N's apply cannot complete before its
+        // stall elapses, and the stall begins only after batch N's response
+        // was received — no earlier than its request's arrival.
+        let apply_stall = Duration::from_millis(800);
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_always(
+            FailpointName::AfterBackfillBodiesSpoolBeforeApply,
+            FailpointAction::Sleep(apply_stall),
+        );
+
+        let mut byte_bounded = tuning();
+        // 40-byte entries against a 100-byte bound compose two per batch.
+        byte_bounded.batch_bytes = 100;
+        byte_bounded.flush_interval = Duration::from_secs(10);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, byte_bounded).await;
+
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.bodies_applied, 6);
+        assert!(claim_set.is_empty());
+
+        let arrivals = arrivals.lock().expect("arrival log poisoned");
+        assert_eq!(arrivals.len(), 3);
+        // A consecutive-arrival gap below the stall proves the next bodies
+        // request left while the previous batch was still inside its apply
+        // stall. The serial pre-pipelining sequence (fetch → spool → apply →
+        // fetch) forces every gap to at least the stall, so this assertion
+        // fails without the pipelined applier.
+        let min_gap = arrivals
+            .windows(2)
+            .map(|pair| pair[1] - pair[0])
+            .min()
+            .expect("at least two bodies requests");
+        assert!(
+            min_gap < apply_stall,
+            "expected a bodies request to overlap an apply; min arrival gap {min_gap:?}"
+        );
+        // Pipelining overlaps fetch with apply, never fetch with fetch: the
+        // network bound stays one bodies request in flight.
+        assert_eq!(max_inflight.load(AtomicOrdering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn apply_failure_aborts_the_in_flight_fetch_and_cleans_spools() {
+        let peer = test_context(|_| {}).await;
+        for index in 0..4_u64 {
+            seed_inline(&peer, &format!("k{index}"), &[0x42_u8; 40], 1_000 + index).await;
+        }
+        build_index(&peer);
+
+        // Hold the SECOND bodies request open far longer than the pass needs
+        // to fail, so the apply failure demonstrably aborts it.
+        let bodies_seen = Arc::new(AtomicUsize::new(0));
+        let counter = bodies_seen.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let counter = counter.clone();
+                async move {
+                    if request.uri().path() == "/_internal/backfill/bodies"
+                        && counter.fetch_add(1, AtomicOrdering::SeqCst) >= 1
+                    {
+                        sleep(Duration::from_secs(30)).await;
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_| {}).await;
+        // Stall batch 1's apply long enough for the fetcher to dispatch the
+        // batch 2 request, then fail the apply at its durability barrier.
+        local.state.store.failpoints().set_always(
+            FailpointName::AfterBackfillBodiesSpoolBeforeApply,
+            FailpointAction::Sleep(Duration::from_millis(300)),
+        );
+        local.state.store.failpoints().set_once(
+            FailpointName::AfterBackfillBatchCommitBeforeWalFlush,
+            FailpointAction::Error("apply failed mid-pipeline".into()),
+        );
+
+        let mut byte_bounded = tuning();
+        byte_bounded.batch_bytes = 100;
+        byte_bounded.flush_interval = Duration::from_secs(10);
+        let started = Instant::now();
+        let (outcome, claim_set) = run_pass(&local, &peer_url, byte_bounded).await;
+
+        let BackfillPassOutcome::Failed { error, .. } = outcome else {
+            panic!("expected failure, got {outcome:?}");
+        };
+        assert!(error.contains("apply failed mid-pipeline"), "{error}");
+        assert_eq!(
+            bodies_seen.load(AtomicOrdering::SeqCst),
+            2,
+            "the next fetch should have been dispatched during the stalled apply"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "the apply failure must abort the in-flight fetch, not wait it out"
+        );
+        assert!(claim_set.is_empty(), "guard drop must release all claims");
+        assert_backfill_tmp_dir_empties(&local).await;
+    }
+
+    #[tokio::test]
+    async fn cancellation_with_applying_and_spooled_batches_cleans_up() {
+        let peer = test_context(|_| {}).await;
+        for index in 0..6_u64 {
+            seed_inline(&peer, &format!("k{index}"), &[0x42_u8; 40], 1_000 + index).await;
+        }
+        build_index(&peer);
+
+        let bodies_seen = Arc::new(AtomicUsize::new(0));
+        let counter = bodies_seen.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let counter = counter.clone();
+                async move {
+                    if request.uri().path() == "/_internal/backfill/bodies" {
+                        counter.fetch_add(1, AtomicOrdering::SeqCst);
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
+
+        // A long apply stall wedges batch 1 in the applier while batch 2
+        // waits spooled in the channel and batch 3 spools behind them.
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_always(
+            FailpointName::AfterBackfillBodiesSpoolBeforeApply,
+            FailpointAction::Sleep(Duration::from_millis(1_500)),
+        );
+
+        let mut byte_bounded = tuning();
+        byte_bounded.batch_bytes = 100;
+        byte_bounded.flush_interval = Duration::from_secs(10);
+        let claim_set = ClaimSet::new();
+        let guard = claim_set.register_pass();
+        let cancel = CancellationToken::new();
+        let state = local.state.clone();
+        let pass_cancel = cancel.clone();
+        let pass_peer = peer_url.clone();
+        let pass = tokio::spawn(async move {
+            run_backfill_pass_with_tuning(
+                &state,
+                &pass_peer,
+                unbounded_window(),
+                guard,
+                &pass_cancel,
+                byte_bounded,
+            )
+            .await
+        });
+
+        // All three bodies requests dispatched = one batch applying, one in
+        // the channel, one just spooled and blocked on the handoff.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while bodies_seen.load(AtomicOrdering::SeqCst) < 3 {
+            assert!(
+                Instant::now() < deadline,
+                "the pipeline never dispatched all three batches"
+            );
+            sleep(Duration::from_millis(10)).await;
+        }
+        cancel.cancel();
+
+        let outcome = pass.await.expect("pass task should not panic");
+        assert!(
+            matches!(outcome, BackfillPassOutcome::Cancelled { .. }),
+            "expected cancellation, got {outcome:?}"
+        );
+        assert!(claim_set.is_empty(), "guard drop must release all claims");
+        assert_backfill_tmp_dir_empties(&local).await;
+    }
+
+    #[tokio::test]
+    async fn bounced_fetch_individually_frames_refetch_through_the_fetcher() {
+        let peer = test_context(|_| {}).await;
+        for index in 0..4_u64 {
+            seed_inline(&peer, &format!("k{index}"), b"bounced-body", 1_000 + index).await;
+        }
+        build_index(&peer);
+
+        // Answer every bodies request with fetch-individually frames (the
+        // serving-side backstop shape) and track request concurrency across
+        // BOTH the bodies and per-artifact endpoints: bounced re-fetches run
+        // on the fetcher, so the combined bound stays one request in flight.
+        let max_inflight = Arc::new(AtomicUsize::new(0));
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let artifacts = Arc::new(AtomicUsize::new(0));
+        let max_inflight_writer = max_inflight.clone();
+        let inflight_writer = inflight.clone();
+        let artifact_counter = artifacts.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let inflight = inflight_writer.clone();
+                let max_inflight = max_inflight_writer.clone();
+                let artifacts = artifact_counter.clone();
+                async move {
+                    let path = request.uri().path().to_owned();
+                    let counted = path == "/_internal/backfill/bodies"
+                        || path.starts_with("/_internal/backfill/artifacts/");
+                    if counted {
+                        let now = inflight.fetch_add(1, AtomicOrdering::SeqCst) + 1;
+                        max_inflight.fetch_max(now, AtomicOrdering::SeqCst);
+                    }
+                    if path.starts_with("/_internal/backfill/artifacts/") {
+                        artifacts.fetch_add(1, AtomicOrdering::SeqCst);
+                    }
+                    let response = if path == "/_internal/backfill/bodies" {
+                        let bytes = axum::body::to_bytes(request.into_body(), 1024 * 1024)
+                            .await
+                            .expect("bodies request should read");
+                        let parsed: BackfillBodiesRequest =
+                            serde_json::from_slice(&bytes).expect("bodies request should decode");
+                        let mut frames = Vec::new();
+                        for entry in &parsed.entries {
+                            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                                .expect("known record kind");
+                            frames.extend_from_slice(
+                                &encode_backfill_body_frame_header(
+                                    kind,
+                                    BackfillBodyDisposition::FetchIndividually,
+                                    entry.version_ms,
+                                    &entry.record_id,
+                                    &[],
+                                    0,
+                                )
+                                .expect("frame header should encode"),
+                            );
+                        }
+                        frames.into_response()
+                    } else {
+                        next.run(request).await
+                    };
+                    if counted {
+                        inflight.fetch_sub(1, AtomicOrdering::SeqCst);
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_| {}).await;
+        let (outcome, claim_set) = run_pass(&local, &peer_url, tuning()).await;
+
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.bodies_rerouted_individual, 4);
+        assert_eq!(stats.individual_fetches, 4);
+        assert_eq!(stats.bodies_applied, 4);
+        assert_eq!(artifacts.load(AtomicOrdering::SeqCst), 4);
+        assert_eq!(max_inflight.load(AtomicOrdering::SeqCst), 1);
+        assert!(claim_set.is_empty());
+        for index in 0..4_u64 {
+            let manifest = fetch_manifest(&local, ArtifactProducer::Xcode, &format!("k{index}"))
+                .await
+                .expect("bounced artifact should land");
+            assert_eq!(manifest.version_ms, 1_000 + index);
+            assert_eq!(read_body(&local, &manifest).await, b"bounced-body");
+        }
     }
 }
