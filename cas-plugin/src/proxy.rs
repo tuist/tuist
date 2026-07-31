@@ -1576,7 +1576,7 @@ impl Proxy {
             let contents = if digests.is_empty() {
                 HashMap::new()
             } else {
-                remote.batch_read(&digests)?
+                remote.batch_read_after_action_result(&digests)?
             };
             let fetch_elapsed = phase.elapsed();
             state
