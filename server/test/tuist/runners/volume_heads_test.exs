@@ -73,4 +73,73 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert VolumeHeads.get_head(account.id) == nil
     end
   end
+
+  describe "bump_head/5 compilation-cache guard" do
+    test "refuses a promote that would drop the HEAD's compilation cache" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0, cas_present: true)
+
+      # A host that writes no compilation cache promotes on a perfectly current
+      # base. The fast-forward would accept it — it only orders by generation —
+      # and every other host would then converge to a warm set with no CAS.
+      assert :cas_regression = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
+
+      assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
+      assert cas_present?(account.id)
+    end
+
+    test "accepts a promote that keeps the compilation cache" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0, cas_present: true)
+
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1, cas_present: true)
+      assert cas_present?(account.id)
+    end
+
+    test "accepts a CAS-less promote when the HEAD has no compilation cache either" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
+      refute cas_present?(account.id)
+    end
+
+    test "accepts a promote that adds a compilation cache" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1, cas_present: true)
+      assert cas_present?(account.id)
+    end
+
+    test "accepts an intentional reclaim so an operator's disable can propagate" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0, cas_present: true)
+
+      # Without this the disable could never reach the HEAD, and every master
+      # would keep cloning dead CAS bytes forever.
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1, cas_disabled: true)
+
+      refute cas_present?(account.id)
+      # And once the HEAD is CAS-less, ordinary promotes flow again.
+      assert {:ok, 3} = VolumeHeads.bump_head(account.id, "mac-03", "digest-c", 2)
+    end
+
+    test "reports a stale base as a conflict even when the promote drops the CAS" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0, cas_present: true)
+      VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1, cas_present: true)
+
+      # Both guards would reject this one. It is contention first: the runner
+      # discards either way, but the outcome drives which signal fires.
+      assert :conflict = VolumeHeads.bump_head(account.id, "mac-03", "digest-stale", 1)
+    end
+  end
+
+  defp cas_present?(account_id) do
+    Tuist.Repo.get_by!(Tuist.Runners.VolumeHead,
+      account_id: account_id,
+      volume_name: VolumeHeads.reserved_tuist_cache()
+    ).cas_present
+  end
 end

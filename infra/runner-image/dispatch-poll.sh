@@ -175,6 +175,13 @@ CACHE_INVENTORY_BEFORE=""
 # The post-job inventory, captured while the image is still mounted so the HEAD
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
+# Whether the folded CAS store held any content when this branch was attached and
+# when it was detached ("1"/"0"). Reported to the host and the server so a promote
+# that DROPPED the compilation cache its master carried can be refused: the
+# generation fast-forward only keeps a master from moving backwards in version,
+# not in content. See cas_store_populated.
+CACHE_CAS_BEFORE=0
+CACHE_CAS_AFTER=0
 STATUS_SHARE="/Volumes/My Shared Files/status"
 # The Xcode compilation cache (CAS) is FOLDED into the cache image: a top-level
 # store dir beside `tuist/` inside the one mounted image. It works because it
@@ -186,6 +193,37 @@ STATUS_SHARE="/Volumes/My Shared Files/status"
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
+
+# cas_marker_state reads the host's CAS policy out of the marker. THREE states,
+# and telling the last two apart is what keeps a host that cannot write a
+# compilation cache from wiping the fleet's:
+#
+#   enabled  — a byte budget: use the store, bounded by it.
+#   disabled — an operator turned the CAS off on a host that knows about it.
+#              Dropping the store is intentional and must stay promotable.
+#   unknown  — no marker: this host predates the folded CAS. It writes no store,
+#              so a missing store says nothing about intent and an inherited one
+#              must be left alone.
+cas_marker_state() {
+  local value
+  value=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  case "${value}" in
+    disabled) printf 'disabled' ;;
+    ''|*[!0-9]*) printf 'unknown' ;;
+    *) printf 'enabled' ;;
+  esac
+}
+
+# cas_store_populated succeeds when the folded CAS store holds at least one real
+# file. Same predicate as the digest's `~cas/` lines (regular files, dot-paths
+# excluded) so "has a CAS" means the same thing here, in cache_inventory, and in
+# the host's casInventoryLines. An existing-but-empty store is NOT populated:
+# setup_cas_store mkdir -p's it on every enabled run, so its mere presence would
+# report a CAS that carries nothing.
+cas_store_populated() {
+  [ -n "${CACHE_MOUNT}" ] || return 1
+  [ -n "$(find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -type f -not -path '*/.*' -print -quit 2>/dev/null)" ]
+}
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -402,18 +440,23 @@ setup_cas_store() {
   # The marker carries the CAS's coordinated byte budget (empty/absent = the host
   # disabled the feature). Reclaim of a stale store left by a previously enabled
   # run happens at teardown, not here — see reclaim_cas_if_disabled.
+  # A non-numeric budget other than the explicit "disabled" is a staging bug;
+  # without a trustworthy bound we would point the compiler at the shared image
+  # with an UNBOUNDED store that could prune the binary cache to ENOSPC, so fall
+  # back to VM-local rather than guess.
   local cas_limit_bytes
   cas_limit_bytes=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
-  if [ -z "${cas_limit_bytes}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"
-    return 0
-  fi
-  # A non-numeric budget is a staging bug; without a trustworthy bound we would
-  # point the compiler at the shared image with an UNBOUNDED store that could
-  # prune the binary cache to ENOSPC, so fall back to VM-local rather than guess.
-  case "${cas_limit_bytes}" in ''|*[!0-9]*)
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS budget marker not numeric (${cas_limit_bytes}); compilation cache runs VM-local"
-    return 0 ;;
+  case "$(cas_marker_state)" in
+    disabled)
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS disabled by the host; compilation cache runs VM-local"
+      return 0 ;;
+    unknown)
+      if [ -n "${cas_limit_bytes}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS budget marker not numeric (${cas_limit_bytes}); compilation cache runs VM-local"
+      else
+        echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"
+      fi
+      return 0 ;;
   esac
   local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
   mkdir -p "${store}" 2>/dev/null || true
@@ -447,17 +490,24 @@ setup_cas_store() {
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
-# reclaim_cas_if_disabled removes a leftover CAS store from the image when the
-# feature is OFF (no marker), so masters that were promoted while it was on stop
-# cloning and uploading dead CAS bytes (which also eat binary-cache capacity).
-# Runs at TEARDOWN, after the pre-job inventory was snapshotted WITH the store
-# present, so the removal registers as an inventory change (the store's ~cas/
-# lines drop out) → dirty → the cleaned image promotes and other hosts converge
-# to it. A no-op when
-# the feature is on or no store is present. Best-effort; never blocks teardown.
+# reclaim_cas_if_disabled removes a leftover CAS store from the image when an
+# operator has EXPLICITLY turned the feature off, so masters that were promoted
+# while it was on stop cloning and uploading dead CAS bytes (which also eat
+# binary-cache capacity). Runs at TEARDOWN, after the pre-job inventory was
+# snapshotted WITH the store present, so the removal registers as an inventory
+# change (the store's ~cas/ lines drop out) → dirty → the cleaned image promotes
+# and other hosts converge to it.
+#
+# It keys on the marker saying "disabled", NOT on the marker being absent. Those
+# used to be the same thing, and that is how a host stuck on a tart-kubelet build
+# that predates the folded CAS came to delete the store it had just converged to
+# and publish the CAS-less result as the account HEAD — costing every other host
+# its compilation cache on the next converge. A host that cannot write a store
+# has no standing to decide the account should not have one, so it leaves an
+# inherited store untouched. Best-effort; never blocks teardown.
 reclaim_cas_if_disabled() {
   [ -n "${CACHE_MOUNT}" ] || return 0
-  [ -f "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" ] && return 0
+  [ "$(cas_marker_state)" = "disabled" ] || return 0
   local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
   [ -d "${store}" ] || return 0
   rm -rf "${store}" 2>/dev/null || true
@@ -500,6 +550,10 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory)
+      # Whether the master this branch was cloned from carried a compilation
+      # cache. Sampled here, before the job can add one, so a later drop is
+      # attributable to this job rather than to the account never having had one.
+      cas_store_populated && CACHE_CAS_BEFORE=1 || CACHE_CAS_BEFORE=0
       return 0
     fi
     sleep 1
@@ -518,6 +572,13 @@ capture_cache_state() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   CACHE_INVENTORY_AFTER=$(cache_inventory)
+  # Relay CAS presence either side of the job to the host, which discards rather
+  # than promotes a branch that lost the store its master carried. Sampled after
+  # reclaim_cas_if_disabled, so an intentional disable shows up here as the drop
+  # it is — the host allows that one because it knows the CAS is off locally.
+  cas_store_populated && CACHE_CAS_AFTER=1 || CACHE_CAS_AFTER=0
+  printf '%s' "${CACHE_CAS_BEFORE}" > "${STATUS_SHARE}/cache-cas-before" 2>/dev/null || true
+  printf '%s' "${CACHE_CAS_AFTER}" > "${STATUS_SHARE}/cache-cas-after" 2>/dev/null || true
   # Sample the image's post-job fill % (binary cache + CAS + overhead) while it's
   # still mounted, for the host's fill histogram — the signal for whether the
   # reserve is holding or the volume is running near ENOSPC. `df -P` for the
@@ -691,12 +752,22 @@ report_volume_head() {
   # (cross-host contention) from an upload/network/control-plane failure. On 200
   # the host installs the branch as its local master at the accepted generation;
   # on 409 or error it discards and re-converges.
-  local base_generation body http_code promoted_generation
+  #
+  # cas_present/cas_disabled ride along so the server can refuse a bump that
+  # would drop the account's compilation cache. The digest is a hash, so the
+  # server cannot see CAS presence in it; and it cannot infer intent either, so
+  # the guest states both: what this image carries, and whether the host says the
+  # CAS is deliberately off (the one case where dropping it is the point).
+  local base_generation body http_code promoted_generation cas_present cas_disabled
   base_generation=$(read_base_generation)
+  cas_present=false
+  [ "${CACHE_CAS_AFTER}" = "1" ] && cas_present=true
+  cas_disabled=false
+  [ "$(cas_marker_state)" = "disabled" ] && cas_disabled=true
   body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
   http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"cas_present\":${cas_present},\"cas_disabled\":${cas_disabled}}" \
     -o "${body}" -w '%{http_code}' \
     "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
   case "${http_code}" in
@@ -706,8 +777,17 @@ report_volume_head() {
       echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation:-0})"
       ;;
     409)
-      write_promote_result "conflict"
-      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
+      # Two different rejections share the status: a stale base (ordinary
+      # cross-host contention) and a promote that would strip the account's
+      # compilation cache. Keep them apart, or a fleet losing its CAS reads as
+      # healthy contention on the dashboard.
+      if grep -q 'cas regression' "${body}" 2>/dev/null; then
+        write_promote_result "cas-regression"
+        echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD refused: this image drops the account's compilation cache; branch not promoted"
+      else
+        write_promote_result "conflict"
+        echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
+      fi
       ;;
     *)
       write_promote_result "error"

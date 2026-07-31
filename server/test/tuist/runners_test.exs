@@ -941,6 +941,37 @@ defmodule Tuist.RunnersTest do
     end
   end
 
+  describe "report_volume_head/5 compilation-cache guard" do
+    test "refuses a promote that would drop the compilation cache and orphans its upload" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0, cas_present: true)
+
+      # The runner already PUT its image before the compare-and-swap, so a refused
+      # promote leaves an object no HEAD points at — reclaimed exactly like a
+      # stale-base rejection's.
+      dropped = String.duplicate("c", 40)
+      assert :cas_regression = Runners.report_volume_head(account.id, "node-2", dropped, 1)
+
+      assert %{generation: 1, tree_digest: String.duplicate("a", 40)} == VolumeHeads.get_head(account.id)
+      assert VolumeMasterOrphans.exists?(account.id, dropped)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterOrphanWorker,
+        args: %{account_id: account.id, tree_digest: dropped}
+      )
+    end
+
+    test "accepts an intentional reclaim so a CAS disable can propagate" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0, cas_present: true)
+
+      cleaned = String.duplicate("c", 40)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-2", cleaned, 1, cas_disabled: true)
+
+      assert %{generation: 2, tree_digest: cleaned} == VolumeHeads.get_head(account.id)
+    end
+  end
+
   describe "report_volume_head/4" do
     test "fast-forwards the HEAD for a valid hex digest built on the current base" do
       account = account_fixture()

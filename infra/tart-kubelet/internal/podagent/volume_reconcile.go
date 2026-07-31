@@ -241,13 +241,36 @@ func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 }
 
 // casEnabledFile signals the guest to point the compiler at the folded CAS store
-// inside the mounted cache image. Written (before cache-ready, so the guest never
-// races it) only when the feature is on; absent ⇒ the guest leaves the
-// compilation cache VM-local.
+// inside the mounted cache image. Written before cache-ready, so the guest never
+// races it. It carries THREE distinguishable states, and the third is what keeps
+// a CAS-less host from wiping the fleet's compilation cache:
+//
+//   - a byte budget ⇒ the CAS is on; use the store at that bound.
+//   - casDisabledMarker ⇒ an operator turned the CAS off on a host that knows
+//     about it. Dropping the store is INTENTIONAL and must stay promotable, or
+//     the disable could never propagate and every master would clone dead CAS
+//     bytes forever.
+//   - absent ⇒ this host predates the folded CAS (or the feature is off
+//     wholesale). It cannot write a store, so a missing store here says nothing
+//     about intent — the guest must leave an inherited one alone.
+//
+// Before this was three-state, the disabled and predates cases were both "no
+// marker", so a host stuck on an old binary reclaimed the CAS it had converged
+// to and promoted the CAS-less result as the account HEAD; every other host then
+// converged to that and lost its compilation cache too.
 const casEnabledFile = "cas-enabled"
 
+// casDisabledMarker is the casEnabledFile content meaning "this host knows about
+// the folded CAS and it is deliberately off". Not a number, so the guest's budget
+// parse can't mistake it for a bound.
+const casDisabledMarker = "disabled"
+
 func (r *Reconciler) writeCASEnabled(statusDir string) {
-	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
+	if statusDir == "" || r.Volumes == nil || !r.Volumes.Enabled() {
+		return
+	}
+	if !r.Volumes.casEnabled() {
+		_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(casDisabledMarker), 0o644)
 		return
 	}
 	// The marker carries the CAS's exact byte budget (the coordinated other half of
@@ -257,6 +280,38 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	// cache-db size plus free space, which shrinks as the binary cache fills.
 	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
+}
+
+// casPresenceBeforeFile and casPresenceAfterFile carry whether the folded CAS
+// store held any content when the guest attached the branch and when it detached
+// it ("1"/"0"). The guest walks the store for the inventory digest anyway, so
+// this costs it nothing and saves the host a read-only attach of its own.
+//
+// The pair, not just the "after": only a branch that LOST a store its master had
+// is a content regression. A branch that never had one (an account whose jobs
+// don't compile) must still promote its binary-cache deltas.
+const (
+	casPresenceBeforeFile = "cache-cas-before"
+	casPresenceAfterFile  = "cache-cas-after"
+)
+
+// readCASPresence reports the guest's pre- and post-job CAS-store presence.
+// Absent files read as false, which is the conservative answer: an old guest
+// image that reports neither looks like "no CAS was lost" and promotes as it
+// always did, leaving the server-side HEAD guard as the backstop.
+func readCASPresence(statusDir string) (before, after bool) {
+	return readBoolMarker(statusDir, casPresenceBeforeFile), readBoolMarker(statusDir, casPresenceAfterFile)
+}
+
+func readBoolMarker(statusDir, name string) bool {
+	if statusDir == "" {
+		return false
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, name))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(b)) == "1"
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
@@ -319,18 +374,19 @@ func writeBaseGeneration(statusDir string, generation int) {
 }
 
 // promoteResultFile carries the outcome of this job's HEAD fast-forward, written
-// by the guest after the bump. It distinguishes the three cases the host must not
+// by the guest after the bump. It distinguishes the cases the host must not
 // conflate: "accepted <generation>" (200 — install the branch as the local master
 // at that generation), "conflict" (409 — a stale base another host advanced past,
-// genuine cross-host contention), and "error" (an upload/network/control-plane
-// failure). Absent means the guest never reached the bump (also treated as an
-// error for an otherwise promote-eligible job). Only "accepted" installs; the
-// rest discard and re-converge.
+// genuine cross-host contention), "cas-regression" (409 — the server refused a
+// bump that would drop the account's compilation cache), and "error" (an
+// upload/network/control-plane failure). Absent means the guest never reached the
+// bump (also treated as an error for an otherwise promote-eligible job). Only
+// "accepted" installs; the rest discard and re-converge.
 const promoteResultFile = "cache-promote-result"
 
 // promoteResult is the parsed guest outcome. Result is "accepted", "conflict",
-// "error", or "" (absent). Generation is the accepted HEAD generation, non-zero
-// only when Result == "accepted".
+// "cas-regression", "error", or "" (absent). Generation is the accepted HEAD
+// generation, non-zero only when Result == "accepted".
 type promoteResult struct {
 	Result     string
 	Generation int
@@ -360,6 +416,8 @@ func readPromoteResult(statusDir string) promoteResult {
 		return promoteResult{Result: "accepted", Generation: gen}
 	case "conflict":
 		return promoteResult{Result: "conflict"}
+	case "cas-regression":
+		return promoteResult{Result: "cas-regression"}
 	default:
 		return promoteResult{Result: "error"}
 	}
@@ -533,6 +591,10 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	// branch rather than moving the local master off the accepted lineage.
 	promote := readPromoteResult(entry.VolumeStatusDir)
 	entry.Volume.PromotedGeneration = promote.Generation
+	// Whether this job's branch kept the compilation cache its master carried.
+	// Finalize refuses to promote a branch that lost it (see the CAS-regression
+	// guard there).
+	entry.Volume.MasterHadCAS, entry.Volume.BranchHasCAS = readCASPresence(entry.VolumeStatusDir)
 
 	// For a promote-eligible job (it did cache-changing work for its own account),
 	// record the server's decision. "rejected" is reserved for an actual 409
@@ -546,6 +608,15 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 			RecordVolumePromote("accepted")
 		case "conflict":
 			RecordVolumePromote("rejected")
+		case "cas-regression":
+			// Deliberately outside the promote buckets: this is not contention and
+			// must not dilute the rate they exist to measure. It gets the same
+			// counter as the host's own CAS guard, so one series answers "did we
+			// stop a compilation-cache wipe", whichever layer caught it.
+			log.Log.WithName("volume").Info(
+				"server refused the HEAD bump: this branch drops the account's compilation cache",
+				"vm", entry.VMName, "account", actualAccount)
+			RecordVolumeCASRegression()
 		default:
 			RecordVolumePromote("error")
 		}

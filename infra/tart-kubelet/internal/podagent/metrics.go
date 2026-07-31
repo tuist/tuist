@@ -186,6 +186,19 @@ var cacheVolumePromoteTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
+// cacheVolumeCASRegressionTotal counts branches this host refused to promote
+// because they came back without the compilation cache (CAS) their master
+// carried. Any non-zero value means a host that cannot write a CAS is running
+// jobs for an account whose warm set has one — the generation gate alone would
+// have let it replace that master and, through the HEAD, cost every other host
+// its compilation cache too. Expected to stay flat at zero.
+var cacheVolumeCASRegressionTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_cas_regression_total",
+		Help: "Branches not promoted because they dropped the compilation cache their master carried.",
+	},
+)
+
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
 // master to the account's HEAD — a host that was behind pulling the latest
 // master after a job started (off the job-start path), so the next job on it
@@ -294,6 +307,7 @@ func init() {
 		cacheVolumeOutcomeTotal,
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
+		cacheVolumeCASRegressionTotal,
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
@@ -362,6 +376,12 @@ func RecordVolumeMaterialized(warm bool) {
 		result = "warm"
 	}
 	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+}
+
+// RecordVolumeCASRegression increments the count of branches refused because
+// they dropped the compilation cache their master carried.
+func RecordVolumeCASRegression() {
+	cacheVolumeCASRegressionTotal.Inc()
 }
 
 // RecordVolumeConverged increments the count of materialize-time master
