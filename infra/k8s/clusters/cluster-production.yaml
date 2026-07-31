@@ -75,6 +75,7 @@ spec:
           failureDomain: fsn1
           rollout:
             strategy:
+              type: RollingUpdate
               rollingUpdate:
                 maxSurge: 1
                 maxUnavailable: 0
@@ -103,6 +104,7 @@ spec:
           failureDomain: fsn1
           rollout:
             strategy:
+              type: RollingUpdate
               rollingUpdate:
                 maxSurge: 1
                 maxUnavailable: 0
@@ -154,6 +156,7 @@ spec:
           failureDomain: fsn1
           rollout:
             strategy:
+              type: RollingUpdate
               rollingUpdate:
                 maxSurge: 1
                 maxUnavailable: 0
