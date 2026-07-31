@@ -53,8 +53,9 @@ const BOOTSTRAP_MANIFEST_PAGE_LIMIT: usize = MAX_BOOTSTRAP_PAGE_ITEMS;
 // peer pass so adjacent versions can bootstrap each other during a rollout.
 const BOOTSTRAP_LEGACY_PAGE_LIMIT: usize = 256;
 
-// Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
-// open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
+// Artifact bodies fetched from a peer concurrently within a bootstrap page. A
+// second, node-wide semaphore caps work across peer tasks; staged bytes stay
+// bounded by bootstrap_staging_budget.
 const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
 const BOOTSTRAP_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
 const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
@@ -770,6 +771,11 @@ async fn bootstrap_artifact_from_peer(
             return Ok(recheck);
         }
 
+        // The page-level stream limit is per peer. During a rollout this node
+        // can bootstrap from several peers at once, so use the shared permit to
+        // cap live body reads across the entire node before reserving memory.
+        let _artifact_permit = acquire_bootstrap_artifact_permit(state).await?;
+
         // Limit the number of body streams that can advance concurrently from
         // live container headroom, not only a static request count. The
         // reservation is a window rather than the full object size because a
@@ -894,6 +900,17 @@ async fn bootstrap_artifact_from_peer(
         cleanup.remove_and_disarm(&state.io).await;
         return result;
     }
+}
+
+async fn acquire_bootstrap_artifact_permit(
+    state: &SharedState,
+) -> Result<tokio::sync::OwnedSemaphorePermit, String> {
+    state
+        .bootstrap_artifact_semaphore
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| "bootstrap artifact admission closed".to_owned())
 }
 
 fn is_retryable_bootstrap_backpressure(response: &reqwest::Response) -> bool {
@@ -1644,6 +1661,35 @@ mod tests {
             divergent_prefixes(&local, &peer).is_empty(),
             "matching digests must walk zero ranges"
         );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_artifact_admission_is_shared_across_peers() {
+        let context = test_context(|_| {}).await;
+        let mut permits = Vec::new();
+        for _ in 0..4 {
+            permits.push(
+                acquire_bootstrap_artifact_permit(&context.state)
+                    .await
+                    .expect("bootstrap permit should be available"),
+            );
+        }
+
+        let waiting_state = context.state.clone();
+        let waiting =
+            tokio::spawn(async move { acquire_bootstrap_artifact_permit(&waiting_state).await });
+        tokio::task::yield_now().await;
+        assert!(
+            !waiting.is_finished(),
+            "a second peer must not bypass the node-wide bootstrap cap"
+        );
+
+        drop(permits.pop());
+        let permit = waiting
+            .await
+            .expect("waiting bootstrap task should not panic")
+            .expect("released bootstrap capacity should admit the waiter");
+        drop((permit, permits));
     }
 
     #[test]

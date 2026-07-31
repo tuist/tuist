@@ -244,7 +244,21 @@ impl MemoryController {
             working_set_reclaim || sample.current_bytes >= self.inner.hard_limit_bytes,
             Ordering::Relaxed,
         );
-        self.observe(sample.pressure_bytes)
+        // `memory.current` is charged against the control-group limit even when
+        // most of it is clean file cache. Reclaim alone is not enough once it
+        // reaches the hard watermark: a concurrent bootstrap or database write
+        // can consume the remaining headroom before the kernel reclaims it.
+        // Promote that condition to critical immediately so every background
+        // admission gate closes before the kernel has to kill the process.
+        let observed_bytes =
+            sample
+                .pressure_bytes
+                .max(if sample.current_bytes >= self.inner.hard_limit_bytes {
+                    self.inner.hard_limit_bytes
+                } else {
+                    0
+                });
+        self.observe(observed_bytes)
     }
 
     fn observe_working_set(&self, working_set_bytes: u64) -> MemoryPressure {
@@ -953,7 +967,7 @@ mod tests {
     }
 
     #[test]
-    fn clean_file_cache_triggers_reclaim_without_constraining_admission() {
+    fn clean_file_cache_at_the_hard_limit_closes_background_admission() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
@@ -965,10 +979,11 @@ mod tests {
                 reclaimable_inactive_file_bytes: 40,
                 limit_bytes: Some(240),
             }),
-            MemoryPressure::Normal
+            MemoryPressure::Critical
         );
         assert!(controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_none());
+        assert!(!controller.allow_background_admission());
 
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
@@ -1032,12 +1047,13 @@ mod tests {
     }
 
     #[test]
-    fn raw_hard_limit_arm_keeps_reclaim_on_without_hysteresis() {
+    fn raw_hard_limit_closes_background_admission_without_hysteresis() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
-        // Container charge at the hard watermark with a low working set: the raw arm
-        // holds reclaim on so a warm cache node keeps borrowing from clean file cache.
+        // Container charge at the hard watermark with a low working set must stop
+        // background work immediately. Clean file cache is reclaimable, but it is
+        // still charged against the hard container limit until that reclaim happens.
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
                 current_bytes: 200,
@@ -1046,9 +1062,10 @@ mod tests {
                 reclaimable_inactive_file_bytes: 160,
                 limit_bytes: Some(240),
             }),
-            MemoryPressure::Normal
+            MemoryPressure::Critical
         );
         assert!(controller.should_reclaim_file_cache());
+        assert!(!controller.allow_background_admission());
     }
 
     #[test]

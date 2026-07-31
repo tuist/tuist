@@ -154,6 +154,7 @@ where
     )
     .map(Arc::new);
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(4));
     let bootstrap_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
@@ -183,6 +184,7 @@ where
             local_data_available_at_join,
         ),
         bootstrap_semaphore,
+        bootstrap_artifact_semaphore,
         tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
