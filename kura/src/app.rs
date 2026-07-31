@@ -229,6 +229,7 @@ async fn run_with_config(
         spawn_action_cache_blob_refs_backfill_task(state.clone());
     }
     spawn_action_cache_expiry_task(state.clone());
+    spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
@@ -429,6 +430,13 @@ async fn run_with_config(
     }
     if let Some(https_task) = https_task {
         wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
+    }
+    // Synchronous clean-shutdown stamp for backfill index staleness detection:
+    // after it, any sequence gap the next boot observes means an index-unaware
+    // binary wrote in between (the drain/roll-back/roll-forward shape) and the
+    // index is rebuilt.
+    if let Err(error) = state.store.stamp_backfill_maintained_seq_clean_shutdown() {
+        warn!("failed to write backfill clean-shutdown stamp: {error}");
     }
 
     Ok(())
@@ -880,6 +888,42 @@ fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
                 // checkpoints. The next step is admitted only while the shared
                 // memory controller stays normal.
                 sleep(Duration::from_millis(200)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+/// Backfill index startup task: builds the `backfill/idx/` keyspace over the
+/// pre-existing dataset when `backfill/meta/build_complete` is absent (on the
+/// blocking pool — the build scans the manifest keyspace in cursor-resumed
+/// chunks), retrying on failure so the listing endpoint's "index building"
+/// response cannot persist for the process lifetime, then keeps the periodic
+/// maintenance stamp fresh for rollback-window staleness detection. Serving is
+/// never gated on any of this.
+fn spawn_backfill_index_task(state: Arc<AppState>) {
+    const BUILD_RETRY_DELAY: Duration = Duration::from_secs(60);
+    let stamp_interval = Duration::from_millis(crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS);
+    tokio::spawn(
+        async move {
+            loop {
+                let build_state = state.clone();
+                match tokio::task::spawn_blocking(move || {
+                    build_state.store.run_backfill_index_build()
+                })
+                .await
+                {
+                    Ok(Ok(_)) => break,
+                    Ok(Err(error)) => warn!("backfill index build failed: {error}"),
+                    Err(error) => warn!("backfill index build task panicked: {error}"),
+                }
+                tokio::time::sleep(BUILD_RETRY_DELAY).await;
+            }
+            loop {
+                tokio::time::sleep(stamp_interval).await;
+                if let Err(error) = state.store.stamp_backfill_maintained_seq() {
+                    warn!("failed to stamp backfill maintenance sequence: {error}");
+                }
             }
         }
         .in_current_span(),

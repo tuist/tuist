@@ -116,6 +116,31 @@ pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // presence recheck.
 pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
+// Backfill index maintenance-stamp cadence. Each stamp is one tiny put of the
+// DB's latest sequence number into `backfill/meta/last_maintained_seq`; a
+// short cadence keeps the unclean-shutdown staleness slack (below) small.
+pub const BACKFILL_SEQ_STAMP_INTERVAL_MS: u64 = 5_000;
+// Sequence-number slack for rollback-window staleness detection after an
+// UNCLEAN shutdown (after a clean-shutdown stamp, any gap at all triggers a
+// rebuild). The gap a crash legitimately leaves is the sequence numbers
+// consumed between the last periodic stamp and the crash: every key in every
+// WriteBatch consumes one, an artifact apply writes ~10 keys, and replication
+// bursts have been observed in the tens of thousands of applies per second —
+// so one 5s stamp interval can legitimately consume a few million sequence
+// numbers. The slack must exceed that per-interval burst or a crash under
+// load triggers a spurious multi-hour rebuild. The cost of the margin is the
+// documented residual band: a crash immediately followed by a pre-AB binary
+// window that writes fewer than this many sequence numbers goes undetected
+// (known limitation; the common rollback shape — drain, roll back, roll
+// forward — is fully covered by the clean-shutdown stamp instead).
+pub const BACKFILL_SEQ_STAMP_SLACK_SEQS: u64 = 8_000_000;
+// Per-chunk row budget for the one-off backfill index build. The build resumes
+// each chunk from a key cursor with a fresh short-lived iterator: one
+// long-lived iterator would pin a RocksDB snapshot for the whole scan (hours
+// on multi-million-entry nodes), blocking compaction of everything written
+// since it opened.
+pub const BACKFILL_INDEX_BUILD_CHUNK_ROWS: usize = 4_096;
+
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";

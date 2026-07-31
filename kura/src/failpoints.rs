@@ -12,6 +12,7 @@ pub(crate) enum FailpointName {
     BeforeDeleteOutboxMessageAfterSuccess,
     BeforeApplyReplicatedTombstone,
     AfterApplyReplicatedTombstone,
+    AfterBackfillIndexBuildChunk,
 }
 
 impl FailpointName {
@@ -35,6 +36,7 @@ impl FailpointName {
             }
             Self::BeforeApplyReplicatedTombstone => "before_apply_replicated_tombstone",
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
+            Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",
         }
     }
 }
@@ -84,6 +86,44 @@ impl FailpointSet {
         match action {
             FailpointAction::Sleep(duration) => {
                 tokio::time::sleep(duration).await;
+                Ok(())
+            }
+            FailpointAction::Error(message) => {
+                Err(format!("failpoint {}: {message}", name.as_str()))
+            }
+            FailpointAction::Panic(message) => {
+                panic!("failpoint {}: {message}", name.as_str());
+            }
+        }
+    }
+
+    /// Blocking-context counterpart of [`Self::hit`] for failpoints on code
+    /// that runs on the blocking pool (no async runtime to sleep on).
+    pub(crate) fn hit_blocking(&self, name: FailpointName) -> Result<(), String> {
+        let action = {
+            let mut behaviors = self
+                .behaviors
+                .lock()
+                .expect("failpoint lock should not be poisoned");
+            let Some(behavior) = behaviors.get_mut(&name) else {
+                return Ok(());
+            };
+            let action = behavior.action.clone();
+            match behavior.remaining_hits {
+                Some(remaining_hits) if remaining_hits <= 1 => {
+                    behaviors.remove(&name);
+                }
+                Some(remaining_hits) => {
+                    behavior.remaining_hits = Some(remaining_hits - 1);
+                }
+                None => {}
+            }
+            action
+        };
+
+        match action {
+            FailpointAction::Sleep(duration) => {
+                std::thread::sleep(duration);
                 Ok(())
             }
             FailpointAction::Error(message) => {

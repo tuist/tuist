@@ -515,6 +515,161 @@ pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
     format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0")
 }
 
+/// Reserved keyspace for the backfill subsystem, shared with inline-artifact
+/// bytes and `blob_ref/` rows in the `key_value` column family for the same
+/// rollback-safety reason as [`ACTION_CACHE_BLOB_REF_PREFIX`]: a new column
+/// family would crash-loop a rolled-back binary at `DB::open_cf_descriptors`,
+/// while prefixed rows in an existing CF are simply never point-read by it.
+/// The prefix contains `/`, so it cannot collide with an inline artifact row
+/// (64-char hex `artifact_id`), and it is disjoint from `blob_ref/`.
+///
+/// Three sub-keyspaces:
+/// - `backfill/idx/`  — the per-entry version-ordered index (this module's codec)
+/// - `backfill/meta/` — build/maintenance markers
+/// - `backfill/wm/`   — per-peer backfill watermarks
+pub const BACKFILL_IDX_PREFIX: &str = "backfill/idx/";
+pub const BACKFILL_META_PREFIX: &str = "backfill/meta/";
+pub const BACKFILL_WM_PREFIX: &str = "backfill/wm/";
+
+/// The record kind byte in a `backfill/idx/` key. The discriminant values are
+/// part of the cursor contract: the kind byte orders rows within one
+/// `version_ms`, and a peer's resume cursor is a raw key, so renumbering these
+/// requires an index rebuild. Action-cache entries are inline artifacts and
+/// ride as `InlineArtifact`; there is deliberately no fourth kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BackfillRecordKind {
+    SegmentArtifact,
+    InlineArtifact,
+    NamespaceTombstone,
+}
+
+impl BackfillRecordKind {
+    pub fn as_byte(self) -> u8 {
+        match self {
+            Self::SegmentArtifact => 1,
+            Self::InlineArtifact => 2,
+            Self::NamespaceTombstone => 3,
+        }
+    }
+
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            1 => Some(Self::SegmentArtifact),
+            2 => Some(Self::InlineArtifact),
+            3 => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
+
+    // Wire names for the backfill listing endpoint; unused until it lands.
+    #[allow(dead_code)]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SegmentArtifact => "segment_artifact",
+            Self::InlineArtifact => "inline_artifact",
+            Self::NamespaceTombstone => "namespace_tombstone",
+        }
+    }
+}
+
+/// Row key in the backfill per-entry index:
+/// `backfill/idx/ ++ !version_ms BE ++ kind byte ++ record_id`.
+///
+/// The version is stored bitwise-NOT big-endian so a forward prefix scan
+/// yields rows newest-first (the `action_cache_index_key` trick). `version_ms`
+/// must be the EFFECTIVE version (`manifest_version_ms` fallback for legacy
+/// `version_ms == 0` records), consistent with the apply-time presence check.
+/// The fixed single-byte kind makes the variable-length `record_id`
+/// (artifact id or namespace id) parse unambiguously. Every put AND delete of
+/// an index row derives its key through this one helper so the two can never
+/// disagree on layout.
+pub fn backfill_index_key(version_ms: u64, kind: BackfillRecordKind, record_id: &str) -> Vec<u8> {
+    let mut key = Vec::with_capacity(BACKFILL_IDX_PREFIX.len() + 8 + 1 + record_id.len());
+    key.extend_from_slice(BACKFILL_IDX_PREFIX.as_bytes());
+    key.extend_from_slice(&(!version_ms).to_be_bytes());
+    key.push(kind.as_byte());
+    key.extend_from_slice(record_id.as_bytes());
+    key
+}
+
+/// Row value in the backfill per-entry index: the record's byte size, 8-byte
+/// big-endian, so a requester can compose byte-bounded body batches from the
+/// listing alone. Tombstones have no body and store an empty value.
+pub fn backfill_index_value(size: Option<u64>) -> Vec<u8> {
+    match size {
+        Some(size) => size.to_be_bytes().to_vec(),
+        None => Vec::new(),
+    }
+}
+
+/// Exclusive upper bound for a range scan or range delete over the whole
+/// `backfill/idx/` keyspace (`/` + 1 = `0`).
+pub fn backfill_index_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_IDX_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
+}
+
+/// A decoded `backfill/idx/` row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillIndexRow {
+    pub version_ms: u64,
+    pub kind: BackfillRecordKind,
+    pub record_id: String,
+    /// `None` for tombstones (sizeless).
+    pub size: Option<u64>,
+}
+
+pub fn decode_backfill_index_row(key: &[u8], value: &[u8]) -> Result<BackfillIndexRow, String> {
+    let tail = key
+        .strip_prefix(BACKFILL_IDX_PREFIX.as_bytes())
+        .ok_or_else(|| "backfill index key is missing its prefix".to_string())?;
+    let (version_bytes, tail) = tail
+        .split_at_checked(8)
+        .ok_or_else(|| "backfill index key is missing its version".to_string())?;
+    let version_ms = !u64::from_be_bytes(version_bytes.try_into().expect("split at 8"));
+    let (&kind_byte, record_id) = tail
+        .split_first()
+        .ok_or_else(|| "backfill index key is missing its kind byte".to_string())?;
+    let kind = BackfillRecordKind::from_byte(kind_byte)
+        .ok_or_else(|| format!("unknown backfill record kind byte {kind_byte}"))?;
+    let record_id = std::str::from_utf8(record_id)
+        .map_err(|error| format!("invalid backfill record id: {error}"))?
+        .to_owned();
+    let size = match (kind, value.len()) {
+        (BackfillRecordKind::NamespaceTombstone, 0) => None,
+        (BackfillRecordKind::NamespaceTombstone, len) => {
+            return Err(format!("backfill tombstone row carries a {len}-byte value"));
+        }
+        (_, 8) => Some(u64::from_be_bytes(value.try_into().expect("checked len"))),
+        (_, len) => {
+            return Err(format!(
+                "backfill artifact row value should be 8 bytes, got {len}"
+            ));
+        }
+    };
+    Ok(BackfillIndexRow {
+        version_ms,
+        kind,
+        record_id,
+        size,
+    })
+}
+
+/// Key of a `backfill/meta/` marker row (build/maintenance state).
+pub fn backfill_meta_key(name: &str) -> String {
+    format!("{BACKFILL_META_PREFIX}{name}")
+}
+
+/// Key of a per-peer backfill watermark row, keyed by the peer's node URL.
+/// Reserved here with the rest of the `backfill/` keyspace; the watermark
+/// read/write lifecycle lives with the backfill walker.
+#[allow(dead_code)]
+pub fn backfill_wm_key(node_url: &str) -> String {
+    format!("{BACKFILL_WM_PREFIX}{node_url}")
+}
+
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT
 /// big-endian so a forward prefix scan yields entries newest-first and can
 /// stop at the snapshot's entry cap without sorting. The action hash keeps
@@ -724,6 +879,102 @@ mod tests {
         let path = segment_path(Path::new("/data"), "01962a2d-8f1f");
 
         assert_eq!(path, PathBuf::from("/data/segments/01962a2d-8f1f.seg"));
+    }
+
+    #[test]
+    fn backfill_index_keys_round_trip_and_scan_newest_first() {
+        let newer = backfill_index_key(2_000, BackfillRecordKind::SegmentArtifact, "artifact-a");
+        let older = backfill_index_key(1_000, BackfillRecordKind::InlineArtifact, "artifact-b");
+        let tombstone = backfill_index_key(1_000, BackfillRecordKind::NamespaceTombstone, "ios");
+
+        // The inverted version makes newer rows sort first; within one version
+        // the kind byte orders segment < inline < tombstone.
+        assert!(newer < older);
+        assert!(older < tombstone);
+        assert!(newer.starts_with(BACKFILL_IDX_PREFIX.as_bytes()));
+        assert!(newer < backfill_index_prefix_upper_bound());
+        assert!(tombstone < backfill_index_prefix_upper_bound());
+
+        let row = decode_backfill_index_row(&newer, &backfill_index_value(Some(42)))
+            .expect("artifact row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 2_000,
+                kind: BackfillRecordKind::SegmentArtifact,
+                record_id: "artifact-a".into(),
+                size: Some(42),
+            }
+        );
+        let row = decode_backfill_index_row(&tombstone, &backfill_index_value(None))
+            .expect("tombstone row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 1_000,
+                kind: BackfillRecordKind::NamespaceTombstone,
+                record_id: "ios".into(),
+                size: None,
+            }
+        );
+    }
+
+    #[test]
+    fn backfill_kind_bytes_are_pinned() {
+        // Part of the cursor contract: raw keys are peer-held cursors, so these
+        // values cannot be renumbered without an index rebuild.
+        assert_eq!(BackfillRecordKind::SegmentArtifact.as_byte(), 1);
+        assert_eq!(BackfillRecordKind::InlineArtifact.as_byte(), 2);
+        assert_eq!(BackfillRecordKind::NamespaceTombstone.as_byte(), 3);
+        for kind in [
+            BackfillRecordKind::SegmentArtifact,
+            BackfillRecordKind::InlineArtifact,
+            BackfillRecordKind::NamespaceTombstone,
+        ] {
+            assert_eq!(BackfillRecordKind::from_byte(kind.as_byte()), Some(kind));
+        }
+        assert_eq!(BackfillRecordKind::from_byte(0), None);
+        assert_eq!(BackfillRecordKind::from_byte(4), None);
+    }
+
+    #[test]
+    fn backfill_index_row_decoding_rejects_malformed_rows() {
+        assert!(decode_backfill_index_row(b"blob_ref/abc\0def", &[]).is_err());
+        assert!(decode_backfill_index_row(BACKFILL_IDX_PREFIX.as_bytes(), &[]).is_err());
+        let key = backfill_index_key(1, BackfillRecordKind::InlineArtifact, "artifact");
+        assert!(decode_backfill_index_row(&key, &[1, 2, 3]).is_err());
+        let tombstone = backfill_index_key(1, BackfillRecordKind::NamespaceTombstone, "ios");
+        assert!(decode_backfill_index_row(&tombstone, &backfill_index_value(Some(1))).is_err());
+    }
+
+    #[test]
+    fn backfill_keyspaces_are_disjoint_from_sibling_key_value_rows() {
+        // All three backfill keyspaces share the `key_value` CF with inline
+        // artifact bytes (64-char hex ids, never containing `/`) and the
+        // `blob_ref/` reverse index; the prefixes must stay disjoint.
+        let hex_id = "ab".repeat(32);
+        for prefix in [
+            BACKFILL_IDX_PREFIX,
+            BACKFILL_META_PREFIX,
+            BACKFILL_WM_PREFIX,
+        ] {
+            assert!(!hex_id.starts_with(prefix));
+            assert!(!prefix.starts_with(ACTION_CACHE_BLOB_REF_PREFIX));
+            assert!(!ACTION_CACHE_BLOB_REF_PREFIX.starts_with(prefix));
+        }
+        assert_eq!(
+            backfill_meta_key("build_complete"),
+            "backfill/meta/build_complete"
+        );
+        assert_eq!(
+            backfill_wm_key("https://peer.example.com"),
+            "backfill/wm/https://peer.example.com"
+        );
+        // The idx upper bound stays inside `backfill/` and below the sibling
+        // keyspaces, so a range delete over the index cannot touch them.
+        let upper = backfill_index_prefix_upper_bound();
+        assert!(upper.as_slice() < BACKFILL_META_PREFIX.as_bytes());
+        assert!(upper.as_slice() < BACKFILL_WM_PREFIX.as_bytes());
     }
 
     #[test]

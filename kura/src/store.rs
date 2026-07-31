@@ -32,7 +32,8 @@ use crate::{
     },
     config::Config,
     constants::{
-        ACTION_CACHE_TRUNK_SCAN_FACTOR, CAS_CAPACITY_DEFAULT_DISK_PERCENT,
+        ACTION_CACHE_TRUNK_SCAN_FACTOR, BACKFILL_INDEX_BUILD_CHUNK_ROWS,
+        BACKFILL_SEQ_STAMP_SLACK_SEQS, CAS_CAPACITY_DEFAULT_DISK_PERCENT,
         CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
         DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES,
         REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
@@ -59,9 +60,11 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
-        action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
-        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
+        BACKFILL_IDX_PREFIX, BackfillIndexRow, BackfillRecordKind, IndexRowBranch, TempFileCleanup,
+        TmpBudget, action_cache_blob_ref_key, action_cache_blob_ref_prefix, action_cache_index_key,
+        action_cache_index_key_branch, action_cache_index_prefix, action_cache_manifest_hash,
+        artifact_storage_id, backfill_index_key, backfill_index_prefix_upper_bound,
+        backfill_index_value, backfill_meta_key, decode_backfill_index_row,
         drop_staging_cache_range, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
         try_path_size_bytes,
@@ -89,6 +92,9 @@ pub struct ActionCacheBlobRefsBackfillStep {
     pub rows: usize,
     pub complete: bool,
 }
+
+const BACKFILL_META_BUILD_COMPLETE: &str = "build_complete";
+const BACKFILL_META_LAST_MAINTAINED_SEQ: &str = "last_maintained_seq";
 
 pub fn is_outbox_full_error(error: &str) -> bool {
     error.starts_with(OUTBOX_FULL_ERROR)
@@ -177,6 +183,11 @@ pub struct Store {
     // write/delete paths runs regardless, so the map is live for entries
     // written after start.
     action_cache_blob_refs_ready: AtomicBool,
+    // Whether the backfill per-entry index covers the pre-existing dataset
+    // (`backfill/meta/build_complete` present and not invalidated by the
+    // rollback-window staleness check at open). Write-path maintenance runs
+    // regardless; this only gates what the listing endpoint may serve.
+    backfill_index_built: AtomicBool,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -270,6 +281,14 @@ pub struct NamespaceTombstoneRecord {
 pub struct NamespaceTombstonePage {
     pub tombstones: Vec<NamespaceTombstoneRecord>,
     pub next_after: Option<String>,
+}
+
+/// One newest-first page of the backfill per-entry index. `next_after` is the
+/// raw key of the last returned row, fed back as the next page's `after`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillIndexPage {
+    pub entries: Vec<BackfillIndexRow>,
+    pub next_after: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Copy)]
@@ -669,6 +688,7 @@ impl Store {
             promotion_notify: Notify::new(),
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
             action_cache_blob_refs_ready: AtomicBool::new(false),
+            backfill_index_built: AtomicBool::new(false),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -676,6 +696,7 @@ impl Store {
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
         store.rederive_active_segment_max_version()?;
+        store.init_backfill_index_state()?;
         let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
@@ -1124,6 +1145,7 @@ impl Store {
                 [],
             );
         }
+        self.stage_backfill_index_update(&mut batch, existing.as_ref(), &manifest);
         self.append_artifact_replication_messages(
             &mut batch,
             &manifest,
@@ -1575,6 +1597,9 @@ impl Store {
         refreshed.segment_id = Some(location.segment_id.clone());
         refreshed.segment_offset = Some(location.offset);
 
+        // Deliberately NOT instrumented for the backfill index: promotion
+        // keeps the artifact's version, kind (segment-backed in, segment-backed
+        // out), and size, so its index row's key and value are unchanged.
         let mut batch = WriteBatch::default();
         let manifest_bytes = encode_manifest_record(&refreshed)?;
         batch.put_cf(
@@ -1756,6 +1781,7 @@ impl Store {
                 bytes,
             );
         }
+        self.stage_backfill_index_update(&mut batch, existing.as_ref(), &manifest);
         self.append_artifact_replication_messages(
             &mut batch,
             &manifest,
@@ -2339,6 +2365,7 @@ impl Store {
                             .as_bytes(),
                     );
                     batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                    self.stage_backfill_index_delete(&mut batch, &manifest);
                     // Cascade: this blob is going away, so every action-cache
                     // entry that references it must go with it, in this same
                     // atomic batch, or the entry is stranded pointing at a blob
@@ -2512,6 +2539,7 @@ impl Store {
             entry_id,
             entry_bytes,
         );
+        self.stage_backfill_index_delete(batch, entry_manifest);
     }
 
     /// Removes segment files that the segment ring state no longer
@@ -2973,8 +3001,9 @@ impl Store {
 
         self.hit_failpoint(FailpointName::BeforeApplyReplicatedTombstone)
             .await?;
+        let previous_tombstone = self.namespace_tombstone_version(namespace_id)?;
         if !delete_everything
-            && let Some(current_tombstone) = self.namespace_tombstone_version(namespace_id)?
+            && let Some(current_tombstone) = previous_tombstone
             && current_tombstone >= version_ms
         {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
@@ -2989,6 +3018,27 @@ impl Store {
                 self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
                 namespace_id.as_bytes(),
                 version_ms.to_le_bytes(),
+            );
+            // A re-delete overwrites the tombstone in place, so its previous
+            // backfill index row (keyed by the old version) goes with it.
+            if let Some(previous_version_ms) = previous_tombstone {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    backfill_index_key(
+                        previous_version_ms,
+                        BackfillRecordKind::NamespaceTombstone,
+                        namespace_id,
+                    ),
+                );
+            }
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_index_key(
+                    version_ms,
+                    BackfillRecordKind::NamespaceTombstone,
+                    namespace_id,
+                ),
+                backfill_index_value(None),
             );
         }
 
@@ -3041,6 +3091,9 @@ impl Store {
                         );
                     }
                 }
+                // Covers the `version_ms == 0` purge branch too: every removed
+                // manifest — whatever its version — loses its index row here.
+                self.stage_backfill_index_delete(&mut batch, &manifest);
                 if let Some(blob_path) = manifest.blob_path {
                     blob_paths.push(blob_path);
                 }
@@ -3734,6 +3787,7 @@ impl Store {
                     segment_artifact_index_key(segment_id, &manifest.artifact_id).as_bytes(),
                 );
             }
+            self.stage_backfill_index_delete(&mut batch, manifest);
             ids.push(manifest.artifact_id.clone());
         }
         self.write_batch_sync(batch, "artifact metadata deletes")?;
@@ -4439,6 +4493,393 @@ impl Store {
             tombstones,
             next_after,
         })
+    }
+
+    // ---- Backfill per-entry index (`backfill/` keyspace in `key_value`) ----
+    //
+    // Every mutation path below maintains the index inside its own WriteBatch
+    // (delete-old-row + put-new-row, the `action_cache_index` pattern). The
+    // invariant is EVENTUALLY exact, not exact: the background build races
+    // live deletes, and the delete paths do not hold the per-artifact write
+    // lock the persist paths hold, so rows can dangle. Readers recompute the
+    // expected key from the current manifest at serve time and retire rows
+    // that do not match; nothing here tries to close those races.
+
+    /// Stage the index maintenance for a manifest commit: remove the previous
+    /// version's row and write the new one. The old key is derived ENTIRELY
+    /// from the previous manifest — old kind and old effective version — since
+    /// a record can flip inline<->segment across versions, so the guard is
+    /// "old key != new key", not a version comparison.
+    fn stage_backfill_index_update(
+        &self,
+        batch: &mut WriteBatch,
+        previous: Option<&ArtifactManifest>,
+        manifest: &ArtifactManifest,
+    ) {
+        let new_key = backfill_index_key(
+            manifest_version_ms(manifest),
+            backfill_record_kind(manifest),
+            &manifest.artifact_id,
+        );
+        if let Some(previous) = previous {
+            let old_key = backfill_index_key(
+                manifest_version_ms(previous),
+                backfill_record_kind(previous),
+                &previous.artifact_id,
+            );
+            if old_key != new_key {
+                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), old_key);
+            }
+        }
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            new_key,
+            backfill_index_value(Some(manifest.size)),
+        );
+    }
+
+    /// Stage the removal of a deleted manifest's index row, keyed by the
+    /// manifest as it was read by the deleting path.
+    fn stage_backfill_index_delete(&self, batch: &mut WriteBatch, manifest: &ArtifactManifest) {
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_index_key(
+                manifest_version_ms(manifest),
+                backfill_record_kind(manifest),
+                &manifest.artifact_id,
+            ),
+        );
+    }
+
+    /// Whether the index covers the pre-existing dataset. Serving is never
+    /// gated on this; the backfill listing endpoint answers "index building"
+    /// while it is false.
+    pub fn backfill_index_built(&self) -> bool {
+        self.backfill_index_built.load(Ordering::Acquire)
+    }
+
+    /// One page of the backfill index, newest-first. `after` is the raw key of
+    /// the last row a previous page returned (opaque to callers); the scan
+    /// resumes strictly after it. The cursor is a key position, not a
+    /// snapshot: rows written or removed between pages are reflected, and the
+    /// scan always terminates because keys only move forward.
+    // Consumed by the backfill listing endpoint; test-only until it lands.
+    #[allow(dead_code)]
+    pub fn backfill_index_page(
+        &self,
+        after: Option<&[u8]>,
+        limit: usize,
+    ) -> Result<BackfillIndexPage, String> {
+        let prefix = BACKFILL_IDX_PREFIX.as_bytes();
+        let start = after.unwrap_or(prefix);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(start, rocksdb::Direction::Forward),
+        );
+        let mut entries = Vec::new();
+        let mut last_key: Option<Vec<u8>> = None;
+        let mut next_after = None;
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate backfill index: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() <= after) {
+                continue;
+            }
+            if !key.starts_with(prefix) {
+                break;
+            }
+            if entries.len() == limit {
+                next_after = last_key.take();
+                break;
+            }
+            entries.push(decode_backfill_index_row(&key, &value)?);
+            last_key = Some(key.to_vec());
+        }
+        Ok(BackfillIndexPage {
+            entries,
+            next_after,
+        })
+    }
+
+    /// One-off background build of the backfill index over a pre-existing
+    /// dataset, run at startup when `backfill/meta/build_complete` is absent.
+    /// Returns whether a build ran.
+    ///
+    /// Always starts from a range-delete over `backfill/idx/`: a rebuild
+    /// triggered by rollback-window staleness must also drop rows for entries
+    /// deleted while maintenance was absent, and re-running from scratch after
+    /// a crash mid-build is what makes the build idempotent (keys are
+    /// deterministic, so a re-scan converges on the same rows). Live
+    /// maintenance runs concurrently; a manifest deleted between a chunk's
+    /// read and its write can leave a dangling row, which readers retire
+    /// (eventually-exact invariant).
+    pub fn run_backfill_index_build(&self) -> Result<bool, String> {
+        if self.backfill_index_built() {
+            return Ok(false);
+        }
+        let started = std::time::Instant::now();
+        self.db
+            .delete_range_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                BACKFILL_IDX_PREFIX.as_bytes(),
+                &backfill_index_prefix_upper_bound(),
+            )
+            .map_err(|error| format!("failed to clear backfill index keyspace: {error}"))?;
+
+        let mut indexed = 0_usize;
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let (rows, next) = self.backfill_build_manifests_chunk(cursor.as_deref())?;
+            indexed += rows;
+            match next {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let (rows, next) = self.backfill_build_tombstones_chunk(cursor.as_deref())?;
+            indexed += rows;
+            match next {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+
+        // Stamp completion and a fresh maintenance sequence together, so a
+        // crash immediately after the build still has a stamp to check the
+        // next boot's sequence gap against.
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_meta_key(BACKFILL_META_BUILD_COMPLETE).as_bytes(),
+            [],
+        );
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            backfill_meta_key(BACKFILL_META_LAST_MAINTAINED_SEQ).as_bytes(),
+            encode_backfill_seq_stamp(self.db.latest_sequence_number(), false),
+        );
+        self.write_batch_sync(batch, "backfill index build completion")?;
+        self.backfill_index_built.store(true, Ordering::Release);
+        tracing::info!(
+            indexed,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "backfill index build complete"
+        );
+        Ok(true)
+    }
+
+    /// One bounded chunk of the build's manifest scan, resumed by key cursor.
+    /// The iterator lives only for this chunk so the scan never pins a RocksDB
+    /// snapshot across the whole (potentially hours-long) build.
+    fn backfill_build_manifests_chunk(
+        &self,
+        after: Option<&[u8]>,
+    ) -> Result<(usize, Option<Vec<u8>>), String> {
+        let mode = after.map_or(IteratorMode::Start, |after| {
+            IteratorMode::From(after, rocksdb::Direction::Forward)
+        });
+        let iter = self.db.iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), mode);
+        let mut batch = WriteBatch::default();
+        let mut rows = 0_usize;
+        let mut last_key: Option<Vec<u8>> = None;
+        for item in iter {
+            let (key, payload) =
+                item.map_err(|error| format!("failed to iterate manifests: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() <= after) {
+                continue;
+            }
+            let artifact_id = std::str::from_utf8(&key)
+                .map_err(|error| format!("invalid manifest key: {error}"))?;
+            let manifest = decode_manifest_record(artifact_id, &payload)?;
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_index_key(
+                    manifest_version_ms(&manifest),
+                    backfill_record_kind(&manifest),
+                    artifact_id,
+                ),
+                backfill_index_value(Some(manifest.size)),
+            );
+            rows += 1;
+            last_key = Some(key.to_vec());
+            if rows == BACKFILL_INDEX_BUILD_CHUNK_ROWS {
+                break;
+            }
+        }
+        // Plain (non-sync) write: the build is idempotent, so losing a chunk
+        // to a crash only means re-scanning it.
+        if rows > 0 {
+            self.db
+                .write(batch)
+                .map_err(|error| format!("failed to write backfill index chunk: {error}"))?;
+        }
+        self.failpoints
+            .hit_blocking(FailpointName::AfterBackfillIndexBuildChunk)?;
+        let next = (rows == BACKFILL_INDEX_BUILD_CHUNK_ROWS)
+            .then_some(last_key)
+            .flatten();
+        Ok((rows, next))
+    }
+
+    /// One bounded chunk of the build's namespace-tombstone scan.
+    fn backfill_build_tombstones_chunk(
+        &self,
+        after: Option<&[u8]>,
+    ) -> Result<(usize, Option<Vec<u8>>), String> {
+        let mode = after.map_or(IteratorMode::Start, |after| {
+            IteratorMode::From(after, rocksdb::Direction::Forward)
+        });
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES), mode);
+        let mut batch = WriteBatch::default();
+        let mut rows = 0_usize;
+        let mut last_key: Option<Vec<u8>> = None;
+        for item in iter {
+            let (key, payload) =
+                item.map_err(|error| format!("failed to iterate namespace tombstones: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() <= after) {
+                continue;
+            }
+            let namespace_id = std::str::from_utf8(&key)
+                .map_err(|error| format!("invalid namespace tombstone key: {error}"))?;
+            if payload.len() != 8 {
+                return Err(format!(
+                    "namespace tombstone for {namespace_id} should be 8 bytes, got {}",
+                    payload.len()
+                ));
+            }
+            let version_ms = u64::from_le_bytes(payload.as_ref().try_into().expect("checked len"));
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_index_key(
+                    version_ms,
+                    BackfillRecordKind::NamespaceTombstone,
+                    namespace_id,
+                ),
+                backfill_index_value(None),
+            );
+            rows += 1;
+            last_key = Some(key.to_vec());
+            if rows == BACKFILL_INDEX_BUILD_CHUNK_ROWS {
+                break;
+            }
+        }
+        if rows > 0 {
+            self.db
+                .write(batch)
+                .map_err(|error| format!("failed to write backfill index chunk: {error}"))?;
+        }
+        self.failpoints
+            .hit_blocking(FailpointName::AfterBackfillIndexBuildChunk)?;
+        let next = (rows == BACKFILL_INDEX_BUILD_CHUNK_ROWS)
+            .then_some(last_key)
+            .flatten();
+        Ok((rows, next))
+    }
+
+    /// Periodic maintenance stamp: records the DB's latest sequence number so
+    /// the next boot can bound how many writes happened after this binary
+    /// stopped maintaining the index.
+    pub fn stamp_backfill_maintained_seq(&self) -> Result<(), String> {
+        self.db
+            .put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_meta_key(BACKFILL_META_LAST_MAINTAINED_SEQ).as_bytes(),
+                encode_backfill_seq_stamp(self.db.latest_sequence_number(), false),
+            )
+            .map_err(|error| format!("failed to stamp backfill maintenance sequence: {error}"))
+    }
+
+    /// Synchronous clean-shutdown stamp. After it, ANY sequence gap observed
+    /// at the next boot means a foreign (index-unaware) binary wrote in
+    /// between — the common rollback shape (drain, roll back, roll forward) —
+    /// and forces a rebuild. The stamp write itself consumes a sequence
+    /// number, so converge on an exact stamp by re-reading; the DB should be
+    /// quiescent post-drain, and if a straggling background write keeps racing
+    /// us, the leftover inexact stamp only costs a spurious (safe) rebuild.
+    pub fn stamp_backfill_maintained_seq_clean_shutdown(&self) -> Result<(), String> {
+        for _ in 0..8 {
+            let before = self.db.latest_sequence_number();
+            let mut batch = WriteBatch::default();
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                backfill_meta_key(BACKFILL_META_LAST_MAINTAINED_SEQ).as_bytes(),
+                encode_backfill_seq_stamp(before, true),
+            );
+            self.write_batch_sync(batch, "backfill clean-shutdown stamp")?;
+            if self.db.latest_sequence_number() == before + 1 {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// Startup half of rollback-window staleness detection (see the stamp
+    /// writers above). Runs once in `Store::open`, before any traffic. When a
+    /// completed index cannot be trusted — a sequence gap after a
+    /// clean-shutdown stamp, a beyond-slack gap after an unclean one, or a
+    /// missing stamp — `build_complete` is cleared so the startup build task
+    /// rebuilds. A crash followed by a foreign window smaller than the slack
+    /// is the documented undetected band.
+    fn init_backfill_index_state(&self) -> Result<(), String> {
+        let build_complete_key = backfill_meta_key(BACKFILL_META_BUILD_COMPLETE);
+        let build_complete = self
+            .db
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), build_complete_key.as_bytes())
+            .map_err(|error| format!("failed to read backfill build marker: {error}"))?
+            .is_some();
+        if build_complete {
+            let stamp = self
+                .db
+                .get_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    backfill_meta_key(BACKFILL_META_LAST_MAINTAINED_SEQ).as_bytes(),
+                )
+                .map_err(|error| format!("failed to read backfill maintenance stamp: {error}"))?
+                .as_deref()
+                .and_then(decode_backfill_seq_stamp);
+            let latest = self.db.latest_sequence_number();
+            let rebuild = match stamp {
+                None => {
+                    tracing::warn!(
+                        "backfill index is marked complete but has no maintenance stamp; rebuilding"
+                    );
+                    true
+                }
+                Some((stamped_seq, clean_shutdown)) => {
+                    // The stamp write itself consumed one sequence number
+                    // after `stamped_seq` was read.
+                    let gap = latest.saturating_sub(stamped_seq.saturating_add(1));
+                    let rebuild = backfill_rebuild_required(
+                        clean_shutdown,
+                        gap,
+                        BACKFILL_SEQ_STAMP_SLACK_SEQS,
+                    );
+                    if rebuild {
+                        tracing::warn!(
+                            gap,
+                            clean_shutdown,
+                            "backfill index missed writes from an index-unaware binary; rebuilding"
+                        );
+                    }
+                    rebuild
+                }
+            };
+            if rebuild {
+                self.db
+                    .delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), build_complete_key.as_bytes())
+                    .map_err(|error| format!("failed to clear backfill build marker: {error}"))?;
+            } else {
+                self.backfill_index_built.store(true, Ordering::Release);
+            }
+        }
+        // Overwrite any leftover clean-shutdown stamp right away: writes this
+        // binary makes before its first periodic stamp ARE maintained, and
+        // must not read as a foreign gap if we crash before then.
+        self.stamp_backfill_maintained_seq()
     }
 
     pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
@@ -5594,6 +6035,50 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
         manifest.created_at_ms
     } else {
         manifest.version_ms
+    }
+}
+
+/// The backfill index kind of a manifest. Legacy blob-backed artifacts ride
+/// as `SegmentArtifact`: the kind distinguishes "body is inline bytes" from
+/// "body is file-backed", which is what the transfer path cares about.
+fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
+    if manifest.inline {
+        BackfillRecordKind::InlineArtifact
+    } else {
+        BackfillRecordKind::SegmentArtifact
+    }
+}
+
+/// Value of `backfill/meta/last_maintained_seq`: the latest sequence number
+/// observed just before the stamp write, plus whether the stamp marks a clean
+/// shutdown.
+fn encode_backfill_seq_stamp(seq: u64, clean_shutdown: bool) -> [u8; 9] {
+    let mut value = [0_u8; 9];
+    value[..8].copy_from_slice(&seq.to_le_bytes());
+    value[8] = clean_shutdown as u8;
+    value
+}
+
+fn decode_backfill_seq_stamp(bytes: &[u8]) -> Option<(u64, bool)> {
+    let (seq, flag) = bytes.split_at_checked(8)?;
+    if flag.len() != 1 {
+        return None;
+    }
+    Some((
+        u64::from_le_bytes(seq.try_into().expect("split at 8")),
+        flag[0] != 0,
+    ))
+}
+
+/// Whether the sequence gap since the last maintenance stamp invalidates a
+/// completed backfill index. After a clean-shutdown stamp any gap at all is a
+/// foreign write; after a crash, gaps up to the stamping slack are this
+/// binary's own writes since its last stamp.
+fn backfill_rebuild_required(clean_shutdown: bool, sequence_gap: u64, slack: u64) -> bool {
+    if clean_shutdown {
+        sequence_gap > 0
+    } else {
+        sequence_gap > slack
     }
 }
 
@@ -9089,6 +9574,915 @@ mod tests {
             .expect("newer artifact should remain");
         assert_eq!(remaining.version_ms, 300);
         assert_eq!(read_manifest_bytes(&store, &remaining).await, b"new");
+    }
+
+    // Characterization: pins the pre-existing `version_ms == 0` purge branch
+    // before the backfill index extends it. A purge removes every artifact
+    // regardless of version, always applies, and neither writes a tombstone
+    // nor removes an existing one.
+    #[tokio::test]
+    async fn namespace_purge_removes_every_artifact_and_leaves_tombstone_state_alone() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_namespace_delete("ios", 100)
+            .await
+            .expect("tombstone should apply");
+        for (key, version_ms) in [("artifact-old", 150_u64), ("artifact-new", 900)] {
+            assert!(
+                store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        b"payload",
+                        version_ms,
+                    )
+                    .await
+                    .expect("artifact should apply")
+                    .applied()
+            );
+        }
+
+        assert_eq!(
+            store
+                .apply_replicated_namespace_delete("ios", 0)
+                .await
+                .expect("purge should succeed"),
+            NamespaceDeleteOutcome::Applied
+        );
+
+        for key in ["artifact-old", "artifact-new"] {
+            assert!(
+                store
+                    .fetch_artifact(ArtifactProducer::Gradle, "ios", key)
+                    .await
+                    .expect("artifact fetch should succeed")
+                    .is_none(),
+                "a purge removes {key} regardless of its version"
+            );
+        }
+        let page = store
+            .namespace_tombstones_page(None, 8)
+            .expect("tombstone page should load");
+        assert_eq!(page.tombstones.len(), 1, "the purge writes no tombstone");
+        assert_eq!(page.tombstones[0].namespace_id, "ios");
+        assert_eq!(
+            page.tombstones[0].version_ms, 100,
+            "the pre-existing tombstone survives the purge"
+        );
+    }
+
+    // Characterization: pins tombstone overwrite on re-delete before the
+    // backfill index adds its own row maintenance to that path.
+    #[tokio::test]
+    async fn redeleting_a_tombstoned_namespace_advances_the_stored_tombstone_version() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        assert!(
+            store
+                .apply_replicated_namespace_delete("ios", 100)
+                .await
+                .expect("first delete should apply")
+                .applied()
+        );
+        assert!(
+            store
+                .apply_replicated_namespace_delete("ios", 200)
+                .await
+                .expect("newer delete should apply")
+                .applied()
+        );
+
+        let page = store
+            .namespace_tombstones_page(None, 8)
+            .expect("tombstone page should load");
+        assert_eq!(page.tombstones.len(), 1, "re-delete overwrites in place");
+        assert_eq!(page.tombstones[0].version_ms, 200);
+    }
+
+    // ---- Backfill per-entry index ----
+
+    fn backfill_rows(store: &Store) -> Vec<BackfillIndexRow> {
+        store
+            .backfill_index_page(None, usize::MAX)
+            .expect("backfill index page should load")
+            .entries
+    }
+
+    /// Opens the data dir the way a pre-backfill binary would: raw RocksDB,
+    /// no index maintenance, no maintenance stamps.
+    fn open_foreign_db(config: &Config) -> DB {
+        let cfs = [
+            ROCKSDB_CF_MANIFESTS,
+            ROCKSDB_CF_KEY_VALUE,
+            ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+            ROCKSDB_CF_NAMESPACE_TOMBSTONES,
+            ROCKSDB_CF_MULTIPART_UPLOADS,
+            ROCKSDB_CF_OUTBOX,
+            ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_SEGMENT_ARTIFACTS,
+            ROCKSDB_CF_SEGMENT_STATE,
+            ROCKSDB_CF_ACTION_CACHE_INDEX,
+        ]
+        .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
+        DB::open_cf_descriptors(&Options::default(), config.data_dir.join("rocksdb"), cfs)
+            .expect("failed to open data dir as a foreign binary")
+    }
+
+    fn inline_manifest_record(
+        tenant_id: &str,
+        namespace_id: &str,
+        key: &str,
+        version_ms: u64,
+        created_at_ms: u64,
+        bytes: &[u8],
+    ) -> (String, Vec<u8>) {
+        let artifact_id =
+            artifact_storage_id(ArtifactProducer::Gradle, tenant_id, namespace_id, key);
+        let manifest = ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Gradle,
+            namespace_id: namespace_id.to_owned(),
+            key: key.to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            inline: true,
+            blob_path: None,
+            segment_id: None,
+            segment_offset: None,
+            size: bytes.len() as u64,
+            version_ms,
+            created_at_ms,
+            branch: None,
+        };
+        let record = encode_manifest_record(&manifest).expect("manifest should encode");
+        (artifact_id, record)
+    }
+
+    #[tokio::test]
+    async fn backfill_rows_scan_newest_first_with_kinds_and_sizes() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let segmented = store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                b"segmented-body",
+                2_000,
+            )
+            .await
+            .expect("segmented artifact should apply");
+        assert!(segmented.applied());
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "inline",
+                "application/octet-stream",
+                b"inline",
+                1_000,
+                None,
+                None,
+            )
+            .await
+            .expect("inline artifact should apply");
+        store
+            .apply_replicated_namespace_delete("android", 1_500)
+            .await
+            .expect("tombstone should apply");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.version_ms, row.kind, row.size))
+                .collect::<Vec<_>>(),
+            vec![
+                (2_000, BackfillRecordKind::SegmentArtifact, Some(14)),
+                (1_500, BackfillRecordKind::NamespaceTombstone, None),
+                (1_000, BackfillRecordKind::InlineArtifact, Some(6)),
+            ],
+            "rows scan newest-first with their kinds and sizes"
+        );
+        assert_eq!(rows[1].record_id, "android");
+    }
+
+    #[tokio::test]
+    async fn lww_overwrite_leaves_exactly_one_backfill_row() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        for version_ms in [100_u64, 200] {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"payload",
+                    version_ms,
+                    None,
+                    None,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "the old-version row is deleted in the batch");
+        assert_eq!(rows[0].version_ms, 200);
+    }
+
+    #[tokio::test]
+    async fn evict_segment_removes_backfill_rows_for_every_evicted_artifact() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let first = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"one",
+            )
+            .await
+            .expect("first artifact should persist");
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact-2",
+                "application/octet-stream",
+                b"two",
+            )
+            .await
+            .expect("second artifact should persist");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "survivor",
+                "application/octet-stream",
+                b"inline",
+                50,
+                None,
+                None,
+            )
+            .await
+            .expect("inline artifact should apply");
+        assert_eq!(backfill_rows(&store).len(), 3);
+
+        store
+            .evict_segment(
+                first
+                    .segment_id
+                    .as_deref()
+                    .expect("artifact should be segment-backed"),
+            )
+            .await
+            .expect("eviction should succeed");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "only the inline survivor keeps a row");
+        assert_eq!(rows[0].kind, BackfillRecordKind::InlineArtifact);
+        assert_eq!(rows[0].version_ms, 50);
+    }
+
+    #[tokio::test]
+    async fn action_cache_expiry_removes_backfill_rows() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        for (key, version_ms) in [
+            ("action_cache/aa/10", 1_000_u64),
+            ("action_cache/bb/10", 9_000),
+        ] {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"result",
+                    version_ms,
+                    None,
+                    None,
+                )
+                .await
+                .expect("action-cache entry should apply");
+        }
+
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("sweep should succeed"),
+            1
+        );
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "the expired entry's row is deleted");
+        assert_eq!(rows[0].version_ms, 9_000);
+        assert_eq!(rows[0].kind, BackfillRecordKind::InlineArtifact);
+    }
+
+    #[tokio::test]
+    async fn namespace_delete_removes_backfill_rows_and_adds_the_tombstone_row() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        for (key, version_ms) in [("artifact-old", 100_u64), ("artifact-new", 300)] {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"payload",
+                    version_ms,
+                    None,
+                    None,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+
+        store
+            .apply_replicated_namespace_delete("ios", 200)
+            .await
+            .expect("tombstone should apply");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.version_ms, row.kind))
+                .collect::<Vec<_>>(),
+            vec![
+                (300, BackfillRecordKind::InlineArtifact),
+                (200, BackfillRecordKind::NamespaceTombstone),
+            ],
+            "the deleted manifest loses its row, the survivor keeps its row, the tombstone gains one"
+        );
+    }
+
+    #[tokio::test]
+    async fn redelete_of_a_tombstoned_namespace_leaves_exactly_one_tombstone_row() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_namespace_delete("ios", 100)
+            .await
+            .expect("first delete should apply");
+        store
+            .apply_replicated_namespace_delete("ios", 200)
+            .await
+            .expect("newer delete should apply");
+        // An older re-delete is rejected and must not touch the index.
+        assert_eq!(
+            store
+                .apply_replicated_namespace_delete("ios", 150)
+                .await
+                .expect("older delete should be ignored"),
+            NamespaceDeleteOutcome::IgnoredOlder
+        );
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].version_ms, 200,
+            "only the newest tombstone row remains"
+        );
+        assert_eq!(rows[0].kind, BackfillRecordKind::NamespaceTombstone);
+    }
+
+    #[tokio::test]
+    async fn namespace_purge_removes_backfill_rows_for_every_removed_manifest() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_namespace_delete("ios", 100)
+            .await
+            .expect("tombstone should apply");
+        for (key, version_ms) in [("artifact-old", 150_u64), ("artifact-new", 900)] {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    b"payload",
+                    version_ms,
+                    None,
+                    None,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+
+        store
+            .apply_replicated_namespace_delete("ios", 0)
+            .await
+            .expect("purge should succeed");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.version_ms, row.kind))
+                .collect::<Vec<_>>(),
+            vec![(100, BackfillRecordKind::NamespaceTombstone)],
+            "the purge removes every artifact row and leaves the tombstone row consistent with its CF"
+        );
+    }
+
+    #[tokio::test]
+    async fn version_zero_records_index_under_their_effective_version() {
+        let (_temp_dir, config, store) = temp_store();
+
+        // A legacy record with `version_ms == 0` is only decodable from disk
+        // (new writes are re-stamped), so inject one directly.
+        let (artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "legacy",
+            0,
+            4_242,
+            b"legacy-bytes",
+        );
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_id.as_bytes(),
+                record,
+            )
+            .expect("legacy manifest should write");
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                artifact_id.as_bytes(),
+                b"legacy-bytes",
+            )
+            .expect("legacy bytes should write");
+
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].version_ms, 4_242,
+            "the build keys the row under the created_at_ms fallback"
+        );
+
+        // A live overwrite must derive the old row's key from the same
+        // effective version, or the legacy row dangles.
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "legacy",
+                "application/octet-stream",
+                b"fresh-bytes",
+                9_000,
+                None,
+                None,
+            )
+            .await
+            .expect("overwrite should apply");
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "the effective-version old row is deleted");
+        assert_eq!(rows[0].version_ms, 9_000);
+    }
+
+    #[tokio::test]
+    async fn record_flipping_between_inline_and_segment_leaves_one_backfill_row() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"inline-v1",
+                100,
+                None,
+                None,
+            )
+            .await
+            .expect("inline version should apply");
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"segment-v2",
+                200,
+            )
+            .await
+            .expect("segmented version should apply");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "the old inline-kind key is deleted");
+        assert_eq!(rows[0].kind, BackfillRecordKind::SegmentArtifact);
+        assert_eq!(rows[0].version_ms, 200);
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"inline-v3",
+                300,
+                None,
+                None,
+            )
+            .await
+            .expect("inline re-flip should apply");
+
+        let rows = backfill_rows(&store);
+        assert_eq!(rows.len(), 1, "the old segment-kind key is deleted");
+        assert_eq!(rows[0].kind, BackfillRecordKind::InlineArtifact);
+        assert_eq!(rows[0].version_ms, 300);
+    }
+
+    async fn populate_mixed_dataset(store: &Store) {
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                b"segmented-v1",
+                100,
+            )
+            .await
+            .expect("segmented artifact should apply");
+        // LWW overwrite so the live index exercised delete-old + put-new.
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                b"segmented-v2",
+                300,
+            )
+            .await
+            .expect("segmented overwrite should apply");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/octet-stream",
+                b"action-result",
+                400,
+                None,
+                None,
+            )
+            .await
+            .expect("action-cache entry should apply");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "android",
+                "removed-by-tombstone",
+                "application/octet-stream",
+                b"doomed",
+                240,
+                None,
+                None,
+            )
+            .await
+            .expect("doomed artifact should apply");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "android",
+                "survives-tombstone",
+                "application/octet-stream",
+                b"survivor",
+                260,
+                None,
+                None,
+            )
+            .await
+            .expect("surviving artifact should apply");
+        store
+            .apply_replicated_namespace_delete("android", 250)
+            .await
+            .expect("tombstone should apply");
+    }
+
+    #[tokio::test]
+    async fn background_build_over_a_quiescent_store_matches_live_maintenance() {
+        let (_temp_dir, _config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        let live_rows = backfill_rows(&store);
+        assert!(!live_rows.is_empty());
+
+        // Simulate a pre-existing dataset that was never maintained: wipe the
+        // index keyspace and rebuild from the manifests + tombstones CFs.
+        store
+            .db
+            .delete_range_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                BACKFILL_IDX_PREFIX.as_bytes(),
+                &backfill_index_prefix_upper_bound(),
+            )
+            .expect("index wipe should succeed");
+        assert!(backfill_rows(&store).is_empty());
+
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        assert!(store.backfill_index_built());
+        assert_eq!(
+            backfill_rows(&store),
+            live_rows,
+            "the built index is identical to the live-maintained one"
+        );
+        assert!(
+            !store
+                .run_backfill_index_build()
+                .expect("no-op build should succeed"),
+            "a completed build does not run again"
+        );
+    }
+
+    #[tokio::test]
+    async fn crash_mid_build_then_rerun_completes_without_duplicate_or_missing_rows() {
+        let (_temp_dir, _config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        let live_rows = backfill_rows(&store);
+        store
+            .db
+            .delete_range_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                BACKFILL_IDX_PREFIX.as_bytes(),
+                &backfill_index_prefix_upper_bound(),
+            )
+            .expect("index wipe should succeed");
+
+        // Crash after the first chunk: some rows are written, no completion.
+        store.failpoints().set_once(
+            FailpointName::AfterBackfillIndexBuildChunk,
+            FailpointAction::Error("crash mid-build".into()),
+        );
+        assert!(store.run_backfill_index_build().is_err());
+        assert!(!store.backfill_index_built());
+
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("re-run should complete")
+        );
+        assert_eq!(
+            backfill_rows(&store),
+            live_rows,
+            "the re-run leaves no duplicate or missing rows"
+        );
+    }
+
+    #[tokio::test]
+    async fn rollback_window_after_a_clean_shutdown_triggers_a_rebuild() {
+        let (_temp_dir, config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        store
+            .stamp_backfill_maintained_seq_clean_shutdown()
+            .expect("clean-shutdown stamp should write");
+        drop(store);
+
+        // A pre-backfill binary runs in the rollback window: its writes bump
+        // the sequence number but maintain no index rows.
+        let (artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "written-during-rollback",
+            7_777,
+            7_777,
+            b"foreign",
+        );
+        {
+            let foreign = open_foreign_db(&config);
+            let manifests = foreign
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests CF should exist");
+            foreign
+                .put_cf(manifests, artifact_id.as_bytes(), record)
+                .expect("foreign manifest should write");
+            let key_value = foreign
+                .cf_handle(ROCKSDB_CF_KEY_VALUE)
+                .expect("key_value CF should exist");
+            foreign
+                .put_cf(key_value, artifact_id.as_bytes(), b"foreign")
+                .expect("foreign bytes should write");
+        }
+
+        let store = reopen_store(&config);
+        assert!(
+            !store.backfill_index_built(),
+            "any sequence gap after a clean-shutdown stamp forces a rebuild"
+        );
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("rebuild should succeed")
+        );
+        assert!(
+            backfill_rows(&store)
+                .iter()
+                .any(|row| row.record_id == artifact_id && row.version_ms == 7_777),
+            "the rebuild indexes the rollback-window write"
+        );
+    }
+
+    #[tokio::test]
+    async fn clean_restart_without_foreign_writes_keeps_the_built_index() {
+        let (_temp_dir, config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        let rows = backfill_rows(&store);
+        store
+            .stamp_backfill_maintained_seq_clean_shutdown()
+            .expect("clean-shutdown stamp should write");
+        drop(store);
+
+        let store = reopen_store(&config);
+        assert!(store.backfill_index_built(), "no gap, no rebuild");
+        assert_eq!(backfill_rows(&store), rows);
+    }
+
+    #[tokio::test]
+    async fn crash_then_small_foreign_window_is_the_documented_undetected_band() {
+        let (_temp_dir, config, store) = temp_store();
+        populate_mixed_dataset(&store).await;
+        assert!(
+            store
+                .run_backfill_index_build()
+                .expect("build should succeed")
+        );
+        // No clean-shutdown stamp: the process crashed. The last stamp is the
+        // build completion's periodic (unclean) one.
+        drop(store);
+
+        let (artifact_id, record) = inline_manifest_record(
+            &config.tenant_id,
+            "ios",
+            "written-after-crash",
+            8_888,
+            8_888,
+            b"foreign",
+        );
+        {
+            let foreign = open_foreign_db(&config);
+            let manifests = foreign
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests CF should exist");
+            foreign
+                .put_cf(manifests, artifact_id.as_bytes(), record)
+                .expect("foreign manifest should write");
+        }
+
+        let store = reopen_store(&config);
+        assert!(
+            store.backfill_index_built(),
+            "a below-slack gap after an unclean shutdown does not rebuild"
+        );
+        assert!(
+            !backfill_rows(&store)
+                .iter()
+                .any(|row| row.record_id == artifact_id),
+            "the foreign write is missing from the index: the documented crash+light-traffic band"
+        );
+    }
+
+    #[test]
+    fn backfill_rebuild_decision_applies_slack_only_after_unclean_shutdowns() {
+        // Clean shutdown: any gap at all is a foreign write.
+        assert!(!backfill_rebuild_required(true, 0, 1_000));
+        assert!(backfill_rebuild_required(true, 1, 1_000));
+        // Unclean shutdown: gaps up to the slack are this binary's own
+        // unstamped writes.
+        assert!(!backfill_rebuild_required(false, 1_000, 1_000));
+        assert!(backfill_rebuild_required(false, 1_001, 1_000));
+    }
+
+    #[tokio::test]
+    async fn backfill_rows_coexist_with_inline_bytes_and_blob_refs() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        // Populate all three `key_value` keyspaces: inline artifact bytes
+        // (hex-id keys), blob_ref/ reverse rows (via an action-cache entry
+        // referencing a blob), and backfill/ rows.
+        let digest = reapi_digest(0xaa, 4);
+        let blob = persist_reapi_blob(&store, "ios", &digest, b"blob").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "ios",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1_000,
+        )
+        .await;
+        store
+            .apply_replicated_namespace_delete("android", 2_000)
+            .await
+            .expect("tombstone should apply");
+        store
+            .stamp_backfill_maintained_seq()
+            .expect("maintenance stamp should write");
+
+        // Each keyspace round-trips independently.
+        assert!(
+            store
+                .inline_bytes(&entry.artifact_id)
+                .expect("inline bytes should read")
+                .is_some(),
+            "inline artifact bytes are untouched by backfill rows"
+        );
+        let ref_prefix = action_cache_blob_ref_prefix(&blob.artifact_id);
+        let blob_ref_rows = store
+            .db
+            .iterator_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                IteratorMode::From(ref_prefix.as_bytes(), rocksdb::Direction::Forward),
+            )
+            .map(|item| item.expect("blob-ref iteration should succeed"))
+            .take_while(|(key, _)| key.starts_with(ref_prefix.as_bytes()))
+            .count();
+        assert_eq!(blob_ref_rows, 1, "blob_ref/ rows are intact");
+        let rows = backfill_rows(&store);
+        assert_eq!(
+            rows.len(),
+            3,
+            "the index scan sees exactly the blob, the entry, and the tombstone — \
+            never the meta stamp or sibling keyspaces"
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_index_pages_walk_every_row_with_stable_cursors() {
+        let (_temp_dir, _config, store) = temp_store();
+        for version_ms in 1..=5_u64 {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &format!("artifact-{version_ms}"),
+                    "application/octet-stream",
+                    b"payload",
+                    version_ms * 100,
+                    None,
+                    None,
+                )
+                .await
+                .expect("artifact should apply");
+        }
+
+        let mut versions = Vec::new();
+        let mut after: Option<Vec<u8>> = None;
+        loop {
+            let page = store
+                .backfill_index_page(after.as_deref(), 2)
+                .expect("page should load");
+            versions.extend(page.entries.iter().map(|row| row.version_ms));
+            // Rows removed between pages neither repeat nor skip survivors:
+            // delete the newest not-yet-listed artifact mid-walk.
+            if versions.len() == 2 {
+                let manifest = store
+                    .manifest_for_key(ArtifactProducer::Xcode, "ios", "artifact-3")
+                    .expect("manifest should read")
+                    .expect("manifest should exist");
+                store
+                    .delete_artifact_metadata(&[manifest])
+                    .expect("delete should succeed");
+            }
+            match page.next_after {
+                Some(next) => after = Some(next),
+                None => break,
+            }
+        }
+        assert_eq!(
+            versions,
+            vec![500, 400, 200, 100],
+            "pagination is newest-first, loss-free for survivors, and terminates"
+        );
     }
 
     #[tokio::test]
