@@ -164,6 +164,7 @@ if config_env() == :prod do
     xcode_database_interactions_enabled: Cache.Config.bool_env("XCODE_DATABASE_INTERACTIONS_ENABLED", true),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
     registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
+    registry_sync_enabled: Cache.Config.bool_env("REGISTRY_SYNC_ENABLED", false),
     key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),
     key_value_eviction_min_retention_days:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),
