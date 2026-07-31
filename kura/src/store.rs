@@ -194,6 +194,13 @@ pub struct Store {
     // rollback-window staleness check at open). Write-path maintenance runs
     // regardless; this only gates what the listing endpoint may serve.
     backfill_index_built: AtomicBool,
+    // WAL write accounting so tests can pin durability semantics: live apply
+    // paths must keep producing sync WriteBatch commits, and only the backfill
+    // batch-apply path may produce deferred (non-sync) commits plus WAL
+    // flushes (see [`ApplyDurability`]).
+    wal_sync_write_count: AtomicU64,
+    wal_deferred_write_count: AtomicU64,
+    wal_flush_count: AtomicU64,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -295,6 +302,86 @@ pub struct NamespaceTombstonePage {
 pub struct BackfillIndexPage {
     pub entries: Vec<BackfillIndexRow>,
     pub next_after: Option<Vec<u8>>,
+}
+
+/// Durability mode of a replicated apply's storage writes.
+///
+/// `Sync` is the live-path contract and the default everywhere: each record's
+/// segment bytes are fsynced before its manifest commits with a synced WAL
+/// write, so a record is durable the moment its apply returns. Every public
+/// apply/persist entry point keeps this mode; `DeferredBatch` is reachable
+/// only through the backfill batch-apply API
+/// ([`Store::stage_backfill_segmented_apply`],
+/// [`Store::apply_replicated_inline_artifact_from_bytes_deferred`],
+/// [`Store::commit_backfill_apply_batch`]).
+///
+/// `DeferredBatch` amortizes durability to one segment fsync plus one synced
+/// WAL flush per spooled backfill bodies batch instead of ~2 fsyncs per
+/// record. Its correctness rests on three facts:
+///
+/// - Backfill's crash contract already tolerates losing un-fsynced applies: a
+///   pass that does not complete never advances the peer watermark, so a
+///   restart re-lists the window and LWW absorbs the replays (see the
+///   `crash_*` tests in `backfill::pass`).
+/// - The watermark written on pass completion
+///   ([`Store::write_backfill_watermark`], driven by `backfill::lifecycle`)
+///   commits with a SYNC WriteBatch through the same WAL. RocksDB WAL syncs
+///   are prefix-ordered, so a durable watermark implies every earlier
+///   non-sync manifest record in the WAL is durable too — a completed pass
+///   still means "everything it applied is durable".
+/// - The live invariant "durable manifest ⇒ durable segment bytes" is never
+///   weakened. Any concurrent sync write can flush the WAL at any moment,
+///   making earlier non-sync records durable early, so a batch's segment
+///   bytes are fully fsynced (phase 2) BEFORE any of its manifests is written
+///   to the WAL (phase 3). Inline artifacts are WAL-only and have no such
+///   ordering dependency; they simply take the non-sync commit and ride the
+///   batch-end barrier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ApplyDurability {
+    Sync,
+    DeferredBatch,
+}
+
+/// Phase accumulator for one backfill bodies batch applied under
+/// [`ApplyDurability::DeferredBatch`]. The protocol, driven by
+/// `backfill::pass::apply_spooled_batch`:
+///
+/// 1. Phase 1 — [`Store::stage_backfill_segmented_apply`] appends each
+///    Present segmented body to the active segment (no per-record fsync) and
+///    records the manifest inputs here; inline bodies commit WAL-only via
+///    [`Store::apply_replicated_inline_artifact_from_bytes_deferred`].
+/// 2. Phase 2 — one group-commit fsync covers every staged append (rotation
+///    already fsyncs any segment that sealed mid-batch).
+/// 3. Phase 3 — each staged record's manifest/metadata WriteBatch commits
+///    non-sync through the same LWW/outcome/index code paths as live applies.
+/// 4. Phase 4 — one synced WAL flush is the batch durability barrier.
+///
+/// Dropping the accumulator without committing (batch error, cancellation)
+/// is safe: staged appends without manifests are unreferenced segment bytes,
+/// reclaimed when their segment is evicted, and the failed pass re-lists.
+#[derive(Default)]
+pub(crate) struct BackfillApplyBatch {
+    staged: Vec<StagedBackfillSegmentApply>,
+    max_durability_seq: u64,
+    deferred_wal_writes: bool,
+}
+
+impl BackfillApplyBatch {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// One phase-1-staged segmented apply awaiting its phase-3 manifest commit.
+struct StagedBackfillSegmentApply {
+    producer: ArtifactProducer,
+    namespace_id: String,
+    key: String,
+    content_type: String,
+    version_ms: u64,
+    artifact_id: String,
+    location: SegmentLocation,
+    size: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -422,6 +509,20 @@ impl NamespaceDeleteOutcome {
     pub(crate) fn applied(self) -> bool {
         matches!(self, Self::Applied)
     }
+}
+
+/// Result of the LWW/tombstone gate a segment-backed apply runs under the
+/// per-artifact write lock before appending bytes (and again before a
+/// deferred phase-3 manifest commit).
+enum SegmentApplyPrecheck {
+    Proceed {
+        existing: Option<ArtifactManifest>,
+        already_present: bool,
+    },
+    Ignored {
+        outcome: PersistArtifactOutcome,
+        already_present: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -695,6 +796,9 @@ impl Store {
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
             action_cache_blob_refs_ready: AtomicBool::new(false),
             backfill_index_built: AtomicBool::new(false),
+            wal_sync_write_count: AtomicU64::new(0),
+            wal_deferred_write_count: AtomicU64::new(0),
+            wal_flush_count: AtomicU64::new(0),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -1034,36 +1138,105 @@ impl Store {
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
-        let existing = self.manifest_from_db(&artifact_id)?;
-        let already_present = match &existing {
-            Some(existing) => self.storage_exists(existing).await?,
-            None => false,
-        };
-        if let Some(existing) = &existing
-            && already_present
-            && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
-        {
-            self.note_artifact_exists(&artifact_id);
-            self.io.remove_file_if_exists(source_path).await;
-            return Ok((
-                PersistArtifactOutcome::ignored(existing.clone(), spec.version_ms),
-                already_present,
-            ));
-        }
-        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
-            self.io.remove_file_if_exists(source_path).await;
-            return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
-        }
+        let (existing, already_present) =
+            match self.segment_apply_precheck(&artifact_id, &spec).await? {
+                SegmentApplyPrecheck::Ignored {
+                    outcome,
+                    already_present,
+                } => {
+                    self.io.remove_file_if_exists(source_path).await;
+                    return Ok((outcome, already_present));
+                }
+                SegmentApplyPrecheck::Proceed {
+                    existing,
+                    already_present,
+                } => (existing, already_present),
+            };
         let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
-        let persisted_version_ms = persisted_version_ms(spec.version_ms);
-        let (location, evicted_segments) = self
-            .append_to_segment(source_path, size, file_cache_policy)
+        let (location, evicted_segments, _durability_seq) = self
+            .append_to_segment(source_path, size, file_cache_policy, ApplyDurability::Sync)
             .await?;
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
 
+        let manifest = self
+            .commit_segment_manifest(
+                &spec,
+                &artifact_id,
+                existing.as_ref(),
+                &location,
+                size,
+                outbox_reservation,
+                ApplyDurability::Sync,
+            )
+            .await?;
+
+        self.evict_segments(evicted_segments).await?;
+
+        Ok((PersistArtifactOutcome::Applied(manifest), already_present))
+    }
+
+    /// The LWW/tombstone gate of a segment-backed apply, evaluated under the
+    /// per-artifact write lock the caller holds. Split out so the deferred
+    /// backfill batch path can re-run the exact same check at phase-3 commit
+    /// time (its phase-1 run is advisory: the lock is released between the
+    /// two phases).
+    async fn segment_apply_precheck(
+        &self,
+        artifact_id: &str,
+        spec: &PersistArtifactSpec<'_>,
+    ) -> Result<SegmentApplyPrecheck, String> {
+        let existing = self.manifest_from_db(artifact_id)?;
+        let already_present = match &existing {
+            Some(existing) => self.storage_exists(existing).await?,
+            None => false,
+        };
+        if let Some(existing_manifest) = &existing
+            && already_present
+            && (manifest_version_ms(existing_manifest) >= spec.version_ms || spec.version_ms == 0)
+        {
+            self.note_artifact_exists(artifact_id);
+            return Ok(SegmentApplyPrecheck::Ignored {
+                outcome: PersistArtifactOutcome::ignored(
+                    existing_manifest.clone(),
+                    spec.version_ms,
+                ),
+                already_present,
+            });
+        }
+        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
+            return Ok(SegmentApplyPrecheck::Ignored {
+                outcome: PersistArtifactOutcome::IgnoredTombstone,
+                already_present,
+            });
+        }
+        Ok(SegmentApplyPrecheck::Proceed {
+            existing,
+            already_present,
+        })
+    }
+
+    /// Builds and commits the manifest/metadata WriteBatch for a
+    /// segment-backed apply whose bytes already sit at `location`. The caller
+    /// must hold the per-artifact write lock, and the segment bytes must be
+    /// durable before the commit may reach the WAL: on the `Sync` path the
+    /// append fsynced them; on the `DeferredBatch` path phase 2 of
+    /// [`BackfillApplyBatch`] fsynced them before any phase-3 commit.
+    #[allow(clippy::too_many_arguments)]
+    async fn commit_segment_manifest(
+        &self,
+        spec: &PersistArtifactSpec<'_>,
+        artifact_id: &str,
+        existing: Option<&ArtifactManifest>,
+        location: &SegmentLocation,
+        size: u64,
+        outbox_reservation: OutboxReservation<'_>,
+        durability: ApplyDurability,
+    ) -> Result<ArtifactManifest, String> {
+        let artifact_id = artifact_id.to_owned();
+        let persisted_version_ms = persisted_version_ms(spec.version_ms);
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
             producer: spec.producer,
@@ -1151,7 +1324,7 @@ impl Store {
                 [],
             );
         }
-        self.stage_backfill_index_update(&mut batch, existing.as_ref(), &manifest);
+        self.stage_backfill_index_update(&mut batch, existing, &manifest);
         self.append_artifact_replication_messages(
             &mut batch,
             &manifest,
@@ -1159,7 +1332,7 @@ impl Store {
             spec.trunk,
         )?;
 
-        self.write_batch_sync(batch, "manifest batch")?;
+        self.write_batch_with_durability(batch, "manifest batch", durability)?;
         outbox_reservation.commit();
         self.note_segment_version(&location.segment_id, manifest_version_ms(&manifest))
             .await?;
@@ -1168,9 +1341,7 @@ impl Store {
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&artifact_id);
 
-        self.evict_segments(evicted_segments).await?;
-
-        Ok((PersistArtifactOutcome::Applied(manifest), already_present))
+        Ok(manifest)
     }
 
     pub async fn open_artifact_reader(
@@ -1593,8 +1764,14 @@ impl Store {
         }
 
         let mut reader = self.open_manifest_reader(&current).await?;
-        let (location, evicted_segments) = self
-            .append_reader_to_segment(&mut reader, current.size, None, FileCachePolicy::Adaptive)
+        let (location, evicted_segments, _durability_seq) = self
+            .append_reader_to_segment(
+                &mut reader,
+                current.size,
+                None,
+                FileCachePolicy::Adaptive,
+                ApplyDurability::Sync,
+            )
             .await?;
         let mut refreshed = current.clone();
         let previous_segment_id = current_segment_id.to_owned();
@@ -1662,6 +1839,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
+        durability: ApplyDurability,
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
@@ -1795,7 +1973,7 @@ impl Store {
             spec.trunk,
         )?;
 
-        self.write_batch_sync(batch, "keyvalue batch")?;
+        self.write_batch_with_durability(batch, "keyvalue batch", durability)?;
         outbox_reservation.commit();
         // Only after the batch commits: the generation is what a snapshot serve
         // reads to decide its cached view is current, and the new index row is
@@ -1825,22 +2003,35 @@ impl Store {
         source_path: &Path,
         size: u64,
         file_cache_policy: FileCachePolicy,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>), String> {
+        durability: ApplyDurability,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
         let mut source = self.io.open_file(source_path).await?;
         let result = self
-            .append_reader_to_segment(&mut source, size, Some(source_path), file_cache_policy)
+            .append_reader_to_segment(
+                &mut source,
+                size,
+                Some(source_path),
+                file_cache_policy,
+                durability,
+            )
             .await;
         self.io.remove_file_if_exists(source_path).await;
         result
     }
 
+    /// The returned `u64` is the append's group-commit durability sequence.
+    /// Under [`ApplyDurability::Sync`] it is already covered by the fsync this
+    /// function performs; under [`ApplyDurability::DeferredBatch`] the caller
+    /// must pass it to [`Self::ensure_segment_durable`] before committing any
+    /// manifest that references the appended bytes.
     async fn append_reader_to_segment<R>(
         &self,
         source: &mut R,
         size: u64,
         source_cache_path: Option<&Path>,
         file_cache_policy: FileCachePolicy,
-    ) -> Result<(SegmentLocation, Vec<SegmentReference>), String>
+        durability: ApplyDurability,
+    ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String>
     where
         R: AsyncRead + Unpin,
     {
@@ -2029,9 +2220,11 @@ impl Store {
             )
         };
 
-        self.ensure_segment_durable(durability_seq).await?;
+        if durability == ApplyDurability::Sync {
+            self.ensure_segment_durable(durability_seq).await?;
+        }
 
-        Ok((location, evicted_segments))
+        Ok((location, evicted_segments, durability_seq))
     }
 
     /// Group-commit fsync: makes every append with sequence `<= seq` durable.
@@ -2768,7 +2961,7 @@ impl Store {
             trunk: None,
         };
         match self
-            .persist_inline_artifact_with_version(spec, bytes)
+            .persist_inline_artifact_with_version(spec, bytes, ApplyDurability::Sync)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
@@ -2870,7 +3063,7 @@ impl Store {
             trunk,
         };
         match self
-            .persist_inline_artifact_with_version(spec, bytes)
+            .persist_inline_artifact_with_version(spec, bytes, ApplyDurability::Sync)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
@@ -2944,9 +3137,193 @@ impl Store {
             trunk,
         };
         Ok(self
-            .persist_inline_artifact_with_version(spec, bytes)
+            .persist_inline_artifact_with_version(spec, bytes, ApplyDurability::Sync)
             .await?
             .apply_outcome())
+    }
+
+    /// [`Self::apply_replicated_inline_artifact_from_bytes`] under the
+    /// backfill batch's deferred durability: the same LWW/tombstone/index
+    /// code paths, but the WriteBatch commits non-sync — inline records are
+    /// WAL-only, so their durability is exactly the batch-end WAL barrier
+    /// [`Self::commit_backfill_apply_batch`] provides.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn apply_replicated_inline_artifact_from_bytes_deferred(
+        &self,
+        batch: &mut BackfillApplyBatch,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        version_ms: u64,
+        branch: Option<&str>,
+    ) -> Result<ArtifactApplyOutcome, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms,
+            replication_targets: &[],
+            branch,
+            trunk: None,
+        };
+        let outcome = self
+            .persist_inline_artifact_with_version(spec, bytes, ApplyDurability::DeferredBatch)
+            .await?;
+        if matches!(outcome, PersistArtifactOutcome::Applied(_)) {
+            batch.deferred_wal_writes = true;
+        }
+        Ok(outcome.apply_outcome())
+    }
+
+    /// Phase 1 of the deferred backfill batch protocol (see
+    /// [`BackfillApplyBatch`]): appends a Present segmented body to the
+    /// active segment without a per-record fsync and stages its manifest
+    /// inputs for the phase-3 commit. The LWW/tombstone pre-check and the
+    /// append run under the per-artifact write lock — the same
+    /// duplicate-copy protection as the live path — but the lock is released
+    /// until the phase-3 commit re-takes it, so this check is advisory and
+    /// the phase-3 re-check is authoritative. A record the pre-check ignores
+    /// (local copy newer or equal, or tombstoned) is already converged and
+    /// stages nothing.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn stage_backfill_segmented_apply(
+        &self,
+        batch: &mut BackfillApplyBatch,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        staged: StagedArtifactPath<'_>,
+        version_ms: u64,
+    ) -> Result<(), String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms,
+            replication_targets: &[],
+            branch: None,
+            trunk: None,
+        };
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        let size = self.io.metadata_len(staged.path).await?;
+        let (location, evicted_segments, durability_seq) = {
+            let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
+            match self.segment_apply_precheck(&artifact_id, &spec).await? {
+                SegmentApplyPrecheck::Ignored { .. } => {
+                    self.io.remove_file_if_exists(staged.path).await;
+                    return Ok(());
+                }
+                SegmentApplyPrecheck::Proceed { .. } => {}
+            }
+            self.append_to_segment(
+                staged.path,
+                size,
+                staged.file_cache_policy,
+                ApplyDurability::DeferredBatch,
+            )
+            .await?
+        };
+        self.evict_segments(evicted_segments).await?;
+        batch.max_durability_seq = batch.max_durability_seq.max(durability_seq);
+        batch.staged.push(StagedBackfillSegmentApply {
+            producer,
+            namespace_id: namespace_id.to_owned(),
+            key: key.to_owned(),
+            content_type: content_type.to_owned(),
+            version_ms,
+            artifact_id,
+            location,
+            size,
+        });
+        Ok(())
+    }
+
+    /// Phases 2–4 of the deferred backfill batch protocol (see
+    /// [`BackfillApplyBatch`]). On an error anywhere in here the caller
+    /// propagates it as a pass failure: records already committed non-sync
+    /// are safe (any later sync write flushes them, WAL replay recovers them
+    /// on a clean restart, and a crash that loses them is absorbed by the
+    /// re-list contract), and staged records not yet committed are just
+    /// unreferenced segment bytes.
+    pub(crate) async fn commit_backfill_apply_batch(
+        &self,
+        batch: BackfillApplyBatch,
+    ) -> Result<(), String> {
+        if batch.staged.is_empty() && !batch.deferred_wal_writes {
+            return Ok(());
+        }
+        if !batch.staged.is_empty() {
+            // Phase 2: one group-commit fsync makes every staged append
+            // durable before any of the batch's manifests can reach the WAL.
+            // Covering every touched segment file with this single call is
+            // exactly the `ensure_segment_durable` correctness argument: only
+            // the active segment can hold un-synced bytes, because rotation
+            // fsyncs the outgoing segment before it stops being the fsync
+            // target — so a mid-batch rotation already made the sealed file's
+            // appends durable, and this call covers the rest.
+            self.ensure_segment_durable(batch.max_durability_seq)
+                .await?;
+        }
+        // Phase 3: per-record manifest commits, WAL-only.
+        for staged in &batch.staged {
+            self.commit_staged_backfill_segment(staged).await?;
+        }
+        self.hit_failpoint(FailpointName::AfterBackfillBatchCommitBeforeWalFlush)
+            .await?;
+        // Phase 4: the batch durability barrier.
+        self.flush_wal_barrier()
+    }
+
+    /// Phase-3 commit of one staged segmented record: re-takes the
+    /// per-artifact write lock, re-runs the authoritative LWW/tombstone
+    /// check, and commits the manifest/metadata batch non-sync through the
+    /// same code paths as a live apply. A record superseded by a concurrent
+    /// write between staging and commit leaves its staged bytes orphaned in
+    /// their segment — bounded by one batch and reclaimed at segment
+    /// eviction, exactly like any LWW-overwritten copy.
+    async fn commit_staged_backfill_segment(
+        &self,
+        staged: &StagedBackfillSegmentApply,
+    ) -> Result<(), String> {
+        let spec = PersistArtifactSpec {
+            producer: staged.producer,
+            namespace_id: &staged.namespace_id,
+            key: &staged.key,
+            content_type: &staged.content_type,
+            version_ms: staged.version_ms,
+            replication_targets: &[],
+            branch: None,
+            trunk: None,
+        };
+        let _write_guard = self
+            .artifact_write_lock_for(&staged.artifact_id)
+            .lock()
+            .await;
+        match self
+            .segment_apply_precheck(&staged.artifact_id, &spec)
+            .await?
+        {
+            SegmentApplyPrecheck::Ignored { .. } => Ok(()),
+            SegmentApplyPrecheck::Proceed { existing, .. } => {
+                let outbox_reservation = self.reserve_outbox_slots(0)?;
+                self.commit_segment_manifest(
+                    &spec,
+                    &staged.artifact_id,
+                    existing.as_ref(),
+                    &staged.location,
+                    staged.size,
+                    outbox_reservation,
+                    ApplyDurability::DeferredBatch,
+                )
+                .await?;
+                Ok(())
+            }
+        }
     }
 
     async fn persist_artifact_from_bytes_with_version(
@@ -5324,11 +5701,50 @@ impl Store {
     }
 
     fn write_batch_sync(&self, batch: WriteBatch, label: &str) -> Result<(), String> {
+        self.write_batch_with_durability(batch, label, ApplyDurability::Sync)
+    }
+
+    fn write_batch_with_durability(
+        &self,
+        batch: WriteBatch,
+        label: &str,
+        durability: ApplyDurability,
+    ) -> Result<(), String> {
         let mut write_options = WriteOptions::default();
-        write_options.set_sync(true);
+        match durability {
+            ApplyDurability::Sync => {
+                write_options.set_sync(true);
+                self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
+            }
+            ApplyDurability::DeferredBatch => {
+                write_options.set_sync(false);
+                self.wal_deferred_write_count
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+        }
         self.db
             .write_opt(batch, &write_options)
             .map_err(|error| format!("failed to write {label}: {error}"))
+    }
+
+    /// The deferred batch's phase-4 durability barrier: one synced WAL flush
+    /// makes every WAL-only commit before it durable.
+    fn flush_wal_barrier(&self) -> Result<(), String> {
+        self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
+        self.db
+            .flush_wal(true)
+            .map_err(|error| format!("failed to flush WAL: {error}"))
+    }
+
+    /// (sync WriteBatch commits, deferred WriteBatch commits, WAL flushes) —
+    /// the durability-accounting counters tests pin path semantics with.
+    #[cfg(test)]
+    pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
+        (
+            self.wal_sync_write_count.load(Ordering::Relaxed),
+            self.wal_deferred_write_count.load(Ordering::Relaxed),
+            self.wal_flush_count.load(Ordering::Relaxed),
+        )
     }
 
     fn namespace_tombstone_version(&self, namespace_id: &str) -> Result<Option<u64>, String> {
@@ -8175,6 +8591,280 @@ mod tests {
             .find(|reference| reference.segment_id == segment_id)
             .expect("segment should still be in the ring")
             .clone()
+    }
+
+    async fn stage_deferred_segmented(
+        store: &Store,
+        config: &Config,
+        batch: &mut BackfillApplyBatch,
+        key: &str,
+        body: &[u8],
+        version_ms: u64,
+    ) {
+        let path = config
+            .tmp_dir
+            .join("uploads")
+            .join(format!("staged-{key}-{version_ms}"));
+        std::fs::write(&path, body).expect("staged source should write");
+        store
+            .stage_backfill_segmented_apply(
+                batch,
+                ArtifactProducer::Gradle,
+                "ios",
+                key,
+                "application/octet-stream",
+                StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
+                version_ms,
+            )
+            .await
+            .expect("segmented record should stage");
+    }
+
+    #[tokio::test]
+    async fn deferred_batch_apply_matches_per_record_sync_state() {
+        let (_sync_dir, _sync_config, sync_store) = temp_store();
+        let (_deferred_dir, deferred_config, deferred_store) = temp_store();
+
+        let segmented = [
+            ("seg-a", vec![0xA1_u8; 64 * 1024], 1_000_u64),
+            ("seg-b", vec![0xB2_u8; 8 * 1024], 900),
+        ];
+        let inline_body = b"inline-body".to_vec();
+
+        for (key, body, version_ms) in &segmented {
+            sync_store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    body,
+                    *version_ms,
+                )
+                .await
+                .expect("sync segmented apply should succeed");
+        }
+        sync_store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "inl-c",
+                "application/octet-stream",
+                &inline_body,
+                800,
+                None,
+                None,
+            )
+            .await
+            .expect("sync inline apply should succeed");
+
+        let mut batch = BackfillApplyBatch::new();
+        for (key, body, version_ms) in &segmented {
+            stage_deferred_segmented(
+                &deferred_store,
+                &deferred_config,
+                &mut batch,
+                key,
+                body,
+                *version_ms,
+            )
+            .await;
+        }
+        deferred_store
+            .apply_replicated_inline_artifact_from_bytes_deferred(
+                &mut batch,
+                ArtifactProducer::Xcode,
+                "ios",
+                "inl-c",
+                "application/octet-stream",
+                &inline_body,
+                800,
+                None,
+            )
+            .await
+            .expect("deferred inline apply should succeed");
+        deferred_store
+            .commit_backfill_apply_batch(batch)
+            .await
+            .expect("deferred batch should commit");
+
+        let mut expectations: Vec<(ArtifactProducer, &str, &[u8])> = segmented
+            .iter()
+            .map(|(key, body, _)| (ArtifactProducer::Gradle, *key, body.as_slice()))
+            .collect();
+        expectations.push((ArtifactProducer::Xcode, "inl-c", inline_body.as_slice()));
+        for (producer, key, body) in expectations {
+            let sync_manifest = sync_store
+                .fetch_artifact(producer, "ios", key)
+                .await
+                .expect("sync fetch should succeed")
+                .expect("sync record should exist");
+            let deferred_manifest = deferred_store
+                .fetch_artifact(producer, "ios", key)
+                .await
+                .expect("deferred fetch should succeed")
+                .expect("deferred record should exist");
+            // Everything but the segment identity (fresh UUID per store) must
+            // match the per-record sync outcome exactly.
+            assert_eq!(deferred_manifest.artifact_id, sync_manifest.artifact_id);
+            assert_eq!(deferred_manifest.version_ms, sync_manifest.version_ms);
+            assert_eq!(deferred_manifest.created_at_ms, sync_manifest.created_at_ms);
+            assert_eq!(deferred_manifest.size, sync_manifest.size);
+            assert_eq!(deferred_manifest.inline, sync_manifest.inline);
+            assert_eq!(deferred_manifest.content_type, sync_manifest.content_type);
+            assert_eq!(deferred_manifest.branch, sync_manifest.branch);
+            assert_eq!(deferred_manifest.blob_path, sync_manifest.blob_path);
+            assert_eq!(
+                read_manifest_bytes(&deferred_store, &deferred_manifest).await,
+                body
+            );
+            assert_eq!(read_manifest_bytes(&sync_store, &sync_manifest).await, body);
+        }
+
+        let sync_rows = sync_store
+            .backfill_index_page(None, 16)
+            .expect("sync index page should read");
+        let deferred_rows = deferred_store
+            .backfill_index_page(None, 16)
+            .expect("deferred index page should read");
+        assert_eq!(deferred_rows.entries, sync_rows.entries);
+        assert_eq!(sync_rows.entries.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn deferred_batch_rotation_mid_batch_keeps_every_body_readable_after_reopen() {
+        let (_temp_dir, config, store) = temp_store();
+        let first_body = vec![0x11_u8; 32 * 1024];
+        let second_body = vec![0x22_u8; 32 * 1024];
+
+        let mut batch = BackfillApplyBatch::new();
+        stage_deferred_segmented(&store, &config, &mut batch, "rot-a", &first_body, 1_000).await;
+        // Rotate mid-batch: the first record's segment seals (and is fsynced
+        // by the rotation) while the second lands in the fresh active
+        // segment, which phase 2's group-commit fsync covers.
+        let sealed_id = seal_active_segment(&store).await;
+        stage_deferred_segmented(&store, &config, &mut batch, "rot-b", &second_body, 1_100).await;
+        store
+            .commit_backfill_apply_batch(batch)
+            .await
+            .expect("deferred batch should commit across the rotation");
+
+        let first = store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "rot-a")
+            .await
+            .expect("first fetch should succeed")
+            .expect("first record should exist");
+        let second = store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "rot-b")
+            .await
+            .expect("second fetch should succeed")
+            .expect("second record should exist");
+        assert_eq!(first.segment_id.as_deref(), Some(sealed_id.as_str()));
+        assert_ne!(first.segment_id, second.segment_id);
+        assert_eq!(read_manifest_bytes(&store, &first).await, first_body);
+        assert_eq!(read_manifest_bytes(&store, &second).await, second_body);
+
+        drop(store);
+        let store = reopen_store(&config);
+        for (key, body) in [("rot-a", &first_body), ("rot-b", &second_body)] {
+            let manifest = store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", key)
+                .await
+                .expect("post-reopen fetch should succeed")
+                .expect("record should survive reopen");
+            assert_eq!(read_manifest_bytes(&store, &manifest).await, *body);
+        }
+    }
+
+    #[tokio::test]
+    async fn live_apply_paths_keep_per_record_sync_commits() {
+        let (_temp_dir, config, store) = temp_store();
+        // Warm the store so the active segment exists: the first append's
+        // ring-state bootstrap would otherwise pollute the deltas below.
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "warm",
+                "application/octet-stream",
+                b"warm-body",
+                100,
+            )
+            .await
+            .expect("warm apply should succeed");
+
+        // Live replicated applies commit sync, never deferred, and never
+        // flush the WAL as a separate barrier.
+        let (sync_before, deferred_before, flush_before) = store.wal_write_counts();
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "live-seg",
+                "application/octet-stream",
+                b"live-segment-body",
+                1_000,
+            )
+            .await
+            .expect("live segmented apply should succeed");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "live-inl",
+                "application/octet-stream",
+                b"live-inline-body",
+                900,
+                None,
+                None,
+            )
+            .await
+            .expect("live inline apply should succeed");
+        let (sync_after, deferred_after, flush_after) = store.wal_write_counts();
+        assert_eq!(
+            deferred_after, deferred_before,
+            "live applies must not take deferred commits"
+        );
+        assert_eq!(flush_after, flush_before);
+        assert!(sync_after >= sync_before + 2);
+
+        // The backfill batch path is the inverse: deferred commits plus one
+        // WAL-flush barrier, zero sync commits.
+        let (sync_before, deferred_before, flush_before) = store.wal_write_counts();
+        let mut batch = BackfillApplyBatch::new();
+        stage_deferred_segmented(
+            &store,
+            &config,
+            &mut batch,
+            "bf-seg",
+            b"bf-segment-body",
+            2_000,
+        )
+        .await;
+        store
+            .apply_replicated_inline_artifact_from_bytes_deferred(
+                &mut batch,
+                ArtifactProducer::Xcode,
+                "ios",
+                "bf-inl",
+                "application/octet-stream",
+                b"bf-inline-body",
+                1_900,
+                None,
+            )
+            .await
+            .expect("deferred inline apply should succeed");
+        store
+            .commit_backfill_apply_batch(batch)
+            .await
+            .expect("deferred batch should commit");
+        let (sync_after, deferred_after, flush_after) = store.wal_write_counts();
+        assert_eq!(
+            sync_after, sync_before,
+            "the backfill batch path must not take per-record sync commits"
+        );
+        assert_eq!(deferred_after, deferred_before + 2);
+        assert_eq!(flush_after, flush_before + 1);
     }
 
     #[tokio::test]

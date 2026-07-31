@@ -44,7 +44,7 @@ use crate::{
     },
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::StagedArtifactPath,
+    store::{BackfillApplyBatch, StagedArtifactPath},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -799,11 +799,22 @@ async fn spool_batch_response(
 /// serving side answers one frame per requested tuple, in order) and applies
 /// them. Applies happen under the FRAME's version/kind/meta; claim resolution
 /// uses the LISTED key.
+///
+/// Durability is batched (see [`BackfillApplyBatch`]): segmented bodies are
+/// staged into the active segment as the frames stream and their manifests
+/// commit — after one covering segment fsync — at the end, followed by one
+/// WAL flush; inline bodies commit WAL-only as they arrive and ride the same
+/// batch-end barrier. Claims still resolve per record as they always did:
+/// if the batch commit then fails (or the pass is cancelled first), the pass
+/// fails without advancing the watermark, so the next pass re-lists every
+/// tuple this batch resolved and LWW absorbs the replays — the same
+/// crash-replay contract the per-record path relied on.
 async fn apply_spooled_batch(
     context: &PassContext<'_>,
     items: &[QueuedFetch],
     spool: &SpooledResponse,
 ) -> Result<(), PassAbort> {
+    let mut apply_batch = BackfillApplyBatch::new();
     context
         .state
         .store
@@ -846,7 +857,9 @@ async fn apply_spooled_batch(
                 fetch_individual(context, &item.key).await?;
             }
             BackfillBodyDisposition::Present => {
-                match apply_present_frame(context, &prelude, &mut reader).await? {
+                match apply_present_frame(context, &prelude, &mut reader, Some(&mut apply_batch))
+                    .await?
+                {
                     PresentApply::Applied => {
                         context.guard.resolve_applied(&item.key);
                         context
@@ -879,6 +892,14 @@ async fn apply_spooled_batch(
             "backfill bodies response carried more frames than requested tuples".to_owned(),
         ));
     }
+    // Phases 2–4: fsync the batch's segment bytes, commit the staged
+    // manifests WAL-only, and flush the WAL as the durability barrier.
+    context
+        .state
+        .store
+        .commit_backfill_apply_batch(apply_batch)
+        .await
+        .map_err(PassAbort::Hard)?;
     Ok(())
 }
 
@@ -888,13 +909,21 @@ enum PresentApply {
 }
 
 /// Applies one `Present` frame whose body follows on `reader` through the
-/// unchanged live apply paths (R12). Any LWW verdict — applied, equal, stale,
-/// tombstoned — counts as a successful resolution: the record is locally
-/// converged either way.
+/// same LWW/outcome/index code paths as live applies (R12). Any LWW verdict —
+/// applied, equal, stale, tombstoned — counts as a successful resolution: the
+/// record is locally converged either way.
+///
+/// With `deferred` set (the spooled batch path), the record takes the
+/// batched-durability route: segmented bodies stage into the accumulator for
+/// the batch-end commit, inline bodies commit WAL-only. Without it (the
+/// per-artifact fetch path — the up-front oversized route and bounced
+/// fetch-individually frames, a handful per pass), the record keeps the
+/// per-record sync apply.
 async fn apply_present_frame<R>(
     context: &PassContext<'_>,
     prelude: &BackfillBodyFramePrelude,
     reader: &mut R,
+    deferred: Option<&mut BackfillApplyBatch>,
 ) -> Result<PresentApply, PassAbort>
 where
     R: tokio::io::AsyncRead + Unpin,
@@ -933,20 +962,40 @@ where
             reader.read_exact(&mut body).await.map_err(|error| {
                 PassAbort::Hard(format!("failed to read backfill inline body: {error}"))
             })?;
-            state
-                .store
-                .apply_replicated_inline_artifact_from_bytes(
-                    producer,
-                    &meta.namespace_id,
-                    &meta.key,
-                    &meta.content_type,
-                    &body,
-                    prelude.version_ms,
-                    meta.branch.as_deref(),
-                    None,
-                )
-                .await
-                .map_err(PassAbort::Hard)?;
+            match deferred {
+                Some(batch) => {
+                    state
+                        .store
+                        .apply_replicated_inline_artifact_from_bytes_deferred(
+                            batch,
+                            producer,
+                            &meta.namespace_id,
+                            &meta.key,
+                            &meta.content_type,
+                            &body,
+                            prelude.version_ms,
+                            meta.branch.as_deref(),
+                        )
+                        .await
+                        .map_err(PassAbort::Hard)?;
+                }
+                None => {
+                    state
+                        .store
+                        .apply_replicated_inline_artifact_from_bytes(
+                            producer,
+                            &meta.namespace_id,
+                            &meta.key,
+                            &meta.content_type,
+                            &body,
+                            prelude.version_ms,
+                            meta.branch.as_deref(),
+                            None,
+                        )
+                        .await
+                        .map_err(PassAbort::Hard)?;
+                }
+            }
             Ok(PresentApply::Applied)
         }
         BackfillRecordKind::SegmentArtifact => {
@@ -978,17 +1027,35 @@ where
                 PassAbort::Hard(format!("failed to flush backfill body: {error}"))
             })?;
             drop(file);
-            let result = state
-                .store
-                .apply_replicated_artifact_from_path(
-                    producer,
-                    &meta.namespace_id,
-                    &meta.key,
-                    &meta.content_type,
-                    StagedArtifactPath::new(&path, FileCachePolicy::Bounded),
-                    prelude.version_ms,
-                )
-                .await;
+            let staged_path = StagedArtifactPath::new(&path, FileCachePolicy::Bounded);
+            let result = match deferred {
+                Some(batch) => {
+                    state
+                        .store
+                        .stage_backfill_segmented_apply(
+                            batch,
+                            producer,
+                            &meta.namespace_id,
+                            &meta.key,
+                            &meta.content_type,
+                            staged_path,
+                            prelude.version_ms,
+                        )
+                        .await
+                }
+                None => state
+                    .store
+                    .apply_replicated_artifact_from_path(
+                        producer,
+                        &meta.namespace_id,
+                        &meta.key,
+                        &meta.content_type,
+                        staged_path,
+                        prelude.version_ms,
+                    )
+                    .await
+                    .map(|_| ()),
+            };
             cleanup.remove_and_disarm(&state.io).await;
             result.map_err(PassAbort::Hard)?;
             Ok(PresentApply::Applied)
@@ -1130,7 +1197,7 @@ async fn apply_individual_response(
             "backfill artifact response bounced a fetch-individually frame".to_owned(),
         )),
         BackfillBodyDisposition::Present => {
-            match apply_present_frame(context, &prelude, &mut reader).await? {
+            match apply_present_frame(context, &prelude, &mut reader, None).await? {
                 PresentApply::Applied => {
                     context.guard.resolve_applied(key);
                     context
@@ -1914,6 +1981,53 @@ mod tests {
         };
         assert_eq!(stats.bodies_applied, 0);
         assert_eq!(stats.tuples_present, 2);
+    }
+
+    #[tokio::test]
+    async fn crash_after_batch_commit_before_wal_flush_replays_clean() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "seg-a", b"segment-body", 1_000).await;
+        seed_inline(&peer, "inl-b", b"inline-body", 900).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // Interrupt the deferred batch after its phase-3 manifest commits but
+        // before the phase-4 WAL-flush barrier: the applies are in the WAL
+        // (visible, replay-recoverable) but the batch never confirmed its
+        // durability barrier, so the pass fails and the watermark stays put.
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_once(
+            FailpointName::AfterBackfillBatchCommitBeforeWalFlush,
+            FailpointAction::Error("backfill interrupted".into()),
+        );
+
+        let (first, first_set) = run_pass(&local, &peer_url, tuning()).await;
+        let BackfillPassOutcome::Failed { error, .. } = first else {
+            panic!("expected failure, got {first:?}");
+        };
+        assert!(error.contains("backfill interrupted"), "{error}");
+        assert!(first_set.is_empty(), "claims released on failure");
+
+        // Restart shape: the pass re-lists, finds every record covered (no
+        // torn state — segment bytes were synced in phase 2 before any
+        // manifest commit), and double-applies nothing.
+        let (second, _) = run_pass(&local, &peer_url, tuning()).await;
+        let BackfillPassOutcome::Completed { stats, .. } = second else {
+            panic!("expected completion, got {second:?}");
+        };
+        assert_eq!(stats.bodies_applied, 0);
+        assert_eq!(stats.tuples_present, 2);
+
+        let segmented = fetch_manifest(&local, ArtifactProducer::Gradle, "seg-a")
+            .await
+            .expect("segmented artifact should be intact");
+        assert_eq!(segmented.version_ms, 1_000);
+        assert_eq!(read_body(&local, &segmented).await, b"segment-body");
+        let inline = fetch_manifest(&local, ArtifactProducer::Xcode, "inl-b")
+            .await
+            .expect("inline artifact should be intact");
+        assert_eq!(inline.version_ms, 900);
+        assert_eq!(read_body(&local, &inline).await, b"inline-body");
     }
 
     #[tokio::test]
