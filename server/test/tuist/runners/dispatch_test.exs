@@ -213,6 +213,21 @@ defmodule Tuist.Runners.DispatchTest do
       assert Map.get(counts, "queued", 0) == 1
     end
 
+    test "returns an enqueue failure so the webhook worker retries it" do
+      account = enabled_account()
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      stub(Jobs, :enqueue_if_missing, fn _attrs -> {:error, :rollback} end)
+
+      assert {:error, :rollback} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
     test "returns {:ignored, :no_pools} when the cluster has no RunnerPool CRs" do
       account = enabled_account()
 
