@@ -183,6 +183,13 @@ restore_catalog_entry = fn entry ->
        {:ok, metadata} <- Metadata.get_package(scope, name),
        false <- Map.has_key?(Map.get(metadata, "releases", %{}) || %{}, version),
        :ok <- archive_present?.(archive_key),
+       # Checked before hashing: listing a prefix is far cheaper than
+       # downloading an archive, and a version with no manifests is refused
+       # either way. A release entry with an empty manifest list advertises a
+       # version whose Package.swift the read frontend cannot serve, so the
+       # version would resolve and then fail. Absent is the better state.
+       {:ok, manifests} <- stored_manifests.(prefix),
+       :ok <- (if manifests == [], do: {:error, :no_stored_manifests}, else: :ok),
        {:ok, checksum} <-
          (if verify? or published in [nil, ""],
             do: archive_checksum.(archive_key),
@@ -190,12 +197,7 @@ restore_catalog_entry = fn entry ->
        :ok <-
          (if published not in [nil, ""] and checksum != published,
             do: {:error, {:checksum_mismatch, published, checksum}},
-            else: :ok),
-       {:ok, manifests} <- stored_manifests.(prefix),
-       # A release entry with no manifests advertises a version whose
-       # Package.swift the read frontend cannot serve, so the version would
-       # resolve and then fail. Leaving it absent is the better state.
-       :ok <- (if manifests == [], do: {:error, :no_stored_manifests}, else: :ok) do
+            else: :ok) do
     if apply? do
       lock_key = {:package, scope, name}
 
