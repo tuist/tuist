@@ -127,11 +127,23 @@ defmodule Tuist.Registry.S3Test do
     # pattern-matching on the digest never matches and reports a mismatch
     # against a value that looks correct.
     expect(ExAws, :request, fn ^consistent, ^config ->
-      {:ok, %{status_code: 200, headers: [{"X-Amz-Meta-Sha256", ["abc123"]}, {"ETag", ["\"etag\""]}]}}
+      {:ok,
+       %{
+         status_code: 200,
+         headers: [
+           {"X-Amz-Meta-Sha256", ["abc123"]},
+           {"ETag", ["\"etag\""]},
+           {"Vary", ["Accept", "Accept-Encoding"]}
+         ]
+       }}
     end)
 
     assert {:ok, headers} = S3.head_object("archive.zip")
     assert Map.get(headers, "x-amz-meta-sha256") == "abc123"
     assert S3.etag_from_headers(headers) == "etag"
+
+    # A header that genuinely repeats keeps its list rather than silently
+    # collapsing to its first value.
+    assert Map.get(headers, "vary") == ["Accept", "Accept-Encoding"]
   end
 end

@@ -41,7 +41,7 @@ defmodule Tuist.Registry.S3 do
     bucket = Registry.registry_bucket()
 
     case bucket |> ExAws.S3.head_object(key) |> request() do
-      {:ok, %{status_code: 200, headers: headers}} -> {:ok, downcase_headers(headers)}
+      {:ok, %{status_code: 200, headers: headers}} -> {:ok, normalize_headers(headers)}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
       {:error, {:http_error, 404, _}} -> {:error, :not_found}
@@ -160,20 +160,24 @@ defmodule Tuist.Registry.S3 do
     |> normalize_etag()
   end
 
-  defp downcase_headers(headers) when is_list(headers) do
+  defp normalize_headers(headers) when is_list(headers) do
     Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
   end
 
-  defp downcase_headers(headers) when is_map(headers) do
+  defp normalize_headers(headers) when is_map(headers) do
     Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
   end
 
-  # The HTTP client hands back each header's value as a list. `normalize_etag/1`
-  # below already unwraps that for etags; doing it once here means every caller
-  # of `head_object/1` compares against a binary instead of unknowingly
-  # comparing against `["..."]`, which is never equal to the binary it looks
+  # Whether a value arrives as a binary or wrapped in a list depends on the
+  # configured HTTP client, not on the header, so callers cannot safely compare
+  # against either shape. Normalizing here keeps that detail out of business
+  # logic: a comparison against `["..."]` is never equal to the binary it looks
   # identical to when inspected.
-  defp header_value([value | _]), do: header_value(value)
+  #
+  # Only a single-element list is unwrapped. A header that genuinely repeats
+  # keeps its list, so a caller sees the ambiguity rather than silently
+  # receiving the first value and assuming it was the only one.
+  defp header_value([value]), do: value
   defp header_value(value), do: value
 
   defp normalize_etag(nil), do: nil
