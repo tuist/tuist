@@ -319,6 +319,9 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
        ]}
     end)
 
+    # Never mirrored, so there is no catalog document to fall back to.
+    expect(Metadata, :get_package, fn "unknown", "package" -> {:error, :not_found} end)
+
     assert {:discard, :package_not_found} =
              SyncWorker.perform(%Oban.Job{
                args: %{
@@ -329,6 +332,53 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
              })
 
     refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "force resyncs a package the index no longer lists, keeping the mirrored identity" do
+    # Upstream renamed the repository, so the Swift Package Index lists it under
+    # the new handle and the old one -- the identity clients resolve -- is absent.
+    # Without a fallback these versions are permanently unrepairable.
+    expect(SwiftPackageIndex, :list_packages, fn "token" ->
+      {:ok,
+       [
+         %{
+           scope: "swiftlang",
+           name: "swift-tools-support-core",
+           repository_full_handle: "swiftlang/swift-tools-support-core"
+         }
+       ]}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-tools-support-core" ->
+      {:ok, %{"repository_full_handle" => "apple/swift-tools-support-core"}}
+    end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-tools-support-core", "token", _ ->
+      {:ok, ["0.1.8"]}
+    end)
+
+    assert :ok =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "allow_checksum_change" => true,
+                 "repository_full_handle" => "apple/swift-tools-support-core",
+                 "version" => "0.1.8"
+               }
+             })
+
+    # The pre-rename scope and name are preserved: publishing under the new
+    # upstream name would create an identity no client pins, leaving the broken
+    # one untouched.
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "apple",
+        "name" => "swift-tools-support-core",
+        "repository_full_handle" => "apple/swift-tools-support-core",
+        "tag" => "0.1.8"
+      }
+    )
   end
 
   test "discards force resync requests when the version is not a current source tag" do
