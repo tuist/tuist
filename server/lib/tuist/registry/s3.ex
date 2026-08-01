@@ -51,12 +51,20 @@ defmodule Tuist.Registry.S3 do
 
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
 
+    # Forwards every option the caller set rather than only `:content_type`.
+    # `:meta` was previously dropped here, so the archive digest a caller asked
+    # to store never reached object storage and the read-back verification could
+    # only ever observe `nil` — failing every upload it was meant to protect.
+    #
+    # Rejecting nils is load-bearing rather than tidiness: `put_object_headers/1`
+    # reads `Map.get(opts, :meta, [])`, and a map default only applies to an
+    # absent key, so a literal `meta: nil` would reach `build_meta_headers/1`
+    # and raise.
     upload_opts =
-      if content_type_opt,
-        do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
-        else: [timeout: 120_000, max_concurrency: 8]
+      [timeout: 120_000, max_concurrency: 8]
+      |> Keyword.merge(opts)
+      |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -83,8 +91,9 @@ defmodule Tuist.Registry.S3 do
 
   def upload_content(key, content, opts \\ []) when is_binary(key) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
-    put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
+    # Same shape as `upload_file/3` above, for the same reason: an option a
+    # caller sets should be used or absent, never silently ignored.
+    put_opts = Keyword.reject(opts, fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
