@@ -22,11 +22,20 @@
 {:ok, _} = Application.ensure_all_started(:req)
 {:ok, _} = Finch.start_link(name: Application.get_env(:tuist_common, :finch_name, Tuist.Finch))
 
-script =
-  case System.fetch_env!("SCRIPT") do
-    "/" <> _ = absolute -> absolute
-    relative -> Application.app_dir(:tuist, Path.join("priv/registry_repair", relative))
-  end
+# EVAL runs a snippet instead of a file, so ad-hoc inspection does not need a
+# copy-and-rerun cycle. SCRIPT is still the way to run a repair, because a repair
+# should be a reviewed file rather than a shell fragment.
+case System.get_env("EVAL") do
+  nil ->
+    script =
+      case System.fetch_env!("SCRIPT") do
+        "/" <> _ = absolute -> absolute
+        relative -> Application.app_dir(:tuist, Path.join("priv/registry_repair", relative))
+      end
 
-IO.puts("running #{script}")
-Code.eval_file(script)
+    IO.puts("running #{script}")
+    Code.eval_file(script)
+
+  code ->
+    Code.eval_string(code)
+end

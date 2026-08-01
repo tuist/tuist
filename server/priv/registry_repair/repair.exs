@@ -49,6 +49,24 @@ end
 IO.puts("mode=#{mode} apply=#{apply?} verify=#{verify?} limit=#{limit}")
 IO.puts(if apply?, do: "APPLYING CHANGES", else: "dry run — nothing will be written")
 
+# `regenerate` enqueues through `Oban.insert/1`, which resolves the instance via
+# `Oban.Registry` and therefore needs Oban running — `boot.exs` starts neither it
+# nor `:tuist`. Start one here that can only insert: no queues, so this BEAM
+# never executes a job; no plugins, so no cron or pruner; no peer, so it never
+# contends for leadership with the live pod. Uniqueness is still enforced,
+# because that is checked by `Oban.insert/1` rather than by the changeset.
+if mode == "regenerate" and apply? do
+  {:ok, _} = Application.ensure_all_started(:ecto_sql)
+  {:ok, _} = Application.ensure_all_started(:postgrex)
+  # Starts Oban.Registry, which `Oban.start_link/1` registers into. The
+  # application itself starts no instances — those come from a host
+  # supervision tree — so this cannot begin consuming jobs.
+  {:ok, _} = Application.ensure_all_started(:oban)
+  {:ok, _} = Tuist.Repo.start_link()
+  {:ok, _} = Oban.start_link(repo: Tuist.Repo, queues: false, plugins: false, peer: false)
+  IO.puts("oban: insert-only instance started (no queues, no plugins, no peer)")
+end
+
 done =
   if File.exists?(log_path) do
     log_path
@@ -290,7 +308,15 @@ outcomes =
       end
 
     # Dry runs are not recorded, so the same input can be applied afterwards.
-    if apply?, do: IO.binwrite(log, [entry.ident, "\t", to_string(tag), "\t", detail, "\n"])
+    #
+    # Errors are not recorded either. The log exists to stop work being repeated,
+    # and an entry that failed was not done — recording it would retire the
+    # version permanently on a transient fault (a rate limit, a dropped
+    # connection, a missing dependency). Permanent errors simply re-fail on the
+    # next run, which is noisy but visible; a silently skipped repair is not.
+    if apply? and tag != :error do
+      IO.binwrite(log, [entry.ident, "\t", to_string(tag), "\t", detail, "\n"])
+    end
 
     if tag != :ok or rem(map_size(acc), 1) == 0 do
       IO.puts("  #{String.pad_trailing(to_string(tag), 6)} #{entry.ident}  #{detail}")
