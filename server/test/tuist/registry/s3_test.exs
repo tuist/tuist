@@ -112,4 +112,38 @@ defmodule Tuist.Registry.S3Test do
 
     assert :ok = S3.upload_file("archive.zip", "/tmp/archive.zip", content_type: nil, meta: nil)
   end
+
+  test "unwraps single-value header lists so callers compare against a binary" do
+    config = [host: "registry.example.com"]
+
+    operation = %S3Operation{http_method: :head, bucket: "registry-bucket", path: "archive.zip", headers: %{}}
+    consistent = %{operation | headers: %{"X-Tigris-Consistent" => "true"}}
+
+    expect(Registry, :registry_bucket, fn -> "registry-bucket" end)
+    expect(Registry, :registry_s3_config, fn -> config end)
+    expect(ExAws.S3, :head_object, fn "registry-bucket", "archive.zip" -> operation end)
+
+    # The HTTP client returns each value as a list. Left wrapped, a caller
+    # pattern-matching on the digest never matches and reports a mismatch
+    # against a value that looks correct.
+    expect(ExAws, :request, fn ^consistent, ^config ->
+      {:ok,
+       %{
+         status_code: 200,
+         headers: [
+           {"X-Amz-Meta-Sha256", ["abc123"]},
+           {"ETag", ["\"etag\""]},
+           {"Vary", ["Accept", "Accept-Encoding"]}
+         ]
+       }}
+    end)
+
+    assert {:ok, headers} = S3.head_object("archive.zip")
+    assert Map.get(headers, "x-amz-meta-sha256") == "abc123"
+    assert S3.etag_from_headers(headers) == "etag"
+
+    # A header that genuinely repeats keeps its list rather than silently
+    # collapsing to its first value.
+    assert Map.get(headers, "vary") == ["Accept", "Accept-Encoding"]
+  end
 end
