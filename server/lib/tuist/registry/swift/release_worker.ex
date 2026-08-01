@@ -54,13 +54,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   ]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
+  def perform(%Oban.Job{
+        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag} = args
+      }) do
     lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
 
     case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          do_sync_release(scope, name, full_handle, tag)
+          do_sync_release(scope, name, full_handle, tag, resync_opts(args))
         after
           Lock.release(lock_key)
         end
@@ -70,7 +72,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp do_sync_release(scope, name, full_handle, tag) do
+  defp resync_opts(args) do
+    %{
+      force?: Map.get(args, "force", false),
+      allow_checksum_change?: Map.get(args, "allow_checksum_change", false),
+      published_checksum: nil
+    }
+  end
+
+  defp do_sync_release(scope, name, full_handle, tag, opts) do
     case Registry.swift_registry_github_token() do
       nil ->
         Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
@@ -84,30 +94,49 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             releases = Map.get(metadata, "releases", %{})
             skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
-            if Map.has_key?(releases, normalized_version) or
-                 Metadata.verified_skip?(Map.get(skipped_releases, normalized_version)) do
+            if not opts.force? and
+                 (Map.has_key?(releases, normalized_version) or
+                    Metadata.verified_skip?(Map.get(skipped_releases, normalized_version))) do
               :ok
             else
-              sync_release(scope, name, full_handle, tag, normalized_version, token)
+              opts = %{opts | published_checksum: published_checksum(releases, normalized_version)}
+              sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
             end
 
           {:error, :not_found} ->
-            sync_release(scope, name, full_handle, tag, normalized_version, token)
+            sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
         end
     end
   end
 
-  defp sync_release(scope, name, full_handle, tag, version, token) do
+  defp published_checksum(releases, version) do
+    case Map.get(releases, version) do
+      %{"checksum" => checksum} when is_binary(checksum) -> checksum
+      _release -> nil
+    end
+  end
+
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
-         :ok <- upload_source_archive(scope, name, version, archive_path),
+         :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, opts),
+         :ok <- upload_source_archive(scope, name, version, archive_path, checksum),
+         :ok <- verify_stored_archive(scope, name, version, checksum),
          {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
+      {:error, {:checksum_change_refused, details} = reason} ->
+        Logger.warning(
+          "Refusing to republish #{scope}/#{name}@#{version}: rebuilding produced #{details.rebuilt} " <>
+            "but #{details.published} is already published. Re-run with allow_checksum_change to override."
+        )
+
+        {:discard, reason}
+
       {:error, reason} ->
         case maybe_skip_release(scope, name, full_handle, version, reason) do
           :ok ->
@@ -146,8 +175,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
-    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-      zip_directory(source_directory, archive_path)
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir),
+         :ok <- zip_directory(source_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -168,17 +198,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
   # This workaround resolves symlinks by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
+  # A single listing answers both questions asked of a downloaded archive, so
+  # the archive it passes through untouched is inspected exactly once. An
+  # archive whose directories are already unreadable is rejected rather than
+  # repacked: extracting it lays the same modes down on disk and `zip` records
+  # them again, so repacking cannot repair it.
   defp normalize_archive(tmp_dir, archive_path) do
-    case archive_has_symlinks?(archive_path) do
-      {:ok, has_symlinks} ->
-        if has_symlinks do
-          repackage_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, listing} <- inspect_archive(archive_path),
+         :ok <- reject_unreadable_directories(listing) do
+      if listing.symlinks?, do: repackage_archive(tmp_dir, archive_path), else: :ok
     end
   end
 
@@ -533,8 +561,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
          {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
-         :ok <- remove_archive(archive_path) do
-      zip_directory(top_level_directory, archive_path)
+         :ok <- remove_archive(archive_path),
+         :ok <- zip_directory(top_level_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -671,23 +700,111 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     path == root_directory or String.starts_with?(path, root_directory <> "/")
   end
 
-  defp archive_has_symlinks?(archive_path) do
+  # Walks the `zipinfo` listing lazily and keeps only the tallies, because a
+  # large package carries tens of thousands of entries and none of them are
+  # needed once counted.
+  defp inspect_archive(archive_path) do
     case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
       {output, 0} ->
-        has_symlinks =
-          output
-          |> String.split("\n")
-          |> Enum.any?(&String.starts_with?(&1, "l"))
-
-        {:ok, has_symlinks}
+        {:ok,
+         output
+         |> String.splitter("\n")
+         |> Enum.reduce(%{symlinks?: false, unreadable_directories: 0, first_unreadable: nil}, &tally_entry/2)}
 
       {output, status} ->
         {:error, {:invalid_archive, status, output}}
     end
   end
 
-  defp upload_source_archive(scope, name, version, archive_path) do
-    S3.upload_file(source_archive_key(scope, name, version), archive_path, content_type: "application/zip")
+  defp tally_entry("l" <> _rest, tally), do: %{tally | symlinks?: true}
+
+  defp tally_entry(line, tally) do
+    if unreadable_directory_line?(line) do
+      %{
+        tally
+        | unreadable_directories: tally.unreadable_directories + 1,
+          first_unreadable: tally.first_unreadable || String.trim(line)
+      }
+    else
+      tally
+    end
+  end
+
+  # A stored directory entry whose recorded mode has no owner-execute bit
+  # extracts into a directory nobody can descend into, so SwiftPM fails with a
+  # permission error on an archive that is otherwise well-formed and whose
+  # checksum matches its metadata. `zipinfo` renders a healthy directory as
+  # `drwxr-xr-x` and the entry this rejects as `?rw-r--r--`, so the
+  # owner-execute column is the whole test and the trailing slash is what
+  # marks a directory. Entries written by non-Unix hosts carry no mode at all
+  # and extractors apply their own defaults, which is why this reads the
+  # rendered permissions rather than the raw external attributes.
+  defp unreadable_directory_line?(line) do
+    String.ends_with?(line, "/") and not traversable_directory?(line)
+  end
+
+  defp traversable_directory?(<<_type, _read, _write, ?x, _rest::binary>>), do: true
+  defp traversable_directory?(_line), do: false
+
+  defp verify_archive_directories(archive_path) do
+    with {:ok, listing} <- inspect_archive(archive_path) do
+      reject_unreadable_directories(listing)
+    end
+  end
+
+  defp reject_unreadable_directories(%{unreadable_directories: 0}), do: :ok
+
+  defp reject_unreadable_directories(listing) do
+    {:error, {:archive_directories_not_traversable, listing.unreadable_directories, listing.first_unreadable}}
+  end
+
+  # Republishing a version with different bytes turns a working pin into
+  # `invalid registry source archive checksum` for every client that already
+  # resolved it, and a precautionary resync is otherwise indistinguishable
+  # from a repair. A resync that would change an already-published checksum
+  # stops here unless the operator asked for that explicitly.
+  defp ensure_checksum_change_allowed(_scope, _name, _version, _checksum, %{allow_checksum_change?: true}), do: :ok
+
+  defp ensure_checksum_change_allowed(scope, name, version, checksum, opts) do
+    case opts.published_checksum do
+      nil ->
+        :ok
+
+      ^checksum ->
+        :ok
+
+      published ->
+        {:error,
+         {:checksum_change_refused,
+          %{scope: scope, name: name, version: version, published: published, rebuilt: checksum}}}
+    end
+  end
+
+  defp upload_source_archive(scope, name, version, archive_path, checksum) do
+    S3.upload_file(source_archive_key(scope, name, version), archive_path,
+      content_type: "application/zip",
+      meta: [{"sha256", checksum}]
+    )
+  end
+
+  # The archive upload runs through the multipart path, whose sub-operations do
+  # not carry the storage consistency header the shared request helper adds to
+  # single requests. Confirming the stored object records the digest we just
+  # uploaded, before the catalog is updated, keeps a catalog entry from
+  # advertising a checksum that object storage does not actually hold.
+  defp verify_stored_archive(scope, name, version, checksum) do
+    key = source_archive_key(scope, name, version)
+
+    case S3.head_object(key) do
+      {:ok, headers} ->
+        case Map.get(headers, "x-amz-meta-sha256") do
+          ^checksum -> :ok
+          stored -> {:error, {:stored_archive_mismatch, key, %{expected: checksum, stored: stored}}}
+        end
+
+      {:error, reason} ->
+        {:error, {:stored_archive_unverifiable, key, reason}}
+    end
   end
 
   defp source_archive_key(scope, name, version) do

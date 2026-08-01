@@ -37,6 +37,18 @@ defmodule Tuist.Registry.S3 do
     end
   end
 
+  def head_object(key) when is_binary(key) do
+    bucket = Registry.registry_bucket()
+
+    case bucket |> ExAws.S3.head_object(key) |> request() do
+      {:ok, %{status_code: 200, headers: headers}} -> {:ok, downcase_headers(headers)}
+      {:ok, %{status_code: 404}} -> {:error, :not_found}
+      {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
     content_type_opt = Keyword.get(opts, :content_type)
@@ -137,6 +149,14 @@ defmodule Tuist.Registry.S3 do
     headers
     |> Map.get("etag", Map.get(headers, "ETag"))
     |> normalize_etag()
+  end
+
+  defp downcase_headers(headers) when is_list(headers) do
+    Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
+  end
+
+  defp downcase_headers(headers) when is_map(headers) do
+    Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
   end
 
   defp normalize_etag(nil), do: nil

@@ -13,7 +13,6 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   alias Tuist.Registry
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
-  alias Tuist.Registry.Swift.Purge
   alias Tuist.Registry.Swift.ReleaseWorker
   alias Tuist.Registry.Swift.SwiftPackageIndex
   alias Tuist.Registry.Swift.SyncCursor
@@ -25,7 +24,6 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
-  @release_lock_ttl_seconds 1_800
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -43,8 +41,12 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  defp perform_sync(%{"force" => true, "repository_full_handle" => repository_full_handle, "version" => version}, token) do
-    force_resync_package_version_for_handle(repository_full_handle, version, token)
+  defp perform_sync(
+         %{"force" => true, "repository_full_handle" => repository_full_handle, "version" => version} = args,
+         token
+       ) do
+    resync_flags = [force: true, allow_checksum_change: Map.get(args, "allow_checksum_change", false)]
+    force_resync_package_version_for_handle(repository_full_handle, version, resync_flags, token)
   end
 
   defp perform_sync(args, token) do
@@ -86,7 +88,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  defp force_resync_package_version_for_handle(repository_full_handle, version, token) do
+  defp force_resync_package_version_for_handle(repository_full_handle, version, resync_flags, token) do
     normalized_version = KeyNormalizer.normalize_version(version)
 
     if KeyNormalizer.valid_storage_version?(normalized_version) do
@@ -103,7 +105,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
               {:discard, :package_not_found}
 
             package ->
-              force_resync_package_version(package, normalized_version, token)
+              force_resync_package_version(package, normalized_version, resync_flags, token)
           end
 
         {:discard, _reason} = discard ->
@@ -172,8 +174,13 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  defp force_resync_package_version(%{scope: scope, name: name, repository_full_handle: full_handle}, version, token) do
-    do_force_resync_package_version(scope, name, full_handle, version, token)
+  defp force_resync_package_version(
+         %{scope: scope, name: name, repository_full_handle: full_handle},
+         version,
+         resync_flags,
+         token
+       ) do
+    do_force_resync_package_version(scope, name, full_handle, version, resync_flags, token)
   end
 
   defp do_sync_package(scope, name, full_handle, token) do
@@ -193,7 +200,12 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  defp do_force_resync_package_version(scope, name, full_handle, version, token) do
+  # The rebuilt archive replaces the stored one and the catalog entry is
+  # rewritten in place, so nothing is purged first. Deleting the artifact and
+  # dropping the release ahead of the rebuild made the version resolve as "not
+  # found" for the length of the repair, and left it permanently missing when
+  # the rebuild then failed.
+  defp do_force_resync_package_version(scope, name, full_handle, version, resync_flags, token) do
     case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
       {:ok, tags} ->
         case source_tag_for_version(tags, version) do
@@ -203,47 +215,13 @@ defmodule Tuist.Registry.Swift.SyncWorker do
             {:discard, :version_not_found}
 
           tag ->
-            with {:ok, _result} <- purge_package_version(scope, name, version) do
-              enqueue_release_worker(scope, name, full_handle, tag)
-            end
+            enqueue_release_worker(scope, name, full_handle, tag, resync_flags)
         end
 
       {:error, reason} ->
         Logger.warning("Failed to fetch tags before force resyncing #{scope}/#{name}@#{version}: #{inspect(reason)}")
 
         {:error, reason}
-    end
-  end
-
-  defp purge_package_version(scope, name, version) do
-    lock_key = {:release, scope, name, version}
-
-    case Lock.try_acquire(lock_key, @release_lock_ttl_seconds) do
-      {:ok, :acquired} ->
-        try do
-          purge_package_version_with_package_lock(scope, name, version)
-        after
-          Lock.release(lock_key)
-        end
-
-      {:error, :already_locked} ->
-        {:snooze, 30}
-    end
-  end
-
-  defp purge_package_version_with_package_lock(scope, name, version) do
-    lock_key = {:package, scope, name}
-
-    case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
-      {:ok, :acquired} ->
-        try do
-          Purge.purge_version(scope, name, version)
-        after
-          Lock.release(lock_key)
-        end
-
-      {:error, :already_locked} ->
-        {:snooze, 30}
     end
   end
 
@@ -290,10 +268,14 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end)
   end
 
-  defp enqueue_release_worker(scope, name, full_handle, tag) do
-    case %{scope: scope, name: name, repository_full_handle: full_handle, tag: tag}
-         |> ReleaseWorker.new()
-         |> Oban.insert() do
+  defp enqueue_release_worker(scope, name, full_handle, tag, resync_flags \\ []) do
+    args =
+      Enum.reduce(resync_flags, %{scope: scope, name: name, repository_full_handle: full_handle, tag: tag}, fn
+        {_flag, false}, args -> args
+        {flag, value}, args -> Map.put(args, flag, value)
+      end)
+
+    case args |> ReleaseWorker.new() |> Oban.insert() do
       {:ok, _job} -> :ok
       {:error, _reason} = error -> error
     end
