@@ -23,9 +23,118 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
+
+func TestKuraInstanceDesiredStateChangedPredicate(t *testing.T) {
+	p := kuraInstanceDesiredStateChangedPredicate()
+	oldInstance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Generation: 4}}
+
+	statusOnly := oldInstance.DeepCopy()
+	statusOnly.Status.Phase = "Ready"
+	if p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: statusOnly}) {
+		t.Fatal("status-only updates must not trigger an immediate reconcile")
+	}
+
+	specChanged := oldInstance.DeepCopy()
+	specChanged.Generation++
+	if !p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: specChanged}) {
+		t.Fatal("specification changes must trigger an immediate reconcile")
+	}
+
+	deleting := oldInstance.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	if !p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: deleting}) {
+		t.Fatal("deletion must trigger an immediate reconcile even when generation is unchanged")
+	}
+}
+
+func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kura-tuist-eu-1",
+			Namespace: "kura",
+			Annotations: map[string]string{
+				unreadyPodsReplacedForImageAnnotation: "ghcr.io/tuist/kura:0.5.2",
+			},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+		},
+	}
+	podLabels := selectorLabels(instance)
+	oldUnready := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.2",
+		}}},
+	}
+	oldReady := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-1", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.2",
+		}}},
+		Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{
+			Type:   corev1.PodReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+	newUnready := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-2", Namespace: instance.Namespace, Labels: podLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.3",
+		}}},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, oldUnready, oldReady, newUnready).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted := &corev1.Pod{}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: oldUnready.Name, Namespace: oldUnready.Namespace}, deleted)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected unready pod on the previous image to be deleted, got %v", err)
+	}
+	for _, pod := range []*corev1.Pod{oldReady, newUnready} {
+		got := &corev1.Pod{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, got); err != nil {
+			t.Fatalf("expected pod %s to remain: %v", pod.Name, err)
+		}
+	}
+
+	gotInstance := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, gotInstance); err != nil {
+		t.Fatal(err)
+	}
+	if got := gotInstance.Annotations[unreadyPodsReplacedForImageAnnotation]; got != instance.Spec.Image {
+		t.Fatalf("expected handled image annotation %q, got %q", instance.Spec.Image, got)
+	}
+}
 
 func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	ctx := context.Background()
@@ -183,6 +292,16 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env[environmentEnvVar]; got != "canary" {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
+	for name, expected := range map[string]string{
+		snapshotCacheMaxBytesEnvVar:             "67108864",
+		manifestCacheMaxBytesEnvVar:             "33554432",
+		metadataStoreReadCacheBytesEnvVar:       "33554432",
+		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
+	} {
+		if got := env[name]; got != expected {
+			t.Fatalf("expected managed cache default %s=%s, got %q", name, expected, got)
+		}
+	}
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
 		if mount.Name == "public-tls" {
@@ -229,7 +348,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		"KURA_SEGMENT_HANDLE_CACHE_SIZE",
 		"KURA_MEMORY_SOFT_LIMIT_BYTES",
 		"KURA_MEMORY_HARD_LIMIT_BYTES",
-		"KURA_MANIFEST_CACHE_MAX_BYTES",
 		"KURA_MAX_KEYVALUE_BYTES",
 		"KURA_METADATA_STORE_MAX_OPEN_FILES",
 		"KURA_METADATA_STORE_MAX_BACKGROUND_JOBS",
@@ -243,6 +361,12 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if grace := sts.Spec.Template.Spec.TerminationGracePeriodSeconds; grace == nil || *grace < drainCompletionTimeoutMs/1000+preStopDelaySeconds {
 		t.Fatalf("expected terminationGracePeriodSeconds to cover the drain budget, got %v", grace)
+	}
+	if grace := container.LivenessProbe.TerminationGracePeriodSeconds; grace == nil || *grace != livenessTerminationGraceSeconds {
+		t.Fatalf("expected liveness probe grace to be %d seconds, got %v", livenessTerminationGraceSeconds, grace)
+	}
+	if serviceLinks := sts.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
+		t.Fatal("expected service-link environment injection to be disabled")
 	}
 	if len(container.EnvFrom) == 0 || container.EnvFrom[0].SecretRef == nil || container.EnvFrom[0].SecretRef.Name != sharedSecretsName {
 		t.Fatalf("expected envFrom to reference %q Secret", sharedSecretsName)
@@ -1819,6 +1943,129 @@ func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcileDeletionRemovesMatchingOwnerlessLegacyPeerService(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	legacy := legacyPeerServiceForTest(instance, "peer.eu.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacy).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected matching ownerless legacy peer Service to be deleted, got %v", err)
+	}
+}
+
+func TestKuraInstanceDeletionKeepsLegacyPeerServiceForSurvivingSibling(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	sibling := instance.DeepCopy()
+	sibling.Name = "kura-tuist-eu-1-m"
+	sibling.DeletionTimestamp = nil
+	legacy := legacyPeerServiceForTest(instance, "peer.eu.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, sibling, legacy).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); err != nil {
+		t.Fatalf("expected surviving sibling to retain the legacy peer Service: %v", err)
+	}
+}
+
+func TestKuraInstanceDeletionDoesNotRemoveLegacyPeerServiceForAnotherHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	legacy := legacyPeerServiceForTest(instance, "peer.us.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacy).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); err != nil {
+		t.Fatalf("expected host mismatch to preserve the legacy peer Service: %v", err)
+	}
+}
+
+func legacyPeerServiceForTest(instance *kurav1alpha1.KuraInstance, host string) *corev1.Service {
+	return &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name:      legacyAccountPublicPeerServiceName(instance),
+		Namespace: instance.Namespace,
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		},
+		Annotations: map[string]string{externalDNSHostnameAnnotation: host},
+	}}
+}
+
 func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -2589,6 +2836,29 @@ func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
 		}
 	}
 	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
+}
+
+func TestBaseEnvPreservesExplicitManagedCacheOverride(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		ExtraEnv: []corev1.EnvVar{{
+			Name:  snapshotCacheMaxBytesEnvVar,
+			Value: "16777216",
+		}},
+	}}
+	env := append(baseEnv(instance, "", "production"), instance.Spec.ExtraEnv...)
+
+	count := 0
+	for _, envVar := range env {
+		if envVar.Name == snapshotCacheMaxBytesEnvVar {
+			count++
+			if envVar.Value != "16777216" {
+				t.Fatalf("expected explicit managed cache override to be preserved, got %q", envVar.Value)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one %s entry, got %d", snapshotCacheMaxBytesEnvVar, count)
+	}
 }
 
 func TestReconcileStaleDataStorage(t *testing.T) {

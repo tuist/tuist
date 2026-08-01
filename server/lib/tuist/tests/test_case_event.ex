@@ -32,6 +32,10 @@ defmodule Tuist.Tests.TestCaseEvent do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_events" do
     field :test_case_id, Ecto.UUID
+    # Denormalized from `test_cases`. The `test_case_states_mv` materialized
+    # view projects these rows into `test_case_states`, whose reads are all
+    # project-scoped, and a materialized view can't join back for it.
+    field :project_id, Ch, type: "Int64"
     field :event_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
     field :alert_id, Ch, type: "Nullable(UUID)"
@@ -47,7 +51,7 @@ defmodule Tuist.Tests.TestCaseEvent do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_id, :alert_id, :inserted_at])
+    |> cast(attrs, [:id, :test_case_id, :project_id, :event_type, :actor_id, :alert_id, :inserted_at])
     |> validate_required([:id, :test_case_id, :event_type])
   end
 

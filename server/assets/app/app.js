@@ -42,6 +42,7 @@ import CopyToClipboard from "./js/CopyToClipboard.js";
 import DownloadAsFile from "./js/DownloadAsFile.js";
 import ScrollToTail from "./js/ScrollToTail.js";
 import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
+import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
 import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
@@ -70,6 +71,7 @@ Hooks.CopyToClipboard = CopyToClipboard;
 Hooks.DownloadAsFile = DownloadAsFile;
 Hooks.ScrollToTail = ScrollToTail;
 Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
+Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 
@@ -77,8 +79,10 @@ observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 Hooks.ThemeToggle = ThemeToggle;
 
-// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
-const liveSocketFallbackMs = 10000;
+// Give WebSocket connections enough time to outlive the ingress timeout and
+// retry before falling back. Matching the two timeouts creates a race where a
+// slow connection gets permanently pinned to long polling.
+const liveSocketFallbackMs = 30000;
 
 // On localhost, the WebSocket drops every time the dev server restarts or the
 // live reloader fires. With longpoll fallback enabled, the client gives

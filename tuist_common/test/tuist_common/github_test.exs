@@ -150,6 +150,20 @@ defmodule TuistCommon.GitHubTest do
                GitHub.get_file_content("tuist/tuist", "test-token", "nonexistent.swift", "main")
     end
 
+    test "identifies GitHub throttling responses with list-valued headers" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{},
+           headers: %{"x-ratelimit-remaining" => ["0"]}
+         }}
+      end)
+
+      assert {:error, {:rate_limited, 403}} =
+               GitHub.get_file_content("tuist/tuist", "test-token", "Package.swift", "main")
+    end
+
     test "returns error for invalid base64 content" do
       stub(Req, :request, fn _opts ->
         {:ok,
@@ -193,6 +207,15 @@ defmodule TuistCommon.GitHubTest do
 
       assert {:error, :not_found} =
                GitHub.list_repository_contents("tuist/nonexistent", "test-token", "main")
+    end
+
+    test "identifies GitHub throttling responses" do
+      stub(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 429, body: %{}}}
+      end)
+
+      assert {:error, {:rate_limited, 429}} =
+               GitHub.list_repository_contents("tuist/tuist", "test-token", "main")
     end
   end
 

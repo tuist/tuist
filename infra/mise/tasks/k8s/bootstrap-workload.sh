@@ -11,7 +11,7 @@
 # What this does:
 #   1. Extract the workload kubeconfig + API endpoint from the mgmt
 #      cluster's ClusterCR + minted Secret.
-#   2. Install Cilium (must be first — nothing networks without it).
+#   2. Install Cilium.
 #   3. Create the legacy `hetzner` Secret on the workload cluster and
 #      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
 #   4. Install hcloud-cloud-controller-manager (sets providerID,

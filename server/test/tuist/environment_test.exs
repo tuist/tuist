@@ -3,6 +3,36 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "clickhouse_max_memory_usage_for_user_bytes/2" do
+    test "uses the runtime environment value without mutating process-wide state" do
+      environment = %{"TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES" => "8589934592"}
+
+      assert Environment.clickhouse_max_memory_usage_for_user_bytes(%{}, environment) == 8_589_934_592
+    end
+
+    test "falls back to secrets and leaves the limit disabled when absent" do
+      secrets = %{"clickhouse" => %{"max_memory_usage_for_user_bytes" => "4294967296"}}
+
+      assert Environment.clickhouse_max_memory_usage_for_user_bytes(secrets, %{}) == 4_294_967_296
+      assert Environment.clickhouse_max_memory_usage_for_user_bytes(%{}, %{}) == 0
+    end
+  end
+
+  describe "codebase search" do
+    test "normalizes a configured service address" do
+      environment = %{"TUIST_CODEBASE_SEARCH_URL" => " http://codebase-search/ "}
+
+      assert Environment.codebase_search_url(environment) == "http://codebase-search"
+      assert Environment.codebase_search_enabled?(environment)
+    end
+
+    test "is disabled for missing and blank service URLs" do
+      assert Environment.codebase_search_url(%{}) == nil
+      refute Environment.codebase_search_enabled?(%{})
+      refute Environment.codebase_search_enabled?(%{"TUIST_CODEBASE_SEARCH_URL" => "  "})
+    end
+  end
+
   describe "get/3" do
     test "retrieves value from secrets using string keys" do
       # Given

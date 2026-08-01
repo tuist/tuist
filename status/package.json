@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "feed": "^4.2.2",
-    "hono": "^4.7.10"
+    "hono": "^4.7.10",
+    "micromark": "^4.0.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251101.0",

@@ -30,7 +30,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
           |> AlertEvaluationWorker.new(
             unique: [
               keys: [:alert_id],
-              period: cadence_seconds(alert.cadence),
+              period: Alert.cadence_seconds(alert.cadence),
               states: [:available, :scheduled, :executing, :completed]
             ]
           )
@@ -44,28 +44,8 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   defp scheduled_alert?(alert) do
     cond do
       Alert.event_driven?(alert) -> false
-      rolling_with_baseline?(alert) -> false
+      Alert.scoped_evaluation?(alert) -> false
       true -> true
     end
   end
-
-  defp rolling_with_baseline?(%{
-         monitor_type: monitor_type,
-         trigger_config: %{"window_type" => "rolling"},
-         baseline_established_at: %DateTime{}
-       })
-       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"], do: true
-
-  defp rolling_with_baseline?(_alert), do: false
-
-  defp cadence_seconds(cadence) when is_binary(cadence) do
-    case Integer.parse(cadence) do
-      {value, "m"} -> value * 60
-      {value, "h"} -> value * 3600
-      {value, "s"} -> value
-      _ -> 300
-    end
-  end
-
-  defp cadence_seconds(_), do: 300
 end

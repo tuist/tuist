@@ -22,6 +22,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
+  alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
 
   @cache_retention_workers [
     DeleteExpiredCasCacheArtifactsWorker,
@@ -41,6 +42,20 @@ defmodule Tuist.Oban.RuntimeConfigTest do
                "expected #{inspect(mode)} to be leader-ineligible — " <>
                  "non-web pods run as least-privilege roles that crash Oban.Met.Reporter " <>
                  "and carry empty crontabs, so a non-web leader silently halts every scheduled job"
+      end
+    end
+  end
+
+  describe "met_auto_start?/1" do
+    test ":web starts Oban Met" do
+      assert RuntimeConfig.met_auto_start?(:web)
+    end
+
+    test "every non-web mode skips Oban Met" do
+      for mode <- Environment.modes(), mode != :web do
+        refute RuntimeConfig.met_auto_start?(mode),
+               "expected #{inspect(mode)} to skip Oban Met because non-web pods run with " <>
+                 "least-privilege database roles and do not serve Oban Web metrics"
       end
     end
   end
@@ -97,6 +112,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
 
         refute ExpireInteractiveSessionsWorker in workers
@@ -221,6 +237,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
 
         assert ExpireInteractiveSessionsWorker in workers

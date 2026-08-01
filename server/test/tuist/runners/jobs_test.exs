@@ -5,7 +5,9 @@ defmodule Tuist.Runners.JobsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Runners.Job
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
@@ -19,6 +21,9 @@ defmodule Tuist.Runners.JobsTest do
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      platform: Keyword.get(opts, :platform, "linux"),
+      vcpus: Keyword.get(opts, :vcpus, 4),
+      memory_gb: Keyword.get(opts, :memory_gb, 16),
       repository: Keyword.get(opts, :repository, "acme/cli"),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
       run_attempt: Keyword.get(opts, :run_attempt, 1),
@@ -48,6 +53,9 @@ defmodule Tuist.Runners.JobsTest do
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      platform: Keyword.get(opts, :platform, "linux"),
+      vcpus: Keyword.get(opts, :vcpus, 4),
+      memory_gb: Keyword.get(opts, :memory_gb, 16),
       repository: Keyword.get(opts, :repository, "acme/cli"),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
       run_attempt: Keyword.get(opts, :run_attempt, 1),
@@ -115,6 +123,35 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 0
       assert Map.get(counts, "claimed", 0) == 1
+    end
+
+    test "enqueue_if_missing honors a completion guard even when ClickHouse has no row" do
+      account = account_fixture()
+
+      attrs = %{
+        workflow_job_id: 1004,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "acme/cli",
+        workflow_run_id: 10_040,
+        run_attempt: 1,
+        workflow_name: "",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        requested_dispatch_label: ""
+      }
+
+      Repo.insert!(%JobCompletion{
+        workflow_job_id: attrs.workflow_job_id,
+        account_id: account.id,
+        conclusion: "cancelled",
+        completed_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      assert :ok = Jobs.enqueue_if_missing(attrs)
+      assert {:error, :empty} = Jobs.pick_queued("fleet-a")
+      assert Jobs.status_counts(account.id) == %{}
     end
   end
 
@@ -442,11 +479,26 @@ defmodule Tuist.Runners.JobsTest do
       account_a = account_fixture()
       account_b = account_fixture()
 
-      :ok = enqueue_fixture(account_a, 2001, fleet: "fleet-x", repository: "acme/older")
+      :ok =
+        enqueue_fixture(account_a, 2001,
+          fleet: "fleet-x",
+          repository: "acme/older",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14
+        )
+
       Process.sleep(20)
       :ok = enqueue_fixture(account_b, 2002, fleet: "fleet-x", repository: "globex/newer")
 
-      assert {:ok, %{workflow_job_id: 2001, account_id: a_id}} =
+      assert {:ok,
+              %{
+                workflow_job_id: 2001,
+                account_id: a_id,
+                platform: "macos",
+                vcpus: 6,
+                memory_gb: 14
+              }} =
                Jobs.pick_queued("fleet-x", [])
 
       assert a_id == account_a.id
@@ -471,6 +523,16 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 3102, fleet: "fleet-skip", enqueued_at: newer)
 
       assert {:ok, %{workflow_job_id: 3102}} = Jobs.pick_queued("fleet-skip", [], [3101])
+    end
+
+    test "skips excluded repositories without excluding the account" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 3151, fleet: "fleet-repository", repository: "acme/unavailable")
+      :ok = enqueue_fixture(account, 3152, fleet: "fleet-repository", repository: "acme/available")
+
+      assert {:ok, [%{workflow_job_id: 3152}]} =
+               Jobs.pick_queued_top_k("fleet-repository", [], ["acme/unavailable"], [], 1)
     end
 
     test "ignores queued rows enqueued beyond the lookback window" do
@@ -514,7 +576,7 @@ defmodule Tuist.Runners.JobsTest do
 
       assert :ok = Jobs.record_claimed(candidate, "pod-bs", DateTime.utc_now())
 
-      assert Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002)) == []
+      assert Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002)) == []
     end
   end
 
@@ -534,6 +596,27 @@ defmodule Tuist.Runners.JobsTest do
   end
 
   describe "record_queued/1" do
+    test "re-surfaces a claimed candidate without re-reading its ClickHouse row" do
+      account = account_fixture()
+
+      :ok =
+        enqueue_fixture(account, 6000,
+          fleet: "fleet-q",
+          repository: "acme/releasable",
+          requested_dispatch_label: "tuist-release"
+        )
+
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+
+      assert :ok = Jobs.record_queued(candidate)
+
+      assert {:ok, requeued} = Jobs.pick_queued("fleet-q", [])
+      assert requeued.workflow_job_id == 6000
+      assert requeued.repository == "acme/releasable"
+      assert requeued.requested_dispatch_label == "tuist-release"
+    end
+
     test "re-surfaces a claimed row as queued (after release/stale)" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 6001, fleet: "fleet-q")
@@ -545,6 +628,40 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
       assert Map.get(counts, "claimed", 0) == 0
+    end
+
+    test "clears stale execution fields when recovery requeues by workflow job id" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 6003, fleet: "fleet-q")
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-stale", DateTime.utc_now())
+      :ok = Jobs.record_running(6003, "runner-stale")
+
+      assert :ok = Jobs.record_queued(6003)
+
+      assert {:ok, requeued} = Jobs.get(6003)
+      assert requeued.status == "queued"
+      assert requeued.conclusion == ""
+      assert requeued.claimed_at == nil
+      assert requeued.started_at == nil
+      assert requeued.completed_at == nil
+      assert requeued.pod_name == ""
+      assert requeued.runner_name == ""
+      assert requeued.log_archived_at == nil
+    end
+
+    test "does not re-surface a terminal job as queued" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 6002, fleet: "fleet-q")
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      {:ok, _job} = Jobs.complete(6002, "cancelled")
+
+      assert :ok = Jobs.record_queued(6002)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "completed", 0) == 1
+      assert Map.get(counts, "queued", 0) == 0
     end
   end
 
@@ -984,7 +1101,7 @@ defmodule Tuist.Runners.JobsTest do
       assert {:ok, _} = Jobs.complete(7200, "success")
 
       [session] =
-        Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
+        Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
 
       # Webhook completion doesn't close the session — the
       # controller's `POST /api/internal/runners/pods/stopped` is
@@ -1092,46 +1209,58 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
-  describe "p95_concurrent_last_hour/1" do
-    test "returns 0 on a fleet with no history" do
-      assert Jobs.p95_concurrent_last_hour("fleet-empty") == 0
+  describe "queued_count_by_fleet_and_account/1" do
+    test "groups the fleet's queued rows by account" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+
+      :ok = enqueue_fixture(account_a, 8301, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_a, 8302, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_b, 8303, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_a, 8304, fleet: "fleet-qca-other")
+
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca") == %{
+               account_a.id => 2,
+               account_b.id => 1
+             }
     end
 
-    test "reflects a workflow_job currently in flight" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 9001, fleet: "fleet-p95")
-      {:ok, candidate} = Jobs.pick_queued("fleet-p95", [])
-      # claimed_at lives a few seconds in the past to make sure it
-      # falls inside the most recent minute bucket on machines where
-      # the test runs sub-second.
-      claimed_at = DateTime.add(DateTime.utc_now(), -5, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", claimed_at)
-      :ok = Jobs.record_running(9001, "runner-1")
+    test "totals to queued_count_by_fleet/1 so the two cannot drift" do
+      account_a = account_fixture()
+      account_b = account_fixture()
 
-      # One in-flight workflow_job → p95 of the 60 buckets is at
-      # least 1 (most recent bucket contains it; the remaining 59
-      # buckets predating claimed_at contain 0). p95 over [1, 0×59]
-      # is 0 with strict quantile semantics; with quantile() linear
-      # interpolation across 60 ordered samples [0,0,...,0,1] the
-      # 95th percentile lands in the upper tail. Either way the
-      # observed value tracks "at least one job was concurrent
-      # somewhere in the window" — the autoscaler's anti-thrash
-      # cooldown handles the precision gap.
-      assert Jobs.p95_concurrent_last_hour("fleet-p95") >= 0
+      :ok = enqueue_fixture(account_a, 8311, fleet: "fleet-qca-sum")
+      :ok = enqueue_fixture(account_b, 8312, fleet: "fleet-qca-sum")
+      :ok = enqueue_fixture(account_b, 8313, fleet: "fleet-qca-sum")
+
+      by_account = Jobs.queued_count_by_fleet_and_account("fleet-qca-sum")
+
+      assert by_account |> Map.values() |> Enum.sum() ==
+               Jobs.queued_count_by_fleet("fleet-qca-sum")
     end
 
-    test "ignores jobs that completed more than 2 hours ago" do
-      # Sanity check: the 2-hour scan bound is permissive enough
-      # to cover the 1-hour window. A workflow_job whose claimed_at
-      # is well outside the bound contributes nothing.
+    test "excludes rows that have transitioned out of `queued`" do
       account = account_fixture()
-      :ok = enqueue_fixture(account, 9101, fleet: "fleet-old")
-      {:ok, candidate} = Jobs.pick_queued("fleet-old", [])
-      far_past = DateTime.add(DateTime.utc_now(), -10_800, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", far_past)
-      {:ok, _} = Jobs.complete(9101, "success")
+      :ok = enqueue_fixture(account, 8321, fleet: "fleet-qca-trans")
+      {:ok, candidate} = Jobs.pick_queued("fleet-qca-trans", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
 
-      assert Jobs.p95_concurrent_last_hour("fleet-old") == 0
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-trans") == %{}
+    end
+
+    test "returns an empty map for an unknown fleet" do
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-none") == %{}
+    end
+
+    test "honours the same lookback window as the total" do
+      account = account_fixture()
+      recent = DateTime.add(DateTime.utc_now(), -60, :second)
+      stale = DateTime.add(DateTime.utc_now(), -8 * 86_400, :second)
+
+      :ok = enqueue_fixture(account, 8331, fleet: "fleet-qca-look", enqueued_at: recent)
+      :ok = enqueue_fixture(account, 8332, fleet: "fleet-qca-look", enqueued_at: stale)
+
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
     end
   end
 end

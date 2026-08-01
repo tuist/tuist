@@ -6,9 +6,12 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
 
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
   alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.InteractiveShellBroker
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   defp job(account, attrs \\ %{}) do
@@ -114,6 +117,82 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
              ).disconnected_at == nil
     end
 
+    test "refreshes an existing VNC session to the live claimed pod" do
+      account = account_fixture()
+      user = user_fixture()
+      job = job(account, %{workflow_job_id: 70_004, pod_name: "stale-vnc-pod"})
+
+      assert {:ok, first} = InteractiveSessions.request_vnc(job, account, user)
+      assert first.pod_name == "stale-vnc-pod"
+
+      assert {:ok, _claim} =
+               Claims.attempt(70_004, account.id, first.fleet_name, "live-vnc-pod", %{
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14
+               })
+
+      assert :ok = Claims.mark_running(70_004, "runner-vnc")
+
+      assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-vnc-pod"
+      assert Repo.get!(InteractiveSession, first.id).pod_name == "live-vnc-pod"
+    end
+
+    test "refreshes an existing VNC session to the live runner-session pod" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_005
+      job = job(account, %{workflow_job_id: workflow_job_id, pod_name: "stale-vnc-runner-session-pod"})
+
+      assert {:ok, first} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: first.fleet_name,
+                 pod_name: "live-vnc-runner-session-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-vnc-runner-session-pod"
+    end
+
+    test "refreshes an existing VNC session to the current job pod when no live binding exists" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_006
+
+      assert {:ok, first} =
+               InteractiveSessions.request_vnc(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-vnc-current-job-pod"
+                 }),
+                 account,
+                 user
+               )
+
+      current_job =
+        job(account, %{
+          workflow_job_id: workflow_job_id,
+          pod_name: "live-vnc-current-job-pod",
+          fleet_name: first.fleet_name
+        })
+
+      assert {:ok, second} = InteractiveSessions.request_vnc(current_job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-vnc-current-job-pod"
+      assert Repo.get!(InteractiveSession, first.id).pod_name == "live-vnc-current-job-pod"
+    end
+
     test "rejects non-macOS jobs" do
       account = account_fixture()
       user = user_fixture()
@@ -128,6 +207,245 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
 
       assert {:error, :job_not_running} =
                InteractiveSessions.request_vnc(job(account, %{status: "completed"}), account, user)
+    end
+  end
+
+  describe "request_shell/3" do
+    test "creates a requested shell session for a Linux runner job" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:ok, %InteractiveSession{} = session} =
+               InteractiveSessions.request_shell(job(account, %{fleet_name: "linux-amd64"}), account, user)
+
+      assert session.kind == :shell
+      assert session.state == :requested
+      assert session.account_id == account.id
+      assert session.requested_by_user_id == user.id
+      assert is_binary(session.token)
+      assert byte_size(session.token_hash) == 32
+    end
+
+    test "creates a requested shell session for a macOS runner job" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:ok, %InteractiveSession{} = session} = InteractiveSessions.request_shell(job(account), account, user)
+
+      assert session.kind == :shell
+      assert session.state == :requested
+      assert is_binary(session.token)
+    end
+
+    test "uses the live claim pod when creating a shell session" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_111
+
+      assert {:ok, _claim} =
+               Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-pod", %{
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+
+      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell")
+
+      assert {:ok, %InteractiveSession{} = session} =
+               InteractiveSessions.request_shell(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-shell-pod",
+                   fleet_name: "linux-amd64"
+                 }),
+                 account,
+                 user
+               )
+
+      assert session.pod_name == "live-shell-pod"
+      assert session.fleet_name == "linux-amd64"
+    end
+
+    test "uses the live runner-session pod when creating a shell session without a claim" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_113
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: "macos-xcode-26-5",
+                 pod_name: "live-macos-shell-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert {:ok, %InteractiveSession{} = session} =
+               InteractiveSessions.request_shell(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-macos-shell-pod",
+                   fleet_name: "macos-xcode-26-5"
+                 }),
+                 account,
+                 user
+               )
+
+      assert session.pod_name == "live-macos-shell-pod"
+      assert session.fleet_name == "macos-xcode-26-5"
+    end
+
+    test "rotates the token for duplicate shell requests" do
+      account = account_fixture()
+      user = user_fixture()
+      job = job(account, %{workflow_job_id: 70_101, pod_name: "pod-shell-refresh", fleet_name: "linux-amd64"})
+
+      assert {:ok, first} = InteractiveSessions.request_shell(job, account, user)
+      assert {:ok, second} = InteractiveSessions.request_shell(job, account, user)
+
+      assert second.id == first.id
+      assert second.token != first.token
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(first.token, account, user)
+      assert {:ok, validated} = InteractiveSessions.validate_token(second.token, account, user)
+      assert validated.id == first.id
+    end
+
+    test "validates a shell token by requesting user for API websocket upgrades" do
+      account = account_fixture()
+      user = user_fixture()
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{fleet_name: "linux-amd64"}), account, user)
+
+      assert {:ok, validated} = InteractiveSessions.validate_token(session.token, user)
+      assert validated.id == session.id
+    end
+
+    test "resolves the open shell session for the runner pod" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "pod-shell-agent"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}), account, user)
+
+      assert InteractiveSessions.current_shell_for_pod(pod_name).id == session.id
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, pod_name)
+      assert same_session.id == session.id
+      assert {:error, :not_found} = InteractiveSessions.validate_shell_pod(session.id, "other-pod")
+    end
+
+    test "resolves a stale shell session through the live runner claim" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_112
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(
+          job(account, %{
+            workflow_job_id: workflow_job_id,
+            pod_name: "stale-shell-agent-pod",
+            fleet_name: "linux-amd64"
+          }),
+          account,
+          user
+        )
+
+      assert {:ok, _claim} =
+               Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-agent-pod", %{
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+
+      assert :ok = Claims.mark_running(workflow_job_id, "runner-shell-agent")
+
+      assert InteractiveSessions.current_shell_for_pod("live-shell-agent-pod").id == session.id
+      assert Repo.get!(InteractiveSession, session.id).pod_name == "live-shell-agent-pod"
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-shell-agent-pod")
+      assert same_session.id == session.id
+    end
+
+    test "resolves a stale shell session through the open runner session" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_114
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(
+          job(account, %{
+            workflow_job_id: workflow_job_id,
+            pod_name: "stale-macos-shell-agent-pod",
+            fleet_name: "macos-xcode-26-5"
+          }),
+          account,
+          user
+        )
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: "macos-xcode-26-5",
+                 pod_name: "live-macos-shell-agent-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert InteractiveSessions.current_shell_for_pod("live-macos-shell-agent-pod").id == session.id
+      assert Repo.get!(InteractiveSession, session.id).pod_name == "live-macos-shell-agent-pod"
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-macos-shell-agent-pod")
+      assert same_session.id == session.id
+    end
+
+    test "refreshes an existing shell session to the current job pod when no live binding exists" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_115
+
+      assert {:ok, first} =
+               InteractiveSessions.request_shell(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-shell-current-job-pod",
+                   fleet_name: "linux-amd64"
+                 }),
+                 account,
+                 user
+               )
+
+      current_job =
+        job(account, %{
+          workflow_job_id: workflow_job_id,
+          pod_name: "live-shell-current-job-pod",
+          fleet_name: first.fleet_name
+        })
+
+      assert {:ok, second} = InteractiveSessions.request_shell(current_job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-shell-current-job-pod"
+      assert Repo.get!(InteractiveSession, first.id).pod_name == "live-shell-current-job-pod"
+      assert InteractiveSessions.current_shell_for_pod("live-shell-current-job-pod").id == first.id
+    end
+
+    test "rejects unsupported platforms" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:error, :unsupported_platform} =
+               InteractiveSessions.request_shell(job(account, %{fleet_name: "windows-amd64"}), account, user)
+    end
+
+    test "rejects jobs that are not running or claimed" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:error, :job_not_running} =
+               InteractiveSessions.request_shell(
+                 job(account, %{status: "completed", fleet_name: "linux-amd64"}),
+                 account,
+                 user
+               )
     end
   end
 
@@ -266,6 +584,23 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert closed.close_reason == "pod_exit"
       assert DateTime.compare(closed.closed_at, ~U[2026-07-06 12:00:00Z]) == :eq
       assert InteractiveSessions.current_for_job(account.id, session.workflow_job_id, :vnc) == nil
+    end
+
+    test "notifies shell clients when their stopped pod closes the session" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "tuist-linux-runner-stopped"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}), account, user)
+
+      :ok = InteractiveShellBroker.subscribe_client(session.id)
+
+      assert {:ok, closed} = InteractiveSessions.close_by_pod_name(pod_name, ~U[2026-07-06 12:00:00Z])
+
+      assert closed.id == session.id
+      refute InteractiveSessions.open?(session.id)
+      assert_receive {:runner_shell, :runner_disconnected}
     end
   end
 

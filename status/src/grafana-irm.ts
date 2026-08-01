@@ -72,6 +72,21 @@ interface QueryIncidentsResponse {
   cursor?: { hasMore: boolean; nextValue: string };
 }
 
+interface RawKeyUpdate {
+  id?: string;
+  title?: string;
+  content?: string;
+  createdTime?: string;
+  modifiedTime?: string;
+  statusID?: string;
+}
+
+interface QueryKeyUpdatesResponse {
+  error?: string;
+  keyUpdates?: RawKeyUpdate[];
+  cursor?: { hasMore: boolean; nextValue: string };
+}
+
 interface GetFieldsResponse {
   error?: string;
   fields?: RawField[];
@@ -92,7 +107,16 @@ function severityFrom(input: string | undefined, labels: RawLabel[] = []): Incid
 
 function statusFrom(input: string | undefined): IncidentStatus {
   if (!input) return "investigating";
-  return input.toLowerCase() === "resolved" ? "resolved" : "investigating";
+  switch (input.trim().toLowerCase()) {
+    case "identified":
+      return "identified";
+    case "monitoring":
+      return "monitoring";
+    case "resolved":
+      return "resolved";
+    default:
+      return "investigating";
+  }
 }
 
 function labelKey(l: RawLabel): string | undefined {
@@ -123,7 +147,7 @@ function affectedComponentsFrom(
   return Array.from(ids);
 }
 
-function toIncident(raw: RawIncident, componentLabelKey: string, knownIds: Set<string>): Incident {
+function summaryUpdate(raw: RawIncident): IncidentUpdate[] {
   const updates: IncidentUpdate[] = [];
   if (raw.summary) {
     updates.push({
@@ -132,6 +156,15 @@ function toIncident(raw: RawIncident, componentLabelKey: string, knownIds: Set<s
       body: raw.summary,
     });
   }
+  return updates;
+}
+
+function toIncident(
+  raw: RawIncident,
+  componentLabelKey: string,
+  knownIds: Set<string>,
+  updates = summaryUpdate(raw),
+): Incident {
   return {
     id: raw.incidentID,
     title: raw.title,
@@ -197,6 +230,8 @@ interface ClientOpts {
   token: string;
 }
 
+const KEY_UPDATE_CONCURRENCY = 5;
+
 async function rpc<T>(opts: ClientOpts, method: string, body: object): Promise<T> {
   const url = `${opts.baseUrl.replace(/\/$/, "")}/api/v1/${method}`;
   const response = await fetch(url, {
@@ -236,6 +271,62 @@ async function queryIncidents(opts: ClientOpts, queryString: string, limit = 100
     cursor = res.cursor.nextValue;
   }
   return out;
+}
+
+async function queryKeyUpdates(opts: ClientOpts, incidentID: string, limit = 100): Promise<RawKeyUpdate[]> {
+  const out: RawKeyUpdate[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const body: Record<string, unknown> = {
+      query: {
+        incidentID,
+        limit,
+        orderDirection: "DESC",
+        orderField: "createdTime",
+        contentType: "text/plain",
+      },
+    };
+    if (cursor) body.cursor = cursor;
+    const res = await rpc<QueryKeyUpdatesResponse>(opts, "KeyUpdatesService.QueryKeyUpdates", body);
+    out.push(...(res.keyUpdates ?? []));
+    if (!res.cursor?.hasMore) break;
+    cursor = res.cursor.nextValue;
+  }
+  return out;
+}
+
+function incidentUpdates(raw: RawIncident, keyUpdates: RawKeyUpdate[]): IncidentUpdate[] {
+  const updates = keyUpdates
+    .filter((update) => update.content?.trim())
+    .map((update) => ({
+      at: update.createdTime ?? update.modifiedTime ?? raw.modifiedTime ?? raw.createdTime ?? new Date().toISOString(),
+      status: statusFrom(update.title ?? raw.status),
+      title: update.title?.trim() || undefined,
+      body: update.content!.trim(),
+    }));
+  return updates.length > 0 ? updates : summaryUpdate(raw);
+}
+
+async function hydrateIncidents(
+  opts: ClientOpts,
+  rawIncidents: RawIncident[],
+  componentLabelKey: string,
+  knownIds: Set<string>,
+): Promise<Incident[]> {
+  const incidents = new Array<Incident>(rawIncidents.length);
+  let nextIndex = 0;
+
+  async function hydrateNext(): Promise<void> {
+    while (nextIndex < rawIncidents.length) {
+      const index = nextIndex++;
+      const raw = rawIncidents[index]!;
+      const keyUpdates = await queryKeyUpdates(opts, raw.incidentID);
+      incidents[index] = toIncident(raw, componentLabelKey, knownIds, incidentUpdates(raw, keyUpdates));
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(KEY_UPDATE_CONCURRENCY, rawIncidents.length) }, () => hydrateNext()));
+  return incidents;
 }
 
 function withinLastDays(iso: string | null | undefined, days: number): boolean {
@@ -331,10 +422,10 @@ export async function fetchStatusFromGrafana(env: {
     queryIncidents(opts, "isdrill:false status:resolved"),
   ]);
   const knownIds = new Set(defs.map((d) => d.id));
-  const activeIncidents = active.map((r) => toIncident(r, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds));
-  const recentIncidents = recentAll
-    .filter((i) => withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14))
-    .map((r) => toIncident(r, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds));
+  const recent = recentAll.filter((i) => withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14));
+  const incidents = await hydrateIncidents(opts, [...active, ...recent], env.GRAFANA_COMPONENT_LABEL_KEY, knownIds);
+  const activeIncidents = incidents.slice(0, active.length);
+  const recentIncidents = incidents.slice(active.length);
   const components = rollUpComponents(defs, activeIncidents);
   return {
     overall: rollUpOverall(components),

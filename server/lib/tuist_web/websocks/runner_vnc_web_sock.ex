@@ -66,7 +66,7 @@ defmodule TuistWeb.RunnerVNCWebSock do
   @impl WebSock
   def terminate(_reason, %{socket: socket, session: session, connection_id: connection_id}) do
     :gen_tcp.close(socket)
-    _ = InteractiveSessions.schedule_disconnect_close(session, connection_id)
+    _ = InteractiveSessions.close_disconnected_connection(session, connection_id)
     :ok
   end
 

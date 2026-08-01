@@ -9,5 +9,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "LocalLib"),
+        .testTarget(name: "LocalLibTests", dependencies: ["LocalLib"]),
     ]
 )

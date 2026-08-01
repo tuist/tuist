@@ -95,16 +95,18 @@ defmodule TuistWeb.RunnerJobLive do
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
+    terminal_simulation? = terminal_simulation?(params)
     step = params["step"]
     cleaned_params = Map.delete(params, "step")
-    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive, terminal_simulation?)
 
     socket =
       socket
+      |> assign(:terminal_simulation?, terminal_simulation?)
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, URI.new!("?" <> URI.encode_query(cleaned_params)))
       |> maybe_expand_step(step, cleaned_params)
-      |> maybe_auto_request_vnc_session()
+      |> maybe_auto_request_interactive_sessions()
 
     {:noreply, socket}
   end
@@ -548,9 +550,21 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp timestamp_epoch_ms(_), do: nil
 
-  def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
+  def terminal_tab_visible?(_interactive, true), do: true
 
-  def interactive_tab_visible?(_), do: false
+  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+    do: true
+
+  def terminal_tab_visible?(_, _), do: false
+
+  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+    do: true
+
+  def vnc_tab_visible?(_), do: false
+
+  def interactive_tab_visible?(interactive) do
+    terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
+  end
 
   def interactive_vnc_unavailable_reason(%{can_read?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
@@ -594,6 +608,7 @@ defmodule TuistWeb.RunnerJobLive do
     socket =
       socket
       |> refresh_vnc_relay_state()
+      |> refresh_interactive_state()
       |> schedule_interactive_refresh()
 
     {:noreply, socket}
@@ -637,6 +652,18 @@ defmodule TuistWeb.RunnerJobLive do
 
   def handle_event("request_vnc_session", _params, socket) do
     {:noreply, request_vnc_session(socket)}
+  end
+
+  def handle_event("request_shell_session", _params, socket) do
+    {:noreply, request_shell_session(socket)}
+  end
+
+  def handle_event("interactive_vnc_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :vnc)}
+  end
+
+  def handle_event("interactive_shell_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :shell)}
   end
 
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
@@ -691,7 +718,48 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
+  defp request_shell_session(socket) do
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
+
+    cond do
+      not interactive.can_read? ->
+        socket
+
+      not interactive.shell_requestable? ->
+        socket
+
+      true ->
+        case InteractiveSessions.request_shell(job, selected_account, current_user) do
+          {:ok, session} ->
+            socket
+            |> assign(:shell_session_token, session.token)
+            |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
+
+          {:error, _reason} ->
+            socket
+        end
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(
+         %{assigns: %{selected_tab: "terminal", terminal_simulation?: true}} = socket
+       ), do: socket
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "terminal"}} = socket) do
+    if connected?(socket) do
+      request_shell_session(socket)
+    else
+      socket
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "vnc"}} = socket) do
     if connected?(socket) do
       request_vnc_session(socket)
     else
@@ -699,7 +767,19 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp maybe_auto_request_vnc_session(socket), do: socket
+  defp maybe_auto_request_interactive_sessions(socket), do: socket
+
+  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell] do
+    %{selected_account: selected_account, job: job} = socket.assigns
+    _ = InteractiveSessions.close_for_job(selected_account.id, job.workflow_job_id, kind, "browser_disconnect")
+
+    socket
+    |> clear_interactive_session_token(kind)
+    |> refresh_interactive_state()
+  end
+
+  defp clear_interactive_session_token(socket, :vnc), do: assign(socket, :vnc_session_token, nil)
+  defp clear_interactive_session_token(socket, :shell), do: assign(socket, :shell_session_token, nil)
 
   defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
     InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
@@ -709,8 +789,16 @@ defmodule TuistWeb.RunnerJobLive do
     InteractiveSessions.request_vnc_relay(session)
   end
 
-  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "vnc", interactive: interactive}} = socket) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "terminal", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.shell_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
 
@@ -841,13 +929,25 @@ defmodule TuistWeb.RunnerJobLive do
   defp oldest_line_number([]), do: nil
   defp oldest_line_number([first | _]), do: first.line_number
 
-  defp selected_tab("interactive", interactive) do
-    if interactive_tab_visible?(interactive), do: "interactive", else: "overview"
+  defp selected_tab("interactive", interactive, terminal_simulation?) do
+    selected_tab("terminal", interactive, terminal_simulation?)
   end
 
-  defp selected_tab("logs", _interactive), do: "logs"
-  defp selected_tab("metrics", _interactive), do: "metrics"
-  defp selected_tab(_, _interactive), do: "overview"
+  defp selected_tab("terminal", interactive, terminal_simulation?) do
+    if terminal_tab_visible?(interactive, terminal_simulation?), do: "terminal", else: "overview"
+  end
+
+  defp selected_tab("vnc", interactive, _terminal_simulation?) do
+    if vnc_tab_visible?(interactive), do: "vnc", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive, _terminal_simulation?), do: "logs"
+  defp selected_tab("metrics", _interactive, _terminal_simulation?), do: "metrics"
+  defp selected_tab(_, _interactive, _terminal_simulation?), do: "overview"
+
+  defp terminal_simulation?(params) do
+    Environment.dev?() and Environment.truthy?(params["terminal_simulation"])
+  end
 
   defp maybe_expand_step(socket, step, cleaned_params) when is_binary(step) do
     case Integer.parse(step) do
@@ -880,12 +980,15 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp refresh_interactive_state(socket) do
     %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns
-    token = socket.assigns[:vnc_session_token]
-    assign(socket, :interactive, interactive_state(selected_account, current_user, job, token))
+    vnc_token = socket.assigns[:vnc_session_token]
+    shell_token = socket.assigns[:shell_session_token]
+    assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
-  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil) do
-    macos? = Catalog.fleet_platform(job.fleet_name) == :macos
+  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
+    platform = Catalog.fleet_platform(job.fleet_name)
+    macos? = platform == :macos
+    linux? = platform == :linux
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
@@ -893,35 +996,64 @@ defmodule TuistWeb.RunnerJobLive do
 
     vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
+    shell_requestable? = can_read? and InteractiveSessions.shell_requestable?(job)
 
     vnc_session =
       selected_account.id
       |> InteractiveSessions.current_for_job(job.workflow_job_id, :vnc)
       |> with_vnc_session_token(vnc_session_token)
 
-    vnc_websocket_path =
-      if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
-        "/#{selected_account.name}/runners/interactive/vnc"
-      end
+    shell_session =
+      selected_account.id
+      |> InteractiveSessions.current_for_job(job.workflow_job_id, :shell)
+      |> with_shell_session_token(shell_session_token)
 
     %{
       can_read?: can_read?,
       macos?: macos?,
+      linux?: linux?,
       running?: running?,
       pod_available?: pod_available?,
       vnc_requestable?: vnc_requestable?,
       vnc_dev_placeholder?: vnc_dev_placeholder?,
       vnc_session: vnc_session,
       vnc_session_ready?: vnc_session_ready?(vnc_session),
-      vnc_websocket_path: vnc_websocket_path,
-      vnc_websocket_token: vnc_session_token
+      vnc_websocket_path: vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token),
+      vnc_websocket_token: vnc_session_token,
+      shell_requestable?: shell_requestable?,
+      shell_session: shell_session,
+      shell_websocket_path: shell_websocket_path(selected_account, shell_session, shell_session_token),
+      shell_websocket_token: shell_session_token
     }
+  end
+
+  defp vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    if vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+      "/#{selected_account.name}/runners/interactive/vnc"
+    end
+  end
+
+  defp vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token)
+  end
+
+  defp shell_websocket_path(selected_account, shell_session, shell_session_token) do
+    if shell_session_connectable?(shell_session) and is_binary(shell_session_token) do
+      "/#{selected_account.name}/runners/interactive/shell"
+    end
   end
 
   defp with_vnc_session_token(nil, _token), do: nil
   defp with_vnc_session_token(session, token) when is_binary(token), do: %{session | token: token}
   defp with_vnc_session_token(session, _token), do: session
 
+  defp with_shell_session_token(nil, _token), do: nil
+  defp with_shell_session_token(session, token) when is_binary(token), do: %{session | token: token}
+  defp with_shell_session_token(session, _token), do: session
+
   defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
   defp vnc_session_ready?(_), do: false
+
+  defp shell_session_connectable?(%{state: state}) when state in [:ready, :active], do: true
+  defp shell_session_connectable?(_), do: false
 end

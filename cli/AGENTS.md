@@ -24,6 +24,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 
 ## Code Style
 - Do not add one-line comments unless they are truly useful.
+- Report user-facing warnings through `AlertController.current.warning(.alert("..."))` (from `TuistAlert`) so they are collected and presented at the end of the command. Do not use `Logger.current.warning` for this; reserve `Logger` for debug/trace output.
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories.

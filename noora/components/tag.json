@@ -1,0 +1,99 @@
+{
+  "name": "Tag",
+  "tagName": "noora-tag",
+  "elementClassName": "NooraTag",
+  "className": "noora-tag",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays a compact label with optional icon and dismissal.",
+  "usage": "<noora-tag label=\"Active\"></noora-tag>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the visible label."
+    },
+    {
+      "name": "dismissible",
+      "property": "dismissible",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a dismiss control."
+    },
+    {
+      "name": "dismiss-value",
+      "property": "dismissValue",
+      "type": "string",
+      "description": "Adds a value to the dismiss event."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Sets a Noora icon before the label."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables dismissal."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "A custom icon that takes precedence over the icon attribute."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "tag",
+      "description": "The tag container."
+    },
+    {
+      "name": "label",
+      "description": "The label."
+    },
+    {
+      "name": "dismiss",
+      "description": "The dismiss control."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-dismiss",
+      "type": "CustomEvent<{ value: string | undefined }>",
+      "description": "Emitted when the tag dismiss control is activated."
+    }
+  ],
+  "notes": ["Dismissal emits a `noora-dismiss` event."],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic tags",
+      "description": "Render plain tags and tags with different icons.",
+      "markup": "<noora-tag label=\"Simple Tag\"></noora-tag>\n<noora-tag label=\"Category\" icon=\"category\"></noora-tag>\n<noora-tag label=\"User\" icon=\"user\"></noora-tag>"
+    },
+    {
+      "id": "dismissible",
+      "title": "Dismissible states",
+      "description": "Allow removal when a tag represents editable input.",
+      "markup": "<noora-tag label=\"Dismissible Tag\" icon=\"category\" dismissible></noora-tag>\n<noora-tag label=\"Fixed Tag\" icon=\"category\"></noora-tag>\n<noora-tag label=\"Remove Me\" dismissible></noora-tag>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled states",
+      "description": "Disable plain, icon, and dismissible tags.",
+      "markup": "<noora-tag label=\"Disabled Tag\" disabled></noora-tag>\n<noora-tag label=\"Disabled\" icon=\"category\" disabled></noora-tag>\n<noora-tag label=\"Disabled Dismissible\" icon=\"category\" dismissible disabled></noora-tag>"
+    },
+    {
+      "id": "content",
+      "title": "Content variations",
+      "description": "Support short, long, version, and status labels.",
+      "markup": "<noora-tag label=\"New\" dismissible></noora-tag>\n<noora-tag label=\"Very Long Tag Label That Might Wrap\" icon=\"category\" dismissible></noora-tag>\n<noora-tag label=\"v2.1.0\" icon=\"git_branch\"></noora-tag>\n<noora-tag label=\"In Progress\" icon=\"progress_x\" dismissible></noora-tag>"
+    }
+  ]
+}

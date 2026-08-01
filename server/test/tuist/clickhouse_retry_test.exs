@@ -89,4 +89,83 @@ defmodule Tuist.ClickHouseRetryTest do
       assert :counters.get(counter, 1) == 1
     end
   end
+
+  describe "with_result_retry/2" do
+    test "retries a tagged per-user memory error" do
+      counter = :counters.new(1, [])
+
+      log =
+        capture_log(fn ->
+          assert {:ok, :result} =
+                   ClickHouseRetry.with_result_retry(
+                     fn ->
+                       :counters.add(counter, 1, 1)
+
+                       if :counters.get(counter, 1) == 1 do
+                         {:error, %Ch.Error{code: 241, message: "Memory limit (for user) exceeded"}}
+                       else
+                         {:ok, :result}
+                       end
+                     end,
+                     user_memory_retries: 1
+                   )
+        end)
+
+      assert :counters.get(counter, 1) == 2
+      assert log =~ "ClickHouse user memory budget is busy"
+    end
+
+    test "returns the tagged error when the retry budget is exhausted" do
+      error = %Ch.Error{code: 241, message: "Memory limit (for user) exceeded"}
+
+      assert {:error, ^error} =
+               ClickHouseRetry.with_result_retry(fn -> {:error, error} end,
+                 user_memory_retries: 0
+               )
+    end
+
+    test "does not retry unrelated ClickHouse errors" do
+      counter = :counters.new(1, [])
+      error = %Ch.Error{code: 62, message: "Syntax error"}
+
+      assert {:error, ^error} =
+               ClickHouseRetry.with_result_retry(
+                 fn ->
+                   :counters.add(counter, 1, 1)
+                   {:error, error}
+                 end,
+                 user_memory_retries: 1
+               )
+
+      assert :counters.get(counter, 1) == 1
+    end
+
+    test "retries a tagged transport error" do
+      counter = :counters.new(1, [])
+
+      capture_log(fn ->
+        assert {:ok, :result} =
+                 ClickHouseRetry.with_result_retry(
+                   fn ->
+                     :counters.add(counter, 1, 1)
+
+                     if :counters.get(counter, 1) == 1 do
+                       {:error, %Mint.TransportError{reason: :closed}}
+                     else
+                       {:ok, :result}
+                     end
+                   end,
+                   transport_retries: 1,
+                   user_memory_retries: 0
+                 )
+      end)
+
+      assert :counters.get(counter, 1) == 2
+    end
+
+    test "returns an unrelated tagged error unchanged" do
+      assert {:error, :unexpected} =
+               ClickHouseRetry.with_result_retry(fn -> {:error, :unexpected} end)
+    end
+  end
 end

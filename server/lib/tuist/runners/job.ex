@@ -16,6 +16,9 @@ defmodule Tuist.Runners.Job do
     field :account_id, Ch, type: "Int64"
     field :fleet_name, Ch, type: "LowCardinality(String)"
     field :repository, Ch, type: "String"
+    field :platform, Ch, type: "LowCardinality(String)", default: ""
+    field :vcpus, Ch, type: "Int32", default: 0
+    field :memory_gb, Ch, type: "Int32", default: 0
 
     field :workflow_run_id, Ch, type: "Int64", default: 0
     field :workflow_name, Ch, type: "String", default: ""

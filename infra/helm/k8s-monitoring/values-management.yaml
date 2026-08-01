@@ -1,0 +1,153 @@
+# Metrics-only monitoring for the Cluster API management cluster. The
+# management cluster must remain observable when a workload cluster is
+# unreachable, so it reports under its own cluster label and exports
+# KubeadmControlPlane desired/current/ready state.
+
+externalSecrets:
+  enabled: false
+
+hcloudLoadBalancerExporter:
+  enabled: true
+
+k8s-monitoring:
+  cluster:
+    name: tuist-management
+
+  destinations:
+    grafana-cloud-metrics:
+      extraLabels:
+        env: management
+    grafana-cloud-traces:
+      processors:
+        tailSampling:
+          enabled: false
+
+  clusterEvents:
+    enabled: false
+  podLogsViaLoki:
+    enabled: false
+  nodeLogs:
+    enabled: false
+  applicationObservability:
+    enabled: false
+
+  clusterMetrics:
+    kube-state-metrics:
+      metricsTuning:
+        includeMetrics:
+          - kube_customresource_kubeadmcontrolplane_.*
+          - kube_customresource_machinedeployment_.*
+
+  integrations:
+    alloy:
+      instances:
+        - name: alloy-metrics
+          labelSelectors:
+            app.kubernetes.io/name: alloy-metrics
+          metrics:
+            tuning:
+              useDefaultAllowList: false
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+
+  collectors:
+    alloy-metrics:
+      includeDestinations:
+        - grafana-cloud-metrics
+    alloy-logs:
+      enabled: false
+    alloy-singleton:
+      enabled: false
+    alloy-receiver:
+      enabled: false
+
+  telemetryServices:
+    kube-state-metrics:
+      rbac:
+        extraRules:
+          - apiGroups: ["apiextensions.k8s.io"]
+            resources: ["customresourcedefinitions"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["controlplane.cluster.x-k8s.io"]
+            resources: ["kubeadmcontrolplanes"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["cluster.x-k8s.io"]
+            resources: ["machinedeployments"]
+            verbs: ["list", "watch"]
+      customResourceState:
+        enabled: true
+        config:
+          kind: CustomResourceStateMetrics
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: controlplane.cluster.x-k8s.io
+                  version: v1beta2
+                  kind: KubeadmControlPlane
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  kubeadmcontrolplane: [metadata, name]
+                  workload_cluster: [metadata, labels, "cluster.x-k8s.io/cluster-name"]
+                metrics:
+                  - name: kubeadmcontrolplane_spec_replicas
+                    help: Desired control-plane replicas.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, replicas]
+                  - name: kubeadmcontrolplane_status_replicas
+                    help: Current control-plane replicas.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, replicas]
+                  - name: kubeadmcontrolplane_ready_replicas
+                    help: Ready control-plane replicas.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, readyReplicas]
+                  - name: kubeadmcontrolplane_available_replicas
+                    help: Available control-plane replicas.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, availableReplicas]
+                  - name: kubeadmcontrolplane_up_to_date_replicas
+                    help: Up-to-date control-plane replicas.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, upToDateReplicas]
+              # Worker MachineDeployments (md-egress, processor, kura, ...).
+              # Exposes desired vs ready so a pool running below its replica
+              # count — e.g. MHC deleting nodes CAPI can't recreate — is alertable
+              # beyond just the control plane and the egress-gateway signal.
+              - groupVersionKind:
+                  group: cluster.x-k8s.io
+                  version: v1beta2
+                  kind: MachineDeployment
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  machinedeployment: [metadata, name]
+                  workload_cluster: [metadata, labels, "cluster.x-k8s.io/cluster-name"]
+                metrics:
+                  - name: machinedeployment_spec_replicas
+                    help: Desired worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, replicas]
+                  - name: machinedeployment_ready_replicas
+                    help: Ready worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, readyReplicas]
+                  - name: machinedeployment_available_replicas
+                    help: Available worker replicas for this MachineDeployment.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, availableReplicas]

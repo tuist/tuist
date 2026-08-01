@@ -333,4 +333,34 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert json_response(conn, 401)
   end
+
+  # The rest of this file runs non-hosted, where every entitlement is granted and
+  # the self-hosted-cache gate is invisible. These two pin the hosted behaviour of
+  # each credential kind against an account whose plan does not grant it.
+  test "serves the peer view to the deployment-level credential for a hosted account without the self-hosted-cache entitlement",
+       %{conn: conn, account: account} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => []} = json_response(conn, 200)
+  end
+
+  test "rejects the peer view for a customer credential on a hosted account without the self-hosted-cache entitlement",
+       %{conn: conn, client: client, secret: secret} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert json_response(conn, 401)
+  end
 end

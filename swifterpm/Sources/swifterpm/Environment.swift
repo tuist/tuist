@@ -8,7 +8,7 @@ enum Environment {
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
     static var isCI: Bool {
-        ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { environment[$0] != nil }
+        ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
     }
 
     static func cachedDirectoryMaterializationMode()
@@ -29,7 +29,12 @@ enum Environment {
         return try await operation()
     }
 
-    private static var environment: [String: String] {
+    /// The environment the process runs in. Overridable through the `values` task-local
+    /// for dependency injection (notably in tests); otherwise the live process environment.
+    /// Manifest evaluation observes the same environment because swifterpm inherits it into
+    /// the `swift package dump-package` subprocess, so this is also the environment a cached
+    /// dump was produced under.
+    static var current: [String: String] {
         values ?? ProcessInfo.processInfo.environment
     }
 }

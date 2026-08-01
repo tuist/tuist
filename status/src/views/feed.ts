@@ -8,6 +8,10 @@ const STATUS_PREFIX: Record<IncidentStatus, string> = {
   resolved: "Resolved",
 };
 
+function updateTitle(update: Incident["updates"][number]): string {
+  return update.title?.trim() || STATUS_PREFIX[update.status];
+}
+
 interface Opts {
   title: string;
   baseUrl: string;
@@ -30,7 +34,7 @@ function entriesFor(snapshot: StatusSnapshot, baseUrl: string): Entry[] {
     for (const update of incident.updates) {
       entries.push({
         id: `${incident.id}#${update.at}`,
-        title: `[${STATUS_PREFIX[update.status]}] ${incident.title}`,
+        title: `[${updateTitle(update)}] ${incident.title}`,
         link: incidentLink,
         publishedAt: update.at,
         body: update.body,

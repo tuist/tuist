@@ -26,6 +26,8 @@ These windows define how long artifact files remain available on the hosted Tuis
 
 The active account plan determines the hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
 
+Test attachments created before Tuist recorded a test-run identifier are excluded from automated deletion. Their files remain available while Tuist avoids an unbounded historical ownership lookup during retention cleanup.
+
 ### Self-hosted instances {#self-hosted-artifact-files}
 
 Self-hosted artifact cleanup is opt-in, configurable separately for each artifact type, and not capped at 30 days. See the <.localized_link href="/guides/server/self-host/server#artifact-retention">self-hosted artifact retention configuration</.localized_link> for the supported artifact types and deployment options.

@@ -15,6 +15,7 @@ CLICKHOUSE_HTTP_URL="${TUIST_SERVER_CLICKHOUSE_HTTP_URL:-http://127.0.0.1:${CLIC
 
 CONFIG_DIR="${CLICKHOUSE_RUNTIME_DIR}/config.d"
 DATA_DIR="${CLICKHOUSE_RUNTIME_DIR}/data"
+ACCESS_CONTROL_DIR="${DATA_DIR}/access"
 COORDINATION_DIR="${DATA_DIR}/coordination"
 COORDINATION_LOG_DIR="${COORDINATION_DIR}/log"
 COORDINATION_SNAPSHOTS_DIR="${COORDINATION_DIR}/snapshots"
@@ -30,6 +31,7 @@ ERROR_LOG="${LOG_DIR}/error.log"
 mkdir -p \
   "${CONFIG_DIR}" \
   "${DATA_DIR}" \
+  "${ACCESS_CONTROL_DIR}" \
   "${COORDINATION_LOG_DIR}" \
   "${COORDINATION_SNAPSHOTS_DIR}" \
   "${TMP_DIR}" \
@@ -115,6 +117,7 @@ fi
     -P "${PID_FILE}" \
     -- \
     --path="${DATA_DIR}/" \
+    --access_control_path="${ACCESS_CONTROL_DIR}/" \
     --tmp_path="${TMP_DIR}/" \
     --user_files_path="${USER_FILES_DIR}/" \
     --format_schema_path="${FORMAT_SCHEMA_DIR}/" \

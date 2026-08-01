@@ -1,0 +1,73 @@
+{
+  "name": "NeutralButton",
+  "tagName": "noora-neutral-button",
+  "elementClassName": "NooraNeutralButton",
+  "className": "noora-neutral-button",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Provides a low-emphasis compact control.",
+  "usage": "<noora-neutral-button aria-label=\"Previous page\"><noora-icon name=\"chevron_left\"></noora-icon></noora-neutral-button>",
+  "attributes": [
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "medium", "large"],
+      "default": "large",
+      "description": "Controls the dimensions."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "description": "Renders a native link to this location."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables activation."
+    },
+    {
+      "name": "aria-label",
+      "property": "_ariaLabel",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Provides an accessible name."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The complete control content."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "control",
+      "description": "The native link or button."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "Use small, medium, or large compact controls.",
+      "markup": "<noora-neutral-button size=\"small\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"medium\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"large\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>"
+    },
+    {
+      "id": "states",
+      "title": "States",
+      "description": "Compare enabled and disabled controls.",
+      "markup": "<noora-neutral-button size=\"medium\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"medium\" aria-label=\"Next\" disabled><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>"
+    },
+    {
+      "id": "icons",
+      "title": "Different icons",
+      "description": "Use the icon that matches the navigation direction.",
+      "markup": "<noora-neutral-button size=\"medium\" aria-label=\"Previous\"><noora-icon name=\"chevron_left\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"medium\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>"
+    }
+  ]
+}

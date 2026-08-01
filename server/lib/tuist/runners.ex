@@ -17,8 +17,9 @@ defmodule Tuist.Runners do
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
     * **Runner availability is gated by the `:runners` feature
-      flag** (`Tuist.FeatureFlags.runners_enabled?/1`) — the only
-      per-customer switch. There's no concurrency cap.
+      flag** (`Tuist.FeatureFlags.runners_enabled?/1`). Independent
+      Linux and macOS vCPU/RAM budgets protect shared capacity from
+      a single account consuming every runner.
     * **Two-store split for the workflow_job lifecycle.** Postgres
       `runner_claims` is the thin OLTP table — one row per
       currently-claimed workflow_job, used for atomic claim (`INSERT
@@ -32,7 +33,8 @@ defmodule Tuist.Runners do
   Claim flow:
 
       1. pick_queued from CH (candidate selection)
-      2. Claims.attempt/4 — atomic PG INSERT, lost-race-safe by PK
+      2. Claims.attempt/5 — atomic resource check + PG INSERT,
+         lost-race-safe by PK
       3. Jobs.record_claimed/3 — CH state for customer visibility
       4. mint JIT
       5. Jobs.record_running/2 — CH state once mint succeeds
@@ -43,6 +45,37 @@ defmodule Tuist.Runners do
   Recovery: `StaleClaimsWorker` deletes PG claims older than 5
   minutes and re-INSERTs `queued` state into CH so the next poll
   can pick the workflow_job up again.
+
+  ## Who releases a claim, and why there is a backstop
+
+  A claim is a reservation against the account's concurrency budget.
+  Releasing it is attempted from several places, and all but the last
+  are *edge*-triggered, meaning they act on an event that may never
+  arrive:
+
+    * `workflow_job.completed` webhook, keyed on the executing
+      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      nothing when GitHub reports no runner, e.g. a job cancelled while
+      queued, or one GitHub placed on a sibling runner.
+    * The controller's pod-stopped POST
+      (`Claims.release_by_pod_name/1`). Skipped entirely when the
+      reaper deletes the Pod before the lifecycle reconciler observes
+      it ending.
+    * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`.
+    * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`.
+
+  Those last two are keyed on *different stores*, and the stores can
+  disagree, so a claim can be invisible to both at once — Postgres
+  `running` dodges the `claimed` sweep while ClickHouse `claimed`
+  dodges the `running` sweep. Production held claims stranded that way
+  for over ten days, silently consuming an account's budget.
+
+  `PodClaimReconciliationWorker` is the level-triggered backstop and
+  the only path that does not infer: it compares claims against the
+  Pods that actually exist and releases the ones whose Pod is gone,
+  because a claim is capacity held by a Pod. Prefer fixing a leak there
+  over adding a fifth edge-keyed sweep; every one of those closes a
+  slice and leaves a new blind spot at the intersections.
 
   GitHub repo-scoping is currently delegated to the GitHub default
   runner group (id=1), which allows every repo in the org. A
@@ -56,12 +89,16 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
+  alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Storage
   alias Tuist.VCS
 
@@ -97,6 +134,7 @@ defmodule Tuist.Runners do
   # the server draining every stale Pod the moment its image diverges —
   # the open-loop time stagger this replaced drained on a fixed 30s
   # cadence that was far shorter than a multi-minute image pull.
+  @operator_drain_label "tuist.dev/runner-operator-drain"
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
 
@@ -138,28 +176,35 @@ defmodule Tuist.Runners do
   @volume_master_url_ttl_seconds 6 * 60 * 60
 
   # The account's cache-volume HEAD for the dispatch response: the current
-  # generation + inventory digest, plus presigned GET/PUT URLs for the master
-  # archive so the runner can converge a stale local master and publish a fresh
-  # one. Best-effort — any failure returns nil and the runner stays on its
+  # generation + inventory digest, plus a presigned GET URL for the master object
+  # so a behind runner can converge its stale local master. The PUT URL is minted
+  # separately at promote time (volume_master_upload_url/2), keyed by the runner's
+  # new digest. Best-effort — any failure returns nil and the runner stays on its
   # local master (the status quo).
   defp volume_head_payload(account) do
-    key = volume_master_object_key(account.id)
     head = VolumeHeads.get_head(account.id)
-    download_url = Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
-    upload_url = Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds)
 
-    # SSRF guard: a runner host follows the download URL (and the guest the
-    # upload URL), so refuse to hand out one whose host resolves to a private,
-    # loopback, or link-local address. A misconfigured or hostile storage
-    # endpoint would otherwise turn this into an SSRF primitive from every host.
-    # A rejected URL just means no HEAD (the job stays on its local master, the
-    # status quo) — never a fetch against an internal address.
-    if Tuist.URL.public_host_url?(download_url) and Tuist.URL.public_host_url?(upload_url) do
+    # Download URL for the CURRENT HEAD's content-addressed object, so a behind
+    # host converges by fetching exactly the bytes that produced the HEAD digest.
+    # No HEAD yet => nil => the host stays cold (status quo) and its first
+    # successful job establishes the HEAD. The upload URL is NOT handed out here
+    # anymore: the guest mints it at promote time keyed by its own new digest
+    # (volume_master_upload_url/2), which is what makes the object keys immutable
+    # and stops concurrent promotes clobbering the object the HEAD points at.
+    download_url =
+      if head && head.tree_digest do
+        key = volume_master_object_key(account.id, head.tree_digest)
+        Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
+      end
+
+    # SSRF guard: a runner host follows the download URL, so refuse to hand out
+    # one whose host resolves to a private, loopback, or link-local address. A
+    # nil URL (no HEAD) is fine — it just means no convergence, the status quo.
+    if is_nil(download_url) or Tuist.URL.public_host_url?(download_url) do
       %{
         generation: (head && head.generation) || 0,
         digest: head && head.tree_digest,
-        download_url: download_url,
-        upload_url: upload_url
+        download_url: download_url
       }
     end
   rescue
@@ -167,12 +212,187 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Records a runner's promote of `account_id`'s cache volume: bumps the account's
-  HEAD to `tree_digest` published from `node_name`. Called by the runner after a
-  successful, cache-changing job whose branch it uploaded to the master archive.
+  Mints a presigned PUT URL for `account_id`'s cache-volume master object keyed
+  by `tree_digest` — the content-addressed, immutable key the runner uploads its
+  promoted image to before bumping the HEAD. Called at promote time (not
+  dispatch) because only then does the runner know the new inventory digest.
+
+  `tree_digest` MUST be a 40-char SHA-1 hex string (the guest's inventory
+  digest): that matches the guest's format and keeps the value a safe,
+  traversal-free object-key component under the account's own prefix. Returns
+  `:error` for an invalid account or digest, or a URL that would target a
+  non-public host (SSRF guard, the write-side twin of the download guard).
   """
-  def report_volume_head(account_id, node_name, tree_digest) do
-    VolumeHeads.bump_head(account_id, node_name, tree_digest)
+  def volume_master_upload_url(account_id, tree_digest) when is_integer(account_id) and is_binary(tree_digest) do
+    if valid_inventory_digest?(tree_digest) do
+      with {:ok, account} <- Accounts.get_account_by_id(account_id),
+           key = volume_master_object_key(account_id, tree_digest),
+           url when is_binary(url) <-
+             Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+           true <- Tuist.URL.public_host_url?(url) do
+        {:ok, url}
+      else
+        _ -> :error
+      end
+    else
+      :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  def volume_master_upload_url(_account_id, _tree_digest), do: :error
+
+  defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
+
+  @doc """
+  Records a runner's promote of `account_id`'s cache volume: fast-forwards the
+  account's HEAD to `tree_digest` published from `node_name`, but ONLY when
+  `base_generation` (the generation the job built on) is still the current HEAD.
+  Called by the runner after a successful, cache-changing job whose branch it
+  uploaded to the master archive.
+
+  `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
+  stored HEAD digest straight into the master object key
+  (volume_master_object_key/2), so an unvalidated digest from an authenticated
+  runner could persist `/` or `..` and poison a future dispatch's download key or
+  escape the account prefix. Validate here too — not just when minting the upload
+  URL — since this is the write that the download key is later derived from.
+
+  Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
+  base is stale (another host advanced the HEAD first), or `:error` on an invalid
+  digest.
+  """
+  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
+    if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
+      superseded = VolumeHeads.get_head(account_id)
+
+      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+        {:ok, generation} ->
+          # This digest is now HEAD, so it is no longer an orphan candidate even if
+          # an earlier job's promote of the same inventory was rejected — forget it
+          # so the scheduled reclaim below becomes a no-op and never deletes the
+          # live master. Its lifecycle now belongs to the supersession prune.
+          VolumeMasterOrphans.forget(account_id, tree_digest)
+          schedule_superseded_master_prune(account_id, superseded, tree_digest)
+          {:ok, generation}
+
+        :conflict ->
+          # The guest uploaded its object before this compare-and-swap, so a
+          # rejected promote leaves a <digest>.image no HEAD points at. Record it
+          # and schedule a delayed reclaim: a digest that never becomes HEAD has no
+          # download URL minted for it (URLs are only ever minted for the current
+          # HEAD) and is safe to delete after the URL-TTL grace. If a later job
+          # instead ACCEPTS this same digest, the accept branch above forgets the
+          # orphan, so the reclaim skips it — a live master is never deleted. This
+          # is what keeps rejected uploads from accumulating indefinitely under
+          # contention, without the conflict-time-guessing hazard of pruning
+          # straight away.
+          reclaim_rejected_master_upload(account_id, tree_digest)
+          :conflict
+      end
+    else
+      :error
+    end
+  end
+
+  # Content-addressed keys mean every distinct promoted inventory is a distinct,
+  # immutable object, so a superseded master is no longer overwritten — it lingers
+  # until deleted. Schedule its deletion for the presigned-URL TTL from now: that
+  # grace keeps the object alive as long as any dispatch that already handed out
+  # its download URL could still be converging to it, then reclaims the storage.
+  # Skipped when there was no prior HEAD or the digest is unchanged (idempotent
+  # re-report of the same set).
+  defp schedule_superseded_master_prune(account_id, %{tree_digest: old}, new) when is_binary(old) and old != new do
+    case %{account_id: account_id, tree_digest: old}
+         |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        # Best-effort: a failed schedule just leaves the superseded object for the
+        # account-deletion sweep — never fail the promote report over retention.
+        Logger.warning("runners: failed to schedule superseded master prune for #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp schedule_superseded_master_prune(_account_id, _superseded, _new), do: :ok
+
+  @doc """
+  Deletes the account's superseded cache-volume master object for `tree_digest`,
+  UNLESS that digest is (again) the account's current HEAD — content-addressed
+  keys mean a re-promoted, content-identical set reuses the same object, so
+  deleting it would drop the live master. Best-effort; called from
+  `PruneVolumeMasterWorker` on a delay after the digest was superseded.
+  """
+  def prune_superseded_volume_master(account_id, tree_digest) do
+    case VolumeHeads.get_head(account_id) do
+      %{tree_digest: ^tree_digest} ->
+        :ok
+
+      _ ->
+        with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+          Storage.delete_object(volume_master_object_key(account_id, tree_digest), account)
+        end
+    end
+  end
+
+  # Record a rejected promote's uploaded object as an orphan and schedule its
+  # reclaim after the URL-TTL grace. The grace covers the window where a
+  # concurrent job might accept this same digest (which forgets the orphan); a
+  # digest that stays orphaned past it never became HEAD, so no download URL
+  # points at it.
+  defp reclaim_rejected_master_upload(account_id, tree_digest) do
+    VolumeMasterOrphans.record(account_id, tree_digest)
+
+    case %{account_id: account_id, tree_digest: tree_digest}
+         |> PruneVolumeMasterOrphanWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        # Best-effort: a failed schedule just leaves the orphan row and object for
+        # the account-deletion sweep — never fail the report over retention.
+        Logger.warning("runners: failed to schedule orphan master reclaim for #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  @doc """
+  Reclaims the object for a rejected-promote `tree_digest`, UNLESS it has since
+  been accepted as the account's HEAD. Deletes only a digest that is still
+  recorded as an orphan (never accepted) and is not the current HEAD — a rejected
+  digest a later job committed is forgotten on acceptance and skipped here, so a
+  live master is never dropped. Best-effort; called from
+  `PruneVolumeMasterOrphanWorker` on a delay after the promote was rejected.
+  """
+  def prune_orphan_volume_master(account_id, tree_digest) do
+    cond do
+      not VolumeMasterOrphans.exists?(account_id, tree_digest) ->
+        # Accepted as HEAD (forgotten on acceptance) or already reclaimed.
+        :ok
+
+      match?(%{tree_digest: ^tree_digest}, VolumeHeads.get_head(account_id)) ->
+        # Belt-and-suspenders: it is the live HEAD, so it is not an orphan. Forget
+        # the stale row without deleting the object.
+        VolumeMasterOrphans.forget(account_id, tree_digest)
+        :ok
+
+      true ->
+        # Forget the row only after a confirmed delete: on a storage error the row
+        # stays so the worker's retry (or a later run) reclaims the object rather
+        # than orphaning it permanently.
+        with {:ok, account} <- Accounts.get_account_by_id(account_id),
+             :ok <- Storage.delete_object(volume_master_object_key(account_id, tree_digest), account) do
+          VolumeMasterOrphans.forget(account_id, tree_digest)
+          :ok
+        end
+    end
   end
 
   @doc """
@@ -219,8 +439,15 @@ defmodule Tuist.Runners do
     "runner-volume-masters/#{account_id}/"
   end
 
-  defp volume_master_object_key(account_id) do
-    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}.zip"
+  # Content-addressed, immutable per-inventory-digest key. Every distinct warm
+  # set is a distinct object, so a concurrent promote of a different digest
+  # writes a different key instead of clobbering the one the current HEAD points
+  # at (the bug that stranded the master on the promoting host). Dispatch derives
+  # the download key from the HEAD's stored digest; the guest mints the matching
+  # upload key at promote time. `digest` is validated hex (valid_inventory_digest?/1),
+  # so it is a safe, `/`-free key component under the account's prefix.
+  defp volume_master_object_key(account_id, digest) do
+    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}/#{digest}.image"
   end
 
   @doc """
@@ -229,12 +456,15 @@ defmodule Tuist.Runners do
 
     * `claimed` — Pods currently running or in the process of
       claiming (Postgres `runner_claims` grouped by `fleet_name`).
+    * `occupied` — distinct Pods holding fleet capacity across live
+      claims and open runner sessions. Unlike `claimed`, this remains
+      non-zero through cache work and Pod teardown.
     * `queued` — workflow_jobs still in `runner_jobs.status =
       'queued'` for this fleet (ClickHouse).
-    * `p95_concurrent_last_hour` — rolling p95 of concurrent
-      claimed/running jobs over the last 60 one-minute buckets
-      (ClickHouse). Smooths out single-spike noise while keeping
-      the warm pool sized for typical peak load.
+    * `p95_concurrent_last_hour` — rolling 95th percentile of
+      occupied runner sessions over active one-minute buckets in
+      the last hour (Postgres). Keeps sparse but real bursts warm
+      and includes post-job cache and teardown time.
 
   The controller composes these into a desired-replica value
   using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
@@ -242,12 +472,59 @@ defmodule Tuist.Runners do
   source on the server side.
   """
   def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
+    claimed = Map.get(Claims.counts_per_fleet(), fleet_name, 0)
+    occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
+
     %{
       fleet: fleet_name,
-      claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
-      queued: Jobs.queued_count_by_fleet(fleet_name),
-      p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
+      claimed: claimed,
+      occupied: occupied,
+      queued: dispatchable_queued_count(fleet_name),
+      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
     }
+  end
+
+  # Queued jobs the fleet could actually be handed right now: each
+  # account's queue depth capped at its remaining concurrency headroom.
+  #
+  # Raw queue depth overstates demand whenever an account queues past its
+  # limit. Dispatch declines those jobs and leaves them queued, so they
+  # persist in the count while never becoming claimable, and the
+  # autoscaler sizes the pool for them. The resulting Pods can't serve
+  # them either, so they idle on hosts that pools with claimable work are
+  # then denied — one account at its cap quietly starves the fleet.
+  #
+  # Falls back to the raw count when the fleet's shape is unknown: an
+  # unrecognised fleet should size on the signal it has rather than
+  # silently report zero demand and scale itself to nothing.
+  defp dispatchable_queued_count(fleet_name) do
+    queued_by_account = Jobs.queued_count_by_fleet_and_account(fleet_name)
+    raw = queued_by_account |> Map.values() |> Enum.sum()
+
+    case Catalog.resources_for_fleet(fleet_name) do
+      {:ok, resources} ->
+        dispatchable =
+          Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
+            acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+          end)
+
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: raw - dispatchable},
+          %{fleet: fleet_name}
+        )
+
+        dispatchable
+
+      {:error, _reason} ->
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: 0},
+          %{fleet: fleet_name}
+        )
+
+        raw
+    end
   end
 
   @doc """
@@ -263,7 +540,6 @@ defmodule Tuist.Runners do
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
       went away.
-    * `{:error, :github_mint_failed}` — GitHub refused the JIT.
     * `{:error, :not_in_cluster}` — server not running in-cluster.
     * `{:error, :drain}` — the polling Pod's image no longer
       matches its RunnerPool's `spec.image`. The Pod is idle
@@ -310,12 +586,23 @@ defmodule Tuist.Runners do
       sa_name,
       fleet_name,
       node_name,
+      [],
+      [],
       excluded_workflow_job_ids,
       @max_claim_attempts_per_dispatch
     )
   end
 
-  defp claim_and_serve(_namespace, sa_name, fleet_name, _node_name, _excluded_workflow_job_ids, 0) do
+  defp claim_and_serve(
+         _namespace,
+         sa_name,
+         fleet_name,
+         _node_name,
+         _excluded_account_ids,
+         _excluded_repositories,
+         _excluded_workflow_job_ids,
+         0
+       ) do
     Logger.debug("runners: claim attempts exhausted",
       fleet: fleet_name,
       sa: sa_name
@@ -324,68 +611,296 @@ defmodule Tuist.Runners do
     {:error, :lost_race}
   end
 
-  defp claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left) do
-    case pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
+  defp claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         excluded_account_ids,
+         excluded_repositories,
+         excluded_workflow_job_ids,
+         attempts_left
+       ) do
+    case pick_affine_candidate(
+           fleet_name,
+           node_name,
+           excluded_account_ids,
+           excluded_repositories,
+           excluded_workflow_job_ids
+         ) do
       {:ok, candidate} ->
-        case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name) do
-          {:ok, claim} ->
-            # Record the affinity signal on every claim win, but only for fleets
-            # that actually hold volumes (macOS): a volume for this account
-            # exists (or is about to) where its jobs ran, so future jobs of this
-            # account prefer this node. Volumeless fleets record nothing so their
-            # queues are never reordered for masters that don't exist.
-            if volume_affinity_enabled?(fleet_name) do
-              VolumeAffinities.record(node_name, candidate.account_id)
-            end
-
-            Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
-            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
-
-          {:error, :lost_race} ->
-            Logger.debug("runners: claim attempt lost race; trying next queued job",
-              fleet: fleet_name,
-              sa: sa_name,
-              workflow_job_id: candidate.workflow_job_id
-            )
-
-            claim_and_serve(
-              namespace,
-              sa_name,
-              fleet_name,
-              node_name,
-              [candidate.workflow_job_id | excluded_workflow_job_ids],
-              attempts_left - 1
-            )
-
-          {:error, :pod_in_use} ->
-            Logger.debug("runners: claim attempt declined",
-              reason: :pod_in_use,
-              fleet: fleet_name,
-              sa: sa_name
-            )
-
-            {:error, :pod_in_use}
-
-          {:error, reason} ->
-            Logger.warning("runners: dispatch_for_sa failed",
-              reason: inspect(reason),
-              fleet: fleet_name
-            )
-
-            {:error, reason}
-        end
+        claim_candidate(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          candidate,
+          %{
+            excluded_account_ids: excluded_account_ids,
+            excluded_repositories: excluded_repositories,
+            excluded_workflow_job_ids: excluded_workflow_job_ids,
+            attempts_left: attempts_left
+          }
+        )
 
       {:error, :empty} ->
         {:error, :empty}
     end
   end
 
+  defp claim_candidate(namespace, sa_name, fleet_name, node_name, candidate, retry_context) do
+    case candidate_resources(candidate, fleet_name) do
+      {:ok, resources} ->
+        attempt_candidate(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          candidate,
+          resources,
+          retry_context
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, retry_context) do
+    context = %{
+      namespace: namespace,
+      sa_name: sa_name,
+      fleet_name: fleet_name,
+      node_name: node_name,
+      candidate: candidate,
+      retry_context: retry_context
+    }
+
+    candidate.workflow_job_id
+    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
+    |> handle_claim_attempt(context)
+  end
+
+  defp handle_claim_attempt({:ok, claim}, context) do
+    %{namespace: namespace, sa_name: sa_name, fleet_name: fleet_name, node_name: node_name, candidate: candidate} =
+      context
+
+    record_volume_affinity(fleet_name, node_name, candidate.account_id)
+
+    case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+      :ok ->
+        namespace
+        |> serve_claim(sa_name, fleet_name, candidate, claim)
+        |> handle_serve_claim(context)
+
+      {:error, :completed} ->
+        _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+        retry_claim_and_serve(context, :workflow_job)
+    end
+  end
+
+  defp handle_claim_attempt({:error, :lost_race}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: claim attempt lost race; trying next queued job",
+      fleet: fleet_name,
+      sa: sa_name,
+      workflow_job_id: candidate.workflow_job_id
+    )
+
+    retry_claim_and_serve(context, :workflow_job)
+  end
+
+  defp handle_claim_attempt({:error, :account_busy}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account admission is busy; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, {:concurrency_limit_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account reached platform concurrency limit; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:concurrency_limit_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, :pod_in_use}, %{fleet_name: fleet_name, sa_name: sa_name}) do
+    Logger.debug("runners: claim attempt declined",
+      reason: :pod_in_use,
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :pod_in_use}
+  end
+
+  defp handle_claim_attempt({:error, reason}, %{fleet_name: fleet_name}) do
+    Logger.warning("runners: dispatch_for_sa failed",
+      reason: inspect(reason),
+      fleet: fleet_name
+    )
+
+    {:error, reason}
+  end
+
+  defp handle_serve_claim({:error, {:github_mint_failed, exclusion_scope}}, context)
+       when exclusion_scope in [:account, :repository, :workflow_job] do
+    retry_claim_and_serve(context, exclusion_scope)
+  end
+
+  defp handle_serve_claim(result, _context), do: result
+
+  defp retry_claim_and_serve(
+         %{
+           namespace: namespace,
+           sa_name: sa_name,
+           fleet_name: fleet_name,
+           node_name: node_name,
+           retry_context: retry_context,
+           candidate: candidate
+         },
+         exclusion_scope
+       ) do
+    retry_claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      retry_context,
+      candidate,
+      exclusion_scope
+    )
+  end
+
+  defp candidate_resources(%{platform: "linux", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
+       when is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and memory_gb > 0,
+       do: {:ok, %{platform: :linux, vcpus: vcpus, memory_gb: memory_gb}}
+
+  defp candidate_resources(%{platform: "macos", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
+       when is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and memory_gb > 0,
+       do: {:ok, %{platform: :macos, vcpus: vcpus, memory_gb: memory_gb}}
+
+  defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
+
+  defp record_volume_affinity(fleet_name, node_name, account_id) do
+    # Record the affinity signal on every claim win, but only for fleets
+    # that actually hold volumes (macOS): a volume for this account
+    # exists (or is about to) where its jobs ran, so future jobs of this
+    # account prefer this node. Volumeless fleets record nothing so their
+    # queues are never reordered for masters that don't exist.
+    if volume_affinity_enabled?(fleet_name) do
+      VolumeAffinities.record(node_name, account_id)
+    end
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :workflow_job
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      excluded_account_ids,
+      excluded_repositories,
+      [candidate.workflow_job_id | excluded_workflow_job_ids],
+      attempts_left - 1
+    )
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :account
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      [candidate.account_id | excluded_account_ids],
+      excluded_repositories,
+      excluded_workflow_job_ids,
+      attempts_left
+    )
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :repository
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      excluded_account_ids,
+      [candidate.repository | excluded_repositories],
+      excluded_workflow_job_ids,
+      attempts_left - 1
+    )
+  end
+
   # Fetch the K oldest queued candidates and let the volume-affinity policy
   # pick the one to hand this node: the oldest affine candidate within the
   # age tolerance of the head, else the head. With no node identity or no
   # affinity, this is exactly today's "oldest queued job".
-  defp pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
-    case Jobs.pick_queued_top_k(fleet_name, [], excluded_workflow_job_ids, volume_affinity_top_k()) do
+  defp pick_affine_candidate(
+         fleet_name,
+         node_name,
+         excluded_account_ids,
+         excluded_repositories,
+         excluded_workflow_job_ids
+       ) do
+    case Jobs.pick_queued_top_k(
+           fleet_name,
+           excluded_account_ids,
+           excluded_repositories,
+           excluded_workflow_job_ids,
+           volume_affinity_top_k()
+         ) do
       {:ok, candidates} ->
         if volume_affinity_enabled?(fleet_name) do
           {:ok,
@@ -408,8 +923,11 @@ defmodule Tuist.Runners do
   # The dispatch poll loop only needs "nothing for you this tick", so
   # the empty-queue / claim-contention family collapses to the single
   # `:no_work_yet` the web layer and the polling Pod already handle.
-  # Every other reason — `:drain`, `:no_pool_label`, `:github_mint_failed`,
-  # … — passes through untouched.
+  # Every other reason — `:drain`, `:no_pool_label`, … — passes
+  # through untouched. A GitHub mint failure is handled inside the
+  # claim loop: the failed job is requeued and this poll tries the next
+  # eligible job, repository, or account, so one broken installation cannot
+  # monopolize every idle runner.
   defp to_caller_result({:error, reason}) when reason in [:empty, :lost_race, :pod_in_use], do: {:error, :no_work_yet}
 
   defp to_caller_result(result), do: result
@@ -428,7 +946,8 @@ defmodule Tuist.Runners do
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
              github_org = github_org_login(candidate, account),
              :ok <- stamp_owner_label(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, github_org, sa_name, dispatch_label, runner_labels),
+             {:ok, jit, runner_name} <-
+               mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
@@ -550,7 +1069,7 @@ defmodule Tuist.Runners do
   #     drop the PG row AND re-INSERT `queued` to CH on its
   #     normal recovery path.
   defp release_safely(candidate, claim, reason) do
-    Jobs.record_queued(candidate.workflow_job_id)
+    Jobs.record_queued(candidate)
   rescue
     e ->
       Logger.warning("runners: record_queued failed; leaving PG claim for stale-worker",
@@ -677,7 +1196,7 @@ defmodule Tuist.Runners do
 
   defp github_org_login(_candidate, account), do: account.name
 
-  defp mint_jit(account, github_org, sa_name, dispatch_label, runner_labels) do
+  defp mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels) do
     # GitHub's `create JIT config` API caps `name` at 64 characters.
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
@@ -721,7 +1240,8 @@ defmodule Tuist.Runners do
            GitHubClient.generate_jit_config(installation, github_org, %{
              name: runner_name,
              labels: runner_labels ++ [dispatch_label],
-             work_folder: work_folder
+             work_folder: work_folder,
+             repository_full_handle: Map.get(candidate, :repository)
            }) do
       {:ok, jit, runner_name}
     else
@@ -731,21 +1251,42 @@ defmodule Tuist.Runners do
           account_id: account.id
         )
 
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :account}}
 
       {:error, :not_installed} ->
         Logger.warning("runners: GitHub App not installed on org", account: account.name)
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :account}}
+
+      {:error, {:repository_administration_permission_required, status, _body}} ->
+        Logger.error("runners: GitHub App installation must accept repository administration permission",
+          account: account.name,
+          repo: Map.get(candidate, :repository),
+          status: status,
+          workflow_job_id: candidate.workflow_job_id
+        )
+
+        {:error, {:github_mint_failed, :account}}
+
+      {:error, {:repository_jit_config_not_found, status, _body}} ->
+        Logger.error("runners: GitHub repository runner endpoint returned not found",
+          account: account.name,
+          repo: Map.get(candidate, :repository),
+          status: status,
+          workflow_job_id: candidate.workflow_job_id
+        )
+
+        {:error, {:github_mint_failed, :repository}}
 
       {:error, reason} ->
         Logger.error("runners: GitHub jit mint failed",
           account: account.name,
           org: github_org,
           runner: runner_name,
-          reason: inspect(reason)
+          reason: inspect(reason),
+          workflow_job_id: candidate.workflow_job_id
         )
 
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :workflow_job}}
     end
   end
 
@@ -814,23 +1355,33 @@ defmodule Tuist.Runners do
 
     case K8sClient.get_pod(namespace, pod_name) do
       {:ok, pod} ->
-        if committed?(pod) do
-          # The account label is stamped only after a claim fully commits, and a
-          # committed Pod that received its JIT runs the job in place and never
-          # polls again. So a committed Pod polling HERE means its dispatch
-          # response was lost and the runner never started — it must not be
-          # handed a second, possibly different, account on the cache already
-          # materialized for the first (the host's SourceAccount guard blocks
-          # promotion, but not the guest reading it). 410 so the guest halts and
-          # the runner-pool reconciler replaces it with a fresh Pod.
-          Logger.info("runners: reaping committed-but-polling pod",
-            pod: pod_name,
-            fleet: fleet_name
-          )
+        cond do
+          operator_drain?(pod) ->
+            Logger.info("runners: honoring operator drain",
+              pod: pod_name,
+              fleet: fleet_name
+            )
 
-          {:error, :pod_committed}
-        else
-          check_image_staleness(namespace, fleet_name, pod)
+            {:error, :drain}
+
+          committed?(pod) ->
+            # The account label is stamped only after a claim fully commits, and a
+            # committed Pod that received its JIT runs the job in place and never
+            # polls again. So a committed Pod polling HERE means its dispatch
+            # response was lost and the runner never started — it must not be
+            # handed a second, possibly different, account on the cache already
+            # materialized for the first (the host's SourceAccount guard blocks
+            # promotion, but not the guest reading it). 410 so the guest halts and
+            # the runner-pool reconciler replaces it with a fresh Pod.
+            Logger.info("runners: reaping committed-but-polling pod",
+              pod: pod_name,
+              fleet: fleet_name
+            )
+
+            {:error, :pod_committed}
+
+          true ->
+            check_image_staleness(namespace, fleet_name, pod)
         end
 
       _ ->
@@ -843,6 +1394,8 @@ defmodule Tuist.Runners do
 
   # A Pod carries the account label once its dispatch has committed.
   defp committed?(pod), do: is_binary(get_in(pod, ["metadata", "labels", @account_label]))
+
+  defp operator_drain?(pod), do: get_in(pod, ["metadata", "labels", @operator_drain_label]) == "true"
 
   defp check_image_staleness(namespace, fleet_name, pod) do
     with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),

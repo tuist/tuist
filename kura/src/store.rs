@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
     time::{Duration, Instant},
@@ -18,12 +18,13 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
-    io::{AsyncRead, AsyncWriteExt, ReadBuf},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
 };
 use uuid::Uuid;
 
 use crate::{
+    action_cache_refs::referenced_blob_keys,
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -31,9 +32,10 @@ use crate::{
     },
     config::Config,
     constants::{
-        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
-        DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ACTION_CACHE_TRUNK_SCAN_FACTOR, CAS_CAPACITY_DEFAULT_DISK_PERCENT,
+        CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
+        DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES,
+        REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
         ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
         ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
@@ -43,9 +45,12 @@ use crate::{
         SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
+    },
     io::{IoController, PersistentFile},
     memory::MemoryController,
-    mmap::map_file_region,
+    mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
@@ -54,17 +59,44 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        action_cache_index_key, action_cache_index_prefix, action_cache_manifest_hash,
-        artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
-        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
-        temp_file_path,
+        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_blob_ref_key,
+        action_cache_blob_ref_prefix, action_cache_index_key, action_cache_index_key_branch,
+        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
+        drop_staging_cache_range, module_key, namespace_artifact_index_key, now_ms,
+        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        try_path_size_bytes,
     },
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const MAX_MULTIPART_PARTS: usize = 10_000;
+const MAX_MULTIPART_RECORD_BYTES: usize = 8 << 20;
+const MULTIPART_RECONCILE_DELETE_BATCH: usize = 256;
+const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
+const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
+const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
+// The production backfill averaged thousands of reverse rows per action-cache
+// manifest. Checkpoint every manifest so a large historical cache cannot turn
+// the one-time migration into an unbounded RocksDB and page-cache burst.
+const ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1;
+const ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH: usize = 1_024;
+
+pub struct ActionCacheBlobRefsBackfillStep {
+    pub rows: usize,
+    pub complete: bool,
+}
+
+pub fn is_outbox_full_error(error: &str) -> bool {
+    error.starts_with(OUTBOX_FULL_ERROR)
+}
+
+pub fn is_multipart_capacity_error(error: &str) -> bool {
+    error.starts_with(MULTIPART_CAPACITY_ERROR)
+}
 
 pub struct Store {
     db: DB,
@@ -72,13 +104,27 @@ pub struct Store {
     memory: MemoryController,
     tenant_id: String,
     tmp_dir: PathBuf,
-    tmp_dir_max_bytes: u64,
+    tmp_staging_budget: Arc<TmpBudget>,
     data_dir: PathBuf,
     segment_ring_limits: SegmentRingLimits,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
+    outbox_depth: AtomicUsize,
+    outbox_max_depth: usize,
+    multipart_uploads: AtomicUsize,
+    multipart_stored_bytes: AtomicU64,
+    multipart_max_active_uploads: usize,
+    multipart_max_stored_bytes: u64,
     segment_write_lock: Mutex<()>,
+    /// Bumped whenever a namespace's action cache changes, so a snapshot index
+    /// that came back EMPTY can tell "nothing to show" from "out of date". An
+    /// empty index is otherwise indistinguishable from a stale one and has to be
+    /// rebuilt on every serve to find out, which is a namespace scan per build
+    /// for every namespace whose trunk view is legitimately empty. In memory and
+    /// per node: it only ever gates a local cache, a fresh process rebuilds once,
+    /// and the apply path bumps it too so a peer's write is not missed.
+    action_cache_generations: StdMutex<HashMap<String, u64>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -115,6 +161,16 @@ pub struct Store {
     // outcome as the pre-existing memory-pressure skip.
     promotion_queue: StdMutex<PromotionQueue>,
     promotion_notify: Notify,
+    // Whether evicting a blob cascades to the action-cache entries referencing
+    // it. Operator-controlled (see `action_cache_cascade_active`).
+    action_cache_eviction_cascade_enabled: bool,
+    // Set once the one-time startup backfill has rebuilt the blob-refs reverse
+    // map from the entries already on disk. This widens cascade coverage to
+    // entries that predate the reverse map; it does not gate the cascade, which
+    // runs against whatever rows exist. Reverse-row maintenance on the
+    // write/delete paths runs regardless, so the map is live for entries
+    // written after start.
+    action_cache_blob_refs_ready: AtomicBool,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -218,11 +274,86 @@ struct PersistArtifactSpec<'a> {
     content_type: &'a str,
     version_ms: u64,
     replication_targets: &'a [String],
+    branch: Option<&'a str>,
+    /// Rides the replication messages this persist enqueues so a peer can
+    /// re-run the trunk-sticky rule against its own view. Not stored: the
+    /// trunk is a property of the publishing build, not of the artifact.
+    trunk: Option<&'a str>,
 }
 
+struct OutboxReservation<'a> {
+    depth: &'a AtomicUsize,
+    slots: usize,
+    committed: bool,
+}
+
+struct MultipartUploadReservation<'a> {
+    uploads: &'a AtomicUsize,
+    committed: bool,
+}
+
+impl MultipartUploadReservation<'_> {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for MultipartUploadReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            release_atomic_slots(self.uploads, 1);
+        }
+    }
+}
+
+struct MultipartByteReservation<'a> {
+    bytes: &'a AtomicU64,
+    added: u64,
+    committed: bool,
+}
+
+impl MultipartByteReservation<'_> {
+    fn commit(mut self, released: u64) {
+        release_atomic_bytes(self.bytes, released);
+        self.committed = true;
+    }
+}
+
+impl Drop for MultipartByteReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            release_atomic_bytes(self.bytes, self.added);
+        }
+    }
+}
+
+impl OutboxReservation<'_> {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for OutboxReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed && self.slots > 0 {
+            release_atomic_slots(self.depth, self.slots);
+        }
+    }
+}
+
+// `IgnoredEqual` (incoming version equals the stored one — both sides already
+// hold the identical entry) is reported separately from `IgnoredStale`
+// (incoming strictly older — a real LWW rejection, the peer is behind) so
+// anti-entropy diagnosis can tell a re-walk churning already-converged data
+// from genuine one-directional version skew. The apply decision is the same
+// for both: local wins. `IgnoredMissing` covers a bootstrap body fetch the
+// peer 404s (advertised in a manifest page but no longer served, e.g. evicted
+// in between) — no version comparison happened, so it must not count as skew.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
+    IgnoredEqual,
+    IgnoredMissing,
     IgnoredStale,
     IgnoredTombstone,
 }
@@ -231,6 +362,8 @@ impl ArtifactApplyOutcome {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Applied => "applied",
+            Self::IgnoredEqual => "ignored_equal",
+            Self::IgnoredMissing => "ignored_missing",
             Self::IgnoredStale => "ignored_stale",
             Self::IgnoredTombstone => "ignored_tombstone",
         }
@@ -263,6 +396,7 @@ impl NamespaceDeleteOutcome {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PersistArtifactOutcome {
     Applied(ArtifactManifest),
+    IgnoredEqual(ArtifactManifest),
     IgnoredStale(ArtifactManifest),
     IgnoredTombstone,
 }
@@ -272,7 +406,7 @@ enum PersistArtifactOutcome {
 // evaluated under the per-artifact write lock — so concurrent persists of the
 // same key resolve it consistently: exactly one observes `false`. Billing uses
 // it to charge only newly-stored bytes; it is deliberately not derived from the
-// Applied/IgnoredStale version outcome, because a re-upload with a newer
+// Applied-vs-ignored version outcome, because a re-upload with a newer
 // version still applies over an already-present artifact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersistedArtifact {
@@ -280,17 +414,55 @@ pub struct PersistedArtifact {
     pub already_present: bool,
 }
 
+#[derive(Clone, Copy)]
+pub struct StagedArtifactPath<'a> {
+    path: &'a Path,
+    file_cache_policy: FileCachePolicy,
+}
+
+impl<'a> StagedArtifactPath<'a> {
+    pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
+        Self {
+            path,
+            file_cache_policy,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<'a> From<&'a Path> for StagedArtifactPath<'a> {
+    fn from(path: &'a Path) -> Self {
+        Self::new(path, FileCachePolicy::Adaptive)
+    }
+}
+
+#[cfg(test)]
+impl<'a> From<&'a PathBuf> for StagedArtifactPath<'a> {
+    fn from(path: &'a PathBuf) -> Self {
+        Self::from(path.as_path())
+    }
+}
+
 impl PersistArtifactOutcome {
+    fn ignored(existing: ArtifactManifest, incoming_version_ms: u64) -> Self {
+        if versions_converged(manifest_version_ms(&existing), incoming_version_ms) {
+            Self::IgnoredEqual(existing)
+        } else {
+            Self::IgnoredStale(existing)
+        }
+    }
+
     fn apply_outcome(&self) -> ArtifactApplyOutcome {
         match self {
             Self::Applied(_) => ArtifactApplyOutcome::Applied,
+            Self::IgnoredEqual(_) => ArtifactApplyOutcome::IgnoredEqual,
             Self::IgnoredStale(_) => ArtifactApplyOutcome::IgnoredStale,
             Self::IgnoredTombstone => ArtifactApplyOutcome::IgnoredTombstone,
         }
     }
 
-    // Converts a client-facing persist outcome into the public result: both
-    // Applied and IgnoredStale surface their manifest, while a tombstone
+    // Converts a client-facing persist outcome into the public result: every
+    // non-tombstone outcome surfaces its manifest, while a tombstone
     // rejection is an error (client writes must not be silently dropped).
     fn into_persisted(
         self,
@@ -300,7 +472,9 @@ impl PersistArtifactOutcome {
         key: &str,
     ) -> Result<PersistedArtifact, String> {
         match self {
-            Self::Applied(manifest) | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
+            Self::Applied(manifest)
+            | Self::IgnoredEqual(manifest)
+            | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
                 manifest,
                 already_present,
             }),
@@ -455,13 +629,20 @@ impl Store {
             memory,
             tenant_id: config.tenant_id.clone(),
             tmp_dir: config.tmp_dir.clone(),
-            tmp_dir_max_bytes: config.tmp_dir_max_bytes,
+            tmp_staging_budget: TmpBudget::new(config.tmp_dir_max_bytes),
             data_dir: config.data_dir.clone(),
             segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
+            outbox_depth: AtomicUsize::new(0),
+            outbox_max_depth: config.outbox_max_depth,
+            multipart_uploads: AtomicUsize::new(0),
+            multipart_stored_bytes: AtomicU64::new(0),
+            multipart_max_active_uploads: config.multipart_max_active_uploads,
+            multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
+            action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -479,13 +660,135 @@ impl Store {
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
+            action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
+            action_cache_blob_refs_ready: AtomicBool::new(false),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
         // constructed (with a placeholder snapshot) before it can be seeded.
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
+        let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
+        store.outbox_depth.store(outbox_depth, Ordering::Release);
+        let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
+        store
+            .multipart_uploads
+            .store(multipart_uploads, Ordering::Release);
+        store
+            .multipart_stored_bytes
+            .store(multipart_stored_bytes, Ordering::Release);
+        if multipart_uploads > store.multipart_max_active_uploads
+            || multipart_stored_bytes > store.multipart_max_stored_bytes
+        {
+            tracing::warn!(
+                multipart_uploads,
+                multipart_stored_bytes,
+                max_active_uploads = store.multipart_max_active_uploads,
+                max_stored_bytes = store.multipart_max_stored_bytes,
+                "persisted multipart usage starts above its configured limits; rejecting growth until the janitor reclaims it"
+            );
+        }
         Ok(store)
+    }
+
+    pub fn tmp_staging_budget(&self) -> Arc<TmpBudget> {
+        self.tmp_staging_budget.clone()
+    }
+
+    pub fn outbox_depth(&self) -> usize {
+        self.outbox_depth.load(Ordering::Acquire)
+    }
+
+    fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
+        if slots == 0 {
+            return Ok(OutboxReservation {
+                depth: &self.outbox_depth,
+                slots,
+                committed: false,
+            });
+        }
+
+        let mut current = self.outbox_depth.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(slots);
+            if requested > self.outbox_max_depth {
+                return Err(format!(
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {} allowed",
+                    self.outbox_max_depth
+                ));
+            }
+            match self.outbox_depth.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(OutboxReservation {
+                        depth: &self.outbox_depth,
+                        slots,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn reserve_multipart_upload(&self) -> Result<MultipartUploadReservation<'_>, String> {
+        let mut current = self.multipart_uploads.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(1);
+            if requested > self.multipart_max_active_uploads {
+                return Err(format!(
+                    "{MULTIPART_CAPACITY_ERROR}: {current} active uploads, {} allowed",
+                    self.multipart_max_active_uploads
+                ));
+            }
+            match self.multipart_uploads.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(MultipartUploadReservation {
+                        uploads: &self.multipart_uploads,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn reserve_multipart_bytes(
+        &self,
+        next_bytes: u64,
+    ) -> Result<MultipartByteReservation<'_>, MultipartError> {
+        let added = next_bytes;
+        let mut current = self.multipart_stored_bytes.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(added);
+            if requested > self.multipart_max_stored_bytes {
+                return Err(MultipartError::CapacityExceeded);
+            }
+            match self.multipart_stored_bytes.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(MultipartByteReservation {
+                        bytes: &self.multipart_stored_bytes,
+                        added,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
     }
 
     fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
@@ -630,7 +933,7 @@ impl Store {
         namespace_id: &str,
         key: &str,
         content_type: &str,
-        source_path: &Path,
+        staged: StagedArtifactPath<'_>,
         replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
@@ -640,22 +943,25 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
             .await?;
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
-    pub async fn apply_replicated_artifact_from_path(
+    pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
-        source_path: &Path,
+        staged: impl Into<StagedArtifactPath<'a>>,
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
+        let staged = staged.into();
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -663,9 +969,11 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch: None,
+            trunk: None,
         };
         Ok(self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
             .await?
             .0
             .apply_outcome())
@@ -677,6 +985,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
@@ -686,7 +995,7 @@ impl Store {
         // only the last manifest write wins — leaving the rest as orphaned bytes
         // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
-        // short-circuit to IgnoredStale without appending.
+        // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
@@ -702,7 +1011,7 @@ impl Store {
             self.note_artifact_exists(&artifact_id);
             self.io.remove_file_if_exists(source_path).await;
             return Ok((
-                PersistArtifactOutcome::IgnoredStale(existing.clone()),
+                PersistArtifactOutcome::ignored(existing.clone(), spec.version_ms),
                 already_present,
             ));
         }
@@ -710,9 +1019,12 @@ impl Store {
             self.io.remove_file_if_exists(source_path).await;
             return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
-        let (location, evicted_segments) = self.append_to_segment(source_path, size).await?;
+        let (location, evicted_segments) = self
+            .append_to_segment(source_path, size, file_cache_policy)
+            .await?;
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
@@ -730,6 +1042,7 @@ impl Store {
             size,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
+            branch: spec.branch.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -758,14 +1071,34 @@ impl Store {
                         &manifest.namespace_id,
                         previous_manifest.version_ms,
                         previous_hash,
+                        // The row was keyed under the tag it held then, not the
+                        // one being written now.
+                        previous_manifest.branch.as_deref(),
                     ),
                 );
             }
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
+                action_cache_index_key(
+                    &manifest.namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
                 artifact_id.as_bytes(),
             );
+            self.bump_action_cache_generation(&manifest.namespace_id);
+            // No blob-refs (reverse index) maintenance for a segment-backed
+            // entry. Every current write path keeps action-cache entries inline
+            // (`update_action_result` rejects a body over
+            // MAX_INLINE_REPLICATION_BODY_BYTES), so their reverse rows are staged
+            // on the inline path. A segment-backed entry is still a structurally
+            // supported shape, but the reverse index deliberately does not cover
+            // it: this path, the startup backfill, and the delete paths all derive
+            // reverse rows from inline bytes and skip a manifest without them. Such
+            // an entry therefore gets no reverse rows and is never cascaded; the
+            // serve-side presence gates (the same backstop the cascade lifts load
+            // from) are its sole cover, which is safe.
         }
         if let Some(previous_manifest) = &existing
             && let Some(previous_segment_id) = &previous_manifest.segment_id
@@ -783,9 +1116,15 @@ impl Store {
                 [],
             );
         }
-        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
+        self.append_artifact_replication_messages(
+            &mut batch,
+            &manifest,
+            spec.replication_targets,
+            spec.trunk,
+        )?;
 
         self.write_batch_sync(batch, "manifest batch")?;
+        outbox_reservation.commit();
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
         self.maybe_cache_manifest(manifest.clone());
@@ -858,17 +1197,17 @@ impl Store {
         if manifest.inline || manifest.size > self.memory.mmap_serving_pool_bytes() as u64 {
             return Ok(None);
         }
-        let Ok(requested_bytes) = usize::try_from(manifest.size) else {
-            return Ok(None);
-        };
-        let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
-            return Ok(None);
-        };
 
         if let Some(segment_id) = &manifest.segment_id {
             let offset = manifest
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
+                return Ok(None);
+            };
+            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+                return Ok(None);
+            };
             let handle = self.segment_handle(segment_id).await?;
             let Some(serve) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
             else {
@@ -882,6 +1221,12 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
+            let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
+                return Ok(None);
+            };
+            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+                return Ok(None);
+            };
             let handle = self.blob_handle(blob_path).await?;
             let Some(serve) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
                 return Ok(None);
@@ -1049,7 +1394,7 @@ impl Store {
             // declared Content-Length — peers see an undecodable response and
             // bootstrap silently wedges. Surface a truncated artifact as missing
             // so the serve 404s it; the bootstrap client then skips it
-            // (IgnoredStale) and the lost entry re-populates on cache miss.
+            // (IgnoredMissing) and the lost entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
                 .as_std()
@@ -1211,7 +1556,7 @@ impl Store {
 
         let mut reader = self.open_manifest_reader(&current).await?;
         let (location, evicted_segments) = self
-            .append_reader_to_segment(&mut reader, current.size)
+            .append_reader_to_segment(&mut reader, current.size, None, FileCachePolicy::Adaptive)
             .await?;
         let mut refreshed = current.clone();
         let previous_segment_id = current_segment_id.to_owned();
@@ -1275,18 +1620,38 @@ impl Store {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
+        // Hold the per-artifact write lock across the read, the sticky-tag
+        // decision and the commit. The tag is a read-modify-write over the
+        // stored manifest, so computing it from a read taken outside the lock
+        // lets a feature build that observed "no entry" resume after a trunk
+        // build committed `main`, and overwrite it with the `feature` tag it
+        // precomputed, and with a newer version, so nothing downstream rejects
+        // it. The key then leaves the trunk baseline it had just joined.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
+
         let existing = self.manifest_from_db(&artifact_id)?;
+        // Widens the read-to-commit window a racing writer would have to hit.
+        self.hit_failpoint(FailpointName::AfterInlineManifestReadBeforeCommit)
+            .await?;
         if let Some(existing) = &existing
             && existing.inline
             && self.inline_bytes(&artifact_id)?.is_some()
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             self.note_artifact_exists(&artifact_id);
-            return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
+            return Ok(PersistArtifactOutcome::ignored(
+                existing.clone(),
+                spec.version_ms,
+            ));
         }
+        // Resolved here, under the lock, from the read above: every inline
+        // writer goes through this function, so this is the one place where the
+        // tag decision and the write it feeds cannot be split by a racing peer.
+        let branch = sticky_branch(existing.as_ref(), spec.branch, spec.trunk);
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
 
@@ -1303,6 +1668,7 @@ impl Store {
             size: bytes.len() as u64,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
+            branch: branch.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -1319,6 +1685,7 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
+        let mut wrote_action_cache_index = false;
         if manifest.producer == ArtifactProducer::Reapi
             && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
         {
@@ -1332,18 +1699,65 @@ impl Store {
                         &manifest.namespace_id,
                         previous_manifest.version_ms,
                         previous_hash,
+                        // The row was keyed under the tag it held then, not the
+                        // one being written now.
+                        previous_manifest.branch.as_deref(),
                     ),
                 );
             }
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
+                action_cache_index_key(
+                    &manifest.namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
                 artifact_id.as_bytes(),
             );
+            wrote_action_cache_index = true;
+
+            // Reverse index (blob -> referencing entry) maintenance, committed in
+            // the same batch as the entry so eviction can cascade this entry when
+            // a blob it references is dropped, rather than stranding it. On a
+            // re-publish the previous version's rows are removed first: the entry
+            // id is stable across versions, only the referenced blob set can
+            // change, and a delete-then-put on an unchanged blob leaves the row
+            // in place (the put is applied after the delete within the batch).
+            if existing.is_some()
+                && let Some(previous_bytes) = self.inline_bytes(&artifact_id)?
+            {
+                self.stage_action_cache_blob_refs_delete(
+                    &mut batch,
+                    &manifest.namespace_id,
+                    &artifact_id,
+                    &previous_bytes,
+                );
+            }
+            self.stage_action_cache_blob_refs_put(
+                &mut batch,
+                &manifest.namespace_id,
+                &artifact_id,
+                bytes,
+            );
         }
-        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
+        self.append_artifact_replication_messages(
+            &mut batch,
+            &manifest,
+            spec.replication_targets,
+            spec.trunk,
+        )?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
+        outbox_reservation.commit();
+        // Only after the batch commits: the generation is what a snapshot serve
+        // reads to decide its cached view is current, and the new index row is
+        // not visible to that scan until the write lands. Bumping before the
+        // commit lets a concurrent serve stamp the pre-commit (row-less) view
+        // with the new generation and then answer later requests from it.
+        if wrote_action_cache_index {
+            self.bump_action_cache_generation(&manifest.namespace_id);
+        }
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&artifact_id);
 
@@ -1363,9 +1777,12 @@ impl Store {
         &self,
         source_path: &Path,
         size: u64,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String> {
         let mut source = self.io.open_file(source_path).await?;
-        let result = self.append_reader_to_segment(&mut source, size).await;
+        let result = self
+            .append_reader_to_segment(&mut source, size, Some(source_path), file_cache_policy)
+            .await;
         self.io.remove_file_if_exists(source_path).await;
         result
     }
@@ -1374,6 +1791,8 @@ impl Store {
         &self,
         source: &mut R,
         size: u64,
+        source_cache_path: Option<&Path>,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String>
     where
         R: AsyncRead + Unpin,
@@ -1399,14 +1818,90 @@ impl Store {
             };
 
             let mut destination = self.io.open_append_file(&segment_path).await?;
-            let copied = tokio::io::copy(source, &mut destination)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "failed to append into segment {}: {error}",
-                        segment_path.display()
+            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+            let mut copied = 0_u64;
+            let mut advised_through = 0_u64;
+            while copied < size {
+                let remaining = usize::try_from((size - copied).min(buffer.len() as u64))
+                    .expect("copy chunk fits usize");
+                let read = source
+                    .read(&mut buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to read source while appending into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                destination
+                    .write_all(&buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to append into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                copied = copied.saturating_add(read as u64);
+
+                if copied.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                    && file_cache_policy.should_drop(
+                        self.memory.should_reclaim_file_cache(),
+                        self.memory.transient_reserved_bytes(),
                     )
-                })?;
+                {
+                    destination = match self
+                        .io
+                        .sync_drop_cache_and_reopen_append(
+                            destination,
+                            &segment_path,
+                            offset.saturating_add(advised_through),
+                            copied - advised_through,
+                        )
+                        .await
+                    {
+                        Ok(destination) => destination,
+                        Err(error) => {
+                            self.io
+                                .metrics()
+                                .record_memory_action("segment_file_cache_drop_failed");
+                            return Err(format!(
+                                "failed to bound segment file cache for {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    };
+                    if let Some(source_path) = source_cache_path
+                        && let Err(error) = self
+                            .io
+                            .drop_cached_pages(
+                                source_path,
+                                advised_through,
+                                copied - advised_through,
+                            )
+                            .await
+                    {
+                        self.io
+                            .metrics()
+                            .record_memory_action("source_file_cache_drop_failed");
+                        tracing::warn!("failed to release source file cache: {error}");
+                        if file_cache_policy.drop_failure_is_fatal() {
+                            return Err(format!(
+                                "failed to bound source file cache while appending {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    }
+                    advised_through = copied;
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop");
+                }
+            }
             if copied != size {
                 return Err(format!(
                     "appended {copied} bytes into segment {}, expected {size}",
@@ -1419,7 +1914,59 @@ impl Store {
                     segment_path.display()
                 )
             })?;
-            drop(destination);
+            let drop_final_range = copied > advised_through
+                && file_cache_policy.should_drop(
+                    self.memory.should_reclaim_file_cache(),
+                    self.memory.transient_reserved_bytes(),
+                );
+            if drop_final_range {
+                destination.sync_data().await.map_err(|error| {
+                    format!("failed to sync segment {}: {error}", segment_path.display())
+                })?;
+                drop(destination);
+                if let Err(error) = self
+                    .io
+                    .drop_cached_pages(
+                        &segment_path,
+                        offset.saturating_add(advised_through),
+                        copied - advised_through,
+                    )
+                    .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop_failed");
+                    tracing::warn!(
+                        path = %segment_path.display(),
+                        "failed to release segment file cache: {error}"
+                    );
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound segment file cache for {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+                if let Some(source_path) = source_cache_path
+                    && let Err(error) = self
+                        .io
+                        .drop_cached_pages(source_path, advised_through, copied - advised_through)
+                        .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("source_file_cache_drop_failed");
+                    tracing::warn!("failed to release source file cache: {error}");
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound source file cache while appending {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+            } else {
+                drop(destination);
+            }
             if !segment_already_exists {
                 self.io.sync_directory(segment_dir).await?;
             }
@@ -1647,6 +2194,12 @@ impl Store {
         let mut saw_entries = false;
         let mut removed_artifacts = BTreeMap::<ArtifactProducer, u64>::new();
         let mut removed_artifact_ids = Vec::new();
+        // The cascade is engaged whenever the operator has it enabled. It acts on
+        // whatever reverse rows exist, so coverage grows as entries are written;
+        // the serve-side presence gates remain the safety net for the rest.
+        let cascade_active = self.action_cache_cascade_active();
+        let mut cascaded_entries = HashSet::new();
+        let mut cascaded_namespaces = HashSet::new();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
@@ -1672,6 +2225,18 @@ impl Store {
                             .as_bytes(),
                     );
                     batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                    // Cascade: this blob is going away, so every action-cache
+                    // entry that references it must go with it, in this same
+                    // atomic batch, or the entry is stranded pointing at a blob
+                    // that no longer exists. Only REAPI blobs can be referenced.
+                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
+                        self.stage_action_cache_cascade_for_blob(
+                            &mut batch,
+                            &artifact_id,
+                            &mut cascaded_entries,
+                            &mut cascaded_namespaces,
+                        )?;
+                    }
                     *removed_artifacts.entry(manifest.producer).or_default() += 1;
                     removed_artifact_ids.push(artifact_id);
                 }
@@ -1686,6 +2251,23 @@ impl Store {
                 .write(batch)
                 .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
             self.remove_manifest_cache_keys(&removed_artifact_ids);
+            if !cascaded_entries.is_empty() {
+                let cascaded_ids: Vec<String> = cascaded_entries.iter().cloned().collect();
+                self.remove_manifest_cache_keys(&cascaded_ids);
+                // A cached snapshot must rebuild so it drops the entries the
+                // cascade removed; the reconcile reads the now-pruned index CF.
+                for namespace_id in &cascaded_namespaces {
+                    self.bump_action_cache_generation(namespace_id);
+                }
+                self.io
+                    .metrics()
+                    .record_action_cache_cascade(cascaded_entries.len() as u64);
+                tracing::info!(
+                    segment_id,
+                    cascaded_entries = cascaded_entries.len(),
+                    "cascaded action-cache entries stranded by segment eviction"
+                );
+            }
         }
         self.remove_segment_handle(segment_id).await;
         self.io
@@ -1700,6 +2282,122 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    /// Cascade-delete the action-cache entries that reference `blob_artifact_id`
+    /// into `batch`, staging the removal of each entry's manifest, inline bytes,
+    /// namespace/action-cache index rows, and reverse rows, plus the blob's own
+    /// reverse rows. `cascaded_entries` de-duplicates entries referenced by more
+    /// than one evicted blob in the same segment; `cascaded_namespaces` collects
+    /// the namespaces whose snapshot generation must be bumped after commit.
+    ///
+    /// Each candidate is re-validated against the entry's current `ActionResult`
+    /// before removal: a reverse pair left stale by a re-publish that moved the
+    /// entry onto a different blob, or by an already-deleted entry, only deletes
+    /// itself and never takes out a live, unrelated entry.
+    ///
+    /// The validation is deliberately not serialized with `artifact_write_lock_for`
+    /// against a concurrent re-publish of the same key. Eviction runs from
+    /// segment rotation *inside* `persist_artifact_from_path_with_version` while
+    /// that path already holds an `artifact_write_lock` stripe, and the striped
+    /// locks can hash-collide a blob id with an entry id, so taking the entry
+    /// lock here could self-deadlock. The residual race (a re-publish commits a
+    /// new version between this read and the batch commit, so the fresh entry is
+    /// removed on a stale validation) is bounded and self-healing: the entry
+    /// degrades to a `NOT_FOUND` the client recomputes and republishes, the
+    /// snapshot reconcile skips any index row whose manifest is gone, and the
+    /// orphaned reverse row is reclaimed when its blob is later evicted. This is
+    /// the same read-then-delete-without-writer-lock race that
+    /// `expire_stale_action_cache_entries` already accepts.
+    fn stage_action_cache_cascade_for_blob(
+        &self,
+        batch: &mut WriteBatch,
+        blob_artifact_id: &str,
+        cascaded_entries: &mut HashSet<String>,
+        cascaded_namespaces: &mut HashSet<String>,
+    ) -> Result<(), String> {
+        let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        for item in iter {
+            let (ref_key, _) =
+                item.map_err(|error| format!("failed to iterate blob refs: {error}"))?;
+            if !ref_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let entry_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                .map_err(|error| format!("invalid blob-ref key: {error}"))?
+                .to_owned();
+            // The blob is going away, so its reverse row goes regardless of what
+            // we decide about the entry below.
+            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+
+            if cascaded_entries.contains(&entry_id) {
+                continue;
+            }
+            let Some(entry_manifest) = self.manifest_from_db(&entry_id)? else {
+                // Entry already removed; the reverse row was stale.
+                continue;
+            };
+            if entry_manifest.producer != ArtifactProducer::Reapi
+                || action_cache_manifest_hash(&entry_manifest.key).is_none()
+            {
+                continue;
+            }
+            let Some(entry_bytes) = self.inline_bytes(&entry_id)? else {
+                continue;
+            };
+            let still_references = self
+                .action_cache_entry_blob_ids(&entry_manifest.namespace_id, &entry_bytes)
+                .iter()
+                .any(|id| id == blob_artifact_id);
+            if !still_references {
+                // Stale pair from a re-publish that moved the entry off this
+                // blob; deleting the pair above is enough, leave the live entry.
+                continue;
+            }
+            self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+            cascaded_namespaces.insert(entry_manifest.namespace_id.clone());
+            cascaded_entries.insert(entry_id);
+        }
+        Ok(())
+    }
+
+    /// Stage the full removal of a single action-cache entry into `batch`: its
+    /// manifest, inline bytes, namespace index, action-cache index, and reverse
+    /// rows. Entries are always inline, so there is no segment-index row.
+    fn stage_action_cache_entry_delete(
+        &self,
+        batch: &mut WriteBatch,
+        entry_manifest: &ArtifactManifest,
+        entry_bytes: &[u8],
+    ) {
+        let entry_id = &entry_manifest.artifact_id;
+        batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), entry_id.as_bytes());
+        batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), entry_id.as_bytes());
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            namespace_artifact_index_key(&entry_manifest.namespace_id, entry_id).as_bytes(),
+        );
+        if let Some(action_hash) = action_cache_manifest_hash(&entry_manifest.key) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                action_cache_index_key(
+                    &entry_manifest.namespace_id,
+                    entry_manifest.version_ms,
+                    action_hash,
+                    entry_manifest.branch.as_deref(),
+                ),
+            );
+        }
+        self.stage_action_cache_blob_refs_delete(
+            batch,
+            &entry_manifest.namespace_id,
+            entry_id,
+            entry_bytes,
+        );
     }
 
     /// Removes segment files that the segment ring state no longer
@@ -1866,6 +2564,8 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets: &[],
+            branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1891,6 +2591,8 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1914,12 +2616,15 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets: &[],
+            branch: None,
+            trunk: None,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredEqual(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
                 "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
@@ -1935,6 +2640,7 @@ impl Store {
     /// manifests; without damping, every cold machine in a fleet would bump
     /// the same entries' versions (and replicate the rewrites) on the same
     /// day.
+    #[allow(clippy::too_many_arguments)]
     pub async fn persist_inline_artifact_from_bytes_damped_and_enqueue(
         &self,
         producer: ArtifactProducer,
@@ -1943,16 +2649,42 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
-        if let Some(existing) = self.manifest_from_db(&artifact_id)?
+        let existing = self.manifest_from_db(&artifact_id)?;
+        // Damping compares the TAG as well as the bytes, because an entry is no
+        // longer identified by its bytes alone. Without it, a trunk build that
+        // recomputes a result a feature branch published first is damped on the
+        // bytes and its tag never lands, so the entry stays feature-scoped and
+        // stays out of the trunk view: the reclaim the client is asking for is
+        // dropped here, silently, by the one check it has to pass.
+        //
+        // This was tried once and reverted, for reasons that no longer hold. The
+        // refresh path then re-published with no branch, so comparing tags saw
+        // `Some("feature")` against `None`, declined to damp, and wrote the entry
+        // untagged into what was then the trunk baseline. That path now carries
+        // its tags, `sticky_branch` no longer lets an absent branch overwrite a
+        // present one, and untagged is no longer the baseline. Three reasons the
+        // old shape was a trap, all gone.
+        //
+        // Resolving the tag here is a probe, not the decision: the persist below
+        // re-resolves it under the per-artifact write lock. A peer committing in
+        // between can only cost a damp we should have taken, or a write we did
+        // not need, and the next publish settles it either way.
+        if let Some(existing) = &existing
             && existing.inline
-            && manifest_version_ms(&existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
+            && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
                 > now_ms()
+            && sticky_branch(Some(existing), branch, trunk) == existing.branch.as_deref()
             && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
         {
-            return Ok((existing, false));
+            return Ok((existing.clone(), false));
         }
+        // The tag is resolved by the persist below, under the per-artifact write
+        // lock. Deciding it from `existing` here would race: this read is only
+        // the damping probe, and a peer can commit between it and the write.
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -1960,11 +2692,14 @@ impl Store {
             content_type,
             bytes,
             replication_targets,
+            branch,
+            trunk,
         )
         .await
         .map(|manifest| (manifest, true))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn persist_inline_artifact_from_bytes_and_enqueue(
         &self,
         producer: ArtifactProducer,
@@ -1973,6 +2708,8 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -1981,12 +2718,15 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch,
+            trunk,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredEqual(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
                 "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
@@ -2011,6 +2751,8 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch: None,
+            trunk: None,
         };
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -2019,6 +2761,11 @@ impl Store {
             .apply_outcome())
     }
 
+    /// Apply an inline artifact replicated from a peer. `branch` is the tag the
+    /// origin resolved and `trunk` the publishing build's trunk; a peer that
+    /// sends neither (an older node, or any non-REAPI write) applies untagged,
+    /// exactly as before.
+    #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -2027,7 +2774,17 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         version_ms: u64,
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<ArtifactApplyOutcome, String> {
+        // The trunk-sticky rule is re-run against THIS node's view by the persist
+        // below (under the per-artifact write lock, from its own read). The origin
+        // could only apply the rule against its own view: a feature build
+        // publishing a trunk key to a peer that does not hold it yet resolves the
+        // tag to `feature`, and applying that verbatim would steal the key out of
+        // the trunk baseline here: the same theft the rule prevents locally, just
+        // arriving over replication. Forwarding `trunk` is what asks for the
+        // re-run; a peer that sends none applies untagged, exactly as before.
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -2035,6 +2792,8 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch,
+            trunk,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -2047,10 +2806,15 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        let disk_reservation = self.tmp_staging_budget.try_reserve(bytes.len() as u64)?;
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
+        let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
         self.io.write(&temp_path, bytes).await?;
-        self.persist_artifact_from_path_with_version(spec, &temp_path)
-            .await
+        let result = self
+            .persist_artifact_from_path_with_version(spec, &temp_path, FileCachePolicy::Adaptive)
+            .await;
+        cleanup.remove_and_disarm(&self.io).await;
+        result
     }
 
     #[cfg(test)]
@@ -2101,6 +2865,11 @@ impl Store {
         {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
         }
+        let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
+            0
+        } else {
+            replication_targets.len()
+        })?;
         if !delete_everything {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
@@ -2137,8 +2906,26 @@ impl Store {
                 {
                     batch.delete_cf(
                         self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                        action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
+                        action_cache_index_key(
+                            namespace_id,
+                            manifest.version_ms,
+                            action_hash,
+                            manifest.branch.as_deref(),
+                        ),
                     );
+                    // Drop the entry's reverse rows. Every blob-refs row for this
+                    // namespace has its entry in this namespace, so deleting each
+                    // removed entry's rows clears the namespace's rows without a
+                    // separate per-blob scan. Read before the KEY_VALUE delete
+                    // above commits.
+                    if let Some(action_result_bytes) = self.inline_bytes(&artifact_id)? {
+                        self.stage_action_cache_blob_refs_delete(
+                            &mut batch,
+                            namespace_id,
+                            &artifact_id,
+                            &action_result_bytes,
+                        );
+                    }
                 }
                 if let Some(blob_path) = manifest.blob_path {
                     blob_paths.push(blob_path);
@@ -2174,6 +2961,7 @@ impl Store {
         }
 
         self.write_batch_sync(batch, "delete namespace batch")?;
+        outbox_reservation.commit();
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
@@ -2195,6 +2983,7 @@ impl Store {
         hash: &str,
         name: &str,
     ) -> Result<String, String> {
+        let reservation = self.reserve_multipart_upload()?;
         let upload_id = Uuid::now_v7().to_string();
         let upload = MultipartUpload {
             upload_id: upload_id.clone(),
@@ -2209,6 +2998,11 @@ impl Store {
 
         let upload_bytes = serde_json::to_vec(&upload)
             .map_err(|error| format!("failed to encode multipart upload: {error}"))?;
+        if upload_bytes.len() > MAX_MULTIPART_RECORD_BYTES {
+            return Err(format!(
+                "{MULTIPART_CAPACITY_ERROR}: multipart upload metadata exceeds {MAX_MULTIPART_RECORD_BYTES} bytes"
+            ));
+        }
         self.db
             .put_cf(
                 self.cf(ROCKSDB_CF_MULTIPART_UPLOADS),
@@ -2217,6 +3011,7 @@ impl Store {
             )
             .map_err(|error| format!("failed to store multipart upload: {error}"))?;
 
+        reservation.commit();
         Ok(upload_id)
     }
 
@@ -2233,14 +3028,32 @@ impl Store {
         .transpose()
     }
 
-    pub fn multipart_uploads_older_than(&self, cutoff_ms: u64) -> Result<Vec<String>, String> {
+    pub fn multipart_uploads_older_than_bounded(
+        &self,
+        cutoff_ms: u64,
+        after: Option<&[u8]>,
+        max_scanned: usize,
+    ) -> Result<(Vec<String>, Option<Vec<u8>>), String> {
+        if max_scanned == 0 {
+            return Ok((Vec::new(), None));
+        }
+        let mode = after.map_or(IteratorMode::Start, |after| {
+            IteratorMode::From(after, rocksdb::Direction::Forward)
+        });
         let iter = self
             .db
-            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), IteratorMode::Start);
-        let mut stale = Vec::new();
+            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), mode);
+        let mut stale = Vec::with_capacity(max_scanned);
+        let mut scanned = 0_usize;
+        let mut next_after = None;
         for item in iter {
             let (key, value) =
                 item.map_err(|error| format!("failed to iterate multipart uploads: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() <= after) {
+                continue;
+            }
+            scanned += 1;
+            next_after = Some(key.to_vec());
             let upload_id = match std::str::from_utf8(&key) {
                 Ok(value) => value.to_owned(),
                 Err(error) => {
@@ -2251,14 +3064,23 @@ impl Store {
                 Ok(upload) => upload,
                 Err(error) => {
                     tracing::warn!("failed to decode multipart upload {upload_id}: {error}");
+                    if scanned == max_scanned {
+                        break;
+                    }
                     continue;
                 }
             };
             if upload.created_at_ms < cutoff_ms {
                 stale.push(upload_id);
             }
+            if scanned == max_scanned {
+                break;
+            }
         }
-        Ok(stale)
+        if scanned < max_scanned {
+            next_after = None;
+        }
+        Ok((stale, next_after))
     }
 
     pub async fn add_multipart_part(
@@ -2268,51 +3090,140 @@ impl Store {
         part_path: &Path,
         size: u64,
     ) -> Result<(), MultipartError> {
+        if part_number == 0 || part_number as usize > MAX_MULTIPART_PARTS {
+            return Err(MultipartError::PartsMismatch);
+        }
         let _guard = self.multipart_lock_for(upload_id).lock().await;
         let mut upload = self
             .multipart_upload(upload_id)
             .map_err(MultipartError::Other)?
             .ok_or(MultipartError::NotFound)?;
+        if !upload.parts.contains_key(&part_number) && upload.parts.len() >= MAX_MULTIPART_PARTS {
+            return Err(MultipartError::CapacityExceeded);
+        }
 
         let next_total = next_total_size(&upload.parts, part_number, size);
         validate_total_size(next_total, MAX_MODULE_TOTAL_BYTES)?;
+        let previous_part = upload.parts.get(&part_number).cloned();
+        let previous_size = previous_part.as_ref().map(|part| part.size).unwrap_or(0);
+        // The candidate and the previous immutable part coexist until the
+        // durable upload record points at the candidate. Reserve that physical
+        // overlap so replacement traffic cannot temporarily exceed the quota.
+        let byte_reservation = self.reserve_multipart_bytes(size)?;
 
         let upload_dir = self.data_dir.join("multipart").join(upload_id);
         self.io.create_dir_all(&upload_dir).await.map_err(|error| {
             MultipartError::Other(format!("failed to create multipart dir: {error}"))
         })?;
-        let final_path = upload_dir.join(part_number.to_string());
+        let candidate_path = upload_dir.join(format!("{part_number}-{}", Uuid::now_v7()));
 
-        if let Err(rename_error) = self.io.rename(part_path, &final_path).await {
-            self.io.copy(part_path, &final_path).await.map_err(|error| {
-                MultipartError::Other(format!(
-                    "failed to store multipart part after rename error ({rename_error}): {error}"
-                ))
+        let store_result: Result<(), MultipartError> = async {
+            if let Err(rename_error) = self.io.rename(part_path, &candidate_path).await {
+                self.io.copy(part_path, &candidate_path).await.map_err(|error| {
+                    MultipartError::Other(format!(
+                        "failed to store multipart part after rename error ({rename_error}): {error}"
+                    ))
+                })?;
+                self.io.remove_file_if_exists_result(part_path).await.map_err(|error| {
+                    MultipartError::Other(format!("failed to remove staged multipart part: {error}"))
+                })?;
+            }
+            let physical_size = self
+                .io
+                .metadata_len(&candidate_path)
+                .await
+                .map_err(MultipartError::Other)?;
+            if physical_size != size {
+                return Err(MultipartError::Other(format!(
+                    "multipart part declared {size} bytes but stored {physical_size} bytes"
+                )));
+            }
+            let stored_part = self
+                .io
+                .open_file(&candidate_path)
+                .await
+                .map_err(MultipartError::Other)?;
+            stored_part.sync_data().await.map_err(|error| {
+                MultipartError::Other(format!("failed to sync multipart part: {error}"))
             })?;
-            self.io.remove_file_if_exists(part_path).await;
-        }
+            drop(stored_part);
+            self.io
+                .drop_cached_pages(&candidate_path, 0, size)
+                .await
+                .map_err(MultipartError::Other)?;
+            self.io
+                .metrics()
+                .record_memory_action("multipart_part_file_cache_drop");
+            self.io
+                .sync_dir(&upload_dir)
+                .await
+                .map_err(MultipartError::Other)?;
 
-        upload.parts.insert(
-            part_number,
-            MultipartPart {
-                path: final_path.to_string_lossy().into_owned(),
-                size,
-            },
-        );
-
-        let upload_bytes = serde_json::to_vec(&upload).map_err(|error| {
-            MultipartError::Other(format!("failed to encode multipart upload: {error}"))
-        })?;
-        self.db
-            .put_cf(
+            upload.parts.insert(
+                part_number,
+                MultipartPart {
+                    path: candidate_path.to_string_lossy().into_owned(),
+                    size,
+                },
+            );
+            let upload_bytes = serde_json::to_vec(&upload).map_err(|error| {
+                MultipartError::Other(format!("failed to encode multipart upload: {error}"))
+            })?;
+            if upload_bytes.len() > MAX_MULTIPART_RECORD_BYTES {
+                return Err(MultipartError::CapacityExceeded);
+            }
+            let mut batch = WriteBatch::default();
+            batch.put_cf(
                 self.cf(ROCKSDB_CF_MULTIPART_UPLOADS),
                 upload_id.as_bytes(),
                 upload_bytes,
-            )
-            .map_err(|error| {
-                MultipartError::Other(format!("failed to update multipart upload: {error}"))
-            })?;
+            );
+            self.write_batch_sync(batch, "multipart upload replacement")
+                .map_err(MultipartError::Other)?;
+            Ok(())
+        }
+        .await;
 
+        if let Err(error) = store_result {
+            match self.io.remove_file_if_exists_result(&candidate_path).await {
+                Ok(()) => return Err(error),
+                Err(cleanup_error) => {
+                    // The failed candidate remains on disk, so keep its full
+                    // reservation. Startup reconciliation will retry cleanup.
+                    byte_reservation.commit(0);
+                    return Err(MultipartError::Other(format!(
+                        "{error:?}; failed to remove the uncommitted multipart candidate: {cleanup_error}"
+                    )));
+                }
+            }
+        }
+
+        if let Some(previous_part) = previous_part {
+            match self
+                .io
+                .remove_file_if_exists_result(Path::new(&previous_part.path))
+                .await
+            {
+                Ok(()) => byte_reservation.commit(previous_size),
+                Err(error) => {
+                    // The database already committed the candidate. Keep both
+                    // physical files accounted and let startup or abort reclaim
+                    // the unreferenced predecessor.
+                    byte_reservation.commit(0);
+                    self.io
+                        .metrics()
+                        .record_memory_action("multipart_replaced_part_cleanup_failed");
+                    tracing::warn!(
+                        upload_id,
+                        part_number,
+                        path = previous_part.path,
+                        "failed to remove replaced multipart part: {error}"
+                    );
+                }
+            }
+        } else {
+            byte_reservation.commit(0);
+        }
         Ok(())
     }
 
@@ -2332,6 +3243,14 @@ impl Store {
         expected_parts: &[u32],
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, MultipartError> {
+        if expected_parts.is_empty()
+            || expected_parts.len() > MAX_MULTIPART_PARTS
+            || expected_parts
+                .iter()
+                .any(|part| *part == 0 || *part as usize > MAX_MULTIPART_PARTS)
+        {
+            return Err(MultipartError::PartsMismatch);
+        }
         let _guard = self.multipart_lock_for(upload_id).lock().await;
         let upload = self
             .multipart_upload(upload_id)
@@ -2343,16 +3262,25 @@ impl Store {
             return Err(MultipartError::PartsMismatch);
         }
         let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
-        ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
+        let memory_reservation = reserve_foreground_staging(&self.memory, upload_size)
             .await
+            .map_err(|_| MultipartError::MemoryPressure)?;
+        let file_cache_policy = memory_reservation.file_cache_policy();
+        let disk_reservation = self
+            .tmp_staging_budget
+            .try_reserve(upload_size)
             .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
+        let mut cleanup = TempFileCleanup::new(assembled_path.clone(), disk_reservation);
         let mut assembled = self
             .io
             .create_file(&assembled_path)
             .await
             .map_err(MultipartError::Other)?;
+        let mut assembled_bytes = 0_u64;
+        let mut advised_through = 0_u64;
+        let mut copy_buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
 
         for part_number in expected_parts {
             let part = upload
@@ -2364,17 +3292,60 @@ impl Store {
                 .open_file(Path::new(&part.path))
                 .await
                 .map_err(MultipartError::Other)?;
-            let copied = tokio::io::copy(&mut part_file, &mut assembled)
-                .await
-                .map_err(|error| {
-                    MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
-                })?;
+            let mut copied = 0_u64;
+            while copied < part.size {
+                let remaining = usize::try_from((part.size - copied).min(copy_buffer.len() as u64))
+                    .expect("multipart copy chunk fits usize");
+                let read = part_file
+                    .read(&mut copy_buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to read multipart part {part_number}: {error}"
+                        ))
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                assembled
+                    .write_all(&copy_buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to assemble multipart artifact: {error}"
+                        ))
+                    })?;
+                copied = copied.saturating_add(read as u64);
+                assembled_bytes = assembled_bytes.saturating_add(read as u64);
+                if file_cache_policy.should_drop(
+                    self.memory.should_reclaim_file_cache(),
+                    self.memory.transient_reserved_bytes(),
+                ) && assembled_bytes.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                {
+                    assembled = drop_staging_cache_range(
+                        assembled,
+                        &assembled_path,
+                        advised_through,
+                        assembled_bytes - advised_through,
+                        &self.io,
+                    )
+                    .await
+                    .map_err(MultipartError::Other)?;
+                    advised_through = assembled_bytes;
+                }
+            }
             if copied != part.size {
                 return Err(MultipartError::Other(format!(
                     "multipart part {part_number} expected {} bytes but copied {copied}",
                     part.size
                 )));
             }
+            drop(part_file);
+            self.io
+                .drop_cached_pages(Path::new(&part.path), 0, part.size)
+                .await
+                .map_err(MultipartError::Other)?;
         }
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
@@ -2387,12 +3358,14 @@ impl Store {
                 &upload.namespace_id,
                 &key,
                 "application/octet-stream",
-                &assembled_path,
+                StagedArtifactPath::new(&assembled_path, file_cache_policy),
                 replication_targets,
             )
             .await
             .map_err(MultipartError::Other)?
             .manifest;
+        cleanup.remove_and_disarm(&self.io).await;
+        drop(memory_reservation);
 
         self.abort_multipart_upload_locked(upload_id)
             .await
@@ -2407,17 +3380,35 @@ impl Store {
     }
 
     async fn abort_multipart_upload_locked(&self, upload_id: &str) -> Result<(), String> {
-        if let Some(upload) = self.multipart_upload(upload_id)? {
-            self.io
-                .remove_dir_all_if_exists(&self.data_dir.join("multipart").join(upload_id))
-                .await;
-            self.db
-                .delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes())
-                .map_err(|error| format!("failed to delete multipart upload: {error}"))?;
+        let upload_dir = self.data_dir.join("multipart").join(upload_id);
+        let upload_exists = self.multipart_upload(upload_id)?.is_some();
 
-            for part in upload.parts.values() {
-                self.io.remove_file_if_exists(Path::new(&part.path)).await;
-            }
+        let stored_before = path_size_bytes_on_blocking_pool(upload_dir.clone())
+            .await
+            .map_err(|error| {
+            format!(
+                "failed to account multipart upload {upload_id} before removal; its durable record was retained: {error}"
+            )
+            })?;
+        let removal = self.io.remove_dir_all_if_exists(&upload_dir).await;
+        let stored_after = path_size_bytes_on_blocking_pool(upload_dir)
+            .await
+            .map_err(|error| {
+            format!(
+                "failed to account multipart upload {upload_id} after removal; its durable record was retained: {error}"
+            )
+            })?;
+        let reclaimed = stored_before.saturating_sub(stored_after);
+        if reclaimed > 0 {
+            release_atomic_bytes(&self.multipart_stored_bytes, reclaimed);
+        }
+        removal?;
+
+        if upload_exists {
+            let mut batch = WriteBatch::default();
+            batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes());
+            self.write_batch_sync(batch, "multipart upload deletion")?;
+            release_atomic_slots(&self.multipart_uploads, 1);
         }
 
         Ok(())
@@ -2425,12 +3416,15 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
+        let outbox_reservation = self.reserve_outbox_slots(1)?;
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         let mut batch = WriteBatch::default();
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        self.write_batch_sync(batch, "outbox message")
+        self.write_batch_sync(batch, "outbox message")?;
+        outbox_reservation.commit();
+        Ok(())
     }
 
     pub fn next_outbox_message(
@@ -2461,7 +3455,7 @@ impl Store {
     }
 
     pub fn outbox_message_count(&self) -> Result<usize, String> {
-        self.count_cf_entries(ROCKSDB_CF_OUTBOX)
+        Ok(self.outbox_depth())
     }
 
     pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
@@ -2585,6 +3579,15 @@ impl Store {
                 namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id)
                     .as_bytes(),
             );
+            // Inline artifacts keep their bytes in the key-value column family
+            // keyed by artifact_id; without this the manifest is gone but the
+            // bytes leak (as the namespace-delete path already handles).
+            if manifest.inline {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    manifest.artifact_id.as_bytes(),
+                );
+            }
             if manifest.producer == ArtifactProducer::Reapi
                 && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
             {
@@ -2594,8 +3597,22 @@ impl Store {
                         &manifest.namespace_id,
                         manifest.version_ms,
                         action_hash,
+                        manifest.branch.as_deref(),
                     ),
                 );
+                // Drop this entry's reverse rows so the blob-refs map does not
+                // retain references to an entry that no longer exists: otherwise
+                // a later eviction of those blobs would try to cascade an
+                // already-removed entry, and the rows would leak for blobs that
+                // outlive it. Read before the KEY_VALUE delete above commits.
+                if let Some(action_result_bytes) = self.inline_bytes(&manifest.artifact_id)? {
+                    self.stage_action_cache_blob_refs_delete(
+                        &mut batch,
+                        &manifest.namespace_id,
+                        &manifest.artifact_id,
+                        &action_result_bytes,
+                    );
+                }
             }
             if let Some(segment_id) = &manifest.segment_id {
                 batch.delete_cf(
@@ -2668,13 +3685,30 @@ impl Store {
     /// entries a thousand to one, which starved every snapshot fetch into a
     /// client timeout. Namespaces written before the index existed are
     /// backfilled with one legacy scan on first use.
+    ///
+    /// When `trunk` is `Some`, only entries whose manifest carries that branch
+    /// only (an untagged entry is not in the baseline: see `branch_in_trunk`)
+    /// are returned; the cap counts kept entries only. `None` returns every
+    /// action-cache entry regardless of branch.
+    #[cfg(test)]
     pub fn action_cache_manifests(
         &self,
         namespace_id: &str,
         max_entries: usize,
+        trunk: Option<&str>,
+    ) -> Result<Vec<ArtifactManifest>, String> {
+        self.action_cache_manifests_bounded(namespace_id, max_entries, usize::MAX, trunk)
+    }
+
+    pub fn action_cache_manifests_bounded(
+        &self,
+        namespace_id: &str,
+        max_entries: usize,
+        max_working_bytes: usize,
+        trunk: Option<&str>,
     ) -> Result<Vec<ArtifactManifest>, String> {
         if !self.action_cache_index_backfilled(namespace_id)? {
-            return self.backfill_action_cache_index(namespace_id, max_entries);
+            self.backfill_action_cache_index(namespace_id)?;
         }
         let prefix = action_cache_index_prefix(namespace_id);
         let iter = self.db.iterator_cf(
@@ -2682,47 +3716,158 @@ impl Store {
             IteratorMode::From(&prefix, rocksdb::Direction::Forward),
         );
         let mut manifests = Vec::new();
+        let mut working_bytes = 0_usize;
+        let mut stale_working_bytes = 0_usize;
         // Rows whose manifest is gone or has moved to a different version:
         // overwrites and deletes clean up their own rows, but a row written by
         // a crashed batch or a pre-fix overwrite can linger — drop it here so
         // the index converges instead of paying the dead point-read forever.
-        let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+        let mut stale_rows: Vec<Vec<u8>> = Vec::with_capacity(ACTION_CACHE_STALE_DELETE_BATCH);
+        // Bounds the point-reads, which are the work: each is a random read into
+        // the manifests CF, where advancing the iterator is a sequential step over
+        // a compact CF. A row that carries its branch answers the trunk filter
+        // without being read at all, so feature churn no longer costs anything to
+        // reject and no longer eats this budget. What remains under it is rows
+        // written before the branch was recorded, plus stale rows: both have to
+        // ask the manifest, and both are finite and self-clearing. Newest-first
+        // means the rows examined first are the ones worth keeping, so stopping
+        // early yields a smaller but still current trunk view rather than a wrong
+        // one.
+        let read_budget = max_entries.saturating_mul(ACTION_CACHE_TRUNK_SCAN_FACTOR);
+        let mut read = 0usize;
+        // Not a budget, an observation: rejecting a row is free now, so the walk
+        // is bounded by the namespace rather than by `read_budget`. Reporting it
+        // is what makes a namespace whose walk dwarfs its view visible instead of
+        // something to infer.
+        let mut scanned = 0usize;
         for item in iter {
             let (index_key, artifact_id) =
                 item.map_err(|error| format!("failed to iterate action-cache index: {error}"))?;
             if !index_key.starts_with(&prefix) {
                 break;
             }
+            scanned += 1;
             if manifests.len() >= max_entries {
+                break;
+            }
+            // The row's own tag settles the filter for every entry indexed since
+            // the branch was recorded, which is the whole point of carrying it.
+            if let IndexRowBranch::Known(branch) =
+                action_cache_index_key_branch(&index_key, prefix.len())
+                && !branch_in_trunk(branch, trunk)
+            {
+                continue;
+            }
+            let artifact_id = std::str::from_utf8(&artifact_id)
+                .map_err(|error| format!("invalid action-cache index value: {error}"))?;
+            read += 1;
+            if trunk.is_some() && read > read_budget {
+                // Say so rather than quietly return a short view: a namespace
+                // that trips this is telling us its trunk entries are buried
+                // under feature churn, which is what a branch-keyed index would
+                // fix at the source.
+                tracing::warn!(
+                    namespace_id,
+                    read,
+                    scanned,
+                    kept = manifests.len(),
+                    "action-cache trunk scan hit its read budget; view truncated"
+                );
                 break;
             }
             let row_version = index_key
                 .get(prefix.len()..prefix.len() + 8)
                 .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
                 .map(|bytes| !u64::from_be_bytes(bytes));
-            let artifact_id = std::str::from_utf8(&artifact_id)
-                .map_err(|error| format!("invalid action-cache index value: {error}"))?;
             match self.manifest_from_db(artifact_id)? {
                 Some(manifest)
                     if manifest.producer == ArtifactProducer::Reapi
                         && manifest.key.starts_with("action_cache/")
                         && row_version == Some(manifest.version_ms) =>
                 {
+                    // A valid entry outside the trunk filter is skipped, not
+                    // deleted: it is a live entry for another branch.
+                    if !manifest_in_trunk(&manifest, trunk) {
+                        continue;
+                    }
+                    if !stale_rows.is_empty() {
+                        self.delete_stale_action_cache_rows(&mut stale_rows)?;
+                        working_bytes = working_bytes.saturating_sub(stale_working_bytes);
+                        stale_working_bytes = 0;
+                    }
+                    let charge = estimated_manifest_working_bytes(&manifest);
+                    if working_bytes.saturating_add(charge) > max_working_bytes {
+                        break;
+                    }
+                    working_bytes = working_bytes.saturating_add(charge);
                     manifests.push(manifest);
                 }
-                _ => stale_rows.push(index_key.to_vec()),
+                _ => {
+                    if stale_rows.len() == ACTION_CACHE_STALE_DELETE_BATCH {
+                        self.delete_stale_action_cache_rows(&mut stale_rows)?;
+                        working_bytes = working_bytes.saturating_sub(stale_working_bytes);
+                        stale_working_bytes = 0;
+                    }
+                    let charge = std::mem::size_of::<Vec<u8>>().saturating_add(index_key.len());
+                    let flush_peak = working_bytes
+                        .saturating_add(stale_working_bytes)
+                        .saturating_add(charge.saturating_mul(2));
+                    if flush_peak > max_working_bytes {
+                        break;
+                    }
+                    working_bytes = working_bytes.saturating_add(charge);
+                    stale_working_bytes = stale_working_bytes.saturating_add(charge);
+                    stale_rows.push(index_key.to_vec());
+                }
             }
         }
-        if !stale_rows.is_empty() {
-            let mut batch = WriteBatch::default();
-            for row in &stale_rows {
-                batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX), row);
-            }
-            self.write_batch_sync(batch, "action-cache index stale rows")?;
-        }
+        self.delete_stale_action_cache_rows(&mut stale_rows)?;
         Ok(manifests)
     }
 
+    fn delete_stale_action_cache_rows(&self, stale_rows: &mut Vec<Vec<u8>>) -> Result<(), String> {
+        if stale_rows.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        for row in std::mem::take(stale_rows) {
+            batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX), row);
+        }
+        self.write_batch_sync(batch, "action-cache index stale rows")
+    }
+
+    /// The namespace's action-cache generation. A snapshot index records this at
+    /// build time; if it has not moved, the index still describes the namespace,
+    /// including when the index is empty.
+    pub fn action_cache_generation(&self, namespace_id: &str) -> u64 {
+        self.action_cache_generations
+            .lock()
+            .expect("action-cache generations lock poisoned")
+            .get(namespace_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    fn bump_action_cache_generation(&self, namespace_id: &str) {
+        *self
+            .action_cache_generations
+            .lock()
+            .expect("action-cache generations lock poisoned")
+            .entry(namespace_id.to_owned())
+            .or_insert(0) += 1;
+    }
+
+    /// Deliberately NOT versioned to force a rebuild when the branch joined the
+    /// key. The branch is part of the key, so rewriting a row under the new
+    /// format writes a second row rather than overwriting the old one, and a
+    /// forced rebuild would leave every entry indexed twice.
+    ///
+    /// It needs no rebuild. A row written before the branch reports its tag as
+    /// unknown and asks the manifest, exactly as it did before, and the next
+    /// publish of that entry supersedes it: the new row carries the tag, and the
+    /// old one is left pointing at a stale version, which the scan already
+    /// retires. The migration therefore rides along with the republishes that
+    /// re-tagging needs anyway.
     fn action_cache_index_marker_key(namespace_id: &str) -> String {
         format!("action_cache_index/backfilled/{namespace_id}")
     }
@@ -2738,18 +3883,11 @@ impl Store {
     }
 
     /// One-time migration per namespace: the legacy full namespace scan,
-    /// writing an index row for EVERY action-cache manifest it encounters
+    /// writing an index row for every action-cache manifest it encounters
     /// (the index must be complete for later capped scans to be correct),
-    /// then the backfill marker — all in one batch, so a crash mid-scan
-    /// leaves the marker unset and the next call redoes the work. Returns
-    /// the newest `max_entries` like the indexed path. Only the snapshot
-    /// reconcile calls this, from its background build task, so the
-    /// scan's cost no longer sits on any request path.
-    fn backfill_action_cache_index(
-        &self,
-        namespace_id: &str,
-        max_entries: usize,
-    ) -> Result<Vec<ArtifactManifest>, String> {
+    /// then the backfill marker. Idempotent bounded batches keep the migration
+    /// working set fixed; a crash before the marker safely repeats them.
+    fn backfill_action_cache_index(&self, namespace_id: &str) -> Result<(), String> {
         let started = std::time::Instant::now();
         let prefix = format!("{namespace_id}\0");
         let iter = self.db.iterator_cf(
@@ -2758,7 +3896,7 @@ impl Store {
         );
         let mut batch = WriteBatch::default();
         let mut rows = 0_usize;
-        let mut manifests = Vec::new();
+        let mut pending_rows = 0_usize;
         for item in iter {
             let (index_key, _) =
                 item.map_err(|error| format!("failed to iterate namespace index: {error}"))?;
@@ -2778,35 +3916,265 @@ impl Store {
             };
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
+                action_cache_index_key(
+                    namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
                 manifest.artifact_id.as_bytes(),
             );
             rows += 1;
-            manifests.push(manifest);
-            // Keep the working set bounded while scanning: shed the
-            // oldest half whenever the buffer doubles the cap.
-            if manifests.len() >= max_entries.saturating_mul(2).max(2) {
-                manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
-                manifests.truncate(max_entries);
+            pending_rows += 1;
+            if pending_rows == 1_024 {
+                self.write_batch_sync(
+                    std::mem::take(&mut batch),
+                    "action-cache index backfill batch",
+                )?;
+                pending_rows = 0;
             }
         }
-        batch.put_cf(
+        if pending_rows > 0 {
+            self.write_batch_sync(batch, "action-cache index backfill batch")?;
+        }
+        let mut marker_batch = WriteBatch::default();
+        marker_batch.put_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
             Self::action_cache_index_marker_key(namespace_id).as_bytes(),
             [],
         );
-        self.write_batch_sync(batch, "action-cache index backfill")?;
-        if manifests.len() > max_entries {
-            manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
-            manifests.truncate(max_entries);
-        }
+        self.write_batch_sync(marker_batch, "action-cache index backfill marker")?;
         tracing::info!(
             namespace_id,
             rows,
             elapsed_ms = started.elapsed().as_millis() as u64,
             "action-cache index backfilled"
         );
-        Ok(manifests)
+        Ok(())
+    }
+
+    /// The physical blob ids an action-cache entry references, derived from its
+    /// inline `ActionResult` bytes. Each referenced blob key resolves to the
+    /// same `artifact_storage_id` the CAS write path assigns it, so the reverse
+    /// index keys line up with the blob ids `evict_segment` iterates.
+    fn action_cache_entry_blob_ids(
+        &self,
+        namespace_id: &str,
+        action_result_bytes: &[u8],
+    ) -> Vec<String> {
+        referenced_blob_keys(action_result_bytes)
+            .into_iter()
+            .map(|blob_key| {
+                artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    namespace_id,
+                    &blob_key,
+                )
+            })
+            .collect()
+    }
+
+    /// Stage the reverse rows for an entry into `batch`: one `{blob}\0{entry}`
+    /// pair per referenced blob. Called in the same batch that writes the entry,
+    /// so the entry and its reverse rows commit together or not at all.
+    fn stage_action_cache_blob_refs_put(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        entry_artifact_id: &str,
+        action_result_bytes: &[u8],
+    ) {
+        for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
+                [],
+            );
+        }
+    }
+
+    /// Stage deletion of an entry's reverse rows into `batch`, derived from the
+    /// entry's (old) `ActionResult` bytes. Used on re-publish (drop the previous
+    /// version's rows) and on every delete path (so the map does not leak rows
+    /// for entries that no longer exist).
+    fn stage_action_cache_blob_refs_delete(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        entry_artifact_id: &str,
+        action_result_bytes: &[u8],
+    ) {
+        for blob_id in self.action_cache_entry_blob_ids(namespace_id, action_result_bytes) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                action_cache_blob_ref_key(&blob_id, entry_artifact_id).as_bytes(),
+            );
+        }
+    }
+
+    fn action_cache_blob_refs_marker_key() -> &'static str {
+        "action_cache_blob_refs/backfilled"
+    }
+
+    fn action_cache_blob_refs_cursor_key() -> &'static str {
+        "action_cache_blob_refs/cursor"
+    }
+
+    fn action_cache_blob_refs_backfilled(&self) -> Result<bool, String> {
+        self.db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_marker_key().as_bytes(),
+            )
+            .map(|marker| marker.is_some())
+            .map_err(|error| format!("failed to read blob-refs backfill marker: {error}"))
+    }
+
+    /// Whether the eviction cascade should run. Operator-controlled only: the
+    /// cascade is safe against an incomplete reverse map because it re-validates
+    /// every pair against the entry before removing it, so a missing row can
+    /// only under-cascade (the serve-side presence gates still cover those),
+    /// never remove a live entry.
+    ///
+    /// Deliberately NOT gated on the backfill having completed. The backfill
+    /// waits on background headroom (`app.rs`), and a warm serving node parks
+    /// clean page cache at the hard watermark as its steady state, so that gate
+    /// never opens in production: the cascade stayed inert across every eviction
+    /// sweep since it shipped. Waiting for full coverage bought nothing and cost
+    /// all of it. Rows for entries written since boot are maintained by the
+    /// write path regardless, so the cascade is useful from the first eviction.
+    fn action_cache_cascade_active(&self) -> bool {
+        self.action_cache_eviction_cascade_enabled
+    }
+
+    /// One-time startup migration: rebuild the blob-refs reverse map from the
+    /// action-cache entries already on disk, so the eviction cascade also covers
+    /// entries that predate the reverse map. The cascade does not wait on this;
+    /// it runs against whatever rows exist. Idempotent: a marker in the key-value CF
+    /// records completion, so a restart after a completed backfill only reads the
+    /// marker and arms the flag. A crash mid-backfill safely repeats: the rows
+    /// are blind puts (re-adding an existing pair is a no-op) and the marker is
+    /// written last.
+    ///
+    /// Concurrency: entries written or re-published while this runs maintain
+    /// their own rows through the write path. A stale pair this backfill might
+    /// re-add just after a concurrent overwrite removed it is harmless, because
+    /// the eviction cascade re-checks that an entry still references the evicted
+    /// blob before removing it and drops only the stale pair otherwise, so the
+    /// scan does not need to lock each entry.
+    pub fn backfill_action_cache_blob_refs_step(
+        &self,
+    ) -> Result<ActionCacheBlobRefsBackfillStep, String> {
+        if self.action_cache_blob_refs_backfilled()? {
+            self.action_cache_blob_refs_ready
+                .store(true, Ordering::Release);
+            return Ok(ActionCacheBlobRefsBackfillStep {
+                rows: 0,
+                complete: true,
+            });
+        }
+
+        let after = self
+            .db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+            )
+            .map_err(|error| format!("failed to read blob-refs backfill cursor: {error}"))?
+            .map(|cursor| {
+                String::from_utf8(cursor.to_vec())
+                    .map_err(|error| format!("invalid blob-refs backfill cursor: {error}"))
+            })
+            .transpose()?;
+        let page = self.manifests_page_scoped(
+            after.as_deref(),
+            None,
+            ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP,
+        )?;
+        let mut batch = WriteBatch::default();
+        let mut pending = 0_usize;
+        let mut rows = 0_usize;
+        for manifest in &page.manifests {
+            if manifest.producer != ArtifactProducer::Reapi
+                || action_cache_manifest_hash(&manifest.key).is_none()
+            {
+                continue;
+            }
+            // Segment-backed entries are skipped here (as on the write and
+            // delete paths): the reverse index only covers inline entries,
+            // and the serve-side gates cover the rest.
+            let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
+                continue;
+            };
+            for blob_id in self.action_cache_entry_blob_ids(&manifest.namespace_id, &bytes) {
+                batch.put_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    action_cache_blob_ref_key(&blob_id, &manifest.artifact_id).as_bytes(),
+                    [],
+                );
+                pending += 1;
+                rows += 1;
+                if pending == ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH {
+                    self.write_batch_sync(
+                        std::mem::take(&mut batch),
+                        "action-cache blob-refs backfill batch",
+                    )?;
+                    pending = 0;
+                }
+            }
+        }
+        if pending > 0 {
+            self.write_batch_sync(batch, "action-cache blob-refs backfill batch")?;
+        }
+
+        let complete = page.next_after.is_none();
+        let mut progress_batch = WriteBatch::default();
+        if complete {
+            progress_batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_marker_key().as_bytes(),
+                [],
+            );
+            progress_batch.delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+            );
+        } else if let Some(cursor) = page.manifests.last() {
+            progress_batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_blob_refs_cursor_key().as_bytes(),
+                cursor.artifact_id.as_bytes(),
+            );
+        }
+        self.write_batch_sync(progress_batch, "action-cache blob-refs backfill progress")?;
+        if complete {
+            self.action_cache_blob_refs_ready
+                .store(true, Ordering::Release);
+        }
+        Ok(ActionCacheBlobRefsBackfillStep { rows, complete })
+    }
+
+    #[cfg(test)]
+    fn backfill_action_cache_blob_refs(&self) -> Result<usize, String> {
+        let mut rows = 0_usize;
+        loop {
+            let step = self.backfill_action_cache_blob_refs_step()?;
+            rows += step.rows;
+            if step.complete {
+                return Ok(rows);
+            }
+        }
+    }
+
+    /// Whether this store has any locally usable cache data.
+    pub fn has_artifacts(&self) -> Result<bool, String> {
+        self.db
+            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start)
+            .next()
+            .transpose()
+            .map(|item| item.is_some())
+            .map_err(|error| format!("failed to inspect manifests: {error}"))
     }
 
     /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
@@ -2962,7 +4330,9 @@ impl Store {
     pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
         self.db
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
-            .map_err(|error| format!("failed to delete outbox entry: {error}"))
+            .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
+        release_atomic_slots(&self.outbox_depth, 1);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2994,8 +4364,11 @@ impl Store {
         Ok(self
             .manifest_from_db(&artifact_id)?
             .map(|manifest| {
-                if manifest_version_ms(&manifest) < version_ms {
+                let existing_version_ms = manifest_version_ms(&manifest);
+                if existing_version_ms < version_ms {
                     ArtifactApplyOutcome::Applied
+                } else if versions_converged(existing_version_ms, version_ms) {
+                    ArtifactApplyOutcome::IgnoredEqual
                 } else {
                     ArtifactApplyOutcome::IgnoredStale
                 }
@@ -3023,6 +4396,7 @@ impl Store {
         batch: &mut WriteBatch,
         manifest: &ArtifactManifest,
         replication_targets: &[String],
+        trunk: Option<&str>,
     ) -> Result<(), String> {
         for target in replication_targets {
             self.append_outbox_message(
@@ -3037,6 +4411,10 @@ impl Store {
                         artifact_id: manifest.artifact_id.clone(),
                         inline: manifest.inline,
                         version_ms: manifest.version_ms,
+                        // The tag as resolved here, so the peer does not have to
+                        // infer it from a request header it never saw.
+                        branch: manifest.branch.clone(),
+                        trunk: trunk.map(str::to_owned),
                     },
                 },
             )?;
@@ -3246,6 +4624,254 @@ impl Store {
     fn note_artifact_exists(&self, artifact_id: &str) {
         self.existence_cache.insert(artifact_id);
     }
+
+    fn count_cf_entries_exact(&self, name: &str) -> Result<usize, String> {
+        let iter = self.db.iterator_cf(self.cf(name), IteratorMode::Start);
+        let mut count = 0_usize;
+        for item in iter {
+            item.map_err(|error| format!("failed to iterate {name}: {error}"))?;
+            count = count.saturating_add(1);
+        }
+        Ok(count)
+    }
+
+    fn delete_invalid_multipart_records(
+        &self,
+        invalid_keys: &mut Vec<Vec<u8>>,
+    ) -> Result<(), String> {
+        if invalid_keys.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        for key in std::mem::take(invalid_keys) {
+            batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), key);
+        }
+        self.write_batch_sync(batch, "invalid multipart upload cleanup")
+    }
+
+    fn reconcile_multipart_storage(&self) -> Result<(usize, u64), String> {
+        let multipart_root = self.data_dir.join("multipart");
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), IteratorMode::Start);
+        let mut uploads = 0_usize;
+        let mut stored_bytes = 0_u64;
+        let mut invalid_keys = Vec::with_capacity(MULTIPART_RECONCILE_DELETE_BATCH);
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate multipart uploads: {error}"))?;
+            let upload = if value.len() > MAX_MULTIPART_RECORD_BYTES {
+                tracing::warn!(
+                    record_bytes = value.len(),
+                    max_record_bytes = MAX_MULTIPART_RECORD_BYTES,
+                    "discarding an oversized multipart upload record during startup"
+                );
+                None
+            } else {
+                match serde_json::from_slice::<MultipartUpload>(&value) {
+                    Ok(upload) if upload.upload_id.as_bytes() == key.as_ref() => Some(upload),
+                    Ok(upload) => {
+                        tracing::warn!(
+                            record_upload_id = upload.upload_id,
+                            "discarding a multipart record whose key does not match its upload id"
+                        );
+                        None
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            "discarding an undecodable multipart upload record during startup: {error}"
+                        );
+                        None
+                    }
+                }
+            };
+            let Some(upload) = upload else {
+                invalid_keys.push(key.to_vec());
+                if invalid_keys.len() == MULTIPART_RECONCILE_DELETE_BATCH {
+                    self.delete_invalid_multipart_records(&mut invalid_keys)?;
+                }
+                continue;
+            };
+
+            let upload_dir = multipart_root.join(&upload.upload_id);
+            let mut referenced_paths = HashSet::with_capacity(upload.parts.len());
+            let valid = upload.parts.len() <= MAX_MULTIPART_PARTS
+                && upload.parts.iter().all(|(part_number, part)| {
+                    if *part_number == 0 || *part_number as usize > MAX_MULTIPART_PARTS {
+                        return false;
+                    }
+                    let path = PathBuf::from(&part.path);
+                    if path.parent() != Some(upload_dir.as_path())
+                        || !referenced_paths.insert(path.clone())
+                    {
+                        return false;
+                    }
+                    std::fs::metadata(path)
+                        .map(|metadata| metadata.is_file() && metadata.len() == part.size)
+                        .unwrap_or(false)
+                });
+            if !valid {
+                tracing::warn!(
+                    upload_id = upload.upload_id,
+                    "discarding an incomplete multipart upload with missing or mismatched part files"
+                );
+                invalid_keys.push(key.to_vec());
+                if invalid_keys.len() == MULTIPART_RECONCILE_DELETE_BATCH {
+                    self.delete_invalid_multipart_records(&mut invalid_keys)?;
+                }
+                continue;
+            }
+
+            uploads = uploads.saturating_add(1);
+            stored_bytes = stored_bytes
+                .saturating_add(upload.parts.values().map(|part| part.size).sum::<u64>());
+
+            match std::fs::read_dir(&upload_dir) {
+                Ok(entries) => {
+                    for entry in entries {
+                        let entry = entry.map_err(|error| {
+                            format!(
+                                "failed to enumerate multipart upload {}: {error}",
+                                upload.upload_id
+                            )
+                        })?;
+                        let path = entry.path();
+                        if referenced_paths.contains(&path) {
+                            continue;
+                        }
+                        let reclaimed = entry
+                            .file_type()
+                            .map(|kind| {
+                                if kind.is_dir() {
+                                    std::fs::remove_dir_all(&path)
+                                } else {
+                                    std::fs::remove_file(&path)
+                                }
+                            })
+                            .unwrap_or_else(Err);
+                        if let Err(error) = reclaimed {
+                            let retained = try_path_size_bytes(&path).map_err(|accounting_error| {
+                                format!(
+                                    "failed to account unreclaimed multipart path {} after {error}: {accounting_error}",
+                                    path.display()
+                                )
+                            })?;
+                            stored_bytes = stored_bytes.saturating_add(retained);
+                            tracing::warn!(
+                                path = %path.display(),
+                                retained,
+                                "failed to reclaim an unreferenced multipart file during startup: {error}"
+                            );
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(format!(
+                        "failed to enumerate multipart upload {}: {error}",
+                        upload.upload_id
+                    ));
+                }
+            }
+        }
+        self.delete_invalid_multipart_records(&mut invalid_keys)?;
+
+        match std::fs::read_dir(&multipart_root) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry.map_err(|error| {
+                        format!("failed to enumerate multipart storage: {error}")
+                    })?;
+                    let upload_id = entry.file_name().to_string_lossy().into_owned();
+                    let has_record = self
+                        .db
+                        .get_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes())
+                        .map_err(|error| {
+                            format!("failed to inspect multipart upload {upload_id}: {error}")
+                        })?
+                        .is_some();
+                    if has_record {
+                        continue;
+                    }
+                    let path = entry.path();
+                    let reclaimed = entry
+                        .file_type()
+                        .map(|kind| {
+                            if kind.is_dir() {
+                                std::fs::remove_dir_all(&path)
+                            } else {
+                                std::fs::remove_file(&path)
+                            }
+                        })
+                        .unwrap_or_else(Err);
+                    if let Err(error) = reclaimed {
+                        let retained = try_path_size_bytes(&path).map_err(|accounting_error| {
+                            format!(
+                                "failed to account unreclaimed orphaned multipart path {} after {error}: {accounting_error}",
+                                path.display()
+                            )
+                        })?;
+                        stored_bytes = stored_bytes.saturating_add(retained);
+                        tracing::warn!(
+                            path = %path.display(),
+                            retained,
+                            "failed to reclaim an orphaned multipart path during startup: {error}"
+                        );
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to enumerate multipart storage {}: {error}",
+                    multipart_root.display()
+                ));
+            }
+        }
+        Ok((uploads, stored_bytes))
+    }
+
+    #[cfg(test)]
+    fn multipart_usage(&self) -> (usize, u64) {
+        (
+            self.multipart_uploads.load(Ordering::Acquire),
+            self.multipart_stored_bytes.load(Ordering::Acquire),
+        )
+    }
+}
+
+fn release_atomic_slots(depth: &AtomicUsize, slots: usize) {
+    let _ = depth.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        Some(current.saturating_sub(slots))
+    });
+}
+
+async fn path_size_bytes_on_blocking_pool(path: PathBuf) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || try_path_size_bytes(&path))
+        .await
+        .map_err(|error| format!("filesystem accounting task failed: {error}"))?
+        .map_err(|error| error.to_string())
+}
+
+fn release_atomic_bytes(bytes: &AtomicU64, released: u64) {
+    let _ = bytes.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        Some(current.saturating_sub(released))
+    });
+}
+
+fn estimated_manifest_working_bytes(manifest: &ArtifactManifest) -> usize {
+    let strings = manifest
+        .artifact_id
+        .len()
+        .saturating_add(manifest.namespace_id.len())
+        .saturating_add(manifest.key.len())
+        .saturating_add(manifest.content_type.len())
+        .saturating_add(manifest.blob_path.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len));
+    std::mem::size_of::<ArtifactManifest>()
+        .saturating_add(strings)
+        .saturating_mul(2)
+        .saturating_add(256)
 }
 
 fn next_total_size(parts: &BTreeMap<u32, MultipartPart>, part_number: u32, size: u64) -> u64 {
@@ -3562,7 +5188,9 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
-    manifest.artifact_id.len()
+    // The artifact id is owned three times: inside the manifest, as the
+    // HashMap key, and in AccessOrder's BTreeMap value.
+    manifest.artifact_id.len().saturating_mul(3)
         + manifest.namespace_id.len()
         + manifest.key.len()
         + manifest.content_type.len()
@@ -3855,6 +5483,14 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     }
 }
 
+// True when a rejected (local-wins) apply carries the version we already
+// store, i.e. both sides hold the identical entry. An incoming version of 0
+// carries no ordering information (the persist path re-stamps it with
+// now_ms()), so it can never attest convergence and classifies as stale.
+fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> bool {
+    incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
+}
+
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
     let size = usize::try_from(size)
         .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
@@ -3915,6 +5551,61 @@ fn outbox_message_key(message: &OutboxMessage) -> String {
     format!("{lane}-{:020}-{}", now_ms(), Uuid::now_v7())
 }
 
+/// The branch tag a publish should land with, honoring trunk-stickiness: a key
+/// already in the trunk baseline (tagged with the trunk branch) keeps its tag. A
+/// feature build recomputing the same action republishes it, often with byte
+/// wobble that defeats the refresh damping, and must not steal the key from the
+/// trunk view. A publish FROM the trunk always (re)claims it, and with no trunk
+/// to compare against the publish's own tag stands.
+///
+/// An untagged entry has nothing to protect: it is not in the baseline, so the
+/// first publisher to name a branch may claim it, which is how the fleet retags
+/// what it inherited.
+fn sticky_branch<'a>(
+    existing: Option<&'a ArtifactManifest>,
+    branch: Option<&'a str>,
+    trunk: Option<&str>,
+) -> Option<&'a str> {
+    match (existing, trunk) {
+        (Some(existing), Some(trunk))
+            if branch != Some(trunk) && existing.branch.as_deref() == Some(trunk) =>
+        {
+            existing.branch.as_deref()
+        }
+        // A publisher that names no branch is not asserting that the entry has
+        // none; it is saying it cannot tell. It must not overwrite what a
+        // publisher that could tell recorded, or a node too old to send the
+        // header would untag a trunk key and drop it out of the trunk view by
+        // republishing it.
+        (Some(existing), _) if branch.is_none() => existing.branch.as_deref(),
+        _ => branch,
+    }
+}
+
+/// Whether a manifest belongs in a trunk-scoped snapshot: only entries tagged
+/// with the trunk branch form the scoped baseline. An untagged entry is NOT in
+/// it, and neither is one tagged with a different branch. `None` (no trunk
+/// asked for) keeps every entry.
+fn manifest_in_trunk(manifest: &ArtifactManifest, trunk: Option<&str>) -> bool {
+    branch_in_trunk(manifest.branch.as_deref(), trunk)
+}
+
+/// The same rule against a bare tag, so an index row and a manifest cannot drift
+/// apart on what belongs in a trunk view.
+///
+/// An untagged entry is NOT in the trunk baseline. `None` means the publisher
+/// could not tell us which branch produced it (no registered checkout, a moved
+/// or renamed one, a node older than the tag), and treating "unknown" as "trunk"
+/// resolves every one of those the least safe way: silently, into the one view
+/// this scoping exists to keep clean. Excluded, an unknown entry costs a per-key
+/// round trip and gets re-tagged by the refresh path the first time it is read.
+fn branch_in_trunk(branch: Option<&str>, trunk: Option<&str>) -> bool {
+    match trunk {
+        Some(trunk) => branch == Some(trunk),
+        None => true,
+    }
+}
+
 fn encode_manifest_record(manifest: &ArtifactManifest) -> Result<Vec<u8>, String> {
     if manifest.is_segment_backed() {
         return SegmentLocationRecord::from_manifest(manifest).map(|record| record.encode());
@@ -3937,7 +5628,12 @@ fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactMan
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bazel_remote_apis::build::bazel::remote::execution::v2::{
+        ActionResult as ReapiActionResult, Digest as ReapiDigest, OutputFile as ReapiOutputFile,
+    };
     use tempfile::TempDir;
+
+    use crate::utils::blob_key;
 
     use crate::{
         config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
@@ -4044,12 +5740,15 @@ mod tests {
                 max_concurrent: 32,
                 chunk_bytes: 1024 * 1024,
             },
+            action_cache_eviction_cascade_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
             segment_handle_cache_size: 8,
+            memory_limit_bytes: 512 * 1024 * 1024,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
+            snapshot_cache_max_bytes: 32 * 1024 * 1024,
             manifest_cache_max_bytes: 8 * 1024 * 1024,
             max_keyvalue_bytes: 512 * 1024,
             rocksdb_max_open_files: 256,
@@ -4063,6 +5762,8 @@ mod tests {
             replication_public_latency_target_ms: 100,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
+            multipart_max_active_uploads: 128,
+            multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             analytics: None,
@@ -4113,7 +5814,7 @@ mod tests {
         // Several peers replicating the same artifact concurrently (same key,
         // same version) must not each append their own copy to a segment. The
         // per-key apply lock serializes them: the first writer commits the
-        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // manifest and the rest re-read it and short-circuit to IgnoredEqual. A
         // sleep failpoint between the durable append and the metadata commit
         // forces the writers to overlap, so without the lock every copy would be
         // appended (writer_count x on disk). This guards the store invariant
@@ -4148,14 +5849,23 @@ mod tests {
         });
         let outcomes = futures_util::future::join_all(applies).await;
 
-        let applied = outcomes
+        let outcomes: Vec<ArtifactApplyOutcome> = outcomes
             .into_iter()
             .map(|outcome| outcome.expect("apply should succeed"))
-            .filter(|outcome| outcome.applied())
-            .count();
+            .collect();
+        let applied = outcomes.iter().filter(|outcome| outcome.applied()).count();
         assert_eq!(
             applied, 1,
-            "exactly one concurrent same-key apply should write; the rest are stale"
+            "exactly one concurrent same-key apply should write"
+        );
+        let equal = outcomes
+            .iter()
+            .filter(|outcome| **outcome == ArtifactApplyOutcome::IgnoredEqual)
+            .count();
+        assert_eq!(
+            equal,
+            writer_count - 1,
+            "the losers re-read the committed manifest and report the converged duplicate"
         );
 
         let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
@@ -4163,6 +5873,39 @@ mod tests {
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
+    async fn replicated_path_apply_preserves_the_staged_file_cache_policy() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("bounded-replication");
+        let payload = vec![
+            0xAB;
+            usize::try_from(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES + 1)
+                .expect("test payload should fit usize")
+        ];
+        std::fs::write(&source, payload).expect("source should write");
+
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "bounded-artifact",
+                "application/octet-stream",
+                StagedArtifactPath::new(&source, FileCachePolicy::Bounded),
+                100,
+            )
+            .await
+            .expect("bounded replicated artifact should persist");
+
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .contains("action=\"segment_file_cache_drop\""),
+            "the bounded staging policy should reach the segment copy"
         );
     }
 
@@ -4181,6 +5924,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 now_ms() - 2 * day,
+                None,
+                None,
             )
             .await
             .expect("seed should persist");
@@ -4193,6 +5938,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("aged refresh should persist");
@@ -4206,6 +5953,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("damped refresh should succeed");
@@ -4223,11 +5972,532 @@ mod tests {
                 "application/x-protobuf",
                 b"graph-v2",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("changed publish should persist");
         assert!(applied, "changed content always applies");
         assert!(changed.version_ms >= refreshed.version_ms);
+    }
+
+    #[tokio::test]
+    async fn action_cache_manifests_scope_to_the_trunk_branch() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    branch,
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        publish(&store, "action_cache/aa/10", Some("main")).await;
+        publish(&store, "action_cache/bb/10", Some("feature")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(trunk.len(), 1, "the trunk snapshot excludes other branches");
+        assert_eq!(trunk[0].key, "action_cache/aa/10");
+        assert_eq!(trunk[0].branch.as_deref(), Some("main"));
+
+        let all = store
+            .action_cache_manifests("ios", 10, None)
+            .expect("unfiltered scan should succeed");
+        assert_eq!(all.len(), 2, "the unfiltered snapshot keeps every branch");
+
+        // An untagged entry is not in the trunk baseline: its publisher could not
+        // say which branch produced it, and a trunk view is the wrong place to
+        // resolve that doubt. It is still served per key, and the first publisher
+        // to name a branch claims it.
+        publish(&store, "action_cache/cc/10", None).await;
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        assert!(keys.contains(&"action_cache/aa/10"));
+        assert!(!keys.contains(&"action_cache/cc/10"));
+        assert!(!keys.contains(&"action_cache/bb/10"));
+        let all = store
+            .action_cache_manifests("ios", 10, None)
+            .expect("unfiltered scan should succeed");
+        assert_eq!(all.len(), 3, "an unscoped view still keeps every entry");
+    }
+
+    /// The rollback contract, pinned. A node that predates the branch reads the
+    /// version out of the key at a fixed offset and the artifact id out of the
+    /// value, and never parses what sits between them. Both have to survive the
+    /// branch being appended, or that node retires every row it cannot read and
+    /// deletes the index out from under itself.
+    #[test]
+    fn an_index_key_keeps_its_version_where_an_older_node_looks_for_it() {
+        let prefix = action_cache_index_prefix("ios");
+        for branch in [None, Some("main"), Some("feature/some-long-name")] {
+            let key = action_cache_index_key("ios", 1_234, "abc123", branch);
+            assert!(
+                key.starts_with(&prefix),
+                "namespace prefix scan still matches"
+            );
+            let version = key
+                .get(prefix.len()..prefix.len() + 8)
+                .expect("version sits at a fixed offset");
+            let version = !u64::from_be_bytes(version.try_into().expect("8 bytes"));
+            assert_eq!(version, 1_234, "an older node still reads the version");
+        }
+    }
+
+    #[test]
+    fn an_index_row_reports_its_branch_and_a_pre_branch_row_admits_it_cannot() {
+        let prefix_len = action_cache_index_prefix("ios").len();
+        let tagged = action_cache_index_key("ios", 1, "abc123", Some("main"));
+        assert!(matches!(
+            action_cache_index_key_branch(&tagged, prefix_len),
+            IndexRowBranch::Known(Some("main"))
+        ));
+        // Untagged is known, and distinct from unknown: it answers the filter.
+        let untagged = action_cache_index_key("ios", 1, "abc123", None);
+        assert!(matches!(
+            action_cache_index_key_branch(&untagged, prefix_len),
+            IndexRowBranch::Known(None)
+        ));
+        // A row written before the branch: no separator after the action hash.
+        let mut legacy = action_cache_index_prefix("ios");
+        legacy.extend_from_slice(&(!1u64).to_be_bytes());
+        legacy.extend_from_slice(b"abc123");
+        assert!(matches!(
+            action_cache_index_key_branch(&legacy, prefix_len),
+            IndexRowBranch::Unknown
+        ));
+    }
+
+    /// Trunk entries have to be reachable when they are buried under feature
+    /// churn, which is the whole situation this scoping exists for. Rejecting a
+    /// feature row costs nothing now that the row carries its own tag, so the
+    /// churn cannot exhaust the budget that bounds reads before the walk reaches
+    /// the trunk entries underneath it.
+    #[tokio::test]
+    async fn action_cache_manifests_reach_trunk_entries_buried_under_feature_churn() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    branch,
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        // Oldest, and last in the index under either ordering: it loses the
+        // newest-first comparison on version, and `zzz` loses the action-hash tie
+        // that a same-millisecond publish falls back on.
+        publish(&store, "action_cache/zzz", Some("main")).await;
+        // Enough feature rows ahead of it to exceed `max_entries * FACTOR`, which
+        // is what used to end the walk before it ever arrived.
+        for index in 0..(ACTION_CACHE_TRUNK_SCAN_FACTOR * 2) {
+            publish(
+                &store,
+                &format!("action_cache/f{index:02}"),
+                Some("feature"),
+            )
+            .await;
+        }
+
+        // The first call backfills and sets the marker; only after it does the
+        // indexed path (the one with the budget) run at all.
+        store
+            .action_cache_manifests("ios", 1, Some("main"))
+            .expect("backfill should succeed");
+        let trunk = store
+            .action_cache_manifests("ios", 1, Some("main"))
+            .expect("indexed trunk scan should succeed");
+        assert_eq!(
+            trunk.len(),
+            1,
+            "the trunk entry is found under the feature churn instead of the view being truncated"
+        );
+        assert_eq!(trunk[0].key, "action_cache/zzz");
+    }
+
+    /// The reclaim the whole scoping depends on, in the shape it actually happens:
+    /// two builds computing the same action produce the SAME bytes, so nothing
+    /// about the value changes and only the tag does. Damping is the one check
+    /// that stands between the client's tag-only update and the entry.
+    #[tokio::test]
+    async fn trunk_reclaims_an_identical_result_a_feature_published_first() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, branch: Option<&str>) -> ArtifactManifest {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"identical",
+                    &[],
+                    branch,
+                    Some("main"),
+                )
+                .await
+                .expect("action-cache entry should persist")
+                .0
+        }
+        // A feature build gets there first.
+        publish(&store, Some("feature")).await;
+        // Distinct version_ms: a same-millisecond republish is dropped as stale
+        // before any tagging runs, which makes this pass or fail on the clock.
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        // Trunk recomputes it: same bytes, well inside the damping window.
+        let reclaimed = publish(&store, Some("main")).await;
+        assert_eq!(
+            reclaimed.branch.as_deref(),
+            Some("main"),
+            "a tag-only update is not a no-op, so damping must not swallow it"
+        );
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(trunk.len(), 1, "and the entry is back in the trunk view");
+    }
+
+    /// A node too old to send the header, or a publisher whose checkout it could
+    /// not resolve, says nothing about provenance. Letting that erase a tag would
+    /// evict a trunk key from the trunk view by republishing it.
+    #[tokio::test]
+    async fn a_publish_that_names_no_branch_does_not_erase_one() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, bytes: &[u8], branch: Option<&str>) -> ArtifactManifest {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    bytes,
+                    &[],
+                    branch,
+                    // No trunk either: an older client sends neither header.
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist")
+                .0
+        }
+        publish(&store, b"graph", Some("main")).await;
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        // Different bytes, so damping cannot be what saves the tag.
+        let after = publish(&store, b"graph-wobble", None).await;
+        assert_eq!(
+            after.branch.as_deref(),
+            Some("main"),
+            "an untagged republish keeps the tag someone who knew it recorded"
+        );
+    }
+
+    #[tokio::test]
+    async fn trunk_baseline_tags_stick_against_feature_republishes() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, bytes: &[u8], branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    bytes,
+                    &[],
+                    branch,
+                    Some("main"),
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        // Distinct version_ms per publish: a same-millisecond republish is
+        // dropped as stale before any tagging logic runs.
+        let tick = || tokio::time::sleep(std::time::Duration::from_millis(2));
+        // A feature build recomputing a trunk key (even with byte wobble that
+        // defeats damping) must not steal it from the trunk baseline.
+        publish(&store, "action_cache/aa/10", b"graph", Some("main")).await;
+        tick().await;
+        publish(
+            &store,
+            "action_cache/aa/10",
+            b"graph-wobble",
+            Some("feature"),
+        )
+        .await;
+        // An untagged entry is NOT in the baseline, so it has nothing to protect:
+        // the feature publish below claims it, and it leaves the trunk view.
+        publish(&store, "action_cache/bb/10", b"graph", None).await;
+        tick().await;
+        publish(
+            &store,
+            "action_cache/bb/10",
+            b"graph-wobble",
+            Some("feature"),
+        )
+        .await;
+        // A trunk publish reclaims a feature-tagged key.
+        publish(&store, "action_cache/cc/10", b"graph", Some("feature")).await;
+        tick().await;
+        publish(&store, "action_cache/cc/10", b"graph-wobble", Some("main")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let mut keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec!["action_cache/aa/10", "action_cache/cc/10"],
+            "a trunk key survives a feature republish (aa) and is reclaimed by a \
+             trunk one (cc); an untagged key is claimed by whoever names a branch (bb)"
+        );
+    }
+
+    // The tag is a read-modify-write over the stored manifest, so it is only as
+    // sound as the serialization around it. Two builds publishing the same shared
+    // action concurrently (routine: one namespace, many machines) must not be able
+    // to interleave their read and their commit, or the feature build writes the
+    // `feature` tag it decided on when the key looked absent, over the `main` the
+    // trunk build committed meanwhile, and with a version nothing downstream
+    // rejects. The failpoint pins that interleaving instead of racing for it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_concurrent_feature_publish_cannot_overwrite_the_trunk_tag() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        store.failpoints().set_once(
+            FailpointName::AfterInlineManifestReadBeforeCommit,
+            FailpointAction::Sleep(std::time::Duration::from_millis(300)),
+        );
+
+        let feature_store = Arc::clone(&store);
+        // Reads first (and stalls on the failpoint holding nothing but its own
+        // read), so it is the one whose decision is stale by the time it writes.
+        let feature = tokio::spawn(async move {
+            feature_store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph-from-feature",
+                    &[],
+                    Some("feature"),
+                    Some("main"),
+                )
+                .await
+                .expect("feature publish should persist");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let trunk_store = Arc::clone(&store);
+        let trunk = tokio::spawn(async move {
+            trunk_store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph-from-trunk",
+                    &[],
+                    Some("main"),
+                    Some("main"),
+                )
+                .await
+                .expect("trunk publish should persist");
+        });
+        feature.await.expect("feature task");
+        trunk.await.expect("trunk task");
+
+        let trunk_view = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let keys: Vec<&str> = trunk_view
+            .iter()
+            .map(|manifest| manifest.key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            vec!["action_cache/aa/10"],
+            "the key stays in the trunk baseline whichever publish commits first"
+        );
+    }
+
+    #[tokio::test]
+    async fn replicated_entries_carry_their_branch_across_the_mesh() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn apply(store: &Store, key: &str, version_ms: u64, branch: Option<&str>) {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    version_ms,
+                    branch,
+                    None,
+                )
+                .await
+                .expect("replicated entry should apply");
+        }
+        // A peer's feature entry keeps its tag instead of landing untagged in
+        // this node's trunk baseline — the pollution the branch tag exists to
+        // prevent, arriving over replication rather than from a client.
+        apply(&store, "action_cache/aa/10", 1_000, Some("feature")).await;
+        // A message from a node that predates the field carries no branch. It
+        // applies untagged, and untagged is not the trunk baseline: an older
+        // node's entries do not get to claim trunk by omission.
+        apply(&store, "action_cache/bb/10", 1_000, None).await;
+        apply(&store, "action_cache/cc/10", 1_000, Some("main")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let mut keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec!["action_cache/cc/10"],
+            "only a replicated entry tagged with the trunk is in the trunk view"
+        );
+    }
+
+    // An identical re-publish inside the window is damped, which is what keeps a
+    // fleet of cold machines from stampeding version bumps for the same entry.
+    #[tokio::test]
+    async fn identical_trunk_republish_stays_damped_when_the_tag_already_matches() {
+        let (_temp_dir, _config, store) = temp_store();
+        for _ in 0..1 {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    Some("main"),
+                    Some("main"),
+                )
+                .await
+                .expect("trunk entry should persist");
+        }
+        let (_manifest, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("identical republish should succeed");
+        assert!(!applied, "nothing changes, so the write is damped");
+    }
+
+    #[tokio::test]
+    async fn replicated_feature_entries_cannot_steal_a_trunk_baseline_key() {
+        let (_temp_dir, _config, store) = temp_store();
+        // The origin resolves the tag against ITS OWN view, so a feature build
+        // publishing a trunk key to a peer that does not hold it yet resolves
+        // `feature` and replicates that. This node holds the key in its trunk
+        // baseline and must not hand it over.
+        store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("trunk entry should persist");
+        let seeded = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(seeded.len(), 1, "the key starts in the trunk baseline");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph-wobble",
+                seeded[0].version_ms + 1_000,
+                Some("feature"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated republish should apply");
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(
+            trunk.len(),
+            1,
+            "the key stays in the trunk view against a replicated feature republish"
+        );
+        assert_eq!(trunk[0].branch.as_deref(), Some("main"));
+
+        // A replicated publish FROM the trunk still reclaims the key.
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/bb/10",
+                "application/x-protobuf",
+                b"graph",
+                1_000,
+                Some("feature"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated feature entry should apply");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/bb/10",
+                "application/x-protobuf",
+                b"graph-wobble",
+                2_000,
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated trunk entry should apply");
+        let reclaimed = store
+            .manifest_from_db(&artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &store.tenant_id,
+                "ios",
+                "action_cache/bb/10",
+            ))
+            .expect("manifest read should succeed")
+            .expect("entry should exist");
+        assert_eq!(reclaimed.branch.as_deref(), Some("main"));
     }
 
     #[tokio::test]
@@ -4299,7 +6569,7 @@ mod tests {
         assert!(exists(ArtifactProducer::Gradle, "artifact"));
         assert!(
             store
-                .action_cache_manifests("ios", 1_000)
+                .action_cache_manifests("ios", 1_000, None)
                 .expect("namespace scan should succeed")
                 .iter()
                 .all(|manifest| manifest.key != "action_cache/aa/10"),
@@ -4366,7 +6636,7 @@ mod tests {
         write(&store, &config, "action_cache/cc/10", 2_000).await;
 
         let manifests = store
-            .action_cache_manifests("ios", 2)
+            .action_cache_manifests("ios", 2, None)
             .expect("scan should succeed");
         let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
         keys.sort_unstable();
@@ -4377,7 +6647,7 @@ mod tests {
         );
         assert_eq!(
             store
-                .action_cache_manifests("ios", 10)
+                .action_cache_manifests("ios", 10, None)
                 .expect("scan should succeed")
                 .len(),
             3
@@ -4405,7 +6675,7 @@ mod tests {
         // Five entries against a cap of two crosses the in-scan shed
         // threshold (2x cap) as well as the final truncation.
         let manifests = store
-            .action_cache_manifests("ios", 2)
+            .action_cache_manifests("ios", 2, None)
             .expect("scan should succeed");
         let mut versions: Vec<u64> = manifests.iter().map(|m| m.version_ms).collect();
         versions.sort_unstable();
@@ -4430,7 +6700,10 @@ mod tests {
             .expect("artifact should persist");
         // First scan backfills the index; later writes must land in it
         // through the persist path rather than re-scanning the namespace.
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            1
+        );
         std::fs::write(&source, b"payload").expect("source should write");
         store
             .apply_replicated_artifact_from_path(
@@ -4444,7 +6717,7 @@ mod tests {
             .await
             .expect("artifact should persist");
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
         keys.sort_unstable();
@@ -4469,7 +6742,10 @@ mod tests {
             .expect("artifact should persist");
         // Backfill, then overwrite the same key at a newer version: the old
         // row must go, or capped indexed scans would double-count the key.
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            1
+        );
         std::fs::write(&source, b"payload").expect("source should write");
         store
             .apply_replicated_artifact_from_path(
@@ -4483,7 +6759,7 @@ mod tests {
             .await
             .expect("overwrite should persist");
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         assert_eq!(manifests.len(), 1, "one row per live key");
         assert_eq!(manifests[0].version_ms, 5_000);
@@ -4507,13 +6783,16 @@ mod tests {
                 .await
                 .expect("artifact should persist");
         }
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 2);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            2
+        );
         let expired = store
             .expire_stale_action_cache_entries(1_500, 10)
             .expect("expiry should succeed");
         assert_eq!(expired, 1);
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         assert_eq!(manifests.len(), 1);
         assert_eq!(manifests[0].key, "action_cache/bb/10");
@@ -4521,7 +6800,7 @@ mod tests {
 
     #[tokio::test]
     async fn persist_reports_already_present_across_re_uploads() {
-        // `already_present` must reflect presence, not the Applied/IgnoredStale
+        // `already_present` must reflect presence, not the Applied-vs-ignored
         // version outcome: a re-upload takes a newer version and still applies,
         // yet billing must see it as already present.
         let (_temp_dir, _config, store) = temp_store();
@@ -4928,6 +7207,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn has_artifacts_tracks_local_manifest_availability() {
+        let (_temp_dir, _config, store) = temp_store();
+        assert!(!store.has_artifacts().expect("empty store should inspect"));
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+
+        assert!(store.has_artifacts().expect("warm store should inspect"));
+    }
+
+    #[tokio::test]
     async fn manifests_page_returns_results_in_artifact_id_order() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -4988,6 +7286,8 @@ mod tests {
                 "application/octet-stream",
                 bytes,
                 version_ms,
+                None,
+                None,
             )
             .await
             .expect("failed to apply replicated inline artifact");
@@ -5289,6 +7589,7 @@ mod tests {
             size: b"legacy-blob-payload".len() as u64,
             version_ms: 100,
             created_at_ms: 100,
+            branch: None,
         };
 
         store
@@ -5744,6 +8045,526 @@ mod tests {
         assert_eq!(store.segment_handles.lock().await.len(), 0);
     }
 
+    // ---- Action-cache blob-refs reverse index + eviction cascade ----
+
+    fn reapi_digest(marker: u8, size: i64) -> ReapiDigest {
+        ReapiDigest {
+            hash: format!("{:02x}", marker).repeat(32),
+            size_bytes: size,
+        }
+    }
+
+    fn action_result_referencing(digests: &[&ReapiDigest]) -> Vec<u8> {
+        use prost::Message;
+        let output_files = digests
+            .iter()
+            .enumerate()
+            .map(|(index, digest)| ReapiOutputFile {
+                path: format!("out/{index}"),
+                digest: Some((*digest).clone()),
+                ..Default::default()
+            })
+            .collect();
+        ReapiActionResult {
+            output_files,
+            ..Default::default()
+        }
+        .encode_to_vec()
+    }
+
+    async fn persist_reapi_blob(
+        store: &Store,
+        namespace_id: &str,
+        digest: &ReapiDigest,
+        bytes: &[u8],
+    ) -> ArtifactManifest {
+        let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("failed to persist blob")
+    }
+
+    async fn persist_action_cache_entry(
+        store: &Store,
+        namespace_id: &str,
+        action_marker: u8,
+        action_result_bytes: &[u8],
+        version_ms: u64,
+    ) -> ArtifactManifest {
+        let key = crate::utils::action_cache_key(&format!(
+            "{}/0",
+            format!("{:02x}", action_marker).repeat(32)
+        ));
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/octet-stream",
+                action_result_bytes,
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("failed to persist action-cache entry");
+        store
+            .manifest(&artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &store.tenant_id,
+                namespace_id,
+                &key,
+            ))
+            .expect("failed to load entry manifest")
+            .expect("entry manifest should exist")
+    }
+
+    fn blob_ref_entry_ids(store: &Store, blob_artifact_id: &str) -> Vec<String> {
+        let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
+        let iter = store.db.iterator_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut entry_ids = Vec::new();
+        for item in iter {
+            let (key, _) = item.expect("failed to iterate blob refs");
+            if !key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            entry_ids.push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 entry id"));
+        }
+        entry_ids
+    }
+
+    #[tokio::test]
+    async fn write_path_records_blob_refs_for_action_cache_entries() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob.artifact_id),
+            vec![entry.artifact_id.clone()]
+        );
+    }
+
+    #[tokio::test]
+    async fn republish_moves_blob_refs_to_the_new_referenced_blobs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        let blob_b = persist_reapi_blob(&store, "acme", &digest_b, b"goodbye").await;
+
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_a]),
+            1,
+        )
+        .await;
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id),
+            vec![entry.artifact_id.clone()]
+        );
+
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_b]),
+            2,
+        )
+        .await;
+        assert!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty(),
+            "previous version's reverse row should be dropped on re-publish"
+        );
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob_b.artifact_id),
+            vec![entry.artifact_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_artifact_metadata_drops_blob_refs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        store
+            .delete_artifact_metadata(&[entry])
+            .expect("failed to delete entry metadata");
+
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn namespace_delete_drops_blob_refs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        store
+            .delete_namespace("acme")
+            .await
+            .expect("failed to delete namespace");
+
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn backfill_reconstructs_blob_refs_for_entries_predating_the_map() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        // Wipe the reverse rows the write path created so the backfill has to
+        // rebuild them from the entries alone.
+        let mut wipe = WriteBatch::default();
+        for entry_id in blob_ref_entry_ids(&store, &blob.artifact_id) {
+            wipe.delete_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                action_cache_blob_ref_key(&blob.artifact_id, &entry_id).as_bytes(),
+            );
+        }
+        store.db.write(wipe).expect("failed to wipe blob refs");
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+        // The cascade is live throughout: it never waited on the backfill, it
+        // just had no row for this pre-existing entry to act on.
+        assert!(store.action_cache_cascade_active());
+
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        assert_eq!(
+            blob_ref_entry_ids(&store, &blob.artifact_id),
+            vec![entry.artifact_id]
+        );
+        assert!(store.action_cache_cascade_active());
+    }
+
+    #[tokio::test]
+    async fn blob_refs_backfill_resumes_from_its_persisted_cursor() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        let first = store
+            .backfill_action_cache_blob_refs_step()
+            .expect("first backfill step failed");
+        assert!(!first.complete);
+        assert!(
+            store
+                .db
+                .get_cf(
+                    store.cf(ROCKSDB_CF_KEY_VALUE),
+                    Store::action_cache_blob_refs_cursor_key().as_bytes(),
+                )
+                .expect("failed to read persisted cursor")
+                .is_some(),
+            "an interrupted migration must leave a cursor for the next start"
+        );
+        assert!(store.action_cache_cascade_active());
+
+        loop {
+            let step = store
+                .backfill_action_cache_blob_refs_step()
+                .expect("resumed backfill step failed");
+            if step.complete {
+                break;
+            }
+        }
+
+        assert_eq!(blob_ref_entry_ids(&store, &blob.artifact_id).len(), 1);
+        assert!(store.action_cache_cascade_active());
+        assert!(
+            store
+                .db
+                .get_cf(
+                    store.cf(ROCKSDB_CF_KEY_VALUE),
+                    Store::action_cache_blob_refs_cursor_key().as_bytes(),
+                )
+                .expect("failed to read cleared cursor")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn evicting_a_referenced_blob_cascades_the_action_cache_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        let segment_id = blob
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry stranded by the evicted blob should be cascaded away"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn cascade_runs_without_the_backfill_having_completed() {
+        // Production regression: the cascade used to wait on the one-time
+        // blob-refs backfill, which waits on background headroom, which a warm
+        // node at the page-cache watermark never grants. The cascade stayed
+        // inert across every eviction sweep and stranded entries kept being
+        // served, failing builds with `missing object`. Entries written since
+        // boot get their rows from the write path, so no backfill is required.
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+
+        let segment_id = blob
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry stranded by the evicted blob should be cascaded away \
+             without any backfill having run"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn cascade_removes_an_entry_referencing_two_blobs_in_one_segment_once() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        let blob_b = persist_reapi_blob(&store, "acme", &digest_b, b"goodbye").await;
+        // The one-action-several-outputs shape: both outputs land in the same
+        // current segment, so a single eviction drops both blobs and the second
+        // blob's scan must hit the `cascaded_entries` dedupe rather than
+        // re-removing the entry or double-counting it.
+        let segment_id = blob_a
+            .segment_id
+            .clone()
+            .expect("blob should be segment-backed");
+        assert_eq!(
+            blob_b.segment_id.as_deref(),
+            Some(segment_id.as_str()),
+            "test assumes both small blobs co-locate in one segment"
+        );
+
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_a, &digest_b]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_none(),
+            "the entry should be cascaded away once both of its blobs are evicted"
+        );
+        assert!(blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty());
+        assert!(blob_ref_entry_ids(&store, &blob_b.artifact_id).is_empty());
+        // prometheus-client appends `_total` to a counter's sample line, and this
+        // repo registers counters already suffixed `_total` (so the sample is
+        // `_total_total`, matching every sibling counter). Assert the value is 1,
+        // not 2, to lock in that the entry is counted once, not once per blob.
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .contains("kura_action_cache_cascade_removed_total_total 1"),
+            "the entry must be counted once, not once per referenced blob"
+        );
+    }
+
+    #[tokio::test]
+    async fn eviction_does_not_cascade_when_the_operator_disables_it() {
+        // The operator flag is the only gate left, so it is the only way to get
+        // the pre-cascade behaviour back if this ever needs turning off in
+        // production. Eviction must then leave the entry for the serve-side
+        // presence gates to handle, exactly as before the cascade shipped.
+        let (_temp_dir, _config, store) =
+            temp_store_with(|config| config.action_cache_eviction_cascade_enabled = false);
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        assert!(!store.action_cache_cascade_active());
+        let segment_id = blob.segment_id.clone().expect("segment-backed");
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_some(),
+            "with the cascade disabled the entry must remain in place"
+        );
+    }
+
+    #[tokio::test]
+    async fn cascade_ignores_a_stale_reverse_row_to_a_live_unrelated_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest_a = reapi_digest(0xa1, 5);
+        // Blob B is referenced by the entry but persisted into no segment here, so
+        // evicting A's segment cannot legitimately take the entry (persisting B
+        // would land it in the same current segment as A and evict both).
+        let digest_b = reapi_digest(0xb2, 7);
+        let blob_a = persist_reapi_blob(&store, "acme", &digest_a, b"hello").await;
+        // The entry references B only.
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xcc,
+            &action_result_referencing(&[&digest_b]),
+            1,
+        )
+        .await;
+        store
+            .backfill_action_cache_blob_refs()
+            .expect("backfill failed");
+
+        // Inject a stale reverse row claiming the entry references blob A (as a
+        // re-publish that moved off A could momentarily leave), then evict A.
+        let mut stale = WriteBatch::default();
+        stale.put_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            action_cache_blob_ref_key(&blob_a.artifact_id, &entry.artifact_id).as_bytes(),
+            [],
+        );
+        store.db.write(stale).expect("failed to inject stale row");
+
+        let segment_a = blob_a.segment_id.clone().expect("segment-backed");
+        store
+            .evict_segment(&segment_a)
+            .await
+            .expect("failed to evict segment");
+
+        assert!(
+            store
+                .manifest(&entry.artifact_id)
+                .expect("failed to load entry manifest")
+                .is_some(),
+            "a stale reverse row must not take out a live entry that no longer references the blob"
+        );
+        assert!(
+            blob_ref_entry_ids(&store, &blob_a.artifact_id).is_empty(),
+            "the stale row itself should be cleaned up by the eviction"
+        );
+    }
+
     #[tokio::test]
     async fn delete_namespace_removes_keyvalue_payloads() {
         let (_temp_dir, _config, store) = temp_store();
@@ -5922,6 +8743,20 @@ mod tests {
                 .expect("stale artifact should resolve cleanly"),
             ArtifactApplyOutcome::IgnoredStale
         );
+        assert_eq!(
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"v2",
+                    200,
+                )
+                .await
+                .expect("equal-version artifact should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
 
         let manifest = store
             .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
@@ -5930,6 +8765,94 @@ mod tests {
             .expect("artifact should remain");
         assert_eq!(manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&store, &manifest).await, b"v2");
+    }
+
+    #[test]
+    fn versions_converged_requires_a_non_zero_matching_incoming_version() {
+        assert!(versions_converged(100, 100));
+        assert!(!versions_converged(100, 50));
+        assert!(!versions_converged(100, 0));
+        // Both sides zero: only this pair exercises the non-zero guard, and a
+        // zero incoming version still attests nothing.
+        assert!(!versions_converged(0, 0));
+    }
+
+    #[tokio::test]
+    async fn apply_outcome_distinguishes_equal_from_strictly_older() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+                100,
+                None,
+                None,
+            )
+            .await
+            .expect("initial inline artifact should apply");
+
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 150)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::Applied
+        );
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 100)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 50)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
+        // Version 0 carries no ordering information, so it never reports equal.
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 0)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
+
+        assert_eq!(
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"payload",
+                    100,
+                    None,
+                    None,
+                )
+                .await
+                .expect("equal-version inline apply should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
+        assert_eq!(
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"payload",
+                    50,
+                    None,
+                    None,
+                )
+                .await
+                .expect("older inline apply should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
     }
 
     #[tokio::test]
@@ -5968,6 +8891,255 @@ mod tests {
                 .expect("failed to load multipart upload")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn multipart_start_rejects_oversized_initial_metadata_without_reserving_a_slot() {
+        let (_temp_dir, _config, store) = temp_store();
+        let oversized_name = "x".repeat(MAX_MULTIPART_RECORD_BYTES);
+
+        let error = store
+            .start_multipart_upload("acme", "ios", "builds", "hash-1", &oversized_name)
+            .expect_err("oversized initial metadata should be rejected");
+
+        assert!(is_multipart_capacity_error(&error));
+        assert_eq!(store.multipart_usage(), (0, 0));
+        assert_eq!(
+            store
+                .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
+                .expect("multipart records should count"),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn multipart_quotas_survive_restart_and_release_on_abort() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.multipart_max_active_uploads = 1;
+            config.multipart_max_stored_bytes = 20;
+        });
+        let upload_id = store
+            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .expect("first upload should fit");
+        assert!(is_multipart_capacity_error(
+            &store
+                .start_multipart_upload("acme", "ios", "builds", "hash-2", "Other.framework")
+                .expect_err("active upload limit should reject another upload")
+        ));
+
+        let part_1 = config.tmp_dir.join("bounded-part-1");
+        let part_2 = config.tmp_dir.join("bounded-part-2");
+        std::fs::write(&part_1, b"1234567").expect("write first part");
+        std::fs::write(&part_2, b"1234").expect("write second part");
+        let mismatched = config.tmp_dir.join("bounded-mismatched-part");
+        std::fs::write(&mismatched, b"1234").expect("write mismatched part");
+        let mismatch_error = store
+            .add_multipart_part(&upload_id, 1, &mismatched, 3)
+            .await
+            .expect_err("declared size must match physical storage");
+        assert!(matches!(mismatch_error, MultipartError::Other(_)));
+        assert_eq!(store.multipart_usage(), (1, 0));
+        assert_eq!(
+            store.add_multipart_part(&upload_id, 0, &part_1, 7).await,
+            Err(MultipartError::PartsMismatch)
+        );
+        assert_eq!(
+            store
+                .add_multipart_part(&upload_id, (MAX_MULTIPART_PARTS + 1) as u32, &part_1, 7,)
+                .await,
+            Err(MultipartError::PartsMismatch)
+        );
+        store
+            .add_multipart_part(&upload_id, 1, &part_1, 7)
+            .await
+            .expect("first part should fit");
+        assert_eq!(store.multipart_usage(), (1, 7));
+        let oversized = config.tmp_dir.join("bounded-oversized-part");
+        std::fs::write(&oversized, vec![b'x'; 14]).expect("write oversized part");
+        assert_eq!(
+            store
+                .add_multipart_part(&upload_id, 2, &oversized, 14)
+                .await,
+            Err(MultipartError::CapacityExceeded)
+        );
+
+        let replacement = config.tmp_dir.join("bounded-part-replacement");
+        std::fs::write(&replacement, b"12345").expect("write replacement part");
+        store
+            .add_multipart_part(&upload_id, 1, &replacement, 5)
+            .await
+            .expect("smaller replacement should release capacity");
+        store
+            .add_multipart_part(&upload_id, 2, &part_2, 4)
+            .await
+            .expect("released capacity should be reusable");
+        assert_eq!(store.multipart_usage(), (1, 9));
+
+        let orphan = config
+            .data_dir
+            .join("multipart")
+            .join(&upload_id)
+            .join("uncommitted-candidate");
+        std::fs::write(&orphan, b"orphan").expect("write orphaned candidate");
+
+        drop(store);
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (1, 9));
+        assert!(!orphan.exists(), "startup must reclaim orphaned candidates");
+        assert!(is_multipart_capacity_error(
+            &reopened
+                .start_multipart_upload("acme", "ios", "builds", "hash-3", "Third.framework")
+                .expect_err("reopened store should enforce durable upload count")
+        ));
+
+        reopened
+            .abort_multipart_upload(&upload_id)
+            .await
+            .expect("abort should release quota");
+        assert_eq!(reopened.multipart_usage(), (0, 0));
+        reopened
+            .start_multipart_upload("acme", "ios", "builds", "hash-4", "Fourth.framework")
+            .expect("released upload slot should be reusable");
+    }
+
+    #[tokio::test]
+    async fn multipart_startup_discards_records_with_mismatched_files() {
+        let (_temp_dir, config, store) = temp_store();
+        let upload_id = store
+            .start_multipart_upload("acme", "ios", "builds", "hash", "Module.framework")
+            .expect("upload should start");
+        let staged = config.tmp_dir.join("mismatched-part");
+        std::fs::write(&staged, b"original").expect("write staged part");
+        store
+            .add_multipart_part(&upload_id, 1, &staged, 8)
+            .await
+            .expect("part should be stored");
+        let stored = store
+            .multipart_upload(&upload_id)
+            .expect("upload lookup should succeed")
+            .expect("upload should exist");
+        let stored_path = PathBuf::from(&stored.parts[&1].path);
+        std::fs::write(&stored_path, b"wrong").expect("corrupt stored part");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (0, 0));
+        assert!(
+            reopened
+                .multipart_upload(&upload_id)
+                .expect("upload lookup should succeed")
+                .is_none(),
+            "a mismatched incomplete upload cannot complete safely"
+        );
+        assert!(!stored_path.exists());
+    }
+
+    #[tokio::test]
+    async fn multipart_startup_preserves_records_above_the_active_limit() {
+        let (_temp_dir, mut config, store) = temp_store_with(|config| {
+            config.multipart_max_active_uploads = 3;
+        });
+        let mut upload_ids = Vec::new();
+        for index in 0..3 {
+            upload_ids.push(
+                store
+                    .start_multipart_upload(
+                        "acme",
+                        "ios",
+                        "builds",
+                        &format!("hash-{index}"),
+                        &format!("Module-{index}.framework"),
+                    )
+                    .expect("upload should start"),
+            );
+        }
+        drop(store);
+
+        config.multipart_max_active_uploads = 1;
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (3, 0));
+        assert_eq!(
+            reopened
+                .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
+                .expect("multipart records should count"),
+            3
+        );
+        assert!(is_multipart_capacity_error(
+            &reopened
+                .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
+                .expect_err("persisted overage should reject growth")
+        ));
+        for upload_id in upload_ids {
+            reopened
+                .abort_multipart_upload(&upload_id)
+                .await
+                .expect("preserved upload should remain abortable");
+        }
+        reopened
+            .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
+            .expect("a new upload should start after the overage is reclaimed");
+    }
+
+    #[test]
+    fn multipart_janitor_scan_pages_durable_uploads_with_a_fixed_bound() {
+        let (_temp_dir, _config, store) = temp_store();
+        for index in 0..3 {
+            store
+                .start_multipart_upload(
+                    "acme",
+                    "ios",
+                    "builds",
+                    &format!("hash-{index}"),
+                    &format!("Module-{index}.framework"),
+                )
+                .expect("upload should start");
+        }
+
+        let (first, cursor) = store
+            .multipart_uploads_older_than_bounded(u64::MAX, None, 2)
+            .expect("first page should scan");
+        assert_eq!(first.len(), 2);
+        let (second, cursor) = store
+            .multipart_uploads_older_than_bounded(u64::MAX, cursor.as_deref(), 2)
+            .expect("second page should scan");
+        assert_eq!(second.len(), 1);
+        assert!(cursor.is_none(), "the final page should reset the cursor");
     }
 
     #[tokio::test]
@@ -6076,6 +9248,112 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn outbox_capacity_is_enforced_atomically_across_writers() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 5;
+        });
+        let store = Arc::new(store);
+        let mut writers = Vec::new();
+        for index in 0..20 {
+            let store = store.clone();
+            writers.push(tokio::spawn(async move {
+                store
+                    .persist_inline_artifact_from_bytes_and_enqueue(
+                        ArtifactProducer::Reapi,
+                        "ios",
+                        &format!("action_cache/{index}"),
+                        "application/x-protobuf",
+                        b"value",
+                        &["http://peer".into()],
+                        None,
+                        None,
+                    )
+                    .await
+            }));
+        }
+
+        let mut accepted = 0;
+        let mut rejected = 0;
+        for writer in writers {
+            match writer.await.expect("writer task") {
+                Ok(_) => accepted += 1,
+                Err(error) if is_outbox_full_error(&error) => rejected += 1,
+                Err(error) => panic!("unexpected write failure: {error}"),
+            }
+        }
+
+        assert_eq!(accepted, 5);
+        assert_eq!(rejected, 15);
+        assert_eq!(store.outbox_depth(), 5);
+        assert_eq!(store.outbox_message_count().expect("outbox count"), 5);
+    }
+
+    #[tokio::test]
+    async fn deleting_an_outbox_message_releases_capacity() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("first enqueue");
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(message.clone())
+                .expect_err("capacity rejection")
+        ));
+
+        let (key, _) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        store.delete_outbox_message(&key).expect("outbox deletion");
+        store.enqueue(message).expect("capacity should be reusable");
+        assert_eq!(store.outbox_depth(), 1);
+    }
+
+    #[test]
+    fn reopening_the_store_rebuilds_exact_outbox_depth() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("seed outbox");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to recreate io controller");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
+
+        assert_eq!(reopened.outbox_depth(), 1);
+        assert!(is_outbox_full_error(
+            &reopened
+                .enqueue(message)
+                .expect_err("reopened store must enforce persisted depth")
+        ));
+    }
+
     #[test]
     fn outbox_drains_metadata_before_earlier_bulk_messages() {
         let (_temp_dir, _config, store) = temp_store();
@@ -6094,6 +9372,8 @@ mod tests {
                     artifact_id: "blob-artifact".into(),
                     inline: false,
                     version_ms: 1,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("failed to enqueue bulk message");
@@ -6108,6 +9388,8 @@ mod tests {
                     artifact_id: "entry-artifact".into(),
                     inline: true,
                     version_ms: 2,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("failed to enqueue metadata message");
@@ -6186,6 +9468,8 @@ mod tests {
                 "application/json",
                 br#"{"ok":true}"#,
                 &targets,
+                None,
+                None,
             )
             .await
             .expect("artifact should persist");
@@ -6211,6 +9495,8 @@ mod tests {
                     artifact_id: manifest.artifact_id.clone(),
                     version_ms: manifest.version_ms,
                     inline: true,
+                    branch: None,
+                    trunk: None,
                 }
             );
         }
@@ -6243,7 +9529,7 @@ mod tests {
                         "ns",
                         &format!("key-{i}"),
                         "application/octet-stream",
-                        &path,
+                        StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
                         &[],
                     )
                     .await
@@ -6426,6 +9712,8 @@ mod tests {
                 "application/json",
                 br#"{"value":"ok"}"#,
                 &["http://peer-a".to_string()],
+                None,
+                None,
             )
             .await
             .expect_err("write should fail after the durable commit");
@@ -6496,7 +9784,7 @@ mod tests {
                 )
                 .await
                 .expect("duplicate artifact apply should succeed"),
-            ArtifactApplyOutcome::IgnoredStale
+            ArtifactApplyOutcome::IgnoredEqual
         );
         assert_eq!(
             store

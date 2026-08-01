@@ -66,6 +66,34 @@ func TestCloneTimeoutKillsHungProcess(t *testing.T) {
 	}
 }
 
+// TestRegenerateIdentityRunsRandomSerial pins the exact tart invocation the
+// clone path relies on to break the shared-golden ECID. `tart set
+// --random-serial` (arm64) mints a fresh VZMacMachineIdentifier, from which the
+// serial and IOPlatformUUID derive, so concurrent clones stop colliding at
+// Apple's MobileAsset personalization.
+func TestRegenerateIdentityRunsRandomSerial(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args.txt")
+	script := filepath.Join(dir, "faketart")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsPath + "'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{Binary: script}
+	if err := c.RegenerateIdentity(context.Background(), "vm-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "set\nvm-1\n--random-serial\n"; string(got) != want {
+		t.Fatalf("tart args = %q, want %q", string(got), want)
+	}
+}
+
 func TestStageEnvFile(t *testing.T) {
 	dir := t.TempDir()
 	c := &Client{UserDataDir: dir}
@@ -303,11 +331,11 @@ func TestRunInvokesEnsureGUISessionBeforeStartingTart(t *testing.T) {
 	}
 }
 
-func TestRunWithOptionsAddsVNCFlag(t *testing.T) {
+func TestRunWithOptionsAddsVNCGraphicsFlags(t *testing.T) {
 	dir := t.TempDir()
 	argsPath := filepath.Join(dir, "args")
 	binPath := filepath.Join(dir, "fake-tart")
-	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+argsPath+"'\nprintf 'VNC server is running at vnc://:alpha-bravo@127.0.0.1:5901\\n'\nsleep 6\n"), 0o755); err != nil {
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+argsPath+"'\nprintf 'CI=%s\\n' \"$CI\" >> '"+argsPath+"'\nprintf 'VNC server is running at vnc://:alpha-bravo@127.0.0.1:5901\\n'\nsleep 6\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -343,10 +371,13 @@ func TestRunWithOptionsAddsVNCFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(body)
-	for _, want := range []string{"run\n", "test-vm\n", "--no-graphics\n", "--vnc-experimental\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n"} {
+	for _, want := range []string{"run\n", "test-vm\n", "--vnc-experimental\n", "--graphics\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n", "CI=1\n"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("args missing %q in:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "--no-graphics\n") {
+		t.Fatalf("VNC run should not include --no-graphics when --graphics is required:\n%s", got)
 	}
 
 	<-handle.Done()

@@ -242,14 +242,16 @@ export class DateInputHandler {
     const dayInput = container.querySelector("[data-field='day']");
     const monthInput = container.querySelector("[data-field='month']");
     const yearInput = container.querySelector("[data-field='year']");
+    const activeElement =
+      this.rootEl.getRootNode()?.activeElement ?? document.activeElement;
 
-    if (dayInput && document.activeElement !== dayInput) {
+    if (dayInput && activeElement !== dayInput) {
       dayInput.value = parts.day;
     }
-    if (monthInput && document.activeElement !== monthInput) {
+    if (monthInput && activeElement !== monthInput) {
       monthInput.value = parts.month;
     }
-    if (yearInput && document.activeElement !== yearInput) {
+    if (yearInput && activeElement !== yearInput) {
       yearInput.value = parts.year;
     }
   }

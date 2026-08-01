@@ -19,13 +19,50 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs overview" do
-    test "renders the install card as a clickable link target", %{conn: conn} do
+    test "renders intent-specific starting paths", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(
                lv,
-               ~s([data-part="hero-card"]#docs-install-card[phx-click][role="link"][tabindex="0"])
+               ~s(a#docs-optimization-path[href="/en/docs/guides/get-started/optimization"]),
+               "Optimize"
              )
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-observability-path[href="/en/docs/guides/get-started/observability"]),
+               "Observe"
+             )
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-runners-path[href="/en/docs/guides/get-started/tuist-runners"]),
+               "Run"
+             )
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-ask-path[href="/en/docs/guides/get-started/ask"]),
+               "Ask"
+             )
+    end
+
+    test "routes the generic cache card to the cache overview", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-cache-card[href="/en/docs/guides/features/cache"]),
+               "Cache"
+             )
+    end
+
+    test "positions Tuist as build infrastructure for Xcode and Gradle", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(lv, "h1", "One platform for faster build toolchains")
+      assert has_element?(lv, "#what-do-you-want-to-do", "What do you want to do?")
+      assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
@@ -66,6 +103,22 @@ defmodule TuistWeb.DocsLiveTest do
       [_, mobile_actions | _] = String.split(html, ~s(data-part="mobile-actions"))
       assert mobile_actions =~ ~s(href="/docs/login?return_to=%2Fen%2Fdocs")
       refute mobile_actions =~ ~s(id="docs-mobile-account-dropdown")
+    end
+  end
+
+  describe "docs pages" do
+    test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
+      {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      {:ok, document} = Floki.parse_document(html)
+      [image] = Floki.attribute(document, "meta[property='og:image']", "content")
+      uri = URI.parse(image)
+      params = URI.decode_query(uri.query)
+
+      assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert params["template"] == "docs"
+      assert params["title"] == "Install Tuist"
+      assert params["category"] == "Guides"
+      assert is_binary(params["signature"])
     end
   end
 end

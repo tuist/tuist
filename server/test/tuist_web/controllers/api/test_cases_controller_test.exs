@@ -519,8 +519,8 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Analytics, :test_case_analytics_by_id, fn _id -> %{total_count: 50, failed_count: 2} end)
-      stub(Analytics, :test_case_reliability_by_id, fn _id, _branch -> 96.0 end)
+      stub(Analytics, :test_case_analytics_by_id, fn _project_id, _id -> %{total_count: 50, failed_count: 2} end)
+      stub(Analytics, :test_case_reliability_by_id, fn _project_id, _id, _branch -> 96.0 end)
       stub(Analytics, :get_test_case_flakiness_rate, fn _tc -> 4.0 end)
 
       # When
@@ -551,8 +551,8 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Analytics, :test_case_analytics_by_id, fn _id -> %{total_count: 10, failed_count: 0} end)
-      stub(Analytics, :test_case_reliability_by_id, fn _id, _branch -> 100.0 end)
+      stub(Analytics, :test_case_analytics_by_id, fn _project_id, _id -> %{total_count: 10, failed_count: 0} end)
+      stub(Analytics, :test_case_reliability_by_id, fn _project_id, _id, _branch -> 100.0 end)
       stub(Analytics, :get_test_case_flakiness_rate, fn _tc -> 0.0 end)
 
       # When

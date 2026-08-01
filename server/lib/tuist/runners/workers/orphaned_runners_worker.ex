@@ -166,23 +166,27 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   end
 
   defp handle_gh_status("queued", _conclusion, workflow_job_id, claimed_at, pod_name, account) do
-    Logger.warning("runners: orphaned running row — GH still queued, recovering",
-      workflow_job_id: workflow_job_id,
-      account: account.name,
-      pod: pod_name
-    )
-
-    with :ok <- safe_record_queued(workflow_job_id),
-         :ok <- safe_release(workflow_job_id, claimed_at) do
-      :telemetry.execute(
-        Telemetry.event_name_recovery(),
-        %{count: 1},
-        %{kind: "orphan_requeued"}
+    # GitHub still has this job queued, so the runner minted for it never
+    # took it. That does NOT mean the Pod holding the claim is idle: GitHub
+    # assigns jobs to any label-eligible runner, so it may be busy executing
+    # a sibling's job. Releasing on the strength of the claimed job's status
+    # alone would delete a live runner's row mid-job, and the executor's
+    # `completed` webhook would then find nothing to free — under-counting a
+    # working runner for the rest of its run.
+    #
+    # `executed_workflow_job_id` is set once GitHub proves this runner took
+    # some job, so it's the busy signal: skip those and let the executor's
+    # completion (or the Pod stopping) free the slot.
+    if Claims.executing?(workflow_job_id) do
+      Logger.info("runners: orphaned running row — claim's runner is executing another job; leaving it",
+        workflow_job_id: workflow_job_id,
+        account: account.name,
+        pod: pod_name
       )
 
-      true
+      false
     else
-      _ -> false
+      requeue_orphan(workflow_job_id, claimed_at, pod_name, account)
     end
   end
 
@@ -229,6 +233,27 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     )
 
     false
+  end
+
+  defp requeue_orphan(workflow_job_id, claimed_at, pod_name, account) do
+    Logger.warning("runners: orphaned running row — GH still queued, recovering",
+      workflow_job_id: workflow_job_id,
+      account: account.name,
+      pod: pod_name
+    )
+
+    with :ok <- safe_record_queued(workflow_job_id),
+         :ok <- safe_release(workflow_job_id, claimed_at) do
+      :telemetry.execute(
+        Telemetry.event_name_recovery(),
+        %{count: 1},
+        %{kind: "orphan_requeued"}
+      )
+
+      true
+    else
+      _ -> false
+    end
   end
 
   # CH first — see moduledoc. Treat a CH failure as "skip, retry

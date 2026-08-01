@@ -52,6 +52,7 @@ impl SegmentLocationRecord {
             size: self.size,
             version_ms: self.version_ms,
             created_at_ms: self.created_at_ms,
+            branch: None,
         })
     }
 
@@ -208,6 +209,7 @@ mod tests {
             size: 512,
             version_ms: 5678,
             created_at_ms: 1234,
+            branch: None,
         };
 
         let record = SegmentLocationRecord::from_manifest(&manifest)

@@ -44,9 +44,13 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -68,6 +72,13 @@ jobs:
         run: packer init -upgrade runner.pkr.hcl
 
       - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build runner shell agent
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
       - name: Build image
         id: build
@@ -117,8 +128,14 @@ jobs:
             echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
           fi
 
+      - name: Resolve image tag
+        id: image-tag
+        run: |
+          set -euo pipefail
+          echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
       - name: Push image to GHCR
-        id: push
+        timeout-minutes: 90
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
@@ -132,30 +149,10 @@ jobs:
           # `reclaim-tart-disk` composite action and won't grow
           # before push completes.
           TART_NO_AUTO_PRUNE: "1"
-        # Direct tart push. Cirrus uses the same path to publish
-        # macos-tahoe-xcode at the same size; the prior bridge through
-        # a local registry was an unsuccessful workaround on a
-        # different host's structurally bad network. Outer 3× retry
-        # stays as belt-and-braces; blob uploads are content-
-        # addressed so a re-push only re-uploads layers that didn't
-        # make it on the previous attempt.
-        run: |
-          set -euo pipefail
-          GIT_SHA="${GITHUB_SHA::8}"
-          PROFILE="${{ steps.build.outputs.profile }}"
-          TAG="${PROFILE}-${GIT_SHA}"
-          for attempt in 1 2 3; do
-            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
-              echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
-              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-            sleep 60
-          done
-          echo "tart push failed three times in a row" >&2
-          exit 1
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
 
       - name: Cleanup
         if: always()

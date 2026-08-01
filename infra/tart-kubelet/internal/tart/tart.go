@@ -155,6 +155,23 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
+// RegenerateIdentity gives a freshly-cloned macOS VM its own device identity.
+// `tart clone` copies the source VM's ECID (VZMacMachineIdentifier) verbatim,
+// so every clone off one golden base presents the SAME serial + IOPlatformUUID
+// to Apple. Concurrent clones then collide at Apple's MobileAsset
+// personalization: the signed asset catalog fails to verify on a fraction of
+// them (mobileassetd CSSMERR_CSP_VERIFY_FAILED), which surfaces as the
+// intermittent `xcodebuild -downloadComponent MetalToolchain` exit-70 failure.
+// `tart set --random-serial` mints a fresh VZMacMachineIdentifier (arm64 only);
+// the serial and IOPlatformUUID derive from it, so each clone becomes a distinct
+// device. Must run while the VM is stopped — i.e. right after clone, before run.
+func (c *Client) RegenerateIdentity(ctx context.Context, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, setTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "set", name, "--random-serial")
+	return err
+}
+
 // RunHandle exposes the lifecycle of a backgrounded `tart run`
 // process. The reconciler stashes one in its Store entry alongside
 // the VM name so subsequent reconciles can detect a process that
@@ -328,9 +345,14 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// runner Mac mini measured ~1.8x faster warm reads with caching=cached
 	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
 	// (cloned per Pod, discarded on exit), so host caching is pure upside.
-	args := []string{"run", name, "--no-graphics"}
+	args := []string{"run", name}
 	if opts.VNC {
-		args = append(args, "--vnc-experimental")
+		// Keep Tart's generated-password VNC server, but attach the VM view so
+		// Virtualization.framework has a real display surface to mirror after
+		// the macOS guest auto-login session starts.
+		args = append(args, "--vnc-experimental", "--graphics")
+	} else {
+		args = append(args, "--no-graphics")
 	}
 	args = append(args, "--root-disk-opts", "caching=cached")
 	for _, dir := range opts.SharedDirs {
@@ -357,6 +379,12 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
 	// running independently.
 	cmd := exec.Command(c.Binary, args...)
+	if opts.VNC {
+		// Tart otherwise opens the VNC URL via NSWorkspace when --graphics is
+		// present. CI=1 keeps the URL on stdout where copyTartOutput can parse
+		// and redact the generated password.
+		cmd.Env = append(os.Environ(), "CI=1")
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()

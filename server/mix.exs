@@ -63,7 +63,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.11.1", override: true},
+      {:bandit, "~> 1.12.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -89,20 +89,23 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.19"},
+      {:oban, "~> 2.20"},
       {:oban_web, "~> 2.11"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
+      {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
+      # PromEx's standalone metrics server still runs on Cowboy even though
+      # the Phoenix endpoint runs on Bandit.
+      {:plug_cowboy, "~> 2.7"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
@@ -133,6 +136,7 @@ defmodule Tuist.MixProject do
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:solid, "~> 1.3"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},

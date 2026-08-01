@@ -23,6 +23,7 @@ defmodule TuistWeb.RunnerInteractiveVNCController do
          {:ok, session} <- InteractiveSessions.validate_token(token, account, current_user),
          :ok <- validate_vnc_session(session) do
       conn
+      |> put_resp_header("sec-websocket-protocol", token)
       |> WebSockAdapter.upgrade(RunnerVNCWebSock, %{session: %{session | token: token}}, timeout: to_timeout(minute: 65))
       |> halt()
     else

@@ -116,19 +116,15 @@ defmodule Cache.Config do
   def registry_bucket, do: Application.get_env(:cache, :s3)[:registry_bucket]
 
   @doc """
-  Returns the GitHub token for registry sync, or nil if not configured.
-  """
-  def registry_github_token do
-    case Application.get_env(:cache, :registry_github_token) do
-      token when is_binary(token) and token != "" -> token
-      _ -> nil
-    end
-  end
+  Returns true if this node can serve registry reads.
 
-  @doc """
-  Returns true if registry is fully configured (bucket and GitHub token).
+  Cache is read-only for the registry: the bucket is all it needs. It used to
+  also require a GitHub token, because the same config gated the cache-side
+  sync writer that has since been removed. Keeping the token in this check
+  would have meant dropping the token to stop writes also silently turned off
+  reads.
   """
-  def registry_enabled?, do: registry_bucket() != nil and registry_github_token() != nil
+  def registry_enabled?, do: registry_bucket() != nil
 
   def s3_protocols do
     case Application.get_env(:cache, :s3)[:protocols] do

@@ -37,6 +37,7 @@ pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
+pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;
 // REAPI action-cache entries are append-only from the client's perspective
 // (every source change publishes new keys), so a recency sweep is what bounds
 // the namespace keyspace. An expired entry costs its next reader one
@@ -52,6 +53,21 @@ pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
 // an identical re-publish only applies when the stored version has aged past
 // it — one refresh per entry per window fleet-wide.
 pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
+// How many manifest READS a trunk-scoped snapshot build may pay per entry it is
+// allowed to keep. Not rows examined: a row carrying its branch answers the trunk
+// filter from the key, so rejecting feature churn costs a sequential step over a
+// compact CF and is deliberately not counted here. What this bounds is the random
+// read into the manifests CF, which is the work, and which only rows written
+// before the branch was recorded (plus stale rows) still need.
+//
+// So the walk itself is bounded by the namespace's prefix rather than by this,
+// and that is the intended trade: bounding the walk would truncate the trunk view
+// under exactly the feature churn this scoping exists to see through, which is
+// the bug the branch-keyed rows fixed. The reads are what had to be bounded, and
+// they are. Generous on purpose: a backstop against a namespace with a large
+// pre-branch backlog, not a tuning knob, and one that trips it logs how far it
+// walked to get there.
+pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
 // Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
 // go *without forward progress* (a fetched page or applied artifact) before it
 // is abandoned and retried. A large cold pull that keeps making progress runs to
@@ -66,14 +82,31 @@ pub const DEFAULT_USAGE_MAX_BUCKETS: usize = 10_000;
 pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+pub const MAX_BOOTSTRAP_PAGE_ITEMS: usize = 2048;
 // Range-digest anti-entropy: partition the sorted `artifact_id` keyspace by its
 // leading hex characters. 3 nibbles = 4096 buckets (~340 artifacts/bucket at
 // 1.4M), enough to make a mostly-in-sync bootstrap O(delta) while keeping the
 // digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
 // length is capped well under its width.
 pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
-pub const BOOTSTRAP_DIGEST_MAX_PREFIX_LEN: usize = 8;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;
+pub const RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES: usize = 16;
+
+pub fn response_stream_chunk_bytes(body_bytes: u64) -> usize {
+    body_bytes
+        .min(RESPONSE_STREAM_CHUNK_BYTES as u64)
+        .max(RESPONSE_STREAM_MIN_CHUNK_BYTES as u64) as usize
+}
+
+pub fn encoded_response_stream_chunk_bytes(body_bytes: u64) -> usize {
+    response_stream_chunk_bytes(body_bytes)
+        .saturating_add(RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES)
+        .div_ceil(RESPONSE_STREAM_MIN_CHUNK_BYTES)
+        .saturating_mul(RESPONSE_STREAM_MIN_CHUNK_BYTES)
+}
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // Stripes for the per-artifact bootstrap fetch gate that single-flights the
 // body download across peers. Sized well above the peak concurrent fetches
@@ -84,6 +117,7 @@ pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
+
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";
 pub const ROCKSDB_CF_NAMESPACE_ARTIFACTS: &str = "project_artifacts";
 pub const ROCKSDB_CF_NAMESPACE_TOMBSTONES: &str = "namespace_tombstones";
@@ -99,3 +133,29 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// on production namespaces and every snapshot fetch timed out against it.
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_stream_chunks_follow_payload_size_with_bounded_allocation_granularity() {
+        assert_eq!(
+            response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+        assert_eq!(response_stream_chunk_bytes(32 * 1024), 32 * 1024);
+        assert_eq!(
+            response_stream_chunk_bytes(u64::MAX),
+            RESPONSE_STREAM_CHUNK_BYTES
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES * 2
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(RESPONSE_STREAM_CHUNK_BYTES as u64),
+            RESPONSE_STREAM_CHUNK_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+    }
+}

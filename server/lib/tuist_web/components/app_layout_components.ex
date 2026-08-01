@@ -452,12 +452,19 @@ defmodule TuistWeb.AppLayoutComponents do
     ~H"""
     <.tab_menu_horizontal>
       <% general_path = ~p"/#{@selected_account.name}/settings" %>
+      <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
         navigate={general_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={Authorization.authorize(:account_token_read, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Tokens")}
+        selected={String.starts_with?(@current_path, tokens_path)}
+        navigate={tokens_path}
       />
       <.tab_menu_horizontal_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}

@@ -23,6 +23,20 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
+  @metadata_lock_max_attempts 5
+  @metadata_lock_backoff_ms 200
+  @metadata_lock_snooze_seconds 30
+  # Symlinks nested inside these code-signed bundles are part of the bundle's
+  # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
+  # the `Binary`/`Resources` links). Code signing records them as symlinks in
+  # `_CodeSignature/CodeResources`, so flattening them into real copies
+  # invalidates the signature ("a sealed resource is missing or invalid"). They
+  # always live well below the package root, so the SwiftPM root-level symlink
+  # extraction bug that `resolve_symlinks/1` works around
+  # (https://github.com/swiftlang/swift-package-manager/pull/9411) does not
+  # apply to them, and they are safe to keep as symlinks in the archive.
+  @signed_bundle_extensions ~w(.xcframework .framework .app .appex .bundle .dSYM .plugin .systemextension .xpc)
+
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -40,13 +54,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   ]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
+  def perform(%Oban.Job{
+        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag} = args
+      }) do
     lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
 
     case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          do_sync_release(scope, name, full_handle, tag)
+          do_sync_release(scope, name, full_handle, tag, resync_opts(args))
         after
           Lock.release(lock_key)
         end
@@ -56,7 +72,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp do_sync_release(scope, name, full_handle, tag) do
+  defp resync_opts(args) do
+    %{
+      force?: Map.get(args, "force", false),
+      allow_checksum_change?: Map.get(args, "allow_checksum_change", false),
+      published_checksum: nil
+    }
+  end
+
+  defp do_sync_release(scope, name, full_handle, tag, opts) do
     case Registry.swift_registry_github_token() do
       nil ->
         Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
@@ -70,34 +94,60 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             releases = Map.get(metadata, "releases", %{})
             skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
-            if Map.has_key?(releases, normalized_version) or
-                 Map.has_key?(skipped_releases, normalized_version) do
+            if not opts.force? and
+                 (Map.has_key?(releases, normalized_version) or
+                    Metadata.verified_skip?(Map.get(skipped_releases, normalized_version))) do
               :ok
             else
-              sync_release(scope, name, full_handle, tag, normalized_version, token)
+              opts = %{opts | published_checksum: published_checksum(releases, normalized_version)}
+              sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
             end
 
           {:error, :not_found} ->
-            sync_release(scope, name, full_handle, tag, normalized_version, token)
+            sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
         end
     end
   end
 
-  defp sync_release(scope, name, full_handle, tag, version, token) do
+  defp published_checksum(releases, version) do
+    case Map.get(releases, version) do
+      %{"checksum" => checksum} when is_binary(checksum) -> checksum
+      _release -> nil
+    end
+  end
+
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
-         :ok <- upload_source_archive(scope, name, version, archive_path),
+         :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, opts),
+         :ok <- upload_source_archive(scope, name, version, archive_path, checksum),
+         :ok <- verify_stored_archive(scope, name, version, checksum),
          {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
+      {:error, {:checksum_change_refused, details} = reason} ->
+        Logger.warning(
+          "Refusing to republish #{scope}/#{name}@#{version}: rebuilding produced #{details.rebuilt} " <>
+            "but #{details.published} is already published. Re-run with allow_checksum_change to override."
+        )
+
+        {:discard, reason}
+
       {:error, reason} ->
         case maybe_skip_release(scope, name, full_handle, version, reason) do
           :ok ->
             :ok
+
+          {:snooze, seconds} ->
+            Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
+            {:snooze, seconds}
+
+          {:discard, discard_reason} ->
+            {:discard, discard_reason}
 
           :not_skipped ->
             Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
@@ -125,8 +175,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
-    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-      zip_directory(source_directory, archive_path)
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir),
+         :ok <- zip_directory(source_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -147,17 +198,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
   # This workaround resolves symlinks by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
+  # A single listing answers both questions asked of a downloaded archive, so
+  # the archive it passes through untouched is inspected exactly once. An
+  # archive whose directories are already unreadable is rejected rather than
+  # repacked: extracting it lays the same modes down on disk and `zip` records
+  # them again, so repacking cannot repair it.
   defp normalize_archive(tmp_dir, archive_path) do
-    case archive_has_symlinks?(archive_path) do
-      {:ok, has_symlinks} ->
-        if has_symlinks do
-          repackage_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, listing} <- inspect_archive(archive_path),
+         :ok <- reject_unreadable_directories(listing) do
+      if listing.symlinks?, do: repackage_archive(tmp_dir, archive_path), else: :ok
     end
   end
 
@@ -406,7 +455,10 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
     with :ok <- remove_symlinks_outside_root(directory),
          :ok <- resolve_symlinks(directory) do
-      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
+      # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
+      # (those inside code-signed bundles) as symlinks instead of following them
+      # and inlining their target, which would otherwise break the signature.
+      case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
       end
@@ -416,7 +468,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp resolve_symlinks(directory) do
     case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
-        symlink_paths = String.split(output, "\n", trim: true)
+        symlink_paths =
+          output
+          |> String.split("\n", trim: true)
+          |> Enum.reject(&within_signed_bundle?/1)
+
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
         with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
@@ -426,6 +482,20 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
+  end
+
+  defp within_signed_bundle?(path) do
+    # Inspect only the ancestor directories, not the symlink's own basename: the
+    # bundle whose sealed layout we protect is always a real directory above the
+    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
+    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
+    # the SwiftPM root-level extraction failure on un-patched clients.
+    path
+    |> Path.split()
+    |> Enum.drop(-1)
+    |> Enum.any?(fn component ->
+      Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
+    end)
   end
 
   defp classify_symlinks(symlink_paths) do
@@ -491,8 +561,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
          {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
-         :ok <- remove_archive(archive_path) do
-      zip_directory(top_level_directory, archive_path)
+         :ok <- remove_archive(archive_path),
+         :ok <- zip_directory(top_level_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -629,59 +700,152 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     path == root_directory or String.starts_with?(path, root_directory <> "/")
   end
 
-  defp archive_has_symlinks?(archive_path) do
+  # Walks the `zipinfo` listing lazily and keeps only the tallies, because a
+  # large package carries tens of thousands of entries and none of them are
+  # needed once counted.
+  defp inspect_archive(archive_path) do
     case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
       {output, 0} ->
-        has_symlinks =
-          output
-          |> String.split("\n")
-          |> Enum.any?(&String.starts_with?(&1, "l"))
-
-        {:ok, has_symlinks}
+        {:ok,
+         output
+         |> String.splitter("\n")
+         |> Enum.reduce(%{symlinks?: false, unreadable_directories: 0, first_unreadable: nil}, &tally_entry/2)}
 
       {output, status} ->
         {:error, {:invalid_archive, status, output}}
     end
   end
 
-  defp upload_source_archive(scope, name, version, archive_path) do
-    key =
-      KeyNormalizer.package_object_key(%{scope: scope, name: name},
-        version: version,
-        path: "source_archive.zip"
-      )
+  defp tally_entry("l" <> _rest, tally), do: %{tally | symlinks?: true}
 
-    S3.upload_file(key, archive_path, content_type: "application/zip")
+  defp tally_entry(line, tally) do
+    if unreadable_directory_line?(line) do
+      %{
+        tally
+        | unreadable_directories: tally.unreadable_directories + 1,
+          first_unreadable: tally.first_unreadable || String.trim(line)
+      }
+    else
+      tally
+    end
+  end
+
+  # A stored directory entry whose recorded mode has no owner-execute bit
+  # extracts into a directory nobody can descend into, so SwiftPM fails with a
+  # permission error on an archive that is otherwise well-formed and whose
+  # checksum matches its metadata. `zipinfo` renders a healthy directory as
+  # `drwxr-xr-x` and the entry this rejects as `?rw-r--r--`, so the
+  # owner-execute column is the whole test and the trailing slash is what
+  # marks a directory. Entries written by non-Unix hosts carry no mode at all
+  # and extractors apply their own defaults, which is why this reads the
+  # rendered permissions rather than the raw external attributes.
+  defp unreadable_directory_line?(line) do
+    String.ends_with?(line, "/") and not traversable_directory?(line)
+  end
+
+  defp traversable_directory?(<<_type, _read, _write, ?x, _rest::binary>>), do: true
+  defp traversable_directory?(_line), do: false
+
+  defp verify_archive_directories(archive_path) do
+    with {:ok, listing} <- inspect_archive(archive_path) do
+      reject_unreadable_directories(listing)
+    end
+  end
+
+  defp reject_unreadable_directories(%{unreadable_directories: 0}), do: :ok
+
+  defp reject_unreadable_directories(listing) do
+    {:error, {:archive_directories_not_traversable, listing.unreadable_directories, listing.first_unreadable}}
+  end
+
+  # Republishing a version with different bytes turns a working pin into
+  # `invalid registry source archive checksum` for every client that already
+  # resolved it, and a precautionary resync is otherwise indistinguishable
+  # from a repair. A resync that would change an already-published checksum
+  # stops here unless the operator asked for that explicitly.
+  defp ensure_checksum_change_allowed(_scope, _name, _version, _checksum, %{allow_checksum_change?: true}), do: :ok
+
+  defp ensure_checksum_change_allowed(scope, name, version, checksum, opts) do
+    case opts.published_checksum do
+      nil ->
+        :ok
+
+      ^checksum ->
+        :ok
+
+      published ->
+        {:error,
+         {:checksum_change_refused,
+          %{scope: scope, name: name, version: version, published: published, rebuilt: checksum}}}
+    end
+  end
+
+  defp upload_source_archive(scope, name, version, archive_path, checksum) do
+    S3.upload_file(source_archive_key(scope, name, version), archive_path,
+      content_type: "application/zip",
+      meta: [{"sha256", checksum}]
+    )
+  end
+
+  # The archive upload runs through the multipart path, whose sub-operations do
+  # not carry the storage consistency header the shared request helper adds to
+  # single requests. Confirming the stored object records the digest we just
+  # uploaded, before the catalog is updated, keeps a catalog entry from
+  # advertising a checksum that object storage does not actually hold.
+  defp verify_stored_archive(scope, name, version, checksum) do
+    key = source_archive_key(scope, name, version)
+
+    case S3.head_object(key) do
+      {:ok, headers} ->
+        case Map.get(headers, "x-amz-meta-sha256") do
+          ^checksum -> :ok
+          stored -> {:error, {:stored_archive_mismatch, key, %{expected: checksum, stored: stored}}}
+        end
+
+      {:error, reason} ->
+        {:error, {:stored_archive_unverifiable, key, reason}}
+    end
+  end
+
+  defp source_archive_key(scope, name, version) do
+    KeyNormalizer.package_object_key(%{scope: scope, name: name},
+      version: version,
+      path: "source_archive.zip"
+    )
   end
 
   defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <-
            TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
-      manifest_payloads =
+      {manifest_payloads, failures} =
         contents
         |> Enum.map(&Map.get(&1, "path"))
         |> Enum.filter(&manifest_path?/1)
-        |> Enum.map(fn path ->
+        |> Enum.reduce({[], []}, fn path, {manifest_payloads, failures} ->
           filename = Path.basename(path)
 
           case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
             {:ok, content} ->
-              %{
+              manifest_payload = %{
                 content: content,
                 filename: filename,
                 path: path,
                 swift_version: AlternateManifest.swift_version_from_filename(filename)
               }
 
+              {[manifest_payload | manifest_payloads], failures}
+
             {:error, reason} ->
               Logger.warning("Failed to fetch manifest #{path} for #{full_handle}@#{tag}: #{inspect(reason)}")
 
-              nil
+              {manifest_payloads, [%{path: path, reason: reason} | failures]}
           end
         end)
-        |> Enum.reject(&is_nil/1)
 
       cond do
+        failures != [] ->
+          {:error, {:manifest_fetch_failed, Enum.reverse(failures)}}
+
         manifest_payloads == [] ->
           {:error, {:missing_manifests, full_handle, tag}}
 
@@ -689,7 +853,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           {:error, {:missing_default_manifest, full_handle, tag}}
 
         true ->
-          {:ok, manifest_payloads}
+          {:ok, Enum.reverse(manifest_payloads)}
       end
     end
   end
@@ -729,7 +893,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do
     lock_key = {:package, scope, name}
 
-    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+    case acquire_metadata_lock(lock_key) do
       {:ok, :acquired} ->
         try do
           with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
@@ -751,10 +915,41 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        Logger.info("Metadata update deferred for #{scope}/#{name}@#{version}: lock held by another node")
+        Logger.info("Metadata update deferred for #{scope}/#{name}@#{version}: package lock contended, snoozing")
 
-        {:error, {:release_metadata_locked, scope, name, version}}
+        {:snooze, @metadata_lock_snooze_seconds}
     end
+  end
+
+  # Sibling ReleaseWorker jobs from the same sync batch contend for this
+  # per-package S3 lock, which is only held for a metadata read + write
+  # (sub-second). The release write happens after the source archive and
+  # manifests are already uploaded, so a short in-job retry finishes the job
+  # rather than snoozing and redoing that GitHub + S3 work. Callers snooze when
+  # the retry budget is exhausted (e.g. a crashed holder's lock lingering until
+  # its TTL). The skipped-release write has nothing expensive to redo, so it
+  # deliberately does not use this and snoozes immediately instead.
+  defp acquire_metadata_lock(lock_key) do
+    acquire_metadata_lock(lock_key, @metadata_lock_max_attempts)
+  end
+
+  defp acquire_metadata_lock(lock_key, attempts_remaining) do
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        {:ok, :acquired}
+
+      {:error, :already_locked} when attempts_remaining > 1 ->
+        Process.sleep(metadata_lock_backoff_ms(attempts_remaining))
+        acquire_metadata_lock(lock_key, attempts_remaining - 1)
+
+      {:error, :already_locked} ->
+        {:error, :already_locked}
+    end
+  end
+
+  defp metadata_lock_backoff_ms(attempts_remaining) do
+    step = @metadata_lock_max_attempts - attempts_remaining + 1
+    @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
   end
 
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do
@@ -773,11 +968,35 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_default_manifest")
   end
 
-  defp maybe_skip_release(_scope, _name, _full_handle, _version, _reason), do: :not_skipped
+  defp maybe_skip_release(_scope, _name, _full_handle, _version, reason) do
+    case rate_limit_status(reason) do
+      nil ->
+        :not_skipped
+
+      status ->
+        Logger.warning("Deferring registry release after GitHub rate limit (HTTP #{status})")
+        {:discard, reason}
+    end
+  end
+
+  defp rate_limit_status({:rate_limited, status}), do: status
+
+  defp rate_limit_status(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&rate_limit_status/1)
+  end
+
+  defp rate_limit_status(list) when is_list(list), do: Enum.find_value(list, &rate_limit_status/1)
+  defp rate_limit_status(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_status/1)
+  defp rate_limit_status(_reason), do: nil
 
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}
 
+    # No in-job retry: the skip write only fetched the repo contents, so there is
+    # nothing expensive to redo. Snooze immediately on contention rather than
+    # holding an Oban concurrency slot asleep on a backoff.
     case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
@@ -799,11 +1018,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        Logger.warning(
-          "Skipped release metadata update deferred for #{scope}/#{name}@#{version}: lock held by another node"
+        Logger.info(
+          "Skipped release metadata update deferred for #{scope}/#{name}@#{version}: package lock contended, snoozing"
         )
 
-        {:error, {:skipped_release_metadata_locked, scope, name, version}}
+        {:snooze, @metadata_lock_snooze_seconds}
     end
   end
 
@@ -845,9 +1064,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         })
       end
     )
+    |> Map.update("skipped_releases", %{}, &Map.delete(&1 || %{}, version))
   end
 
   defp build_updated_metadata_with_skipped_release(metadata, scope, name, full_handle, version, reason) do
+    skipped_release = Metadata.verified_skip(reason)
+
     metadata
     |> Map.put_new("scope", scope)
     |> Map.put_new("name", name)
@@ -858,9 +1080,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
     |> Map.update(
       "skipped_releases",
-      %{version => %{"reason" => reason}},
+      %{version => skipped_release},
       fn skipped_releases ->
-        Map.put(skipped_releases || %{}, version, %{"reason" => reason})
+        Map.put(skipped_releases || %{}, version, skipped_release)
       end
     )
   end

@@ -12,7 +12,10 @@ use hyper_util::{
     server::conn::auto::Builder as HttpBuilder,
 };
 use tokio::sync::{Notify, Semaphore, oneshot, watch};
-use tokio::{task::JoinHandle, time::Instant};
+use tokio::{
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{Instrument, info, warn};
 
 use crate::{
@@ -46,9 +49,13 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
+const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
+#[cfg(target_os = "linux")]
+const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -101,15 +108,19 @@ async fn run_with_config(
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
         .await
-        .map_err(|error| format!("failed to create directories: {error}"))?;
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
+    config
+        .ensure_directories(&data_dir_lock)
+        .await
+        .map_err(|error| format!("failed to create directories: {error}"))?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
@@ -124,17 +135,24 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_runtime_limit(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
+    let local_data_available_at_join = store.has_artifacts()?;
+    let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
         Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
         Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
     }
+    establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
     let internal_tls = match &config.peer_tls {
@@ -151,13 +169,19 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
+    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.bootstrap_staging_budget_bytes()),
+    );
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
+        snapshot_cache,
         metrics,
         runtime,
         extension,
@@ -171,7 +195,12 @@ async fn run_with_config(
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
+        bootstrap_artifact_semaphore,
+        tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))
@@ -192,9 +221,13 @@ async fn run_with_config(
     }
 
     spawn_snapshot_task(state.clone());
+    spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    if state.config.action_cache_eviction_cascade_enabled {
+        spawn_action_cache_blob_refs_backfill_task(state.clone());
+    }
     spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
@@ -512,12 +545,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 let worker_state = state.clone();
                 match tokio::task::spawn_blocking(move || {
                     let snapshot = worker_state.store.snapshot();
-                    let memory = process_memory_snapshot();
-                    (snapshot, memory)
+                    let jemalloc = jemalloc_stats_snapshot();
+                    (snapshot, jemalloc)
                 })
                 .await
                 {
-                    Ok((Ok(snapshot), memory)) => {
+                    Ok((Ok(snapshot), jemalloc)) => {
                         state
                             .metrics
                             .update_outbox_messages(snapshot.outbox_messages);
@@ -543,60 +576,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.rocksdb_write_buffer_usage_bytes,
                             snapshot.rocksdb_write_buffer_capacity_bytes,
                         );
-                        if let Some(memory) = memory {
-                            state
-                                .metrics
-                                .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
-                            let pressure = state.memory.observe(memory.resident_bytes);
-                            let target_bytes = state
-                                .memory
-                                .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
-                            let evicted =
-                                state.store.trim_manifest_cache_to(target_bytes, "pressure");
-                            if evicted > 0 {
-                                state.metrics.record_memory_action("manifest_cache_trim");
-                            }
-                            let existence_evicted = state.store.trim_existence_cache_to(
-                                state.memory.bounded_cache_target_entries(
-                                    crate::store::EXISTENCE_CACHE_CAPACITY,
-                                ),
+                        if let Some(jemalloc) = jemalloc {
+                            state.metrics.update_jemalloc_stats(
+                                jemalloc.allocated_bytes,
+                                jemalloc.resident_bytes,
+                                jemalloc.retained_bytes,
                             );
-                            if existence_evicted > 0 {
-                                state.metrics.record_memory_action("existence_cache_trim");
-                            }
-                            let segment_handle_evicted = state
-                                .store
-                                .trim_segment_handle_cache_to(
-                                    state.memory.bounded_cache_target_entries(
-                                        state.config.segment_handle_cache_size,
-                                    ),
-                                    "pressure",
-                                )
-                                .await;
-                            if segment_handle_evicted > 0 {
-                                state
-                                    .metrics
-                                    .record_memory_action("segment_handle_cache_trim");
-                            }
-                            if pressure == MemoryPressure::Critical
-                                && let Some(extension) = &state.extension
-                            {
-                                let evicted = extension.clear_caches().await;
-                                if evicted > 0 {
-                                    state.metrics.record_memory_action("extension_cache_trim");
-                                }
-                            }
-                            state.metrics.update_background_work_paused(
-                                "outbox",
-                                state.memory.pause_outbox(),
-                            );
-                            state.metrics.update_background_work_paused(
-                                "segment_refresh",
-                                !state.memory.allow_segment_refresh(),
-                            );
-                            state
-                                .metrics
-                                .update_memory_pressure_state(pressure.as_i64());
                         }
                     }
                     Ok((Err(error), _)) => {
@@ -612,6 +597,229 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
         }
         .in_current_span(),
     );
+}
+
+fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
+    let sensor_state = state.clone();
+    let watchdog_memory = state.memory.clone();
+    let mut sensor = tokio::spawn(
+        async move {
+            loop {
+                if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                    if let Err(error) =
+                        validate_container_memory_limit(&sensor_state.memory, sample)
+                    {
+                        tracing::error!("{error}; terminating Kura");
+                        eprintln!("{error}; terminating Kura");
+                        std::process::exit(1);
+                    }
+                    let previous = sensor_state.memory.pressure();
+                    let pressure = sensor_state.memory.observe_container(sample);
+                    if pressure != previous {
+                        tracing::warn!(
+                            from = previous.as_str(),
+                            to = pressure.as_str(),
+                            raw_bytes = sample.current_bytes,
+                            pressure_bytes = sample.pressure_bytes,
+                            working_set_bytes = sample.working_set_bytes,
+                            runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
+                            transient_reserved_bytes =
+                                sensor_state.memory.transient_reserved_bytes(),
+                            "Kura memory pressure changed"
+                        );
+                    }
+                } else {
+                    #[cfg(not(target_os = "linux"))]
+                    if let Some(snapshot) = process_memory_snapshot() {
+                        sensor_state.memory.observe(snapshot.resident_bytes);
+                    }
+                }
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        .in_current_span(),
+    );
+    tokio::spawn(
+        async move {
+            let mut last_sequence = watchdog_memory.observation_sequence();
+            let mut stale_checks = 0_u8;
+            loop {
+                tokio::select! {
+                    result = &mut sensor => {
+                        tracing::error!(?result, "memory pressure sensor exited; terminating Kura");
+                        eprintln!("memory pressure sensor exited; terminating Kura: {result:?}");
+                        std::process::exit(1);
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        let sequence = watchdog_memory.observation_sequence();
+                        if !cfg!(target_os = "linux")
+                            && !watchdog_memory.uses_container_accounting()
+                        {
+                            continue;
+                        }
+                        if sequence == last_sequence {
+                            stale_checks = stale_checks.saturating_add(1);
+                            if stale_checks >= 5 {
+                                tracing::error!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                eprintln!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                std::process::exit(1);
+                            }
+                        } else {
+                            last_sequence = sequence;
+                            stale_checks = 0;
+                        }
+                    }
+                }
+            }
+        }
+        .in_current_span(),
+    );
+
+    tokio::spawn(
+        async move {
+            loop {
+                let process = process_memory_snapshot();
+                if let Some(process) = process {
+                    state
+                        .metrics
+                        .update_process_memory(process.resident_bytes, process.virtual_bytes);
+                    if let (Some(anon_bytes), Some(file_bytes)) =
+                        (process.resident_anon_bytes, process.resident_file_bytes)
+                    {
+                        state
+                            .metrics
+                            .update_process_resident_breakdown(anon_bytes, file_bytes);
+                    }
+                }
+
+                let container = crate::memory::container_memory_snapshot();
+                if let Some(container) = container {
+                    state
+                        .metrics
+                        .update_container_memory(container, state.memory.runtime_limit_bytes());
+                }
+                state
+                    .metrics
+                    .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+
+                let pressure = state.memory.pressure();
+                let snapshot_target = state
+                    .memory
+                    .snapshot_cache_target_bytes(state.config.snapshot_cache_max_bytes);
+                state
+                    .snapshot_cache
+                    .trim_to(snapshot_target, pressure.as_str(), &state.metrics);
+                state.snapshot_cache.update_metrics(&state.metrics);
+                let target_bytes = state
+                    .memory
+                    .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
+                let evicted = state.store.trim_manifest_cache_to(target_bytes, "pressure");
+                if evicted > 0 {
+                    state.metrics.record_memory_action("manifest_cache_trim");
+                }
+                let existence_evicted = state.store.trim_existence_cache_to(
+                    state
+                        .memory
+                        .bounded_cache_target_entries(crate::store::EXISTENCE_CACHE_CAPACITY),
+                );
+                if existence_evicted > 0 {
+                    state.metrics.record_memory_action("existence_cache_trim");
+                }
+                let segment_handle_evicted = state
+                    .store
+                    .trim_segment_handle_cache_to(
+                        state
+                            .memory
+                            .bounded_cache_target_entries(state.config.segment_handle_cache_size),
+                        "pressure",
+                    )
+                    .await;
+                if segment_handle_evicted > 0 {
+                    state
+                        .metrics
+                        .record_memory_action("segment_handle_cache_trim");
+                }
+                if pressure == MemoryPressure::Critical
+                    && let Some(extension) = &state.extension
+                {
+                    let evicted = extension.clear_caches().await;
+                    if evicted > 0 {
+                        state.metrics.record_memory_action("extension_cache_trim");
+                    }
+                }
+                state
+                    .metrics
+                    .update_background_work_paused("outbox", state.memory.pause_outbox());
+                state.metrics.update_background_work_paused(
+                    "bootstrap",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "snapshot_build",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "segment_refresh",
+                    !state.memory.allow_segment_refresh(),
+                );
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+async fn establish_initial_memory_baseline(memory: &MemoryController) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        for attempt in 1..=INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+            if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                validate_container_memory_limit(memory, sample)?;
+                memory.observe_container(sample);
+                return Ok(());
+            }
+            if attempt < INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        Err(format!(
+            "failed to read Linux control-group memory accounting after {INITIAL_MEMORY_SAMPLE_ATTEMPTS} attempts; refusing to serve without bounded memory accounting"
+        ))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(snapshot) = process_memory_snapshot() {
+            memory.observe(snapshot.resident_bytes);
+        }
+        Ok(())
+    }
+}
+
+fn validate_container_memory_limit(
+    memory: &MemoryController,
+    sample: crate::memory::ContainerMemoryPressureSample,
+) -> Result<(), String> {
+    let Some(enforced_limit_bytes) = sample.limit_bytes else {
+        return Ok(());
+    };
+    if enforced_limit_bytes == 0 {
+        return Err("the Linux control-group memory limit is zero".into());
+    }
+    if memory.runtime_limit_bytes() > enforced_limit_bytes {
+        return Err(format!(
+            "the detected runtime memory limit of {} bytes exceeds the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.runtime_limit_bytes()
+        ));
+    }
+    if memory.hard_limit_bytes() >= enforced_limit_bytes {
+        return Err(format!(
+            "the hard memory watermark of {} bytes must stay below the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.hard_limit_bytes()
+        ));
+    }
+    Ok(())
 }
 
 fn spawn_runtime_metrics_task(state: Arc<AppState>) {
@@ -635,6 +843,52 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
 /// by design: peers apply the same rule over the replicated version_ms and
 /// converge on their own. The manifest-keyspace walk is a full scan, so it
 /// runs on the blocking pool at a long interval.
+/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
+/// from the entries already on disk, then arm the readiness flag that lets the
+/// eviction cascade consult it. Runs on the blocking pool because it scans the
+/// manifest keyspace. Idempotent and marker-gated, so a restart after
+/// completion is cheap; a failure leaves the cascade inert (the serve-side
+/// presence gates keep clients safe) and it retries on the next boot.
+fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            let mut rows = 0_usize;
+            loop {
+                state.memory.wait_for_background_headroom().await;
+                let backfill_state = state.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                })
+                .await;
+                match result {
+                    Ok(Ok(step)) => {
+                        rows += step.rows;
+                        if step.complete {
+                            if rows > 0 {
+                                info!(rows, "action-cache blob-refs backfill complete");
+                            }
+                            break;
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        warn!("action-cache blob-refs backfill failed: {error}");
+                        break;
+                    }
+                    Err(error) => {
+                        warn!("action-cache blob-refs backfill task panicked: {error}");
+                        break;
+                    }
+                }
+                // Rate-limit historical index writes between persisted cursor
+                // checkpoints. The next step is admitted only while the shared
+                // memory controller stays normal.
+                sleep(Duration::from_millis(200)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
@@ -669,21 +923,39 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
 }
 
 fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    const SCAN_BATCH: usize = 256;
+
     let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
     let ttl_ms = state.config.multipart_upload_ttl_ms;
     tokio::spawn(
         async move {
+            let mut cursor = None;
             loop {
                 tokio::time::sleep(interval).await;
                 let now = crate::utils::now_ms();
                 let cutoff_ms = now.saturating_sub(ttl_ms);
-                let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
-                    Ok(stale) => stale,
-                    Err(error) => {
+                let scan_state = state.clone();
+                let scan_cursor = cursor.clone();
+                let page = tokio::task::spawn_blocking(move || {
+                    scan_state.store.multipart_uploads_older_than_bounded(
+                        cutoff_ms,
+                        scan_cursor.as_deref(),
+                        SCAN_BATCH,
+                    )
+                })
+                .await;
+                let (stale, next_cursor) = match page {
+                    Ok(Ok(page)) => page,
+                    Ok(Err(error)) => {
                         warn!("multipart janitor scan failed: {error}");
                         continue;
                     }
+                    Err(error) => {
+                        warn!("multipart janitor scan task failed: {error}");
+                        continue;
+                    }
                 };
+                cursor = next_cursor;
                 if stale.is_empty() {
                     continue;
                 }
@@ -882,25 +1154,75 @@ fn spawn_drain_signal_task(state: Arc<AppState>) {
 #[cfg(not(unix))]
 fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 
+#[derive(Clone, Copy, Debug)]
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
+    // Best-effort breakdown of resident memory into RssAnon (private pages:
+    // heap and stacks) and RssFile (pages backed by mapped files: mmap'd
+    // segments and the executable); these plus RssShmem sum to VmRSS. `None`
+    // on kernels < 4.5 that omit the lines, so it never fails the required
+    // resident/virtual sampling that drives memory-pressure control.
+    resident_anon_bytes: Option<u64>,
+    resident_file_bytes: Option<u64>,
 }
 
 #[cfg(target_os = "linux")]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let resident_bytes = parse_status_memory_kib(&status, "VmRSS:")?.saturating_mul(1024);
-    let virtual_bytes = parse_status_memory_kib(&status, "VmSize:")?.saturating_mul(1024);
+    let resident_bytes = parse_status_memory_bytes(&status, "VmRSS:")?;
+    let virtual_bytes = parse_status_memory_bytes(&status, "VmSize:")?;
+    let resident_anon_bytes = parse_status_memory_bytes(&status, "RssAnon:");
+    let resident_file_bytes = parse_status_memory_bytes(&status, "RssFile:");
     Some(ProcessMemorySnapshot {
         resident_bytes,
         virtual_bytes,
+        resident_anon_bytes,
+        resident_file_bytes,
     })
 }
 
 #[cfg(not(target_os = "linux"))]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     None
+}
+
+/// jemalloc's own accounting via mallctl. It sees only jemalloc-managed memory
+/// — not mmap'd segment files or non-Rust (RocksDB/C++) allocations — so it
+/// complements the RssAnon/RssFile split rather than replacing it. `allocated`
+/// is live application bytes; `resident` the physical pages jemalloc holds
+/// (allocations plus metadata, fragmentation, and dirty pages); `retained` the
+/// virtual address space kept back from the OS. Together they can hint at — but
+/// do not prove — a leak (a steadily rising `allocated`) as opposed to
+/// fragmentation or allocator retention (`resident` well above `allocated`).
+struct JemallocStats {
+    allocated_bytes: u64,
+    resident_bytes: u64,
+    retained_bytes: u64,
+}
+
+#[cfg(not(target_env = "msvc"))]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    use tikv_jemalloc_ctl::{epoch, stats};
+    // jemalloc caches these values and only recomputes them when the epoch is
+    // advanced, so refresh first or every read returns a stale, previously
+    // cached snapshot.
+    epoch::advance().ok()?;
+    Some(JemallocStats {
+        allocated_bytes: stats::allocated::read().ok()? as u64,
+        resident_bytes: stats::resident::read().ok()? as u64,
+        retained_bytes: stats::retained::read().ok()? as u64,
+    })
+}
+
+#[cfg(target_env = "msvc")]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn parse_status_memory_bytes(status: &str, field: &str) -> Option<u64> {
+    parse_status_memory_kib(status, field).map(|kib| kib.saturating_mul(1024))
 }
 
 #[cfg(target_os = "linux")]
@@ -983,6 +1305,90 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    #[test]
+    fn container_limit_validation_rejects_an_oversized_runtime_budget() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        let error = validate_container_memory_limit(
+            &memory,
+            crate::memory::ContainerMemoryPressureSample {
+                current_bytes: 100,
+                pressure_bytes: 100,
+                working_set_bytes: 100,
+                reclaimable_inactive_file_bytes: 0,
+                limit_bytes: Some(200),
+            },
+        )
+        .expect_err("the runtime budget must fit the enforced limit");
+
+        assert!(error.contains("runtime memory limit"));
+    }
+
+    #[test]
+    fn container_limit_validation_accepts_bounded_and_unlimited_groups() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        for limit_bytes in [Some(256), None] {
+            validate_container_memory_limit(
+                &memory,
+                crate::memory::ContainerMemoryPressureSample {
+                    current_bytes: 100,
+                    pressure_bytes: 100,
+                    working_set_bytes: 100,
+                    reclaimable_inactive_file_bytes: 0,
+                    limit_bytes,
+                },
+            )
+            .expect("the runtime budget should fit the container limit");
+        }
+    }
+
+    #[cfg(not(target_env = "msvc"))]
+    #[test]
+    fn jemalloc_stats_snapshot_reads_live_allocator_stats() {
+        // Hold a sizeable allocation so `allocated` is unambiguously non-zero
+        // when we sample, exercising the real mallctl path (epoch refresh +
+        // typed stat reads) rather than the hardcoded render-test values.
+        let ballast: Vec<u8> = vec![7u8; 8 * 1024 * 1024];
+        let stats = jemalloc_stats_snapshot().expect("jemalloc stats available under jemalloc");
+        assert!(stats.allocated_bytes > 0);
+        assert!(stats.resident_bytes >= stats.allocated_bytes);
+        drop(ballast);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn resident_rss_splits_into_anon_and_file() {
+        let status = "VmSize:\t 4194304 kB\n\
+             VmRSS:\t 1048576 kB\n\
+             RssAnon:\t  786432 kB\n\
+             RssFile:\t  262144 kB\n\
+             RssShmem:\t       0 kB\n";
+        assert_eq!(parse_status_memory_kib(status, "RssAnon:"), Some(786_432));
+        assert_eq!(parse_status_memory_kib(status, "RssFile:"), Some(262_144));
+
+        // The live process snapshot must also carry the split, and the two
+        // resident classes can never exceed total VmRSS (VmRSS = anon + file +
+        // shmem), which is the invariant a dashboard subtracting them relies on.
+        let snapshot = process_memory_snapshot().expect("linux process snapshot");
+        let anon = snapshot
+            .resident_anon_bytes
+            .expect("RssAnon present on kernels >= 4.5");
+        let file = snapshot
+            .resident_file_bytes
+            .expect("RssFile present on kernels >= 4.5");
+        assert!(anon > 0);
+        assert!(anon + file <= snapshot.resident_bytes);
     }
 
     // End-to-end proof that the co-hosted listener dispatches by path: an HTTP

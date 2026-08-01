@@ -38,7 +38,8 @@ extension TuistConfig.Tuist {
     ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
-        let network = TuistConfig.Tuist.Network(proxy: manifest.network.proxy)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
+        let network = try makeNetwork(from: manifest, generatorPaths: generatorPaths)
         let xcodeCache = TuistConfig.Tuist.XcodeCache(upload: manifest.xcodeCache.upload)
         let urlString = manifest.url
 
@@ -54,7 +55,6 @@ extension TuistConfig.Tuist {
             installOptions,
             cacheOptions
         ):
-            let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
             let generationOptions = try TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,
                 generatorPaths: generatorPaths,
@@ -95,6 +95,16 @@ extension TuistConfig.Tuist {
                 network: network
             )
         }
+    }
+}
+
+extension TuistConfig.Tuist {
+    fileprivate static func makeNetwork(
+        from manifest: ProjectDescription.Config,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistConfig.Tuist.Network {
+        let caCertificate = try manifest.network.caCertificate.map { try generatorPaths.resolve(path: $0).pathString }
+        return .init(proxy: manifest.network.proxy, caCertificate: caCertificate)
     }
 }
 

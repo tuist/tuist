@@ -12,7 +12,7 @@ defmodule TuistCommon.HTTP.Transport do
   - Bandit request pipeline, which forwards `error.message` into `[:bandit, :request, ...]`
     telemetry metadata:
     https://github.com/mtrudel/bandit/blob/main/lib/bandit/pipeline.ex
-  - Bandit HTTP/1 socket handling, including the `"Body read timeout"` error that we classify
+  - Bandit HTTP/1 socket handling, including the request read timeout errors that we classify
     here:
     https://github.com/mtrudel/bandit/blob/main/lib/bandit/http1/socket.ex
   - Thousand Island telemetry event docs:
@@ -22,7 +22,7 @@ defmodule TuistCommon.HTTP.Transport do
     https://github.com/mtrudel/thousand_island/blob/main/lib/thousand_island/socket.ex
 
   In practice, this module uses Bandit request metadata to:
-  - classify body read timeouts
+  - classify request read timeouts
   - classify request failures
   - extract low-cardinality request tags and log fields
 
@@ -33,7 +33,7 @@ defmodule TuistCommon.HTTP.Transport do
   """
 
   def bandit_request_timeout?(metadata) do
-    metadata[:error] == "Body read timeout"
+    metadata[:error] in ["Body read timeout", "Read timeout"]
   end
 
   def bandit_request_failure_reason(metadata) do

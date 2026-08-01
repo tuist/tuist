@@ -161,6 +161,39 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:project_cache_read, project, project) == :ok
   end
 
+  test "can discover account cache endpoints with project cache access without gaining account cache access" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = organization.account
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: [project.id]
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok
+    assert Authorization.authorize(:account_cache_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot discover account cache endpoints when project cache access has no accessible projects" do
+    # Given
+    account = AccountsFixtures.organization_fixture().account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: []
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == {:error, :forbidden}
+  end
+
   test "can.read.project.cache when the subject is not the same project being read" do
     # Given
     project = ProjectsFixtures.project_fixture()

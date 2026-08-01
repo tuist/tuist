@@ -135,6 +135,8 @@ spec:
               value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
             - name: TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE
               value: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+            - name: TUIST_DATABASE_GRAFANA_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
             {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
@@ -192,6 +194,7 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
+            {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}

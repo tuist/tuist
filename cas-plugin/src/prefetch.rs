@@ -60,13 +60,6 @@ impl Prefetcher {
         }
     }
 
-    pub fn worker_count() -> usize {
-        std::env::var("TUIST_CAS_PREFETCH")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(24)
-    }
-
     /// Registers the worker configuration; workers spawn lazily on the first
     /// enqueue. `process` runs on plain threads; the caller guarantees the
     /// backing state outlives the workers by joining them via `stop` or
@@ -120,10 +113,6 @@ impl Prefetcher {
                 this.seen.lock().unwrap().remove(&key);
             }));
         }
-    }
-
-    pub fn is_shutdown(&self) -> bool {
-        self.shutdown.load(Ordering::Acquire) || self.draining.load(Ordering::Acquire)
     }
 
     pub fn enqueue(&self, digest: Vec<u8>) {

@@ -34,6 +34,55 @@ pvReaper:
     limits:
       memory: "64Mi"
 
+# Grafana Cloud Private Data source Connect (PDC) agent. Off by default: it only
+# makes sense on the managed envs whose Grafana Cloud stack has a PDC network,
+# and self-hosters have no Grafana Cloud stack at all.
+#
+# Enabling it lets a Grafana *Postgres* datasource reach the in-cluster CNPG
+# database as the `tuist_ops_ro` role, which is what keeps the Business
+# Intelligence dashboard on Grafana's built-in Postgres datasource instead of a
+# plugin + bespoke query endpoint.
+#
+# cluster / hostedGrafanaId / the signing token are all minted together when the
+# PDC network is created in Grafana Cloud (Connections > Private data source
+# connections > Configuration Details). The first two are stack identifiers and
+# live here; the token is a secret and comes from 1Password via ESO.
+pdcAgent:
+  enabled: false
+  image:
+    repository: grafana/pdc-agent
+    # Required when enabled — see the guard in templates/pdc-agent.yaml.
+    tag: ""
+  cluster: ""
+  hostedGrafanaId: ""
+  # Grafana load-balances across agents on a network and fails over when one
+  # drops, so this is an availability knob: at 1 a node drain takes every
+  # PDC-routed panel with it. Grafana recommends >= 3 in production; envs that
+  # only serve a dashboard can stay lower.
+  replicas: 1
+  # host:port targets the tunnel is allowed to open, via ssh's PermitRemoteOpen.
+  # Empty means NO restriction: the agent permits any destination reachable from
+  # its pod. Set this per env to the CNPG read-only service so a compromised
+  # tunnel cannot reach the rest of the cluster.
+  permitRemoteOpen: []
+  externalSecrets:
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    # 1P item holding the PDC signing token (scope: pdc-signing:write), in the
+    # per-env vault the ClusterSecretStore is bound to.
+    item: PDC_AGENT
+    tokenField: password
+  # Mirrors upstream's manifest: the agent is a single tunnel process, not a
+  # throughput-scaled workload.
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+
 kuraController:
   enabled: false
   namespace: kura
@@ -150,6 +199,31 @@ kuraRuntime:
     # `--set-file kuraRuntime.instance.extensionScript=<path>`.
     extensionScript: ""
 
+codebaseSearch:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/codebase-search
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  containerPort: 4000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+  networkPolicy:
+    enabled: false
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+
 server:
   enabled: true
   replicaCount: 1
@@ -197,12 +271,14 @@ server:
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    # Sync the Tuist license key from the external store. Independent of
-    # managedSecrets — preview environments use this without the encrypted
-    # priv/secrets blob. Leave `item` empty to skip license sync.
+    # Sync either the online Tuist license key or the air-gapped license
+    # certificate from the external store. These sources are mutually
+    # exclusive. Leave both item names empty to skip license sync.
     license:
       item: ""
       field: password
+      certificateItem: ""
+      certificateField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -299,6 +375,16 @@ server:
   # flipping this on (the migration-job hook waits on the ExternalSecret).
   config:
     managedSecrets: false
+    # Reconcile a dedicated, bounded ClickHouse query identity before each
+    # server deployment. The chart preserves a generated password in a Secret
+    # unless an existing Secret is supplied. The migration ClickHouse identity
+    # must be allowed to create and alter users, roles, and grants.
+    opsClickHouse:
+      enabled: false
+      username: tuist_ops
+      role: tuist_ops_readonly
+      existingSecret: ""
+      passwordKey: password
     # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
     # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
     # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
@@ -1174,6 +1260,11 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
+    # Xcode compilation cache (CAS) budget (GiB) folded into each per-account
+    # cache image: the CAS gets this share of masterCapGib, the binary cache
+    # the rest minus a reserve. 0 (default) leaves the compilation cache
+    # VM-local (dies with the VM); the binary cache is unaffected.
+    casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
@@ -1365,6 +1456,23 @@ macosFleet:
 # compromised runner's reachability into the cluster.
 runnersFleet:
   enabled: false
+  # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
+  # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
+  # runner that registered with GitHub but has not been handed a job
+  # stays alive; a runner executing a job writes the JOB_STARTED marker
+  # and is never reaped. 0 disables the watchdog.
+  #
+  # The bound is necessary because GitHub assigns a queued job to any
+  # label-eligible runner, so a runner whose job landed on a sibling
+  # otherwise waits indefinitely, holding warm-pool capacity that reads
+  # as busy (its owner label is stamped at claim, not at execution).
+  #
+  # 300s only bounds the post-claim window between registering and
+  # being handed work (the happy path is sub-30s), and a warm Pod still
+  # polling for a claim has no runner container yet, so this adds no
+  # warm-pool churn. The value matches the stale-claim /
+  # orphan-recovery thresholds.
+  idleTimeoutSeconds: 300
   name: ""              # default: <release>-runners-fleet — CAPI MachineDeployment name.
   # Kubernetes namespace customer runner Pods live in. Helm-owned;
   # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
@@ -1545,6 +1653,21 @@ runnersFleet:
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
   enabled: false
+  # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
+  # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
+  # rationale as `runnersFleet.idleTimeoutSeconds` above; on the Linux
+  # split shape the watchdog runs in the credential-free `run-job.sh`
+  # runner container. 0 disables it.
+  idleTimeoutSeconds: 300
+  # Linux Kata sandbox admission is shared across every pool using this
+  # fleet selector. Keeping only four sandboxes in the pre-poller start
+  # phase prevents a queue spike from asking both bare-metal kubelets to
+  # boot dozens of virtual machines at once. Per-pool / per-shape values
+  # override these defaults; the controller enforces the lowest sibling maximum.
+  provisioning:
+    maxConcurrentPerFleetSelector: 4
+    # Starts after the scheduler binds the Pod to a node. 0 disables.
+    startTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -1582,6 +1705,9 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   provisioning:
+    #     maxConcurrentPerFleetSelector: 4
+    #     startTimeoutSeconds: 300
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3
@@ -1736,6 +1862,17 @@ buildersFleet:
 # in an environment that asked for microVM isolation).
 kataContainers:
   enabled: false
+  # Fixed sandbox memory cost added to every Kata runner Pod by the
+  # RuntimeClass. Kata 3.30 starts each sandbox with 2 GiB of base
+  # guest memory before adding the container's requested memory.
+  # The remaining 512 MiB covers Quick Emulator
+  # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # Keep this aligned with measured guest memory and host resident
+  # usage; the runners-controller reads the live RuntimeClass so its
+  # fleet allocator uses the same cost as the scheduler.
+  podFixed:
+    cpu: "250m"
+    memory: "2560Mi"
 
 runnersController:
   replicaCount: 1
@@ -2126,6 +2263,15 @@ postgresql:
       # against every table without per-object GRANTs to maintain.
       opsRo:
         name: tuist_ops_ro
+      # Read-only role for the Grafana "Tuist Product Usage" dashboard, reaching
+      # CNPG over the PDC tunnel. Deliberately NOT in pg_read_all_data like
+      # opsRo: its password lives in Grafana Cloud, so it is the one database
+      # credential held by a third party. Column-level GRANTs in
+      # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
+      # columns the dashboard reads — table-level SELECT would still expose
+      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      grafanaRo:
+        name: tuist_grafana_ro
       # Least-privilege Swift Package Registry sync role. Narrower
       # than `processor` (no accounts/projects reads — registry sync
       # has no account-scoped data, all package state lives in S3).
@@ -2175,6 +2321,9 @@ postgresql:
       opsRoPassword:
         item: OPS_DATABASE_PASSWORD
         field: password
+      grafanaRoPassword:
+        item: GRAFANA_DATABASE_PASSWORD
+        field: password
       swiftRegistrySyncPassword:
         item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
         field: password
@@ -2186,6 +2335,10 @@ clickhouse:
   # values-managed-*.yaml so all server-release workloads render the same env.
   poolSize: ""
   bufferPoolSize: ""
+  # Aggregate memory budget for all queries issued by the application user on
+  # one ClickHouse replica. Zero or empty leaves ClickHouse's user-level limit
+  # unchanged.
+  maxMemoryUsageForUserBytes: ""
   external:
     url: ""
     # Optional separate URL for the readiness probe ping check.

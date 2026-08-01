@@ -3,6 +3,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   use Mimic
   use Oban.Testing, repo: Cache.Repo
 
+  import Ecto.Query, only: [from: 2]
   import ExUnit.CaptureLog
 
   alias Cache.Config
@@ -601,6 +602,42 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert args["cas_hashes"] == ["SIZE_HASH"]
+  end
+
+  describe "uniqueness" do
+    test "an in-flight job blocks a second one from being enqueued" do
+      {:ok, first} = Oban.insert(KeyValueEvictionWorker.new(%{}))
+      mark_executing(first, DateTime.utc_now())
+
+      {:ok, second} = Oban.insert(KeyValueEvictionWorker.new(%{}))
+
+      assert second.id == first.id
+      assert second.conflict?
+    end
+
+    test "an orphaned executing job stops blocking once the unique period lapses" do
+      {:ok, orphan} = Oban.insert(KeyValueEvictionWorker.new(%{}))
+      mark_executing(orphan, DateTime.add(DateTime.utc_now(), -601, :second))
+
+      {:ok, fresh} = Oban.insert(KeyValueEvictionWorker.new(%{}))
+
+      refute fresh.id == orphan.id
+      refute fresh.conflict?
+    end
+  end
+
+  # Reproduces a container stopped mid-pass: the row stays `executing` with
+  # nothing running behind it.
+  defp mark_executing(job, inserted_at) do
+    Cache.Repo.update_all(
+      from(j in Oban.Job, where: j.id == ^job.id),
+      set: [
+        state: "executing",
+        attempt: 1,
+        attempted_at: DateTime.truncate(inserted_at, :second),
+        inserted_at: DateTime.truncate(inserted_at, :second)
+      ]
+    )
   end
 
   defp capture_eviction_telemetry(fun) do

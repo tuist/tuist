@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
@@ -10,6 +11,64 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+// renderSSHReachabilityScript must install a minute-interval probe that reloads
+// the ssh socket when loopback :22 stops accepting — draining the exhausted
+// accept backlog that wedges the operator's SSH management channel.
+func TestRenderSSHReachabilityScript(t *testing.T) {
+	s := renderSSHReachabilityScript()
+	for _, want := range []string{
+		// Must create /usr/local/bin before the tee: on the first-boot path this
+		// runs before installTart (which otherwise makes the dir), so a fresh
+		// host has no /usr/local/bin and the tee would fail the whole bootstrap.
+		"mkdir -p /usr/local/bin",
+		"nc -z -G 3 127.0.0.1 22",
+		"bootout system/com.openssh.sshd",
+		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",
+		"dev.tuist.ssh-reachability",
+		"<key>StartInterval</key>",
+		"<key>RunAtLoad</key>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHReachabilityScript missing %q", want)
+		}
+	}
+	// Dead ends from earlier wrong hypotheses: the app firewall was OFF, and
+	// UseDNS was already `no` (the drop-in was a no-op). Make sure neither
+	// crept back in.
+	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "UseDNS", "sshd_config.d", "pfctl -d"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("renderSSHReachabilityScript should not include the abandoned %q approach", forbidden)
+		}
+	}
+}
+
+// installTailscale must short-circuit on SkipTailscaleInstall before it
+// touches the SSH client — the tailnet-fallback caller relies on this so it
+// never stops tailscaled over the session that rides it. A nil client proves
+// no client method is reached.
+func TestInstallTailscale_SkipShortCircuitsBeforeClient(t *testing.T) {
+	cfg := Config{
+		SkipTailscaleInstall: true,
+		TailscaleBinaries:    []byte("nonempty-archive"),
+		TailscaleAuthKey:     "tskey-abc",
+	}
+	if err := installTailscale(context.Background(), nil, cfg); err != nil {
+		t.Fatalf("installTailscale with SkipTailscaleInstall = %v, want nil (no client use)", err)
+	}
+}
+
+// SkipTailscaleInstall is a transport-only flag: it must not perturb the
+// fleet-wide HostConfigHash (else a tailnet-fallback update would look like a
+// config drift and re-roll the fleet).
+func TestSkipTailscaleInstall_DoesNotAffectHostConfigHash(t *testing.T) {
+	base := Config{TailscaleBinaries: []byte("archive"), TailscaleAuthKey: "k"}
+	skipped := base
+	skipped.SkipTailscaleInstall = true
+	if HostConfigHash(base) != HostConfigHash(skipped) {
+		t.Fatal("SkipTailscaleInstall changed HostConfigHash; it must be transport-only")
+	}
+}
 
 func TestHostKeyState_PinnedMismatchReturnsTypedError(t *testing.T) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -166,12 +225,16 @@ func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
 		SSHUser:                 "m1",
 		RunnerCacheVolumeGiB:    400,
 		CacheVolumeMasterCapGiB: 25,
+		CacheVolumeCASGiB:       8,
 	})
 	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
 		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
 	}
 	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
 		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--cache-volume-cas-gib=8</string>") {
+		t.Fatalf("expected --cache-volume-cas-gib in plist\n%s", out)
 	}
 }
 
@@ -182,6 +245,9 @@ func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
 	}
 	if strings.Contains(out, "--cache-volume-cap-gib") {
 		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
+	}
+	if strings.Contains(out, "--cache-volume-cas-gib") {
+		t.Fatalf("expected --cache-volume-cas-gib omitted when CAS budget is 0 (compilation cache VM-local)\n%s", out)
 	}
 }
 
@@ -204,6 +270,19 @@ func TestHostConfigHash_ChangesWithRunnerCacheVolume(t *testing.T) {
 	changed.RunnerCacheVolumeGiB = 400
 	if HostConfigHash(base) == HostConfigHash(changed) {
 		t.Fatalf("HostConfigHash must change when the runner-cache volume is enabled")
+	}
+}
+
+// The CAS budget must be part of the fleet fingerprint: if it were omitted, a
+// roll that enables the compilation cache would leave the canonical hash
+// unchanged, so hosts would look already-applied and never re-push the launchd
+// config that turns the CAS on.
+func TestHostConfigHash_ChangesWithCASGiB(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin"), RunnerCacheVolumeGiB: 400}
+	changed := base
+	changed.CacheVolumeCASGiB = 8
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatalf("HostConfigHash must change when the CAS budget is set")
 	}
 }
 
