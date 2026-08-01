@@ -161,12 +161,20 @@ defmodule Tuist.Registry.S3 do
   end
 
   defp downcase_headers(headers) when is_list(headers) do
-    Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
+    Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
   end
 
   defp downcase_headers(headers) when is_map(headers) do
-    Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
+    Map.new(headers, fn {key, value} -> {String.downcase(key), header_value(value)} end)
   end
+
+  # The HTTP client hands back each header's value as a list. `normalize_etag/1`
+  # below already unwraps that for etags; doing it once here means every caller
+  # of `head_object/1` compares against a binary instead of unknowingly
+  # comparing against `["..."]`, which is never equal to the binary it looks
+  # identical to when inspected.
+  defp header_value([value | _]), do: header_value(value)
+  defp header_value(value), do: value
 
   defp normalize_etag(nil), do: nil
   defp normalize_etag([value | _]), do: normalize_etag(value)
