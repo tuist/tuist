@@ -150,6 +150,19 @@ stored_manifests = fn prefix ->
   end)
 end
 
+# `Metadata` sanitizes on both read and write: a version whose identifier is not
+# a valid storage version is invisible to `get_package/2` and stripped again by
+# `put_package/3`. Restoring one is therefore not merely useless — the write
+# would rewrite the whole document and silently drop every other non-normalized
+# entry it still holds, including `skipped_releases`, which would make the sync
+# re-enqueue and rebuild those versions. Such archives cannot be served by any
+# code path and are dead storage, not a repair.
+storage_version? = fn version ->
+  if KeyNormalizer.valid_storage_version?(version),
+    do: :ok,
+    else: {:skip, :not_a_storage_version}
+end
+
 restore_catalog_entry = fn entry ->
   %{scope: scope, name: name, version: version, published: published} = entry
   prefix = version_prefix.(scope, name, version)
@@ -166,7 +179,8 @@ restore_catalog_entry = fn entry ->
     end
   end
 
-  with {:ok, metadata} <- Metadata.get_package(scope, name),
+  with :ok <- storage_version?.(version),
+       {:ok, metadata} <- Metadata.get_package(scope, name),
        false <- Map.has_key?(Map.get(metadata, "releases", %{}) || %{}, version),
        :ok <- archive_present?.(archive_key),
        {:ok, checksum} <-
@@ -177,7 +191,11 @@ restore_catalog_entry = fn entry ->
          (if published not in [nil, ""] and checksum != published,
             do: {:error, {:checksum_mismatch, published, checksum}},
             else: :ok),
-       {:ok, manifests} <- stored_manifests.(prefix) do
+       {:ok, manifests} <- stored_manifests.(prefix),
+       # A release entry with no manifests advertises a version whose
+       # Package.swift the read frontend cannot serve, so the version would
+       # resolve and then fail. Leaving it absent is the better state.
+       :ok <- (if manifests == [], do: {:error, :no_stored_manifests}, else: :ok) do
     if apply? do
       lock_key = {:package, scope, name}
 
@@ -215,6 +233,10 @@ restore_catalog_entry = fn entry ->
     end
   else
     true -> {:skip, :already_present}
+    {:skip, reason} -> {:skip, reason}
+    # No catalog document at all, so there is no entry to restore. Creating one
+    # is a different operation with different risks and is left to the sync.
+    {:error, :not_found} -> {:skip, :no_catalog_document}
     {:error, reason} -> {:error, reason}
   end
 end
