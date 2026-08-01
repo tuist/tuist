@@ -51,12 +51,15 @@ defmodule Tuist.Registry.S3 do
 
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
 
+    # Forwards every option the caller set rather than only `:content_type`.
+    # `:meta` was previously dropped here, so the archive digest a caller asked
+    # to store never reached object storage and the read-back verification could
+    # only ever observe `nil` — failing every upload it was meant to protect.
     upload_opts =
-      if content_type_opt,
-        do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
-        else: [timeout: 120_000, max_concurrency: 8]
+      [timeout: 120_000, max_concurrency: 8]
+      |> put_upload_opt(:content_type, Keyword.get(opts, :content_type))
+      |> put_upload_opt(:meta, Keyword.get(opts, :meta))
 
     {duration, result} =
       :timer.tc(fn ->
@@ -150,6 +153,9 @@ defmodule Tuist.Registry.S3 do
     |> Map.get("etag", Map.get(headers, "ETag"))
     |> normalize_etag()
   end
+
+  defp put_upload_opt(opts, _key, nil), do: opts
+  defp put_upload_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp downcase_headers(headers) when is_list(headers) do
     Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
