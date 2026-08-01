@@ -56,10 +56,15 @@ defmodule Tuist.Registry.S3 do
     # `:meta` was previously dropped here, so the archive digest a caller asked
     # to store never reached object storage and the read-back verification could
     # only ever observe `nil` — failing every upload it was meant to protect.
+    #
+    # Rejecting nils is load-bearing rather than tidiness: `put_object_headers/1`
+    # reads `Map.get(opts, :meta, [])`, and a map default only applies to an
+    # absent key, so a literal `meta: nil` would reach `build_meta_headers/1`
+    # and raise.
     upload_opts =
       [timeout: 120_000, max_concurrency: 8]
-      |> put_upload_opt(:content_type, Keyword.get(opts, :content_type))
-      |> put_upload_opt(:meta, Keyword.get(opts, :meta))
+      |> Keyword.merge(opts)
+      |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -86,8 +91,9 @@ defmodule Tuist.Registry.S3 do
 
   def upload_content(key, content, opts \\ []) when is_binary(key) do
     bucket = Registry.registry_bucket()
-    content_type_opt = Keyword.get(opts, :content_type)
-    put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
+    # Same shape as `upload_file/3` above, for the same reason: an option a
+    # caller sets should be used or absent, never silently ignored.
+    put_opts = Keyword.reject(opts, fn {_key, value} -> is_nil(value) end)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -153,9 +159,6 @@ defmodule Tuist.Registry.S3 do
     |> Map.get("etag", Map.get(headers, "ETag"))
     |> normalize_etag()
   end
-
-  defp put_upload_opt(opts, _key, nil), do: opts
-  defp put_upload_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp downcase_headers(headers) when is_list(headers) do
     Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)
