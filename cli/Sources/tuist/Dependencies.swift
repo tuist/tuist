@@ -9,6 +9,12 @@ import TuistNooraExtension
 import TuistServer
 import TuistSupport
 
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
+
 #if os(macOS)
     import TuistExtension
     import TuistKit
@@ -30,7 +36,25 @@ private enum DependenciesError: LocalizedError {
     }
 }
 
+/// Raises the soft open-file limit toward the hard limit. Generating the graph for large
+/// projects launches many concurrent subprocesses (manifest and Swift Package Manager
+/// evaluation), and CI machines often ship a low default soft limit (256 on macOS) that the
+/// process can exhaust, surfacing as "Bad file descriptor" errors. Best-effort: failures are
+/// ignored, leaving the inherited limit untouched.
+private func raiseOpenFileLimit() {
+    var limit = rlimit()
+    guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else { return }
+    // Cap at 10240 (macOS's typical per-process maximum) so an unlimited hard limit
+    // doesn't make `setrlimit` reject the request; that's ~2,500 concurrent subprocesses.
+    let target = min(limit.rlim_max, rlim_t(10240))
+    guard limit.rlim_cur < target else { return }
+    limit.rlim_cur = target
+    _ = setrlimit(RLIMIT_NOFILE, &limit)
+}
+
 private func initEnv() throws {
+    raiseOpenFileLimit()
+
     if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
         throw DependenciesError.exclusiveOptionError("quiet", "verbose")
     }
