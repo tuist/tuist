@@ -67,6 +67,10 @@ class ProjectFileElements {
         "xib",
         "intentdefinition",
     ]
+    private static let buildSettingSupportFileKeys = Set([
+        "CODE_SIGN_ENTITLEMENTS",
+        "INFOPLIST_FILE",
+    ])
 
     // MARK: - Attributes
 
@@ -225,6 +229,11 @@ class ProjectFileElements {
         }
 
         if let entitlements = target.entitlements, let path = entitlements.path, !isInsideBuildableFolder(path, of: target) {
+            files.insert(path)
+        }
+
+        for path in supportFilesFromBuildSettings(target: target, sourceRootPath: project.sourceRootPath) {
+            guard !isInsideBuildableFolder(path, of: target) else { continue }
             files.insert(path)
         }
 
@@ -875,6 +884,61 @@ class ProjectFileElements {
 
     private func isInsideBuildableFolder(_ path: AbsolutePath, of target: Target) -> Bool {
         target.buildableFolders.contains { path.isDescendant(of: $0.path) }
+    }
+
+    private func supportFilesFromBuildSettings(target: Target, sourceRootPath: AbsolutePath) -> Set<AbsolutePath> {
+        guard let settings = target.settings else { return [] }
+
+        let dictionaries = [settings.base, settings.baseDebug] +
+            settings.configurations.values.compactMap { $0?.settings }
+
+        return dictionaries.reduce(into: Set<AbsolutePath>()) { paths, dictionary in
+            for (key, value) in dictionary
+                where ProjectFileElements.buildSettingSupportFileKeys.contains(baseBuildSettingKey(key))
+            {
+                paths.formUnion(resolveSupportFilePaths(value: value, sourceRootPath: sourceRootPath))
+            }
+        }
+    }
+
+    private func baseBuildSettingKey(_ key: String) -> String {
+        key.split(separator: "[", maxSplits: 1).first.map(String.init) ?? key
+    }
+
+    private func resolveSupportFilePaths(value: SettingValue, sourceRootPath: AbsolutePath) -> Set<AbsolutePath> {
+        let values: [String]
+        switch value {
+        case let .string(value):
+            values = [value]
+        case let .array(array):
+            values = array
+        }
+
+        return Set(values.compactMap { resolveSupportFilePath($0, sourceRootPath: sourceRootPath) })
+    }
+
+    private func resolveSupportFilePath(_ value: String, sourceRootPath: AbsolutePath) -> AbsolutePath? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+
+        let sourceRootPrefixes = [
+            "$(SRCROOT)/",
+            "$(PROJECT_DIR)/",
+            "$(SOURCE_ROOT)/",
+        ]
+        let pathString = sourceRootPrefixes.reduce(trimmed) { current, prefix in
+            current.hasPrefix(prefix) ? String(current.dropFirst(prefix.count)) : current
+        }
+
+        if pathString.hasPrefix("/") {
+            return try? AbsolutePath(validating: pathString)
+        }
+
+        guard !pathString.contains("$("),
+              let relativePath = try? RelativePath(validating: pathString)
+        else { return nil }
+
+        return sourceRootPath.appending(relativePath)
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {
