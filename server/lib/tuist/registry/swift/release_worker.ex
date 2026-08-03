@@ -44,6 +44,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "repository not found",
     "does not appear to be a git repository",
     "the requested url returned error: 404",
+    "the requested url returned error: 403",
     "write access to repository not granted",
     "fatal: could not read username for",
     "not our ref",
@@ -51,6 +52,13 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "unable to find current revision in submodule path",
     "reference is not a tree",
     "needed a single revision"
+  ]
+
+  @transient_submodule_failure_markers [
+    "rate limit",
+    "too many requests",
+    "temporarily blocked",
+    "try again later"
   ]
 
   @impl Oban.Worker
@@ -309,29 +317,59 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @doc false
   def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag} = opts) do
-    git_credentials = Map.get(opts, :git_credentials)
+    context = %{
+      repository_full_handle: full_handle,
+      tag: tag,
+      git_credentials: Map.get(opts, :git_credentials)
+    }
 
-    with {:ok, submodule_paths} <- submodule_paths(destination) do
+    update_submodules_in(destination, nil, context)
+  end
+
+  # `git submodule update --recursive` reports a failure anywhere in the tree as
+  # a failure of the top-level submodule it was reached through, so an
+  # unreachable third-party dependency nested several levels down is
+  # indistinguishable from the package's own submodule being unreachable.
+  # Descending one level at a time attributes every failure to the exact path
+  # that produced it, so a skippable failure drops only that path instead of the
+  # required subtree that happened to lead to it.
+  defp update_submodules_in(repository_directory, path_prefix, context) do
+    with {:ok, submodule_paths} <- submodule_paths(repository_directory) do
       Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
-        case update_submodule(destination, submodule_path, git_credentials) do
-          :ok ->
-            {:cont, :ok}
-
-          {:skip, output} ->
-            handle_skipped_submodule(destination, submodule_path, full_handle, tag, output)
-
-          {:error, reason} ->
-            {:halt, {:error, reason}}
-        end
+        update_submodule_tree(repository_directory, submodule_path, path_prefix, context)
       end)
     end
   end
 
-  defp handle_skipped_submodule(destination, submodule_path, full_handle, tag, output) do
-    case remove_failed_submodule_contents(destination, submodule_path) do
+  defp update_submodule_tree(repository_directory, submodule_path, path_prefix, context) do
+    full_path = join_submodule_path(path_prefix, submodule_path)
+
+    case update_submodule(repository_directory, submodule_path, context.git_credentials) do
+      :ok ->
+        repository_directory
+        |> Path.join(submodule_path)
+        |> update_submodules_in(full_path, context)
+        |> case do
+          :ok -> {:cont, :ok}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+
+      {:skip, output} ->
+        handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output)
+
+      {:failed, status, output} ->
+        {:halt, {:error, {:git_submodule_update_failed, full_path, status, output}}}
+    end
+  end
+
+  defp join_submodule_path(nil, submodule_path), do: submodule_path
+  defp join_submodule_path(path_prefix, submodule_path), do: "#{path_prefix}/#{submodule_path}"
+
+  defp handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output) do
+    case remove_failed_submodule_contents(repository_directory, submodule_path) do
       :ok ->
         Logger.warning(
-          "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
+          "Skipping submodule #{full_path} for #{context.repository_full_handle}@#{context.tag} after permanent git submodule update failure: #{output}"
         )
 
         {:cont, :ok}
@@ -341,17 +379,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp update_submodule(destination, submodule_path, git_credentials) do
+  defp update_submodule(repository_directory, submodule_path, git_credentials) do
     case System.cmd(
            "git",
            GitAuthentication.config_args(git_credentials) ++
              [
                "-C",
-               destination,
+               repository_directory,
                "submodule",
                "update",
                "--init",
-               "--recursive",
                "--depth",
                "1",
                submodule_path
@@ -371,53 +408,36 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             trimmed -> trimmed
           end
 
-        nested_submodule_path = nested_submodule_path(output)
-
-        cond do
-          nested_submodule_failure?(output, submodule_path, nested_submodule_path) ->
-            {:error, {:nested_git_submodule_update_failed, submodule_path, nested_submodule_path, status, output}}
-
-          skippable_submodule_failure?(output) ->
-            {:skip, output}
-
-          true ->
-            {:error, {:git_submodule_update_failed, submodule_path, status, output}}
+        if skippable_submodule_failure?(output) do
+          {:skip, output}
+        else
+          {:failed, status, output}
         end
     end
   end
 
-  defp nested_submodule_path(output) do
-    case Regex.run(~r/registered for path '([^']+)'/, output, capture: :all_but_first) ||
-           Regex.run(~r/submodule path '([^']+)'/, output, capture: :all_but_first) do
-      [nested_submodule_path] -> nested_submodule_path
-      _ -> nil
-    end
-  end
-
-  defp nested_submodule_failure?(output, submodule_path, nested_submodule_path) do
-    output =~ "Failed to recurse into submodule path '#{submodule_path}'" and
-      is_binary(nested_submodule_path) and
-      nested_submodule_path != submodule_path and
-      String.starts_with?(nested_submodule_path, submodule_path <> "/")
-  end
-
+  # Skipping is permanent: the release ships an archive that no longer contains
+  # the submodule, so a host that is merely throttling us must not be read as one
+  # that will never serve the repository. GitHub answers a throttled clone with
+  # the same 403 it uses for a repository the token cannot see, and only the
+  # accompanying message tells the two apart.
   @doc false
   def skippable_submodule_failure?(output) do
-    Enum.any?(
-      @skippable_submodule_failure_markers,
-      &(output |> String.downcase() |> String.contains?(&1))
-    )
+    downcased_output = String.downcase(output)
+
+    not Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) and
+      Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1))
   end
 
-  defp remove_failed_submodule_contents(destination, submodule_path) do
-    case File.rm_rf(Path.join(destination, submodule_path)) do
+  defp remove_failed_submodule_contents(repository_directory, submodule_path) do
+    case File.rm_rf(Path.join(repository_directory, submodule_path)) do
       {:ok, _removed_paths} -> :ok
       {:error, reason, path} -> {:error, {:remove_failed_submodule_contents_failed, path, reason}}
     end
   end
 
-  defp submodule_paths(destination) do
-    case System.cmd("git", ["-C", destination, "ls-files", "--stage"], stderr_to_stdout: true) do
+  defp submodule_paths(repository_directory) do
+    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage"], stderr_to_stdout: true) do
       {output, 0} ->
         paths =
           output

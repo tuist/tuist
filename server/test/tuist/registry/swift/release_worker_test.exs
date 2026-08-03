@@ -400,6 +400,132 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert ReleaseWorker.skippable_submodule_failure?(output)
   end
 
+  test "treats a submodule host that denies anonymous access as a skippable submodule failure" do
+    output = """
+    fatal: unable to access 'https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver/': The requested URL returned error: 403
+    fatal: clone of 'https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver' into submodule path 'backends/arm/third-party/ethos-u-core-driver' failed
+    Failed to clone 'backends/arm/third-party/ethos-u-core-driver' a second time, aborting
+    """
+
+    assert ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  test "does not treat a throttled submodule host as a skippable submodule failure" do
+    output = """
+    remote: You have exceeded a secondary rate limit and have been temporarily blocked from content creation.
+    fatal: unable to access 'https://github.com/apple/swift-nio/': The requested URL returned error: 403
+    """
+
+    refute ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  describe "update_submodules/1" do
+    test "removes only the failing nested submodule and keeps the submodule that reached it" do
+      root = Briefly.create!(directory: true)
+      clone = superproject_clone_with_nested_submodule(root, nil)
+
+      assert :ok =
+               ReleaseWorker.update_submodules(%{
+                 destination: clone,
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+
+      assert File.exists?(Path.join(clone, "Vendor/Required/README.md"))
+      refute File.exists?(Path.join(clone, "Vendor/Required/NestedDep"))
+    end
+
+    test "fails against the nested path instead of deleting the submodule that reached it" do
+      root = Briefly.create!(directory: true)
+      clone = superproject_clone_with_nested_submodule(root, "ssh://127.0.0.1:1/nested-private-dep.git")
+
+      assert {:error, {:git_submodule_update_failed, "Vendor/Required/NestedDep", _status, _output}} =
+               ReleaseWorker.update_submodules(%{
+                 destination: clone,
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+
+      assert File.exists?(Path.join(clone, "Vendor/Required/README.md"))
+    end
+  end
+
+  # Builds a superproject whose `Vendor/Required` submodule pins a `NestedDep`
+  # submodule of its own. A `nested_url` of `nil` leaves the pin out of
+  # `.gitmodules`, which git rejects with a permanently skippable "no url found"
+  # error; any other value is registered as the nested submodule's URL.
+  # `Vendor/Required` is checked out up front because the production code
+  # deliberately runs git without `protocol.file.allow`, so only the nested
+  # update is left for the walk to resolve.
+  defp superproject_clone_with_nested_submodule(root, nested_url) do
+    parent_repository = Path.join(root, "parent-submodule")
+    superproject = Path.join(root, "superproject")
+    clone = Path.join(root, "clone")
+
+    init_git_repo(parent_repository)
+    File.write!(Path.join(parent_repository, "README.md"), "required")
+    git!(parent_repository, ["add", "README.md"])
+    git!(parent_repository, ["commit", "-m", "initial"])
+
+    if nested_url do
+      File.write!(Path.join(parent_repository, ".gitmodules"), """
+      [submodule "NestedDep"]
+      \tpath = NestedDep
+      \turl = #{nested_url}
+      """)
+
+      git!(parent_repository, ["add", ".gitmodules"])
+    end
+
+    git!(parent_repository, [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "160000,0123456789012345678901234567890123456789,NestedDep"
+    ])
+
+    git!(parent_repository, ["commit", "-m", "add nested submodule"])
+
+    init_git_repo(superproject)
+    File.write!(Path.join(superproject, "Package.swift"), @default_manifest_content)
+    git!(superproject, ["add", "Package.swift"])
+    git!(superproject, ["commit", "-m", "initial"])
+
+    git!(superproject, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      parent_repository,
+      "Vendor/Required"
+    ])
+
+    git!(superproject, ["commit", "-am", "add submodule"])
+    git!(root, ["-c", "protocol.file.allow=always", "clone", superproject, clone])
+    git!(clone, ["-c", "protocol.file.allow=always", "submodule", "update", "--init", "Vendor/Required"])
+    # Dropping the registration while keeping the checkout leaves `Vendor/Required`
+    # in the state production sees: the update that walks it also registers it, so
+    # git announces `registered for path 'Vendor/Required'` ahead of any nested
+    # failure in the same output.
+    git!(clone, ["config", "--unset", "submodule.Vendor/Required.url"])
+
+    clone
+  end
+
+  defp init_git_repo(path) do
+    File.mkdir_p!(path)
+    git!(path, ["init"])
+    git!(path, ["config", "user.name", "Tuist Test"])
+    git!(path, ["config", "user.email", "test@tuist.dev"])
+  end
+
+  defp git!(working_directory, args) do
+    case System.cmd("git", args, cd: working_directory, stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {output, status} -> flunk("git #{Enum.join(args, " ")} failed with status #{status}: #{output}")
+    end
+  end
+
   describe "zip_directory/2" do
     test "preserves symlinks inside code-signed bundles while flattening other symlinks" do
       tmp = Path.join(System.tmp_dir!(), "zip_directory_test_#{System.unique_integer([:positive])}")
