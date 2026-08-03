@@ -266,4 +266,98 @@ defmodule TuistCommon.GitHubTest do
                GitHub.fetch_packages_json("test-token")
     end
   end
+
+  describe "rate limit telemetry" do
+    setup do
+      handler_id = "github-rate-limit-#{System.unique_integer([:positive])}"
+      test_pid = self()
+
+      :telemetry.attach(
+        handler_id,
+        GitHub.rate_limit_event_name(),
+        fn _event, measurements, metadata, _config ->
+          send(test_pid, {:rate_limit, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok
+    end
+
+    test "emits the budget reported on a successful response" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [%{"name" => "1.0.0"}],
+           headers: %{
+             "x-ratelimit-limit" => ["5000"],
+             "x-ratelimit-used" => ["4998"],
+             "x-ratelimit-resource" => ["core"]
+           }
+         }}
+      end)
+
+      assert {:ok, ["1.0.0"]} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      assert_receive {:rate_limit, %{limit: 5000, used: 4998}, %{resource: "core"}}
+    end
+
+    test "emits the budget reported on a rate-limited response" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{},
+           headers: %{
+             "x-ratelimit-limit" => ["5000"],
+             "x-ratelimit-used" => ["5000"],
+             "x-ratelimit-remaining" => ["0"],
+             "x-ratelimit-resource" => ["core"]
+           }
+         }}
+      end)
+
+      assert {:error, {:rate_limited, 403}} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      assert_receive {:rate_limit, %{limit: 5000, used: 5000}, %{resource: "core"}}
+    end
+
+    test "falls back to an unknown resource when the header is absent" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [],
+           headers: [{"x-ratelimit-limit", "60"}, {"x-ratelimit-used", "1"}]
+         }}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", nil)
+
+      assert_receive {:rate_limit, %{limit: 60, used: 1}, %{resource: "unknown"}}
+    end
+
+    test "does not emit when the response carries no rate limit headers" do
+      stub(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: [], headers: %{}}}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      refute_receive {:rate_limit, _measurements, _metadata}
+    end
+
+    test "does not emit when the request fails at the transport level" do
+      stub(Req, :request, fn _opts ->
+        {:error, %Req.TransportError{reason: :closed}}
+      end)
+
+      assert {:error, %Req.TransportError{}} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      refute_receive {:rate_limit, _measurements, _metadata}
+    end
+  end
 end
