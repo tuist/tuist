@@ -10,8 +10,9 @@ defmodule TuistCommon.GitHub do
 
   @doc """
   Telemetry event emitted with the rate-limit budget GitHub reports on API
-  responses. Measurements are `:limit` and `:used`, with the `:resource`
-  metadata naming the budget the request was accounted against.
+  responses. Measurements are `:limit`, `:used`, and `:reset` when GitHub
+  sends it, with the `:resource` metadata naming the budget the request was
+  accounted against.
   """
   @spec rate_limit_event_name() :: [atom()]
   def rate_limit_event_name, do: @rate_limit_event
@@ -262,7 +263,15 @@ defmodule TuistCommon.GitHub do
 
     with limit when is_integer(limit) <- header_integer(headers, "x-ratelimit-limit"),
          used when is_integer(used) <- header_integer(headers, "x-ratelimit-used") do
-      :telemetry.execute(@rate_limit_event, %{limit: limit, used: used}, %{
+      measurements = %{limit: limit, used: used}
+
+      measurements =
+        case header_integer(headers, "x-ratelimit-reset") do
+          reset when is_integer(reset) -> Map.put(measurements, :reset, reset)
+          nil -> measurements
+        end
+
+      :telemetry.execute(@rate_limit_event, measurements, %{
         resource: header_value(headers, "x-ratelimit-resource") || "unknown"
       })
     end

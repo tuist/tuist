@@ -295,6 +295,7 @@ defmodule TuistCommon.GitHubTest do
            headers: %{
              "x-ratelimit-limit" => ["5000"],
              "x-ratelimit-used" => ["4998"],
+             "x-ratelimit-reset" => ["1780000000"],
              "x-ratelimit-resource" => ["core"]
            }
          }}
@@ -302,7 +303,28 @@ defmodule TuistCommon.GitHubTest do
 
       assert {:ok, ["1.0.0"]} = GitHub.list_tags("tuist/tuist", "test-token")
 
-      assert_receive {:rate_limit, %{limit: 5000, used: 4998}, %{resource: "core"}}
+      assert_receive {:rate_limit, %{limit: 5000, used: 4998, reset: 1_780_000_000},
+                      %{resource: "core"}}
+    end
+
+    test "omits the reset measurement when GitHub does not send the header" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [],
+           headers: %{
+             "x-ratelimit-limit" => ["5000"],
+             "x-ratelimit-used" => ["1"],
+             "x-ratelimit-resource" => ["core"]
+           }
+         }}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      assert_receive {:rate_limit, measurements, %{resource: "core"}}
+      assert measurements == %{limit: 5000, used: 1}
     end
 
     test "emits the budget reported on a rate-limited response" do
@@ -347,7 +369,7 @@ defmodule TuistCommon.GitHubTest do
 
       assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
 
-      refute_receive {:rate_limit, _measurements, _metadata}
+      refute_received {:rate_limit, _measurements, _metadata}
     end
 
     test "does not emit when the request fails at the transport level" do
@@ -357,7 +379,56 @@ defmodule TuistCommon.GitHubTest do
 
       assert {:error, %Req.TransportError{}} = GitHub.list_tags("tuist/tuist", "test-token")
 
-      refute_receive {:rate_limit, _measurements, _metadata}
+      refute_received {:rate_limit, _measurements, _metadata}
+    end
+
+    # The header helpers exist so a malformed header can't blow up `request/4`,
+    # which the telemetry call sits inline in. Pinning them keeps a later
+    # simplification to `String.to_integer/1` from turning a cosmetic header
+    # anomaly into a failed job on every registry sync.
+    test "does not emit when only one half of the budget is reported" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [],
+           headers: %{"x-ratelimit-limit" => ["5000"], "x-ratelimit-resource" => ["core"]}
+         }}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      refute_received {:rate_limit, _measurements, _metadata}
+    end
+
+    test "does not emit or raise when a budget header is not a number" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [],
+           headers: %{"x-ratelimit-limit" => ["n/a"], "x-ratelimit-used" => ["1"]}
+         }}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      refute_received {:rate_limit, _measurements, _metadata}
+    end
+
+    test "does not emit or raise when a budget header carries no value" do
+      stub(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [],
+           headers: %{"x-ratelimit-limit" => [], "x-ratelimit-used" => ["1"]}
+         }}
+      end)
+
+      assert {:ok, []} = GitHub.list_tags("tuist/tuist", "test-token")
+
+      refute_received {:rate_limit, _measurements, _metadata}
     end
   end
 end

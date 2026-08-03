@@ -344,6 +344,7 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
