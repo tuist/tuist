@@ -577,7 +577,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
 
     # Storage still holds a different object than the one just uploaded, which
     # is what leaves a catalog entry advertising a checksum nothing can serve.
-    expect(ExAws, :request, 2, fn
+    # Read six times: a stale digest is usually a write that is not yet visible,
+    # so it is only conclusive once re-reading stops changing the answer.
+    expect(ExAws, :request, 7, fn
       %S3{http_method: :head}, _config ->
         {:ok, %{status_code: 200, headers: [{"x-amz-meta-sha256", "a-previously-stored-archive"}]}}
 
@@ -588,6 +590,92 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     reject(Metadata, :put_package, 3)
 
     assert {:error, {:stored_archive_mismatch, _key, %{stored: "a-previously-stored-archive"}}} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "publishes once a write that was not yet visible becomes visible" do
+    stub_successful_fetch()
+
+    stub(Metadata, :get_package, fn "apple", "swift-argument-parser", _opts ->
+      {:error, :not_found}
+    end)
+
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired} end)
+
+    {:ok, uploaded_digest} = Agent.start_link(fn -> nil end)
+    {:ok, head_reads} = Agent.start_link(fn -> 0 end)
+
+    expect(Upload, :stream_file, fn path ->
+      Agent.update(uploaded_digest, fn _previous -> sha256(path) end)
+      [File.read!(path)]
+    end)
+
+    expect(ExAws.S3, :upload, fn _stream, "test-bucket", key, _opts ->
+      %S3{http_method: :put, bucket: "test-bucket", path: key}
+    end)
+
+    # The first read misses the object entirely. That is what a completed but
+    # not yet propagated write looks like, and failing here would restart the
+    # job at the build step and upload a second, different archive.
+    expect(ExAws, :request, 4, fn
+      %S3{http_method: :head}, _config ->
+        case Agent.get_and_update(head_reads, &{&1 + 1, &1 + 1}) do
+          1 -> {:ok, %{status_code: 404}}
+          _ -> {:ok, %{status_code: 200, headers: [{"x-amz-meta-sha256", Agent.get(uploaded_digest, & &1)}]}}
+        end
+
+      _operation, _config ->
+        {:ok, %{status_code: 200, body: ""}}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert metadata["releases"]["1.0.0"]["checksum"] == Agent.get(uploaded_digest, & &1)
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+
+    assert Agent.get(head_reads, & &1) == 2
+  end
+
+  test "stops reading back when the verification failure cannot resolve by waiting" do
+    stub_successful_fetch()
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Upload, :stream_file, fn path -> [File.read!(path)] end)
+
+    expect(ExAws.S3, :upload, fn _stream, "test-bucket", key, _opts ->
+      %S3{http_method: :put, bucket: "test-bucket", path: key}
+    end)
+
+    # Exactly one head request: waiting cannot turn a rejected read into an
+    # accepted one, so the retry budget is not spent on it.
+    expect(ExAws, :request, 2, fn
+      %S3{http_method: :head}, _config -> {:ok, %{status_code: 403}}
+      _operation, _config -> {:ok, %{status_code: 200, body: ""}}
+    end)
+
+    reject(Metadata, :put_package, 3)
+
+    assert {:error, {:stored_archive_unverifiable, _key, {:s3_error, 403}}} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",

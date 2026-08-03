@@ -26,6 +26,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
+  @verify_max_attempts 6
+  @verify_backoff_ms 500
   # Symlinks nested inside these code-signed bundles are part of the bundle's
   # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
   # the `Binary`/`Resources` links). Code signing records them as symlinks in
@@ -792,19 +794,79 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # single requests. Confirming the stored object records the digest we just
   # uploaded, before the catalog is updated, keeps a catalog entry from
   # advertising a checksum that object storage does not actually hold.
+  #
+  # The read is retried because a completed write is not necessarily visible to
+  # the read that follows it, and both failure shapes are far more often that
+  # lag than a genuinely wrong archive: a missing object where nothing was
+  # stored before, a stale digest where a previous generation was. Failing
+  # instead is actively harmful — Oban restarts the job from the build step, and
+  # archive construction is not deterministic (#12195), so the retry uploads
+  # *different* bytes to the same key and leaves two generations competing for
+  # it. That is how a transient read failure became a permanently divergent
+  # version. Waiting a few seconds is cheap next to refetching and rebuilding.
+  #
+  # No jitter, unlike the metadata lock above: each job waits on its own object
+  # rather than contending with siblings, so there is no herd to spread out.
   defp verify_stored_archive(scope, name, version, checksum) do
-    key = source_archive_key(scope, name, version)
+    verify_stored_archive(source_archive_key(scope, name, version), checksum, @verify_max_attempts)
+  end
 
-    case S3.head_object(key) do
-      {:ok, headers} ->
-        case Map.get(headers, "x-amz-meta-sha256") do
-          ^checksum -> :ok
-          stored -> {:error, {:stored_archive_mismatch, key, %{expected: checksum, stored: stored}}}
+  defp verify_stored_archive(key, checksum, attempts_remaining) do
+    case stored_archive_digest(key) do
+      {:ok, ^checksum} ->
+        log_delayed_visibility(key, attempts_remaining)
+        :ok
+
+      result ->
+        if retryable_verification?(result) and attempts_remaining > 1 do
+          Process.sleep(verify_backoff_ms(attempts_remaining))
+          verify_stored_archive(key, checksum, attempts_remaining - 1)
+        else
+          verification_error(key, checksum, result)
         end
-
-      {:error, reason} ->
-        {:error, {:stored_archive_unverifiable, key, reason}}
     end
+  end
+
+  defp stored_archive_digest(key) do
+    case S3.head_object(key) do
+      {:ok, headers} -> {:ok, Map.get(headers, "x-amz-meta-sha256")}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # A digest that disagrees and a missing object are both "not visible yet".
+  # Anything else — a permission or configuration failure — will not resolve by
+  # waiting, so it fails on the first read rather than burning the budget.
+  defp retryable_verification?({:ok, _stale_digest}), do: true
+  defp retryable_verification?({:error, :not_found}), do: true
+  defp retryable_verification?({:error, _reason}), do: false
+
+  defp verification_error(key, checksum, {:ok, stored}) do
+    {:error, {:stored_archive_mismatch, key, %{expected: checksum, stored: stored}}}
+  end
+
+  defp verification_error(key, _checksum, {:error, reason}) do
+    {:error, {:stored_archive_unverifiable, key, reason}}
+  end
+
+  defp verify_backoff_ms(attempts_remaining) do
+    step = @verify_max_attempts - attempts_remaining + 1
+
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:verification_backoff_ms, @verify_backoff_ms)
+    |> Kernel.*(step)
+  end
+
+  # How long a write takes to become visible is not otherwise observable: the
+  # job succeeds either way, so without this the only trace is the failures.
+  defp log_delayed_visibility(_key, @verify_max_attempts), do: :ok
+
+  defp log_delayed_visibility(key, attempts_remaining) do
+    Logger.info(
+      "Registry archive #{key} became visible on verification attempt " <>
+        "#{@verify_max_attempts - attempts_remaining + 1}"
+    )
   end
 
   defp source_archive_key(scope, name, version) do

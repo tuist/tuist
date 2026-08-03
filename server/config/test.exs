@@ -74,6 +74,8 @@ config :tuist, Tuist.OpsClickHouseRepo,
     session_timezone: "UTC"
   ]
 
+config :tuist, Tuist.Registry.Swift.ReleaseWorker, verification_backoff_ms: 0
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
