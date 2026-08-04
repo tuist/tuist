@@ -413,6 +413,69 @@ struct RestoreTests {
     }
 
     @Test
+    func writeWorkspaceStateWritesSymlinkedRegistryBinaryArtifacts() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let pin = ResolvedPin(
+                identity: "example.package",
+                kind: "registry",
+                location: "",
+                state: ResolvedState(branch: nil, revision: nil, version: "2.3.4")
+            )
+
+            // A registry download is a farm of symlinks into the shared source
+            // cache, so a binary target at the package root arrives as a symlink
+            // rather than a directory.
+            let cachedFramework = root.appendingPathComponent("cache/example.package/Foo.xcframework")
+            try await fileSystem.makeDirectory(
+                at: cachedFramework.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.atomicWrite(
+                validXCFrameworkInfoPlist(),
+                to: cachedFramework.appendingPathComponent("Info.plist")
+            )
+
+            let downloadDir = try scratch
+                .appendingPathComponent("registry/downloads")
+                .appendingPathComponent(PinKind.registryDownloadSubpath(pin))
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Foo", path: "Foo.xcframework"),
+                packageDir: downloadDir
+            )
+            let framework = downloadDir.appendingPathComponent("Foo.xcframework")
+            try await fileSystem.createSymbolicLink(
+                from: framework.absolutePath, to: cachedFramework.absolutePath
+            )
+
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            let artifact = try #require(artifacts.first)
+            let packageRef = try #require(artifact["packageRef"] as? [String: Any])
+            #expect(artifacts.count == 1)
+            #expect(artifact["targetName"] as? String == "Foo")
+            // The path stays inside the scratch directory rather than pointing at
+            // the cache, matching what a source-control checkout records.
+            #expect(artifact["path"] as? String == framework.path)
+            #expect(packageRef["kind"] as? String == "registry")
+            #expect(packageRef["identity"] as? String == "example.package")
+        }
+    }
+
+    @Test
     func restorePackageDownloadsAndAdvertisesRemoteBinaryArtifacts() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
