@@ -5693,6 +5693,46 @@ defmodule Tuist.TestsTest do
       assert flaky_test.flaky_runs_count == 1
     end
 
+    test "supports ordering by marked_flaky_at" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      for {name, offset} <- [{"oldestFlaky", -3600}, {"middleFlaky", -1800}, {"newestFlaky", -60}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_flaky: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(now, offset)
+        )
+      end
+
+      {asc_results, _} =
+        Tests.list_flaky_test_cases(project.id, %{
+          order_by: [:marked_flaky_at],
+          order_directions: [:asc]
+        })
+
+      assert Enum.map(asc_results, & &1.name) == ["oldestFlaky", "middleFlaky", "newestFlaky"]
+
+      {desc_results, _} =
+        Tests.list_flaky_test_cases(project.id, %{
+          order_by: [:marked_flaky_at],
+          order_directions: [:desc]
+        })
+
+      assert Enum.map(desc_results, & &1.name) == ["newestFlaky", "middleFlaky", "oldestFlaky"]
+      assert Enum.all?(desc_results, & &1.marked_flaky_at)
+    end
+
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
@@ -8922,12 +8962,14 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
+        project_id: project.id,
         event_type: "muted",
         inserted_at: now
       )
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
+        project_id: project.id,
         event_type: "marked_flaky",
         inserted_at: now
       )
@@ -9036,6 +9078,74 @@ defmodule Tuist.TestsTest do
       assert Enum.map(desc_results, & &1.name) == ["zebra", "beta", "alpha"]
     end
 
+    test "supports ordering by quarantined_at" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      for {name, offset} <- [{"oldest", -3600}, {"middle", -1800}, {"newest", -60}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: "muted",
+          inserted_at: NaiveDateTime.add(now, offset)
+        )
+      end
+
+      {asc_results, _} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          order_by: [:quarantined_at],
+          order_directions: [:asc]
+        })
+
+      assert Enum.map(asc_results, & &1.name) == ["oldest", "middle", "newest"]
+
+      {desc_results, _} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          order_by: [:quarantined_at],
+          order_directions: [:desc]
+        })
+
+      assert Enum.map(desc_results, & &1.name) == ["newest", "middle", "oldest"]
+      assert Enum.all?(desc_results, & &1.quarantined_at)
+    end
+
+    test "exposes when the latest quarantine event happened" do
+      project = ProjectsFixtures.project_fixture()
+      quarantined_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -900)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "quarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        event_type: "muted",
+        inserted_at: quarantined_at
+      )
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(quarantined_at, :second)
+             ) == :eq
+    end
+
     test "does not return test cases from other projects" do
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
@@ -9077,6 +9187,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: nil
       )
@@ -9093,6 +9204,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user.account.id
       )
@@ -9124,6 +9236,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user1_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user1.account.id
       )
@@ -9140,6 +9253,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user2_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user2.account.id
       )
