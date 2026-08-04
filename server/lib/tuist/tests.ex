@@ -3042,6 +3042,11 @@ defmodule Tuist.Tests do
         select: count(test_case.id)
       )
 
+    # Unlike the list query, which always joins :quarantine because it selects
+    # and sorts on its columns, the count needs the join only when filtering by
+    # quarantined_by. The shapes can differ without the totals diverging: the
+    # subquery groups by test_case_id, so the join is at most 1:1 and can
+    # neither drop nor duplicate rows.
     base_query =
       if quarantined_by_filter do
         from([test_case: test_case] in base_query,

@@ -5733,6 +5733,42 @@ defmodule Tuist.TestsTest do
       assert Enum.all?(desc_results, & &1.marked_flaky_at)
     end
 
+    test "marked_flaky_at reflects the current flaky period after a re-mark" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "remarkedFlakyTest",
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      second_marked_at = NaiveDateTime.add(now, -1200)
+
+      for {event_type, inserted_at} <- [
+            {"marked_flaky", NaiveDateTime.add(now, -3600)},
+            {"unmarked_flaky", NaiveDateTime.add(now, -2400)},
+            {"marked_flaky", second_marked_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[flaky_test], _} = Tests.list_flaky_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(flaky_test.marked_flaky_at, :second),
+               NaiveDateTime.truncate(second_marked_at, :second)
+             ) == :eq
+    end
+
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
@@ -9116,6 +9152,79 @@ defmodule Tuist.TestsTest do
 
       assert Enum.map(desc_results, & &1.name) == ["newest", "middle", "oldest"]
       assert Enum.all?(desc_results, & &1.quarantined_at)
+    end
+
+    test "quarantined_at reflects the current quarantine period after a re-quarantine" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "requarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      second_muted_at = NaiveDateTime.add(now, -1200)
+
+      for {event_type, inserted_at} <- [
+            {"muted", NaiveDateTime.add(now, -3600)},
+            {"unmuted", NaiveDateTime.add(now, -2400)},
+            {"muted", second_muted_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(second_muted_at, :second)
+             ) == :eq
+    end
+
+    test "quarantined_at resets when the quarantine mode changes" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "modeChangedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      skipped_at = NaiveDateTime.add(now, -600)
+
+      for {event_type, inserted_at} <- [
+            {"muted", NaiveDateTime.add(now, -7200)},
+            {"skipped", skipped_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_test.state == "skipped"
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(skipped_at, :second)
+             ) == :eq
     end
 
     test "exposes when the latest quarantine event happened" do
