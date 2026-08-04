@@ -476,6 +476,55 @@ struct RestoreTests {
     }
 
     @Test
+    func writeWorkspaceStateDoesNotFollowSymlinksOutOfTheScannedDirectory() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+
+            // Only the path a manifest names is resolved through symlinks. Walking
+            // a directory still refuses to follow links, so a link planted inside a
+            // scanned directory cannot pull an artifact in from outside the tree.
+            let outsideFramework = root.appendingPathComponent("outside/Escaped.xcframework")
+            try await fileSystem.makeDirectory(
+                at: outsideFramework.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.atomicWrite(
+                validXCFrameworkInfoPlist(),
+                to: outsideFramework.appendingPathComponent("Info.plist")
+            )
+
+            let vendor = package.appendingPathComponent("Vendor")
+            try await fileSystem.makeDirectory(
+                at: vendor.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.createSymbolicLink(
+                from: vendor.appendingPathComponent("Escaped.xcframework").absolutePath,
+                to: outsideFramework.absolutePath
+            )
+
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Escaped", path: "Vendor"),
+                packageDir: package
+            )
+
+            let resolved = ResolvedPins(originHash: "origin", pins: [], version: 3)
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            #expect(artifacts.isEmpty)
+        }
+    }
+
+    @Test
     func restorePackageDownloadsAndAdvertisesRemoteBinaryArtifacts() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
