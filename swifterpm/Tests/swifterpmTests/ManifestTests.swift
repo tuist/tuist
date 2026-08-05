@@ -275,6 +275,93 @@ struct ManifestTests {
     }
 
     @Test
+    func dumpFailureNamesTheDirectoryMissingAManifest() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Empty")
+            try await fileSystem.makeDirectory(
+                at: packageDir.absolutePath, options: [.createTargetParentDirectories])
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir,
+                underlying: ToolError.message(
+                    "error: Could not find Package.swift in this directory or any of its parent directories."
+                )
+            )
+
+            #expect(
+                error.description == "expected a Package.swift in \(packageDir.path), but found none"
+            )
+        }
+    }
+
+    @Test
+    func dumpFailureDistinguishesAMissingDirectoryFromAMissingManifest() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Absent")
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("chdir error")
+            )
+
+            #expect(
+                error.description
+                    == "expected a package in \(packageDir.path), but the directory does not exist"
+            )
+        }
+    }
+
+    @Test
+    func dumpFailureKeepsTheUnderlyingErrorWhenTheManifestExists() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Broken")
+            try await writeMinimalPackageManifest(at: packageDir, name: "Broken")
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("compile error")
+            )
+
+            #expect(
+                error.description
+                    == "failed to load the package manifest in \(packageDir.path): compile error"
+            )
+        }
+    }
+
+    @Test
+    func localPackageManifestFailureNamesTheDeclaringPackageAndPath() async throws {
+        try await withTemporaryDirectory { directory in
+            let rootPackageDir = directory.appendingPathComponent("Root")
+            try await writeMinimalPackageManifest(at: rootPackageDir, name: "Root")
+            // The declared directory exists but holds no manifest: the shape SwiftPM reports
+            // as a bare "Could not find Package.swift ..." with no mention of the dependency.
+            let localPackageDir = directory.appendingPathComponent("Packages/Feature")
+            try await fileSystem.makeDirectory(
+                at: localPackageDir.absolutePath, options: [.createTargetParentDirectories])
+
+            let rootManifest: [String: Any] = [
+                "dependencies": [
+                    ["fileSystem": [["identity": "feature", "path": localPackageDir.path]]]
+                ]
+            ]
+
+            do {
+                _ = try await ManifestFileSystemDependencyGraph.collect(
+                    rootPackageDir: rootPackageDir,
+                    rootManifest: rootManifest,
+                    disableSandbox: true
+                )
+                Issue.record("expected the local package manifest to fail to load")
+            } catch {
+                let description = "\(error)"
+                #expect(description.contains("the local package feature"))
+                #expect(description.contains("declared as \"\(localPackageDir.path)\""))
+                #expect(description.contains(rootPackageDir.path))
+                #expect(description.contains("but found none"))
+            }
+        }
+    }
+
+    @Test
     func versionRangeMatchesExactAndOpenRanges() throws {
         let exact = try #require(ManifestParser.versionRange(for: .exact(SemVer("1.2.3"))))
         #expect(try exact.contains(SemVer("1.2.3")))

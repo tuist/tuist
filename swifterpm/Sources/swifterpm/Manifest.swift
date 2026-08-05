@@ -77,15 +77,50 @@ enum ManifestLoader {
             args.append("--disable-sandbox")
         }
         args.append("dump-package")
-        let result = try await SystemProcess.run(
-            "/usr/bin/swift", args, workingDirectory: packageDir
-        )
+        let result: SystemProcess.Result
+        do {
+            result = try await SystemProcess.run(
+                "/usr/bin/swift", args, workingDirectory: packageDir
+            )
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)
         if let cachePath = try? cache.absolutePath {
             try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath)
         }
         return result.stdout
+    }
+
+    /// `swift package dump-package` resolves the package root from its working directory and
+    /// walks up from there, so a directory that holds no manifest fails with SwiftPM's
+    /// "Could not find Package.swift in this directory or any of its parent directories" —
+    /// which names neither the directory swifterpm chose nor the package it stands for. Every
+    /// dump in the graph reaches the user as that same line, so attribute the failure to the
+    /// directory here, and separate a missing manifest (a package that was never materialized,
+    /// or a local dependency pointing at the wrong path) from a manifest that failed to
+    /// evaluate: the two need different fixes.
+    static func dumpFailure(packageDir: URL, underlying: any Error) async -> ToolError {
+        guard let path = try? packageDir.absolutePath else {
+            return ToolError.message(
+                "failed to load the package manifest in \(packageDir.path): \(underlying)"
+            )
+        }
+        let manifestExists =
+            (try? await fileSystem.exists(path.appending(component: "Package.swift"))) ?? false
+        guard !manifestExists else {
+            return ToolError.message(
+                "failed to load the package manifest in \(packageDir.path): \(underlying)"
+            )
+        }
+        let directoryExists = (try? await fileSystem.exists(path)) ?? false
+        guard directoryExists else {
+            return ToolError.message(
+                "expected a package in \(packageDir.path), but the directory does not exist"
+            )
+        }
+        return ToolError.message("expected a Package.swift in \(packageDir.path), but found none")
     }
 
     private static func readCachedManifest(packageDir: URL) async throws -> Data? {
@@ -143,10 +178,21 @@ enum ManifestFileSystemDependencyGraph {
                 continue
             }
 
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: canonicalPath,
-                disableSandbox: disableSandbox
-            )
+            let manifest: Any
+            do {
+                manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: canonicalPath,
+                    disableSandbox: disableSandbox
+                )
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(item.dependency.identity), declared as "\(item.dependency.path)" by \
+                    \(item.parentPackageDir.path): \(error)
+                    """
+                )
+            }
             result.append(
                 ManifestFileSystemPackage(
                     dependency: item.dependency,
