@@ -413,6 +413,8 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install curl
+        run: apt-get update -qq && apt-get install -y --no-install-recommends curl
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -424,18 +426,12 @@ jobs:
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
       # target negotiates http/1.1 on its own, so only this hop needs forcing.
       - name: Front the registry with an HTTP/1.1 proxy
-        # The Swift image is slim: no curl, wget, nc or python3. bash is present,
-        # so the readiness probe uses its /dev/tcp support.
         shell: bash
         run: |
           nohup mise x caddy -- caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            # A TCP connect proves the listener is up, which is all this step is
-            # responsible for. Upstream health is deliberately not asserted here:
-            # a degraded registry is the resolve step's error to report, with
-            # SwiftPM's own diagnostics, not a proxy startup failure.
             if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
               exec 3>&-
               exit 0
@@ -476,6 +472,8 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install curl
+        run: apt-get update -qq && apt-get install -y --no-install-recommends curl
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -487,18 +485,12 @@ jobs:
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
       # target negotiates http/1.1 on its own, so only this hop needs forcing.
       - name: Front the registry with an HTTP/1.1 proxy
-        # The Swift image is slim: no curl, wget, nc or python3. bash is present,
-        # so the readiness probe uses its /dev/tcp support.
         shell: bash
         run: |
           nohup mise x caddy -- caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            # A TCP connect proves the listener is up, which is all this step is
-            # responsible for. Upstream health is deliberately not asserted here:
-            # a degraded registry is the resolve step's error to report, with
-            # SwiftPM's own diagnostics, not a proxy startup failure.
             if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
               exec 3>&-
               exit 0
