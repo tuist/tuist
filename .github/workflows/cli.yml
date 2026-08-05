@@ -429,12 +429,17 @@ jobs:
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null -m 2 "http://localhost:8080/api/registry/swift/tuist/Path"; then
+            # Any HTTP response proves the listener is up. Deliberately not -f:
+            # a non-2xx here would mean the registry itself is unhappy, which is
+            # the resolve step's error to report with its own diagnostics, not a
+            # proxy startup failure to be reported as one.
+            if curl -s -o /dev/null -m 2 http://localhost:8080/; then
               exit 0
             fi
             sleep 1
           done
-          echo "::error::registry proxy did not come up"
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
           exit 1
       - name: Point SwiftPM at the proxy
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
@@ -483,12 +488,17 @@ jobs:
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null -m 2 "http://localhost:8080/api/registry/swift/tuist/Path"; then
+            # Any HTTP response proves the listener is up. Deliberately not -f:
+            # a non-2xx here would mean the registry itself is unhappy, which is
+            # the resolve step's error to report with its own diagnostics, not a
+            # proxy startup failure to be reported as one.
+            if curl -s -o /dev/null -m 2 http://localhost:8080/; then
               exit 0
             fi
             sleep 1
           done
-          echo "::error::registry proxy did not come up"
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
           exit 1
       - name: Point SwiftPM at the proxy
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
