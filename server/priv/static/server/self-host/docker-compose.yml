@@ -60,10 +60,12 @@ services:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/tuist.xml:ro
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
+      # BusyBox wget, which is what the alpine image ships, has no --user or
+      # --password, so an HTTP probe can never authenticate here.
       test:
         [
           "CMD-SHELL",
-          "wget --quiet --output-document=- --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" \"http://127.0.0.1:8123/?database=$$CLICKHOUSE_DB&query=SELECT%201\" | grep -q '^1$'",
+          "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --database \"$$CLICKHOUSE_DB\" --query 'SELECT 1'",
         ]
       interval: 5s
       timeout: 5s
