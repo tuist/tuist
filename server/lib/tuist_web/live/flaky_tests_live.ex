@@ -167,7 +167,7 @@ defmodule TuistWeb.FlakyTestsLive do
     {:noreply, socket}
   end
 
-  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at)
+  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at marked_flaky_at)
   @default_sort_field "flaky_runs_count"
 
   defp assign_flaky_tests(%{assigns: %{selected_project: project}} = socket, params) do
