@@ -283,19 +283,17 @@ struct ManifestTests {
 
             let error = await ManifestLoader.dumpFailure(
                 packageDir: packageDir,
-                underlying: ToolError.message(
-                    "error: Could not find Package.swift in this directory or any of its parent directories."
-                )
+                underlying: ToolError.message("could not find Package.swift")
             )
 
             #expect(
-                error.description == "expected a Package.swift in \(packageDir.path), but found none"
-            )
+                error.description
+                    == "no Package.swift in \(packageDir.path): could not find Package.swift")
         }
     }
 
     @Test
-    func dumpFailureDistinguishesAMissingDirectoryFromAMissingManifest() async throws {
+    func dumpFailureDistinguishesAnUnreadableDirectoryFromAMissingManifest() async throws {
         try await withTemporaryDirectory { directory in
             let packageDir = directory.appendingPathComponent("Absent")
 
@@ -303,10 +301,7 @@ struct ManifestTests {
                 packageDir: packageDir, underlying: ToolError.message("chdir error")
             )
 
-            #expect(
-                error.description
-                    == "expected a package in \(packageDir.path), but the directory does not exist"
-            )
+            #expect(error.description == "could not read \(packageDir.path): chdir error")
         }
     }
 
@@ -320,10 +315,29 @@ struct ManifestTests {
                 packageDir: packageDir, underlying: ToolError.message("compile error")
             )
 
-            #expect(
-                error.description
-                    == "failed to load the package manifest in \(packageDir.path): compile error"
+            #expect(error.description == "\(packageDir.path): compile error")
+        }
+    }
+
+    @Test
+    func dumpFailureKeepsTheUnderlyingErrorWhenTheProbeCannotAnswer() async throws {
+        try await withTemporaryDirectory { directory in
+            // A package the probe cannot examine: the parent denies traversal, so `exists`
+            // cannot distinguish "absent" from "unreadable". The classification may be wrong;
+            // the underlying error must survive it either way.
+            let locked = directory.appendingPathComponent("locked")
+            let packageDir = locked.appendingPathComponent("Feature")
+            try await writeMinimalPackageManifest(at: packageDir, name: "Feature")
+            _ = try await SystemProcess.run("/bin/chmod", ["000", locked.path])
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("permission denied")
             )
+
+            _ = try await SystemProcess.run("/bin/chmod", ["755", locked.path])
+
+            #expect(error.description.hasSuffix(": permission denied"))
+            #expect(error.description.contains(packageDir.path))
         }
     }
 
@@ -356,7 +370,7 @@ struct ManifestTests {
                 #expect(description.contains("the local package feature"))
                 #expect(description.contains("declared as \"\(localPackageDir.path)\""))
                 #expect(description.contains(rootPackageDir.path))
-                #expect(description.contains("but found none"))
+                #expect(description.contains("no Package.swift in"))
             }
         }
     }

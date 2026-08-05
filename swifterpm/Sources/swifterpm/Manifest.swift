@@ -61,13 +61,31 @@ enum ManifestLoader {
     }
 
     static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
-        let data = try await ManifestLoader.dumpPackageJSON(
-            packageDir: packageDir, disableSandbox: disableSandbox
-        )
-        return try JSONSerialization.jsonObject(with: data)
+        do {
+            let data = try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox
+            )
+            return try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
     }
 
     static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
+        do {
+            return try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox
+            )
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
+    }
+
+    /// The unattributed load. Both entry points wrap it in `dumpFailure`, so the reading of the
+    /// cache, the `dump-package` hop, and (for `dumpPackage`) the JSON parse are all attributed
+    /// once, by whichever entry point the caller used — a toolchain that prints ahead of the
+    /// JSON must not fail as anonymously as the missing manifest this change is about.
+    private static func loadPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
         if let cached = try await readCachedManifest(packageDir: packageDir) {
             return cached
         }
@@ -77,14 +95,9 @@ enum ManifestLoader {
             args.append("--disable-sandbox")
         }
         args.append("dump-package")
-        let result: SystemProcess.Result
-        do {
-            result = try await SystemProcess.run(
-                "/usr/bin/swift", args, workingDirectory: packageDir
-            )
-        } catch {
-            throw await dumpFailure(packageDir: packageDir, underlying: error)
-        }
+        let result = try await SystemProcess.run(
+            "/usr/bin/swift", args, workingDirectory: packageDir
+        )
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)
         if let cachePath = try? cache.absolutePath {
@@ -101,26 +114,46 @@ enum ManifestLoader {
     /// directory here, and separate a missing manifest (a package that was never materialized,
     /// or a local dependency pointing at the wrong path) from a manifest that failed to
     /// evaluate: the two need different fixes.
+    ///
+    /// The classification is a hint layered on the evidence, never a replacement for it: the
+    /// probe can be wrong (a directory the process cannot traverse reads as absent), so the
+    /// underlying error is always appended. The sentence also carries no verb, so it composes
+    /// under callers that add one ("failed to load the manifest for X: no Package.swift in …")
+    /// without saying it twice.
     static func dumpFailure(packageDir: URL, underlying: any Error) async -> ToolError {
-        guard let path = try? packageDir.absolutePath else {
-            return ToolError.message(
-                "failed to load the package manifest in \(packageDir.path): \(underlying)"
-            )
+        let description =
+            switch await manifestPresence(packageDir: packageDir) {
+            case .present, .indeterminate: packageDir.path
+            case .absent: "no Package.swift in \(packageDir.path)"
+            // Deliberately not "does not exist": `exists` reports an unreadable directory as
+            // absent, so that claim would be false for a package under a parent the process
+            // cannot traverse. "Could not read" holds either way, and the underlying error
+            // below already distinguishes ENOENT from EACCES.
+            case .unreadable: "could not read \(packageDir.path)"
+            }
+        return ToolError.message("\(description): \(underlying)")
+    }
+
+    private enum ManifestPresence {
+        case present
+        case absent
+        /// Missing, or present but not readable — `exists` cannot tell the two apart.
+        case unreadable
+        /// The filesystem could not answer, so the failure is reported without a claim about
+        /// what is on disk rather than with a claim that may be false.
+        case indeterminate
+    }
+
+    private static func manifestPresence(packageDir: URL) async -> ManifestPresence {
+        do {
+            let path = try packageDir.absolutePath
+            if try await fileSystem.exists(path.appending(component: "Package.swift")) {
+                return .present
+            }
+            return try await fileSystem.exists(path) ? .absent : .unreadable
+        } catch {
+            return .indeterminate
         }
-        let manifestExists =
-            (try? await fileSystem.exists(path.appending(component: "Package.swift"))) ?? false
-        guard !manifestExists else {
-            return ToolError.message(
-                "failed to load the package manifest in \(packageDir.path): \(underlying)"
-            )
-        }
-        let directoryExists = (try? await fileSystem.exists(path)) ?? false
-        guard directoryExists else {
-            return ToolError.message(
-                "expected a package in \(packageDir.path), but the directory does not exist"
-            )
-        }
-        return ToolError.message("expected a Package.swift in \(packageDir.path), but found none")
     }
 
     private static func readCachedManifest(packageDir: URL) async throws -> Data? {
