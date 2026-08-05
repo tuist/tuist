@@ -79,6 +79,18 @@ extension FileSystem {
         return (stats.st_mode & S_IFMT) == S_IFDIR
     }
 
+    /// True if a path resolves to a directory, following symbolic links.
+    /// Use this to classify a path a manifest named explicitly; use
+    /// `isDirectoryAndNotSymlink(_:)` when walking a tree, where following links
+    /// risks escaping the tree or cycling.
+    /// Synchronous because `stat` is a single non-blocking metadata call.
+    func isDirectoryFollowingSymlinks(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { stat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFDIR
+    }
+
     /// True if a path exists or is a (potentially broken) symlink.
     /// Synchronous because `lstat` is a single non-blocking metadata call.
     func existsIncludingSymlinks(_ url: URL) -> Bool {
