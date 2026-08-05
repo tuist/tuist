@@ -5,6 +5,11 @@ enum WorkspaceRestorer {
         let packageRef: [String: String]
         let packagePath: URL
         let canonicalizeLocalBinaryPaths: Bool
+
+        func manifestLoadError(_ error: any Error) -> ToolError {
+            let identity = packageRef["identity"] ?? packagePath.lastPathComponent
+            return ToolError.message("failed to load the manifest for \(identity): \(error)")
+        }
     }
 
     private struct BinaryArtifact {
@@ -101,10 +106,15 @@ enum WorkspaceRestorer {
         // slower ones. Per-target downloads still run concurrently within each
         // context, preserving total parallelism on multi-package restores.
         try await ConcurrentTasks.forEach(contexts) { context in
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: context.packagePath,
-                disableSandbox: disableSandbox
-            )
+            let manifest: Any
+            do {
+                manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: context.packagePath,
+                    disableSandbox: disableSandbox
+                )
+            } catch {
+                throw context.manifestLoadError(error)
+            }
             let binaryTargets = try ManifestParser.binaryTargets(manifest)
             try await ConcurrentTasks.forEach(binaryTargets) { target in
                 try await restoreBinaryArtifact(

@@ -73,9 +73,15 @@ enum PackageInfoCacheWriter {
                 .appendingPathComponent("packages")
                 .appendingPathComponent(
                     "\(SafeFileName.make(pin.identity))-\(entryHash(pin)).json")
-            _ = try await cachedOrDumpPackageJSON(
-                packageDir: packagePath, destination: packageInfoPath,
-                disableSandbox: disableSandbox)
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox)
+            } catch {
+                throw ToolError.message(
+                    "failed to load the manifest for \(pin.identity): \(error)"
+                )
+            }
             return packageEntry(
                 pin: pin, packagePath: packagePath, packageInfoPath: packageInfoPath)
         }.sorted { $0.identity < $1.identity }
@@ -98,9 +104,18 @@ enum PackageInfoCacheWriter {
                 cacheDir
                 .appendingPathComponent("packages")
                 .appendingPathComponent(packageInfoFileName)
-            _ = try await cachedOrDumpPackageJSON(
-                packageDir: packagePath, destination: packageInfoPath,
-                disableSandbox: disableSandbox)
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox)
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(dependency.identity), declared as "\(dependency.path)": \(error)
+                    """
+                )
+            }
             let entry = PackageInfoEntry(
                 identity: dependency.identity,
                 kind: "fileSystem",
