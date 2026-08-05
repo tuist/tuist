@@ -42,6 +42,13 @@ import (
 // running on the host until GC sweeps it. The standard finalizer
 // pattern lets us guarantee VM teardown completes before the Pod
 // disappears from the API server's perspective.
+//
+// NOTE: cluster-api-provider-tuist duplicates this literal as
+// macos.PodVMCleanupFinalizer (separate Go module, can't import this
+// internal package) to strip it from Pods stranded on a deleted Mac
+// mini. The two must stay equal; both are pinned to the literal by a
+// test (see TestPodFinalizerValue here and the capt-side counterpart).
+// If you rename this, update capt too.
 const (
 	PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
 
