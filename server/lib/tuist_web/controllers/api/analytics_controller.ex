@@ -458,13 +458,10 @@ defmodule TuistWeb.API.AnalyticsController do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
-    current_user = Authentication.current_user(conn)
-
     user_id =
-      if is_nil(current_user) do
-        nil
-      else
-        current_user.id
+      case Authentication.attributed_user(conn) do
+        nil -> nil
+        user -> user.id
       end
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)

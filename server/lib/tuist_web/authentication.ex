@@ -76,6 +76,38 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the user an ingested record should be attributed to, or `nil`.
+
+  Falls back to the user that authorized an account token. OAuth-issued account
+  tokens carry their issuer in `issued_by`, and authorization already leans on it
+  to scope an `all_projects: true` token to that user's organizations, so the
+  identity is both available and the right one to record. Without this fallback
+  every run uploaded by a CLI holding such a token is stored with no user and
+  surfaces as "Unknown" in the dashboard.
+
+  `issued_by` and not `created_by_account_id`: the two answer different questions
+  and only the first one attributes a run. `issued_by` is set from the token's
+  `user_id` claim, which is present only when the credential is that person's
+  own — it carries their identity, so it is the best available answer to "who
+  ran this". `created_by_account_id` records who once provisioned a shared
+  secret. The runs that secret uploads are not theirs, and attributing them
+  would put one person's name on every CI run in the account.
+
+  The clauses below are enumerated rather than closed with a catch-all: a
+  subject shape nobody taught this function about should raise, not resolve to
+  "attribute to nobody", which is the failure this function exists to fix.
+  """
+  def attributed_user(conn) do
+    case authenticated_subject(conn) do
+      %User{} = user -> user
+      %AuthenticatedAccount{issued_by: %User{} = user} -> user
+      %AuthenticatedAccount{} -> nil
+      %Project{} -> nil
+      nil -> nil
+    end
+  end
+
   def put_current_user(%Plug.Conn{} = conn, user) do
     assign(conn, @current_user_key, user)
   end
