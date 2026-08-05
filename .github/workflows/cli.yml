@@ -424,16 +424,20 @@ jobs:
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
       # target negotiates http/1.1 on its own, so only this hop needs forcing.
       - name: Front the registry with an HTTP/1.1 proxy
+        # The Swift image is slim: no curl, wget, nc or python3. bash is present,
+        # so the readiness probe uses its /dev/tcp support.
+        shell: bash
         run: |
           nohup mise x caddy -- caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            # Any HTTP response proves the listener is up. Deliberately not -f:
-            # a non-2xx here would mean the registry itself is unhappy, which is
-            # the resolve step's error to report with its own diagnostics, not a
-            # proxy startup failure to be reported as one.
-            if curl -s -o /dev/null -m 2 http://localhost:8080/; then
+            # A TCP connect proves the listener is up, which is all this step is
+            # responsible for. Upstream health is deliberately not asserted here:
+            # a degraded registry is the resolve step's error to report, with
+            # SwiftPM's own diagnostics, not a proxy startup failure.
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
               exit 0
             fi
             sleep 1
@@ -483,16 +487,20 @@ jobs:
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
       # target negotiates http/1.1 on its own, so only this hop needs forcing.
       - name: Front the registry with an HTTP/1.1 proxy
+        # The Swift image is slim: no curl, wget, nc or python3. bash is present,
+        # so the readiness probe uses its /dev/tcp support.
+        shell: bash
         run: |
           nohup mise x caddy -- caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
-            # Any HTTP response proves the listener is up. Deliberately not -f:
-            # a non-2xx here would mean the registry itself is unhappy, which is
-            # the resolve step's error to report with its own diagnostics, not a
-            # proxy startup failure to be reported as one.
-            if curl -s -o /dev/null -m 2 http://localhost:8080/; then
+            # A TCP connect proves the listener is up, which is all this step is
+            # responsible for. Upstream health is deliberately not asserted here:
+            # a degraded registry is the resolve step's error to report, with
+            # SwiftPM's own diagnostics, not a proxy startup failure.
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
               exit 0
             fi
             sleep 1
