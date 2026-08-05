@@ -5,6 +5,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event.Buffer
@@ -167,6 +168,159 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.status == :failure
       assert command_event.error_message == "An error occurred"
       assert command_event.user_id == user.id
+    end
+
+    test "attributes the command event to the user that authorized the account token", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:runs:write"],
+          all_projects: true,
+          issued_by: user
+        })
+        |> assign(:selected_project, project)
+        |> put_req_header("content-type", "application/json")
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.user_id == user.id
+    end
+
+    test "attributes the command event when the account token arrives as a bearer header", %{
+      conn: conn,
+      user: user
+    } do
+      # Drives the real pipeline rather than assigning the subject: the bug this
+      # guards against was a mismatch between what AuthenticationPlug assigns and
+      # what the controller reads, which a pre-assigned subject cannot surface.
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, access_token, _claims} =
+        Tuist.Authentication.encode_and_sign(
+          account,
+          %{
+            "type" => "account",
+            "scopes" => ["project:runs:write"],
+            "all_projects" => true,
+            "user_id" => user.id,
+            "preferred_username" => account.name
+          },
+          token_type: :access
+        )
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("authorization", "Bearer #{access_token}")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.user_id == user.id
+    end
+
+    test "leaves the command event unattributed when the token was minted for CI", %{
+      conn: conn,
+      user: user
+    } do
+      # A token created for CI records the account that minted it, but no person
+      # authorized the runs it uploads. Attributing those to its creator would put
+      # someone's name on every CI run in the account.
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:runs:write"],
+          all_projects: true,
+          token_id: Ecto.UUID.generate(),
+          created_by_account_id: account.id
+        })
+        |> assign(:selected_project, project)
+        |> put_req_header("content-type", "application/json")
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: true,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.user_id == nil
     end
 
     test "returns newly created command event when CI and authenticated as a project", %{
