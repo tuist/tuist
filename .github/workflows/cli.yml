@@ -413,14 +413,8 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
-      - name: Install curl
-        run: apt-get update -qq && apt-get install -y --no-install-recommends curl
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "caddy"
-          cache: "false"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
       # (see #12229), and the registry answers 303 to storage over h2. Terminating
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
@@ -428,7 +422,7 @@ jobs:
       - name: Front the registry with an HTTP/1.1 proxy
         shell: bash
         run: |
-          nohup mise x caddy -- caddy reverse-proxy \
+          nohup caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
@@ -472,14 +466,8 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
-      - name: Install curl
-        run: apt-get update -qq && apt-get install -y --no-install-recommends curl
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "caddy"
-          cache: "false"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
       # (see #12229), and the registry answers 303 to storage over h2. Terminating
       # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
@@ -487,7 +475,7 @@ jobs:
       - name: Front the registry with an HTTP/1.1 proxy
         shell: bash
         run: |
-          nohup mise x caddy -- caddy reverse-proxy \
+          nohup caddy reverse-proxy \
             --from :8080 --to https://tuist.dev --change-host-header \
             > /tmp/registry-proxy.log 2>&1 &
           for _ in $(seq 1 30); do
