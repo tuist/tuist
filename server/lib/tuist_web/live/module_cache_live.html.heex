@@ -30,6 +30,31 @@
         <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
+    <.dropdown
+      id="module-cache-analytics-branch-dropdown"
+      label={branch_label(@analytics_branch)}
+      secondary_text={dgettext("dashboard_cache", "Branch:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_cache", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-branch", "any")}"}
+        data-selected={@analytics_branch == "any"}
+      >
+        <:right_icon :if={@analytics_branch == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <%= if @cache_branches.ok? do %>
+        <.dropdown_item
+          :for={branch <- @cache_branches.result}
+          value={branch}
+          label={branch}
+          patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
+          data-selected={@analytics_branch == branch}
+        >
+          <:right_icon :if={@analytics_branch == branch}><.check /></:right_icon>
+        </.dropdown_item>
+      <% end %>
+    </.dropdown>
     <.date_picker
       id="module-cache-date-range-picker"
       name="analytics-date-range"
@@ -492,6 +517,111 @@
         />
       </:image>
     </.empty_card_section>
+  </.card>
+  <.card
+    title={dgettext("dashboard_cache", "Modules")}
+    icon="git_branch"
+    data-part="module-invalidation"
+  >
+    <:actions :if={@module_invalidations.ok? && not Enum.empty?(@module_invalidations.result)}>
+      <.button
+        variant="secondary"
+        size="small"
+        navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
+        label={dgettext("dashboard_cache", "View all modules")}
+      >
+        <:icon_right><.arrow_right /></:icon_right>
+      </.button>
+    </:actions>
+    <.card_section :if={!@module_invalidations.ok?} data-part="module-invalidation-skeleton">
+      <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      <.skeleton_box width="100%" height="44px" border_radius="8px" />
+      <.skeleton_box width="100%" height="44px" border_radius="8px" />
+    </.card_section>
+    <div
+      :if={@module_invalidations.ok? && not Enum.empty?(@module_invalidations.result)}
+      data-part="widgets"
+    >
+      <.widget
+        id="widget-most-invalidated-module"
+        title={dgettext("dashboard_cache", "Most invalidated")}
+        legend_color="destructive"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
+          )
+        }
+        value={@module_invalidations_summary.result.most_invalidated.name}
+      />
+      <.widget
+        id="widget-dependency-induced"
+        title={dgettext("dashboard_cache", "Dependency-induced")}
+        legend_color="secondary"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Share of invalidations caused only by a dependency changing rather than the module's own code (dependency-induced ÷ self + dependency-induced). This is the fraction better module boundaries can remove."
+          )
+        }
+        value={
+          dgettext("dashboard_cache", "%{share}%",
+            share: @module_invalidations_summary.result.dependency_induced_share
+          )
+        }
+      />
+      <.widget
+        :if={@module_invalidations_summary.result.widest_blast_radius}
+        id="widget-widest-blast-radius"
+        title={dgettext("dashboard_cache", "Widest blast radius")}
+        legend_color="primary"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "The module that invalidates the most other modules when it changes — the highest-impact target for better boundaries."
+          )
+        }
+        value={@module_invalidations_summary.result.widest_blast_radius.name}
+      />
+      <.widget
+        :if={!@module_invalidations_summary.result.widest_blast_radius}
+        id="widget-widest-blast-radius"
+        title={dgettext("dashboard_cache", "Widest blast radius")}
+        value=""
+        empty
+        empty_label={dgettext("dashboard_cache", "Needs CLI graph edges")}
+      />
+    </div>
+    <.card_section
+      :if={@module_invalidations.ok? && not Enum.empty?(@module_invalidations.result)}
+      data-part="module-invalidation-section"
+    >
+      <.module_invalidations_table
+        id="module-invalidations-table"
+        rows={Enum.take(@module_invalidations.result, 5)}
+        row_navigate={
+          fn module ->
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
+          end
+        }
+      />
+    </.card_section>
+    <div
+      :if={@module_invalidations.ok? && Enum.empty?(@module_invalidations.result)}
+      data-part="empty-module-invalidation"
+    >
+      <.empty_card_section
+        title={dgettext("dashboard_cache", "No invalidations yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </div>
   </.card>
   <.card title={dgettext("dashboard_cache", "Recent Runs")} icon="schema" data-part="recent-runs">
     <.card_section :if={!@runs.ok?} data-part="recent-runs-section">

@@ -334,6 +334,12 @@ defmodule TuistWeb.API.AnalyticsController do
                                ]
                              }
                            },
+                           dependencies: %Schema{
+                             type: :array,
+                             description:
+                               "Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.",
+                             items: %Schema{type: :string}
+                           },
                            binary_cache_metadata: %Schema{
                              type: :object,
                              description: "Binary cache metadata",
