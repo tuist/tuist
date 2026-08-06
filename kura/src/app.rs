@@ -747,11 +747,6 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         state.metrics.record_memory_action("extension_cache_trim");
                     }
                 }
-                // Replication delivery is never paused for memory pressure —
-                // see `outbox_task_loop`. Reported anyway so the series stays
-                // present and an operator can tell it kept running while other
-                // workers were shed.
-                state.metrics.update_background_work_paused("outbox", false);
                 state.metrics.update_background_work_paused(
                     "bootstrap",
                     !state.memory.allow_background_admission(),

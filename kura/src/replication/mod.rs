@@ -243,22 +243,35 @@ async fn outbox_task_loop(state: SharedState) {
         let notified = state.notify.notified();
         tokio::pin!(notified);
 
-        // Replication delivery runs at every pressure tier, including critical.
-        // It is not sheddable background work: the outbox is depth-capped
-        // (`KURA_OUTBOX_MAX_DEPTH`), and `reserve_outbox_slots` fails a cache
-        // write once that cap is reached, so a paused drain does not defer
-        // work — it converts sustained pressure into rejected writes, a
-        // permanently divergent node, and a cache that misses everything it
-        // could not replicate. The memory this could reclaim does not justify
-        // that: a delivery streams the body (`ReaderStream`, 4 KiB chunks)
-        // behind the bandwidth limiter and takes no transient reservation, so
-        // one in-flight message costs tens of KiB, bounded above by
-        // MAX_INLINE_REPLICATION_BODY_BYTES plus hyper's per-stream send
-        // buffer. The loop is serial and node-wide, so that ceiling does not
-        // scale with peer count or with backlog depth.
+        // Replication delivery runs at every pressure tier, and regardless of
+        // the container hard-limit arm. It is not sheddable background work:
+        // the outbox is depth-capped (`KURA_OUTBOX_MAX_DEPTH`) and
+        // `reserve_outbox_slots` fails a cache write once that cap is reached,
+        // so a paused drain does not defer work — it strands the queue and
+        // ends up rejecting writes.
         //
-        // The gauge is reported unconditionally so an operator can see that
-        // replication kept running while other workers were shed.
+        // The state that actually walks into the cap is
+        // `container_at_hard_limit() && pressure() != Critical`, which
+        // `container_at_hard_limit`'s own comment describes as routine for a
+        // warm serving node: writes keep being admitted while the old gate
+        // held the drain, because both write gates test only
+        // `pressure() == Critical` and test it *before* outbox depth
+        // (`http::reject_overloaded_public_writes`,
+        // `reapi::admission::reject_overloaded_grpc_writes`). At Critical
+        // those gates already refuse writes at the door, so the outbox is
+        // frozen rather than growing — pausing there stranded whatever was
+        // queued and bought nothing.
+        //
+        // The memory a pause could reclaim does not justify either case. The
+        // loop is serial and node-wide, so exactly one delivery is in flight
+        // regardless of peer count or backlog depth — a queued message costs
+        // RocksDB, not RAM — and it takes no transient reservation. That one
+        // delivery holds a single `SegmentReader` chunk (512 KiB) for a
+        // segment-backed artifact, or the whole value for an inline one,
+        // bounded by MAX_INLINE_REPLICATION_BODY_BYTES.
+        //
+        // Reported here rather than from the memory actuator so the sample
+        // tracks a pass that is actually running.
         state.metrics.update_background_work_paused("outbox", false);
         if let Err(error) = process_outbox(&state).await {
             warn!("outbox processing failed: {error}");
@@ -2119,6 +2132,89 @@ mod tests {
                 .expect("outbox should load")
                 .is_empty(),
             "a delivered message must leave the durable outbox"
+        );
+    }
+
+    /// The mesh-wide case: the receiver is also shedding, so
+    /// `reject_overloaded_internal_writes` 503s the delivery at the far end.
+    /// Draining unconditionally must not turn that into data loss — the
+    /// message stays queued and is retried on the normal cadence.
+    #[tokio::test]
+    async fn a_peer_shedding_replication_keeps_the_message_queued_for_retry() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+        remote
+            .state
+            .memory
+            .observe(remote.state.config.memory_hard_limit_bytes);
+        assert_eq!(
+            remote.state.memory.pressure(),
+            crate::memory::MemoryPressure::Critical
+        );
+
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let manifest = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: remote_url,
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: manifest.artifact_id,
+                    version_ms: manifest.version_ms,
+                    inline: false,
+                    branch: None,
+                    trunk: None,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        process_outbox(&local.state)
+            .await
+            .expect("a refused delivery must not fail the pass");
+
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a delivery the peer refused must stay queued for retry"
+        );
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "the shedding peer must not have stored the artifact"
         );
     }
 
