@@ -334,7 +334,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # that produced it, so a skippable failure drops only that path instead of the
   # required subtree that happened to lead to it.
   defp update_submodules_in(repository_directory, path_prefix, context) do
-    with {:ok, submodule_paths} <- submodule_paths(repository_directory) do
+    with {:ok, submodule_paths} <- submodule_paths(repository_directory, path_prefix) do
       Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
         update_submodule_tree(repository_directory, submodule_path, path_prefix, context)
       end)
@@ -343,24 +343,43 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   defp update_submodule_tree(repository_directory, submodule_path, path_prefix, context) do
     full_path = join_submodule_path(path_prefix, submodule_path)
+    submodule_directory = Path.join(repository_directory, submodule_path)
 
     case update_submodule(repository_directory, submodule_path, context.git_credentials) do
       :ok ->
-        repository_directory
-        |> Path.join(submodule_path)
-        |> update_submodules_in(full_path, context)
-        |> case do
-          :ok -> {:cont, :ok}
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
+        descend_into_submodule(submodule_directory, full_path, context)
 
       {:skip, output} ->
         handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output)
+
+      {:throttled, status, output} ->
+        {:halt, {:error, {:git_submodule_update_throttled, full_path, status, output}}}
 
       {:failed, status, output} ->
         {:halt, {:error, {:git_submodule_update_failed, full_path, status, output}}}
     end
   end
+
+  defp descend_into_submodule(submodule_directory, full_path, context) do
+    if submodule_checkout?(submodule_directory) do
+      case update_submodules_in(submodule_directory, full_path, context) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    else
+      {:cont, :ok}
+    end
+  end
+
+  # A zero exit status does not by itself mean the submodule was populated: a
+  # `.gitmodules` declaring `update = none` makes git report success while
+  # leaving the empty directory the superproject checkout created. Listing that
+  # directory finds the *superproject*, whose repository discovery walks up from
+  # the gitlink and renders the gitlink itself as the relative path `./`, so
+  # descending would re-enter the same directory without ever reaching a fixed
+  # point. Requiring a checkout of its own restores what `--recursive` did here,
+  # which was to skip the submodule and move on.
+  defp submodule_checkout?(directory), do: File.exists?(Path.join(directory, ".git"))
 
   defp join_submodule_path(nil, submodule_path), do: submodule_path
   defp join_submodule_path(path_prefix, submodule_path), do: "#{path_prefix}/#{submodule_path}"
@@ -408,25 +427,38 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             trimmed -> trimmed
           end
 
-        if skippable_submodule_failure?(output) do
-          {:skip, output}
-        else
-          {:failed, status, output}
+        case classify_submodule_failure(output) do
+          :permanent -> {:skip, output}
+          :transient -> {:throttled, status, output}
+          :unknown -> {:failed, status, output}
         end
     end
   end
+
+  @doc false
+  def skippable_submodule_failure?(output), do: classify_submodule_failure(output) == :permanent
 
   # Skipping is permanent: the release ships an archive that no longer contains
   # the submodule, so a host that is merely throttling us must not be read as one
   # that will never serve the repository. GitHub answers a throttled clone with
   # the same 403 it uses for a repository the token cannot see, and only the
-  # accompanying message tells the two apart.
-  @doc false
-  def skippable_submodule_failure?(output) do
+  # accompanying message tells the two apart. Throttling is kept distinct from an
+  # unclassified failure rather than folded into it, so the release can be
+  # deferred instead of retried against a host that has just asked us to slow
+  # down.
+  defp classify_submodule_failure(output) do
     downcased_output = String.downcase(output)
 
-    not Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) and
-      Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1))
+    cond do
+      Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :transient
+
+      Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :permanent
+
+      true ->
+        :unknown
+    end
   end
 
   defp remove_failed_submodule_contents(repository_directory, submodule_path) do
@@ -436,8 +468,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp submodule_paths(repository_directory) do
-    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage"], stderr_to_stdout: true) do
+  # `core.quotePath=false` keeps git from C-quoting paths that contain non-ASCII
+  # bytes, tabs or newlines: the quoted rendering (`"caf\303\251"`) is handed
+  # straight back to git as a pathspec, where it matches nothing, and to
+  # `File.rm_rf/1`, where it would silently delete nothing.
+  defp submodule_paths(repository_directory, path_prefix) do
+    case System.cmd("git", ["-c", "core.quotePath=false", "-C", repository_directory, "ls-files", "--stage"],
+           stderr_to_stdout: true
+         ) do
       {output, 0} ->
         paths =
           output
@@ -445,16 +483,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           |> Enum.filter(&String.starts_with?(&1, "160000"))
           |> Enum.map(fn line ->
             case String.split(line, "\t", parts: 2) do
-              [_, path] -> String.trim(path)
+              [_, path] -> path |> String.trim() |> String.trim_trailing("/")
               _ -> nil
             end
           end)
-          |> Enum.reject(&is_nil/1)
+          |> Enum.reject(&(&1 in [nil, "", "."]))
 
         {:ok, paths}
 
       {output, status} ->
-        {:error, {:git_list_submodules_failed, status, String.trim(output)}}
+        {:error, {:git_list_submodules_failed, path_prefix || ".", status, String.trim(output)}}
     end
   end
 
@@ -970,6 +1008,25 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp metadata_lock_backoff_ms(attempts_remaining) do
     step = @metadata_lock_max_attempts - attempts_remaining + 1
     @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
+  end
+
+  # Retrying re-clones the repository and every submodule already walked, aimed
+  # at a host that has just asked us to slow down, and reports each attempt
+  # separately. Deferring to the next sync tick is what `SyncWorker` already does
+  # with throttling responses, and the version stays unrecorded so that tick
+  # picks it up again.
+  defp maybe_skip_release(
+         scope,
+         name,
+         _full_handle,
+         version,
+         {:git_submodule_update_throttled, submodule_path, _status, _output} = reason
+       ) do
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version}: the host serving submodule #{submodule_path} is throttling requests"
+    )
+
+    {:discard, reason}
   end
 
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do

@@ -2,6 +2,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Ecto.Adapters.SQL.Sandbox
   alias ExAws.Operation.S3
   alias ExAws.S3.Upload
@@ -419,11 +421,73 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     refute ReleaseWorker.skippable_submodule_failure?(output)
   end
 
+  test "a throttling marker vetoes an otherwise permanent submodule failure" do
+    output = """
+    remote: Repository not found. Please try again later.
+    fatal: repository 'https://github.com/apple/swift-nio/' not found
+    """
+
+    # "repository not found" alone is permanent; the throttling hint must win.
+    assert ReleaseWorker.skippable_submodule_failure?("fatal: repository not found")
+    refute ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  test "treats a submodule host asking us to retry as a non-skippable failure" do
+    for marker <- ["Too Many Requests", "please try again later"] do
+      refute ReleaseWorker.skippable_submodule_failure?("fatal: repository not found\nremote: #{marker}")
+    end
+  end
+
   describe "update_submodules/1" do
     test "removes only the failing nested submodule and keeps the submodule that reached it" do
       root = Briefly.create!(directory: true)
       clone = superproject_clone_with_nested_submodule(root, nil)
 
+      log =
+        capture_log(fn ->
+          assert :ok =
+                   ReleaseWorker.update_submodules(%{
+                     destination: clone,
+                     repository_full_handle: "apple/swift-argument-parser",
+                     tag: "v1.0.0"
+                   })
+        end)
+
+      assert File.exists?(Path.join(clone, "Vendor/Required/README.md"))
+      refute File.exists?(Path.join(clone, "Vendor/Required/NestedDep"))
+      # The skip branch's only observable is this line, so the composed path is
+      # asserted here the way the error branch asserts its own.
+      assert log =~ "Skipping submodule Vendor/Required/NestedDep"
+    end
+
+    test "continues past a skipped submodule to the siblings that follow it" do
+      root = Briefly.create!(directory: true)
+      clone = superproject_clone_with_unresolvable_submodules(root, ["Vendor/First", "Vendor/Second"])
+
+      log =
+        capture_log(fn ->
+          assert :ok =
+                   ReleaseWorker.update_submodules(%{
+                     destination: clone,
+                     repository_full_handle: "apple/swift-argument-parser",
+                     tag: "v1.0.0"
+                   })
+        end)
+
+      # A walk that halted on the first skip would never reach the second, and
+      # with a single submodule per level `{:cont, :ok}` and `{:halt, :ok}` are
+      # indistinguishable.
+      assert log =~ "Skipping submodule Vendor/First"
+      assert log =~ "Skipping submodule Vendor/Second"
+    end
+
+    test "does not descend into a submodule git declined to populate" do
+      root = Briefly.create!(directory: true)
+      clone = superproject_clone_with_update_none_submodule(root)
+
+      # `update = none` makes git exit 0 without populating the directory.
+      # Listing it finds the superproject, which reports its gitlink back as
+      # `./`, so descending would re-enter the same directory forever.
       assert :ok =
                ReleaseWorker.update_submodules(%{
                  destination: clone,
@@ -431,8 +495,24 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
                  tag: "v1.0.0"
                })
 
-      assert File.exists?(Path.join(clone, "Vendor/Required/README.md"))
-      refute File.exists?(Path.join(clone, "Vendor/Required/NestedDep"))
+      assert File.dir?(Path.join(clone, "Vendor/Dep"))
+    end
+
+    test "defers the release when a submodule host is throttling us" do
+      stub(System, :cmd, fn "git", args, _opts ->
+        if "ls-files" in args do
+          {"160000 0123456789012345678901234567890123456789 0\tVendor/Throttled\n", 0}
+        else
+          {"remote: You have exceeded a secondary rate limit and have been temporarily blocked.", 1}
+        end
+      end)
+
+      assert {:error, {:git_submodule_update_throttled, "Vendor/Throttled", 1, _output}} =
+               ReleaseWorker.update_submodules(%{
+                 destination: "/nonexistent",
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
     end
 
     test "fails against the nested path instead of deleting the submodule that reached it" do
@@ -508,6 +588,55 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     # git announces `registered for path 'Vendor/Required'` ahead of any nested
     # failure in the same output.
     git!(clone, ["config", "--unset", "submodule.Vendor/Required.url"])
+
+    clone
+  end
+
+  # Gitlinks with no matching `.gitmodules` entry, which git rejects with the
+  # permanently skippable "no url found for submodule path".
+  defp superproject_clone_with_unresolvable_submodules(root, submodule_paths) do
+    superproject = Path.join(root, "superproject")
+    clone = Path.join(root, "clone")
+
+    init_git_repo(superproject)
+    File.write!(Path.join(superproject, "Package.swift"), @default_manifest_content)
+    git!(superproject, ["add", "Package.swift"])
+    git!(superproject, ["commit", "-m", "initial"])
+
+    for submodule_path <- submodule_paths do
+      git!(superproject, [
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        "160000,0123456789012345678901234567890123456789,#{submodule_path}"
+      ])
+    end
+
+    git!(superproject, ["commit", "-m", "add submodules"])
+    git!(root, ["clone", superproject, clone])
+
+    clone
+  end
+
+  defp superproject_clone_with_update_none_submodule(root) do
+    dependency = Path.join(root, "dependency")
+    superproject = Path.join(root, "superproject")
+    clone = Path.join(root, "clone")
+
+    init_git_repo(dependency)
+    File.write!(Path.join(dependency, "README.md"), "dependency")
+    git!(dependency, ["add", "README.md"])
+    git!(dependency, ["commit", "-m", "initial"])
+
+    init_git_repo(superproject)
+    File.write!(Path.join(superproject, "Package.swift"), @default_manifest_content)
+    git!(superproject, ["add", "Package.swift"])
+    git!(superproject, ["commit", "-m", "initial"])
+    git!(superproject, ["-c", "protocol.file.allow=always", "submodule", "add", dependency, "Vendor/Dep"])
+    git!(superproject, ["config", "-f", ".gitmodules", "submodule.Vendor/Dep.update", "none"])
+    git!(superproject, ["add", ".gitmodules"])
+    git!(superproject, ["commit", "-m", "add submodule with update = none"])
+    git!(root, ["clone", superproject, clone])
 
     clone
   end
