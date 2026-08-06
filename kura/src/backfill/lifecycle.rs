@@ -36,8 +36,9 @@ use crate::{
     },
     constants::{
         BACKFILL_CAP_POLL_INTERVAL_MS, BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET,
-        BACKFILL_PASS_RETRY_BACKOFF_BASE_MS, BACKFILL_PASS_RETRY_BACKOFF_MAX_MS,
-        BACKFILL_RETRYABLE_WAIT_CAP_MS, BACKFILL_SEAM_FOLLOWUP_DELAY_MS,
+        BACKFILL_NOT_CAPABLE_WAIT_CAP_MS, BACKFILL_PASS_RETRY_BACKOFF_BASE_MS,
+        BACKFILL_PASS_RETRY_BACKOFF_MAX_MS, BACKFILL_RETRYABLE_WAIT_CAP_MS,
+        BACKFILL_SEAM_FOLLOWUP_DELAY_MS,
     },
     state::{MembershipUpdate, SharedState},
     utils::now_ms,
@@ -748,6 +749,7 @@ async fn run_managed_pass(
         claims,
         cancel,
         Duration::from_millis(BACKFILL_RETRYABLE_WAIT_CAP_MS),
+        Duration::from_millis(BACKFILL_NOT_CAPABLE_WAIT_CAP_MS),
         Duration::from_millis(BACKFILL_CAP_POLL_INTERVAL_MS),
     )
     .await
@@ -762,6 +764,7 @@ async fn run_managed_pass_with_cap(
     claims: &Arc<ClaimSet>,
     cancel: &CancellationToken,
     retryable_wait_cap: Duration,
+    not_capable_wait_cap: Duration,
     cap_poll: Duration,
 ) -> PassResolution {
     // The pass start point (R7): requester wall clock at window computation
@@ -790,8 +793,10 @@ async fn run_managed_pass_with_cap(
 
     let guard = claims.register_pass();
     let retryable_wait_ms = Arc::new(AtomicU64::new(0));
+    let not_capable_wait_ms = Arc::new(AtomicU64::new(0));
     let mut tuning = BackfillPassTuning::from_config(&app.config);
     tuning.retryable_wait_observer = Some(retryable_wait_ms.clone());
+    tuning.not_capable_wait_observer = Some(not_capable_wait_ms.clone());
     app.metrics.record_backfill_pass_event("started");
 
     let mut pass = pin!(run_backfill_pass_with_tuning(
@@ -801,6 +806,15 @@ async fn run_managed_pass_with_cap(
     let outcome = tokio::select! {
         outcome = &mut pass => outcome,
         () = watch_retryable_wait_cap(&retryable_wait_ms, retryable_wait_cap, cap_poll) => {
+            cap_converted = true;
+            cancel.cancel();
+            pass.as_mut().await
+        }
+        // The not-capable class gets its own, much tighter cap: a 404 peer
+        // cannot become capable until its own binary is replaced, and under
+        // an OrderedReady rollout that replacement waits on THIS node's
+        // readiness — waiting out the shared cap is pure rollout stall.
+        () = watch_retryable_wait_cap(&not_capable_wait_ms, not_capable_wait_cap, cap_poll) => {
             cap_converted = true;
             cancel.cancel();
             pass.as_mut().await
@@ -1517,6 +1531,7 @@ mod tests {
             &claims,
             &cancel,
             Duration::from_millis(50),
+            Duration::from_millis(50),
             Duration::from_millis(10),
         )
         .await;
@@ -1555,6 +1570,7 @@ mod tests {
             &claims,
             &cancel,
             Duration::from_millis(50),
+            Duration::from_millis(50),
             Duration::from_millis(10),
         )
         .await;
@@ -1565,6 +1581,37 @@ mod tests {
                 budget_charge: Some(BudgetChargeKind::Real),
             }
         );
+    }
+
+    #[tokio::test]
+    async fn not_capable_peer_converts_under_its_own_cap_before_the_shared_cap() {
+        // The mixed-version rollout wedge: against a pre-AB peer the shared
+        // cap alone held first readiness for cap × failure budget (2.5 h in
+        // production terms). The not-capable class must convert under its own
+        // much tighter cap even when the shared cap is nowhere near firing.
+        let (peer_url, _server) = spawn_server(Router::new()).await;
+        let local = test_context(|_| {}).await;
+
+        let claims = ClaimSet::new();
+        let cancel = CancellationToken::new();
+        let resolution = run_managed_pass_with_cap(
+            &local.state,
+            &peer_url,
+            &claims,
+            &cancel,
+            Duration::from_secs(3_600),
+            Duration::from_millis(50),
+            Duration::from_millis(10),
+        )
+        .await;
+
+        assert_eq!(
+            resolution,
+            PassResolution::Cancelled {
+                budget_charge: Some(BudgetChargeKind::Capability),
+            }
+        );
+        assert!(claims.is_empty(), "cap cancellation released all claims");
     }
 
     #[tokio::test]

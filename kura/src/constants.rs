@@ -260,8 +260,19 @@ pub const BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET: u32 = 5;
 // index build on a large peer without holding first readiness open
 // indefinitely.
 pub const BACKFILL_RETRYABLE_WAIT_CAP_MS: u64 = 30 * 60 * 1000;
-// Poll cadence of the cap watchdog above. Coarse is fine: the cap is a
-// livelock backstop measured in minutes, not a precise deadline.
+// Tighter wall-clock cap on the not-capable class alone. A 404 means the peer
+// permanently lacks the backfill routes until its own binary is replaced —
+// and under an OrderedReady rolling update that replacement is *blocked
+// behind this node's readiness*, so unlike an index build there is nothing to
+// politely wait out: every second spent in this class is pure rollout stall.
+// With the shared 30-minute cap a quiet mesh (empty recency ring, so the
+// ring-fullness readiness arm can't open) held first readiness for cap ×
+// failure budget = 2.5 h per updated pod on a mixed-version fleet. One minute
+// still absorbs 404 blips from a peer mid-restart while converting a genuine
+// pre-AB peer to a capability charge in minutes, not hours.
+pub const BACKFILL_NOT_CAPABLE_WAIT_CAP_MS: u64 = 60 * 1000;
+// Poll cadence of the cap watchdogs above. Coarse is fine: the caps are
+// livelock backstops measured in minutes, not precise deadlines.
 pub const BACKFILL_CAP_POLL_INTERVAL_MS: u64 = 1_000;
 // Bounded backoff between passes over a peer whose previous pass was
 // budget-charged. Distinct from BACKFILL_RETRY_BACKOFF_* (which paces

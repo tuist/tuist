@@ -153,6 +153,10 @@ pub struct BackfillPassTuning {
     /// accrues so the lifecycle's wall-clock-cap watchdog can observe a pass
     /// mid-flight (the outcome's stats only arrive at termination).
     pub retryable_wait_observer: Option<Arc<AtomicU64>>,
+    /// Same mirror, restricted to the not-capable class, feeding the tighter
+    /// not-capable cap watchdog (a 404 peer cannot heal without its own
+    /// binary swap, so its waits convert to a capability charge much sooner).
+    pub not_capable_wait_observer: Option<Arc<AtomicU64>>,
 }
 
 impl BackfillPassTuning {
@@ -164,6 +168,7 @@ impl BackfillPassTuning {
             retry_backoff_max: Duration::from_millis(BACKFILL_RETRY_BACKOFF_MAX_MS),
             page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
             retryable_wait_observer: None,
+            not_capable_wait_observer: None,
         }
     }
 }
@@ -1471,6 +1476,11 @@ async fn retry_backoff(
     if let Some(observer) = &context.tuning.retryable_wait_observer {
         observer.fetch_add(delay.as_millis() as u64, Ordering::Relaxed);
     }
+    if class == "not_capable"
+        && let Some(observer) = &context.tuning.not_capable_wait_observer
+    {
+        observer.fetch_add(delay.as_millis() as u64, Ordering::Relaxed);
+    }
     cancellable(context, sleep(delay)).await
 }
 
@@ -1547,6 +1557,7 @@ mod tests {
             retry_backoff_max: Duration::from_millis(40),
             page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
             retryable_wait_observer: None,
+            not_capable_wait_observer: None,
         }
     }
 
