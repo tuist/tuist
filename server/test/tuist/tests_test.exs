@@ -9190,6 +9190,53 @@ defmodule Tuist.TestsTest do
              ) == :eq
     end
 
+    test "an automation re-quarantine is not attributed to an earlier manual actor" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "automationRequarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      automation_muted_at = NaiveDateTime.add(now, -1200)
+
+      # A manual quarantine episode, reverted, then an automation (nil actor)
+      # re-quarantines. ClickHouse aggregates skip NULLs, so a bare argMax
+      # would resurrect the manual actor here.
+      for {event_type, actor_id, inserted_at} <- [
+            {"skipped", user.account.id, NaiveDateTime.add(now, -3600)},
+            {"unskipped", user.account.id, NaiveDateTime.add(now, -2400)},
+            {"muted", nil, automation_muted_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          actor_id: actor_id,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_test.quarantined_by_account_id == nil
+      assert quarantined_test.quarantined_by_account_name == nil
+
+      # A nil actor is also what an unmatched left join yields, so the
+      # timestamp is what pins the aggregate to the automation event — and
+      # proves attribution and `quarantined_at` describe the same one.
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(automation_muted_at, :second)
+             ) == :eq
+    end
+
     test "quarantined_at resets when the quarantine mode changes" do
       project = ProjectsFixtures.project_fixture()
       now = NaiveDateTime.utc_now()
@@ -9528,6 +9575,41 @@ defmodule Tuist.TestsTest do
       actors = Tests.get_quarantine_actors(project.id)
 
       assert actors == []
+    end
+
+    test "excludes an actor whose manual quarantine an automation has superseded" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "automationRequarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # The dropdown must not offer a user whose only attribution is a manual
+      # episode they reverted themselves before an automation re-quarantined.
+      # Every other test here has a single event per test case, which resolves
+      # the same way with or without the NULL-aware aggregate.
+      for {event_type, actor_id, inserted_at} <- [
+            {"skipped", user.account.id, NaiveDateTime.add(now, -3600)},
+            {"unskipped", user.account.id, NaiveDateTime.add(now, -2400)},
+            {"muted", nil, NaiveDateTime.add(now, -1200)}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          actor_id: actor_id,
+          inserted_at: inserted_at
+        )
+      end
+
+      assert Tests.get_quarantine_actors(project.id) == []
     end
 
     test "returns accounts that have quarantined test cases" do
