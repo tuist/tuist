@@ -3080,8 +3080,8 @@ defmodule Tuist.Tests do
         where: e.test_case_id in subquery(quarantined_ids_subquery),
         where: e.event_type in ^@active_quarantine_event_types,
         group_by: e.test_case_id,
-        having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
-        select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
+        having: fragment("tupleElement(argMax(tuple(?), ?), 1) IS NOT NULL", e.actor_id, e.inserted_at),
+        select: fragment("tupleElement(argMax(tuple(?), ?), 1)", e.actor_id, e.inserted_at)
       )
       |> ClickHouseRepo.all()
       |> Enum.uniq()
@@ -3094,9 +3094,16 @@ defmodule Tuist.Tests do
   end
 
   # The latest active quarantine event per test case: who quarantined it and
-  # when. `argMax` and `max` resolve to the same event, because for a currently
+  # when. Both aggregates resolve to the same event, because for a currently
   # quarantined test case the most recent `muted`/`skipped` event is the one
   # that put it in that state.
+  #
+  # `actor_id` is wrapped in `tuple(...)` because ClickHouse aggregates skip
+  # NULL arguments: a bare `argMax(actor_id, inserted_at)` ignores
+  # automation-written events (NULL actor) and resurrects the last *human*
+  # actor — e.g. a test muted by an automation showed the user who had
+  # manually skipped it months earlier. A tuple is never NULL, so `argMax`
+  # considers every event and NULL correctly wins as "quarantined by Tuist".
   defp quarantine_info_subquery(project_id) do
     from(e in TestCaseEvent,
       where: e.project_id == ^project_id,
@@ -3104,7 +3111,7 @@ defmodule Tuist.Tests do
       group_by: e.test_case_id,
       select: %{
         test_case_id: e.test_case_id,
-        actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at),
+        actor_id: fragment("tupleElement(argMax(tuple(?), ?), 1)", e.actor_id, e.inserted_at),
         quarantined_at: max(e.inserted_at)
       }
     )
