@@ -62,7 +62,6 @@ const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
 const BOOTSTRAP_BACKPRESSURE_RETRY_BASE_MS: u64 = 250;
 const BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS: u64 = 5_000;
 const BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS: u64 = 250;
-const OUTBOX_DRAIN_PAUSED_ACTION: &str = "outbox_drain_paused";
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -244,11 +243,24 @@ async fn outbox_task_loop(state: SharedState) {
         let notified = state.notify.notified();
         tokio::pin!(notified);
 
-        let pause_outbox = state.memory.pause_outbox();
-        state
-            .metrics
-            .update_background_work_paused("outbox", pause_outbox);
-        if !pause_outbox && let Err(error) = process_outbox(&state).await {
+        // Replication delivery runs at every pressure tier, including critical.
+        // It is not sheddable background work: the outbox is depth-capped
+        // (`KURA_OUTBOX_MAX_DEPTH`), and `reserve_outbox_slots` fails a cache
+        // write once that cap is reached, so a paused drain does not defer
+        // work — it converts sustained pressure into rejected writes, a
+        // permanently divergent node, and a cache that misses everything it
+        // could not replicate. The memory this could reclaim does not justify
+        // that: a delivery streams the body (`ReaderStream`, 4 KiB chunks)
+        // behind the bandwidth limiter and takes no transient reservation, so
+        // one in-flight message costs tens of KiB, bounded above by
+        // MAX_INLINE_REPLICATION_BODY_BYTES plus hyper's per-stream send
+        // buffer. The loop is serial and node-wide, so that ceiling does not
+        // scale with peer count or with backlog depth.
+        //
+        // The gauge is reported unconditionally so an operator can see that
+        // replication kept running while other workers were shed.
+        state.metrics.update_background_work_paused("outbox", false);
+        if let Err(error) = process_outbox(&state).await {
             warn!("outbox processing failed: {error}");
         }
 
@@ -1336,12 +1348,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
 
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
-        if state.memory.pause_outbox() {
-            state
-                .metrics
-                .record_memory_action(OUTBOX_DRAIN_PAUSED_ACTION);
-            return Ok(());
-        }
         after = Some(message_key.clone());
 
         // Messages for a peer that left the mesh can never be delivered and
@@ -2035,39 +2041,84 @@ mod tests {
         }
     }
 
+    /// Replication is not sheddable under memory pressure. The outbox is
+    /// depth-capped and a full outbox rejects cache writes, so pausing the
+    /// drain trades a few tens of KiB for rejected writes and a permanently
+    /// divergent node.
     #[tokio::test]
-    async fn process_outbox_preserves_backlog_when_memory_becomes_critical() {
+    async fn process_outbox_delivers_under_critical_memory_pressure() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
         let local = test_context(|_| {}).await;
         local
             .state
             .store
-            .enqueue(stale_target_message("https://peer.test:7443"))
-            .expect("enqueue should succeed");
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let manifest = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: remote_url,
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: manifest.artifact_id,
+                    version_ms: manifest.version_ms,
+                    inline: false,
+                    branch: None,
+                    trunk: None,
+                },
+            })
+            .expect("upsert should enqueue");
+
         local
             .state
             .memory
             .observe(local.state.config.memory_hard_limit_bytes);
+        assert_eq!(
+            local.state.memory.pressure(),
+            crate::memory::MemoryPressure::Critical
+        );
 
         process_outbox(&local.state)
             .await
-            .expect("critical pressure should pause without failing");
+            .expect("outbox processing should succeed under critical pressure");
 
-        assert_eq!(
+        remote
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("critical pressure must not stop replication");
+
+        assert!(
             local
                 .state
                 .store
                 .outbox_messages()
                 .expect("outbox should load")
-                .len(),
-            1,
-            "paused replication must leave its durable message queued"
-        );
-        assert!(
-            local
-                .state
-                .metrics
-                .render()
-                .contains("kura_memory_actions_total_total{action=\"outbox_drain_paused\"} 1")
+                .is_empty(),
+            "a delivered message must leave the durable outbox"
         );
     }
 

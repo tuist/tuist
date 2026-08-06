@@ -318,7 +318,13 @@ impl MemoryController {
         self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
     }
 
-    pub fn pause_outbox(&self) -> bool {
+    /// Gates the *usage* (metering) outbox only. Replication delivery is
+    /// deliberately never paused: its durable backlog is bounded by
+    /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache
+    /// writes, so pausing it converts a memory problem into a correctness and
+    /// availability one. Metering has no such feedback — a delayed usage batch
+    /// costs nothing but freshness — so it stays sheddable.
+    pub fn pause_usage_outbox(&self) -> bool {
         self.pressure() == MemoryPressure::Critical || self.container_at_hard_limit()
     }
 
@@ -1016,7 +1022,7 @@ mod tests {
         assert!(!controller.allow_background_admission());
         assert!(!controller.allow_segment_refresh());
         assert!(!controller.allow_manifest_cache_admission());
-        assert!(controller.pause_outbox());
+        assert!(controller.pause_usage_outbox());
         assert!(
             controller.allow_transient_admission(AdmissionClass::Foreground),
             "clean file cache at the hard watermark must not shed public reads"
