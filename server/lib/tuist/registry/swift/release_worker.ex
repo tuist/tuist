@@ -44,7 +44,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "repository not found",
     "does not appear to be a git repository",
     "the requested url returned error: 404",
-    "the requested url returned error: 403",
     "write access to repository not granted",
     "fatal: could not read username for",
     "not our ref",
@@ -60,6 +59,20 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "temporarily blocked",
     "try again later"
   ]
+
+  # Git renders an HTTP failure as the bare status line and only relays the
+  # host's explanation when the error body is `text/plain`, so a throttled host
+  # serving HTML or an empty body matches none of the prose markers above.
+  # Matching the status itself is what covers those.
+  @transient_http_statuses ~w(429 502 503 504)
+
+  # GitHub answers a throttled clone with the same 403 it uses for a repository
+  # the token cannot see, so a 403 from it says nothing durable. Elsewhere a 403
+  # is an access-control decision that will not change on retry, which is how
+  # Gerrit hosts such as review.mlplatform.org refuse anonymous clones. A
+  # private GitHub repository the token cannot see answers 404, which is already
+  # classified permanent, so scoping this away from GitHub loses no coverage.
+  @ambiguous_forbidden_hosts ["github.com"]
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -410,6 +423,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
                "--init",
                "--depth",
                "1",
+               "--",
                submodule_path
              ],
            stderr_to_stdout: true,
@@ -453,12 +467,41 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
         :transient
 
+      http_status(downcased_output) in @transient_http_statuses ->
+        :transient
+
       Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :permanent
+
+      forbidden_by_policy?(downcased_output) ->
         :permanent
 
       true ->
         :unknown
     end
+  end
+
+  defp http_status(downcased_output) do
+    case Regex.run(~r/returned error: (\d{3})/, downcased_output, capture: :all_but_first) do
+      [status] -> status
+      _ -> nil
+    end
+  end
+
+  # Git reports the refused URL and its status on one line, so the host that
+  # denied us is read from that line rather than from anywhere else in the
+  # output, which may mention several remotes.
+  defp forbidden_by_policy?(downcased_output) do
+    case Regex.run(~r/unable to access '([^']+)'[^\n]*returned error: 403/, downcased_output, capture: :all_but_first) do
+      [url] -> not ambiguous_forbidden_host?(url)
+      _ -> false
+    end
+  end
+
+  defp ambiguous_forbidden_host?(url) do
+    host = URI.parse(url).host || ""
+
+    Enum.any?(@ambiguous_forbidden_hosts, &(host == &1 or String.ends_with?(host, "." <> &1)))
   end
 
   defp remove_failed_submodule_contents(repository_directory, submodule_path) do
@@ -468,26 +511,29 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  # `core.quotePath=false` keeps git from C-quoting paths that contain non-ASCII
-  # bytes, tabs or newlines: the quoted rendering (`"caf\303\251"`) is handed
-  # straight back to git as a pathspec, where it matches nothing, and to
-  # `File.rm_rf/1`, where it would silently delete nothing.
+  # `-z` is what keeps the path usable rather than merely readable: without it
+  # git C-quotes any path containing non-ASCII bytes, quotes, backslashes or
+  # control characters, and the quoted rendering (`"caf\303\251"`) is handed
+  # straight back to git as a pathspec that matches nothing and to
+  # `File.rm_rf/1`, where a skip would delete nothing. NUL termination also
+  # means a path may be taken verbatim, since trimming would corrupt the paths
+  # git emits with leading or trailing whitespace.
   defp submodule_paths(repository_directory, path_prefix) do
-    case System.cmd("git", ["-c", "core.quotePath=false", "-C", repository_directory, "ls-files", "--stage"],
-           stderr_to_stdout: true
-         ) do
+    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage", "-z"], stderr_to_stdout: true) do
       {output, 0} ->
         paths =
           output
-          |> String.split("\n", trim: true)
+          |> String.split(<<0>>, trim: true)
           |> Enum.filter(&String.starts_with?(&1, "160000"))
-          |> Enum.map(fn line ->
-            case String.split(line, "\t", parts: 2) do
-              [_, path] -> path |> String.trim() |> String.trim_trailing("/")
+          |> Enum.map(fn record ->
+            case String.split(record, "\t", parts: 2) do
+              [_, path] -> path
               _ -> nil
             end
           end)
-          |> Enum.reject(&(&1 in [nil, "", "."]))
+          # A submodule git left unpopulated lists the superproject's own gitlink
+          # back as `./`, which would walk the tree into itself.
+          |> Enum.reject(&(&1 in [nil, "", ".", "./"]))
 
         {:ok, paths}
 

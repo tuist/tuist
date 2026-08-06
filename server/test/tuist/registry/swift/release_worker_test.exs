@@ -412,6 +412,84 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert ReleaseWorker.skippable_submodule_failure?(output)
   end
 
+  test "discards the job when a submodule host throttles the clone" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, @default_manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:ok, "[submodule \"Vendor/Dep\"]\n\tpath = Vendor/Dep\n\turl = https://example.com/dep.git\n"}
+    end)
+
+    stub_git(fn args ->
+      cond do
+        "clone" in args -> {"", 0}
+        "ls-files" in args -> {gitlink_record("Vendor/Dep"), 0}
+        true -> {"fatal: unable to access 'https://example.com/dep/': The requested URL returned error: 429", 1}
+      end
+    end)
+
+    # The version must be left in neither releases nor skipped_releases, which is
+    # what lets the next sync tick pick it up again.
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write") end)
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+
+    assert {:discard, {:git_submodule_update_throttled, "Vendor/Dep", 1, _output}} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "does not treat a bare 403 from GitHub as permanent, since it also means throttling" do
+    # Git only relays a host's explanation when the error body is text/plain, so
+    # a throttled GitHub clone can arrive as the status line alone.
+    output = """
+    fatal: unable to access 'https://github.com/apple/swift-nio/': The requested URL returned error: 403
+    fatal: clone of 'https://github.com/apple/swift-nio' into submodule path 'Vendor/NIO' failed
+    """
+
+    refute ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  test "defers rather than retries when a submodule host returns a bare throttling status" do
+    # Asserting the throttled tag rather than `refute skippable?` is what
+    # separates deferral from an unclassified failure, which would instead be
+    # retried against the host that is already throttling us.
+    for status <- ["429", "502", "503", "504"] do
+      stub_git(fn args ->
+        if "ls-files" in args do
+          {gitlink_record("Vendor/Dep"), 0}
+        else
+          {"fatal: unable to access 'https://example.com/dep/': The requested URL returned error: #{status}", 1}
+        end
+      end)
+
+      assert {:error, {:git_submodule_update_throttled, "Vendor/Dep", 1, _output}} =
+               ReleaseWorker.update_submodules(%{
+                 destination: "/nonexistent",
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+    end
+  end
+
   test "does not treat a throttled submodule host as a skippable submodule failure" do
     output = """
     remote: You have exceeded a secondary rate limit and have been temporarily blocked from content creation.
@@ -499,9 +577,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     end
 
     test "defers the release when a submodule host is throttling us" do
-      stub(System, :cmd, fn "git", args, _opts ->
+      stub_git(fn args ->
         if "ls-files" in args do
-          {"160000 0123456789012345678901234567890123456789 0\tVendor/Throttled\n", 0}
+          {gitlink_record("Vendor/Throttled"), 0}
         else
           {"remote: You have exceeded a secondary rate limit and have been temporarily blocked.", 1}
         end
@@ -513,6 +591,65 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
                  repository_full_handle: "apple/swift-argument-parser",
                  tag: "v1.0.0"
                })
+    end
+
+    test "never hands git a self-referential index entry" do
+      # An unpopulated submodule lists the superproject's gitlink back as `./`.
+      # This pins the index-parsing guard on its own: the checkout guard cannot
+      # absorb it, because the entry is dropped before anything is descended into.
+      stub_git(fn args ->
+        if "ls-files" in args, do: {gitlink_record("./"), 0}, else: {"", 0}
+      end)
+
+      assert :ok =
+               ReleaseWorker.update_submodules(%{
+                 destination: "/nonexistent",
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+
+      assert [["-C", "/nonexistent", "ls-files", "--stage", "-z"]] == git_invocations()
+    end
+
+    test "does not list a submodule directory git left unpopulated" do
+      # This pins the checkout guard on its own: the path is well-formed, so the
+      # index-parsing guard has nothing to reject, and only the missing `.git`
+      # stops the descent.
+      stub_git(fn args ->
+        if "ls-files" in args, do: {gitlink_record("Vendor/Declined"), 0}, else: {"Skipping submodule", 0}
+      end)
+
+      assert :ok =
+               ReleaseWorker.update_submodules(%{
+                 destination: "/nonexistent",
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+
+      refute Enum.any?(git_invocations(), &Enum.member?(&1, "/nonexistent/Vendor/Declined"))
+    end
+
+    test "initializes each submodule shallowly and passes its path as a pathspec" do
+      stub_git(fn args ->
+        if "ls-files" in args, do: {gitlink_record("Vendor/Dep"), 0}, else: {"", 0}
+      end)
+
+      assert :ok =
+               ReleaseWorker.update_submodules(%{
+                 destination: "/nonexistent",
+                 repository_full_handle: "apple/swift-argument-parser",
+                 tag: "v1.0.0"
+               })
+
+      update_args = Enum.find(git_invocations(), &("update" in &1))
+
+      # `--init` is what makes the walk populate each level itself, now that no
+      # single invocation recurses through the tree; `--` keeps a submodule path
+      # beginning with `-` from being read as an option.
+      assert Enum.take(update_args, -9) ==
+               ["-C", "/nonexistent", "submodule", "update", "--init", "--depth", "1", "--", "Vendor/Dep"]
+
+      refute "--recursive" in update_args
     end
 
     test "fails against the nested path instead of deleting the submodule that reached it" do
@@ -591,6 +728,27 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
 
     clone
   end
+
+  # Records each git invocation so a test can assert on the commands the walk
+  # issues, which is the only observable for the guards that stop it descending.
+  defp stub_git(handler) do
+    test_pid = self()
+
+    stub(System, :cmd, fn "git", args, _opts ->
+      send(test_pid, {:git, args})
+      handler.(args)
+    end)
+  end
+
+  defp git_invocations do
+    receive do
+      {:git, args} -> [args | git_invocations()]
+    after
+      0 -> []
+    end
+  end
+
+  defp gitlink_record(path), do: "160000 0123456789012345678901234567890123456789 0\t#{path}" <> <<0>>
 
   # Gitlinks with no matching `.gitmodules` entry, which git rejects with the
   # permanently skippable "no url found for submodule path".
