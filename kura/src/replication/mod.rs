@@ -2056,8 +2056,8 @@ mod tests {
 
     /// Replication is not sheddable under memory pressure. The outbox is
     /// depth-capped and a full outbox rejects cache writes, so pausing the
-    /// drain trades a few tens of KiB for rejected writes and a permanently
-    /// divergent node.
+    /// drain trades one in-flight delivery's buffer for rejected writes and a
+    /// node that stays divergent from its peers.
     #[tokio::test]
     async fn process_outbox_delivers_under_critical_memory_pressure() {
         let remote = test_context(|_| {}).await;
