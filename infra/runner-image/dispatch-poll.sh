@@ -614,7 +614,8 @@ VOLUME_HEAD_UPLOAD_TIMEOUT=600
 
 # report_volume_head publishes this job's warm set as the account's new HEAD on a
 # successful, cache-changing job, in three steps:
-#   1. mint a presigned PUT URL keyed by THIS job's inventory digest,
+#   1. mint a presigned PUT URL keyed by THIS job's inventory digest, sending the
+#      base generation so the server can pre-empt a promote that cannot win,
 #   2. PUT the settled image to it,
 #   3. bump the account's HEAD to that digest.
 #
@@ -638,17 +639,41 @@ report_volume_head() {
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
 
+  local base_generation
+  base_generation=$(read_base_generation)
+
   # Mint the content-addressed upload URL for this digest. The server binds it to
   # the account this Pod ran (server-stamped label) and rejects a non-hex digest,
   # so the guest cannot target another account or escape its prefix.
-  local upload_url
-  upload_url=$(curl -fsS --connect-timeout 10 --max-time 30 -X POST \
+  #
+  # The base generation rides along so the server can PRE-EMPT the upload: most
+  # promotes lose the fast-forward under cross-host contention, and paying for a
+  # multi-GB PUT first meant that loss still held the VM (and the host's slot)
+  # open for the whole transfer. A 409 here means the base has already been
+  # advanced past, so this promote is certain to be rejected and there is nothing
+  # to gain by uploading. It is only an optimization — the bump below stays the
+  # authority, and another host can still win in the window between the two — so
+  # every other outcome falls through to the upload-then-arbitrate path.
+  #
+  # Status captured explicitly instead of `curl -f` so the 409 is distinguishable
+  # from a transport failure, which must NOT be recorded as contention.
+  local mint_body mint_http upload_url
+  mint_body=$(mktemp 2>/dev/null || echo "/tmp/volhead-mint.$$")
+  mint_http=$(curl -sS --connect-timeout 10 --max-time 30 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" \
-    "${VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT}" 2>/dev/null \
-    | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    -o "${mint_body}" -w '%{http_code}' \
+    "${VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT}" 2>/dev/null)
+  if [ "${mint_http}" = "409" ]; then
+    rm -f "${mint_body}" 2>/dev/null || true
+    write_promote_result "conflict"
+    echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD already advanced past base=${base_generation}; image not uploaded"
+    return 0
+  fi
+  upload_url=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${mint_body}" 2>/dev/null)
+  rm -f "${mint_body}" 2>/dev/null || true
   if [ -z "${upload_url}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL; HEAD not advanced"
+    echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL (http=${mint_http:-000}); HEAD not advanced"
     write_promote_result "error"
     return 0
   fi
@@ -690,9 +715,10 @@ report_volume_head() {
   # same failure — so the host can distinguish a genuine fast-forward rejection
   # (cross-host contention) from an upload/network/control-plane failure. On 200
   # the host installs the branch as its local master at the accepted generation;
-  # on 409 or error it discards and re-converges.
-  local base_generation body http_code promoted_generation
-  base_generation=$(read_base_generation)
+  # on 409 or error it discards and re-converges. The mint above pre-empts the
+  # common stale-base case, but this is still where the outcome is decided: the
+  # HEAD can have moved during the upload that just ran.
+  local body http_code promoted_generation
   body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
   http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
