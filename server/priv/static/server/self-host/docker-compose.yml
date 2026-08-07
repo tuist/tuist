@@ -58,6 +58,8 @@ services:
       - "${CLICKHOUSE_NATIVE_PORT:-9004}:9000"
     volumes:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/tuist.xml:ro
+      - ./clickhouse-log-level.xml:/etc/clickhouse-server/config.d/tuist-log-level.xml:ro
+      - ./clickhouse-log-ttl.xml:/etc/clickhouse-server/config.d/tuist-log-ttl.xml:ro
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
       # BusyBox wget, which is what the alpine image ships, has no --user or
@@ -79,18 +81,39 @@ services:
     environment:
       CLICKHOUSE_USER: tuist
       CLICKHOUSE_PASSWORD: tuist
-      CLICKHOUSE_SYSTEM_LOG_TTL: "event_date + INTERVAL ${CLICKHOUSE_SYSTEM_LOG_TTL_DAYS:-14} DAY DELETE"
+      # ClickHouse rotates a system log table aside to `<name>_N` and starts a
+      # fresh one whenever the table definition stops matching the config — on a
+      # CLICKHOUSE_SYSTEM_LOG_TTL_DAYS change, and on any ClickHouse upgrade that
+      # changes a system log schema. It never reclaims those generations.
+      #   ignore: leave them in place (default; reclaim them yourself)
+      #   delete: drop them on every start
+      #   move:   copy the rows back into the live table, then drop
+      CLICKHOUSE_ROTATED_LOG_TABLES: ${CLICKHOUSE_ROTATED_LOG_TABLES:-ignore}
     entrypoint:
       - /bin/sh
       - -ec
       - |
-        # The config drop-in only applies TTLs to system log tables ClickHouse
-        # creates from now on, so existing installs need this ALTER. ClickHouse
-        # has no ALTER TABLE IF EXISTS, and it materializes each system log
-        # table lazily, so ask which ones are actually there first.
-        tables=$$(clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" --query "SELECT name FROM system.tables WHERE database = 'system' AND name IN ('text_log', 'query_log', 'query_thread_log', 'query_views_log', 'trace_log', 'metric_log', 'asynchronous_metric_log', 'part_log')")
+        [ "$$CLICKHOUSE_ROTATED_LOG_TABLES" = "ignore" ] && exit 0
+        ch() { clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" "$$@"; }
+        # Every `<name>_N` table qualifies, including generations of tables the
+        # config cannot declare at all. ClickHouse stops managing a table once it
+        # rotates it aside, so these are inert copies no query targets.
+        tables=$$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$$')")
         for table in $$tables; do
-          clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" --query "ALTER TABLE system.$${table} MODIFY TTL $${CLICKHOUSE_SYSTEM_LOG_TTL}"
+          base=$$(echo "$$table" | sed -E 's/_[0-9]+$$//')
+          if [ "$$CLICKHOUSE_ROTATED_LOG_TABLES" = "move" ]; then
+            # A rotation caused by a ClickHouse upgrade changes the schema, so
+            # the columns will not line up and the INSERT would fail partway.
+            sig() { ch --query "SELECT cityHash64(groupArray((name, type))) FROM (SELECT name, type FROM system.columns WHERE database='system' AND table='$$1' ORDER BY name)"; }
+            if [ "$$(sig "$$base")" != "$$(sig "$$table")" ]; then
+              echo "skipping system.$$table: schema differs from system.$$base"
+              continue
+            fi
+            echo "moving system.$$table into system.$$base"
+            ch --query "INSERT INTO system.\`$$base\` SELECT * FROM system.\`$$table\`"
+          fi
+          echo "dropping system.$$table"
+          ch --query "DROP TABLE system.\`$$table\`"
         done
 
   minio:

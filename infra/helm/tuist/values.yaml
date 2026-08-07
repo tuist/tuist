@@ -2363,6 +2363,18 @@ clickhouse:
       # system.text_log quickly; lower it back only while investigating
       # ClickHouse itself. Takes effect when the ClickHouse pod next restarts.
       level: information
+      # ClickHouse rotates a system log table aside to `<name>_N` and starts a
+      # fresh one whenever the table definition stops matching the config —
+      # on a retention change here, and on any ClickHouse upgrade that changes
+      # a system log schema. It never reclaims those generations, so on a
+      # long-lived install they accumulate and can dwarf the live tables.
+      #   ignore: leave them in place (default; reclaim them yourself)
+      #   delete: drop them after each upgrade
+      #   move:   copy the rows back into the live table, then drop
+      # `move` needs transient disk for the copy and is skipped for any table
+      # whose schema no longer matches, so it only applies to rotations caused
+      # by a retention change. `delete` is instant and needs no extra space.
+      rotatedTables: ignore
     database: tuist
     username: default
     password: ""

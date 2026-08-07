@@ -1,6 +1,27 @@
 {{- if eq .Values.clickhouse.mode "embedded" }}
 {{- $systemLogLevel := .Values.clickhouse.embedded.systemLogs.level }}
 {{- $systemLogTTLDays := .Values.clickhouse.embedded.systemLogs.ttlDays }}
+{{- /*
+  System log tables that ship with no TTL and exist in every ClickHouse version
+  the chart supports. Deliberately an intersection, not a superset: a table
+  present in only some versions (latency_log in 25.x, background_schedule_pool_log
+  in 26.x) is left to ClickHouse's own retention, so that operators who override
+  image.tag keep a config that preprocesses on every version.
+
+  The retention Job must only ALTER tables that appear here. ClickHouse
+  reconciles each managed system log table against this config on startup, so a
+  TTL applied to a table the config does not declare is rotated away on the next
+  restart, leaving the live table unbounded again.
+
+  opentelemetry_span_log is excluded because the shipped config declares it with
+  an explicit <engine> spec that a separate <ttl> cannot coexist with.
+
+  Tables that already ship with a TTL (processors_profile_log,
+  blob_storage_log, asynchronous_insert_log, and the 26.x zookeeper logs) are
+  deliberately absent: they are already bounded, and declaring a different
+  window would rotate them for no gain.
+*/}}
+{{- $systemLogTables := list "text_log" "query_log" "query_thread_log" "query_views_log" "trace_log" "metric_log" "asynchronous_metric_log" "part_log" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,63 +29,28 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
 data:
-  config.xml: |
+  {{- with $systemLogLevel }}
+  log-level.xml: |
     <clickhouse>
-      {{ with .Values.clickhouse.embedded.systemLogs.level }}
       <logger>
         <level>{{ . }}</level>
       </logger>
-      {{ end }}
-      {{ if or $systemLogLevel $systemLogTTLDays }}
       <text_log>
-        <database>system</database>
-        <table>text_log</table>
-        {{ with $systemLogLevel }}
         <level>{{ . }}</level>
-        {{ end }}
-        {{ with $systemLogTTLDays }}
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-        {{ end }}
       </text_log>
-      {{ end }}
-      {{ with $systemLogTTLDays }}
-      <query_log>
-        <database>system</database>
-        <table>query_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </query_log>
-      <query_thread_log>
-        <database>system</database>
-        <table>query_thread_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </query_thread_log>
-      <query_views_log>
-        <database>system</database>
-        <table>query_views_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </query_views_log>
-      <trace_log>
-        <database>system</database>
-        <table>trace_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </trace_log>
-      <metric_log>
-        <database>system</database>
-        <table>metric_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </metric_log>
-      <asynchronous_metric_log>
-        <database>system</database>
-        <table>asynchronous_metric_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </asynchronous_metric_log>
-      <part_log>
-        <database>system</database>
-        <table>part_log</table>
-        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
-      </part_log>
-      {{ end }}
     </clickhouse>
+  {{- end }}
+  {{- with $systemLogTTLDays }}
+  log-ttl.xml: |
+    <clickhouse>
+      {{- $ttlDays := . }}
+      {{- range $systemLogTables }}
+      <{{ . }}>
+        <ttl>event_date + INTERVAL {{ $ttlDays }} DAY DELETE</ttl>
+      </{{ . }}>
+      {{- end }}
+    </clickhouse>
+  {{- end }}
   users.xml: |
     <clickhouse>
       <users>
@@ -130,9 +116,16 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
+            {{- with $systemLogLevel }}
             - name: config
-              mountPath: /etc/clickhouse-server/config.d/tuist.xml
-              subPath: config.xml
+              mountPath: /etc/clickhouse-server/config.d/tuist-log-level.xml
+              subPath: log-level.xml
+            {{- end }}
+            {{- with $systemLogTTLDays }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-log-ttl.xml
+              subPath: log-ttl.xml
+            {{- end }}
             - name: config
               mountPath: /etc/clickhouse-server/users.d/users.xml
               subPath: users.xml
@@ -197,28 +190,26 @@ spec:
                 sleep 2
               done
               clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
-{{- with .Values.clickhouse.embedded.systemLogs.ttlDays }}
+{{- if ne .Values.clickhouse.embedded.systemLogs.rotatedTables "ignore" }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-system-log-retention") }}
+  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-rotated-log-tables") }}
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: clickhouse-system-log-retention
+    app.kubernetes.io/component: clickhouse-rotated-log-tables
   annotations:
-    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook: post-upgrade
     helm.sh/hook-weight: "1"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 5
-  # The release waits on this hook, so an unreachable ClickHouse has to fail the
-  # job rather than block the upgrade indefinitely.
   activeDeadlineSeconds: 600
   template:
     metadata:
       labels:
-        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-system-log-retention") | nindent 8 }}
+        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-rotated-log-tables") | nindent 8 }}
         {{- with $.Values.global.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -226,32 +217,53 @@ spec:
 {{ include "tuist.podScheduling" $ | nindent 6 }}
       restartPolicy: OnFailure
       containers:
-        - name: clickhouse-system-log-retention
+        - name: clickhouse-rotated-log-tables
           image: "{{ $.Values.clickhouse.embedded.image.repository }}:{{ $.Values.clickhouse.embedded.image.tag }}"
           imagePullPolicy: {{ $.Values.clickhouse.embedded.image.pullPolicy }}
           env:
             - name: CLICKHOUSE_PASSWORD
               value: {{ $.Values.clickhouse.embedded.password | quote }}
+            - name: POLICY
+              value: {{ $.Values.clickhouse.embedded.systemLogs.rotatedTables | quote }}
           command:
             - /bin/sh
             - -ec
             - |
-              deadline=$(( $(date +%s) + 300 ))
-              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"; do
+              CH="clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password $CLICKHOUSE_PASSWORD"
+              # ClickHouse is legitimately absent when an operator switches
+              # clickhouse.mode from external to embedded, and there is nothing
+              # to reclaim on such an install, so skip rather than block the
+              # release.
+              deadline=$(( $(date +%s) + 120 ))
+              until $CH --query "SELECT 1" >/dev/null 2>&1; do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "ClickHouse was not reachable within 300s" >&2
-                  exit 1
+                  echo "ClickHouse unreachable after 120s; skipping" >&2
+                  exit 0
                 fi
                 sleep 2
               done
-              SYSTEM_LOG_TTL="event_date + INTERVAL {{ . }} DAY DELETE"
-              # The config drop-in only applies TTLs to system log tables ClickHouse
-              # creates from now on, so existing installs need this ALTER. ClickHouse
-              # has no ALTER TABLE IF EXISTS, and it materializes each system log
-              # table lazily, so ask which ones are actually there first.
-              TABLES=$(clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" --query "SELECT name FROM system.tables WHERE database = 'system' AND name IN ('text_log', 'query_log', 'query_thread_log', 'query_views_log', 'trace_log', 'metric_log', 'asynchronous_metric_log', 'part_log')")
+              # Every `<name>_N` table qualifies, not just the ones declared in
+              # log-ttl.xml. ClickHouse stops managing a table once it rotates
+              # it aside, so these are inert copies no query targets, and the
+              # ones it leaves behind for tables we cannot configure at all are
+              # exactly the ones worth reclaiming.
+              TABLES=$($CH --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
               for table in $TABLES; do
-                clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" --query "ALTER TABLE system.${table} MODIFY TTL ${SYSTEM_LOG_TTL}"
+                base=$(echo "$table" | sed -E 's/_[0-9]+$//')
+                if [ "$POLICY" = "move" ]; then
+                  # A rotation caused by a ClickHouse version upgrade changes the
+                  # schema, so the columns will not line up and the INSERT would
+                  # fail partway. Only move when they match exactly.
+                  sig() { $CH --query "SELECT cityHash64(groupArray((name, type))) FROM (SELECT name, type FROM system.columns WHERE database='system' AND table='$1' ORDER BY name)"; }
+                  if [ "$(sig "$base")" != "$(sig "$table")" ]; then
+                    echo "skipping system.$table: schema differs from system.$base"
+                    continue
+                  fi
+                  echo "moving system.$table into system.$base"
+                  $CH --query "INSERT INTO system.\`$base\` SELECT * FROM system.\`$table\`"
+                fi
+                echo "dropping system.$table"
+                $CH --query "DROP TABLE system.\`$table\`"
               done
 {{- end }}
 {{- end }}
