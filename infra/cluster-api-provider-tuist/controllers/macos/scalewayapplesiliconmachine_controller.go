@@ -902,7 +902,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// as bootstrap returns; whether the Node has reported Ready yet is
 	// a separate concern observable via `kubectl get nodes`.
 	machine.Status.Ready = true
-	machine.Status.Phase = "Ready"
+	if !terminalPhasePinned(machine.Status.FailureReason) {
+		machine.Status.Phase = "Ready"
+	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -1142,6 +1144,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {
 // migration case for machines provisioned before the hash existed.
 func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
+}
+
+// terminalPhasePinned reports whether the reconcile tail must leave
+// Status.Phase alone because the machine holds a terminal failure.
+//
+// The drift gate SKIPS a terminal machine rather than returning early, so
+// every reconcile after the one that recorded the failure still falls
+// through to the tail. Writing "Ready" there overwrote the "Failed" that
+// recordUpdateFailure had just set — within a single reconcile interval —
+// leaving machines that carried FailureReason while reporting phase Ready.
+//
+// That combination is invisible to alerting: the "stuck Failed" rule keys
+// on phase="Failed" persisting for 30m, and the phase flapped back to Ready
+// in ~5m, so the rule could never fire. Three production hosts sat wedged on
+// a stale tart-kubelet for weeks with the alert green. Pinning the phase is
+// what makes the terminal state observable; clearUpdateFailure lifts it.
+func terminalPhasePinned(failureReason *string) bool {
+	return failureReason != nil
 }
 
 // shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
