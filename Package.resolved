@@ -274,11 +274,11 @@
       }
     },
     {
-      "identity" : "fluid-menu-bar-extra",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/lfroms/fluid-menu-bar-extra",
+      "identity" : "lfroms.fluid-menu-bar-extra",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/lfroms/fluid-menu-bar-extra",
       "state" : {
-        "revision" : "e152a3a1a25aca24906217f8d4d63afbb08d7f97",
         "version" : "1.1.0"
       }
     },
@@ -723,11 +723,11 @@
       }
     },
     {
-      "identity" : "xctest-dynamic-overlay",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "identity" : "pointfreeco.xctest-dynamic-overlay",
+      "kind" : "registry",
+      "location" : "",
+      "originalLocation" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
         "version" : "1.7.0"
       }
     }
