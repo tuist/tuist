@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import Path
 #if canImport(TuistAppleArchiver)
     import TuistAppleArchiver
 #endif
@@ -319,4 +320,125 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             serverURL: serverURL
         )
     }
+
+    #if canImport(TuistAppleArchiver)
+        func test_upload_result_bundle_removes_temporary_archive_directory() async throws {
+            // Given
+            let temporaryDirectory = try temporaryPath()
+            let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
+            try await FileSystem().touch(resultBundle)
+            let serverURL: URL = .test()
+            let commandEventID = UUID().uuidString
+
+            var capturedArchiveDirectory: AbsolutePath?
+            given(appleArchiver)
+                .compress(
+                    directory: .value(resultBundle),
+                    to: .any,
+                    excludePatterns: .value([]),
+                    preservesBaseDirectory: .value(true)
+                )
+                .willProduce { _, archivePath, _, _ in
+                    capturedArchiveDirectory = archivePath.parentDirectory
+                    try Data("fake-aar".utf8).write(to: archivePath.url)
+                }
+
+            given(multipartUploadStartAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .value(.init(type: .resultBundle)),
+                    accountHandle: .value("account"),
+                    projectHandle: .value("project"),
+                    commandEventId: .value(commandEventID),
+                    serverURL: .value(serverURL)
+                )
+                .willReturn("upload-id")
+
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .matching { $0.extension == "aar" },
+                    generateUploadURL: .any,
+                    updateProgress: .any
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+
+            given(multipartUploadCompleteAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .value(.init(type: .resultBundle)),
+                    accountHandle: .value("account"),
+                    projectHandle: .value("project"),
+                    commandEventId: .value(commandEventID),
+                    uploadId: .value("upload-id"),
+                    parts: .any,
+                    serverURL: .value(serverURL)
+                )
+                .willReturn(())
+
+            // When
+            try await subject.uploadResultBundle(
+                resultBundle,
+                fullHandle: "account/project",
+                commandEventId: commandEventID,
+                serverURL: serverURL
+            )
+
+            // Then
+            let archiveDirectory = try XCTUnwrap(capturedArchiveDirectory)
+            let archiveDirectoryExists = try await FileSystem().exists(archiveDirectory)
+            XCTAssertFalse(
+                archiveDirectoryExists,
+                "The temporary analytics archive directory should be removed after the upload completes."
+            )
+        }
+
+        func test_upload_result_bundle_removes_temporary_archive_directory_when_upload_fails() async throws {
+            // Given
+            let temporaryDirectory = try temporaryPath()
+            let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
+            try await FileSystem().touch(resultBundle)
+            let serverURL: URL = .test()
+            let commandEventID = UUID().uuidString
+
+            var capturedArchiveDirectory: AbsolutePath?
+            given(appleArchiver)
+                .compress(
+                    directory: .value(resultBundle),
+                    to: .any,
+                    excludePatterns: .value([]),
+                    preservesBaseDirectory: .value(true)
+                )
+                .willProduce { _, archivePath, _, _ in
+                    capturedArchiveDirectory = archivePath.parentDirectory
+                    try Data("fake-aar".utf8).write(to: archivePath.url)
+                }
+
+            given(multipartUploadStartAnalyticsService)
+                .uploadAnalyticsArtifact(
+                    .value(.init(type: .resultBundle)),
+                    accountHandle: .value("account"),
+                    projectHandle: .value("project"),
+                    commandEventId: .value(commandEventID),
+                    serverURL: .value(serverURL)
+                )
+                .willThrow(TestError("upload failed"))
+
+            // When
+            await XCTAssertThrowsSpecific(
+                try await subject.uploadResultBundle(
+                    resultBundle,
+                    fullHandle: "account/project",
+                    commandEventId: commandEventID,
+                    serverURL: serverURL
+                ),
+                TestError("upload failed")
+            )
+
+            // Then
+            let archiveDirectory = try XCTUnwrap(capturedArchiveDirectory)
+            let archiveDirectoryExists = try await FileSystem().exists(archiveDirectory)
+            XCTAssertFalse(
+                archiveDirectoryExists,
+                "The temporary analytics archive directory should be removed when the upload fails."
+            )
+        }
+    #endif
 }
