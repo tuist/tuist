@@ -91,24 +91,32 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations also cap ClickHouse's own `system.*` operational log tables. They retain `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log` for 14 days by default, and lower the ClickHouse text log level from the image's `trace` default to `information`. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
-In Helm, leaving `clickhouse.embedded.systemLogs.ttlDays` empty renders no TTL configuration at all, so ClickHouse keeps its own unbounded defaults. Docker Compose mounts the file unconditionally; remove the `clickhouse-log-ttl.xml` volume line from `docker-compose.yml` to get the same effect.
+To keep ClickHouse's own unbounded retention instead, leave `clickhouse.embedded.systemLogs.ttlDays` blank with the Helm chart, or remove the `clickhouse-log-ttl.xml` volume from `docker-compose.yml`.
 
 #### Rotated log tables {#rotated-log-tables}
 
-ClickHouse decides at startup whether each system log table still matches its configuration. When it doesn't, ClickHouse renames the existing table to `<name>_0` — then `_1`, `_2`, and so on — and starts a fresh one. This is a rename, not a copy, so it consumes no extra disk at the time. It happens whenever you change the retention window, and also on any ClickHouse upgrade that changes a system log schema.
+ClickHouse checks at startup whether each system log table still matches its configuration. When it doesn't, it renames the existing table to `system.<name>_0`, then `_1`, `_2`, and so on, and starts a fresh one. This happens when you change the retention window, and on any ClickHouse upgrade that changes a system log schema.
 
-ClickHouse never reclaims those generations. On a long-lived installation they accumulate indefinitely and can grow far larger than the live tables, because the retention window you configure applies only to the live table and not to anything already rotated aside.
+Renaming a table does not copy its data, so a rotation consumes no additional disk. ClickHouse never removes these tables afterwards, though, and the retention window applies only to the live table, so on a long-lived instance they accumulate and can grow larger than the tables they replaced.
 
-The bundle leaves them alone by default so that no upgrade silently discards operational history. Choose a different policy with `CLICKHOUSE_ROTATED_LOG_TABLES` in Docker Compose, or `clickhouse.embedded.systemLogs.rotatedTables` in Helm:
+Rotated tables are kept by default, so that an upgrade never discards operational history on its own. Set the policy to `delete` to drop them on startup instead:
 
-| Value | Behaviour |
-| --- | --- |
-| `ignore` | Default. Leaves rotated tables untouched. |
-| `delete` | Drops them. Reclaims the space immediately and needs no additional disk. |
+```bash
+CLICKHOUSE_ROTATED_LOG_TABLES=delete
+```
 
-There is deliberately no option to copy the rows back into the live table. ClickHouse Cloud does not do it either, it would need transient disk for the copy, and a rotation caused by a ClickHouse upgrade changes the schema, so the columns would not line up.
+With the Helm chart, configure the same policy as a value:
 
-To reclaim the space once by hand instead, drop the tables directly:
+```yaml
+clickhouse:
+  embedded:
+    systemLogs:
+      rotatedTables: delete
+```
+
+Dropping a rotated table reclaims its disk space immediately. The live table is never touched, and neither are the rows written since the rotation.
+
+To reclaim the space once without changing the policy, drop the tables by hand:
 
 ```sql
 SELECT name FROM system.tables WHERE database = 'system' AND match(name, '_log_[0-9]+$');
