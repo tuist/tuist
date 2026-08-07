@@ -2553,8 +2553,8 @@ mod tests {
                 anon_bytes: Some(700),
                 file_bytes: Some(600),
                 kernel_bytes: Some(200),
-                slab_reclaimable_bytes: None,
-                slab_unreclaimable_bytes: None,
+                slab_reclaimable_bytes: Some(150),
+                slab_unreclaimable_bytes: Some(50),
                 inactive_file_bytes: Some(100),
                 shmem_bytes: Some(50),
                 sock_bytes: Some(30),
@@ -2694,6 +2694,10 @@ mod tests {
         assert!(rendered.contains("kura_container_memory_working_set_bytes"));
         assert!(rendered.contains("kura_container_memory_reclaimable_inactive_file_bytes"));
         assert!(rendered.contains("kura_container_memory_file_bytes"));
+        // Values, not just names: a name-only assertion still passes if the gauge is
+        // registered but never set, which is the branch worth pinning here.
+        assert!(rendered.contains("kura_container_memory_slab_reclaimable_bytes 150"));
+        assert!(rendered.contains("kura_container_memory_slab_unreclaimable_bytes 50"));
         assert!(rendered.contains("kura_container_memory_shmem_bytes"));
         assert!(rendered.contains("kura_container_memory_file_dirty_bytes"));
         assert!(rendered.contains("kura_container_memory_file_writeback_bytes"));

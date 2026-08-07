@@ -159,8 +159,12 @@ fn pressure_bytes(components: MemoryPressureComponents) -> u64 {
     } = components;
     if let (Some(anon_bytes), Some(kernel_bytes)) = (anon_bytes, kernel_bytes) {
         // `slab_reclaimable` is nested inside `kernel`, but it is cache the kernel drops
-        // on demand, not memory this process can release. Excluding it applies the same
-        // rule already used for clean page cache below.
+        // on demand, not memory this process can release, so it is excluded for the same
+        // reason clean file cache is excluded below. Scoped to this signal only:
+        // `working_set_bytes` stays the conventional `current - inactive_file`, so it
+        // still counts reclaimable slab and can hold `should_reclaim_file_cache` on. That
+        // costs a warm node its mmap-serving fast path, not its correctness, and keeping
+        // the working-set figure comparable to what the kubelet reports is worth more.
         //
         // It normally stays small: it is dominated by `buffer_head`, ~105B per resident
         // page-cache page (measured at 104.9B/page on a healthy node), and page cache is
@@ -400,11 +404,13 @@ mod tests {
         // The pre-fix accounting, kept explicit.
         assert_eq!(observed(None), 544 + 1_029);
 
-        // Why the node never recovered: leaving Critical for Normal requires dropping to
-        // 9/10 of the 1_228MiB soft watermark, and only Normal admits a snapshot index
-        // rebuild. Counting reclaimable slab left the node above that line with every
-        // Kura-owned cache already trimmed to zero, so there was no path back.
-        let normal_recovery = 1_228 * 9 / 10;
+        // Why the node never recovered: leaving Critical for Normal means dropping below
+        // the soft watermark's recovery line, and only Normal lets the cache targets stop
+        // trimming the index to zero. Counting reclaimable slab left the node above that
+        // line with every Kura-owned cache already trimmed to zero, so there was no path
+        // back. Call the real transition rule rather than restating it, so this keeps
+        // testing recovery if the watermark or the recovery ratio moves.
+        let normal_recovery = crate::memory::pressure::recovery_bytes(1_228);
         assert!(observed(None) > normal_recovery);
         assert!(observed(Some(1_020)) < normal_recovery);
     }
