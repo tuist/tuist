@@ -2370,10 +2370,12 @@ clickhouse:
       # long-lived install they accumulate and can dwarf the live tables.
       #   ignore: leave them in place (default; reclaim them yourself)
       #   delete: drop them after each upgrade
-      # Dropping is instant and needs no extra disk. There is deliberately no
-      # option to copy the rows back into the live table: ClickHouse Cloud does
-      # not do it either, and it would need transient disk plus a schema match
-      # that an upgrade-driven rotation breaks.
+      # Dropping needs no extra disk, and runs as DROP ... SYNC so the space
+      # comes back at once rather than after the Atomic engine's deferred-drop
+      # delay. There is deliberately no option to copy the rows back into the
+      # live table: ClickHouse Cloud does not do it either, and it would need
+      # transient disk plus a schema match that an upgrade-driven rotation
+      # breaks.
       rotatedTables: ignore
     database: tuist
     username: default

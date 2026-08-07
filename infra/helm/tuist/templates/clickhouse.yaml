@@ -232,20 +232,27 @@ spec:
               # to reclaim on such an install, so skip rather than block the
               # release.
               deadline=$(( $(date +%s) + 120 ))
-              until ch --query "SELECT 1" >/dev/null 2>&1; do
+              until err=$(ch --query "SELECT 1" 2>&1 >/dev/null); do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "ClickHouse unreachable after 120s; skipping" >&2
+                  # Without the last error an authentication failure is
+                  # indistinguishable from an absent ClickHouse, and both exit 0.
+                  echo "giving up after 120s, skipping: ${err:-no error reported}" >&2
                   exit 0
                 fi
                 sleep 2
               done
+              # ClickHouse rotates a system log table when it first flushes to
+              # it, not when it starts serving, so a query issued right after
+              # startup sees none of the generations this upgrade will produce.
+              # Forcing the flush makes them all exist before we look.
+              ch --query "SYSTEM FLUSH LOGS"
               # ClickHouse stops managing a table once it rotates it aside, so
               # every generation is inert and safe to drop, including ones for
               # tables log-ttl.xml cannot declare a TTL for.
               TABLES=$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
               for table in $TABLES; do
                 echo "dropping system.$table"
-                ch --query "DROP TABLE system.\`$table\`"
+                ch --query "DROP TABLE IF EXISTS system.\`$table\` SYNC"
               done
 {{- end }}
 {{- end }}

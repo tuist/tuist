@@ -95,14 +95,23 @@ services:
           *) echo "CLICKHOUSE_ROTATED_LOG_TABLES must be ignore or delete, got '$$CLICKHOUSE_ROTATED_LOG_TABLES'" >&2; exit 1 ;;
         esac
         ch() { clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" "$$@"; }
+        # Reclaiming disk must never keep the stack down, and the tables being
+        # dropped are inert, so nothing below is allowed to fail this service.
+        set +e
+        # ClickHouse rotates a system log table when it first flushes to it, not
+        # when it starts serving, so the healthcheck passes several seconds
+        # before this upgrade's generations exist. Forcing the flush makes them
+        # all exist before we look.
+        ch --query "SYSTEM FLUSH LOGS"
         # ClickHouse stops managing a table once it rotates it aside, so every
         # generation is inert and safe to drop, including ones for tables
         # clickhouse-log-ttl.xml cannot declare a TTL for.
         tables=$$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$$')")
         for table in $$tables; do
           echo "dropping system.$$table"
-          ch --query "DROP TABLE system.\`$$table\`"
+          ch --query "DROP TABLE IF EXISTS system.\`$$table\` SYNC" || echo "could not drop system.$$table, leaving it in place" >&2
         done
+        exit 0
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
