@@ -286,7 +286,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 
 - `KURA_BACKFILL_ENABLED` is flipped per mesh, and only after `backfill/meta/build_complete` is set on every node of that mesh — observable as `GET /_internal/backfill/entries` no longer answering `503 index_building`, or via the `kura_backfill_*` metrics. Tuist's own meshes flip first; customer meshes follow.
 - The rollout report shows the initial cycle per node as `pending` (passes still running or retrying with budget left), `complete` (every in-cycle peer resolved cleanly), or `degraded` (a peer exhausted its failure budget on real failures).
-- A `degraded` cycle holds region-move promotion and alarms. To abort a held move, destroy the move TARGET server (`Kura.destroy_server` via the server ops surface); the source keeps serving.
+- Region-move promotion gates on instance readiness only; the initial-cycle mode is not consumed by the control plane. A flag-on move target can latch ready before its full transfer settles, so before initiating a move where completeness matters, check `backfill_initial_cycle: complete` on the target's rollout report first. To abort a move, destroy the move TARGET server (`Kura.destroy_server` via the server ops surface); the source keeps serving.
 - Rollback is flipping the flag off plus a pod restart: the node resumes the legacy bootstrap walker, and `backfill/` watermarks and index rows sit inert on disk.
 - Index-build progress: a node still building answers listing requests with `503 index_building`; rebuilds (rollback-window staleness, cumulative crash forgiveness) are logged with the reason.
 
