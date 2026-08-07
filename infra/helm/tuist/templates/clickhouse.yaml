@@ -223,8 +223,6 @@ spec:
           env:
             - name: CLICKHOUSE_PASSWORD
               value: {{ $.Values.clickhouse.embedded.password | quote }}
-            - name: POLICY
-              value: {{ $.Values.clickhouse.embedded.systemLogs.rotatedTables | quote }}
           command:
             - /bin/sh
             - -ec
@@ -249,19 +247,6 @@ spec:
               # exactly the ones worth reclaiming.
               TABLES=$($CH --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
               for table in $TABLES; do
-                base=$(echo "$table" | sed -E 's/_[0-9]+$//')
-                if [ "$POLICY" = "move" ]; then
-                  # A rotation caused by a ClickHouse version upgrade changes the
-                  # schema, so the columns will not line up and the INSERT would
-                  # fail partway. Only move when they match exactly.
-                  sig() { $CH --query "SELECT cityHash64(groupArray((name, type))) FROM (SELECT name, type FROM system.columns WHERE database='system' AND table='$1' ORDER BY name)"; }
-                  if [ "$(sig "$base")" != "$(sig "$table")" ]; then
-                    echo "skipping system.$table: schema differs from system.$base"
-                    continue
-                  fi
-                  echo "moving system.$table into system.$base"
-                  $CH --query "INSERT INTO system.\`$base\` SELECT * FROM system.\`$table\`"
-                fi
                 echo "dropping system.$table"
                 $CH --query "DROP TABLE system.\`$table\`"
               done

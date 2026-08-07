@@ -91,6 +91,8 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations also cap ClickHouse's own `system.*` operational log tables. They retain `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log` for 14 days by default, and lower the ClickHouse text log level from the image's `trace` default to `information`. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
+In Helm, leaving `clickhouse.embedded.systemLogs.ttlDays` empty renders no TTL configuration at all, so ClickHouse keeps its own unbounded defaults. Docker Compose mounts the file unconditionally; remove the `clickhouse-log-ttl.xml` volume line from `docker-compose.yml` to get the same effect.
+
 #### Rotated log tables {#rotated-log-tables}
 
 ClickHouse decides at startup whether each system log table still matches its configuration. When it doesn't, ClickHouse renames the existing table to `<name>_0` — then `_1`, `_2`, and so on — and starts a fresh one. This is a rename, not a copy, so it consumes no extra disk at the time. It happens whenever you change the retention window, and also on any ClickHouse upgrade that changes a system log schema.
@@ -103,7 +105,8 @@ The bundle leaves them alone by default so that no upgrade silently discards ope
 | --- | --- |
 | `ignore` | Default. Leaves rotated tables untouched. |
 | `delete` | Drops them. Reclaims the space immediately and needs no additional disk. |
-| `move` | Copies the rows back into the live table, then drops the rotated one. Needs transient disk for the copy, and skips any table whose schema no longer matches — so it only applies to rotations caused by a retention change, not by a ClickHouse upgrade. |
+
+There is deliberately no option to copy the rows back into the live table. ClickHouse Cloud does not do it either, it would need transient disk for the copy, and a rotation caused by a ClickHouse upgrade changes the schema, so the columns would not line up.
 
 To reclaim the space once by hand instead, drop the tables directly:
 
