@@ -127,6 +127,8 @@ pub struct Metrics {
     container_memory_anon_bytes: Gauge,
     container_memory_file_bytes: Gauge,
     container_memory_kernel_bytes: Gauge,
+    container_memory_slab_reclaimable_bytes: Gauge,
+    container_memory_slab_unreclaimable_bytes: Gauge,
     container_memory_inactive_file_bytes: Gauge,
     container_memory_reclaimable_inactive_file_bytes: Gauge,
     container_memory_shmem_bytes: Gauge,
@@ -324,6 +326,8 @@ impl Metrics {
         let container_memory_anon_bytes = Gauge::default();
         let container_memory_file_bytes = Gauge::default();
         let container_memory_kernel_bytes = Gauge::default();
+        let container_memory_slab_reclaimable_bytes = Gauge::default();
+        let container_memory_slab_unreclaimable_bytes = Gauge::default();
         let container_memory_inactive_file_bytes = Gauge::default();
         let container_memory_reclaimable_inactive_file_bytes = Gauge::default();
         let container_memory_shmem_bytes = Gauge::default();
@@ -847,6 +851,16 @@ impl Metrics {
             container_memory_kernel_bytes.clone(),
         );
         registry.register(
+            "kura_container_memory_slab_reclaimable_bytes",
+            "Reclaimable slab memory charged to the container control group",
+            container_memory_slab_reclaimable_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_slab_unreclaimable_bytes",
+            "Unreclaimable slab memory charged to the container control group",
+            container_memory_slab_unreclaimable_bytes.clone(),
+        );
+        registry.register(
             "kura_container_memory_inactive_file_bytes",
             "Inactive file-backed memory charged to the container control group",
             container_memory_inactive_file_bytes.clone(),
@@ -1213,6 +1227,8 @@ impl Metrics {
             container_memory_anon_bytes,
             container_memory_file_bytes,
             container_memory_kernel_bytes,
+            container_memory_slab_reclaimable_bytes,
+            container_memory_slab_unreclaimable_bytes,
             container_memory_inactive_file_bytes,
             container_memory_reclaimable_inactive_file_bytes,
             container_memory_shmem_bytes,
@@ -1909,6 +1925,14 @@ impl Metrics {
         if let Some(value) = snapshot.kernel_bytes {
             self.container_memory_kernel_bytes.set(value as i64);
         }
+        if let Some(value) = snapshot.slab_reclaimable_bytes {
+            self.container_memory_slab_reclaimable_bytes
+                .set(value as i64);
+        }
+        if let Some(value) = snapshot.slab_unreclaimable_bytes {
+            self.container_memory_slab_unreclaimable_bytes
+                .set(value as i64);
+        }
         if let Some(value) = snapshot.inactive_file_bytes {
             self.container_memory_inactive_file_bytes.set(value as i64);
         }
@@ -2529,6 +2553,8 @@ mod tests {
                 anon_bytes: Some(700),
                 file_bytes: Some(600),
                 kernel_bytes: Some(200),
+                slab_reclaimable_bytes: Some(150),
+                slab_unreclaimable_bytes: Some(50),
                 inactive_file_bytes: Some(100),
                 shmem_bytes: Some(50),
                 sock_bytes: Some(30),
@@ -2668,6 +2694,10 @@ mod tests {
         assert!(rendered.contains("kura_container_memory_working_set_bytes"));
         assert!(rendered.contains("kura_container_memory_reclaimable_inactive_file_bytes"));
         assert!(rendered.contains("kura_container_memory_file_bytes"));
+        // Values, not just names: a name-only assertion still passes if the gauge is
+        // registered but never set, which is the branch worth pinning here.
+        assert!(rendered.contains("kura_container_memory_slab_reclaimable_bytes 150"));
+        assert!(rendered.contains("kura_container_memory_slab_unreclaimable_bytes 50"));
         assert!(rendered.contains("kura_container_memory_shmem_bytes"));
         assert!(rendered.contains("kura_container_memory_file_dirty_bytes"));
         assert!(rendered.contains("kura_container_memory_file_writeback_bytes"));
