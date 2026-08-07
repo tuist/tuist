@@ -1,17 +1,16 @@
 {{- if eq .Values.clickhouse.mode "embedded" }}
 {{- $systemLogLevel := .Values.clickhouse.embedded.systemLogs.level }}
 {{- $systemLogTTLDays := .Values.clickhouse.embedded.systemLogs.ttlDays }}
+{{- $rotatedTables := .Values.clickhouse.embedded.systemLogs.rotatedTables }}
+{{- if not (has $rotatedTables (list "ignore" "delete")) }}
+{{- fail (printf "clickhouse.embedded.systemLogs.rotatedTables must be \"ignore\" or \"delete\", got %v" $rotatedTables) }}
+{{- end }}
 {{- /*
   System log tables that ship with no TTL and exist in every ClickHouse version
   the chart supports. Deliberately an intersection, not a superset: a table
   present in only some versions (latency_log in 25.x, background_schedule_pool_log
   in 26.x) is left to ClickHouse's own retention, so that operators who override
   image.tag keep a config that preprocesses on every version.
-
-  The retention Job must only ALTER tables that appear here. ClickHouse
-  reconciles each managed system log table against this config on startup, so a
-  TTL applied to a table the config does not declare is rotated away on the next
-  restart, leaving the live table unbounded again.
 
   opentelemetry_span_log is excluded because the shipped config declares it with
   an explicit <engine> spec that a separate <ttl> cannot coexist with.
@@ -190,7 +189,7 @@ spec:
                 sleep 2
               done
               clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
-{{- if ne .Values.clickhouse.embedded.systemLogs.rotatedTables "ignore" }}
+{{- if eq $rotatedTables "delete" }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -227,28 +226,26 @@ spec:
             - /bin/sh
             - -ec
             - |
-              CH="clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password $CLICKHOUSE_PASSWORD"
+              ch() { clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" "$@"; }
               # ClickHouse is legitimately absent when an operator switches
               # clickhouse.mode from external to embedded, and there is nothing
               # to reclaim on such an install, so skip rather than block the
               # release.
               deadline=$(( $(date +%s) + 120 ))
-              until $CH --query "SELECT 1" >/dev/null 2>&1; do
+              until ch --query "SELECT 1" >/dev/null 2>&1; do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
                   echo "ClickHouse unreachable after 120s; skipping" >&2
                   exit 0
                 fi
                 sleep 2
               done
-              # Every `<name>_N` table qualifies, not just the ones declared in
-              # log-ttl.xml. ClickHouse stops managing a table once it rotates
-              # it aside, so these are inert copies no query targets, and the
-              # ones it leaves behind for tables we cannot configure at all are
-              # exactly the ones worth reclaiming.
-              TABLES=$($CH --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
+              # ClickHouse stops managing a table once it rotates it aside, so
+              # every generation is inert and safe to drop, including ones for
+              # tables log-ttl.xml cannot declare a TTL for.
+              TABLES=$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")
               for table in $TABLES; do
                 echo "dropping system.$table"
-                $CH --query "DROP TABLE system.\`$table\`"
+                ch --query "DROP TABLE system.\`$table\`"
               done
 {{- end }}
 {{- end }}
