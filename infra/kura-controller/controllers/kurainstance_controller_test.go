@@ -2394,7 +2394,7 @@ func TestPrimaryPodHealthRuntimeConfirmedIgnoresAge(t *testing.T) {
 		},
 	}
 
-	routable, _ := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
 	if !routable[name+"-0"] {
 		t.Fatal("expected a runtime-confirmed fresh pod to be routable (gapless deploy)")
 	}
@@ -2422,7 +2422,7 @@ func TestPrimaryPodHealthAgeGatesWhenRuntimeStatusUnavailable(t *testing.T) {
 		RuntimeStatusClient: fakeRuntimeStatusClient{err: fmt.Errorf("status endpoint unreachable")},
 	}
 
-	routable, _ := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
 	if routable[name+"-0"] {
 		t.Fatal("expected fresh pod to be excluded when the runtime bootstrap signal is unavailable")
 	}

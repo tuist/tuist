@@ -1333,66 +1333,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
-  describe "caught_up?/2" do
-    test "is caught up when a Ready instance reports a complete backfill cycle" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"phase" => "Ready", "backfillInitialCycle" => "complete"}}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, true}
-    end
-
-    test "is not caught up while a Ready instance reports a pending backfill cycle" do
-      # Under the backfill flag readiness latches at partial ring fullness, so
-      # Ready alone must not promote a move target.
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"phase" => "Ready", "backfillInitialCycle" => "pending"}}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, false}
-    end
-
-    test "surfaces a degraded backfill cycle distinctly so the reconciler can alarm" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"phase" => "Ready", "backfillInitialCycle" => "degraded"}}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, :degraded}
-    end
-
-    test "holds on a backfill mode it does not know" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"phase" => "Ready", "backfillInitialCycle" => "later-vocabulary"}}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, false}
-    end
-
-    test "keeps today's Ready semantics for a pre-backfill instance that does not report the field" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"phase" => "Ready"}}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, true}
-    end
-
-    test "is not caught up while the controller has not published a status" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{}}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, false}
-    end
-
-    test "propagates client errors so promotion holds on an unobservable instance" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:error, :timeout}
-      end)
-
-      assert KubernetesController.caught_up?("kura-tuist-scw-fr-par", scaleway_region()) == {:error, :timeout}
-    end
-  end
-
   describe "public_url/3 for a private region" do
     test "returns the in-cluster Service DNS URL built from private_url_template" do
       assert KubernetesController.public_url("TUIST", scaleway_region(), "any-ref") ==

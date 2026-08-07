@@ -117,17 +117,9 @@ defmodule Tuist.Kura.Provisioner do
   passed the bootstrap readiness gate (its pod is Ready). Used to gate the warm
   handoff: a `:moving_in` target has no public endpoint to probe, so its
   readiness is the peer-plane bootstrap gate, not a public `/up` check.
-
-  Under the backfill flag a target latches Ready at partial ring fullness, so
-  Ready alone no longer implies the dataset transferred. Implementations that
-  can observe the runtime's `backfill_initial_cycle` mode return `{:ok, true}`
-  only for a `complete` cycle, `{:ok, false}` for `pending`, and
-  `{:ok, :degraded}` for a cycle stalled on real peer failures — the
-  reconciler alarms and holds on it rather than promoting or failing, because
-  the mode is not terminal (background retries can advance it to `complete`).
   """
   @callback caught_up?(ref :: String.t(), Regions.t()) ::
-              {:ok, boolean() | :degraded} | {:error, term()}
+              {:ok, boolean()} | {:error, term()}
 
   ## Convenience dispatchers
 

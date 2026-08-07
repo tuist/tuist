@@ -182,26 +182,6 @@ type runtimeStatus struct {
 	State           string `json:"state"`
 	RingMembers     int    `json:"ring_members"`
 	WriterLockOwned bool   `json:"writer_lock_owned"`
-
-	// BackfillInitialCycle is the runtime's backfill mode ("pending",
-	// "complete", or "degraded"). Empty on runtimes that predate the
-	// backfill flag or run with it off. It only feeds the instance status
-	// (the server gates region-move promotion on it); routing keeps using
-	// Ready/State/WriterLockOwned untouched.
-	BackfillInitialCycle string `json:"backfill_initial_cycle"`
-}
-
-// runtimeObservation is what one reconcile's per-pod /status/rollout probes
-// saw: every status that could be fetched, plus whether any replica's state
-// went unobserved (a probe failed, or a pod was missing from the list
-// entirely, e.g. while being recreated mid-rolling-update). The backfill
-// aggregation must know about unobserved replicas: the server promotes a
-// region move on {phase: Ready, backfillInitialCycle: complete} and then
-// destroys the move source, which is unrecoverable if an unobserved replica
-// was in fact still pending.
-type runtimeObservation struct {
-	statuses           []runtimeStatus
-	unobservedReplicas bool
 }
 
 type httpRuntimeStatusClient struct {
@@ -354,7 +334,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
-	primaryPod, observation, err := r.selectPrimaryPod(ctx, instance)
+	primaryPod, err := r.selectPrimaryPod(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -418,15 +398,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Message = rollout.message
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
-	// Only rewrite the backfill mode when at least one pod's runtime status
-	// was observed this reconcile: clearing it on a total probe outage would
-	// make a backfilling instance indistinguishable from a pre-backfill node
-	// to the server's move-promotion gate. Partial observation does write —
-	// the aggregation degrades it to at worst "unknown" for the replicas it
-	// could not see.
-	if len(observation.statuses) > 0 {
-		instance.Status.BackfillInitialCycle = aggregateBackfillInitialCycle(observation)
-	}
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -1663,10 +1634,8 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 // selectPrimaryPod resolves which pod the public Services should route
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
-// controller restart without a dedicated status field. It also returns
-// the runtime statuses fetched along the way so the reconcile loop can
-// surface the backfill mode without probing every pod a second time.
-func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, runtimeObservation, error) {
+// controller restart without a dedicated status field.
+func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -1674,18 +1643,17 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 		current = service.Spec.Selector[podNameLabel]
 	case apierrors.IsNotFound(err):
 	default:
-		return "", runtimeObservation{}, err
+		return "", err
 	}
 
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
-		return "", runtimeObservation{}, err
+		return "", err
 	}
-	routable, observation := r.primaryPodHealth(ctx, instance, pods.Items)
-	return choosePrimaryPod(current, instance.Name, pods.Items, routable), observation, nil
+	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (map[string]bool, runtimeObservation) {
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
 	now := time.Now()
 
 	statusClient := r.RuntimeStatusClient
@@ -1702,52 +1670,30 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
 	// promoted immediately, which is what makes a rolling deploy gapless instead of
 	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every pod, not just the age-eligible or Ready ones
-	// (NotReady pods are probed for the backfill aggregation; see below).
+	// therefore probed for every Ready pod, not just the age-eligible ones.
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
-	observation := runtimeObservation{}
-	readyPodProbed := false
+	runtimeStatuses := 0
 	for i := range pods {
-		// Every pod is probed, not only k8s-Ready ones: instance.Status.Phase
-		// is derived from a fresh ReadyReplicas read many API round-trips
-		// after this loop, so a pod that flips NotReady->Ready in that window
-		// would be counted in Phase=Ready while missing from the backfill
-		// aggregation, letting the CR claim {Ready, complete} with a replica
-		// still pending — which promotes the region move and destroys the
-		// move source. A not-yet-Ready pod that answers reports its true
-		// mode; one that cannot be probed is recorded as unobserved.
-		status, err := statusClient.Status(ctx, pods[i])
-		if err != nil {
-			observation.unobservedReplicas = true
-			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
-		} else {
-			observation.statuses = append(observation.statuses, status)
-		}
-		// Routing (primary selection) keeps requiring Kubernetes readiness;
-		// probing a NotReady pod above only feeds the backfill aggregation.
 		if !podReady(&pods[i]) {
 			continue
 		}
 		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
 			fallbackReady[pods[i].Name] = true
 		}
+		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
 			continue
 		}
-		readyPodProbed = true
+		runtimeStatuses++
 		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
 	}
-	// A replica whose pod is absent from the list entirely (e.g. being
-	// recreated mid-scale) is just as unobserved as a failed probe.
-	if len(pods) < int(replicas(instance)) {
-		observation.unobservedReplicas = true
-	}
 
-	if !readyPodProbed {
-		return fallbackReady, observation
+	if runtimeStatuses == 0 {
+		return fallbackReady
 	}
-	return runtimeHealthy, observation
+	return runtimeHealthy
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
@@ -1783,52 +1729,6 @@ func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
 		return false
 	}
 	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
-}
-
-// backfillCycleUnknown is deliberately absent from backfillInitialCycleRank's
-// vocabulary so it takes the default rank — above "pending"/"complete",
-// below "degraded" — and the server's promotion gate holds on it.
-const backfillCycleUnknown = "unknown"
-
-// aggregateBackfillInitialCycle folds the per-pod backfill modes into the
-// instance-level mode the server's move promotion gates on: the worst mode
-// across pods wins, and the result is empty only when no fetched status
-// reports the field (pre-backfill image or flag off — today's promotion
-// semantics, which the server's absent-field fallback depends on). A mode
-// this controller doesn't know ranks between "pending" and "degraded" so a
-// newer runtime's vocabulary holds promotion instead of passing it. While
-// any replica is unobserved the aggregate is never better than "unknown":
-// promotion on an unobserved replica that was in fact still pending destroys
-// the region-move source, which is unrecoverable.
-func aggregateBackfillInitialCycle(observation runtimeObservation) string {
-	worst := ""
-	for _, status := range observation.statuses {
-		if backfillInitialCycleRank(status.BackfillInitialCycle) > backfillInitialCycleRank(worst) {
-			worst = status.BackfillInitialCycle
-		}
-	}
-	if worst == "" {
-		return worst
-	}
-	if observation.unobservedReplicas && backfillInitialCycleRank(backfillCycleUnknown) > backfillInitialCycleRank(worst) {
-		worst = backfillCycleUnknown
-	}
-	return worst
-}
-
-func backfillInitialCycleRank(mode string) int {
-	switch mode {
-	case "":
-		return 0
-	case "complete":
-		return 1
-	case "pending":
-		return 2
-	case "degraded":
-		return 4
-	default:
-		return 3
-	}
 }
 
 func requiredPrimaryRingMembers(replicas int32) int {

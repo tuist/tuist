@@ -201,12 +201,3 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
-                # The server's region-move promotion gate. Without this
-                # declaration the apiserver prunes the field and a
-                # backfilling move target looks like a pre-backfill node,
-                # silently ungating promotion. Deliberately not an enum:
-                # the controller passes a newer runtime's unknown modes
-                # through (the server holds on them), and an enum would
-                # fail the whole status update instead.
-                backfillInitialCycle:
-                  type: string
