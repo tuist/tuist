@@ -267,8 +267,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
@@ -357,8 +355,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -388,6 +384,30 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
@@ -417,6 +437,30 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
