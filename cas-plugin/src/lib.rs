@@ -599,8 +599,11 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
         // Degraded keys, reported whenever there were any: each one is a key that
-        // stays uncacheable for the life of the store generation, and neither
-        // condition is visible anywhere else.
+        // stays uncacheable for the life of the store generation. A summary only —
+        // most compiler processes exit without disposing (see the PublishRecord
+        // note above), so the per-event log lines these count, not this line, are
+        // what makes the condition diagnosable. It does reliably cover the build
+        // system's own long-lived instance, which is where the gets come from.
         let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
         let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
         if unbacked > 0 || poisoned > 0 {
@@ -1067,6 +1070,13 @@ unsafe fn verified_local_get(
     p_value: *mut llcas_objectid_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
+    // Cleared up front so every path leaves the slot defined, matching what the
+    // unconditional adopt_error this replaced used to do: a client that passes an
+    // uninitialised `char **error` and inspects it on SUCCESS must not read an
+    // indeterminate pointer.
+    if !error.is_null() {
+        *error = std::ptr::null_mut();
+    }
     // Never the caller's slot: `p_value` is nullable and the verification needs
     // an id to probe. Apple's plugin dereferences the pointer it is handed.
     let mut value = llcas_objectid_t { opaque: 0 };
@@ -1112,8 +1122,14 @@ unsafe fn verified_local_get(
 /// (a `true` return plus a string). That is brittle — Apple's wording is not a
 /// contract — so `adopt_put_failure` logs EVERY put failure, and a variant this
 /// predicate misses shows up in TUIST_CAS_LOG instead of silently failing a build.
+/// Requires BOTH words rather than just "poison", so an unrelated failure that
+/// happens to contain it is not silently downgraded — the downgrade also lets the
+/// exported put publish remotely, so a false positive is not free. Kept as two
+/// substrings rather than the exact phrase to survive rewording ("cache is
+/// poisoned", "poisoned cache").
 fn is_cache_poisoned(message: &str) -> bool {
-    message.to_ascii_lowercase().contains("poison")
+    let message = message.to_ascii_lowercase();
+    message.contains("poison") && message.contains("cache")
 }
 
 /// Logs an upstream put failure, writes it into `error`, and answers whether the
@@ -1145,7 +1161,21 @@ unsafe fn actioncache_get_impl(
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }
+    resolve_from_remote(state, key, p_value, error)
+}
 
+/// The remote half of a get, once the local store has been ruled out. Split from
+/// the local half so the async entry point, which verifies the local hit itself,
+/// can fall through to here WITHOUT repeating the lookup: doing it twice would
+/// double-count every unbacked hit in the log and the dispose counter, on exactly
+/// the lane the build system drives.
+unsafe fn resolve_from_remote(
+    state: &CasState,
+    key: &[u8],
+    p_value: *mut llcas_objectid_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
     let client = &state.proxy;
     let cas_path = state
@@ -1265,11 +1295,12 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     }
 
     let _ = ours_cancel_token(cancel_tok);
-    // Answered on the caller's thread; see llcas_cas_load_object_async.
+    // Answered on the caller's thread; see llcas_cas_load_object_async. Straight
+    // to the remote half: the local half already ran above.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        actioncache_get_impl(state, &key_bytes, globally, &mut value, &mut error)
+        resolve_from_remote(state, &key_bytes, &mut value, &mut error)
     }))
     .unwrap_or_else(|_| {
         set_error(&mut error, "tuist-cas-plugin: panic during cache query");
@@ -1388,11 +1419,17 @@ mod tests {
     // downgrade would swallow every problem the store ever reports.
     #[test]
     fn only_a_refused_association_counts_as_poisoning() {
+        // The wording observed on Xcode 26.3, plus rewordings it should survive.
         assert!(is_cache_poisoned("ERROR : cache poisoned"));
         assert!(is_cache_poisoned("Cache Poisoned"));
+        assert!(is_cache_poisoned("the cache is poisoned"));
 
         assert!(!is_cache_poisoned(""));
         assert!(!is_cache_poisoned("No space left on device"));
+        // Mentions the cache but is not a refusal.
         assert!(!is_cache_poisoned("failed to open the action cache"));
+        // Mentions poisoning but not the cache: a downgrade would also publish
+        // the value remotely, so a false positive here is not free.
+        assert!(!is_cache_poisoned("poisoned lock in the object store"));
     }
 }

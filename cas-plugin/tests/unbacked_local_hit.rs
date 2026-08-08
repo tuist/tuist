@@ -5,10 +5,10 @@
 //! permanent: it survives re-runs, fresh CI VMs and fresh DerivedData, because
 //! the poisoned local association shadows the remote truth on every later get.
 //!
-//! These tests drive THIS crate's exported `llcas_*` surface (not Apple's dylib
-//! directly -- that is `tests/upstream_prune_rotation.rs`) against a scripted
+//! These tests drive THIS crate's exported `llcas_*` surface against a scripted
 //! fake proxy on a unix socket, so both the local decision and the fall-through
-//! to the remote are observable.
+//! to the remote are observable -- a short-circuit and a fall-through both end in
+//! NOTFOUND, and only the proxy can tell them apart.
 //!
 //! The defect state is constructed directly rather than through a prune
 //! rotation. Two ABI facts make that exact and cheap: `llcas_cas_get_objectid`
@@ -17,9 +17,17 @@
 //! exists. So storing an object in a throwaway store to learn a valid digest and
 //! then putting `key -> that digest` into a FRESH store reproduces "association
 //! present, root absent" in a few lines, with no size limits, no rotation and no
-//! directory surgery. `tests/upstream_prune_rotation.rs` separately establishes
-//! that Apple's store can REACH that state on its own; these tests assert what
-//! we do once we are in it.
+//! directory surgery.
+//!
+//! What these tests therefore do NOT cover is how the state is REACHED, and one
+//! consequence of that gap is worth naming: a prune rotates rather than deleting
+//! in place, so between a rotation and the old generation's collection a value
+//! graph lives only in the demoted generation. Reads chain through it -- which is
+//! why a get that LOADS carries the whole graph forward -- so the probe here
+//! answers SUCCESS and the guard stays quiet until the generation is actually
+//! collected. That is inferred from the upstream characterization on
+//! tuist/tuist#12246, not asserted here: reproducing a rotation needs that PR's
+//! harness, which drives Apple's dylib with no other handle open on the store.
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -84,6 +92,25 @@ fn an_unbacked_local_hit_is_not_served_to_the_caller_asynchronously() {
     );
     assert_eq!(calls, 1, "the callback must fire exactly once");
     assert_eq!(env.proxy.resolves_for(&key), 1, "and fall through to the remote");
+}
+
+/// The async lane verifies the hit in its own fast path and then falls through to
+/// the remote half. If that fall-through re-ran the local half, every unbacked hit
+/// would be detected, logged and counted TWICE on exactly the lane the build
+/// system drives, which would make the operational signal read 2x high.
+#[test]
+fn an_unbacked_local_hit_is_detected_once_per_get() {
+    let Some(env) = Fixture::new("detected-once") else { return };
+    let (key, _) = env.seed_unbacked_association();
+    env.proxy.answer_resolve_with_miss();
+
+    let log = env.capture_log();
+    let (result, _) = env.cas.actioncache_get_async(&key);
+    let lines = log.lines_containing("unbacked local hit");
+
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_NOTFOUND);
+    assert_eq!(lines, 1, "the condition must be reported once per get, not once per layer");
+    assert_eq!(env.proxy.resolves_for(&key), 1, "and cost one resolve, not two");
 }
 
 /// The regression that would cost the most: the guard must not turn ordinary
@@ -298,7 +325,7 @@ struct Fixture {
     cas: PluginCas,
     proxy: FakeProxy,
     _store: TempDir,
-    _socket_dir: TempDir,
+    socket_dir: TempDir,
     // Held for the whole test: see `serialize_tests`.
     _serialized: MutexGuard<'static, ()>,
 }
@@ -332,9 +359,18 @@ impl Fixture {
             cas,
             proxy,
             _store: store,
-            _socket_dir: socket_dir,
+            socket_dir,
             _serialized: serialized,
         })
+    }
+
+    /// Points `TUIST_CAS_LOG` at a fresh file for the rest of the test. Safe
+    /// because `Fixture` serializes tests; the variable is cleared when the
+    /// returned handle drops.
+    fn capture_log(&self) -> CapturedLog {
+        let path = self.socket_dir.path().join("cas.log");
+        std::env::set_var("TUIST_CAS_LOG", &path);
+        CapturedLog(path)
     }
 
     /// A digest that is well-formed for the store's hash schema but names an
@@ -357,6 +393,24 @@ impl Fixture {
             .actioncache_put(&key, value_id)
             .expect("seeding the dangling association");
         (key, value_digest)
+    }
+}
+
+struct CapturedLog(PathBuf);
+
+impl CapturedLog {
+    fn lines_containing(&self, needle: &str) -> usize {
+        std::fs::read_to_string(&self.0)
+            .unwrap_or_default()
+            .lines()
+            .filter(|line| line.contains(needle))
+            .count()
+    }
+}
+
+impl Drop for CapturedLog {
+    fn drop(&mut self) {
+        std::env::remove_var("TUIST_CAS_LOG");
     }
 }
 
