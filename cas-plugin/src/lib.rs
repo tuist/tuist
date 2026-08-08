@@ -598,8 +598,6 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
-        // Ingestion counters, logged whether or not this build reached the
-        // proxy, so a floor build produces the same accounting as a warm one.
         // Degraded keys, reported whenever there were any: each one is a key that
         // stays uncacheable for the life of the store generation, and neither
         // condition is visible anywhere else.
@@ -610,6 +608,8 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
                 "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
             ));
         }
+        // Ingestion counters, logged whether or not this build reached the
+        // proxy, so a floor build produces the same accounting as a warm one.
         if state.stats_client_store.count.load(Ordering::Relaxed) > 0
             || state.stats_mat_store.count.load(Ordering::Relaxed) > 0
         {
@@ -1110,21 +1110,26 @@ unsafe fn verified_local_get(
 ///
 /// Matched on the message because the ABI reports every put failure the same way
 /// (a `true` return plus a string). That is brittle — Apple's wording is not a
-/// contract — so `report_put_failure` logs EVERY put failure, and a variant this
+/// contract — so `adopt_put_failure` logs EVERY put failure, and a variant this
 /// predicate misses shows up in TUIST_CAS_LOG instead of silently failing a build.
 fn is_cache_poisoned(message: &str) -> bool {
     message.to_ascii_lowercase().contains("poison")
 }
 
-/// Logs an upstream put failure and answers whether it should still be treated as
-/// one. A poisoned put is not fatal: the local store keeps the association it
-/// already had, and the caller carries on.
-unsafe fn report_put_failure(state: &CasState, message: &str) -> bool {
+/// Logs an upstream put failure, writes it into `error`, and answers whether the
+/// caller should still treat it as a failure. A refused association is not fatal:
+/// the store keeps the association it already had and the caller carries on.
+unsafe fn adopt_put_failure(state: &CasState, message: &str, error: *mut *mut c_char) -> bool {
     log_line(&format!("actioncache put failed: {message}"));
     if is_cache_poisoned(message) {
         state.stats_poisoned_puts.fetch_add(1, Ordering::Relaxed);
+        // Reported as a success, so the slot must not be left carrying an error.
+        if !error.is_null() {
+            *error = std::ptr::null_mut();
+        }
         return false;
     }
+    set_error(error, message);
     true
 }
 
@@ -1187,8 +1192,7 @@ unsafe fn actioncache_get_impl(
                 // whole get would trade `missing object` for `cache poisoned`.
                 // Serve the resolved value uncached; the next get resolves again.
                 let message = take_upstream_error(state.up, put_error);
-                if report_put_failure(state, &message) {
-                    set_error(error, &message);
+                if adopt_put_failure(state, &message, error) {
                     return LLCAS_LOOKUP_RESULT_ERROR;
                 }
             }
@@ -1239,10 +1243,21 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     // Fast path: answer local hits synchronously. Verified, like the sync get —
     // this path never reaches actioncache_get_impl, so an unverified hit here
     // would keep the whole defect alive on the lane the build system drives.
+    // Under catch_unwind like the slow path below: verification runs our own
+    // code (a probe, and digest printing when it refuses a hit), and a panic
+    // escaping here would unwind across the extern "C" boundary and abort the
+    // build service rather than degrade to a miss. A panic still answers the
+    // callback exactly once, because ERROR takes the branch below.
     let mut value = llcas_objectid_t { opaque: 0 };
-    let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
     let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result = verified_local_get(state, key_digest, globally, &mut value, &mut probe_error);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
+        verified_local_get(state, key_digest, globally, &mut value, &mut probe_error)
+    }))
+    .unwrap_or_else(|_| {
+        set_error(&mut probe_error, "tuist-cas-plugin: panic during cache query");
+        LLCAS_LOOKUP_RESULT_ERROR
+    });
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         let _ = ours_cancel_token(cancel_tok);
         callback(ctx_cb, result, value, probe_error);
@@ -1310,11 +1325,7 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
     let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
     let failed = if rejected {
         let message = take_upstream_error(state.up, upstream_error);
-        let failed = report_put_failure(state, &message);
-        if failed {
-            set_error(error, &message);
-        }
-        failed
+        adopt_put_failure(state, &message, error)
     } else {
         adopt_error(state.up, upstream_error, error);
         false
@@ -1351,11 +1362,7 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let mut error: *mut c_char = std::ptr::null_mut();
     let failed = if rejected {
         let message = take_upstream_error(state.up, upstream_error);
-        let failed = report_put_failure(state, &message);
-        if failed {
-            set_error(&mut error, &message);
-        }
-        failed
+        adopt_put_failure(state, &message, &mut error)
     } else {
         adopt_error(state.up, upstream_error, &mut error);
         false
