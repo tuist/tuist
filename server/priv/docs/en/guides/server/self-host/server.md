@@ -120,7 +120,7 @@ Once the space is reclaimed you can drop `rotatedTables`/`CLICKHOUSE_ROTATED_LOG
 
 ClickHouse checks at startup whether each system log table still matches its configuration. When it doesn't, it renames the existing table to `system.<name>_0`, then `_1`, `_2`, and so on, and starts a fresh one. This happens when you change the retention window, and on any ClickHouse upgrade that changes a system log schema.
 
-Renaming a table does not copy its data, so a rotation consumes no additional disk. ClickHouse never removes these tables afterwards, though, and the retention window applies only to the live table, so on a long-lived instance they accumulate and can grow larger than the tables they replaced.
+Renaming a table does not copy its data, so a rotation consumes no additional disk. What happens to the generation afterwards depends on the table it came from, because it keeps whatever retention the live table had at the moment it was rotated aside. The first time you enable retention the table being rotated has none, so that generation holds all the history accumulated so far and keeps it indefinitely. A later change to the window rotates a table that already has a TTL, so those generations expire on their own and leave an empty table behind. ClickHouse never drops the tables themselves, so on a long-lived instance they accumulate either way.
 
 Rotated tables are kept by default, so that an upgrade never discards operational history on its own. Set the policy to `delete` to drop them instead, which happens on `docker compose up` and on each `helm upgrade`:
 

@@ -2375,8 +2375,11 @@ clickhouse:
       # ClickHouse rotates a system log table aside to `<name>_N` and starts a
       # fresh one whenever the table definition stops matching the config —
       # on a retention change here, and on any ClickHouse upgrade that changes
-      # a system log schema. It never reclaims those generations, so on a
-      # long-lived install they accumulate and can dwarf the live tables.
+      # a system log schema. A generation keeps whatever retention the live
+      # table had at that moment, so ones from a later window change expire on
+      # their own, while ones from the first adoption keep their rows for good.
+      # ClickHouse never drops the tables themselves, so they accumulate either
+      # way.
       #   ignore: leave them in place (default; reclaim them yourself)
       #   delete: drop them after each upgrade
       # Pair `delete` with the upgrade that first sets ttlDays, which is the
