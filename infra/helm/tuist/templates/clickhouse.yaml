@@ -1,9 +1,9 @@
 {{- if eq .Values.clickhouse.mode "embedded" }}
 {{- $systemLogLevel := .Values.clickhouse.embedded.systemLogs.level }}
 {{- $systemLogTTLDays := .Values.clickhouse.embedded.systemLogs.ttlDays }}
-{{- $rotatedTables := .Values.clickhouse.embedded.systemLogs.rotatedTables }}
-{{- if not (has $rotatedTables (list "ignore" "delete")) }}
-{{- fail (printf "clickhouse.embedded.systemLogs.rotatedTables must be \"ignore\" or \"delete\", got %v" $rotatedTables) }}
+{{- $supersededTables := .Values.clickhouse.embedded.systemLogs.supersededTables }}
+{{- if not (has $supersededTables (list "ignore" "delete")) }}
+{{- fail (printf "clickhouse.embedded.systemLogs.supersededTables must be \"ignore\" or \"delete\", got %v" $supersededTables) }}
 {{- end }}
 {{- /*
   System log tables that ship with no TTL and exist in every ClickHouse version
@@ -18,7 +18,7 @@
   Tables that already ship with a TTL (processors_profile_log,
   blob_storage_log, asynchronous_insert_log, and the 26.x zookeeper logs) are
   deliberately absent: they are already bounded, and declaring a different
-  window would rotate them for no gain.
+  window would supersede them for no gain.
 */}}
 {{- $systemLogTables := list "text_log" "query_log" "query_thread_log" "query_views_log" "trace_log" "metric_log" "asynchronous_metric_log" "part_log" }}
 apiVersion: v1
@@ -189,15 +189,15 @@ spec:
                 sleep 2
               done
               clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
-{{- if eq $rotatedTables "delete" }}
+{{- if eq $supersededTables "delete" }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-rotated-log-tables") }}
+  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-superseded-log-tables") }}
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: clickhouse-rotated-log-tables
+    app.kubernetes.io/component: clickhouse-superseded-log-tables
   annotations:
     helm.sh/hook: post-upgrade
     helm.sh/hook-weight: "1"
@@ -208,7 +208,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-rotated-log-tables") | nindent 8 }}
+        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-superseded-log-tables") | nindent 8 }}
         {{- with $.Values.global.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -216,7 +216,7 @@ spec:
 {{ include "tuist.podScheduling" $ | nindent 6 }}
       restartPolicy: OnFailure
       containers:
-        - name: clickhouse-rotated-log-tables
+        - name: clickhouse-superseded-log-tables
           image: "{{ $.Values.clickhouse.embedded.image.repository }}:{{ $.Values.clickhouse.embedded.image.tag }}"
           imagePullPolicy: {{ $.Values.clickhouse.embedded.image.pullPolicy }}
           env:
@@ -241,12 +241,12 @@ spec:
                 fi
                 sleep 2
               done
-              # ClickHouse rotates a system log table when it first flushes to
+              # ClickHouse supersedes a system log table when it first flushes to
               # it, not when it starts serving, so a query issued right after
               # startup sees none of the generations this upgrade will produce.
               # Forcing the flush makes them all exist before we look.
               ch --query "SYSTEM FLUSH LOGS"
-              # ClickHouse stops managing a table once it rotates it aside, so
+              # ClickHouse stops managing a table once it is superseded, so
               # every generation is inert and safe to drop, including ones for
               # tables log-ttl.xml cannot declare a TTL for.
               TABLES=$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$')")

@@ -95,37 +95,37 @@ The bundled Docker Compose and Helm embedded ClickHouse configurations lower the
 
 Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
 
-Turning it on is a one-time, one-way step on an instance that already has data, which is why neither bundle does it for you. Any retention window at all makes those table definitions stop matching their configuration, so ClickHouse rotates each one aside and starts a fresh table, as described under [rotated log tables](#rotated-log-tables). The generation left behind holds everything accumulated so far and carries no retention of its own, so unless you reclaim it in the same step it stays on disk for good and the new window only bounds rows written from then on. Enable both together:
+Turning it on is a one-time, one-way step on an instance that already has data, which is why neither bundle does it for you. Any retention window at all makes those table definitions stop matching their configuration, so ClickHouse renames each one aside and starts a fresh table, as described under [superseded log tables](#superseded-log-tables). The generation left behind holds everything accumulated so far and carries no retention of its own, so unless you reclaim it in the same step it stays on disk for good and the new window only bounds rows written from then on. Enable both together:
 
 ```yaml
 clickhouse:
   embedded:
     systemLogs:
       ttlDays: 14
-      rotatedTables: delete
+      supersededTables: delete
 ```
 
-That single `helm upgrade` is self-contained, because moving `ttlDays` from blank to set adds the drop-in mount and rolls the ClickHouse pod: it restarts, rotates the tables, and the post-upgrade Job then drops the generations. Deploy with `helm upgrade --wait` so the pod is rolled before the Job runs; otherwise the generations appear after it has looked, and the next `helm upgrade` reclaims them instead.
+That single `helm upgrade` is self-contained, because moving `ttlDays` from blank to set adds the drop-in mount and rolls the ClickHouse pod: it restarts, supersedes the tables, and the post-upgrade Job then drops them. Deploy with `helm upgrade --wait` so the pod is rolled before the Job runs; otherwise the generations appear after it has looked, and the next `helm upgrade` reclaims them instead.
 
 With Docker Compose, uncomment the `clickhouse-log-ttl.xml` volume on the `clickhouse` service in `docker-compose.yml` and set both variables in `.env`:
 
 ```bash
 CLICKHOUSE_SYSTEM_LOG_TTL_DAYS=14
-CLICKHOUSE_ROTATED_LOG_TABLES=delete
+CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete
 ```
 
-Once the space is reclaimed you can drop `rotatedTables`/`CLICKHOUSE_ROTATED_LOG_TABLES` back to `ignore`, so that a later ClickHouse upgrade doesn't discard history on its own.
+Once the space is reclaimed you can drop `supersededTables`/`CLICKHOUSE_SUPERSEDED_LOG_TABLES` back to `ignore`, so that a later ClickHouse upgrade doesn't discard history on its own.
 
-#### Rotated log tables {#rotated-log-tables}
+#### Superseded log tables {#superseded-log-tables}
 
 ClickHouse checks at startup whether each system log table still matches its configuration. When it doesn't, it renames the existing table to `system.<name>_0`, then `_1`, `_2`, and so on, and starts a fresh one. This happens when you change the retention window, and on any ClickHouse upgrade that changes a system log schema.
 
-Renaming a table does not copy its data, so a rotation consumes no additional disk. What happens to the generation afterwards depends on the table it came from, because it keeps whatever retention the live table had at the moment it was rotated aside. The first time you enable retention the table being rotated has none, so that generation holds all the history accumulated so far and keeps it indefinitely. A later change to the window rotates a table that already has a TTL, so those generations expire on their own and leave an empty table behind. ClickHouse never drops the tables themselves, so on a long-lived instance they accumulate either way.
+Renaming a table does not copy its data, so this consumes no additional disk. What happens to the superseded table afterwards depends on the table it came from, because it keeps whatever retention the live table had at the moment it was superseded. The first time you enable retention the table being superseded has none, so it holds all the history accumulated so far and keeps it indefinitely. A later change to the window supersedes a table that already carries a TTL, so those expire on their own and leave an empty table behind. ClickHouse never drops the tables themselves, so on a long-lived instance they accumulate either way.
 
-Rotated tables are kept by default, so that an upgrade never discards operational history on its own. Set the policy to `delete` to drop them instead, which happens on `docker compose up` and on each `helm upgrade`:
+Superseded tables are kept by default, so that an upgrade never discards operational history on its own. Set the policy to `delete` to drop them instead, which happens on `docker compose up` and on each `helm upgrade`:
 
 ```bash
-CLICKHOUSE_ROTATED_LOG_TABLES=delete
+CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete
 ```
 
 With the Helm chart, configure the same policy as a value:
@@ -134,10 +134,10 @@ With the Helm chart, configure the same policy as a value:
 clickhouse:
   embedded:
     systemLogs:
-      rotatedTables: delete
+      supersededTables: delete
 ```
 
-Dropping a rotated table reclaims its disk space. The live table is never touched, and neither are the rows written since the rotation.
+Dropping a superseded table reclaims its disk space. The live table is never touched, and neither are the rows written since it was superseded.
 
 To reclaim the space once without changing the policy, drop the tables by hand:
 
@@ -495,7 +495,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    | --- | --- | --- | --- |
    | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Retention window, in days, for ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log` | `14` | `7` |
    | `CLICKHOUSE_TEXT_LOG_LEVEL` | ClickHouse server logger and `system.text_log` level | `information` | `warning` |
-   | `CLICKHOUSE_ROTATED_LOG_TABLES` | What to do with the `<name>_N` tables ClickHouse leaves behind when it rotates a system log table. `ignore` keeps them, `delete` drops them | `ignore` | `delete` |
+   | `CLICKHOUSE_SUPERSEDED_LOG_TABLES` | What to do with the `<name>_N` tables ClickHouse leaves behind when it supersedes a system log table. `ignore` keeps them, `delete` drops them | `ignore` | `delete` |
 
 3. Start all services:
    ```bash
@@ -667,7 +667,7 @@ clickhouse:
       nativePort: 9100
     systemLogs:
       ttlDays: 7
-      rotatedTables: delete
+      supersededTables: delete
       level: warning
 ```
 
@@ -675,9 +675,9 @@ Use these overrides only when your cluster requires them:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
-- `clickhouse.embedded.systemLogs.ttlDays` is empty by default, leaving ClickHouse's unbounded retention on the embedded internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Setting it rotates those tables once, so adopt it alongside `rotatedTables: delete` — see <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.
-- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`. Unlike `ttlDays`, it is not part of any table definition, so changing it never rotates a table.
-- `clickhouse.embedded.systemLogs.rotatedTables` defaults to `ignore` and decides what happens to the `<name>_N` tables ClickHouse leaves behind when it rotates a system log table. Set it to `delete` to drop them on each `helm upgrade`.
+- `clickhouse.embedded.systemLogs.ttlDays` is empty by default, leaving ClickHouse's unbounded retention on the embedded internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Setting it supersedes those tables once, so adopt it alongside `supersededTables: delete` — see <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.
+- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`. Unlike `ttlDays`, it is not part of any table definition, so changing it never supersedes a table.
+- `clickhouse.embedded.systemLogs.supersededTables` defaults to `ignore` and decides what happens to the `<name>_N` tables ClickHouse leaves behind when it supersedes a system log table. Set it to `delete` to drop them on each `helm upgrade`.
 - Edits to `ttlDays` and `level` reach the ClickHouse pod the next time it restarts, since both are `subPath` mounts and the chart does not roll the StatefulSet when its ConfigMap changes.
 
 ### Observability {#helm-observability}

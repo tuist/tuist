@@ -69,7 +69,7 @@ services:
       # Any TTL at all makes those table definitions stop matching, so ClickHouse
       # renames each one to `<name>_N` and starts a fresh table. The generation
       # left behind holds everything accumulated so far and carries no TTL of its
-      # own, so set CLICKHOUSE_ROTATED_LOG_TABLES=delete at the same time to
+      # own, so set CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete at the same time to
       # reclaim it. Without that it stays on disk for good and the window only
       # bounds rows written from then on.
       # - ./clickhouse-log-ttl.xml:/etc/clickhouse-server/config.d/tuist-log-ttl.xml:ro
@@ -97,26 +97,26 @@ services:
       # ClickHouse renames a system log table to `<name>_N` and starts a fresh
       # one whenever the table definition stops matching the config, and never
       # reclaims the old one. `ignore` keeps them, `delete` drops them.
-      CLICKHOUSE_ROTATED_LOG_TABLES: ${CLICKHOUSE_ROTATED_LOG_TABLES:-ignore}
+      CLICKHOUSE_SUPERSEDED_LOG_TABLES: ${CLICKHOUSE_SUPERSEDED_LOG_TABLES:-ignore}
     entrypoint:
       - /bin/sh
       - -ec
       - |
-        case "$$CLICKHOUSE_ROTATED_LOG_TABLES" in
+        case "$$CLICKHOUSE_SUPERSEDED_LOG_TABLES" in
           ignore) exit 0 ;;
           delete) ;;
-          *) echo "CLICKHOUSE_ROTATED_LOG_TABLES must be ignore or delete, got '$$CLICKHOUSE_ROTATED_LOG_TABLES'" >&2; exit 1 ;;
+          *) echo "CLICKHOUSE_SUPERSEDED_LOG_TABLES must be ignore or delete, got '$$CLICKHOUSE_SUPERSEDED_LOG_TABLES'" >&2; exit 1 ;;
         esac
         ch() { clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" "$$@"; }
         # Reclaiming disk must never keep the stack down, and the tables being
         # dropped are inert, so nothing below is allowed to fail this service.
         set +e
-        # ClickHouse rotates a system log table when it first flushes to it, not
+        # ClickHouse supersedes a system log table when it first flushes to it, not
         # when it starts serving, so the healthcheck passes several seconds
         # before this upgrade's generations exist. Forcing the flush makes them
         # all exist before we look.
         ch --query "SYSTEM FLUSH LOGS"
-        # ClickHouse stops managing a table once it rotates it aside, so every
+        # ClickHouse stops managing a table once it is superseded, so every
         # generation is inert and safe to drop, including ones for tables
         # clickhouse-log-ttl.xml cannot declare a TTL for.
         tables=$$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$$')")

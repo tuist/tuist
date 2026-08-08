@@ -2361,10 +2361,10 @@ clickhouse:
       #
       # Setting this is a one-time, one-way step on an install that already has
       # data: any value at all makes the table definition stop matching, so
-      # ClickHouse rotates every declared table aside to `<name>_N` and starts a
-      # fresh one. The rotated generations hold all the history accumulated so
-      # far and carry no TTL, so with `rotatedTables: ignore` they are stranded
-      # for good. Set `rotatedTables: delete` in the same upgrade to reclaim
+      # ClickHouse renames every declared table aside to `<name>_N` and starts a
+      # fresh one. The superseded generations hold all the history accumulated so
+      # far and carry no TTL, so with `supersededTables: ignore` they are stranded
+      # for good. Set `supersededTables: delete` in the same upgrade to reclaim
       # them; otherwise the retention window only ever bounds rows written from
       # here on, which on a long-lived install is the smaller half of the disk.
       ttlDays: ""
@@ -2372,7 +2372,7 @@ clickhouse:
       # system.text_log quickly; lower it back only while investigating
       # ClickHouse itself. Takes effect when the ClickHouse pod next restarts.
       level: information
-      # ClickHouse rotates a system log table aside to `<name>_N` and starts a
+      # ClickHouse renames a system log table aside to `<name>_N` and starts a
       # fresh one whenever the table definition stops matching the config —
       # on a retention change here, and on any ClickHouse upgrade that changes
       # a system log schema. A generation keeps whatever retention the live
@@ -2388,9 +2388,9 @@ clickhouse:
       # comes back at once rather than after the Atomic engine's deferred-drop
       # delay. There is deliberately no option to copy the rows back into the
       # live table: ClickHouse Cloud does not do it either, and it would need
-      # transient disk plus a schema match that an upgrade-driven rotation
+      # transient disk plus a schema match that a ClickHouse upgrade
       # breaks.
-      rotatedTables: ignore
+      supersededTables: ignore
     database: tuist
     username: default
     password: ""

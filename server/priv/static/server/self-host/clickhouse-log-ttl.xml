@@ -15,7 +15,7 @@
     asynchronous_insert_log) are omitted because they are already bounded, and
     opentelemetry_span_log is omitted because the shipped config declares it
     with an explicit <engine> spec that a separate <ttl> cannot coexist with.
-    Rotated generations of all of those are still handled by the retention
+    Superseded generations of all of those are still handled by the retention
     policy in docker-compose.yml, which does not depend on this list.
   -->
   <text_log>
