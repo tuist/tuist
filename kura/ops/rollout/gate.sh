@@ -93,7 +93,7 @@ rollout_wait_for_gate() {
     local target_generation=""
     local observed_generation=""
     local cluster_outbox=0 cluster_fd_timeouts=0 fd_timeout_delta=0
-    local node body ready state generation ring_members inflight outbox fd_timeouts pressure
+    local node body ready state generation ring_members inflight outbox fd_timeouts pressure backfill_mode
 
     for node in "${cluster_nodes[@]}"; do
       if ! body="$(rollout_collect_status_with_retry "${node}")"; then
@@ -106,6 +106,7 @@ rollout_wait_for_gate() {
       generation="$(rollout_json_number "${body}" "generation")"
       ring_members="$(rollout_json_number "${body}" "ring_members")"
       inflight="$(rollout_json_number "${body}" "bootstrap_inflight_peers")"
+      backfill_mode="$(rollout_json_string "${body}" "backfill_initial_cycle")"
       outbox="$(rollout_json_number "${body}" "outbox_messages")"
       fd_timeouts="$(rollout_json_number "${body}" "fd_timeout_count")"
       pressure="$(rollout_json_number "${body}" "memory_pressure_state")"
@@ -142,7 +143,17 @@ rollout_wait_for_gate() {
       if [[ "${ring_members}" != "${expected_ring_members}" ]]; then
         ok=0
       fi
-      if (( inflight != 0 )); then
+      # Catch-up gate, keyed off the walker the node runs: backfill nodes
+      # (KURA_BACKFILL_ENABLED) report the backfill_initial_cycle mode —
+      # pending until the initial cycle settles; complete and degraded are
+      # both settled — while legacy nodes report only the bootstrap
+      # in-flight count. Field presence tells the families apart, so one
+      # gate run passes against a mixed-mode mesh.
+      if [[ -n "${backfill_mode}" ]]; then
+        if [[ "${backfill_mode}" == "pending" ]]; then
+          ok=0
+        fi
+      elif (( inflight != 0 )); then
         ok=0
       fi
       if (( pressure == 2 )); then

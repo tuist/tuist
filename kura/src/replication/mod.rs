@@ -121,7 +121,7 @@ pub fn spawn_outbox_task(state: SharedState) {
     spawn_supervised("outbox", state, outbox_task_loop);
 }
 
-fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+pub(crate) fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
 where
     F: Fn(SharedState) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -152,6 +152,13 @@ where
 }
 
 async fn membership_task_loop(state: SharedState) {
+    // Walker selection happens once at process start: `KURA_BACKFILL_ENABLED`
+    // routes membership changes to the backfill lifecycle instead of the
+    // legacy bootstrap walker. The two paths share no state and never run
+    // together; a flip is an env change plus pod restart, and a flipped-off
+    // node resumes legacy bootstrap cleanly (bootstrap bookkeeping is
+    // in-memory; `backfill/` rows sit inert).
+    let backfill_enabled = state.config.backfill_enabled;
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
@@ -230,8 +237,12 @@ async fn membership_task_loop(state: SharedState) {
         state
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
-        for peer in state.peers_needing_bootstrap().await {
-            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        if backfill_enabled {
+            state.backfill.evaluate(&state, &membership_update);
+        } else {
+            for peer in state.peers_needing_bootstrap().await {
+                maybe_spawn_bootstrap_task(state.clone(), peer).await;
+            }
         }
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;
@@ -977,7 +988,10 @@ fn bootstrap_backpressure_retry_jitter_ms(attempt: u32, node_url: &str, artifact
     jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS
 }
 
-async fn stream_response_to_temp(
+// Shared with the backfill pass driver: batch and per-artifact downloads
+// inherit the same bandwidth shaping, staging-limit enforcement, and
+// memory-pressure cache dropping as bootstrap body fetches.
+pub(crate) async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
@@ -1178,7 +1192,7 @@ async fn fetch_bootstrap_tombstones_page(
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
 }
 
-async fn read_bounded_body(
+pub(crate) async fn read_bounded_body(
     response: reqwest::Response,
     max_bytes: u64,
     label: &str,

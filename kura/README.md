@@ -275,8 +275,20 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_MULTIPART_MAX_STORED_BYTES` | Process-wide byte cap for durable, incomplete multipart parts. Defaults to the temporary-directory byte budget when unset. | Yes | `KURA_TMP_DIR_MAX_BYTES` |
 | `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a bootstrap-from-peer task may make no forward progress before it is cancelled and retried. | Yes | `1800000` |
 | `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS` | Upper bound on concurrent bootstrap-from-peer tasks. Holds a semaphore so a discovery burst can't fan out unbounded. | Yes | `8` |
+| `KURA_BACKFILL_ENABLED` | Boot-time selection of the peer catch-up walker: `true` runs the recency-first backfill lifecycle (with latched readiness), `false` the legacy bootstrap walker. Read once at process start; backfill watermarks and index rows sit inert while the flag is off. | Yes | `false` |
+| `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring (counted from the newest) whose boundary segment's seal-time stat becomes the backfill horizon; the margin's share of the ring's time span is the window's structural slack. | Yes | `40` |
+| `KURA_BACKFILL_READY_RING_PERCENT` | Segment-ring fullness percent at which a node still running its initial backfill cycle marks itself ready; readiness then latches for the process lifetime. Only consulted under `KURA_BACKFILL_ENABLED`. | Yes | half of `KURA_BACKFILL_MARGIN_PERCENT` |
+| `KURA_BACKFILL_BATCH_BYTES` | Byte threshold a backfill pass composes one bodies batch against, and the cutoff above which a listed entry is fetched through the per-artifact endpoint. Must not exceed the compiled 32 MiB response ceiling shared by both sides of the bodies protocol. | Yes | `33554432` |
 | `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the extension authenticate/authorize caches. New entries are dropped (with metric `extension_cache{result="rejected"}`) once the cap is reached and no expired entries remain. | Yes | `100000` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
+
+### Backfill operations
+
+- `KURA_BACKFILL_ENABLED` is flipped per mesh, and only after `backfill/meta/build_complete` is set on every node of that mesh — observable as `GET /_internal/backfill/entries` no longer answering `503 index_building`, or via the `kura_backfill_*` metrics. Tuist's own meshes flip first; customer meshes follow.
+- The rollout report shows the initial cycle per node as `pending` (passes still running or retrying with budget left), `complete` (every in-cycle peer resolved cleanly), or `degraded` (a peer exhausted its failure budget on real failures).
+- Region-move promotion gates on instance readiness only; the initial-cycle mode is not consumed by the control plane. A flag-on move target can latch ready before its full transfer settles, so before initiating a move where completeness matters, check `backfill_initial_cycle: complete` on the target's rollout report first. To abort a move, destroy the move TARGET server (`Kura.destroy_server` via the server ops surface); the source keeps serving.
+- Rollback is flipping the flag off plus a pod restart: the node resumes the legacy bootstrap walker, and `backfill/` watermarks and index rows sit inert on disk.
+- Index-build progress: a node still building answers listing requests with `503 index_building`; rebuilds (rollback-window staleness, cumulative crash forgiveness) are logged with the reason.
 
 Kura also enforces a few hard-coded budgets that are not configurable:
 
