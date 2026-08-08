@@ -259,15 +259,20 @@ defmodule Tuist.Runners do
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
 
+  `opts` relays what the promoted image carries (`:cas_present`) and whether an
+  absent compilation cache is deliberate (`:cas_disabled`), which is what lets
+  the bump refuse a promote that would strip the account's compilation cache.
+
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
-  base is stale (another host advanced the HEAD first), or `:error` on an invalid
-  digest.
+  base is stale (another host advanced the HEAD first), `:cas_regression` when
+  the promote would drop the HEAD's compilation cache without saying it meant
+  to, or `:error` on an invalid digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
+  def report_volume_head(account_id, node_name, tree_digest, base_generation, opts \\ []) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
 
-      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation, opts) do
         {:ok, generation} ->
           # This digest is now HEAD, so it is no longer an orphan candidate even if
           # an earlier job's promote of the same inventory was rejected — forget it
@@ -290,6 +295,21 @@ defmodule Tuist.Runners do
           # straight away.
           reclaim_rejected_master_upload(account_id, tree_digest)
           :conflict
+
+        :cas_regression ->
+          # The promote would have stripped the account's compilation cache. Warn
+          # loudly: this only happens when a runner that cannot write one is
+          # taking jobs for an account whose warm set has one, which is a fleet
+          # problem (a host mid-rollout, rolled back, or deployed with the CAS
+          # off) and not something the next job will resolve on its own. The
+          # uploaded object is orphaned exactly as in the conflict case.
+          Logger.warning(
+            "runners: refused volume HEAD bump that would drop the compilation cache " <>
+              "(account=#{account_id} node=#{node_name} base_generation=#{base_generation})"
+          )
+
+          reclaim_rejected_master_upload(account_id, tree_digest)
+          :cas_regression
       end
     else
       :error

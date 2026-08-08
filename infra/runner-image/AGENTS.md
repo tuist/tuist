@@ -68,12 +68,24 @@ runtime — no service, sudo entry, or auto-login targets it.
   captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
   and a transport error into one failure) and relays the outcome into the
   `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. The host's `Finalize` installs the branch as the account's local
-  master (a whole-image replace) ONLY on `accepted` — so the local master and the
-  HEAD advance together. A `conflict` (a stale base another host advanced past) or
-  an `error` (upload/network/control-plane failure — kept distinct so an outage
-  is not mistaken for cross-host contention) discards the branch and lets
-  convergence re-warm it. A rejected promote still uploaded its object, so the
+  `cas-regression`, or `error`. The host's `Finalize` installs the branch as the
+  account's local master (a whole-image replace) ONLY on `accepted` — so the
+  local master and the HEAD advance together. A `conflict` (a stale base another
+  host advanced past) or an `error` (upload/network/control-plane failure — kept
+  distinct so an outage is not mistaken for cross-host contention) discards the
+  branch and lets convergence re-warm it.
+
+  The fast-forward orders promotes by GENERATION, never by CONTENT, so it also
+  refuses a bump that would DROP the account's compilation cache: the guest
+  declares `cas_present` / `cas_disabled` with the report, the server compares
+  against `runner_volume_heads.cas_present`, and a silent drop comes back 409
+  `cas regression` (relayed as its own outcome so it never inflates the
+  contention rate). `Finalize` echoes the same rule locally from the guest's
+  `cache-cas-before` / `cache-cas-after` markers. Without it, a host that writes
+  no CAS — mid-rollout, rolled back, or deployed with the CAS off — publishes a
+  CAS-less image as HEAD and every other host converges to it and loses its
+  compilation cache. Both defaults are false, so a runner too old to declare
+  anything reads as "no CAS, no intent" and cannot strip a HEAD that has one. A rejected promote still uploaded its object, so the
   server records it as an orphan and reclaims it after the URL-TTL grace. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the
@@ -98,8 +110,15 @@ runtime — no service, sudo entry, or auto-login targets it.
   inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
   content identity, computed identically host- and guest-side), so CAS growth
   flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
-  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
-  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
+  out of the multi-GB store. The marker is THREE-state, and the third state is
+  load-bearing: a byte budget ⇒ on; `disabled` ⇒ an operator turned it off on a
+  host that knows about it, so `reclaim_cas_if_disabled` drops the store and that
+  drop stays promotable (otherwise the disable could never propagate and every
+  master would clone dead CAS bytes forever); ABSENT ⇒ the host predates the
+  folded CAS, so the compilation cache runs VM-local AND an inherited store is
+  left alone. Conflating the last two is what let a host stuck on an old
+  tart-kubelet delete the store it had just converged to and publish the result
+  as HEAD. The CAS shares the volume cap with the binary cache, so size
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).

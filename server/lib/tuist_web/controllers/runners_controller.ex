@@ -112,10 +112,18 @@ defmodule TuistWeb.RunnersController do
     node = Map.get(params, "node_name", "")
     base_generation = parse_base_generation(Map.get(params, "base_generation"))
 
+    # What the promoted image carries, and whether an absent compilation cache is
+    # deliberate. Both default to false, so a runner too old to report them reads
+    # as "no CAS, no intent" and cannot strip a HEAD that has one.
+    cas_opts = [
+      cas_present: parse_flag(Map.get(params, "cas_present")),
+      cas_disabled: parse_flag(Map.get(params, "cas_disabled"))
+    ]
+
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest, base_generation) do
+      case Runners.report_volume_head(account_id, node, digest, base_generation, cas_opts) do
         {:ok, generation} ->
           json(conn, %{generation: generation})
 
@@ -124,6 +132,13 @@ defmodule TuistWeb.RunnersController do
           # The runner discards its branch rather than moving its master off the
           # accepted lineage; the next job re-converges and rebuilds.
           conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
+
+        :cas_regression ->
+          # The promote would have dropped the compilation cache the HEAD carries.
+          # A 409 like the stale-base case (the runner discards and re-converges
+          # either way), with a distinct error so the runner can report it as its
+          # own outcome rather than inflating the fast-forward contention rate.
+          conn |> put_status(:conflict) |> json(%{error: "cas regression"})
 
         :error ->
           conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
@@ -150,6 +165,13 @@ defmodule TuistWeb.RunnersController do
   end
 
   defp parse_base_generation(_), do: 0
+
+  # A runner's boolean content declaration. Only an explicit true counts: absent,
+  # null, or anything else reads as false, which is what keeps a client that says
+  # nothing about the compilation cache from being treated as if it had one.
+  defp parse_flag(true), do: true
+  defp parse_flag("true"), do: true
+  defp parse_flag(_), do: false
 
   # A runner requests the presigned PUT URL for the master object keyed by the
   # inventory digest it is about to promote, then PUTs its image there and calls
