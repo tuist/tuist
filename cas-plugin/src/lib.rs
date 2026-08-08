@@ -1005,14 +1005,28 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // The local association outlives the value graph (the build
-            // system prunes the store several times per build), so a later
-            // get can hit it locally with the objects gone. That is safe
-            // ONLY because the load path self-heals: a local load miss
-            // consults the proxy (FETCH_OBJECT), whose fetch instructions
-            // are retained after materialization and also cover locally
-            // published nodes — clang fails the build outright on a
-            // missing object, it does not recompile.
+            // The local association outlives the value graph, so a later get
+            // can hit it locally with the objects gone. Not because pruning
+            // deletes objects in place: swift-build sets a size limit and
+            // prunes ONCE PER BUILD per CAS instance, on a utility-QoS queue
+            // CONCURRENTLY with compilation (SWBTaskExecution's
+            // CompilationCachingDataPruner), and the upstream store answers
+            // that by ROTATING — a new generation becomes primary, the old
+            // one is chained behind it, and a read faults the association
+            // forward WITHOUT its value graph. Once the old generation is
+            // collected the association resolves to nothing. So an
+            // over-budget build races its own pruner; see
+            // tests/upstream_prune_rotation.rs.
+            //
+            // The load path self-heals only while the remote can still
+            // produce the object: a local load miss consults the proxy
+            // (FETCH_OBJECT), whose fetch instructions are retained after
+            // materialization and also cover locally published nodes. Once
+            // the node is gone from kura too, nothing repairs it and clang
+            // fails the build outright rather than recompiling — that is
+            // tuist/tuist#12245, and this put is a second author of the same
+            // dangling state, since the graph is materialized in the
+            // background after this returns.
             let mut put_error: *mut c_char = std::ptr::null_mut();
             if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
                 adopt_error(state.up, put_error, error);
