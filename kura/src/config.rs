@@ -27,6 +27,13 @@ const KURA_PEERS: &str = "KURA_PEERS";
 const KURA_DISCOVERY_DNS_NAME: &str = "KURA_DISCOVERY_DNS_NAME";
 const KURA_GLOBAL_DISCOVERY_DNS_NAME: &str = "KURA_GLOBAL_DISCOVERY_DNS_NAME";
 const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
+const KURA_CONTROL_GRANT_PUBLIC_KEY: &str = "KURA_CONTROL_GRANT_PUBLIC_KEY";
+const KURA_CONTROL_GRANT_ISSUER: &str = "KURA_CONTROL_GRANT_ISSUER";
+const KURA_CONTROL_GRANT_AUDIENCE: &str = "KURA_CONTROL_GRANT_AUDIENCE";
+const KURA_CONTROL_GRANT_MAX_TTL_SECONDS: &str = "KURA_CONTROL_GRANT_MAX_TTL_SECONDS";
+/// One hour. Long enough for a debugging session, short enough that a leaked
+/// grant is not a standing key.
+const DEFAULT_CONTROL_GRANT_MAX_TTL_SECONDS: i64 = 3_600;
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
@@ -112,7 +119,29 @@ const FALLBACK_HOST_CPU_COUNT: usize = 4;
 #[cfg(target_os = "linux")]
 const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
-#[derive(Clone, Debug)]
+/// Marker substituted for credentials when the resolved configuration is
+/// serialized for `kura runtime config`.
+pub const REDACTED: &str = "<redacted>";
+
+fn redact_secret<S>(value: &str, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(if value.is_empty() { "" } else { REDACTED })
+}
+
+fn redact_optional_secret<S>(value: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(value) if !value.is_empty() => serializer.serialize_some(REDACTED),
+        Some(_) => serializer.serialize_some(""),
+        None => serializer.serialize_none(),
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Config {
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
@@ -173,6 +202,7 @@ pub struct Config {
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
+    #[serde(serialize_with = "redact_optional_secret")]
     pub sentry_dsn: Option<String>,
     /// How often the in-process GeoIP database is refreshed against the
     /// upstream DB-IP Lite dump. `0` disables background refresh — the
@@ -186,22 +216,24 @@ pub struct Config {
     /// `US-CA`). When set, it short-circuits the egress-IP probe used to
     /// stamp `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
+    /// Authorizes mutating control-surface operations. `None` refuses them.
+    pub control_grant: Option<ControlGrantConfig>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct PeerTlsConfig {
     pub ca_cert_path: PathBuf,
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct AcceleratedFileServingConfig {
     pub enabled: bool,
     pub mode: AcceleratedFileServingMode,
@@ -209,7 +241,8 @@ pub struct AcceleratedFileServingConfig {
     pub chunk_bytes: usize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AcceleratedFileServingMode {
     Sendfile,
     Splice,
@@ -224,9 +257,10 @@ impl AcceleratedFileServingMode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct AnalyticsConfig {
     pub server_url: String,
+    #[serde(serialize_with = "redact_secret")]
     pub signing_key: String,
     pub batch_size: usize,
     pub batch_timeout_ms: u64,
@@ -236,10 +270,29 @@ pub struct AnalyticsConfig {
     pub circuit_breaker_open_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Authorizes mutating control-surface operations. Absent means writes are
+/// refused: elevation that cannot be verified is not elevation.
+///
+/// Deliberately agnostic about who issues grants. Point it at any authority
+/// that can sign an Ed25519 JWS. The public key is not a secret (it verifies,
+/// it cannot mint), so it can travel as plain configuration.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ControlGrantConfig {
+    pub public_key_pem: String,
+    /// The `iss` this node trusts. Pinned so a grant signed by some other
+    /// authority the same key happens to serve is still rejected.
+    pub issuer: String,
+    /// The `aud` this node answers to. Scope it per environment so a grant
+    /// minted for staging cannot authorize a write in production.
+    pub audience: String,
+    pub max_ttl_seconds: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct UsageConfig {
     pub control_plane_url: String,
     pub client_id: String,
+    #[serde(serialize_with = "redact_secret")]
     pub client_secret: String,
     pub window_secs: u64,
     pub flush_interval_ms: u64,
@@ -1098,6 +1151,59 @@ impl Config {
                 "{KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS} must be greater than 0"
             ));
         }
+        // All three or none. A key without an issuer and audience cannot be
+        // scoped, and either alone is a misconfiguration rather than a reason
+        // to silently leave the gate open or shut.
+        let control_grant_public_key = lookup(KURA_CONTROL_GRANT_PUBLIC_KEY)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_grant_issuer = lookup(KURA_CONTROL_GRANT_ISSUER)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_grant_audience = lookup(KURA_CONTROL_GRANT_AUDIENCE)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_grant_max_ttl_seconds = optional_parsed_value(
+            &mut lookup,
+            KURA_CONTROL_GRANT_MAX_TTL_SECONDS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<i64>()
+                    .map_err(|_| {
+                        format!("{KURA_CONTROL_GRANT_MAX_TTL_SECONDS} must be a valid i64")
+                    })
+                    .and_then(|seconds| {
+                        if seconds > 0 {
+                            Ok(seconds)
+                        } else {
+                            Err(format!(
+                                "{KURA_CONTROL_GRANT_MAX_TTL_SECONDS} must be positive"
+                            ))
+                        }
+                    })
+            },
+        )
+        .unwrap_or(DEFAULT_CONTROL_GRANT_MAX_TTL_SECONDS);
+        let control_grant = match (
+            control_grant_public_key,
+            control_grant_issuer,
+            control_grant_audience,
+        ) {
+            (None, None, None) => None,
+            (Some(public_key_pem), Some(issuer), Some(audience)) => Some(ControlGrantConfig {
+                public_key_pem,
+                issuer,
+                audience,
+                max_ttl_seconds: control_grant_max_ttl_seconds,
+            }),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_CONTROL_GRANT_PUBLIC_KEY}, {KURA_CONTROL_GRANT_ISSUER}, and {KURA_CONTROL_GRANT_AUDIENCE} must either all be set or all be unset"
+                ));
+                None
+            }
+        };
         let analytics = match (analytics_server_url, analytics_signing_key) {
             (None, None) => None,
             (Some(server_url), Some(signing_key)) => match reqwest::Url::parse(&server_url) {
@@ -1419,6 +1525,7 @@ impl Config {
             multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            control_grant,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1614,6 +1721,89 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
     use tempfile::tempdir;
+
+    /// `Config` is serialized wholesale for `kura runtime config`, so a field
+    /// added later without a `serialize_with = "redact_*"` attribute would put a
+    /// credential on an operator's terminal. Rather than enumerate today's
+    /// secrets, this walks the serialized output and fails on any field whose
+    /// name reads like a credential but whose value was not redacted.
+    #[test]
+    fn credential_shaped_fields_are_never_serialized_in_the_clear() {
+        const SUSPICIOUS: [&str; 7] = [
+            "secret",
+            "password",
+            "signing_key",
+            "private_key",
+            "api_key",
+            "token",
+            "dsn",
+        ];
+
+        fn walk(value: &serde_json::Value, path: &str, findings: &mut Vec<String>) {
+            match value {
+                serde_json::Value::Object(fields) => {
+                    for (name, field) in fields {
+                        let child = if path.is_empty() {
+                            name.clone()
+                        } else {
+                            format!("{path}.{name}")
+                        };
+                        // Only string-valued fields can carry a credential; a
+                        // byte limit that happens to contain "key" cannot.
+                        let lowered = name.to_lowercase();
+                        if SUSPICIOUS.iter().any(|marker| lowered.contains(marker))
+                            && let serde_json::Value::String(text) = field
+                            && text != REDACTED
+                            && !text.is_empty()
+                        {
+                            findings.push(child.clone());
+                        }
+                        walk(field, &child, findings);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for item in items {
+                        walk(item, path, findings);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut config = config_from(&[]).expect("configuration should build");
+        config.sentry_dsn = Some("https://public@sentry.example/1".into());
+        config.analytics = Some(AnalyticsConfig {
+            server_url: "https://analytics.example".into(),
+            signing_key: "signing-key-value".into(),
+            batch_size: 1,
+            batch_timeout_ms: 1,
+            queue_capacity: 1,
+            request_timeout_ms: 1,
+            circuit_breaker_failure_threshold: 1,
+            circuit_breaker_open_ms: 1,
+        });
+        config.usage = Some(UsageConfig {
+            control_plane_url: "https://control.example".into(),
+            client_id: "client-id".into(),
+            client_secret: "client-secret-value".into(),
+            window_secs: 1,
+            flush_interval_ms: 1,
+            delivery_interval_ms: 1,
+            batch_size: 1,
+            max_buckets: 1,
+            outbox_max_depth: 1,
+        });
+
+        let serialized = serde_json::to_value(&config).expect("configuration should serialize");
+        let mut findings = Vec::new();
+        walk(&serialized, "", &mut findings);
+
+        assert!(
+            findings.is_empty(),
+            "these configuration fields look like credentials but are serialized in the clear: {findings:?}. \
+             Annotate them with #[serde(serialize_with = \"redact_secret\")]."
+        );
+    }
 
     const TEST_HOST_RESOURCES: HostResources = HostResources {
         file_descriptor_limit: 4096,

@@ -5,6 +5,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 ## Key Boundaries
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
+- CLI and the local control surface: `docs/cli.md` — `src/cli.rs`, `src/command.rs`, `src/control/`.
+  Bare `kura` still serves; inspection commands talk to a running node over a Unix socket in the
+  data dir. Mutating commands are gated on a signed grant (`src/control/grant.rs`), which is
+  issuer-agnostic by design
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
@@ -38,6 +42,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
+- Keep `docs/cli.md` in sync when adding CLI commands or control routes. Any new mutating route
+  must go through `authorize_write` and must call composite `Store` operations rather than raw
+  key writes, so referential integrity and mesh convergence hold
 - Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`

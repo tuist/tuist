@@ -347,6 +347,48 @@ async fn run_with_config(
     let router = cohosted_router(state.clone());
     let public_shutdown_state = state.clone();
     let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
+
+    // The local control surface. It is published only after the writer lock is
+    // held and the state is assembled, so the runtime file's pid is always the
+    // lock holder and anything that connects sees a fully built node.
+    let runtime_info = Arc::new(crate::control::RuntimeInfo {
+        schema_version: crate::control::runtime_file::SCHEMA_VERSION,
+        pid: std::process::id(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        started_at_unix_ms: crate::control::runtime_file::now_unix_ms(),
+        data_dir: state.config.data_dir.clone(),
+        control_socket_path: crate::control::RuntimeInfo::control_socket_path(
+            &state.config.data_dir,
+        ),
+        port: state.config.port,
+        internal_port: state.config.internal_port,
+        node_url: state.config.node_url.clone(),
+        region: state.config.region.clone(),
+        tenant_id: state.config.tenant_id.clone(),
+    });
+    // The control socket outlives the public drain deliberately. A stuck drain
+    // is one of the things an operator most needs to inspect, so it keeps
+    // answering until inflight requests have finished and the other listeners
+    // are down, rather than going dark the moment SIGTERM arrives.
+    let (control_shutdown_tx, control_shutdown_rx) = watch::channel(false);
+    let control_task = match crate::control::server::spawn(
+        state.clone(),
+        runtime_info.clone(),
+        control_shutdown_rx,
+    ) {
+        Ok(task) => {
+            if let Err(error) = runtime_info.write() {
+                warn!("failed to publish runtime info: {error}");
+            }
+            Some(task)
+        }
+        Err(error) => {
+            // Losing introspection must not stop the node from serving cache
+            // traffic, which is the only thing clients depend on.
+            warn!("control socket unavailable: {error}");
+            None
+        }
+    };
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -430,6 +472,14 @@ async fn run_with_config(
     if let Some(https_task) = https_task {
         wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
     }
+    let _ = control_shutdown_tx.send(true);
+    if let Some(control_task) = control_task {
+        wait_for_task_shutdown(control_task, "control socket", shutdown_budget).await;
+    }
+    // Removed last so that anything still connected during drain can still see
+    // where the socket is. A crash skips this, which is what makes a failed
+    // connect the authoritative liveness signal rather than this file.
+    crate::control::RuntimeInfo::remove(&state.config.data_dir);
 
     Ok(())
 }

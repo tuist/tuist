@@ -49,6 +49,10 @@ impl TmpBudget {
         })
     }
 
+    pub fn capacity_bytes(&self) -> u64 {
+        self.capacity
+    }
+
     /// Reserve `bytes` immediately, rejecting the caller when the shared
     /// staging budget has no room. Foreground uploads use this instead of
     /// waiting while they hold a request body and memory admission.
@@ -87,8 +91,7 @@ impl TmpBudget {
         }
     }
 
-    #[cfg(test)]
-    fn reserved_bytes(&self) -> u64 {
+    pub fn reserved_bytes(&self) -> u64 {
         self.reserved.load(Ordering::Acquire)
     }
 

@@ -21,6 +21,7 @@ use crate::{
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
+    control::report::ReplicationBackoffEntry,
     extension::SharedExtension,
     geoip::GeoIp,
     io::IoController,
@@ -365,6 +366,30 @@ impl AppState {
         backoff.next_attempt = now + Duration::from_secs(delay_secs);
     }
 
+    /// Snapshots per-target replication backoff for `kura outbox stats` and
+    /// `kura peer list`.
+    ///
+    /// Copies out under the lock and releases it before anything serializes, so
+    /// an operator running this cannot stall the replication path it describes.
+    pub async fn replication_backoff_snapshot(&self) -> Vec<ReplicationBackoffEntry> {
+        let now = Instant::now();
+        let backoffs = self.replication_backoff.lock().await;
+        let mut entries: Vec<ReplicationBackoffEntry> = backoffs
+            .iter()
+            .map(|(target, backoff)| ReplicationBackoffEntry {
+                target: target.clone(),
+                consecutive_failures: backoff.failures,
+                retry_in_ms: backoff
+                    .next_attempt
+                    .saturating_duration_since(now)
+                    .as_millis() as u64,
+            })
+            .collect();
+        drop(backoffs);
+        entries.sort_by(|left, right| left.target.cmp(&right.target));
+        entries
+    }
+
     #[cfg(test)]
     pub async fn expire_readiness_settle_window(&self) {
         self.readiness.lock().await.settle_until = Instant::now();
@@ -465,7 +490,6 @@ impl AppState {
         }
     }
 
-    #[cfg(test)]
     pub async fn current_bootstrap_epoch(&self) -> u64 {
         self.readiness.lock().await.bootstrap_epoch
     }
