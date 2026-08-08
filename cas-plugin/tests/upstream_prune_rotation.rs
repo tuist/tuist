@@ -1,39 +1,48 @@
-//! Characterization of an upstream defect in Apple's `libToolchainCASPlugin`:
-//! a size-driven prune can leave an action-cache association pointing at a value
-//! graph that no longer exists, so `llcas_actioncache_get_for_digest` answers
-//! `SUCCESS` with a root object that `llcas_cas_contains_object` reports as
-//! `NOTFOUND`. Downstream that is the build failure in
-//! <https://github.com/tuist/tuist/issues/12245>:
-//! `error: CAS operation failed: missing object '0~...'` -- a warning plus a
-//! recompile on the Swift lane, fatal on the clang lane.
+//! Characterization of when the upstream on-disk CAS can leave an action-cache
+//! association pointing at a value graph that is no longer present -- the state
+//! behind `error: CAS operation failed: missing object '0~...'`
+//! (<https://github.com/tuist/tuist/issues/12245>), a warning plus a recompile on
+//! the Swift lane and fatal on the clang lane.
 //!
-//! Mechanism, reproduced below with zero Tuist code on the path (the test drives
-//! Apple's dylib directly through the raw llcas ABI):
+//! The three tests below drive Apple's dylib directly through the raw llcas ABI,
+//! with no Tuist code on the path, and together they bound the hazard precisely.
 //!
-//! 1. The on-disk store is a chain of generations: `v1.1/{v8.data, v8.index,
-//!    v3.actions}`. Objects (`v8.*`) and the action cache (`v3.actions`) are
-//!    SEPARATE files, so nothing structurally ties an association's lifetime to
-//!    its value graph's.
-//! 2. `llcas_cas_set_ondisk_size_limit` + `llcas_cas_prune_ondisk_data` -- what
-//!    the build system issues on every build -- does not delete in place. It
-//!    ROTATES: a new primary generation `v1.2` is created with `v1.1` chained
-//!    behind it, read-only, awaiting collection.
-//! 3. An ordinary action-cache read then faults the key -> value ASSOCIATION
-//!    forward into the new primary, but does NOT copy the value graph forward --
-//!    not even the root object.
-//! 4. When the old generation is finally collected, the faulted-forward
-//!    association survives in the new primary pointing at nothing.
+//! Shared setup: the store is a chain of generations
+//! (`v1.1/{v8.data, v8.index, v3.actions}` -- objects and the action cache are
+//! SEPARATE files). `llcas_cas_set_ondisk_size_limit` + `llcas_cas_prune_ondisk_data`
+//! do not delete in place; over budget they ROTATE, making `v1.2` primary with
+//! `v1.1` chained behind it read-only, awaiting collection.
 //!
-//! The control case (no read between rotation and collection) shows the read is
-//! what plants the dangling entry: with nothing faulted forward, the association
-//! is collected together with its objects and the lookup correctly misses.
+//! What varies is what happens between rotation and collection:
 //!
-//! These tests assert the CURRENT, ACTUAL behaviour of Xcode's plugin (verified
-//! on Xcode 26.3). A FAILURE HERE IS NOT NECESSARILY A REGRESSION IN THIS CRATE:
-//! if `dangling_association` starts failing because the association no longer
-//! survives collection, Apple has likely fixed the defect, and the workarounds
-//! this crate carries for unbacked local hits (see the FETCH_OBJECT fallbacks in
-//! `src/proxy.rs`) can be revisited.
+//! * **No read** -- the association is collected together with its objects and
+//!   the lookup correctly misses. Nothing stranded.
+//! * **A read that only PROBES** (`actioncache_get` plus
+//!   `llcas_cas_contains_object`, never a load) -- the ASSOCIATION faults forward
+//!   into the new primary while the value graph does not, so after collection the
+//!   lookup answers `SUCCESS` for a root the store no longer has.
+//! * **A read that LOADS** (`actioncache_get` then `llcas_cas_load_object` on the
+//!   value and its refs) -- the whole graph comes forward with the association and
+//!   collection strands nothing.
+//!
+//! So the upstream store is NOT broadly broken: `OnDiskGraphDB::FaultInPolicy`
+//! defaults to `FullTree` ("copy the entire graph of a node") and it does exactly
+//! that -- keyed off a LOAD. `contains_object` is a presence check and faults
+//! nothing in. The hazard is the narrow one the middle case captures: a get whose
+//! value is never loaded, followed by collection, followed by someone else's get
+//! that does load.
+//!
+//! That distinction matters for this crate specifically, because its hot paths
+//! probe rather than load on purpose -- see the "Per-key overhead" note in
+//! `AGENTS.md` and `PathState::load_present` in `src/proxy.rs`, which is named for
+//! what it answers, not for how (it calls `llcas_cas_contains_object`). Whether a
+//! real build ever performs a get-without-load is NOT established by these tests.
+//!
+//! These tests assert the CURRENT, ACTUAL behaviour of Xcode's plugin (verified on
+//! Xcode 26.3). A FAILURE HERE IS NOT NECESSARILY A REGRESSION IN THIS CRATE: if
+//! the probe-only case stops stranding its graph, upstream has changed the
+//! fault-in behaviour and the unbacked-hit workarounds this crate carries (the
+//! FETCH_OBJECT fallbacks in `src/proxy.rs`) can be revisited.
 //!
 //! Collection of the rotated-out generation is SIMULATED by removing the `v1.1`
 //! directory. Apple's own collector is time/pressure driven and did not fire
@@ -119,6 +128,59 @@ fn actioncache_read_before_collection_leaves_an_association_without_its_objects(
         LLCAS_LOOKUP_RESULT_NOTFOUND,
         "the root object is genuinely absent, not merely unreachable through a \
          stale handle"
+    );
+}
+
+#[test]
+fn a_read_that_loads_the_value_carries_the_whole_graph_forward() {
+    let Some(upstream) = upstream() else {
+        return skip("Apple's libToolchainCASPlugin is unavailable");
+    };
+    let store = TempStore::new("loaded");
+
+    seed(upstream, store.path());
+    rotate(upstream, store.path());
+    assert_rotated(store.path());
+
+    // The difference from the dangling case: the value is LOADED, not merely
+    // probed. This is what a compiler frontend does when it replays a cached
+    // compilation, and `FaultInPolicy::FullTree` (the default) copies the whole
+    // graph forward on it.
+    {
+        let cas = Cas::open(upstream, store.path());
+        let key = cas.key_digest();
+        let (result, value) = cas.actioncache_get(&key);
+        assert_eq!(
+            result, LLCAS_LOOKUP_RESULT_SUCCESS,
+            "the entry must resolve before collection, or the test is not exercising \
+             the faulting-forward path"
+        );
+        assert_eq!(
+            cas.load_graph(value),
+            LLCAS_LOOKUP_RESULT_SUCCESS,
+            "the whole graph must be loadable while both generations are on disk"
+        );
+    }
+
+    collect_first_generation(store.path());
+
+    let cas = Cas::open(upstream, store.path());
+    let key = cas.key_digest();
+    let (result, value) = cas.actioncache_get(&key);
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the association survives collection, as in the dangling case"
+    );
+    assert_eq!(
+        cas.contains(value),
+        LLCAS_LOOKUP_RESULT_SUCCESS,
+        "unlike the dangling case, the value graph came forward with it: a LOAD \
+         faults the full tree into the new primary, so collection strands nothing"
+    );
+    assert_eq!(
+        cas.load_graph(value),
+        LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the whole closure, not just the root, survived the collection"
     );
 }
 
@@ -373,6 +435,45 @@ impl Cas {
                 take_error(self.upstream, error)
             );
             result
+        }
+    }
+
+    /// Loads an object and every object it references — what a compiler frontend
+    /// does when it replays a cached compilation, and what `FaultInPolicy` keys
+    /// its copy-forward off. `contains` is a presence check and faults nothing in.
+    fn load_graph(&self, id: llcas_objectid_t) -> llcas_lookup_result_t {
+        unsafe {
+            let mut loaded = llcas_loaded_object_t { opaque: 0 };
+            let mut error: *mut c_char = ptr::null_mut();
+            let result = (self.upstream.llcas_cas_load_object)(self.raw, id, &mut loaded, &mut error);
+            assert_ne!(
+                result,
+                LLCAS_LOOKUP_RESULT_ERROR,
+                "llcas_cas_load_object: {}",
+                take_error(self.upstream, error)
+            );
+            if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+                return result;
+            }
+            let refs = (self.upstream.llcas_loaded_object_get_refs)(self.raw, loaded);
+            let count = (self.upstream.llcas_object_refs_get_count)(self.raw, refs);
+            for index in 0..count {
+                let child = (self.upstream.llcas_object_refs_get_id)(self.raw, refs, index);
+                let mut child_loaded = llcas_loaded_object_t { opaque: 0 };
+                let mut child_error: *mut c_char = ptr::null_mut();
+                let child_result =
+                    (self.upstream.llcas_cas_load_object)(self.raw, child, &mut child_loaded, &mut child_error);
+                assert_ne!(
+                    child_result,
+                    LLCAS_LOOKUP_RESULT_ERROR,
+                    "llcas_cas_load_object(ref {index}): {}",
+                    take_error(self.upstream, child_error)
+                );
+                if child_result != LLCAS_LOOKUP_RESULT_SUCCESS {
+                    return child_result;
+                }
+            }
+            LLCAS_LOOKUP_RESULT_SUCCESS
         }
     }
 

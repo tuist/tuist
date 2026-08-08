@@ -1005,28 +1005,30 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // The local association outlives the value graph, so a later get
-            // can hit it locally with the objects gone. Not because pruning
-            // deletes objects in place: swift-build sets a size limit and
-            // prunes ONCE PER BUILD per CAS instance, on a utility-QoS queue
-            // CONCURRENTLY with compilation (SWBTaskExecution's
-            // CompilationCachingDataPruner), and the upstream store answers
-            // that by ROTATING — a new generation becomes primary, the old
-            // one is chained behind it, and a read faults the association
-            // forward WITHOUT its value graph. Once the old generation is
-            // collected the association resolves to nothing. So an
-            // over-budget build races its own pruner; see
-            // tests/upstream_prune_rotation.rs.
+            // This writes a DURABLE claim for a graph that is not here yet:
+            // llcas_cas_get_objectid mints an id from a digest without
+            // requiring the object, and non-blocking resolve materializes in
+            // the background after this returns. If that never completes, the
+            // association is left naming nothing — and it cannot be taken
+            // back. The ABI has no delete, and re-putting the key with a
+            // different value is rejected (`cache poisoned`), so a put is
+            // irreversible for the life of the store generation. Ordering is
+            // the only protection there is; deferring this until the closure
+            // is materialized is tracked in tuist/tuist#12245.
             //
-            // The load path self-heals only while the remote can still
-            // produce the object: a local load miss consults the proxy
+            // A stranded association can also arise upstream, but only
+            // narrowly: the store chains generations, and a value graph is
+            // copied forward when it is LOADED (FaultInPolicy::FullTree),
+            // not when it is merely probed with contains_object. See
+            // tests/upstream_prune_rotation.rs, which characterizes all three
+            // variants.
+            //
+            // Either way the load path self-heals only while the remote can
+            // still produce the object: a local load miss consults the proxy
             // (FETCH_OBJECT), whose fetch instructions are retained after
             // materialization and also cover locally published nodes. Once
             // the node is gone from kura too, nothing repairs it and clang
-            // fails the build outright rather than recompiling — that is
-            // tuist/tuist#12245, and this put is a second author of the same
-            // dangling state, since the graph is materialized in the
-            // background after this returns.
+            // fails the build outright rather than recompiling.
             let mut put_error: *mut c_char = std::ptr::null_mut();
             if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
                 adopt_error(state.up, put_error, error);
