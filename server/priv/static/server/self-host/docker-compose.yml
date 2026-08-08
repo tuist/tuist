@@ -51,6 +51,8 @@ services:
       CLICKHOUSE_USER: tuist
       CLICKHOUSE_PASSWORD: tuist
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      # Read only once the clickhouse-log-ttl.xml volume below is uncommented;
+      # system log retention is off until then.
       CLICKHOUSE_SYSTEM_LOG_TTL: "event_date + INTERVAL ${CLICKHOUSE_SYSTEM_LOG_TTL_DAYS:-14} DAY DELETE"
       CLICKHOUSE_TEXT_LOG_LEVEL: ${CLICKHOUSE_TEXT_LOG_LEVEL:-information}
     ports:
@@ -59,7 +61,18 @@ services:
     volumes:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/tuist.xml:ro
       - ./clickhouse-log-level.xml:/etc/clickhouse-server/config.d/tuist-log-level.xml:ro
-      - ./clickhouse-log-ttl.xml:/etc/clickhouse-server/config.d/tuist-log-ttl.xml:ro
+      # Retention for ClickHouse's internal system.* log tables, which are
+      # unbounded otherwise. Uncomment to apply it, and set
+      # CLICKHOUSE_SYSTEM_LOG_TTL_DAYS in .env to change the 14-day window.
+      #
+      # On an instance that already has data this is a one-time, one-way step.
+      # Any TTL at all makes those table definitions stop matching, so ClickHouse
+      # renames each one to `<name>_N` and starts a fresh table. The generation
+      # left behind holds everything accumulated so far and carries no TTL of its
+      # own, so set CLICKHOUSE_ROTATED_LOG_TABLES=delete at the same time to
+      # reclaim it. Without that it stays on disk for good and the window only
+      # bounds rows written from then on.
+      # - ./clickhouse-log-ttl.xml:/etc/clickhouse-server/config.d/tuist-log-ttl.xml:ro
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
       # BusyBox wget, which is what the alpine image ships, has no --user or

@@ -2356,9 +2356,18 @@ clickhouse:
       # Override only if your service mesh or reserved ports require a different number.
       nativePort: 9000
     systemLogs:
-      # Retention window for ClickHouse's internal system.* log tables.
-      # Set to an empty value to leave ClickHouse's default unbounded retention.
-      ttlDays: 14
+      # Retention window for ClickHouse's internal system.* log tables. Empty
+      # by default, which leaves ClickHouse's unbounded retention untouched.
+      #
+      # Setting this is a one-time, one-way step on an install that already has
+      # data: any value at all makes the table definition stop matching, so
+      # ClickHouse rotates every declared table aside to `<name>_N` and starts a
+      # fresh one. The rotated generations hold all the history accumulated so
+      # far and carry no TTL, so with `rotatedTables: ignore` they are stranded
+      # for good. Set `rotatedTables: delete` in the same upgrade to reclaim
+      # them; otherwise the retention window only ever bounds rows written from
+      # here on, which on a long-lived install is the smaller half of the disk.
+      ttlDays: ""
       # ClickHouse logger/text_log level. The image ships `trace`, which fills
       # system.text_log quickly; lower it back only while investigating
       # ClickHouse itself. Takes effect when the ClickHouse pod next restarts.
@@ -2370,6 +2379,8 @@ clickhouse:
       # long-lived install they accumulate and can dwarf the live tables.
       #   ignore: leave them in place (default; reclaim them yourself)
       #   delete: drop them after each upgrade
+      # Pair `delete` with the upgrade that first sets ttlDays, which is the
+      # upgrade that produces the first generation.
       # Dropping needs no extra disk, and runs as DROP ... SYNC so the space
       # comes back at once rather than after the Atomic engine's deferred-drop
       # delay. There is deliberately no option to copy the rows back into the

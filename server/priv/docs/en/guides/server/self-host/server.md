@@ -89,9 +89,32 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 >
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
-The bundled Docker Compose and Helm embedded ClickHouse configurations also cap ClickHouse's own `system.*` operational log tables. They retain `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log` for 14 days by default, and lower the ClickHouse text log level from the image's `trace` default to `information`. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
+The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
-To keep ClickHouse's own unbounded retention instead, leave `clickhouse.embedded.systemLogs.ttlDays` blank with the Helm chart, or remove the `clickhouse-log-ttl.xml` volume from `docker-compose.yml`.
+#### Capping operational log retention {#capping-operational-log-retention}
+
+Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
+
+Turning it on is a one-time, one-way step on an instance that already has data, which is why neither bundle does it for you. Any retention window at all makes those table definitions stop matching their configuration, so ClickHouse rotates each one aside and starts a fresh table, as described under [rotated log tables](#rotated-log-tables). The generation left behind holds everything accumulated so far and carries no retention of its own, so unless you reclaim it in the same step it stays on disk for good and the new window only bounds rows written from then on. Enable both together:
+
+```yaml
+clickhouse:
+  embedded:
+    systemLogs:
+      ttlDays: 14
+      rotatedTables: delete
+```
+
+That single `helm upgrade` is self-contained, because moving `ttlDays` from blank to set adds the drop-in mount and rolls the ClickHouse pod: it restarts, rotates the tables, and the post-upgrade Job then drops the generations. Deploy with `helm upgrade --wait` so the pod is rolled before the Job runs; otherwise the generations appear after it has looked, and the next `helm upgrade` reclaims them instead.
+
+With Docker Compose, uncomment the `clickhouse-log-ttl.xml` volume on the `clickhouse` service in `docker-compose.yml` and set both variables in `.env`:
+
+```bash
+CLICKHOUSE_SYSTEM_LOG_TTL_DAYS=14
+CLICKHOUSE_ROTATED_LOG_TABLES=delete
+```
+
+Once the space is reclaimed you can drop `rotatedTables`/`CLICKHOUSE_ROTATED_LOG_TABLES` back to `ignore`, so that a later ClickHouse upgrade doesn't discard history on its own.
 
 #### Rotated log tables {#rotated-log-tables}
 
@@ -644,6 +667,7 @@ clickhouse:
       nativePort: 9100
     systemLogs:
       ttlDays: 7
+      rotatedTables: delete
       level: warning
 ```
 
@@ -651,8 +675,8 @@ Use these overrides only when your cluster requires them:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
-- `clickhouse.embedded.systemLogs.ttlDays` defaults to `14` and applies to embedded ClickHouse internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Set it to an empty value to leave ClickHouse's default unbounded retention.
-- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`.
+- `clickhouse.embedded.systemLogs.ttlDays` is empty by default, leaving ClickHouse's unbounded retention on the embedded internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Setting it rotates those tables once, so adopt it alongside `rotatedTables: delete` — see <.localized_link href="/guides/server/self-host/server#capping-operational-log-retention">capping operational log retention</.localized_link>.
+- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`. Unlike `ttlDays`, it is not part of any table definition, so changing it never rotates a table.
 - `clickhouse.embedded.systemLogs.rotatedTables` defaults to `ignore` and decides what happens to the `<name>_N` tables ClickHouse leaves behind when it rotates a system log table. Set it to `delete` to drop them on each `helm upgrade`.
 - Edits to `ttlDays` and `level` reach the ClickHouse pod the next time it restarts, since both are `subPath` mounts and the chart does not roll the StatefulSet when its ConfigMap changes.
 
