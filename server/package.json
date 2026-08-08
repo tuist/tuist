@@ -28,7 +28,8 @@
       "shell-quote": "1.9.0",
       "form-data": "4.0.6",
       "@opentelemetry/core": "2.8.0",
-      "ts-deepmerge": "8.0.0"
+      "ts-deepmerge": "8.0.0",
+      "nanoid@^5.0.0": "5.1.16"
     },
     "allowBuilds": {
       "core-js": true,
