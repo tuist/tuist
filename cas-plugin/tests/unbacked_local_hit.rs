@@ -180,6 +180,116 @@ fn a_put_for_a_never_stored_value_succeeds_and_leaves_the_root_absent() {
         .expect("put_for_digest must not validate that the value object exists");
 }
 
+// --- The failure the verification makes reachable ------------------------------
+
+/// The store refuses to change an association, and the verification deliberately
+/// drives recompiles on exactly the keys whose associations are stale. Surfacing
+/// the refusal would trade a `missing object` build failure for a `cache poisoned`
+/// one, which is no better.
+#[test]
+fn re_putting_a_key_with_a_different_value_is_not_a_failure() {
+    let Some(env) = Fixture::new("poisoned-put") else { return };
+    let key = env.cas.key_digest(b"poisoned-put");
+    let original = env.cas.store_object(b"the value the store already has");
+    let recompiled = env.cas.store_object(b"what a non-reproducible recompile made");
+    env.cas.actioncache_put(&key, original).expect("seeding put");
+
+    env.cas
+        .actioncache_put(&key, recompiled)
+        .expect("a refused re-put must not reach the build system as a failure");
+
+    let (result, served) = env.cas.actioncache_get(&key);
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
+    assert_eq!(
+        env.cas.digest_of(served),
+        env.cas.digest_of(original),
+        "reporting success must not be mistaken for having CHANGED the association \
+         -- the original survives, which is why the key stays degraded until the \
+         store generation rolls"
+    );
+}
+
+#[test]
+fn re_putting_a_key_with_a_different_value_is_not_a_failure_asynchronously() {
+    let Some(env) = Fixture::new("poisoned-put-async") else { return };
+    let key = env.cas.key_digest(b"poisoned-put-async");
+    let original = env.cas.store_object(b"the value the store already has");
+    let recompiled = env.cas.store_object(b"what a non-reproducible recompile made");
+    env.cas.actioncache_put(&key, original).expect("seeding put");
+
+    let (failed, calls, error) = env.cas.actioncache_put_async(&key, recompiled);
+
+    assert!(!failed, "a refused re-put must be reported as success");
+    assert_eq!(calls, 1, "the callback must fire exactly once");
+    assert!(error.is_empty(), "and must carry no error string: {error}");
+}
+
+/// The hazard the verification CREATES, and the reason it cannot ship without the
+/// downgrade above: a stale association naming X falls through, the remote answers
+/// with a different digest Y, and caching that association is refused. Failing the
+/// get there would be strictly worse than the bug being fixed.
+#[test]
+fn a_remote_value_that_contradicts_a_stale_association_is_still_served() {
+    let Some(env) = Fixture::new("contradicting-remote") else { return };
+    let (key, _) = env.seed_unbacked_association();
+    let remote_value = env.cas.digest_of(env.cas.store_object(b"what the remote actually holds"));
+    env.proxy.answer_resolve_with_hit(&remote_value);
+
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the resolve succeeded; only caching its association was refused"
+    );
+    assert_eq!(
+        env.cas.digest_of(served),
+        remote_value,
+        "and the value served must be the one the remote resolved"
+    );
+}
+
+/// Not an assertion -- the record of what the verification costs, and the reason
+/// there is no memoization of the verdict behind it.
+///
+/// Measured on an M-series Mac with Xcode 26.3, release profile: a served local
+/// hit is ~50ns end to end, of which the probe is ~12ns. At the ~13.5k hits of a
+/// warm runner build that is a sixth of a millisecond for the whole build, so
+/// caching the verdict would buy nothing measurable while putting a mutex on the
+/// serial task-setup path and introducing a stale-positive window (another
+/// process pruning the shared store does not clear this process's cache).
+///
+/// Re-run with `cargo test --release -- --ignored --nocapture probe_cost` if the
+/// verification ever grows beyond a single root probe.
+#[test]
+#[ignore = "a measurement, not an assertion"]
+fn probe_cost() {
+    let Some(env) = Fixture::new("probe-cost") else { return };
+    let key = env.cas.key_digest(b"probe-cost");
+    let value = env.cas.store_object(b"a value that is really here");
+    env.cas.actioncache_put(&key, value).expect("seeding put");
+    let id = env.cas.objectid_for(&env.cas.digest_of(value));
+
+    const ITERATIONS: u32 = 20_000;
+    for _ in 0..1_000 {
+        let _ = env.cas.actioncache_get(&key);
+    }
+
+    let started = std::time::Instant::now();
+    for _ in 0..ITERATIONS {
+        let _ = env.cas.actioncache_get(&key);
+    }
+    let served = started.elapsed();
+
+    let started = std::time::Instant::now();
+    for _ in 0..ITERATIONS {
+        let _ = env.cas.contains(id);
+    }
+    let probe = started.elapsed();
+
+    eprintln!("verified get: {:?}/op", served / ITERATIONS);
+    eprintln!("probe alone:  {:?}/op", probe / ITERATIONS);
+}
+
 // --- Fixture -------------------------------------------------------------------
 
 /// A plugin CAS over a fresh store, wired to a scripted proxy, plus the
@@ -447,11 +557,42 @@ impl PluginCas {
         }
         (slot.result, slot.calls)
     }
+
+    /// Returns the verdict, how many times the callback fired, and any error it
+    /// carried.
+    fn actioncache_put_async(&self, key: &[u8], value: llcas_objectid_t) -> (bool, usize, String) {
+        unsafe extern "C" fn callback(ctx: *mut c_void, failed: bool, error: *mut c_char) {
+            let slot = &mut *(ctx as *mut AsyncPut);
+            slot.failed = failed;
+            slot.calls += 1;
+            slot.error = take_error(error);
+        }
+
+        let mut slot = AsyncPut { failed: true, calls: 0, error: String::new() };
+        unsafe {
+            tuist_cas_plugin::llcas_actioncache_put_for_digest_async(
+                self.raw,
+                llcas_digest_t { data: key.as_ptr(), size: key.len() },
+                value,
+                false,
+                &mut slot as *mut AsyncPut as *mut c_void,
+                callback,
+                ptr::null_mut(),
+            );
+        }
+        (slot.failed, slot.calls, slot.error)
+    }
 }
 
 struct AsyncGet {
     result: llcas_lookup_result_t,
     calls: usize,
+}
+
+struct AsyncPut {
+    failed: bool,
+    calls: usize,
+    error: String,
 }
 
 impl Drop for PluginCas {
@@ -522,6 +663,10 @@ impl FakeProxy {
 
     fn answer_resolve_with_miss(&self) {
         *self.resolve_answer.lock().unwrap() = None;
+    }
+
+    fn answer_resolve_with_hit(&self, value_digest: &[u8]) {
+        *self.resolve_answer.lock().unwrap() = Some(value_digest.to_vec());
     }
 
     fn resolves_for(&self, key: &[u8]) -> usize {

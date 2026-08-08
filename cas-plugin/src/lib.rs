@@ -135,6 +135,17 @@ unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut
     *error_out = adopt_upstream_string(up, error_in);
 }
 
+/// Reads an upstream error into an owned string and releases it, for the paths
+/// that have to INSPECT a failure rather than just forward it.
+unsafe fn take_upstream_error(up: &Upstream, error: *mut c_char) -> String {
+    if error.is_null() {
+        return String::new();
+    }
+    let message = CStr::from_ptr(error).to_string_lossy().into_owned();
+    (up.llcas_string_dispose)(error);
+    message
+}
+
 // --- Handles -------------------------------------------------------------------
 
 struct OptionsState {
@@ -270,6 +281,13 @@ struct CasState {
     known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
+    // Local action-cache hits refused because their value graph was gone, and
+    // puts the store declined because the key already names a different value.
+    // Both are rare by nature and both mean a key is permanently degraded for
+    // the life of the store generation, so a build that reports either is worth
+    // looking at (tuist/tuist#12245).
+    stats_unbacked_local_hits: AtomicU64,
+    stats_poisoned_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
     // above the local-replay floor due to fetching, as opposed to overheads.
@@ -532,6 +550,8 @@ pub unsafe extern "C" fn llcas_cas_create(
         known_local: Mutex::new(std::collections::HashSet::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
+        stats_unbacked_local_hits: AtomicU64::new(0),
+        stats_poisoned_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
         stats_client_store: OpStats::default(),
         stats_client_store_bytes: AtomicU64::new(0),
@@ -580,6 +600,16 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // Bounded drain keeps process exit off the build's critical path;
         // Ingestion counters, logged whether or not this build reached the
         // proxy, so a floor build produces the same accounting as a warm one.
+        // Degraded keys, reported whenever there were any: each one is a key that
+        // stays uncacheable for the life of the store generation, and neither
+        // condition is visible anywhere else.
+        let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
+        let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
+        if unbacked > 0 || poisoned > 0 {
+            log_line(&format!(
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
+            ));
+        }
         if state.stats_client_store.count.load(Ordering::Relaxed) > 0
             || state.stats_mat_store.count.load(Ordering::Relaxed) > 0
         {
@@ -797,6 +827,29 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 
 // --- Read-through: object loads -----------------------------------------------
 
+/// The digest of `id` in the store's printed form (`0~...`) so a log line can be
+/// matched against the `missing object '0~...'` a build reports. Falls back to hex
+/// if the plugin declines to print it.
+unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
+    let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+    let mut printed: *mut c_char = std::ptr::null_mut();
+    let mut print_error: *mut c_char = std::ptr::null_mut();
+    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut printed, &mut print_error);
+    if !print_error.is_null() {
+        (state.up.llcas_string_dispose)(print_error);
+    }
+    if failed || printed.is_null() {
+        return hex(&digest_bytes(state, id));
+    }
+    let text = CStr::from_ptr(printed).to_string_lossy().into_owned();
+    (state.up.llcas_string_dispose)(printed);
+    text
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
     if digest.data.is_null() || digest.size == 0 {
@@ -839,7 +892,15 @@ unsafe fn load_object_impl(
                 adopt_error(state.up, upstream_error, error);
                 return retried;
             }
-            Ok(false) => {}
+            // The proxy has no way to produce the object: not present, not
+            // pending, and not nameable from the snapshot's node table. This is
+            // the last moment before the failure reaches the compiler — the Swift
+            // lane downgrades it to `cache replay failed` and recompiles, the
+            // clang lane fails the build — and it went unlogged for a long time,
+            // which is why the condition was invisible until it broke a build.
+            Ok(false) => {
+                log_line(&format!("proxy fetch_object could not produce {}", hex(digest)));
+            }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
             }
@@ -1023,12 +1084,48 @@ unsafe fn verified_local_get(
         return result;
     }
     if !value_graph_is_available(state, value) {
+        state.stats_unbacked_local_hits.fetch_add(1, Ordering::Relaxed);
+        log_line(&format!(
+            "unbacked local hit, falling through to the remote: value={}",
+            printed_digest(state, value)
+        ));
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
     if !p_value.is_null() {
         *p_value = value;
     }
     LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// Whether a put failure is the store declining to CHANGE an existing
+/// association, rather than a real storage error.
+///
+/// An association is immutable for the life of the store generation: there is no
+/// delete in the ABI at either the association or the object level, and re-putting
+/// a key with a different value is rejected while the original survives. The
+/// verification above deliberately drives recompiles on exactly the keys whose
+/// associations are stale, so a recompile that is not byte-reproducible reaches
+/// this far more often than before — and surfacing it would only trade a
+/// `missing object` build failure for a `cache poisoned` one.
+///
+/// Matched on the message because the ABI reports every put failure the same way
+/// (a `true` return plus a string). That is brittle — Apple's wording is not a
+/// contract — so `report_put_failure` logs EVERY put failure, and a variant this
+/// predicate misses shows up in TUIST_CAS_LOG instead of silently failing a build.
+fn is_cache_poisoned(message: &str) -> bool {
+    message.to_ascii_lowercase().contains("poison")
+}
+
+/// Logs an upstream put failure and answers whether it should still be treated as
+/// one. A poisoned put is not fatal: the local store keeps the association it
+/// already had, and the caller carries on.
+unsafe fn report_put_failure(state: &CasState, message: &str) -> bool {
+    log_line(&format!("actioncache put failed: {message}"));
+    if is_cache_poisoned(message) {
+        state.stats_poisoned_puts.fetch_add(1, Ordering::Relaxed);
+        return false;
+    }
+    true
 }
 
 unsafe fn actioncache_get_impl(
@@ -1083,8 +1180,17 @@ unsafe fn actioncache_get_impl(
             // missing object, it does not recompile.
             let mut put_error: *mut c_char = std::ptr::null_mut();
             if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                adopt_error(state.up, put_error, error);
-                return LLCAS_LOOKUP_RESULT_ERROR;
+                // Reachable BECAUSE of the read-side verification: a stale
+                // association naming digest X sends its key here, and the remote
+                // may answer with a different digest Y. Caching that association
+                // is then refused, but the resolve itself succeeded — failing the
+                // whole get would trade `missing object` for `cache poisoned`.
+                // Serve the resolved value uncached; the next get resolves again.
+                let message = take_upstream_error(state.up, put_error);
+                if report_put_failure(state, &message) {
+                    set_error(error, &message);
+                    return LLCAS_LOOKUP_RESULT_ERROR;
+                }
             }
             if !p_value.is_null() {
                 *p_value = value_id;
@@ -1201,12 +1307,26 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
 ) -> bool {
     let state = cas_state(cas);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    adopt_error(state.up, upstream_error, error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        let failed = report_put_failure(state, &message);
+        if failed {
+            set_error(error, &message);
+        }
+        failed
+    } else {
+        adopt_error(state.up, upstream_error, error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: a panic here must neither fail the
         // already-succeeded local put nor unwind across the extern "C" boundary.
+        // A downgraded poisoned put publishes too, deliberately: the recompiled
+        // value was genuinely produced and stored, and putting it remotely makes
+        // the remote the healed truth that later builds resolve to, since the
+        // local association can never be changed.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             actioncache_put_remote(state, &key, value)
         }));
@@ -1227,8 +1347,19 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let state = cas_state(cas);
     let _ = ours_cancel_token(cancel_tok);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    let error = adopt_upstream_string(state.up, upstream_error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let mut error: *mut c_char = std::ptr::null_mut();
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        let failed = report_put_failure(state, &message);
+        if failed {
+            set_error(&mut error, &message);
+        }
+        failed
+    } else {
+        adopt_error(state.up, upstream_error, &mut error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: swallow panics so they cannot fail the
@@ -1238,4 +1369,23 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
         }));
     }
     callback(ctx_cb, failed, error);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The end-to-end behaviour is covered against Apple's plugin in
+    // tests/unbacked_local_hit.rs. What that cannot reach is the OTHER branch: a
+    // put failure that is a real storage error must stay a failure, or the
+    // downgrade would swallow every problem the store ever reports.
+    #[test]
+    fn only_a_refused_association_counts_as_poisoning() {
+        assert!(is_cache_poisoned("ERROR : cache poisoned"));
+        assert!(is_cache_poisoned("Cache Poisoned"));
+
+        assert!(!is_cache_poisoned(""));
+        assert!(!is_cache_poisoned("No space left on device"));
+        assert!(!is_cache_poisoned("failed to open the action cache"));
+    }
 }
