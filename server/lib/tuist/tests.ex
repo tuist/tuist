@@ -2760,6 +2760,7 @@ defmodule Tuist.Tests do
           name: test_case.name,
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
+          marked_flaky_at: flaky.marked_flaky_at,
           flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
           # ClickHouse's LEFT JOIN fills missing rows with each type's
           # zero value rather than NULL. `nullIf` collapses those zero
@@ -2823,7 +2824,9 @@ defmodule Tuist.Tests do
       where: e.test_case_id in subquery(project_tc_ids),
       group_by: e.test_case_id,
       having: fragment("argMax(?, ?) = 'marked_flaky'", e.event_type, e.inserted_at),
-      select: %{test_case_id: e.test_case_id}
+      # The `having` guarantees the latest event is `marked_flaky`, so the max
+      # timestamp is the moment the test case entered its current flaky state.
+      select: %{test_case_id: e.test_case_id, marked_flaky_at: max(e.inserted_at)}
     )
   end
 
@@ -2874,6 +2877,12 @@ defmodule Tuist.Tests do
 
   defp apply_flaky_order(query, :name, :asc), do: from([tc, _flaky, _stats] in query, order_by: [asc: tc.name])
 
+  defp apply_flaky_order(query, :marked_flaky_at, :desc),
+    do: from([tc, flaky, _stats] in query, order_by: [desc: flaky.marked_flaky_at, asc: tc.id])
+
+  defp apply_flaky_order(query, :marked_flaky_at, :asc),
+    do: from([tc, flaky, _stats] in query, order_by: [asc: flaky.marked_flaky_at, asc: tc.id])
+
   defp apply_flaky_order(query, _, _),
     do: from([tc, _flaky, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
 
@@ -2883,6 +2892,7 @@ defmodule Tuist.Tests do
       name: row.name,
       module_name: row.module_name,
       suite_name: row.suite_name,
+      marked_flaky_at: row.marked_flaky_at,
       flaky_runs_count: row.flaky_runs_count,
       last_flaky_at: row.last_flaky_at,
       last_flaky_run_id: row.last_flaky_run_id
@@ -2920,14 +2930,9 @@ defmodule Tuist.Tests do
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
 
-    test_case_ids = Enum.map(results, & &1.id)
-    quarantine_info = get_quarantine_info_for_test_cases(test_case_ids)
+    account_names = get_actor_account_names(results)
 
-    quarantined_tests =
-      Enum.map(results, fn row ->
-        info = Map.get(quarantine_info, row.id, %{})
-        row_to_quarantined_test_case(row, info)
-      end)
+    quarantined_tests = Enum.map(results, &row_to_quarantined_test_case(&1, account_names))
 
     total_count =
       project_id
@@ -2987,48 +2992,31 @@ defmodule Tuist.Tests do
          suite_name_filter,
          state_filter
        ) do
-    base_query =
-      from(test_case in TestCase,
-        as: :test_case,
-        hints: ["FINAL"],
-        inner_join: quarantined in subquery(quarantined_test_case_states_subquery(project_id, state_filter)),
-        as: :test_case_state,
-        on: test_case.id == quarantined.test_case_id,
-        where: test_case.project_id == ^project_id,
-        select: %{
-          id: test_case.id,
-          name: test_case.name,
-          module_name: test_case.module_name,
-          suite_name: test_case.suite_name,
-          last_ran_at: test_case.last_ran_at,
-          last_run_id: test_case.last_run_id,
-          last_status: test_case.last_status,
-          state: quarantined.state
-        }
-      )
-
-    base_query =
-      if quarantined_by_filter do
-        quarantine_info_subquery =
-          from(e in TestCaseEvent,
-            where: e.event_type in ^@active_quarantine_event_types,
-            group_by: e.test_case_id,
-            select: %{
-              test_case_id: e.test_case_id,
-              actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
-            }
-          )
-
-        from([test_case: test_case] in base_query,
-          left_join: quarantine in subquery(quarantine_info_subquery),
-          as: :quarantine,
-          on: test_case.id == quarantine.test_case_id
-        )
-      else
-        base_query
-      end
-
-    base_query
+    from(test_case in TestCase,
+      as: :test_case,
+      hints: ["FINAL"],
+      inner_join: quarantined in subquery(quarantined_test_case_states_subquery(project_id, state_filter)),
+      as: :test_case_state,
+      on: test_case.id == quarantined.test_case_id,
+      left_join: quarantine in subquery(quarantine_info_subquery(project_id)),
+      as: :quarantine,
+      on: test_case.id == quarantine.test_case_id,
+      where: test_case.project_id == ^project_id,
+      select: %{
+        id: test_case.id,
+        name: test_case.name,
+        module_name: test_case.module_name,
+        suite_name: test_case.suite_name,
+        last_ran_at: test_case.last_ran_at,
+        last_run_id: test_case.last_run_id,
+        last_status: test_case.last_status,
+        state: quarantined.state,
+        quarantined_by_account_id: quarantine.actor_id,
+        # ClickHouse's LEFT JOIN zero-fills non-nullable columns, so a test
+        # case without quarantine events would surface as `1970-01-01`.
+        quarantined_at: fragment("nullIf(?, toDateTime64(0, 6))", quarantine.quarantined_at)
+      }
+    )
     |> apply_name_search(search_term)
     |> apply_quarantined_by_filter(quarantined_by_filter)
     |> apply_module_name_filter(module_name_filter)
@@ -3054,20 +3042,15 @@ defmodule Tuist.Tests do
         select: count(test_case.id)
       )
 
+    # Unlike the list query, which always joins :quarantine because it selects
+    # and sorts on its columns, the count needs the join only when filtering by
+    # quarantined_by. The shapes can differ without the totals diverging: the
+    # subquery groups by test_case_id, so the join is at most 1:1 and can
+    # neither drop nor duplicate rows.
     base_query =
       if quarantined_by_filter do
-        quarantine_info_subquery =
-          from(e in TestCaseEvent,
-            where: e.event_type in ^@active_quarantine_event_types,
-            group_by: e.test_case_id,
-            select: %{
-              test_case_id: e.test_case_id,
-              actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
-            }
-          )
-
         from([test_case: test_case] in base_query,
-          left_join: quarantine in subquery(quarantine_info_subquery),
+          left_join: quarantine in subquery(quarantine_info_subquery(project_id)),
           as: :quarantine,
           on: test_case.id == quarantine.test_case_id
         )
@@ -3097,8 +3080,8 @@ defmodule Tuist.Tests do
         where: e.test_case_id in subquery(quarantined_ids_subquery),
         where: e.event_type in ^@active_quarantine_event_types,
         group_by: e.test_case_id,
-        having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
-        select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
+        having: fragment("tupleElement(argMax(tuple(?), ?), 1) IS NOT NULL", e.actor_id, e.inserted_at),
+        select: fragment("tupleElement(argMax(tuple(?), ?), 1)", e.actor_id, e.inserted_at)
       )
       |> ClickHouseRepo.all()
       |> Enum.uniq()
@@ -3110,46 +3093,44 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_quarantine_info_for_test_cases([]), do: %{}
+  # The latest active quarantine event per test case: who quarantined it and
+  # when. Both aggregates resolve to the same event, because for a currently
+  # quarantined test case the most recent `muted`/`skipped` event is the one
+  # that put it in that state.
+  #
+  # `actor_id` is wrapped in `tuple(...)` because ClickHouse aggregates skip
+  # NULL arguments: a bare `argMax(actor_id, inserted_at)` ignores
+  # automation-written events (NULL actor) and resurrects the last *human*
+  # actor — e.g. a test muted by an automation showed the user who had
+  # manually skipped it months earlier. A tuple is never NULL, so `argMax`
+  # considers every event and NULL correctly wins as "quarantined by Tuist".
+  defp quarantine_info_subquery(project_id) do
+    from(e in TestCaseEvent,
+      where: e.project_id == ^project_id,
+      where: e.event_type in ^@active_quarantine_event_types,
+      group_by: e.test_case_id,
+      select: %{
+        test_case_id: e.test_case_id,
+        actor_id: fragment("tupleElement(argMax(tuple(?), ?), 1)", e.actor_id, e.inserted_at),
+        quarantined_at: max(e.inserted_at)
+      }
+    )
+  end
 
-  defp get_quarantine_info_for_test_cases(test_case_ids) do
-    query =
-      from(e in TestCaseEvent,
-        where: e.test_case_id in ^test_case_ids,
-        where: e.event_type in ^@active_quarantine_event_types,
-        group_by: e.test_case_id,
-        select: %{
-          test_case_id: e.test_case_id,
-          actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
-        }
-      )
-
-    events = ClickHouseRepo.all(query)
-
+  defp get_actor_account_names(results) do
     actor_ids =
-      events
-      |> Enum.map(& &1.actor_id)
+      results
+      |> Enum.map(& &1.quarantined_by_account_id)
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    accounts =
-      if Enum.any?(actor_ids) do
-        from(a in Account, where: a.id in ^actor_ids)
-        |> Repo.all()
-        |> Map.new(&{&1.id, &1})
-      else
-        %{}
-      end
-
-    Map.new(events, fn event ->
-      account = Map.get(accounts, event.actor_id)
-
-      {event.test_case_id,
-       %{
-         actor_id: event.actor_id,
-         actor_name: if(account, do: account.name)
-       }}
-    end)
+    if Enum.any?(actor_ids) do
+      from(a in Account, where: a.id in ^actor_ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1.name})
+    else
+      %{}
+    end
   end
 
   # Secondary `id` keeps the sort deterministic when the primary column has
@@ -3167,6 +3148,12 @@ defmodule Tuist.Tests do
 
   defp apply_quarantined_order(query, :name, :asc),
     do: from([test_case: tc] in query, order_by: [asc: tc.name, asc: tc.id])
+
+  defp apply_quarantined_order(query, :quarantined_at, :desc),
+    do: from([test_case: tc, quarantine: quarantine] in query, order_by: [desc: quarantine.quarantined_at, asc: tc.id])
+
+  defp apply_quarantined_order(query, :quarantined_at, :asc),
+    do: from([test_case: tc, quarantine: quarantine] in query, order_by: [asc: quarantine.quarantined_at, asc: tc.id])
 
   defp apply_quarantined_order(query, _, _),
     do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
@@ -3235,14 +3222,15 @@ defmodule Tuist.Tests do
 
   defp apply_suite_name_filter(query, term), do: from([test_case: tc] in query, where: ilike(tc.suite_name, ^"%#{term}%"))
 
-  defp row_to_quarantined_test_case(row, quarantine_info) do
+  defp row_to_quarantined_test_case(row, account_names) do
     %QuarantinedTestCase{
       id: row.id,
       name: row.name,
       module_name: row.module_name,
       suite_name: row.suite_name,
-      quarantined_by_account_id: Map.get(quarantine_info, :actor_id),
-      quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
+      quarantined_by_account_id: row.quarantined_by_account_id,
+      quarantined_by_account_name: Map.get(account_names, row.quarantined_by_account_id),
+      quarantined_at: row.quarantined_at,
       last_ran_at: row.last_ran_at,
       last_run_id: row.last_run_id,
       last_status: row.last_status,

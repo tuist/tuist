@@ -747,9 +747,6 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         state.metrics.record_memory_action("extension_cache_trim");
                     }
                 }
-                state
-                    .metrics
-                    .update_background_work_paused("outbox", state.memory.pause_outbox());
                 state.metrics.update_background_work_paused(
                     "bootstrap",
                     !state.memory.allow_background_admission(),

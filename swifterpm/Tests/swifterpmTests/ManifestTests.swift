@@ -275,6 +275,107 @@ struct ManifestTests {
     }
 
     @Test
+    func dumpFailureNamesTheDirectoryMissingAManifest() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Empty")
+            try await fileSystem.makeDirectory(
+                at: packageDir.absolutePath, options: [.createTargetParentDirectories])
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir,
+                underlying: ToolError.message("could not find Package.swift")
+            )
+
+            #expect(
+                error.description
+                    == "no Package.swift in \(packageDir.path): could not find Package.swift")
+        }
+    }
+
+    @Test
+    func dumpFailureDistinguishesAnUnreadableDirectoryFromAMissingManifest() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Absent")
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("chdir error")
+            )
+
+            #expect(error.description == "could not read \(packageDir.path): chdir error")
+        }
+    }
+
+    @Test
+    func dumpFailureKeepsTheUnderlyingErrorWhenTheManifestExists() async throws {
+        try await withTemporaryDirectory { directory in
+            let packageDir = directory.appendingPathComponent("Broken")
+            try await writeMinimalPackageManifest(at: packageDir, name: "Broken")
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("compile error")
+            )
+
+            #expect(error.description == "\(packageDir.path): compile error")
+        }
+    }
+
+    @Test
+    func dumpFailureKeepsTheUnderlyingErrorWhenTheProbeCannotAnswer() async throws {
+        try await withTemporaryDirectory { directory in
+            // A package the probe cannot examine: the parent denies traversal, so `exists`
+            // cannot distinguish "absent" from "unreadable". The classification may be wrong;
+            // the underlying error must survive it either way.
+            let locked = directory.appendingPathComponent("locked")
+            let packageDir = locked.appendingPathComponent("Feature")
+            try await writeMinimalPackageManifest(at: packageDir, name: "Feature")
+            _ = try await SystemProcess.run("/bin/chmod", ["000", locked.path])
+
+            let error = await ManifestLoader.dumpFailure(
+                packageDir: packageDir, underlying: ToolError.message("permission denied")
+            )
+
+            _ = try await SystemProcess.run("/bin/chmod", ["755", locked.path])
+
+            #expect(error.description.hasSuffix(": permission denied"))
+            #expect(error.description.contains(packageDir.path))
+        }
+    }
+
+    @Test
+    func localPackageManifestFailureNamesTheDeclaringPackageAndPath() async throws {
+        try await withTemporaryDirectory { directory in
+            let rootPackageDir = directory.appendingPathComponent("Root")
+            try await writeMinimalPackageManifest(at: rootPackageDir, name: "Root")
+            // The declared directory exists but holds no manifest: the shape SwiftPM reports
+            // as a bare "Could not find Package.swift ..." with no mention of the dependency.
+            let localPackageDir = directory.appendingPathComponent("Packages/Feature")
+            try await fileSystem.makeDirectory(
+                at: localPackageDir.absolutePath, options: [.createTargetParentDirectories])
+
+            let rootManifest: [String: Any] = [
+                "dependencies": [
+                    ["fileSystem": [["identity": "feature", "path": localPackageDir.path]]]
+                ]
+            ]
+
+            do {
+                _ = try await ManifestFileSystemDependencyGraph.collect(
+                    rootPackageDir: rootPackageDir,
+                    rootManifest: rootManifest,
+                    disableSandbox: true
+                )
+                Issue.record("expected the local package manifest to fail to load")
+            } catch {
+                let description = "\(error)"
+                #expect(description.contains("the local package feature"))
+                #expect(description.contains("declared as \"\(localPackageDir.path)\""))
+                #expect(description.contains(rootPackageDir.path))
+                #expect(description.contains("no Package.swift in"))
+            }
+        }
+    }
+
+    @Test
     func versionRangeMatchesExactAndOpenRanges() throws {
         let exact = try #require(ManifestParser.versionRange(for: .exact(SemVer("1.2.3"))))
         #expect(try exact.contains(SemVer("1.2.3")))

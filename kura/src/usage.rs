@@ -353,7 +353,7 @@ async fn delivery_loop(state: SharedState) {
     };
 
     loop {
-        if state.memory.pause_outbox() {
+        if state.memory.pause_usage_outbox() {
             state
                 .metrics
                 .update_background_work_paused("usage_outbox", true);
