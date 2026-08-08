@@ -957,6 +957,80 @@ pub unsafe extern "C" fn llcas_cas_store_from_filepath(
 
 // --- Read/write-through: action cache -------------------------------------------
 
+/// Whether the value a local association names is actually here.
+///
+/// The ROOT only, and a presence check rather than a load. This runs on
+/// swift-build's task-setup path — the llbuild engine thread that schedules every
+/// task in the build — so its cost is multiplied by every cache lookup (see
+/// "Per-key overhead" in AGENTS.md). A deep-node miss is a different defect with
+/// a different fix (the write-through ordering), not something to pay a graph
+/// walk here for.
+///
+/// Always LOCAL, whatever the caller asked for: a healthy remote answers yes to a
+/// global probe and would mask exactly the condition being detected. A probe that
+/// errors counts as unavailable — falling through costs a resolve, serving an
+/// unverified hit costs a build.
+unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
+    let mut probe_error: *mut c_char = std::ptr::null_mut();
+    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
+    if !probe_error.is_null() {
+        (state.up.llcas_string_dispose)(probe_error);
+    }
+    result == LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// The upstream local lookup, with a hit verified before it is served.
+///
+/// A local association does NOT imply its value graph is still present. The store
+/// chains generations and a size-driven prune rotates rather than deleting in
+/// place, copying a graph forward only when it is LOADED (`FaultInPolicy` is
+/// `FullTree`; `contains_object` faults nothing in) — and our own write-through
+/// records the association while the graph is still materializing. Either way the
+/// association outlives the objects it names, and nothing can retract it: the
+/// plugin ABI has no delete at either level, and re-putting the key with a
+/// different value is rejected as `cache poisoned`.
+///
+/// Serving such a hit hands the compiler an object id that names nothing —
+/// `missing object '0~...'`, a warning plus a recompile on the Swift lane and
+/// fatal on the clang one. It is PERMANENT, because returning the local hit here
+/// is what shadows the remote on every later get (tuist/tuist#12245).
+///
+/// So an unverifiable hit is reported as NOTFOUND and the caller's existing
+/// remote path takes over. That is also how it heals: a resolve returns the
+/// closure manifest and materializes the very objects the association names, so
+/// the record stops being dangling without ever being mutated.
+unsafe fn verified_local_get(
+    state: &CasState,
+    key_digest: llcas_digest_t,
+    globally: bool,
+    p_value: *mut llcas_objectid_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    // Never the caller's slot: `p_value` is nullable and the verification needs
+    // an id to probe. Apple's plugin dereferences the pointer it is handed.
+    let mut value = llcas_objectid_t { opaque: 0 };
+    let mut upstream_error: *mut c_char = std::ptr::null_mut();
+    let result =
+        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut upstream_error);
+    if result == LLCAS_LOOKUP_RESULT_ERROR {
+        adopt_error(state.up, upstream_error, error);
+        return result;
+    }
+    if !upstream_error.is_null() {
+        (state.up.llcas_string_dispose)(upstream_error);
+    }
+    if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+        return result;
+    }
+    if !value_graph_is_available(state, value) {
+        return LLCAS_LOOKUP_RESULT_NOTFOUND;
+    }
+    if !p_value.is_null() {
+        *p_value = value;
+    }
+    LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
 unsafe fn actioncache_get_impl(
     state: &CasState,
     key: &[u8],
@@ -965,15 +1039,9 @@ unsafe fn actioncache_get_impl(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
-    let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
+    let result = verified_local_get(state, key_digest, globally, p_value, error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
-        adopt_error(state.up, upstream_error, error);
         return result;
-    }
-    if !upstream_error.is_null() {
-        (state.up.llcas_string_dispose)(upstream_error);
     }
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
@@ -1062,20 +1130,17 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     let state = cas_state(cas);
     let key_bytes = std::slice::from_raw_parts(key.data, key.size).to_vec();
 
-    // Fast path: answer local hits synchronously.
+    // Fast path: answer local hits synchronously. Verified, like the sync get —
+    // this path never reaches actioncache_get_impl, so an unverified hit here
+    // would keep the whole defect alive on the lane the build system drives.
     let mut value = llcas_objectid_t { opaque: 0 };
     let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
     let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
+    let result = verified_local_get(state, key_digest, globally, &mut value, &mut probe_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         let _ = ours_cancel_token(cancel_tok);
-        let error = adopt_upstream_string(state.up, probe_error);
-        callback(ctx_cb, result, value, error);
+        callback(ctx_cb, result, value, probe_error);
         return;
-    }
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
     }
 
     let _ = ours_cancel_token(cancel_tok);
