@@ -1029,6 +1029,86 @@ pub unsafe extern "C" fn llcas_cas_store_from_filepath(
 
 // --- Read/write-through: action cache -------------------------------------------
 
+unsafe fn actioncache_get_impl(
+    state: &CasState,
+    key: &[u8],
+    globally: bool,
+    p_value: *mut llcas_objectid_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
+    let result = verified_local_get(state, key_digest, globally, p_value, error);
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
+        return result;
+    }
+
+    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
+    let client = &state.proxy;
+    let cas_path = state
+        .cas_dir
+        .as_ref()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    match client.resolve(&cas_path, &state.proxy_instance, key) {
+        Ok(Resolution::Hit(value_digest)) => {
+            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+            // Remember the association: the client re-puts replayed results
+            // at the end of its job, and re-publishing a (key, value) that
+            // just came FROM the remote is pure churn — a spool write on
+            // the compile path plus a proxy publish check per key
+            // (thousands per warm build). actioncache_put_remote skips
+            // puts that match this map.
+            state
+                .remote_hits
+                .lock()
+                .unwrap()
+                .insert(key.to_vec(), value_digest.clone());
+            let value_digest_t =
+                llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
+            let mut value_id = llcas_objectid_t { opaque: 0 };
+            let mut id_error: *mut c_char = std::ptr::null_mut();
+            if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
+                adopt_error(state.up, id_error, error);
+                return LLCAS_LOOKUP_RESULT_ERROR;
+            }
+            // The local association outlives the value graph (the build
+            // system prunes the store several times per build), so a later
+            // get can hit it locally with the objects gone. That is safe
+            // ONLY because the load path self-heals: a local load miss
+            // consults the proxy (FETCH_OBJECT), whose fetch instructions
+            // are retained after materialization and also cover locally
+            // published nodes — clang fails the build outright on a
+            // missing object, it does not recompile.
+            let mut put_error: *mut c_char = std::ptr::null_mut();
+            if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                // Reachable BECAUSE of the read-side verification: a stale
+                // association naming digest X sends its key here, and the remote
+                // may answer with a different digest Y. Caching that association
+                // is then refused, but the resolve itself succeeded — failing the
+                // whole get would trade `missing object` for `cache poisoned`.
+                // Serve the resolved value uncached; the next get resolves again.
+                let message = take_upstream_error(state.up, put_error);
+                if adopt_put_failure(state, &message, error) {
+                    return LLCAS_LOOKUP_RESULT_ERROR;
+                }
+            }
+            if !p_value.is_null() {
+                *p_value = value_id;
+            }
+            return LLCAS_LOOKUP_RESULT_SUCCESS;
+        }
+        Ok(Resolution::Miss) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
+        Err(message) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            log_line(&format!("proxy resolve error: {message}"));
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
+    }
+}
+
 /// Whether the value a local association names is actually here.
 ///
 /// The ROOT only, and a presence check rather than a load. This runs on
@@ -1155,86 +1235,6 @@ unsafe fn adopt_put_failure(state: &CasState, message: &str, error: *mut *mut c_
     }
     set_error(error, message);
     true
-}
-
-unsafe fn actioncache_get_impl(
-    state: &CasState,
-    key: &[u8],
-    globally: bool,
-    p_value: *mut llcas_objectid_t,
-    error: *mut *mut c_char,
-) -> llcas_lookup_result_t {
-    let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
-    let result = verified_local_get(state, key_digest, globally, p_value, error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
-        return result;
-    }
-
-    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
-    let client = &state.proxy;
-    let cas_path = state
-        .cas_dir
-        .as_ref()
-        .map(|dir| dir.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    match client.resolve(&cas_path, &state.proxy_instance, key) {
-        Ok(Resolution::Hit(value_digest)) => {
-            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
-            // Remember the association: the client re-puts replayed results
-            // at the end of its job, and re-publishing a (key, value) that
-            // just came FROM the remote is pure churn — a spool write on
-            // the compile path plus a proxy publish check per key
-            // (thousands per warm build). actioncache_put_remote skips
-            // puts that match this map.
-            state
-                .remote_hits
-                .lock()
-                .unwrap()
-                .insert(key.to_vec(), value_digest.clone());
-            let value_digest_t =
-                llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
-            let mut value_id = llcas_objectid_t { opaque: 0 };
-            let mut id_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
-                adopt_error(state.up, id_error, error);
-                return LLCAS_LOOKUP_RESULT_ERROR;
-            }
-            // The local association outlives the value graph (the build
-            // system prunes the store several times per build), so a later
-            // get can hit it locally with the objects gone. That is safe
-            // ONLY because the load path self-heals: a local load miss
-            // consults the proxy (FETCH_OBJECT), whose fetch instructions
-            // are retained after materialization and also cover locally
-            // published nodes — clang fails the build outright on a
-            // missing object, it does not recompile.
-            let mut put_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                // Reachable BECAUSE of the read-side verification: a stale
-                // association naming digest X sends its key here, and the remote
-                // may answer with a different digest Y. Caching that association
-                // is then refused, but the resolve itself succeeded — failing the
-                // whole get would trade `missing object` for `cache poisoned`.
-                // Serve the resolved value uncached; the next get resolves again.
-                let message = take_upstream_error(state.up, put_error);
-                if adopt_put_failure(state, &message, error) {
-                    return LLCAS_LOOKUP_RESULT_ERROR;
-                }
-            }
-            if !p_value.is_null() {
-                *p_value = value_id;
-            }
-            return LLCAS_LOOKUP_RESULT_SUCCESS;
-        }
-        Ok(Resolution::Miss) => {
-            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-            return LLCAS_LOOKUP_RESULT_NOTFOUND;
-        }
-        Err(message) => {
-            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-            log_line(&format!("proxy resolve error: {message}"));
-            return LLCAS_LOOKUP_RESULT_NOTFOUND;
-        }
-    }
 }
 
 #[no_mangle]
