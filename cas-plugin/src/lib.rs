@@ -1169,21 +1169,7 @@ unsafe fn actioncache_get_impl(
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }
-    resolve_from_remote(state, key, p_value, error)
-}
 
-/// The remote half of a get, once the local store has been ruled out. Split from
-/// the local half so the async entry point, which verifies the local hit itself,
-/// can fall through to here WITHOUT repeating the lookup: doing it twice would
-/// double-count every unbacked hit in the log and the dispose counter, on exactly
-/// the lane the build system drives.
-unsafe fn resolve_from_remote(
-    state: &CasState,
-    key: &[u8],
-    p_value: *mut llcas_objectid_t,
-    error: *mut *mut c_char,
-) -> llcas_lookup_result_t {
-    let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
     let client = &state.proxy;
     let cas_path = state
@@ -1277,38 +1263,19 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 ) {
     let state = cas_state(cas);
     let key_bytes = std::slice::from_raw_parts(key.data, key.size).to_vec();
-
-    // Fast path: answer local hits synchronously. Verified, like the sync get —
-    // this path never reaches actioncache_get_impl, so an unverified hit here
-    // would keep the whole defect alive on the lane the build system drives.
-    // Under catch_unwind like the slow path below: verification runs our own
-    // code (a probe, and digest printing when it refuses a hit), and a panic
-    // escaping here would unwind across the extern "C" boundary and abort the
-    // build service rather than degrade to a miss. A panic still answers the
-    // callback exactly once, because ERROR takes the branch below.
-    let mut value = llcas_objectid_t { opaque: 0 };
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
-        verified_local_get(state, key_digest, globally, &mut value, &mut probe_error)
-    }))
-    .unwrap_or_else(|_| {
-        set_error(&mut probe_error, "tuist-cas-plugin: panic during cache query");
-        LLCAS_LOOKUP_RESULT_ERROR
-    });
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
-        let _ = ours_cancel_token(cancel_tok);
-        callback(ctx_cb, result, value, probe_error);
-        return;
-    }
-
     let _ = ours_cancel_token(cancel_tok);
-    // Answered on the caller's thread; see llcas_cas_load_object_async. Straight
-    // to the remote half: the local half already ran above.
+
+    // Exactly the sync path, answered on the caller's thread (see
+    // llcas_cas_load_object_async for why there is no thread hop). There used to
+    // be a "fast path" here holding its own copy of the local lookup: it saved
+    // nothing on a hit — this is synchronous either way — while costing a SECOND
+    // upstream lookup on every miss, and it was a second place for the local
+    // decision to live, which is how it came to be missing the verification the
+    // sync path had. One call site, one decision.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        resolve_from_remote(state, &key_bytes, &mut value, &mut error)
+        actioncache_get_impl(state, &key_bytes, globally, &mut value, &mut error)
     }))
     .unwrap_or_else(|_| {
         set_error(&mut error, "tuist-cas-plugin: panic during cache query");
