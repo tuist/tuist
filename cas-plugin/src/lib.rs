@@ -281,8 +281,8 @@ struct CasState {
     known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
-    // Each one is a key that stays uncacheable for the life of the store
-    // generation (tuist/tuist#12245).
+    // Both count keys that stay uncacheable for the life of the store generation
+    // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
@@ -595,6 +595,7 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
+
         // A summary only: most compiler processes exit without disposing (see the
         // PublishRecord note above), so the per-event lines are the real signal.
         // This does cover the build system's own instance, which issues the gets.
