@@ -2,32 +2,23 @@
 //! crate used to hand such a hit straight to the compiler -- the state behind
 //! `error: CAS operation failed: missing object '0~...'`
 //! (<https://github.com/tuist/tuist/issues/12245>), fatal on the clang lane and
-//! permanent: it survives re-runs, fresh CI VMs and fresh DerivedData, because
-//! the poisoned local association shadows the remote truth on every later get.
+//! permanent, because the poisoned association shadows the remote on every get.
 //!
-//! These tests drive THIS crate's exported `llcas_*` surface against a scripted
-//! fake proxy on a unix socket, so both the local decision and the fall-through
-//! to the remote are observable -- a short-circuit and a fall-through both end in
-//! NOTFOUND, and only the proxy can tell them apart.
+//! These drive THIS crate's exported `llcas_*` surface against a scripted fake
+//! proxy, so the fall-through to the remote is observable: a short-circuit and a
+//! fall-through both end in NOTFOUND, and only the proxy tells them apart.
 //!
-//! The defect state is constructed directly rather than through a prune
-//! rotation. Two ABI facts make that exact and cheap: `llcas_cas_get_objectid`
-//! mints an id from a digest WITHOUT requiring the object, and
-//! `llcas_actioncache_put_for_digest` does NOT validate that the value object
-//! exists. So storing an object in a throwaway store to learn a valid digest and
-//! then putting `key -> that digest` into a FRESH store reproduces "association
-//! present, root absent" in a few lines, with no size limits, no rotation and no
-//! directory surgery.
+//! The defect state is built directly rather than by pruning, using two ABI facts:
+//! `llcas_cas_get_objectid` mints an id WITHOUT requiring the object, and
+//! `llcas_actioncache_put_for_digest` does not validate that the value exists. So
+//! a digest learned from a throwaway store, put into a FRESH one, is "association
+//! present, root absent" with no size limits or directory surgery.
 //!
-//! What these tests therefore do NOT cover is how the state is REACHED, and one
-//! consequence of that gap is worth naming: a prune rotates rather than deleting
-//! in place, so between a rotation and the old generation's collection a value
-//! graph lives only in the demoted generation. Reads chain through it -- which is
-//! why a get that LOADS carries the whole graph forward -- so the probe here
-//! answers SUCCESS and the guard stays quiet until the generation is actually
-//! collected. That is inferred from the upstream characterization on
-//! tuist/tuist#12246, not asserted here: reproducing a rotation needs that PR's
-//! harness, which drives Apple's dylib with no other handle open on the store.
+//! Not covered: how the state is REACHED. One consequence is worth naming -- a
+//! prune ROTATES, and reads chain through the demoted generation, so the guard
+//! stays quiet until that generation is collected. Inferred from tuist/tuist#12246,
+//! not asserted here; reproducing a rotation needs that PR's harness, which holds
+//! no other handle open on the store.
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::os::unix::net::{UnixListener, UnixStream};

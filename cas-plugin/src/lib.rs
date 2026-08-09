@@ -135,8 +135,8 @@ unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut
     *error_out = adopt_upstream_string(up, error_in);
 }
 
-/// Reads an upstream error into an owned string and releases it, for the paths
-/// that have to INSPECT a failure rather than just forward it.
+/// Like `adopt_error`, but for the paths that must INSPECT the failure rather than
+/// forward it.
 unsafe fn take_upstream_error(up: &Upstream, error: *mut c_char) -> String {
     if error.is_null() {
         return String::new();
@@ -281,11 +281,8 @@ struct CasState {
     known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
-    // Local action-cache hits refused because their value graph was gone, and
-    // puts the store declined because the key already names a different value.
-    // Both are rare by nature and both mean a key is permanently degraded for
-    // the life of the store generation, so a build that reports either is worth
-    // looking at (tuist/tuist#12245).
+    // Each one is a key that stays uncacheable for the life of the store
+    // generation (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
@@ -598,12 +595,9 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
-        // Degraded keys, reported whenever there were any: each one is a key that
-        // stays uncacheable for the life of the store generation. A summary only —
-        // most compiler processes exit without disposing (see the PublishRecord
-        // note above), so the per-event log lines these count, not this line, are
-        // what makes the condition diagnosable. It does reliably cover the build
-        // system's own long-lived instance, which is where the gets come from.
+        // A summary only: most compiler processes exit without disposing (see the
+        // PublishRecord note above), so the per-event lines are the real signal.
+        // This does cover the build system's own instance, which issues the gets.
         let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
         let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
         if unbacked > 0 || poisoned > 0 {
@@ -830,9 +824,8 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 
 // --- Read-through: object loads -----------------------------------------------
 
-/// The digest of `id` in the store's printed form (`0~...`) so a log line can be
-/// matched against the `missing object '0~...'` a build reports. Falls back to hex
-/// if the plugin declines to print it.
+/// Printed form (`0~...`), so a log line can be matched against the
+/// `missing object '0~...'` a build reports.
 unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
     let mut printed: *mut c_char = std::ptr::null_mut();
@@ -895,18 +888,11 @@ unsafe fn load_object_impl(
                 adopt_error(state.up, upstream_error, error);
                 return retried;
             }
-            // The proxy has no way to produce the object: not present, not
-            // pending, and not nameable from the snapshot's node table. This is
-            // the last moment before the failure reaches the compiler — the Swift
-            // lane downgrades it to `cache replay failed` and recompiles, the
-            // clang lane fails the build — and it went unlogged for a long time,
-            // which is why the condition was invisible until it broke a build.
+            // Nothing can produce this object: the last moment before clang fails
+            // the build on it. Correlate with the unbacked-hit line — a digest
+            // logged here that no such line names is an interior node, which the
+            // root probe at get time cannot see.
             Ok(false) => {
-                // Printed form, like the unbacked-hit line: this is the digest the
-                // build is about to report as `missing object '0~…'`, and the two
-                // together say WHICH node is gone — a digest logged here that no
-                // unbacked-hit line names is an interior node, which the root
-                // probe at get time cannot see.
                 log_line(&format!(
                     "proxy fetch_object could not produce {}",
                     printed_digest(state, id)
@@ -1081,12 +1067,10 @@ unsafe fn actioncache_get_impl(
             // missing object, it does not recompile.
             let mut put_error: *mut c_char = std::ptr::null_mut();
             if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                // Reachable BECAUSE of the read-side verification: a stale
-                // association naming digest X sends its key here, and the remote
-                // may answer with a different digest Y. Caching that association
-                // is then refused, but the resolve itself succeeded — failing the
-                // whole get would trade `missing object` for `cache poisoned`.
-                // Serve the resolved value uncached; the next get resolves again.
+                // Reachable BECAUSE of the verification: a stale association sends
+                // its key here and the remote may answer a different digest, which
+                // the store then refuses to cache. The resolve itself succeeded, so
+                // failing would trade `missing object` for `cache poisoned`.
                 let message = take_upstream_error(state.up, put_error);
                 if adopt_put_failure(state, &message, error) {
                     return LLCAS_LOOKUP_RESULT_ERROR;
@@ -1109,19 +1093,14 @@ unsafe fn actioncache_get_impl(
     }
 }
 
-/// Whether the value a local association names is actually here.
+/// The ROOT only, and a probe rather than a load: this runs on the thread that
+/// schedules every task in the build, so its cost is multiplied by every lookup
+/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
+/// write-through ordering, not to a graph walk here.
 ///
-/// The ROOT only, and a presence check rather than a load. This runs on
-/// swift-build's task-setup path — the llbuild engine thread that schedules every
-/// task in the build — so its cost is multiplied by every cache lookup (see
-/// "Per-key overhead" in AGENTS.md). A deep-node miss is a different defect with
-/// a different fix (the write-through ordering), not something to pay a graph
-/// walk here for.
-///
-/// Always LOCAL, whatever the caller asked for: a healthy remote answers yes to a
-/// global probe and would mask exactly the condition being detected. A probe that
-/// errors counts as unavailable — falling through costs a resolve, serving an
-/// unverified hit costs a build.
+/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
+/// condition. A probe that errors counts as unavailable — falling through costs a
+/// resolve, serving an unbacked hit costs a build.
 unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
     let mut probe_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
@@ -1133,24 +1112,15 @@ unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) ->
 
 /// The upstream local lookup, with a hit verified before it is served.
 ///
-/// A local association does NOT imply its value graph is still present. The store
-/// chains generations and a size-driven prune rotates rather than deleting in
-/// place, copying a graph forward only when it is LOADED (`FaultInPolicy` is
-/// `FullTree`; `contains_object` faults nothing in) — and our own write-through
-/// records the association while the graph is still materializing. Either way the
-/// association outlives the objects it names, and nothing can retract it: the
-/// plugin ABI has no delete at either level, and re-putting the key with a
-/// different value is rejected as `cache poisoned`.
+/// A local association does NOT imply its value graph is present — a prune can
+/// strand it, and our own write-through records it before the graph materializes —
+/// and nothing can retract it once it dangles (the ABI has no delete; a re-put with
+/// a different value is refused). Serving one hands the compiler an id that names
+/// nothing, permanently, because the local hit is what shadows the remote on every
+/// later get. Full account in AGENTS.md; tuist/tuist#12245.
 ///
-/// Serving such a hit hands the compiler an object id that names nothing —
-/// `missing object '0~...'`, a warning plus a recompile on the Swift lane and
-/// fatal on the clang one. It is PERMANENT, because returning the local hit here
-/// is what shadows the remote on every later get (tuist/tuist#12245).
-///
-/// So an unverifiable hit is reported as NOTFOUND and the caller's existing
-/// remote path takes over. That is also how it heals: a resolve returns the
-/// closure manifest and materializes the very objects the association names, so
-/// the record stops being dangling without ever being mutated.
+/// So an unverifiable hit is reported as NOTFOUND and the caller's remote path
+/// takes over, which is also what repairs it.
 unsafe fn verified_local_get(
     state: &CasState,
     key_digest: llcas_digest_t,
@@ -1158,10 +1128,8 @@ unsafe fn verified_local_get(
     p_value: *mut llcas_objectid_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
-    // Cleared up front so every path leaves the slot defined, matching what the
-    // unconditional adopt_error this replaced used to do: a client that passes an
-    // uninitialised `char **error` and inspects it on SUCCESS must not read an
-    // indeterminate pointer.
+    // Every path must leave the slot defined: a client that passes an uninitialised
+    // `char **error` and reads it on SUCCESS must not see an indeterminate pointer.
     if !error.is_null() {
         *error = std::ptr::null_mut();
     }
@@ -1198,31 +1166,23 @@ unsafe fn verified_local_get(
 /// Whether a put failure is the store declining to CHANGE an existing
 /// association, rather than a real storage error.
 ///
-/// An association is immutable for the life of the store generation: there is no
-/// delete in the ABI at either the association or the object level, and re-putting
-/// a key with a different value is rejected while the original survives. The
-/// verification above deliberately drives recompiles on exactly the keys whose
-/// associations are stale, so a recompile that is not byte-reproducible reaches
-/// this far more often than before — and surfacing it would only trade a
+/// An association is immutable for the life of the store generation, and the
+/// verification above drives recompiles on exactly the stale keys, so a
+/// non-reproducible recompile reaches this often. Surfacing it would only trade a
 /// `missing object` build failure for a `cache poisoned` one.
 ///
-/// Matched on the message because the ABI reports every put failure the same way
-/// (a `true` return plus a string). That is brittle — Apple's wording is not a
-/// contract — so `adopt_put_failure` logs EVERY put failure, and a variant this
-/// predicate misses shows up in TUIST_CAS_LOG instead of silently failing a build.
-/// Requires BOTH words rather than just "poison", so an unrelated failure that
-/// happens to contain it is not silently downgraded — the downgrade also lets the
-/// exported put publish remotely, so a false positive is not free. Kept as two
-/// substrings rather than the exact phrase to survive rewording ("cache is
-/// poisoned", "poisoned cache").
+/// Matched on the message because the ABI reports every put failure identically.
+/// Apple's wording is not a contract, so `adopt_put_failure` logs EVERY failure and
+/// a missed variant shows up in TUIST_CAS_LOG rather than failing a build. Both
+/// words are required: a false positive also publishes the value remotely. Two
+/// substrings, not the exact phrase, to survive rewording.
 fn is_cache_poisoned(message: &str) -> bool {
     let message = message.to_ascii_lowercase();
     message.contains("poison") && message.contains("cache")
 }
 
-/// Logs an upstream put failure, writes it into `error`, and answers whether the
-/// caller should still treat it as a failure. A refused association is not fatal:
-/// the store keeps the association it already had and the caller carries on.
+/// A refused association is not fatal: the store keeps what it already had and the
+/// caller carries on.
 unsafe fn adopt_put_failure(state: &CasState, message: &str, error: *mut *mut c_char) -> bool {
     log_line(&format!("actioncache put failed: {message}"));
     if is_cache_poisoned(message) {
@@ -1265,13 +1225,10 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     let key_bytes = std::slice::from_raw_parts(key.data, key.size).to_vec();
     let _ = ours_cancel_token(cancel_tok);
 
-    // Exactly the sync path, answered on the caller's thread (see
-    // llcas_cas_load_object_async for why there is no thread hop). There used to
-    // be a "fast path" here holding its own copy of the local lookup: it saved
-    // nothing on a hit — this is synchronous either way — while costing a SECOND
-    // upstream lookup on every miss, and it was a second place for the local
-    // decision to live, which is how it came to be missing the verification the
-    // sync path had. One call site, one decision.
+    // Answered on the caller's thread; see llcas_cas_load_object_async. Do not
+    // reintroduce a local "fast path" here: it saves nothing (this is synchronous
+    // either way), and a second home for the local decision is how this entry point
+    // came to be missing the verification the sync one had.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1340,10 +1297,9 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: a panic here must neither fail the
         // already-succeeded local put nor unwind across the extern "C" boundary.
-        // A downgraded poisoned put publishes too, deliberately: the recompiled
-        // value was genuinely produced and stored, and putting it remotely makes
-        // the remote the healed truth that later builds resolve to, since the
-        // local association can never be changed.
+        // A downgraded poisoned put publishes too, deliberately: the local
+        // association can never be changed, so the remote becomes the healed truth
+        // that later builds resolve to.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             actioncache_put_remote(state, &key, value)
         }));
@@ -1388,10 +1344,9 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
 mod tests {
     use super::*;
 
-    // The end-to-end behaviour is covered against Apple's plugin in
-    // tests/unbacked_local_hit.rs. What that cannot reach is the OTHER branch: a
-    // put failure that is a real storage error must stay a failure, or the
-    // downgrade would swallow every problem the store ever reports.
+    // tests/unbacked_local_hit.rs covers the behaviour end to end against Apple's
+    // plugin. What it cannot reach is the other branch: a real storage error must
+    // stay a failure, or the downgrade would swallow every problem the store hits.
     #[test]
     fn only_a_refused_association_counts_as_poisoning() {
         // The wording observed on Xcode 26.3, plus rewordings it should survive.
@@ -1401,10 +1356,7 @@ mod tests {
 
         assert!(!is_cache_poisoned(""));
         assert!(!is_cache_poisoned("No space left on device"));
-        // Mentions the cache but is not a refusal.
         assert!(!is_cache_poisoned("failed to open the action cache"));
-        // Mentions poisoning but not the cache: a downgrade would also publish
-        // the value remotely, so a false positive here is not free.
         assert!(!is_cache_poisoned("poisoned lock in the object store"));
     }
 }
