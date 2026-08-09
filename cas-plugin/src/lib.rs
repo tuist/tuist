@@ -889,10 +889,13 @@ unsafe fn load_object_impl(
                 adopt_error(state.up, upstream_error, error);
                 return retried;
             }
-            // Nothing can produce this object: the last moment before clang fails
-            // the build on it. Correlate with the unbacked-hit line — a digest
-            // logged here that no such line names is an interior node, which the
-            // root probe at get time cannot see.
+            // The PROXY cannot produce it: not present, not pending, and not
+            // nameable from the snapshot's node table. Not the same as gone —
+            // kura may still hold the blob under a key we cannot name, which is
+            // what a resolve recovers and this cannot. Clang fails the build
+            // here. Correlate with the unbacked-hit line: a digest logged here
+            // that no such line names is an interior node, invisible to the
+            // root probe.
             Ok(false) => {
                 log_line(&format!(
                     "proxy fetch_object could not produce {}",
