@@ -902,7 +902,15 @@ unsafe fn load_object_impl(
             // clang lane fails the build — and it went unlogged for a long time,
             // which is why the condition was invisible until it broke a build.
             Ok(false) => {
-                log_line(&format!("proxy fetch_object could not produce {}", hex(digest)));
+                // Printed form, like the unbacked-hit line: this is the digest the
+                // build is about to report as `missing object '0~…'`, and the two
+                // together say WHICH node is gone — a digest logged here that no
+                // unbacked-hit line names is an interior node, which the root
+                // probe at get time cannot see.
+                log_line(&format!(
+                    "proxy fetch_object could not produce {}",
+                    printed_digest(state, id)
+                ));
             }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
