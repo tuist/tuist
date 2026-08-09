@@ -37,7 +37,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use tuist_cas_plugin::proxy_proto::{
-    read_request, write_response, OP_RESOLVE, STATUS_HIT, STATUS_MISS,
+    read_request, write_response, OP_FETCH_OBJECT, OP_RESOLVE, STATUS_HIT, STATUS_MISS,
 };
 use tuist_cas_plugin::types::*;
 use tuist_cas_plugin::upstream_path;
@@ -72,6 +72,88 @@ fn an_unbacked_local_hit_is_not_served_to_the_caller() {
         "the unbacked hit must FALL THROUGH to the remote, not short-circuit: a \
          resolve can recover entries fetch_object cannot name (snapshot window, \
          restarted proxy) and registers the whole graph in one round trip"
+    );
+}
+
+/// End to end, through the two calls a replay actually makes. The get is only
+/// half of it: the failure happens at the LOAD, which is where an object id that
+/// names nothing becomes `missing object '0~…'`. This asserts both halves --
+/// that the value really is unloadable, and that the caller is never given it.
+#[test]
+fn the_caller_never_receives_an_id_that_cannot_be_loaded() {
+    let Some(env) = Fixture::new("end-to-end") else { return };
+    let (key, absent_value) = env.seed_unbacked_association();
+    env.proxy.answer_resolve_with_miss();
+
+    // What an unguarded get handed back, and what the compiler would then do with
+    // it. NOTFOUND here is the build failure: fatal on the clang lane.
+    let id = env.cas.objectid_for(&absent_value);
+    assert_eq!(
+        env.cas.load(id),
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "the association names an object that cannot be loaded -- this is the failure"
+    );
+
+    // So the get must not hand that id over in the first place.
+    let (result, _) = env.cas.actioncache_get(&key);
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "the caller must get a miss and recompile, never the unloadable id"
+    );
+}
+
+/// The limitation, as an assertion rather than a paragraph: the probe covers the
+/// ROOT. A value whose root is present but whose child is gone passes the guard
+/// and still fails at load time, on the child.
+#[test]
+fn a_present_root_with_a_missing_child_still_passes_the_guard() {
+    let Some(env) = Fixture::new("deep-node") else { return };
+    let absent_child = env.absent_value_digest();
+    let child_id = env.cas.objectid_for(&absent_child);
+    let root = env.cas.store_object_with_refs(b"a root whose child was never stored", &[child_id]);
+    let key = env.cas.key_digest(b"deep-node");
+    env.cas.actioncache_put(&key, root).expect("seeding put");
+    env.proxy.answer_resolve_with_miss();
+
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the root is present, so the guard passes it -- verifying the whole graph \
+         would put a walk on the serial task-setup path"
+    );
+    assert_eq!(env.cas.load(served), LLCAS_LOOKUP_RESULT_SUCCESS, "and the root loads");
+    assert_eq!(
+        env.cas.load(child_id),
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "while the child does not: the same `missing object` failure, one node deeper, \
+         which the write-through ordering fixes rather than this guard"
+    );
+}
+
+/// The other limitation: a REMOTE hit is served unverified on purpose, because it
+/// arrives with fetch instructions for every node. When the remote can no longer
+/// produce the bytes -- kura keeping an action entry whose blobs are gone -- that
+/// promise is broken and the load fails. The guard does not cover this.
+#[test]
+fn a_remote_hit_whose_blobs_are_gone_is_served_and_fails_at_load() {
+    let Some(env) = Fixture::new("remote-no-blobs") else { return };
+    let key = env.cas.key_digest(b"remote-no-blobs");
+    let never_stored = env.absent_value_digest();
+    env.proxy.answer_resolve_with_hit(&never_stored);
+
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "a remote hit is served without probing -- it is supposed to come with fetch \
+         instructions covering the whole graph"
+    );
+    assert_eq!(
+        env.cas.load(served),
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "but the proxy cannot produce it, so the failure lands at load time. This PR \
+         does not fix that state; kura's blob-eviction cascade is what prevents it."
     );
 }
 
@@ -457,15 +539,42 @@ impl PluginCas {
         self.digest_of(self.store_object(&object))
     }
 
+    /// The call the compiler makes when it replays a cached result. This is where
+    /// an unbacked value becomes `CAS operation failed: missing object '0~…'` --
+    /// NOTFOUND here is fatal on the clang lane.
+    fn load(&self, id: llcas_objectid_t) -> llcas_lookup_result_t {
+        unsafe {
+            let mut loaded = llcas_loaded_object_t { opaque: 0 };
+            let mut error: *mut c_char = ptr::null_mut();
+            let result =
+                tuist_cas_plugin::llcas_cas_load_object(self.raw, id, &mut loaded, &mut error);
+            assert_ne!(
+                result,
+                LLCAS_LOOKUP_RESULT_ERROR,
+                "llcas_cas_load_object: {}",
+                take_error(error)
+            );
+            result
+        }
+    }
+
     fn store_object(&self, data: &[u8]) -> llcas_objectid_t {
+        self.store_object_with_refs(data, &[])
+    }
+
+    fn store_object_with_refs(
+        &self,
+        data: &[u8],
+        refs: &[llcas_objectid_t],
+    ) -> llcas_objectid_t {
         unsafe {
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error: *mut c_char = ptr::null_mut();
             let failed = tuist_cas_plugin::llcas_cas_store_object(
                 self.raw,
                 llcas_data_t { data: data.as_ptr() as *const c_void, size: data.len() },
-                ptr::null(),
-                0,
+                refs.as_ptr(),
+                refs.len(),
                 &mut id,
                 &mut error,
             );
@@ -701,6 +810,10 @@ impl FakeProxy {
                         Some(value) => (STATUS_HIT, value),
                         None => (STATUS_MISS, Vec::new()),
                     },
+                    // This proxy materialises nothing, so it can never produce an
+                    // object on demand -- the truthful answer, and the one a real
+                    // proxy gives once kura no longer has the blob.
+                    OP_FETCH_OBJECT => (STATUS_MISS, Vec::new()),
                     // Everything else (publish, invalidate) is acknowledged.
                     _ => (STATUS_HIT, Vec::new()),
                 };
