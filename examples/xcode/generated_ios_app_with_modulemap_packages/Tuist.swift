@@ -1,3 +1,3 @@
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()

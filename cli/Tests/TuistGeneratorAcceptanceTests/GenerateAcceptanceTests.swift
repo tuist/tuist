@@ -565,6 +565,53 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     }
 }
 
+/// This integration test resolves a large external package graph and runs two Xcode builds. Serializing it prevents
+/// the intermittent resource contention observed when it runs alongside the rest of the acceptance-test shard.
+@Suite(.serialized)
+struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
+    @Test(.withFixture("generated_ios_app_with_modulemap_packages"), .inTemporaryDirectory)
+    func ios_app_with_modulemap_packages() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+    }
+}
+
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     /// Regression coverage for the request to include SwiftPM target headers in generated projects
     /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
