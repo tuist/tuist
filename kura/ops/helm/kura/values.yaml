@@ -137,6 +137,30 @@ config:
     # additionally gated on the node's one-time reverse-map backfill completing,
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
+  backfill:
+    # Boot-time selection of the peer catch-up walker: when true the node
+    # runs the recency-first backfill lifecycle instead of the legacy
+    # bootstrap walker. Read once at process start, so flipping it rolls the
+    # pods; watermarks and index rows are durable and sit inert while the
+    # flag is off.
+    enabled: false
+    # Share of the age-ordered segment ring (counted from the newest) whose
+    # boundary segment's seal-time age stat bounds how far back a backfill
+    # pass reaches. The margin's share of the ring's time span is the
+    # window's structural slack; 40 matches the "new" band under the 1:2:2
+    # old/current/new ring ratio.
+    marginPercent: 40
+    # Segment-ring fullness percent at which a node still running its initial
+    # backfill cycle marks itself ready (readiness then latches for the
+    # process lifetime). Leave unset to derive half of marginPercent inside
+    # the binary — set it only to decouple the readiness point from the
+    # margin.
+    readyRingPercent: null
+    # Byte threshold a backfill pass composes one bodies batch against, and
+    # the cutoff above which a listed entry is fetched through the
+    # per-artifact endpoint. Must not exceed the compiled 32 MiB response
+    # ceiling shared by both sides of the bodies protocol.
+    batchBytes: 33554432
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from
     # the container's effective memory limit. Explicit values must remain below
