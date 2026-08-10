@@ -619,3 +619,20 @@ credential-bearing request headers (`authorization`, `proxy-authorization`,
 cache. Hooks that authenticate from other inputs must return a short
 `ttl_seconds` (or none) instead of relying on the cache key to separate
 requests.
+
+Concurrent cache misses on the same key are coalesced: one request runs the
+hook and the rest wait for its result, so a burst of requests sharing
+credentials costs one `kura.http_json` call to the authentication backend
+rather than one per request. Followers are counted as
+`extension_cache{result="coalesced"}`.
+
+Hooks run on a pool of independent Lua states so that a hook awaiting
+`kura.http_json` does not block unrelated requests. Two consequences for
+script authors:
+
+- **Hook invocations are stateless.** A global written by one invocation is
+  visible only to the state that ran it. Combined with result caching, no hook
+  can observe every request, so per-request accounting belongs in the
+  authentication backend, not in script globals.
+- **Startup work is repeated per state.** Top-level script code runs once per
+  pooled state, so keep it to definitions and constants.

@@ -1,8 +1,9 @@
 use std::{
     collections::{BTreeMap, HashMap},
     error::Error as _,
+    ops::Deref,
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
     time::{Duration, Instant},
 };
 
@@ -23,7 +24,7 @@ use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock, Semaphore, SemaphorePermit, broadcast};
 use tracing::warn;
 
 use crate::metrics::Metrics;
@@ -42,6 +43,15 @@ const KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE: &str = "KURA_EXTENSION_FAIL_CLOSED_A
 const KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS: &str = "KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS";
 const KURA_EXTENSION_CACHE_MAX_ENTRIES: &str = "KURA_EXTENSION_CACHE_MAX_ENTRIES";
 const DEFAULT_EXTENSION_CACHE_MAX_ENTRIES: usize = 100_000;
+
+// A Lua state is single-threaded, so concurrency comes from holding several of
+// them. Hooks are allowed to perform network I/O (`kura.http_json`), which they
+// await while holding their state, so this bounds concurrent *in-flight hooks*
+// rather than concurrent CPU work — sizing it to the core count would throttle
+// requests that are only waiting on the authentication backend. The bound
+// exists to cap memory and backend fan-out; a Lua state costs tens of
+// kilobytes, so a generous fixed value is cheaper than a tuning knob.
+const LUA_POOL_SIZE: usize = 32;
 
 const SIGNER_PREFIX: &str = "KURA_EXTENSION_SIGNER_";
 const JWT_VERIFIER_PREFIX: &str = "KURA_EXTENSION_JWT_VERIFIER_";
@@ -95,18 +105,59 @@ pub type SharedExtension = Arc<ExtensionEngine>;
 
 pub struct ExtensionEngine {
     config: ExtensionConfig,
-    runtime: Mutex<LuaRuntime>,
+    runtimes: LuaPool,
     principal_cache: RwLock<HashMap<String, CachedAuthenticateResult>>,
     decision_cache: RwLock<HashMap<String, CachedAuthorizeResult>>,
+    authenticate_flight: SingleFlight<AuthenticateOutcome>,
+    authorize_flight: SingleFlight<AuthorizeOutcome>,
     metrics: Metrics,
     script_hash: String,
 }
 
-struct LuaRuntime {
-    lua: Lua,
+// A pool of independent Lua states. Every state loads the same script, so the
+// hook-presence flags are shared; only the states themselves are checked out.
+//
+// Extension scripts must therefore treat hook invocations as stateless: a
+// global written by one invocation is visible only to the state that ran it.
+// Hook results are cached per credentials anyway, so no hook could ever rely on
+// seeing every request.
+struct LuaPool {
+    idle: StdMutex<Vec<Lua>>,
+    permits: Semaphore,
+    script: String,
+    config: ExtensionConfig,
+    metrics: Metrics,
     has_authenticate: bool,
     has_authorize: bool,
     has_response_headers: bool,
+}
+
+// Checked-out Lua state. Returns itself to the pool on drop, including when the
+// hook future is cancelled mid-await.
+struct PooledLua<'a> {
+    pool: &'a LuaPool,
+    lua: Option<Lua>,
+    _permit: SemaphorePermit<'a>,
+}
+
+impl Deref for PooledLua<'_> {
+    type Target = Lua;
+
+    fn deref(&self) -> &Self::Target {
+        self.lua.as_ref().expect("state is taken only on drop")
+    }
+}
+
+impl Drop for PooledLua<'_> {
+    fn drop(&mut self) {
+        if let Some(lua) = self.lua.take() {
+            self.pool
+                .idle
+                .lock()
+                .expect("lua pool mutex is never held across a panic")
+                .push(lua);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -173,6 +224,85 @@ struct CachedAuthenticateResult {
 struct CachedAuthorizeResult {
     expires_at: Instant,
     result: AuthorizeOutcome,
+}
+
+// Collapses concurrent misses on the same cache key into one hook run. Without
+// it a burst of requests carrying the same credentials each runs the hook, and
+// each hook run makes its own call to the authentication backend.
+struct SingleFlight<T> {
+    inflight: StdMutex<HashMap<String, broadcast::Sender<Result<T, String>>>>,
+}
+
+enum Flight<'a, T: Clone> {
+    Leader(FlightGuard<'a, T>),
+    Follower(broadcast::Receiver<Result<T, String>>),
+}
+
+impl<T: Clone> SingleFlight<T> {
+    fn new() -> Self {
+        Self {
+            inflight: StdMutex::new(HashMap::new()),
+        }
+    }
+
+    fn join(&self, key: &str) -> Flight<'_, T> {
+        let mut inflight = self
+            .inflight
+            .lock()
+            .expect("single-flight mutex is never held across a panic");
+        match inflight.get(key) {
+            Some(sender) => Flight::Follower(sender.subscribe()),
+            None => {
+                let (sender, _) = broadcast::channel(1);
+                inflight.insert(key.to_owned(), sender.clone());
+                Flight::Leader(FlightGuard {
+                    flight: self,
+                    key: key.to_owned(),
+                    sender,
+                    settled: false,
+                })
+            }
+        }
+    }
+
+    fn forget(&self, key: &str) {
+        self.inflight
+            .lock()
+            .expect("single-flight mutex is never held across a panic")
+            .remove(key);
+    }
+}
+
+// Held by the leader for the duration of the hook run. Publishing hands the
+// result to every follower; dropping without publishing (the request was
+// cancelled) closes the channel so followers retry instead of hanging.
+struct FlightGuard<'a, T: Clone> {
+    flight: &'a SingleFlight<T>,
+    key: String,
+    sender: broadcast::Sender<Result<T, String>>,
+    settled: bool,
+}
+
+impl<T: Clone> FlightGuard<'_, T> {
+    fn publish(mut self, result: Result<T, String>) {
+        self.settle();
+        let _ = self.sender.send(result);
+    }
+
+    // Stops new followers from joining a flight that is already finishing. Runs
+    // exactly once so it can never evict a later leader's entry for the key.
+    fn settle(&mut self) {
+        if !self.settled {
+            self.settled = true;
+            self.flight.forget(&self.key);
+        }
+    }
+}
+
+impl<T: Clone> Drop for FlightGuard<'_, T> {
+    fn drop(&mut self) {
+        self.settle();
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -293,13 +423,15 @@ impl ExtensionEngine {
                 )
             })?;
         let script_hash = fingerprint(&script);
-        let runtime = LuaRuntime::load(&script, &config, metrics.clone()).await?;
+        let runtimes = LuaPool::load(&script, &config, metrics.clone(), LUA_POOL_SIZE).await?;
 
         Ok(Self {
             config,
-            runtime: Mutex::new(runtime),
+            runtimes,
             principal_cache: RwLock::new(HashMap::new()),
             decision_cache: RwLock::new(HashMap::new()),
+            authenticate_flight: SingleFlight::new(),
+            authorize_flight: SingleFlight::new(),
             metrics,
             script_hash,
         })
@@ -311,39 +443,23 @@ impl ExtensionEngine {
             credentials_fingerprint(&ctx.headers),
         ));
         let authenticate = match self
-            .cached_authenticate_result(&authenticate_cache_key)
+            .resolve_authenticate(&authenticate_cache_key, ctx)
             .await
         {
-            Some(result) => {
-                self.metrics.record_extension_cache("authenticate", "hit");
-                result
-            }
-            None => {
-                self.metrics.record_extension_cache("authenticate", "miss");
-                match self.run_authenticate(ctx).await {
-                    Ok(result) => {
-                        self.store_authenticate_result(&authenticate_cache_key, result.clone())
-                            .await;
-                        result
-                    }
-                    Err(error) => {
-                        warn!("extension authenticate hook failed: {error}");
-                        self.metrics.record_extension_hook(
-                            "authenticate",
-                            "error",
-                            Duration::from_secs(0),
-                        );
-                        if self.config.fail_closed_authenticate {
-                            return AccessDecision::Deny(DenyDecision {
-                                status: 401,
-                                message: "Authentication failed".into(),
-                            });
-                        }
-                        AuthenticateOutcome::Anonymous {
-                            anonymous: true,
-                            ttl_seconds: None,
-                        }
-                    }
+            Ok(result) => result,
+            Err(error) => {
+                warn!("extension authenticate hook failed: {error}");
+                self.metrics
+                    .record_extension_hook("authenticate", "error", Duration::from_secs(0));
+                if self.config.fail_closed_authenticate {
+                    return AccessDecision::Deny(DenyDecision {
+                        status: 401,
+                        message: "Authentication failed".into(),
+                    });
+                }
+                AuthenticateOutcome::Anonymous {
+                    anonymous: true,
+                    ttl_seconds: None,
                 }
             }
         };
@@ -366,37 +482,24 @@ impl ExtensionEngine {
             ctx.route.clone(),
             ctx.method.clone(),
         ));
-        let authorize = match self.cached_authorize_result(&authorize_cache_key).await {
-            Some(result) => {
-                self.metrics.record_extension_cache("authorize", "hit");
-                result
-            }
-            None => {
-                self.metrics.record_extension_cache("authorize", "miss");
-                match self.run_authorize(ctx, principal.as_ref()).await {
-                    Ok(result) => {
-                        self.store_authorize_result(&authorize_cache_key, result.clone())
-                            .await;
-                        result
-                    }
-                    Err(error) => {
-                        warn!("extension authorize hook failed: {error}");
-                        self.metrics.record_extension_hook(
-                            "authorize",
-                            "error",
-                            Duration::from_secs(0),
-                        );
-                        if self.config.fail_closed_authorize {
-                            return AccessDecision::Deny(DenyDecision {
-                                status: 403,
-                                message: "Forbidden".into(),
-                            });
-                        }
-                        AuthorizeOutcome::Allow {
-                            allow: true,
-                            ttl_seconds: None,
-                        }
-                    }
+        let authorize = match self
+            .resolve_authorize(&authorize_cache_key, ctx, principal.as_ref())
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                warn!("extension authorize hook failed: {error}");
+                self.metrics
+                    .record_extension_hook("authorize", "error", Duration::from_secs(0));
+                if self.config.fail_closed_authorize {
+                    return AccessDecision::Deny(DenyDecision {
+                        status: 403,
+                        message: "Forbidden".into(),
+                    });
+                }
+                AuthorizeOutcome::Allow {
+                    allow: true,
+                    ttl_seconds: None,
                 }
             }
         };
@@ -452,25 +555,94 @@ impl ExtensionEngine {
         principal_evicted + decision_evicted
     }
 
+    // Resolves the cached outcome, running the hook at most once per key across
+    // all concurrent callers. The loop re-reads the cache before taking
+    // leadership so a burst that arrives while a leader is finishing settles on
+    // the stored result instead of re-running the hook.
+    async fn resolve_authenticate(
+        &self,
+        key: &str,
+        ctx: &ExtensionContext,
+    ) -> Result<AuthenticateOutcome, String> {
+        loop {
+            if let Some(result) = self.cached_authenticate_result(key).await {
+                self.metrics.record_extension_cache("authenticate", "hit");
+                return Ok(result);
+            }
+
+            match self.authenticate_flight.join(key) {
+                Flight::Leader(guard) => {
+                    self.metrics.record_extension_cache("authenticate", "miss");
+                    let outcome = self.run_authenticate(ctx).await;
+                    if let Ok(result) = &outcome {
+                        self.store_authenticate_result(key, result.clone()).await;
+                    }
+                    guard.publish(outcome.clone());
+                    return outcome;
+                }
+                Flight::Follower(mut receiver) => {
+                    self.metrics
+                        .record_extension_cache("authenticate", "coalesced");
+                    if let Ok(result) = receiver.recv().await {
+                        return result;
+                    }
+                    // The leader was cancelled before publishing. Retry: either
+                    // its result landed in the cache, or we take leadership.
+                }
+            }
+        }
+    }
+
+    async fn resolve_authorize(
+        &self,
+        key: &str,
+        ctx: &ExtensionContext,
+        principal: Option<&Principal>,
+    ) -> Result<AuthorizeOutcome, String> {
+        loop {
+            if let Some(result) = self.cached_authorize_result(key).await {
+                self.metrics.record_extension_cache("authorize", "hit");
+                return Ok(result);
+            }
+
+            match self.authorize_flight.join(key) {
+                Flight::Leader(guard) => {
+                    self.metrics.record_extension_cache("authorize", "miss");
+                    let outcome = self.run_authorize(ctx, principal).await;
+                    if let Ok(result) = &outcome {
+                        self.store_authorize_result(key, result.clone()).await;
+                    }
+                    guard.publish(outcome.clone());
+                    return outcome;
+                }
+                Flight::Follower(mut receiver) => {
+                    self.metrics
+                        .record_extension_cache("authorize", "coalesced");
+                    if let Ok(result) = receiver.recv().await {
+                        return result;
+                    }
+                }
+            }
+        }
+    }
+
     async fn run_authenticate(
         &self,
         ctx: &ExtensionContext,
     ) -> Result<AuthenticateOutcome, String> {
-        let runtime = self.runtime.lock().await;
-        if !runtime.has_authenticate {
+        if !self.runtimes.has_authenticate {
             return Ok(AuthenticateOutcome::Anonymous {
                 anonymous: true,
                 ttl_seconds: None,
             });
         }
 
+        let lua = self.runtimes.checkout().await?;
         let start = Instant::now();
-        let ctx_value = runtime
-            .lua
+        let ctx_value = lua
             .to_value_with(ctx, SERIALIZE_NONE_AS_NIL)
             .map_err(|error| format!("failed to serialize authenticate context: {error}"))?;
-        let function: Function = runtime
-            .lua
+        let function: Function = lua
             .globals()
             .get("authenticate")
             .map_err(|error| format!("failed to resolve authenticate hook: {error}"))?;
@@ -480,8 +652,7 @@ impl ExtensionEngine {
         .await
         .map_err(|_| "authenticate hook timed out".to_string())?
         .map_err(|error| format!("authenticate hook failed: {error}"))?;
-        let parsed = runtime
-            .lua
+        let parsed = lua
             .from_value(outcome)
             .map_err(|error| format!("invalid authenticate hook response: {error}"))?;
         self.metrics
@@ -494,25 +665,22 @@ impl ExtensionEngine {
         ctx: &ExtensionContext,
         principal: Option<&Principal>,
     ) -> Result<AuthorizeOutcome, String> {
-        let runtime = self.runtime.lock().await;
-        if !runtime.has_authorize {
+        if !self.runtimes.has_authorize {
             return Ok(AuthorizeOutcome::Allow {
                 allow: true,
                 ttl_seconds: None,
             });
         }
 
+        let lua = self.runtimes.checkout().await?;
         let start = Instant::now();
-        let ctx_value = runtime
-            .lua
+        let ctx_value = lua
             .to_value_with(ctx, SERIALIZE_NONE_AS_NIL)
             .map_err(|error| format!("failed to serialize authorize context: {error}"))?;
-        let principal_value = runtime
-            .lua
+        let principal_value = lua
             .to_value_with(&principal, SERIALIZE_NONE_AS_NIL)
             .map_err(|error| format!("failed to serialize authorize principal: {error}"))?;
-        let function: Function = runtime
-            .lua
+        let function: Function = lua
             .globals()
             .get("authorize")
             .map_err(|error| format!("failed to resolve authorize hook: {error}"))?;
@@ -524,8 +692,7 @@ impl ExtensionEngine {
         .await
         .map_err(|_| "authorize hook timed out".to_string())?
         .map_err(|error| format!("authorize hook failed: {error}"))?;
-        let parsed = runtime
-            .lua
+        let parsed = lua
             .from_value(outcome)
             .map_err(|error| format!("invalid authorize hook response: {error}"))?;
         self.metrics
@@ -538,22 +705,22 @@ impl ExtensionEngine {
         ctx: &ExtensionContext,
         principal: Option<&Principal>,
     ) -> Result<ResponseHeaders, String> {
-        let runtime = self.runtime.lock().await;
-        if !runtime.has_response_headers {
+        // Checked before checking out a state: this hook is unset in most
+        // deployments, and it runs on every response, so taking a pool slot to
+        // discover it does not exist would put pool contention on the hot path.
+        if !self.runtimes.has_response_headers {
             return Ok(ResponseHeaders::default());
         }
 
+        let lua = self.runtimes.checkout().await?;
         let start = Instant::now();
-        let ctx_value = runtime
-            .lua
+        let ctx_value = lua
             .to_value_with(ctx, SERIALIZE_NONE_AS_NIL)
             .map_err(|error| format!("failed to serialize response context: {error}"))?;
-        let principal_value = runtime
-            .lua
+        let principal_value = lua
             .to_value_with(&principal, SERIALIZE_NONE_AS_NIL)
             .map_err(|error| format!("failed to serialize response principal: {error}"))?;
-        let function: Function = runtime
-            .lua
+        let function: Function = lua
             .globals()
             .get("response_headers")
             .map_err(|error| format!("failed to resolve response_headers hook: {error}"))?;
@@ -565,8 +732,7 @@ impl ExtensionEngine {
         .await
         .map_err(|_| "response_headers hook timed out".to_string())?
         .map_err(|error| format!("response_headers hook failed: {error}"))?;
-        let mut parsed: ResponseHeadersOutcome = runtime
-            .lua
+        let mut parsed: ResponseHeadersOutcome = lua
             .from_value(outcome)
             .map_err(|error| format!("invalid response_headers hook response: {error}"))?;
 
@@ -664,30 +830,69 @@ fn evict_expired_authorize(cache: &mut HashMap<String, CachedAuthorizeResult>) {
     cache.retain(|_, entry| entry.expires_at > now);
 }
 
-impl LuaRuntime {
+impl LuaPool {
+    // Loads one state eagerly: it validates the script during boot rather than
+    // on the first request, and it answers which hooks the script defines. The
+    // rest are created on demand, so a node that never sees concurrent hook
+    // runs pays for exactly one state.
     async fn load(
         script: &str,
         config: &ExtensionConfig,
         metrics: Metrics,
+        size: usize,
     ) -> Result<Self, String> {
-        let lua = Lua::new();
-        install_host_api(&lua, config, metrics).await?;
-        lua.load(script)
-            .set_name("kura-extension")
-            .exec_async()
-            .await
-            .map_err(|error| format!("failed to load extension script: {error}"))?;
-        let globals = lua.globals();
+        let first = load_lua(script, config, metrics.clone()).await?;
+
+        let globals = first.globals();
         let has_authenticate = has_hook(&globals, "authenticate");
         let has_authorize = has_hook(&globals, "authorize");
         let has_response_headers = has_hook(&globals, "response_headers");
+        drop(globals);
+
         Ok(Self {
-            lua,
+            idle: StdMutex::new(vec![first]),
+            permits: Semaphore::new(size),
+            script: script.to_owned(),
+            config: config.clone(),
+            metrics,
             has_authenticate,
             has_authorize,
             has_response_headers,
         })
     }
+
+    async fn checkout(&self) -> Result<PooledLua<'_>, String> {
+        let permit = self
+            .permits
+            .acquire()
+            .await
+            .expect("extension semaphore is never closed");
+        let idle = self
+            .idle
+            .lock()
+            .expect("lua pool mutex is never held across a panic")
+            .pop();
+        let lua = match idle {
+            Some(lua) => lua,
+            None => load_lua(&self.script, &self.config, self.metrics.clone()).await?,
+        };
+        Ok(PooledLua {
+            pool: self,
+            lua: Some(lua),
+            _permit: permit,
+        })
+    }
+}
+
+async fn load_lua(script: &str, config: &ExtensionConfig, metrics: Metrics) -> Result<Lua, String> {
+    let lua = Lua::new();
+    install_host_api(&lua, config, metrics).await?;
+    lua.load(script)
+        .set_name("kura-extension")
+        .exec_async()
+        .await
+        .map_err(|error| format!("failed to load extension script: {error}"))?;
+    Ok(lua)
 }
 
 fn has_hook(globals: &Table, name: &str) -> bool {
@@ -1631,6 +1836,91 @@ end
         assert!(matches!(result, AccessDecision::Allow(Some(_))));
     }
 
+    // Hooks may call the authentication backend, and that call is awaited while
+    // the hook holds a Lua state. Backing the engine with a pool is what keeps
+    // one slow backend call from stalling every other request on the node.
+    //
+    // The mock only answers once CONCURRENT requests are in flight together, so
+    // a single shared Lua state cannot satisfy it: the barrier would never
+    // release and the requests would fail on the hook timeout.
+    #[tokio::test]
+    async fn hooks_that_call_the_backend_run_concurrently() {
+        const CONCURRENT: usize = 4;
+
+        let barrier = Arc::new(tokio::sync::Barrier::new(CONCURRENT));
+        let app = Router::new().route(
+            "/introspect",
+            axum::routing::post(move || {
+                let barrier = barrier.clone();
+                async move {
+                    barrier.wait().await;
+                    Json(serde_json::json!({ "active": true }))
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock");
+        let base = format!("http://{}", listener.local_addr().expect("mock addr"));
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("serve mock") });
+
+        let engine = test_engine(
+            r#"
+function authenticate(ctx)
+  local response = kura.http_json("backend", { method = "POST", path = "/introspect", body = {} })
+  if response.status == 200 and response.body.active == true then
+    return { principal = { id = "subject", kind = "subject" }, ttl_seconds = 0 }
+  end
+  return { deny = { status = 401, message = "Unauthorized" }, ttl_seconds = 0 }
+end
+"#,
+            move |_| unsafe {
+                std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_BACKEND_BASE_URL", &base);
+                std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
+            },
+        )
+        .await;
+
+        // Distinct credentials so each request is its own single-flight and
+        // genuinely needs its own Lua state.
+        let requests = (0..CONCURRENT).map(|index| {
+            let engine = engine.clone();
+            async move {
+                let context = ExtensionContext {
+                    transport: "http".into(),
+                    route: "/api/cache/gradle/{cache_key}".into(),
+                    method: "GET".into(),
+                    operation: "artifact.read".into(),
+                    server_tenant_id: "acme".into(),
+                    tenant_id: Some("acme".into()),
+                    namespace_id: None,
+                    producer: Some("gradle".into()),
+                    artifact_key: None,
+                    artifact_hash: None,
+                    headers: BTreeMap::from([(
+                        "authorization".into(),
+                        format!("Bearer token-{index}"),
+                    )]),
+                    query: BTreeMap::new(),
+                    status_code: None,
+                };
+                engine.evaluate_access(&context).await
+            }
+        });
+
+        let decisions = tokio::time::timeout(
+            Duration::from_secs(10),
+            futures_util::future::join_all(requests),
+        )
+        .await
+        .expect("concurrent hooks should not serialize behind one Lua state");
+
+        assert_eq!(decisions.len(), CONCURRENT);
+        for decision in decisions {
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+    }
+
     /// Exercises `kura/ops/helm/kura/hooks/tuist.lua` end-to-end through
     /// the real mlua engine. The hook lives in the chart so adopters
     /// can read it; these tests are how we keep its contracts honest:
@@ -2252,6 +2542,47 @@ end
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        // A burst of requests carrying the same credentials must cost one
+        // introspection, not one per request. The requests are polled on a
+        // single task, so the leader reaches its backend call and yields before
+        // the rest join as followers.
+        #[tokio::test]
+        async fn concurrent_requests_with_the_same_credentials_introspect_once() {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                move |_headers, _payload| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let requests = (0..25).map(|_| {
+                let engine = engine.clone();
+                async move {
+                    let mut context = ctx();
+                    context.tenant_id = Some("acme".into());
+                    context
+                        .headers
+                        .insert("authorization".into(), "Bearer opaque-token".into());
+                    engine.evaluate_access(&context).await
+                }
+            });
+            let decisions = futures_util::future::join_all(requests).await;
+
+            assert_eq!(decisions.len(), 25);
+            for decision in decisions {
+                assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            }
             assert_eq!(*calls.lock().unwrap(), 1);
         }
 
