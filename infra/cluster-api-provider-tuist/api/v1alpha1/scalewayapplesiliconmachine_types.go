@@ -238,6 +238,21 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
 
+	// LastUpdateFailureTime is when the drift loop last recorded an
+	// update failure for this host. It exists so the terminal Failed
+	// state can expire: FailedHostConfigHash alone only lifts it when a
+	// NEW config ships, which is right for a config the host rejected
+	// but wrong for the far more common verdict — the host was simply
+	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
+	// terminal indefinitely while remaining Ready and schedulable, so
+	// they kept running jobs on a host config frozen at whatever the
+	// operator last managed to push. Re-arming after a cooldown lets a
+	// host that has since come back take the current config on its own,
+	// while a genuinely broken config still backs off to a handful of
+	// attempts per cooldown instead of hammering every reconcile.
+	// +optional
+	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
+
 	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
 	// failures on the currently-adopted host. Reset to zero on a
 	// successful bootstrap or whenever the underlying ServerID

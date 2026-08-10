@@ -335,6 +335,44 @@ sum by (cluster) (
 - Pending period: 2 minutes
 - Summary: `Cilium is dropping stable outbound traffic in {{ $labels.cluster }}`
 
+### Kura cache rejecting runner traffic
+
+```promql
+sum by (cluster, node) (
+  rate(cilium_drop_count_total{
+    direction="INGRESS",
+    reason="Policy denied"
+  }[10m])
+  * on (cluster, pod) group_left(node)
+  kube_pod_info{namespace="kube-system", pod=~"cilium-.*"}
+) > 0
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- Scope: add `node=~".*-kura-fleet-.*"` to the join's result to limit this to the
+  co-located runner-cache nodes, whose steady-state rate is exactly zero. Other
+  pools carry background policy drops and would make this noisy.
+- Summary: `Kura cache on {{ $labels.node }} is dropping runner traffic at the
+  NetworkPolicy ({{ $labels.cluster }}) — builds on the affected runner will
+  hang until their client timeouts`
+
+A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
+and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
+is not masqueraded to its host's PN VLAN address arrives from outside that block,
+so Cilium drops it at ingress — silently, with no RST. The client sees no
+connection at all and every cache request hangs until its own timeout, which has
+turned 8-minute CI jobs into 6-hour ones while every dashboard showed kura
+healthy and idle. The drop counter is the only signal that fires, and it tracks
+the stuck job almost exactly: zero before it starts, a steady ~2/s SYN-retransmit
+trickle for its whole life, zero again within a scrape of it being cancelled.
+
+Note the counter carries no source address, so it says *that* a host is
+mis-sourced but not *which* one. Correlating it back to a Mac mini currently
+needs Hubble flow metrics with source labels on the cache node, or catching the
+job live (`kubectl get pod -o wide`) and checking
+`pfctl -a com.apple/tuist.vmnat -s nat` plus `ifconfig vlan0` on that host.
+
 ### Tuist server replicas unavailable
 
 ```promql

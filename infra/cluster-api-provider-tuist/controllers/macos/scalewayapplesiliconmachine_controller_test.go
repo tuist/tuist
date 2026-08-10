@@ -109,24 +109,65 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 // Status.HostConfigHash, so the self-heal must key on the FAILED hash — else
 // every reconcile sees drift-vs-applied and clears the cap forever.
 func TestShouldClearTerminalFailure(t *testing.T) {
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) *metav1.Time {
+		return &metav1.Time{Time: now.Add(d)}
+	}
 	cases := []struct {
-		name      string
-		desired   string
-		failed    string
-		terminal  bool
-		wantClear bool
+		name        string
+		desired     string
+		failed      string
+		terminal    bool
+		lastFailure *metav1.Time
+		retryAfter  time.Duration
+		wantClear   bool
 	}{
-		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, false},
-		{"a new config clears and retries", "fixed", "broken", true, true},
-		{"not terminal never clears", "fixed", "broken", false, false},
-		{"empty desired hash never clears", "", "broken", true, false},
+		// Hash-drift exit.
+		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, at(-time.Minute), 30 * time.Minute, false},
+		{"a new config clears and retries", "fixed", "broken", true, at(-time.Minute), 30 * time.Minute, true},
+		{"not terminal never clears", "fixed", "broken", false, at(-time.Hour), 30 * time.Minute, false},
+		{"empty desired hash never clears on drift", "", "broken", true, at(-time.Minute), 0, false},
+
+		// Cooldown exit — what recovers a host that was merely unreachable
+		// when the operator tried to push, and which hash drift alone leaves
+		// terminal (and stale) indefinitely while its Node keeps taking jobs.
+		{"cooldown elapsed re-arms the same config", "broken", "broken", true, at(-31 * time.Minute), 30 * time.Minute, true},
+		{"cooldown exactly elapsed re-arms", "broken", "broken", true, at(-30 * time.Minute), 30 * time.Minute, true},
+		{"inside the cooldown stays terminal", "broken", "broken", true, at(-29 * time.Minute), 30 * time.Minute, false},
+		{"zero retryAfter disables the re-arm", "broken", "broken", true, at(-24 * time.Hour), 0, false},
+		// Terminal CRs recorded before the timestamp field existed carry no
+		// stamp; they must not be stranded forever.
+		{"missing timestamp is treated as due", "broken", "broken", true, nil, 30 * time.Minute, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal); got != tc.wantClear {
-				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v) = %v; want %v", tc.desired, tc.failed, tc.terminal, got, tc.wantClear)
+			got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal, tc.lastFailure, tc.retryAfter, now)
+			if got != tc.wantClear {
+				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v,%v,%v) = %v; want %v",
+					tc.desired, tc.failed, tc.terminal, tc.lastFailure, tc.retryAfter, got, tc.wantClear)
 			}
 		})
+	}
+}
+
+// The cooldown is measured from the last attempt, so every failure — not only
+// the one that crosses the cap — has to stamp the clock. Without this a host
+// that keeps failing would re-arm on a timestamp from its first attempt.
+func TestRecordUpdateFailure_StampsLastFailureTime(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	first := machine.Status.LastUpdateFailureTime
+	if first == nil {
+		t.Fatal("expected LastUpdateFailureTime to be stamped on a non-terminal failure")
+	}
+	for i := 0; i < 4; i++ {
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.FailureReason == nil {
+		t.Fatal("expected the machine to be terminal after the cap")
+	}
+	if machine.Status.LastUpdateFailureTime.Before(first) {
+		t.Fatal("expected LastUpdateFailureTime to advance with later attempts")
 	}
 }
 
@@ -139,8 +180,13 @@ func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
 		t.Fatal("precondition: expected terminal failure before clearing")
 	}
 
-	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+	clearUpdateFailure(machine, "retry cooldown elapsed", logr.Discard(), fakeRecorder())
 
+	// The stamp is deliberately kept: it records when the host last failed, so
+	// a host that fails again isn't read as never-having-failed.
+	if machine.Status.LastUpdateFailureTime == nil {
+		t.Fatal("LastUpdateFailureTime: cleared, want retained")
+	}
 	if machine.Status.FailureReason != nil {
 		t.Fatalf("FailureReason: got %q, want nil", *machine.Status.FailureReason)
 	}
@@ -158,7 +204,7 @@ func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
 func TestClearUpdateFailure_NoOpWhenClean(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	rec := record.NewFakeRecorder(10)
-	clearUpdateFailure(machine, logr.Discard(), rec)
+	clearUpdateFailure(machine, "retry cooldown elapsed", logr.Discard(), rec)
 	select {
 	case ev := <-rec.Events:
 		t.Fatalf("expected no event on a clean machine; got %q", ev)
