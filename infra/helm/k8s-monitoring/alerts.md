@@ -226,6 +226,69 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Orphan-server / stale-cluster reconciliation telemetry is missing (CronJob or Pushgateway down)`
 
+### Cluster API admission webhook failing (fleet-wide write freeze)
+
+The management cluster serves the CAPI/CAPH admission webhooks with a
+cert-manager certificate. If it expires — or the controllers keep serving a
+stale one after cert-manager renews it, which is what happened on 2026-07-30 —
+the API server can no longer call the webhooks, and because they are
+`failurePolicy: Fail` every write to a `cluster.x-k8s.io` object is rejected
+across all workload clusters. Node replacement and autoscaling freeze
+fleet-wide (production included; it was spared last time only because nothing
+needed replacing). This is the root-cause detector; nothing else here catches
+it directly. The rejections surface as `calling_webhook_error` on the mgmt
+API server.
+
+```promql
+sum by (name) (
+  rate(
+    apiserver_admission_webhook_rejection_count{
+      cluster="tuist-management",
+      error_type="calling_webhook_error",
+      name=~".+\.cluster\.x-k8s\.io"
+    }[5m]
+  )
+) > 0
+```
+
+- Pending period: 5 minutes
+- Summary: `Cluster API admission webhook {{ $labels.name }} is failing on the management cluster — cluster.x-k8s.io writes are frozen fleet-wide`
+
+### Worker node pool below desired replicas
+
+Catches a worker MachineDeployment (the stable-egress gateway pool, or a
+production processor/kura pool) running with fewer ready nodes than desired —
+for example when MachineHealthCheck deleted nodes that CAPI then could not
+recreate. Independent of the stable-egress-gateway signal, so it also covers
+non-egress pools. Both series are exported by the management cluster's
+kube-state-metrics CustomResourceState.
+
+```promql
+kube_customresource_machinedeployment_ready_replicas{
+  cluster="tuist-management"
+}
+<
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 15 minutes
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has fewer ready nodes than desired`
+
+### Worker node pool telemetry missing
+
+```promql
+absent_over_time(
+  kube_customresource_machinedeployment_spec_replicas{
+    cluster="tuist-management"
+  }[15m]
+)
+```
+
+- Pending period: 0 minutes
+- Summary: `Worker MachineDeployment replica telemetry is missing on the management cluster`
+
 ### Node exporter coverage incomplete
 
 ```promql

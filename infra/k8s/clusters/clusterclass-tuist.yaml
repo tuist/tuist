@@ -235,6 +235,30 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Extra kubelet taints for a worker pool, in kubelet's
+    # `key=value:Effect,key=value:Effect` form. Set as a per-MachineDeployment
+    # override so a dedicated pool registers tainted and general workloads can't
+    # colonize it. Used to isolate the stable-egress gateway pool (md-egress):
+    # untainted, those 4 GB nodes hosted ingress-nginx/CoreDNS/Redis and were
+    # OOM-killed, which is what set off the 2026-07-30 egress outage. Only the
+    # DaemonSets that tolerate this taint (cilium, hcloud-csi, the egress
+    # host-configurer, and the monitoring agents) land there. Like
+    # workerNodeLabels this reaches the node at registration and survives
+    # MachineHealthCheck remediation.
+    - name: workerNodeTaints
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Resolver file for cloud-worker pods. It remains a per-cluster value
+    # because resolver paths depend on the operating-system configuration.
+    - name: workerResolvConf
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -408,6 +432,43 @@ spec:
               path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
               valueFrom:
                 template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
+    # Append per-pool kubelet taints to the worker bootstrap, mirroring the
+    # node-labels patch above. Adds `--register-with-taints=<workerNodeTaints>`
+    # for any MachineDeployment that sets the variable (no-op otherwise). This
+    # is how the stable-egress gateway pool registers tainted so only tolerating
+    # workloads schedule on it.
+    - name: KubeadmConfigTemplateWorkerNodeTaints
+      enabledIf: '{{ if ne .workerNodeTaints "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"register-with-taints","value":{{ .workerNodeTaints | quote }}}'
+    # Configure the resolver file through the kubelet's supported flag for
+    # every cloud-worker MachineDeployment in a Cluster that sets the value.
+    - name: KubeadmConfigTemplateWorkerResolvConf
+      enabledIf: '{{ if ne .workerResolvConf "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"resolv-conf","value":{{ .workerResolvConf | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the
@@ -763,9 +824,8 @@ spec:
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
         # See the control-plane files block above for why these fields
-        # are mandatory. CoreDNS receives explicit upstream resolvers
-        # from the workload bootstrap so it does not depend on this
-        # worker's host-local systemd-resolved stub.
+        # are mandatory. The workerResolvConf ClusterClass variable supplies
+        # the kubelet's resolver-file flag.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration
