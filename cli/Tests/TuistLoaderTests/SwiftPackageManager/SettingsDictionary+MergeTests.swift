@@ -3,43 +3,102 @@ import Testing
 @testable import TuistLoader
 
 struct SettingsDictionaryMergeTests {
-    @Test func merge_replaceUnlessInherited_whenNewArrayContainsInherited_concatenatesArrays() {
+    @Test func merge_inheritFromProject_whenNewArrayContainsInherited_preservesExistingArray() {
         var subject: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"]),
         ]
 
         subject.merge(
             ["OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DSTAGING"])],
-            arrayMergePolicy: .replaceUnlessInherited
+            policy: .inheritFromProject
         )
 
         #expect(
             subject["OTHER_SWIFT_FLAGS"] ==
-                .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes", "-DSTAGING"])
+                .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"])
         )
     }
 
-    @Test func merge_replaceUnlessInherited_whenNewArrayDoesNotContainInherited_overwritesArray() {
+    @Test func merge_inheritFromProject_whenExistingArrayDoesNotContainInherited_addsInherited() {
+        var subject: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(["-enable-experimental-feature", "Lifetimes"]),
+        ]
+
+        subject.merge(
+            ["OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DSTAGING"])],
+            policy: .inheritFromProject
+        )
+
+        #expect(
+            subject["OTHER_SWIFT_FLAGS"] ==
+                .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"])
+        )
+    }
+
+    @Test func merge_inheritFromProject_whenNewStringContainsInherited_preservesExistingArray() {
+        var subject: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"]),
+        ]
+
+        subject.merge(
+            ["OTHER_SWIFT_FLAGS": .string("$(inherited) -DSTAGING")],
+            policy: .inheritFromProject
+        )
+
+        #expect(
+            subject["OTHER_SWIFT_FLAGS"] ==
+                .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"])
+        )
+    }
+
+    @Test func merge_inheritFromProject_whenExistingStringDoesNotContainInherited_addsInherited() {
+        var subject: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .string("-enable-experimental-feature Lifetimes"),
+        ]
+
+        subject.merge(
+            ["OTHER_SWIFT_FLAGS": .string("$(inherited) -DSTAGING")],
+            policy: .inheritFromProject
+        )
+
+        #expect(
+            subject["OTHER_SWIFT_FLAGS"] ==
+                .array(["$(inherited)", "-enable-experimental-feature Lifetimes"])
+        )
+    }
+
+    @Test func merge_inheritFromProject_whenTargetHasNoValue_leavesValueAtProjectLevel() {
+        var subject: SettingsDictionary = [:]
+
+        subject.merge(
+            ["OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DSTAGING"])],
+            policy: .inheritFromProject
+        )
+
+        #expect(subject["OTHER_SWIFT_FLAGS"] == nil)
+    }
+
+    @Test func merge_inheritFromProject_whenNewArrayDoesNotContainInherited_overwritesArray() {
         var subject: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"]),
         ]
 
         subject.merge(
             ["OTHER_SWIFT_FLAGS": .array(["-DRELEASE"])],
-            arrayMergePolicy: .replaceUnlessInherited
+            policy: .inheritFromProject
         )
 
         #expect(subject["OTHER_SWIFT_FLAGS"] == .array(["-DRELEASE"]))
     }
 
-    @Test func merge_append_whenNewArrayDoesNotContainInherited_concatenatesArrays() {
+    @Test func merge_appendArrays_whenNewArrayDoesNotContainInherited_concatenatesArrays() {
         var subject: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"]),
         ]
 
         subject.merge(
             ["OTHER_SWIFT_FLAGS": .array(["-DSTAGING"])],
-            arrayMergePolicy: .append
+            policy: .appendArrays
         )
 
         #expect(
@@ -48,14 +107,14 @@ struct SettingsDictionaryMergeTests {
         )
     }
 
-    @Test func merge_append_preservesInheritedValues() {
+    @Test func merge_appendArrays_preservesInheritedValues() {
         var subject: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-enable-experimental-feature", "Lifetimes"]),
         ]
 
         subject.merge(
             ["OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DSTAGING"])],
-            arrayMergePolicy: .append
+            policy: .appendArrays
         )
 
         #expect(
@@ -71,7 +130,7 @@ struct SettingsDictionaryMergeTests {
 
         subject.merge(
             ["MACOSX_DEPLOYMENT_TARGET": .string("15.0")],
-            arrayMergePolicy: .replaceUnlessInherited
+            policy: .inheritFromProject
         )
 
         #expect(subject["MACOSX_DEPLOYMENT_TARGET"] == .string("15.0"))

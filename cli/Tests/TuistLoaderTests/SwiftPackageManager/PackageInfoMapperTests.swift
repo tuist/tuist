@@ -7781,8 +7781,15 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func map_targetWithSwiftPMFlags_mergesInheritedPackageBaseSettings() async throws {
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        arguments: [
+            XcodeGraph.SettingValue.array(["$(inherited)", "-DSTAGING"]),
+            XcodeGraph.SettingValue.string("$(inherited) -DSTAGING"),
+        ]
+    ) func map_targetWithSwiftPMFlags_inheritsPackageBaseSettings(
+        baseFlags: XcodeGraph.SettingValue
+    ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
             at: basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
@@ -7816,7 +7823,7 @@ struct PackageInfoMapperTests {
             ],
             packageSettings: .test(
                 baseSettings: Settings.default.with(base: [
-                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-DSTAGING"],
+                    "OTHER_SWIFT_FLAGS": baseFlags,
                 ])
             )
         )
@@ -7826,9 +7833,13 @@ struct PackageInfoMapperTests {
             target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
                 "$(inherited)",
                 "-enable-experimental-feature \"Lifetimes\"",
-                "-DSTAGING",
             ])
         )
+        guard case let .array(projectFlags) = project?.settings?.base["OTHER_SWIFT_FLAGS"] else {
+            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be an array")
+            return
+        }
+        #expect(projectFlags.filter { $0 == "-DSTAGING" }.count == 1)
     }
 
     @Test(
