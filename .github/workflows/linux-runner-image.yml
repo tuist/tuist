@@ -30,7 +30,7 @@ on:
           Override the `RUNNER_VERSION` build-arg in the Dockerfile
           to bump-test a new `actions/runner` release before
           opening the Renovate PR. Leave empty to use the
-          Dockerfile's pinned default (currently 2.334.0).
+          Dockerfile's Renovate-tracked default.
         required: false
         default: ""
 
@@ -45,7 +45,10 @@ env:
 jobs:
   build:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    runs-on: tuist-linux
+    # GitHub-hosted: this workflow validates and bump-tests the image the
+    # tuist-linux runners boot from, so it must stay runnable when the fleet
+    # is stuck on a retired actions/runner version.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
