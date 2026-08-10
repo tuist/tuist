@@ -476,6 +476,9 @@ defmodule CacheWeb.XcodeControllerTest do
       assert conn.resp_body == ""
     end
 
+    # Deliberately mock-identical to the flag-on local-hit test above: it pins
+    # that tracking stays ungated when the flag is off, which is the regression
+    # #12252 fixed. Do not remove it as a duplicate.
     test "tracks artifact access when serving a local file with Xcode database interactions disabled", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"

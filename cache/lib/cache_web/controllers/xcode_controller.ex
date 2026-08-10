@@ -55,6 +55,11 @@ defmodule CacheWeb.XcodeController do
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :xcode, :download, :request], %{}, %{})
     key = Xcode.Disk.key(account_handle, project_handle, id)
+
+    # Tracked before the stat on purpose: on a miss, enqueue_xcode_download/3 may
+    # hydrate the file from S3 outside this request, and the row created here is
+    # what keeps the hydrated file visible to eviction and safe from the orphan
+    # scan. Moving this into the hit branch would orphan hydrated artifacts.
     :ok = CacheArtifacts.track_artifact_access(key)
 
     case Xcode.Disk.stat(account_handle, project_handle, id) do
