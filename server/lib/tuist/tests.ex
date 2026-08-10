@@ -532,10 +532,11 @@ defmodule Tuist.Tests do
     Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
   end
 
-  # Run/target-level errors (the test runner itself errored, e.g. a target
-  # whose `.xctest` bundle couldn't be loaded). The parser lifts these out of
-  # the test cases, so they don't create test_case_runs or fan out webhooks;
-  # they're stored separately and surfaced as an "Errors" section.
+  # Run/target-level entries that aren't test failures: the test runner itself
+  # errored (e.g. a target whose `.xctest` bundle couldn't be loaded), or Swift
+  # Testing recorded an issue while no test was running. The parser lifts both
+  # out of the test cases, so they don't create test_case_runs or fan out
+  # webhooks; they're stored separately and surfaced as an "Errors" section.
   defp create_run_errors(%Test{id: test_run_id, project_id: project_id}, errors) when is_list(errors) do
     now = NaiveDateTime.utc_now()
 
