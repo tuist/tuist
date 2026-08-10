@@ -1,7 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock.",
+  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit.",
   "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate: dependency dashboard",
+  "prConcurrentLimit": 25,
+  "prHourlyLimit": 4,
   "customManagers": [
     {
       "customType": "regex",
@@ -49,16 +53,26 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "jdx/mise",
       "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "actions/runner version seeded onto bare-metal vm-image-builder hosts at first bootstrap (buildersFleet.ghRunnerVersion). Not a guest-image pin: the host agent runs without `--disableupdate` and self-updates from here. Tracked so a freshly adopted host never lands on a release GitHub has already retired, and so it can't drift away from the guest pin it is supposed to match.",
+      "fileMatch": ["^infra/helm/tuist/values\\.yaml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ghRunnerVersion:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
     }
   ],
   "packageRules": [
     {
-      "description": "actions/runner bumps: route through the runner-image release flow.",
+      "description": "actions/runner bumps: route through the runner-image release flow. prPriority puts them at the head of the queue — GitHub retires runner releases on a deadline, so these are the one bump class where being held behind a backlog of routine updates ends in broken CI rather than lag.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
       "matchPackageNames": ["actions/runner"],
       "commitMessagePrefix": "fix(runner-image):",
       "commitMessageTopic": "GitHub Actions runner",
+      "prPriority": 10,
       "automerge": true
     },
     {
@@ -67,6 +81,17 @@
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
       "matchPackageNames": ["actions/runner", "kubernetes/kubernetes", "helm/helm", "cli/cli"],
       "commitMessagePrefix": "fix(linux-runner-image):",
+      "prPriority": 10,
+      "automerge": true
+    },
+    {
+      "description": "Host-side actions/runner seed in the chart values. Same deadline pressure as the image pins, but no image to rebuild — merging the chart bump is the whole change.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/helm/tuist/values.yaml"],
+      "matchPackageNames": ["actions/runner"],
+      "commitMessagePrefix": "fix(infra):",
+      "commitMessageTopic": "GitHub Actions runner (builder hosts)",
+      "prPriority": 10,
       "automerge": true
     },
     {

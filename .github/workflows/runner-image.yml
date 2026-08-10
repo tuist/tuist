@@ -29,9 +29,8 @@ on:
         description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
         required: true
       runner_version:
-        description: "GitHub Actions runner version"
+        description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
         required: false
-        default: "2.334.0"
 
 concurrency:
   group: runner-image
@@ -85,6 +84,7 @@ jobs:
         working-directory: infra/runner-image
         env:
           XCODE: ${{ inputs.xcode_version }}
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
         run: |
           set -euo pipefail
           # Single-profile dispatch. The multi-profile rebuild loop
@@ -95,10 +95,14 @@ jobs:
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
+          # `runner_version` is passed only when the dispatch input is
+          # non-empty; otherwise packer falls back to the Renovate-tracked
+          # default in runner.pkr.hcl. Duplicating that default here is how
+          # the pin silently went stale before, so there is no literal.
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
-            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
+            ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 

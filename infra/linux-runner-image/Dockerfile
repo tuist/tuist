@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.334.0
+ARG RUNNER_VERSION=2.336.0
 ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
