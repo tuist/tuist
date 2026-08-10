@@ -344,15 +344,24 @@ sum by (cluster, node) (
     reason="Policy denied"
   }[10m])
   * on (cluster, pod) group_left(node)
-  kube_pod_info{namespace="kube-system", pod=~"cilium-.*"}
+  kube_pod_info{
+    namespace="kube-system",
+    pod=~"cilium-.*",
+    node=~".*-kura-fleet-.*"
+  }
 ) > 0
 ```
 
 - Pending period: 10 minutes
 - Severity: critical
-- Scope: add `node=~".*-kura-fleet-.*"` to the join's result to limit this to the
-  co-located runner-cache nodes, whose steady-state rate is exactly zero. Other
-  pools carry background policy drops and would make this noisy.
+- Already created: rule `ffuscyncueo74d`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2` — alongside the other runner-host alerts,
+  since the actionable target is a Mac mini even though the signal is measured
+  at the cache.
+- The metric carries no `node` label, hence the `kube_pod_info` join on the
+  Cilium agent pod. The `node=~".*-kura-fleet-.*"` matcher restricts this to the
+  co-located runner-cache nodes, whose steady-state rate is exactly zero; other
+  pools carry background policy drops and would make it noisy.
 - Summary: `Kura cache on {{ $labels.node }} is dropping runner traffic at the
   NetworkPolicy ({{ $labels.cluster }}) — builds on the affected runner will
   hang until their client timeouts`
