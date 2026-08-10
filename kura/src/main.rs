@@ -23,6 +23,19 @@ static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
 });
 
 fn main() {
+    use clap::Parser as _;
+
+    // Bare `kura` serves. The release image's ENTRYPOINT invokes the binary with
+    // no arguments and the Helm chart sets no `command`/`args`, so this must
+    // stay the default for a rollout not to be a flag day.
+    let cli = kura::cli::Cli::parse();
+    let serving = matches!(cli.command, None | Some(kura::cli::Command::Serve));
+
+    if !serving {
+        run_command(cli.command.expect("a non-serving invocation has a command"));
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     if let Err(error) = verify_jemalloc_configuration() {
         eprintln!("invalid jemalloc configuration: {error}");
@@ -48,6 +61,26 @@ fn main() {
             std::process::exit(1);
         }
     });
+}
+
+/// Inspection commands are short-lived and I/O bound, so they run on a current
+/// thread runtime rather than the multi-threaded one the server needs.
+fn run_command(command: kura::cli::Command) {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("failed to build tokio runtime: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(error) = runtime.block_on(kura::execute(command)) {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(target_os = "linux")]
