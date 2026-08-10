@@ -377,6 +377,12 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
 		t.Fatalf("expected default CPU request, got %q", got)
 	}
+	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
+		t.Fatalf("expected default memory request, got %q", got)
+	}
+	if got := container.Resources.Limits.Memory().String(); got != "3Gi" {
+		t.Fatalf("expected default memory limit, got %q", got)
+	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
 	}

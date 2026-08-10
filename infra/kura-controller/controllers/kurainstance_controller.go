@@ -2695,10 +2695,16 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 // KuraInstanceSpec.EgressGuaranteedMbps.
 const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
-// The memory request matches the limit because Kura sizes its memory
-// budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
-// and routinely operates above 1Gi, so the full 2Gi must be reserved
-// at scheduling time to avoid node overcommit.
+// Memory limit and request are deliberately different. Kura sizes every
+// admission pool from the cgroup limit at startup (soft limit 60%, hard limit
+// 85% of it; the public response-stream pool is half the remaining 15%), and
+// those pools are semaphores, not allocations — a higher limit costs nothing
+// until a burst arrives. The request is the standing reservation, and the
+// shared bare-metal boxes reserve several times the working set the fleet
+// actually peaks at, so raising it too would exhaust a box's schedulable
+// memory without serving a single extra byte. The 3Gi ceiling stays low
+// enough that a full box of pods simultaneously at their limit still fits in
+// physical RAM.
 func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
@@ -2706,7 +2712,7 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: resource.MustParse("3Gi"),
 		},
 	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
@@ -2888,7 +2894,7 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 // baseEnv carries only the values the controller must set: identity,
 // per-pod paths, peer wiring, the drain timeout that has to stay in
 // sync with the pod's terminationGracePeriodSeconds, and bounded cache
-// budgets for the managed two-gibibyte memory profile. Other
+// budgets for the managed memory profile (see defaultResources). Other
 // resource-shaped knobs are derived from the pod's cgroup and rlimit
 // at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
