@@ -11,6 +11,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   setup :set_mimic_from_context
 
+  setup do
+    # FunWithFlags persists through Ecto, which this async non-DB case cannot
+    # touch; the flag defaults off, matching the fleet's flag-off baseline.
+    # Backfill-specific tests re-stub per test.
+    stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
+    :ok
+  end
+
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
@@ -174,6 +182,79 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+    end
+
+    test "renders the backfill walker flag only for gated accounts, with a matching revision" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn %Account{id: 1} -> true end)
+
+      gated =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      gated_env = Map.new(gated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert gated_env["KURA_BACKFILL_ENABLED"] == "true"
+
+      # The env must move the revision or the reconciler would never apply it.
+      assert gated["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision() <> "+backfill"
+
+      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
+
+      ungated =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      ungated_env = Map.new(ungated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(ungated_env, "KURA_BACKFILL_ENABLED")
+
+      # Ungated accounts stay byte-identical to today's revision: shipping the
+      # flag rolls nothing until an account is gated on.
+      assert ungated["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision()
+    end
+
+    test "renders the backfill walker flag for the private runner-cache (co-located) region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      {:ok, region} = Regions.fetch("scw-fr-par-runners")
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par-runners",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          region,
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_BACKFILL_ENABLED"] == "true"
     end
 
     test "does not resolve entitlements when the region has no gated manifest fields" do
@@ -940,6 +1021,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
                KubernetesController.manifest_revision()
+    end
+
+    test "crosses a revision boundary on the backfill flag so a flip re-applies" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+
+      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> false end)
+
+      assert KubernetesController.manifest_revision(account, eu_region()) ==
+               KubernetesController.manifest_revision()
+
+      stub(Tuist.FeatureFlags, :kura_backfill_enabled?, fn _ -> true end)
+
+      assert KubernetesController.manifest_revision(account, eu_region()) ==
+               KubernetesController.manifest_revision() <> "+backfill"
     end
 
     test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do

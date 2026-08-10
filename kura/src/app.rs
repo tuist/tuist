@@ -32,7 +32,7 @@ use crate::{
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
-    replication::{spawn_membership_task, spawn_outbox_task},
+    replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState, SharedState},
     store::Store,
@@ -206,6 +206,8 @@ async fn run_with_config(
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -229,6 +231,7 @@ async fn run_with_config(
         spawn_action_cache_blob_refs_backfill_task(state.clone());
     }
     spawn_action_cache_expiry_task(state.clone());
+    spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
@@ -300,7 +303,14 @@ async fn run_with_config(
         );
         Some(tokio::spawn(
             async move {
-                if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
+                // The identity acceptor wraps the plain rustls acceptor to
+                // stamp each request with the handshake-verified client-cert
+                // identity, which the backfill bodies endpoint uses for its
+                // per-peer concurrency cap.
+                if let Err(error) = axum_server::bind(internal_address)
+                    .acceptor(crate::peer_tls::InternalPeerIdentityAcceptor::new(
+                        tls_config,
+                    ))
                     .handle(handle)
                     .serve(internal_router.into_make_service())
                     .await
@@ -429,6 +439,13 @@ async fn run_with_config(
     }
     if let Some(https_task) = https_task {
         wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
+    }
+    // Synchronous clean-shutdown stamp for backfill index staleness detection:
+    // after it, any sequence gap the next boot observes means an index-unaware
+    // binary wrote in between (the drain/roll-back/roll-forward shape) and the
+    // index is rebuilt.
+    if let Err(error) = state.store.stamp_backfill_maintained_seq_clean_shutdown() {
+        warn!("failed to write backfill clean-shutdown stamp: {error}");
     }
 
     Ok(())
@@ -747,9 +764,6 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         state.metrics.record_memory_action("extension_cache_trim");
                     }
                 }
-                state
-                    .metrics
-                    .update_background_work_paused("outbox", state.memory.pause_outbox());
                 state.metrics.update_background_work_paused(
                     "bootstrap",
                     !state.memory.allow_background_admission(),
@@ -887,6 +901,64 @@ fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
         }
         .in_current_span(),
     );
+}
+
+/// Backfill index startup task: builds the `backfill/idx/` keyspace over the
+/// pre-existing dataset when `backfill/meta/build_complete` is absent (on the
+/// blocking pool — the build scans the manifest keyspace in cursor-resumed
+/// chunks), retrying on failure so the listing endpoint's "index building"
+/// response cannot persist for the process lifetime, then keeps the periodic
+/// maintenance stamp fresh for rollback-window staleness detection. Serving is
+/// never gated on any of this.
+fn spawn_backfill_index_task(state: Arc<AppState>) {
+    // Supervised like the membership/outbox loops: a panic in the maintenance
+    // loop restarts the task (counted as background_panic_backfill_index)
+    // instead of silently stopping stamping and watermark GC. A restart
+    // re-enters the build loop, which is idempotent (a completed build is a
+    // no-op).
+    spawn_supervised("backfill_index", state, backfill_index_task_loop);
+}
+
+async fn backfill_index_task_loop(state: SharedState) {
+    const BUILD_RETRY_DELAY: Duration = Duration::from_secs(60);
+    let stamp_interval = Duration::from_millis(crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS);
+    // Watermark GC piggybacks on the stamping loop: once at startup, then at
+    // its own (much longer) cadence expressed in stamp intervals.
+    let gc_every_stamps = (crate::constants::BACKFILL_WATERMARK_GC_INTERVAL_MS
+        / crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS)
+        .max(1);
+    loop {
+        let build_state = state.clone();
+        match tokio::task::spawn_blocking(move || build_state.store.run_backfill_index_build())
+            .await
+        {
+            Ok(Ok(_)) => break,
+            Ok(Err(error)) => warn!("backfill index build failed: {error}"),
+            Err(error) => warn!("backfill index build task panicked: {error}"),
+        }
+        tokio::time::sleep(BUILD_RETRY_DELAY).await;
+    }
+    let mut stamps_until_gc = 0_u64;
+    loop {
+        if stamps_until_gc == 0 {
+            stamps_until_gc = gc_every_stamps;
+            match state.store.gc_backfill_watermarks(
+                crate::utils::now_ms(),
+                crate::constants::BACKFILL_WATERMARK_RETENTION_MS,
+            ) {
+                Ok(removed) if removed > 0 => {
+                    info!(removed, "backfill watermark gc removed expired rows");
+                }
+                Ok(_) => {}
+                Err(error) => warn!("backfill watermark gc failed: {error}"),
+            }
+        }
+        stamps_until_gc -= 1;
+        tokio::time::sleep(stamp_interval).await;
+        if let Err(error) = state.store.stamp_backfill_maintained_seq() {
+            warn!("failed to stamp backfill maintenance sequence: {error}");
+        }
+    }
 }
 
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {

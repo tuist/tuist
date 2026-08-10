@@ -62,7 +62,6 @@ const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
 const BOOTSTRAP_BACKPRESSURE_RETRY_BASE_MS: u64 = 250;
 const BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS: u64 = 5_000;
 const BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS: u64 = 250;
-const OUTBOX_DRAIN_PAUSED_ACTION: &str = "outbox_drain_paused";
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -122,7 +121,7 @@ pub fn spawn_outbox_task(state: SharedState) {
     spawn_supervised("outbox", state, outbox_task_loop);
 }
 
-fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+pub(crate) fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
 where
     F: Fn(SharedState) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -153,6 +152,13 @@ where
 }
 
 async fn membership_task_loop(state: SharedState) {
+    // Walker selection happens once at process start: `KURA_BACKFILL_ENABLED`
+    // routes membership changes to the backfill lifecycle instead of the
+    // legacy bootstrap walker. The two paths share no state and never run
+    // together; a flip is an env change plus pod restart, and a flipped-off
+    // node resumes legacy bootstrap cleanly (bootstrap bookkeeping is
+    // in-memory; `backfill/` rows sit inert).
+    let backfill_enabled = state.config.backfill_enabled;
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
@@ -231,8 +237,12 @@ async fn membership_task_loop(state: SharedState) {
         state
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
-        for peer in state.peers_needing_bootstrap().await {
-            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        if backfill_enabled {
+            state.backfill.evaluate(&state, &membership_update);
+        } else {
+            for peer in state.peers_needing_bootstrap().await {
+                maybe_spawn_bootstrap_task(state.clone(), peer).await;
+            }
         }
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;
@@ -244,11 +254,37 @@ async fn outbox_task_loop(state: SharedState) {
         let notified = state.notify.notified();
         tokio::pin!(notified);
 
-        let pause_outbox = state.memory.pause_outbox();
-        state
-            .metrics
-            .update_background_work_paused("outbox", pause_outbox);
-        if !pause_outbox && let Err(error) = process_outbox(&state).await {
+        // Replication delivery runs at every pressure tier, and regardless of
+        // the container hard-limit arm. It is not sheddable background work:
+        // the outbox is depth-capped (`KURA_OUTBOX_MAX_DEPTH`) and
+        // `reserve_outbox_slots` fails a cache write once that cap is reached,
+        // so a paused drain does not defer work — it strands the queue and
+        // ends up rejecting writes.
+        //
+        // The state that actually walks into the cap is
+        // `container_at_hard_limit() && pressure() != Critical`, which
+        // `container_at_hard_limit`'s own comment describes as routine for a
+        // warm serving node: writes keep being admitted while the old gate
+        // held the drain, because both write gates test only
+        // `pressure() == Critical` and test it *before* outbox depth
+        // (`http::reject_overloaded_public_writes`,
+        // `reapi::admission::reject_overloaded_grpc_writes`). At Critical
+        // those gates already refuse writes at the door, so the outbox is
+        // frozen rather than growing — pausing there stranded whatever was
+        // queued and bought nothing.
+        //
+        // The memory a pause could reclaim does not justify either case. The
+        // loop is serial and node-wide, so exactly one delivery is in flight
+        // regardless of peer count or backlog depth — a queued message costs
+        // RocksDB, not RAM — and it takes no transient reservation. That one
+        // delivery holds a single `SegmentReader` chunk (512 KiB) for a
+        // segment-backed artifact, or the whole value for an inline one,
+        // bounded by MAX_INLINE_REPLICATION_BODY_BYTES.
+        //
+        // Reported here rather than from the memory actuator so the sample
+        // tracks a pass that is actually running.
+        state.metrics.update_background_work_paused("outbox", false);
+        if let Err(error) = process_outbox(&state).await {
             warn!("outbox processing failed: {error}");
         }
 
@@ -952,7 +988,10 @@ fn bootstrap_backpressure_retry_jitter_ms(attempt: u32, node_url: &str, artifact
     jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS
 }
 
-async fn stream_response_to_temp(
+// Shared with the backfill pass driver: batch and per-artifact downloads
+// inherit the same bandwidth shaping, staging-limit enforcement, and
+// memory-pressure cache dropping as bootstrap body fetches.
+pub(crate) async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
@@ -1153,7 +1192,7 @@ async fn fetch_bootstrap_tombstones_page(
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
 }
 
-async fn read_bounded_body(
+pub(crate) async fn read_bounded_body(
     response: reqwest::Response,
     max_bytes: u64,
     label: &str,
@@ -1336,12 +1375,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
 
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
-        if state.memory.pause_outbox() {
-            state
-                .metrics
-                .record_memory_action(OUTBOX_DRAIN_PAUSED_ACTION);
-            return Ok(());
-        }
         after = Some(message_key.clone());
 
         // Messages for a peer that left the mesh can never be delivered and
@@ -1641,6 +1674,7 @@ mod tests {
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
         http::router,
+        memory::MemoryPressure,
         test_support::{TestContext, test_context},
         utils::artifact_storage_id,
     };
@@ -1931,51 +1965,7 @@ mod tests {
         let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
 
         let local = test_context(|_| {}).await;
-        local
-            .state
-            .store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Gradle,
-                "ios",
-                "artifact",
-                "application/octet-stream",
-                b"payload",
-            )
-            .await
-            .expect("artifact should persist");
-
-        local
-            .state
-            .store
-            .enqueue(OutboxMessage {
-                target: remote_url.clone(),
-                operation: ReplicationOperation::UpsertArtifact {
-                    producer: ArtifactProducer::Gradle,
-                    namespace_id: "ios".into(),
-                    key: "artifact".into(),
-                    content_type: "application/octet-stream".into(),
-                    artifact_id: local
-                        .state
-                        .store
-                        .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
-                        .await
-                        .expect("artifact fetch should succeed")
-                        .expect("artifact should exist")
-                        .artifact_id,
-                    version_ms: local
-                        .state
-                        .store
-                        .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
-                        .await
-                        .expect("artifact fetch should succeed")
-                        .expect("artifact should exist")
-                        .version_ms,
-                    inline: false,
-                    branch: None,
-                    trunk: None,
-                },
-            })
-            .expect("upsert should enqueue");
+        persist_and_enqueue_upsert(&local, remote_url.clone()).await;
 
         local
             .state
@@ -2025,6 +2015,61 @@ mod tests {
         );
     }
 
+    /// Persists a segment-backed artifact on `context` and queues its upsert
+    /// for `target`, returning the enqueued manifest.
+    async fn persist_and_enqueue_upsert(context: &TestContext, target: String) -> ArtifactManifest {
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let manifest = context
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+
+        context
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target,
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: manifest.artifact_id.clone(),
+                    version_ms: manifest.version_ms,
+                    inline: false,
+                    branch: None,
+                    trunk: None,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        manifest
+    }
+
+    /// The artifact `persist_and_enqueue_upsert` replicates, as seen by a peer.
+    async fn replicated_artifact(context: &TestContext) -> Option<ArtifactManifest> {
+        context
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+    }
+
     fn stale_target_message(target: &str) -> OutboxMessage {
         OutboxMessage {
             target: target.into(),
@@ -2035,22 +2080,63 @@ mod tests {
         }
     }
 
+    /// Replication is not sheddable under memory pressure. The outbox is
+    /// depth-capped and a full outbox rejects cache writes, so pausing the
+    /// drain trades one in-flight delivery's buffer for rejected writes and a
+    /// node that stays divergent from its peers.
     #[tokio::test]
-    async fn process_outbox_preserves_backlog_when_memory_becomes_critical() {
+    async fn process_outbox_delivers_under_critical_memory_pressure() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
         let local = test_context(|_| {}).await;
-        local
-            .state
-            .store
-            .enqueue(stale_target_message("https://peer.test:7443"))
-            .expect("enqueue should succeed");
+        persist_and_enqueue_upsert(&local, remote_url).await;
+
         local
             .state
             .memory
             .observe(local.state.config.memory_hard_limit_bytes);
+        assert_eq!(local.state.memory.pressure(), MemoryPressure::Critical);
 
         process_outbox(&local.state)
             .await
-            .expect("critical pressure should pause without failing");
+            .expect("outbox processing should succeed under critical pressure");
+
+        assert!(
+            replicated_artifact(&remote).await.is_some(),
+            "critical pressure must not stop replication"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "a delivered message must leave the durable outbox"
+        );
+    }
+
+    /// The mesh-wide case: the receiver is also shedding, so
+    /// `reject_overloaded_internal_writes` 503s the delivery at the far end.
+    /// Draining unconditionally must not turn that into data loss — the
+    /// message stays queued and is retried on the normal cadence.
+    #[tokio::test]
+    async fn a_peer_shedding_replication_keeps_the_message_queued_for_retry() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+        remote
+            .state
+            .memory
+            .observe(remote.state.config.memory_hard_limit_bytes);
+        assert_eq!(remote.state.memory.pressure(), MemoryPressure::Critical);
+
+        let local = test_context(|_| {}).await;
+        persist_and_enqueue_upsert(&local, remote_url).await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("a refused delivery must not fail the pass");
 
         assert_eq!(
             local
@@ -2060,14 +2146,11 @@ mod tests {
                 .expect("outbox should load")
                 .len(),
             1,
-            "paused replication must leave its durable message queued"
+            "a delivery the peer refused must stay queued for retry"
         );
         assert!(
-            local
-                .state
-                .metrics
-                .render()
-                .contains("kura_memory_actions_total_total{action=\"outbox_drain_paused\"} 1")
+            replicated_artifact(&remote).await.is_none(),
+            "the shedding peer must not have stored the artifact"
         );
     }
 

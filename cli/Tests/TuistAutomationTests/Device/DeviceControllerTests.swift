@@ -110,6 +110,33 @@ final class DeviceControllerTests: TuistUnitTestCase {
         )
     }
 
+    func test_findAvailableDevices_skips_simulators_with_sameMachine_transport_type() async throws {
+        // Given
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willProduce { arguments, _, _ in
+                self.write(text: self.sameMachineDevicesOutputJSON, at: arguments.last!)
+            }
+
+        // When
+        let got = try await subject.findAvailableDevices()
+
+        // Then
+        XCTAssertEqual(
+            [
+                PhysicalDevice(
+                    id: "00008132-0103524335E2F624",
+                    name: "My iPhone",
+                    platform: .iOS,
+                    osVersion: "18.0",
+                    transportType: .usb,
+                    connectionState: .connected
+                ),
+            ],
+            got
+        )
+    }
+
     func test_installApp() async throws {
         // Given
         given(commandRunner)
@@ -717,6 +744,52 @@ final class DeviceControllerTests: TuistUnitTestCase {
 
             ],
             "visibilityClass" : "default"
+          }
+        ]
+      }
+    }
+    """
+
+    private let sameMachineDevicesOutputJSON = """
+    {
+      "info" : {
+        "outcome" : "success",
+        "version" : "629.3",
+        "jsonVersion" : 4
+      },
+      "result" : {
+        "devices" : [
+          {
+            "connectionProperties" : {
+              "transportType" : "wired",
+              "tunnelState" : "connected"
+            },
+            "deviceProperties" : {
+              "name" : "My iPhone",
+              "osVersionNumber" : "18.0"
+            },
+            "hardwareProperties" : {
+              "platform" : "iOS",
+              "reality" : "physical",
+              "udid" : "00008132-0103524335E2F624"
+            },
+            "identifier" : "physical-identifier"
+          },
+          {
+            "connectionProperties" : {
+              "transportType" : "sameMachine",
+              "tunnelState" : "disconnected"
+            },
+            "deviceProperties" : {
+              "name" : "iPhone 17",
+              "osVersionNumber" : "26.0"
+            },
+            "hardwareProperties" : {
+              "platform" : "iOS",
+              "reality" : "simulated",
+              "udid" : "simulator-udid"
+            },
+            "identifier" : "simulator-identifier"
           }
         ]
       }

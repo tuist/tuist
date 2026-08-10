@@ -91,6 +91,10 @@ where
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
+        backfill_enabled: false,
+        backfill_margin_percent: 40,
+        backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
+        backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
@@ -191,6 +195,8 @@ where
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
 

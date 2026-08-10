@@ -4,12 +4,14 @@ use tokio::fs;
 
 use crate::{
     constants::{
+        BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
         DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
         DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
         DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
         DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
         DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -90,6 +92,10 @@ const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOA
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
+const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
+const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -168,6 +174,28 @@ pub struct Config {
     pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
+    /// Boot-time selection of the peer catch-up walker: `true` runs the
+    /// recency-first backfill lifecycle, `false` (the default) the legacy
+    /// bootstrap walker. Read once at process start — the two paths share no
+    /// state and never run together; flipping is an env change plus restart,
+    /// with `backfill/` rows sitting inert while the flag is off.
+    pub backfill_enabled: bool,
+    /// Share of the age-ordered segment ring (counted from the newest) whose
+    /// boundary segment's seal-time stat becomes the backfill horizon; the
+    /// margin's share of the ring's time span is the window's structural
+    /// slack.
+    pub backfill_margin_percent: u64,
+    /// Segment-ring fullness (segment count vs the ring's desired total, as a
+    /// percentage) at which a node still running its initial backfill cycle
+    /// marks itself ready. Defaults to half the backfill margin
+    /// ([`default_backfill_ready_ring_percent`]); an explicit env value
+    /// overrides the derivation. Only consulted while `backfill_enabled`.
+    pub backfill_ready_ring_percent: u64,
+    /// Byte threshold a backfill pass composes one bodies batch against, and
+    /// the cutoff above which a listed entry is fetched through the
+    /// per-artifact endpoint instead of riding a batch. Never exceeds the
+    /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
+    pub backfill_batch_bytes: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -994,6 +1022,61 @@ impl Config {
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
             ));
         }
+        let backfill_enabled =
+            optional_parsed_value(&mut lookup, KURA_BACKFILL_ENABLED, &mut invalid, |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_BACKFILL_ENABLED} must be a valid bool"))
+            })
+            .unwrap_or(false);
+        let backfill_margin_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_MARGIN_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_MARGIN_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_MARGIN_PERCENT);
+        if backfill_margin_percent == 0 || backfill_margin_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_ready_ring_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_READY_RING_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_READY_RING_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or_else(|| default_backfill_ready_ring_percent(backfill_margin_percent));
+        if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_BATCH_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_BATCH_BYTES);
+        if backfill_batch_bytes == 0 || backfill_batch_bytes > BACKFILL_BODIES_BATCH_BYTES {
+            invalid.push(format!(
+                "{KURA_BACKFILL_BATCH_BYTES} must be between 1 and {BACKFILL_BODIES_BATCH_BYTES}"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1419,6 +1502,10 @@ impl Config {
             multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            backfill_enabled,
+            backfill_margin_percent,
+            backfill_ready_ring_percent,
+            backfill_batch_bytes,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1450,7 +1537,7 @@ impl Config {
         // the pod in a crash loop. Clearing them here — before Store::open — lets
         // such a pod free space and recover on the next start instead of staying
         // stuck out-of-space.
-        for staging in ["uploads", "parts", "bootstrap"] {
+        for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
                 Ok(()) => {}
@@ -1461,6 +1548,7 @@ impl Config {
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
         fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
+        fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -1935,6 +2023,90 @@ mod tests {
             config.geoip_refresh_interval_secs,
             DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_enabled() {
+        let config = config_from(&[]).expect("default backfill selection should be valid");
+        assert!(!config.backfill_enabled, "the flag must default off");
+
+        let config = config_from(&[(KURA_BACKFILL_ENABLED, "true")])
+            .expect("an explicit backfill flag should be valid");
+        assert!(config.backfill_enabled);
+
+        let error = config_from(&[(KURA_BACKFILL_ENABLED, "definitely")])
+            .expect_err("a non-bool backfill flag must fail");
+        assert!(error.contains(KURA_BACKFILL_ENABLED));
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_margin_percent() {
+        let config = config_from(&[]).expect("default backfill margin should be valid");
+        assert_eq!(
+            config.backfill_margin_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT
+        );
+
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "25")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_margin_percent, 25);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill margin must fail");
+            assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_ready_ring_percent() {
+        let config = config_from(&[]).expect("default backfill ready percent should be valid");
+        assert_eq!(
+            config.backfill_ready_ring_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT / 2,
+            "the default derives from the margin, not a fixed value"
+        );
+
+        // The derivation follows an overridden margin.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "30")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 15);
+
+        // A 1% margin derives the 1 floor rather than 0.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "1")])
+            .expect("a 1% backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 1);
+
+        // An explicit value overrides the derivation.
+        let config = config_from(&[
+            (KURA_BACKFILL_MARGIN_PERCENT, "30"),
+            (KURA_BACKFILL_READY_RING_PERCENT, "60"),
+        ])
+        .expect("an in-range backfill ready percent should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 60);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_READY_RING_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill ready percent must fail");
+            assert!(error.contains(KURA_BACKFILL_READY_RING_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_batch_bytes() {
+        let config = config_from(&[]).expect("default backfill batch bytes should be valid");
+        assert_eq!(config.backfill_batch_bytes, DEFAULT_BACKFILL_BATCH_BYTES);
+
+        let config = config_from(&[(KURA_BACKFILL_BATCH_BYTES, "1048576")])
+            .expect("an in-range backfill batch threshold should be valid");
+        assert_eq!(config.backfill_batch_bytes, 1_048_576);
+
+        let above_ceiling = (BACKFILL_BODIES_BATCH_BYTES + 1).to_string();
+        for out_of_range in ["0", above_ceiling.as_str()] {
+            let error = config_from(&[(KURA_BACKFILL_BATCH_BYTES, out_of_range)])
+                .expect_err("an out-of-range backfill batch threshold must fail");
+            assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
+        }
     }
 
     #[test]
@@ -2609,10 +2781,15 @@ mod tests {
         // real data file, to prove ensure_directories reclaims the former without
         // touching the latter.
         let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let stale_backfill = config.tmp_dir.join("backfill").join("bodies-leftover");
         let kept = config.data_dir.join("rocksdb").join("CURRENT");
         fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(stale_backfill.parent().unwrap())
+            .await
+            .unwrap();
         fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
         fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&stale_backfill, b"stale").await.unwrap();
         fs::write(&kept, b"keep").await.unwrap();
 
         config
@@ -2629,6 +2806,7 @@ mod tests {
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
         assert!(config.tmp_dir.join("bootstrap").exists());
+        assert!(config.tmp_dir.join("backfill").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
@@ -2637,6 +2815,10 @@ mod tests {
         assert!(
             !stale.exists(),
             "stale staging must be reclaimed on startup"
+        );
+        assert!(
+            !stale_backfill.exists(),
+            "stale backfill spool must be reclaimed on startup"
         );
         assert!(kept.exists(), "persistent data must be preserved");
 

@@ -87,6 +87,12 @@ struct MemoryControllerInner {
     /// the global pressure tier: a warm serving node parks clean artifact pages
     /// there as a matter of course, and denying foreground admission for that
     /// would shed customer reads that cost no additional memory.
+    ///
+    /// Replication delivery is the one exception — it drains through this state
+    /// (see `replication::outbox_task_loop`). This arm combined with a
+    /// non-critical tier is precisely where writes are still admitted while the
+    /// drain is held, so stopping it here is what walks the outbox into its
+    /// depth cap and turns memory pressure into rejected cache writes.
     container_at_hard_limit: AtomicBool,
     working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
@@ -318,7 +324,13 @@ impl MemoryController {
         self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
     }
 
-    pub fn pause_outbox(&self) -> bool {
+    /// Gates the *usage* (metering) outbox only. Replication delivery is
+    /// deliberately never paused: its durable backlog is bounded by
+    /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache
+    /// writes, so pausing it converts a memory problem into a correctness and
+    /// availability one. Metering has no such feedback — a delayed usage batch
+    /// costs nothing but freshness — so it stays sheddable.
+    pub fn pause_usage_outbox(&self) -> bool {
         self.pressure() == MemoryPressure::Critical || self.container_at_hard_limit()
     }
 
@@ -1016,7 +1028,7 @@ mod tests {
         assert!(!controller.allow_background_admission());
         assert!(!controller.allow_segment_refresh());
         assert!(!controller.allow_manifest_cache_admission());
-        assert!(controller.pause_outbox());
+        assert!(controller.pause_usage_outbox());
         assert!(
             controller.allow_transient_admission(AdmissionClass::Foreground),
             "clean file cache at the hard watermark must not shed public reads"
