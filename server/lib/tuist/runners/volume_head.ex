@@ -25,12 +25,6 @@ defmodule Tuist.Runners.VolumeHead do
     field :tree_digest, :string
     # Host that published this HEAD, for observability only.
     field :node_name, :string
-    # Whether this HEAD's image carries an Xcode compilation cache (CAS) store.
-    # Stored rather than derived: the digest is a hash, so the `~cas/` lines that
-    # encode CAS presence cannot be read back out of it. It is what a later
-    # promote's declared CAS presence is compared against, so a runner that
-    # writes no compilation cache cannot publish a HEAD without one.
-    field :cas_present, :boolean, default: false
 
     belongs_to :account, Account
 

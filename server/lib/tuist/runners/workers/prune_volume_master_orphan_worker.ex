@@ -6,7 +6,7 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker do
   The guest uploads the content-addressed `<digest>.image` before the
   fast-forward compare-and-swap, so a rejected promote leaves an object with no
   HEAD pointing at it (see `Tuist.Runners.VolumeMasterOrphans`).
-  `Runners.report_volume_head/5` records the orphan and enqueues this with a
+  `Runners.report_volume_head/4` records the orphan and enqueues this with a
   delay equal to the presigned-URL TTL. `Runners.prune_orphan_volume_master/2`
   deletes the object only if the digest is still an orphan (never accepted as
   HEAD) and not the current HEAD, so a digest a later job committed is never

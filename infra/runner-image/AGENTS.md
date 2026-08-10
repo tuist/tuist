@@ -76,27 +76,28 @@ runtime — no service, sudo entry, or auto-login targets it.
   branch and lets convergence re-warm it.
 
   The fast-forward orders promotes by GENERATION, never by CONTENT, so a promote
-  that would DROP the account's compilation cache is refused at **three
-  boundaries, in this order** — the order matters, because only the first one is
-  early enough to protect the HEAD:
+  that would DROP the account's compilation cache is refused at **two
+  boundaries** — and only the first is early enough to protect the HEAD:
 
   1. **The guest, before the upload** (`report_volume_head`): if the image lost
      the store its master carried and the host has not said the CAS is off, it
      skips the upload AND the report, writing `cas-regression` as the promote
      result. Nothing leaves the VM.
-  2. **The server's HEAD bump**: the guest declares `cas_present` /
-     `cas_disabled` with the report, compared against
-     `runner_volume_heads.cas_present`; a silent drop comes back 409 `cas
-     regression`. This is what covers clients too old to have step 1.
-  3. **`Finalize` on the host**: same rule from the `cache-cas-before` /
-     `cache-cas-after` markers. It runs after the bump was already accepted, so
-     it saves only this host's local master, not the HEAD.
+  2. **`Finalize` on the host**: same rule from the `cache-cas-before` /
+     `cache-cas-after` markers. It runs after a bump was already accepted, so it
+     saves only this host's local master, not the HEAD.
 
   Without these, a host that writes no CAS — mid-rollout, rolled back, or
   deployed with the CAS off — publishes a CAS-less image as HEAD and every other
-  host converges to it and loses its compilation cache. Both server flags default
-  to false, so a runner too old to declare anything reads as "no CAS, no intent"
-  and cannot strip a HEAD that has one.
+  host converges to it and loses its compilation cache.
+
+  The SERVER deliberately does not re-check this. Its `tree_digest` is a hash, so
+  CAS presence cannot be read back out of it; a server-side guard would mean
+  persisting the flag and trusting the runner to declare it, which buys only the
+  narrow window of a host on a stale VM image — and this script ships in that
+  image and rolls per boot, so the window closes on its own. The root fix is
+  `reclaim_cas_if_disabled` keying on an explicit `disabled` (below); the two
+  checks here are what stop a drop that gets past it.
 
   `cas_store_populated` `cd`s into the store before running `find .`, matching
   `cache_inventory`. That is load-bearing, not stylistic: the mount root

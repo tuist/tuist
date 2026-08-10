@@ -709,13 +709,18 @@ report_volume_head() {
   # and the host has not said the CAS is deliberately off. Stop BEFORE the upload
   # and the HEAD report.
   #
-  # This is the only check that runs early enough to matter. The host's Finalize
-  # guard fires after the bump has already been accepted, so by then the HEAD —
-  # the thing every other host converges to — is poisoned and discarding locally
-  # saves only this host's master. The server refuses the same bump, but a server
-  # that is older or rolled back would not, and this is the layer that still holds
-  # in that case. Skipping the upload also saves pushing a multi-GB image nobody
-  # will adopt.
+  # This is the check that has to hold, because it is the only one early enough
+  # to protect the HEAD. The host's Finalize guard fires after the bump has
+  # already been accepted, so by then the HEAD — the thing every other host
+  # converges to — is poisoned, and discarding locally saves only this host's
+  # master. Skipping the upload also saves pushing a multi-GB image nobody will
+  # adopt.
+  #
+  # The server does NOT re-check this: the digest it receives is a hash, so CAS
+  # presence cannot be read back out of it, and a server-side guard would mean
+  # storing the flag and trusting the runner to declare it — a schema column and a
+  # request contract to defend a window (a host on a stale VM image) that closes
+  # on its own, since this script ships in the VM image and rolls per boot.
   if [ "${CACHE_CAS_BEFORE}" = "1" ] && [ "${CACHE_CAS_AFTER}" != "1" ] &&
     [ "$(cas_marker_state)" != "disabled" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: this image dropped the account's compilation cache and the host has not disabled the CAS; HEAD not advanced"
@@ -777,21 +782,12 @@ report_volume_head() {
   # the host installs the branch as its local master at the accepted generation;
   # on 409 or error it discards and re-converges.
   #
-  # cas_present/cas_disabled ride along so the server can refuse a bump that
-  # would drop the account's compilation cache. The digest is a hash, so the
-  # server cannot see CAS presence in it; and it cannot infer intent either, so
-  # the guest states both: what this image carries, and whether the host says the
-  # CAS is deliberately off (the one case where dropping it is the point).
-  local base_generation body http_code promoted_generation cas_present cas_disabled
+  local base_generation body http_code promoted_generation
   base_generation=$(read_base_generation)
-  cas_present=false
-  [ "${CACHE_CAS_AFTER}" = "1" ] && cas_present=true
-  cas_disabled=false
-  [ "$(cas_marker_state)" = "disabled" ] && cas_disabled=true
   body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
   http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"cas_present\":${cas_present},\"cas_disabled\":${cas_disabled}}" \
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
     -o "${body}" -w '%{http_code}' \
     "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
   case "${http_code}" in
@@ -801,17 +797,8 @@ report_volume_head() {
       echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation:-0})"
       ;;
     409)
-      # Two different rejections share the status: a stale base (ordinary
-      # cross-host contention) and a promote that would strip the account's
-      # compilation cache. Keep them apart, or a fleet losing its CAS reads as
-      # healthy contention on the dashboard.
-      if grep -q 'cas regression' "${body}" 2>/dev/null; then
-        write_promote_result "cas-regression"
-        echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD refused: this image drops the account's compilation cache; branch not promoted"
-      else
-        write_promote_result "conflict"
-        echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
-      fi
+      write_promote_result "conflict"
+      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
       ;;
     *)
       write_promote_result "error"

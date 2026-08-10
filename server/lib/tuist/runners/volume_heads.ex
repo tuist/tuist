@@ -15,15 +15,6 @@ defmodule Tuist.Runners.VolumeHeads do
   host can never clobber a newer warm set — the loser's delta is simply rebuilt by
   the next job. This is the coordination point of the whole fast-forward
   last-writer-wins model.
-
-  Fast-forward orders promotes by VERSION, though, not by CONTENT — a newer
-  generation may carry strictly less. That gap is why the bump also refuses a
-  promote that would drop the Xcode compilation cache (CAS) the current HEAD
-  carries: a host that cannot write one (mid-rollout, rolled back, or deployed
-  with the CAS off) would otherwise publish a CAS-less image as HEAD and every
-  other host would converge to it and lose its compilation cache. Enforced here
-  rather than only on the runner because this is the one point every client goes
-  through, including clients too old to ever get a host-side fix.
   """
   import Ecto.Query
 
@@ -49,43 +40,28 @@ defmodule Tuist.Runners.VolumeHeads do
       advancing it to N+1. Any other current generation means another host already
       advanced past this job's base, so it is rejected.
 
-  `opts` carries the promoted image's content declarations:
-
-    * `:cas_present` — the image carries an Xcode compilation cache store.
-    * `:cas_disabled` — the promoting host reports the CAS is deliberately off,
-      so dropping the store is the intent rather than an accident. Only an
-      explicit signal counts: a runner that simply never mentions the CAS reads
-      as "no CAS, no intent", which is what protects against clients too old to
-      report either.
-    * `:volume_name` — defaults to the reserved Tuist cache volume.
-
-  Returns `{:ok, new_generation}` on a successful fast-forward, `:conflict` when
-  the base is stale, or `:cas_regression` when the promote would drop the
-  compilation cache the current HEAD carries without declaring it intentional.
-  Upserts on (account_id, volume_name).
+  Returns `{:ok, new_generation}` on a successful fast-forward, or `:conflict`
+  when the base is stale. Upserts on (account_id, volume_name).
   """
-  def bump_head(account_id, node_name, tree_digest, base_generation, opts \\ [])
+  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name \\ @reserved_tuist_cache)
 
-  def bump_head(account_id, node_name, tree_digest, 0, opts)
+  def bump_head(account_id, node_name, tree_digest, 0, volume_name)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" do
-    # No HEAD yet means no content to regress from, so the CAS guard has nothing
-    # to compare against — the insert either establishes the lineage or loses to
-    # one that already exists.
-    establish_first_head(account_id, node_name, tree_digest, opts)
+    establish_first_head(account_id, node_name, tree_digest, volume_name)
   end
 
-  def bump_head(account_id, node_name, tree_digest, base_generation, opts)
+  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" and is_integer(base_generation) and
              base_generation > 0 do
-    fast_forward_head(account_id, node_name, tree_digest, base_generation, opts)
+    fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name)
   end
 
   # No digest to record (empty/absent) or an invalid base: nothing to publish.
-  def bump_head(_account_id, _node_name, _tree_digest, _base_generation, _opts), do: :conflict
+  def bump_head(_account_id, _node_name, _tree_digest, _base_generation, _volume_name), do: :conflict
 
   # Cold job: establish generation 1 iff no HEAD exists. A conflict (a HEAD is
   # already there) rejects — a cold branch must not clobber an existing lineage.
-  defp establish_first_head(account_id, node_name, tree_digest, opts) do
+  defp establish_first_head(account_id, node_name, tree_digest, volume_name) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     {count, _} =
@@ -94,11 +70,10 @@ defmodule Tuist.Runners.VolumeHeads do
         [
           %{
             account_id: account_id,
-            volume_name: volume_name(opts),
+            volume_name: volume_name,
             node_name: node_name,
             tree_digest: tree_digest,
             generation: 1,
-            cas_present: cas_present(opts),
             inserted_at: now,
             updated_at: now
           }
@@ -110,65 +85,23 @@ defmodule Tuist.Runners.VolumeHeads do
     if count == 1, do: {:ok, 1}, else: :conflict
   end
 
-  # Warm job: advance the HEAD only if it is still at the base the job built on
-  # AND the promote does not silently drop the HEAD's compilation cache.
-  defp fast_forward_head(account_id, node_name, tree_digest, base_generation, opts) do
+  # Warm job: advance the HEAD only if it is still at the base the job built on.
+  defp fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
-    volume_name = volume_name(opts)
-    cas_present = cas_present(opts)
-    # The guard applies only to a promote that both lacks a CAS and does not
-    # claim to have dropped it on purpose. Everything else bumps as before.
-    guard_cas = not cas_present and not truthy(Keyword.get(opts, :cas_disabled))
-
-    base_query =
-      from(h in VolumeHead,
-        where:
-          h.account_id == ^account_id and h.volume_name == ^volume_name and
-            h.generation == ^base_generation
-      )
-
-    # Folded into the same UPDATE as the generation compare-and-swap rather than
-    # checked first: a separate read would leave a window in which the HEAD gains
-    # a CAS between the check and the write, and the CAS-less promote would still
-    # land.
-    query = if guard_cas, do: from(h in base_query, where: h.cas_present == false), else: base_query
 
     {count, _} =
-      Repo.update_all(query,
-        inc: [generation: 1],
-        set: [tree_digest: tree_digest, node_name: node_name, cas_present: cas_present, updated_at: now]
-      )
-
-    cond do
-      count == 1 -> {:ok, base_generation + 1}
-      guard_cas -> classify_rejection(account_id, volume_name, base_generation)
-      true -> :conflict
-    end
-  end
-
-  # Which of the two guards rejected the bump, for the caller's response and
-  # logs. Observational only — the write above already happened or didn't — so a
-  # HEAD that moves again before this read just reports the ordinary conflict.
-  defp classify_rejection(account_id, volume_name, base_generation) do
-    head =
-      Repo.one(
+      Repo.update_all(
         from(h in VolumeHead,
-          where: h.account_id == ^account_id and h.volume_name == ^volume_name,
-          select: %{generation: h.generation, cas_present: h.cas_present}
-        )
+          where:
+            h.account_id == ^account_id and h.volume_name == ^volume_name and
+              h.generation == ^base_generation
+        ),
+        inc: [generation: 1],
+        set: [tree_digest: tree_digest, node_name: node_name, updated_at: now]
       )
 
-    case head do
-      %{generation: ^base_generation, cas_present: true} -> :cas_regression
-      _ -> :conflict
-    end
+    if count == 1, do: {:ok, base_generation + 1}, else: :conflict
   end
-
-  defp volume_name(opts), do: Keyword.get(opts, :volume_name) || @reserved_tuist_cache
-
-  defp cas_present(opts), do: truthy(Keyword.get(opts, :cas_present))
-
-  defp truthy(value), do: value == true
 
   @doc """
   The account's current HEAD as `%{generation, tree_digest}`, or `nil` when the

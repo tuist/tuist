@@ -609,12 +609,14 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 		case "conflict":
 			RecordVolumePromote("rejected")
 		case "cas-regression":
-			// Deliberately outside the promote buckets: this is not contention and
-			// must not dilute the rate they exist to measure. It gets the same
-			// counter as the host's own CAS guard, so one series answers "did we
-			// stop a compilation-cache wipe", whichever layer caught it.
+			// The guest refused to publish this branch: it dropped the compilation
+			// cache its master carried. Deliberately outside the promote buckets —
+			// this is not contention and must not dilute the rate they exist to
+			// measure. It shares a counter with the host's own CAS guard, so one
+			// series answers "did we stop a compilation-cache wipe", whichever
+			// layer caught it.
 			log.Log.WithName("volume").Info(
-				"server refused the HEAD bump: this branch drops the account's compilation cache",
+				"guest withheld the HEAD publish: this branch drops the account's compilation cache",
 				"vm", entry.VMName, "account", actualAccount)
 			RecordVolumeCASRegression()
 		default:
