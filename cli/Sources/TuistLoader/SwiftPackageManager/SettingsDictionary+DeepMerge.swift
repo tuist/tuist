@@ -9,9 +9,9 @@ extension ProjectDescription.SettingsDictionary {
             if let existingValue = self[key],
                case let .array(existingArray) = existingValue,
                case let .array(newArray) = newValue,
-               newArray.contains("$(inherited)") {
-                
-                // Combine arrays, removing $(inherited) from both sets to deduplicate, 
+               newArray.contains("$(inherited)")
+            {
+                // Combine arrays, removing $(inherited) from both sets to deduplicate,
                 // then prepend a single $(inherited) at the start.
                 let combined = existingArray.filter { $0 != "$(inherited)" } + newArray.filter { $0 != "$(inherited)" }
                 self[key] = .array(["$(inherited)"] + combined)
