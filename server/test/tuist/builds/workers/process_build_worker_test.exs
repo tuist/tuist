@@ -192,17 +192,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when project is not found on final attempt", %{
+    test "discards the job when the project is not found", %{
       account: account,
       build: build
     } do
-      expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failed_processing"
-        {:ok, %{id: build.id}}
-      end)
+      reject(&Tuist.Builds.create_build/1)
+      reject(&Tuist.Storage.download_to_file/3)
 
-      assert {:error, :project_not_found} =
-               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999"), 3, 3))
+      assert {:discard, :project_not_found} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999")))
     end
   end
 
