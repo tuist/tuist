@@ -7782,6 +7782,109 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_targetWithSwiftPMFlags_mergesInheritedPackageBaseSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Target", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableExperimentalFeature,
+                                    condition: nil,
+                                    value: ["Lifetimes"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: [
+                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-DSTAGING"],
+                ])
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target" }))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-experimental-feature \"Lifetimes\"",
+                "-DSTAGING",
+            ])
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_targetWithSwiftPMFlags_appendsTargetSettingsWithoutInherited() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Target", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableExperimentalFeature,
+                                    condition: nil,
+                                    value: ["Lifetimes"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                targetSettings: [
+                    "Target": .test(base: ["OTHER_SWIFT_FLAGS": ["-DSTAGING"]]),
+                ]
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target" }))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-experimental-feature \"Lifetimes\"",
+                "-DSTAGING",
+            ])
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_macroTarget_appliesBaseSettingsBaseToMacroTarget() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(

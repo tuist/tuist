@@ -2347,11 +2347,18 @@ extension ProjectDescription.Settings {
         // target would instead override the sanitized identifier, and modules whose names start
         // with an underscore (e.g. _RopeModule) would produce identifiers Xcode rejects.
         propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
-        baseSettingsDictionary.deepMerge(.from(settingsDictionary: propagatedBaseSettings))
+        baseSettingsDictionary.merge(
+            .from(settingsDictionary: propagatedBaseSettings),
+            arrayMergePolicy: .replaceUnlessInherited
+        )
 
         if let userDefinedBaseSettings = targetSettings?.base {
-            baseSettingsDictionary.deepMerge(.from(settingsDictionary: userDefinedBaseSettings))
+            baseSettingsDictionary.merge(
+                .from(settingsDictionary: userDefinedBaseSettings),
+                arrayMergePolicy: .append
+            )
         }
+
         let configurations: [ProjectDescription.Configuration] = targetSettings?.configurations
             .map { buildConfiguration, configuration in
                 .from(
