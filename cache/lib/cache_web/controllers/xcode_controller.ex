@@ -55,7 +55,7 @@ defmodule CacheWeb.XcodeController do
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :xcode, :download, :request], %{}, %{})
     key = Xcode.Disk.key(account_handle, project_handle, id)
-    track_artifact_access(key)
+    :ok = CacheArtifacts.track_artifact_access(key)
 
     case Xcode.Disk.stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
@@ -190,7 +190,7 @@ defmodule CacheWeb.XcodeController do
         })
 
         key = Xcode.Disk.key(account_handle, project_handle, id)
-        track_artifact_access(key)
+        :ok = CacheArtifacts.track_artifact_access(key)
         enqueue_xcode_upload_if_missing(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")
 
@@ -214,14 +214,6 @@ defmodule CacheWeb.XcodeController do
 
   defp cleanup_tmp_file({:file, tmp_path}), do: File.rm(tmp_path)
   defp cleanup_tmp_file(_binary_data), do: :ok
-
-  defp track_artifact_access(key) do
-    if Config.xcode_database_interactions_enabled?() do
-      :ok = CacheArtifacts.track_artifact_access(key)
-    end
-
-    :ok
-  end
 
   defp enqueue_xcode_download(account_handle, project_handle, key) do
     if Config.xcode_database_interactions_enabled?() do
