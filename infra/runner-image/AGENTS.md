@@ -75,17 +75,34 @@ runtime — no service, sudo entry, or auto-login targets it.
   distinct so an outage is not mistaken for cross-host contention) discards the
   branch and lets convergence re-warm it.
 
-  The fast-forward orders promotes by GENERATION, never by CONTENT, so it also
-  refuses a bump that would DROP the account's compilation cache: the guest
-  declares `cas_present` / `cas_disabled` with the report, the server compares
-  against `runner_volume_heads.cas_present`, and a silent drop comes back 409
-  `cas regression` (relayed as its own outcome so it never inflates the
-  contention rate). `Finalize` echoes the same rule locally from the guest's
-  `cache-cas-before` / `cache-cas-after` markers. Without it, a host that writes
-  no CAS — mid-rollout, rolled back, or deployed with the CAS off — publishes a
-  CAS-less image as HEAD and every other host converges to it and loses its
-  compilation cache. Both defaults are false, so a runner too old to declare
-  anything reads as "no CAS, no intent" and cannot strip a HEAD that has one. A rejected promote still uploaded its object, so the
+  The fast-forward orders promotes by GENERATION, never by CONTENT, so a promote
+  that would DROP the account's compilation cache is refused at **three
+  boundaries, in this order** — the order matters, because only the first one is
+  early enough to protect the HEAD:
+
+  1. **The guest, before the upload** (`report_volume_head`): if the image lost
+     the store its master carried and the host has not said the CAS is off, it
+     skips the upload AND the report, writing `cas-regression` as the promote
+     result. Nothing leaves the VM.
+  2. **The server's HEAD bump**: the guest declares `cas_present` /
+     `cas_disabled` with the report, compared against
+     `runner_volume_heads.cas_present`; a silent drop comes back 409 `cas
+     regression`. This is what covers clients too old to have step 1.
+  3. **`Finalize` on the host**: same rule from the `cache-cas-before` /
+     `cache-cas-after` markers. It runs after the bump was already accepted, so
+     it saves only this host's local master, not the HEAD.
+
+  Without these, a host that writes no CAS — mid-rollout, rolled back, or
+  deployed with the CAS off — publishes a CAS-less image as HEAD and every other
+  host converges to it and loses its compilation cache. Both server flags default
+  to false, so a runner too old to declare anything reads as "no CAS, no intent"
+  and cannot strip a HEAD that has one.
+
+  `cas_store_populated` `cd`s into the store before running `find .`, matching
+  `cache_inventory`. That is load-bearing, not stylistic: the mount root
+  (`/Users/runner/.tuist-cache-volume`) is itself dot-prefixed, so searching
+  absolute paths makes every result match `-not -path '*/.*'` and reports an empty
+  store on every runner. A rejected promote still uploaded its object, so the
   server records it as an orphan and reclaims it after the URL-TTL grace. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the

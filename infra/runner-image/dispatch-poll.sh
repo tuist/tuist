@@ -220,9 +220,15 @@ cas_marker_state() {
 # the host's casInventoryLines. An existing-but-empty store is NOT populated:
 # setup_cas_store mkdir -p's it on every enabled run, so its mere presence would
 # report a CAS that carries nothing.
+#
+# It `cd`s first and searches `.`, exactly like cache_inventory, and that is
+# load-bearing rather than stylistic: CACHE_MOUNT is `/Users/runner/.tuist-cache-volume`,
+# whose own leading dot makes EVERY absolute path under it match `-not -path '*/.*'`.
+# Searching an absolute path here reported an empty store on every real runner
+# while passing against any test fixture rooted outside a hidden directory.
 cas_store_populated() {
   [ -n "${CACHE_MOUNT}" ] || return 1
-  [ -n "$(find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -type f -not -path '*/.*' -print -quit 2>/dev/null)" ]
+  [ -n "$(cd "${CACHE_MOUNT}/${CAS_STORE_DIR}" 2>/dev/null && find . -type f -not -path '*/.*' -print -quit 2>/dev/null)" ]
 }
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
@@ -698,6 +704,24 @@ report_volume_head() {
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
+
+  # Content regression: this image lost the compilation cache its master carried,
+  # and the host has not said the CAS is deliberately off. Stop BEFORE the upload
+  # and the HEAD report.
+  #
+  # This is the only check that runs early enough to matter. The host's Finalize
+  # guard fires after the bump has already been accepted, so by then the HEAD —
+  # the thing every other host converges to — is poisoned and discarding locally
+  # saves only this host's master. The server refuses the same bump, but a server
+  # that is older or rolled back would not, and this is the layer that still holds
+  # in that case. Skipping the upload also saves pushing a multi-GB image nobody
+  # will adopt.
+  if [ "${CACHE_CAS_BEFORE}" = "1" ] && [ "${CACHE_CAS_AFTER}" != "1" ] &&
+    [ "$(cas_marker_state)" != "disabled" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: this image dropped the account's compilation cache and the host has not disabled the CAS; HEAD not advanced"
+    write_promote_result "cas-regression"
+    return 0
+  fi
 
   # Mint the content-addressed upload URL for this digest. The server binds it to
   # the account this Pod ran (server-stamped label) and rejects a non-hex digest,

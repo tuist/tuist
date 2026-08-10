@@ -818,10 +818,14 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	// having had one, so an account whose jobs simply never compile still
 	// promotes its binary-cache deltas normally.
 	//
-	// The server enforces the same rule on the HEAD bump, which is the load-
-	// bearing half (it also covers hosts running older code). This is the local,
-	// no-round-trip echo of it. Refusing degrades to "not promoted": the branch is
-	// discarded and the job is unaffected.
+	// This runs LAST of the three checks and is the narrowest: by the time
+	// Finalize sees the branch, the guest has already uploaded and the server has
+	// already accepted a generation, so the HEAD other hosts converge to is past
+	// saving. What it still protects is THIS host's local master. The guest's
+	// pre-upload gate in report_volume_head is what actually prevents the
+	// poisoning; the server's HEAD bump is what covers clients too old to have
+	// that gate. Refusing here degrades to "not promoted": the branch is discarded
+	// and the job is unaffected.
 	if m.casEnabled() && att.MasterHadCAS && !att.BranchHasCAS {
 		log.Log.WithName("cache-volumes").Info(
 			"branch lost the compilation cache its master carried; discarding instead of promoting",

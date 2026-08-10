@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1184,6 +1186,116 @@ func TestFinalizePromotesIntentionalCASReclaim(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "reclaimed-branch" {
 		t.Fatalf("master after an intentional reclaim = %q; want the cleaned branch", got)
+	}
+}
+
+// dispatchPollScript is the REAL guest script, read from disk. Tests that assert
+// guest behaviour extract the function under test from it rather than mirroring
+// it, so a divergence fails here instead of silently in production.
+const dispatchPollScript = "../../../runner-image/dispatch-poll.sh"
+
+// extractShellFunc slices `name() { ... }` out of the guest script, from the
+// declaration to the first line that is exactly `}` (the script's own style).
+func extractShellFunc(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(dispatchPollScript)
+	if err != nil {
+		t.Fatalf("read %s: %v", dispatchPollScript, err)
+	}
+	lines := strings.Split(string(b), "\n")
+	start := -1
+	for i, l := range lines {
+		if l == name+"() {" {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("%s() not found in %s", name, dispatchPollScript)
+	}
+	for i := start + 1; i < len(lines); i++ {
+		if lines[i] == "}" {
+			return strings.Join(lines[start:i+1], "\n")
+		}
+	}
+	t.Fatalf("unterminated %s() in %s", name, dispatchPollScript)
+	return ""
+}
+
+// The guest's CAS-presence probe must work under the REAL mount root, which is
+// `/Users/runner/.tuist-cache-volume` — itself dot-prefixed. A probe that
+// searched absolute paths matched its own `-not -path '*/.*'` exclusion on every
+// path and reported an empty store on every runner, silently disabling both CAS
+// guards, while passing against any fixture rooted outside a hidden directory.
+// So the fixture here is deliberately hidden.
+func TestGuestCASStoreProbeUnderHiddenMountRoot(t *testing.T) {
+	probe := extractShellFunc(t, "cas_store_populated")
+
+	run := func(t *testing.T, mountRoot string) bool {
+		t.Helper()
+		script := "set -uo pipefail\nCAS_STORE_DIR=" + casStoreDir +
+			"\nCACHE_MOUNT=" + strconv.Quote(mountRoot) + "\n" + probe +
+			"\ncas_store_populated\n"
+		path := filepath.Join(t.TempDir(), "probe.sh")
+		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		out, err := exec.Command("bash", path).CombinedOutput()
+		if err != nil {
+			if _, ok := err.(*exec.ExitError); !ok {
+				t.Fatalf("run probe: %v (%s)", err, out)
+			}
+			return false
+		}
+		return true
+	}
+
+	// The real shape: a hidden mount root, exactly as the guest mounts it.
+	hidden := filepath.Join(t.TempDir(), ".tuist-cache-volume")
+	store := filepath.Join(hidden, casStoreDir)
+	if err := os.MkdirAll(filepath.Join(store, "v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !run(t, hidden) {
+		// An empty store is genuinely unpopulated, which is the next assertion —
+		// this one only guards the ordering of the fixture setup.
+		t.Log("empty store reports unpopulated, as expected")
+	}
+	if err := os.WriteFile(filepath.Join(store, "v1", "records"), []byte("cas"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !run(t, hidden) {
+		t.Fatal("a populated CAS store under a hidden mount root must report populated")
+	}
+
+	// An empty store is NOT populated: setup_cas_store mkdir -p's it on every
+	// enabled run, so mere presence would report a CAS that carries nothing.
+	empty := filepath.Join(t.TempDir(), ".tuist-cache-volume")
+	if err := os.MkdirAll(filepath.Join(empty, casStoreDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if run(t, empty) {
+		t.Fatal("an empty CAS store must not report populated")
+	}
+
+	// Dot-path noise inside the store is excluded on both sides of the digest, so
+	// it must not count as content here either.
+	dotOnly := filepath.Join(t.TempDir(), ".tuist-cache-volume")
+	if err := os.MkdirAll(filepath.Join(dotOnly, casStoreDir, ".hidden"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{".DS_Store", filepath.Join(".hidden", "junk")} {
+		if err := os.WriteFile(filepath.Join(dotOnly, casStoreDir, p), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if run(t, dotOnly) {
+		t.Fatal("a store holding only dot-paths must not report populated")
+	}
+
+	// An absent store (the CAS never ran here) is unpopulated, not an error.
+	if run(t, filepath.Join(t.TempDir(), ".tuist-cache-volume")) {
+		t.Fatal("an absent CAS store must not report populated")
 	}
 }
 
