@@ -83,11 +83,23 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   `platform_min_version` / `build_tools_min_version`. Do NOT
   re-pin these to whatever `android/` happens to target; that
   breaks any customer on a newer platform.
-  No NDK is installed. It is the bulk of the hosted image's
-  Android footprint (three majors, roughly 10GB expanded) and only
-  native-code builds need it. `cmdline-tools` ships in the image,
-  so a workflow that needs it can `sdkmanager ndk;<version>`;
-  revisit baking it in if that becomes common.
+  No NDK is installed, and that is a standing decision rather than
+  a gap to close. It is the bulk of the hosted image's Android
+  footprint (three majors, roughly 10GB expanded) and only
+  native-code builds need it — a pure Kotlin/Java app never
+  touches it. Heavy toolchains that serve a minority of jobs
+  belong in per-account cache volumes, not in an image every job
+  on the fleet pulls. Note that those are macOS-only today
+  (`runnerCacheVolume` provisions APFS volumes on Mac minis via
+  tart-kubelet); until the Linux fleet has an equivalent, a
+  workflow that needs the NDK installs it per job with
+  `$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ndk;<version>`,
+  which works because cmdline-tools ships here and the licenses are
+  already accepted.
+  `ANDROID_NDK_HOME` and its siblings are deliberately left unset.
+  The hosted image sets them, and customer builds do read them, but
+  a variable pointing at an NDK that is not installed fails deep
+  inside CMake instead of failing fast.
   Resolved in the `android-sdk` builder stage (sdkmanager needs a
   JVM) so no JDK lands in the final image — workflow steps get
   theirs from mise.
