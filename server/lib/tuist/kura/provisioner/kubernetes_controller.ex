@@ -11,6 +11,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
+  alias Tuist.Billing
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.FeatureFlags
@@ -352,7 +353,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       []
       |> maybe_request_entitlement(mesh_enabled?(region), :self_hosted_cache)
       |> maybe_request_entitlement(not is_nil(configured_egress_mbps), :guaranteed_egress_floor)
-      |> maybe_request_entitlement(memory_governed?, :guaranteed_memory_floor)
 
     allowed_features = Entitlements.allowed_features(account, features)
 
@@ -362,13 +362,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
       end
 
-    # Unlike the egress floor, which an unentitled account simply does not get,
-    # a governed instance always gets a profile — the tier picks which one.
-    memory =
-      if memory_governed? do
-        tier = if MapSet.member?(allowed_features, :guaranteed_memory_floor), do: :enterprise, else: :standard
-        Regions.memory_profile(tier)
-      end
+    # Not an entitlement: every governed instance gets a profile, and the plan
+    # picks which one. Modelling it as a feature grant would only be able to say
+    # yes or no, when the answer is which of two sizes.
+    memory = if memory_governed?, do: Regions.memory_profile(memory_plan(account))
 
     %{
       allowed_features: allowed_features,
@@ -376,6 +373,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       memory: memory,
       backfill: FeatureFlags.kura_backfill_enabled?(account)
     }
+  end
+
+  # A self-hosted deployment has no subscriptions, so `effective_plan/1` would
+  # resolve every account to `:air`. Its Enterprise license is the entitlement,
+  # matching how `Entitlements.allowed_features/2` grants everything off the
+  # hosted server.
+  defp memory_plan(account) do
+    if Environment.tuist_hosted?(), do: Billing.effective_plan(account), else: :enterprise
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
@@ -408,8 +413,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       memory_revision_suffix(entitlements)
   end
 
-  # Folded in so an account crossing the :guaranteed_memory_floor entitlement
-  # re-applies onto the other profile. Without it the instance would keep the
+  # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
   # profile it was created with until some unrelated field happened to change.
   defp memory_revision_suffix(%{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}}),
     do: "+mem#{floor_mib}-#{ceiling_mib}"
