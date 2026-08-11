@@ -207,15 +207,11 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
-  # This job stays on a GitHub-hosted runner: gradle needs the Android SDK
-  # (ANDROID_HOME), which the hosted image pre-installs but the in-house
-  # tuist-linux runner image does not. Moving it onto the fleet needs the SDK
-  # baked into that image first.
   release-android:
     name: Release Android App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     permissions:
       contents: write
