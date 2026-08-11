@@ -64,13 +64,7 @@ import TuistServer
     struct TuistApp: App {
         var body: some Scene {
             WindowGroup {
-                ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
-                ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        RootView()
-                    }
-                }
+                RootView()
             }
         }
     }

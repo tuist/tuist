@@ -199,6 +199,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
+    private let coordinationStoreIdentifier: String
     #if canImport(TuistSupport)
         /// Shared actor instance across all ServerAuthenticationController instances
         private static let fileSystemLockActor: FileSystemLockActor = .init(
@@ -221,6 +222,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
+            coordinationStoreIdentifier = AuthenticationDiagnostics.shared.label(for: cachedValueStore as AnyObject)
         }
     #else
         public init(
@@ -231,6 +233,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
+            coordinationStoreIdentifier = AuthenticationDiagnostics.shared.label(for: cachedValueStore as AnyObject)
         }
     #endif
 
@@ -314,7 +317,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if case .unauthorized = error {
                 let refreshTokenAfterAction = try? await ServerCredentialsStore.current
                     .read(serverURL: serverURL)?.refreshToken
-                if refreshTokenBeforeAction != refreshTokenAfterAction {
+                let credentialsChangedDuringRefresh = refreshTokenBeforeAction != refreshTokenAfterAction
+                AuthenticationDiagnostics.shared.record(
+                    .unauthorizedRefreshHandled(
+                        credentialsChangedDuringRefresh: credentialsChangedDuringRefresh
+                    )
+                )
+                if credentialsChangedDuringRefresh {
                     #if canImport(TuistSupport)
                         Logger.current.debug(
                             "Refresh token for \(serverURL) was rotated by another process; preserving credentials"
@@ -543,16 +552,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
     func tokenStatus(serverURL: URL, forceRefresh: Bool) async throws -> AuthenticationTokenStatus {
         guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            recordTokenStatus("absent")
             return .absent
         }
 
         switch token {
         case .project:
+            recordTokenStatus("valid_project")
             return .valid(token)
         case let .account(accessToken):
             let now = Date.now()
             let expiresIn = accessToken.expiryDate.timeIntervalSince(now)
-            if expiresIn < 30 { return .expired }
+            if expiresIn < 30 {
+                recordTokenStatus("expired_account", accessToken: accessToken)
+                return .expired
+            }
+            recordTokenStatus("valid_account", accessToken: accessToken)
             return .valid(token)
         case let .user(
             accessToken, refreshToken
@@ -562,7 +577,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             let expiresIn = accessToken.expiryDate
                 .timeIntervalSince(now)
             let refresh = expiresIn < 30 || forceRefresh
-            if refresh { return .expired }
+            if refresh {
+                recordTokenStatus("expired_user", accessToken: accessToken, refreshToken: refreshToken)
+                return .expired
+            }
+            recordTokenStatus("valid_user", accessToken: accessToken, refreshToken: refreshToken)
             return .valid(
                 .user(
                     accessToken: accessToken,
@@ -570,6 +589,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             )
         }
+    }
+
+    private func recordTokenStatus(
+        _ status: String,
+        accessToken: JWT? = nil,
+        refreshToken: JWT? = nil
+    ) {
+        let credentialsStoreIdentifier = AuthenticationDiagnostics.shared.label(
+            for: ServerCredentialsStore.current as AnyObject
+        )
+        AuthenticationDiagnostics.shared.record(
+            .tokenStatusEvaluated(
+                status: status,
+                accessTokenExpiresAt: accessToken?.expiryDate,
+                refreshTokenExpiresAt: refreshToken?.expiryDate,
+                coordinationStoreIdentifier: coordinationStoreIdentifier,
+                credentialsStoreIdentifier: credentialsStoreIdentifier
+            )
+        )
     }
 
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
@@ -610,6 +648,17 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     }
                 #endif
                 if refresh {
+                    let credentialsStoreIdentifier = AuthenticationDiagnostics.shared.label(
+                        for: ServerCredentialsStore.current as AnyObject
+                    )
+                    AuthenticationDiagnostics.shared.record(
+                        .tokenRefreshStarted(
+                            accessTokenExpiresAt: accessToken.expiryDate,
+                            refreshTokenExpiresAt: refreshToken.expiryDate,
+                            coordinationStoreIdentifier: coordinationStoreIdentifier,
+                            credentialsStoreIdentifier: credentialsStoreIdentifier
+                        )
+                    )
                     #if canImport(TuistSupport)
                         Logger.current.debug("Refreshing access token for \(serverURL)")
                     #endif
@@ -748,15 +797,30 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     ),
                     serverURL: serverURL
                 )
+            AuthenticationDiagnostics.shared.record(
+                .tokenRefreshSucceeded(
+                    accessTokenExpiresAt: try? JWT.parse(newTokens.accessToken).expiryDate,
+                    refreshTokenExpiresAt: try? JWT.parse(newTokens.refreshToken).expiryDate
+                )
+            )
             return newTokens
         } catch let error as ClientError {
+            AuthenticationDiagnostics.shared.record(
+                .tokenRefreshFailed(errorType: String(reflecting: type(of: error.underlyingError)))
+            )
             if ServerErrorClassifier.isTransient(error) {
                 throw error
             }
             throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
+            AuthenticationDiagnostics.shared.record(
+                .tokenRefreshFailed(errorType: String(reflecting: type(of: error)))
+            )
             throw error
         } catch {
+            AuthenticationDiagnostics.shared.record(
+                .tokenRefreshFailed(errorType: String(reflecting: type(of: error)))
+            )
             throw ClientAuthenticationError.notAuthenticated
         }
     }

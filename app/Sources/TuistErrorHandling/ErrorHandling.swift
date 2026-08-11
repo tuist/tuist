@@ -16,6 +16,12 @@ public final class ErrorHandling: ObservableObject {
     @MainActor
     public func handle(error: Error) {
         if let clientError = error as? ClientError {
+            AuthenticationDiagnostics.shared.record(
+                .requestFailed(
+                    errorType: String(reflecting: type(of: clientError)),
+                    underlyingErrorType: String(reflecting: type(of: clientError.underlyingError))
+                )
+            )
             if clientError.underlyingError is ClientAuthenticationError {
                 Logger.current.error(
                     "Client authentication error received. Deleting stored credentials. Error: \(clientError.underlyingError.localizedDescription)"
@@ -33,6 +39,12 @@ public final class ErrorHandling: ObservableObject {
             currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
             return
         } else {
+            AuthenticationDiagnostics.shared.record(
+                .requestFailed(
+                    errorType: String(reflecting: type(of: error)),
+                    underlyingErrorType: nil
+                )
+            )
             Logger.current.error("Error received: \(error.localizedDescription)")
             currentAlert = ErrorAlert(message: error.localizedDescription)
         }
