@@ -88,16 +88,30 @@ defmodule Tuist.Runners.Jobs do
   ClickHouse is still the lifecycle history store, but queued/completed
   webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
   observe "missing", race a concurrent completion, and write a newer queued row.
+
+  Re-entrant: inside an existing `Repo` transaction the lock is taken inline
+  rather than through a nested `Repo.transaction/1`. `pg_advisory_xact_lock`
+  is re-entrant within a transaction and released on its commit, so the
+  serialization is identical. A nested transaction is not: it carries no
+  savepoint, and on an aborted connection it skips `fun` entirely and hands
+  back `{:error, :rollback}` as an ordinary value, which callers cannot
+  distinguish from a domain result. Inline, that failure unwinds the caller's
+  transaction instead of being pattern-matched by it.
   """
   def with_workflow_job_ordering_lock(workflow_job_id, fun) when is_integer(workflow_job_id) and is_function(fun, 0) do
-    fn ->
+    if Repo.in_transaction?() do
       acquire_workflow_job_ordering_lock(workflow_job_id)
       fun.()
-    end
-    |> Repo.transaction()
-    |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+    else
+      fn ->
+        acquire_workflow_job_ordering_lock(workflow_job_id)
+        fun.()
+      end
+      |> Repo.transaction()
+      |> case do
+        {:ok, result} -> result
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
