@@ -486,9 +486,16 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
-        # Ceilings are bin-packed against the node budget the CAPI provider
-        # advertises. The private runner-cache pool runs on Elastic Metal, which
-        # the provider does not patch, so it stays off the bin-pack.
+        # Packing density is what constrains the shared bare-metal boxes, so
+        # their instances are sized per tier rather than taking the controller
+        # default, and their ceilings are bin-packed against the node budget the
+        # CAPI provider advertises. Per-tier sizing rides with the kubelet's
+        # MemoryQoS gate rather than landing ahead of it: a tiered floor sits
+        # far below its ceiling, so it is only a scheduling promise until the
+        # kernel enforces it as memory.min. The private runner-cache pool runs
+        # on Elastic Metal, which the provider does not patch, so it takes the
+        # controller default and stays off the bin-pack.
+        memory_governed: true,
         memory_ceiling_bin_packed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
