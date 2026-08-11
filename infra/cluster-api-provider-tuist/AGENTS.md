@@ -171,6 +171,52 @@ the `crds/` directory on upgrades, which is what we want — CRD
 schema changes go through a deliberate `kubectl apply` rather than
 piggybacking on routine deploys).
 
+## Node extended resources
+
+The Linux machine controllers patch two integer extended resources onto the
+Nodes they own (`controllers/shared/node_egress.go`, `node_memory.go`), both
+re-applied every reconcile so a kubelet re-registration that resets status
+cannot strand them. Each exists because the scheduler's native bin-pack cannot
+see the quantity in question:
+
+- `tuist.dev/egress-mbps` — the box's NIC budget, which Kubernetes has no
+  concept of. Taken from the machine's `EgressBudgetMbps`.
+- `tuist.dev/memory-ceiling-mib` — a bounded multiple
+  (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
+  Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
+  oversubscribe the box while `requests.memory` only bin-packs the floors. This
+  is what bounds that overlap, keeping the worst case within what kernel reclaim
+  can absorb instead of what the OOM killer has to resolve.
+
+Consumers request the matching resource with request == limit (extended
+resources are integer and non-overcommittable). A pod that requests one on a
+node that does not advertise it never schedules, which is why both are opt-in
+on the consumer side.
+
+### MemoryQoS
+
+The floor half of that model is currently advisory: `requests.memory` never
+reaches the kernel, so nothing stops a pod that has expanded toward its ceiling
+from taking memory a quieter neighbour was promised. The kubelet's `MemoryQoS`
+feature gate is what closes it, mapping requests onto cgroup v2 `memory.min` /
+`memory.low` so reclaim takes from whoever is furthest above their own floor.
+
+It is deliberately **not** enabled in `kubeletConfigContent`
+(`controllers/linux/linux_cloudinit.go`). Enabling it is a one-line change
+there, and because `desiredKubeletConfigHash` fingerprints the rendered config,
+the drift loop would re-push it to every already-Ready node and restart their
+kubelets — no machine roll, but a simultaneous kubelet restart across all three
+Linux fleets. Before turning it on:
+
+- The feature is alpha and off by default (still so as of v1.36), and its
+  semantics have moved: v1.36 adds `memoryReservationPolicy`, where
+  `TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods
+  `memory.low`. Cache pods are Burstable by design, so confirm which protection
+  they actually get on the fleet's kubelet version rather than assuming
+  `memory.min`.
+- Tier the floors first. `memory.min` derived from today's uniform reservations
+  would pin far more unreclaimable memory per box than the instances use.
+
 ## Operator UX: one Secret in 1Password
 
 The only thing an operator manages by hand is **Scaleway IAM

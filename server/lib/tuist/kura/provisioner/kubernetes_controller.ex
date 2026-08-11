@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-24-align-runner-cas-capacity-v1"
+  @manifest_revision "2026-08-11-memory-floor-ceiling-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
@@ -280,6 +280,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
           "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
+          "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
+          "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -340,10 +343,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp manifest_entitlements(account, %Regions{} = region) do
     configured_egress_mbps = configured_egress_guaranteed_mbps(region)
 
+    # The regions that bin-pack memory ceilings are exactly the shared
+    # bare-metal boxes where packing density is the constraint, so they are also
+    # the ones worth sizing per tier. Everywhere else the controller's default
+    # profile applies and no plan has to be resolved.
+    memory_governed? = Regions.memory_ceiling_bin_packed?(region)
+
     features =
       []
       |> maybe_request_entitlement(mesh_enabled?(region), :self_hosted_cache)
       |> maybe_request_entitlement(not is_nil(configured_egress_mbps), :guaranteed_egress_floor)
+      |> maybe_request_entitlement(memory_governed?, :guaranteed_memory_floor)
 
     allowed_features = Entitlements.allowed_features(account, features)
 
@@ -353,9 +363,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
       end
 
+    # Unlike the egress floor, which an unentitled account simply does not get,
+    # a governed instance always gets a profile — the tier picks which one.
+    memory =
+      if memory_governed? do
+        tier = if MapSet.member?(allowed_features, :guaranteed_memory_floor), do: :enterprise, else: :standard
+        Regions.memory_profile(tier)
+      end
+
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
+      memory: memory,
       backfill: FeatureFlags.kura_backfill_enabled?(account)
     }
   end
@@ -386,8 +405,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
-      backfill_revision_suffix(entitlements)
+      backfill_revision_suffix(entitlements) <>
+      memory_revision_suffix(entitlements)
   end
+
+  # Folded in so an account crossing the :guaranteed_memory_floor entitlement
+  # re-applies onto the other profile. Without it the instance would keep the
+  # profile it was created with until some unrelated field happened to change.
+  defp memory_revision_suffix(%{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}}),
+    do: "+mem#{floor_mib}-#{ceiling_mib}"
+
+  defp memory_revision_suffix(_entitlements), do: ""
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
   # peer changes the desired revision and the reconciler re-applies the manifest.

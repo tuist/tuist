@@ -59,6 +59,13 @@ defmodule Tuist.Billing.Entitlements do
   # scheduler-bin-packed slice of the box's egress budget.
   defp plan_allows?(_plan, :guaranteed_egress_floor), do: false
 
+  # Larger memory profile on the shared bare-metal cache boxes — Enterprise
+  # only. The floor is a standing reservation against the box's schedulable
+  # memory and the ceiling sets how large a client burst the instance absorbs
+  # before it sheds, so both are scarce on a shared box. Non-enterprise tenants
+  # idle at a fraction of the standard floor and pack densely under it.
+  defp plan_allows?(_plan, :guaranteed_memory_floor), do: false
+
   defp plan_allows?(_plan, _feature), do: false
 
   defp resolve_plan(%Account{} = account), do: Billing.effective_plan(account)

@@ -139,6 +139,67 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
+    test "sizes the memory profile per tier on a box that governs memory" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      profile = fn plan ->
+        stub(Tuist.Billing, :effective_plan, fn _ -> plan end)
+
+        spec =
+          "kura-tuist-eu-central-1"
+          |> KubernetesController.manifest(
+            "0.5.2",
+            %Account{id: 1, name: "tuist"},
+            eu_region(%{memory_ceiling_bin_packed: true}),
+            %Server{},
+            "return true"
+          )
+          |> Map.fetch!("spec")
+
+        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"]}
+      end
+
+      # The floor is the standing reservation, so the tier that gets the larger
+      # one is the tier that pays for a guarantee. The ceiling — how large a
+      # burst Kura admits before shedding — moves with it.
+      assert profile.(:enterprise) == {2048, 3072, true}
+      assert profile.(:air) == {512, 1536, true}
+    end
+
+    test "leaves the memory profile to the controller default on a box that does not govern memory" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # A pod that requests tuist.dev/memory-ceiling-mib on a node pool the CAPI
+      # provider does not patch never schedules, so an ungoverned region must
+      # emit nothing at all rather than a profile the node cannot satisfy.
+      reject(&Tuist.Billing.effective_plan/1)
+
+      spec =
+        "kura-tuist-eu-central-1"
+        |> KubernetesController.manifest(
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+        |> Map.fetch!("spec")
+
+      refute Map.has_key?(spec, "memoryFloorMib")
+      refute Map.has_key?(spec, "memoryCeilingMib")
+      refute Map.has_key?(spec, "memoryCeilingBinPacked")
+    end
+
     test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -1036,6 +1097,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.manifest_revision(account, eu_region()) ==
                KubernetesController.manifest_revision() <> "+backfill"
+    end
+
+    test "crosses a revision boundary on the memory tier so an upgrade re-applies" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      region = eu_region(%{memory_ceiling_bin_packed: true})
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      # Without the profile in the revision an account changing plan would keep
+      # the memory profile its instance was created with until some unrelated
+      # field happened to move.
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+      standard = KubernetesController.manifest_revision(account, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      enterprise = KubernetesController.manifest_revision(account, region)
+
+      assert standard != enterprise
+      assert String.ends_with?(standard, "+mem512-1536")
+      assert String.ends_with?(enterprise, "+mem2048-3072")
     end
 
     test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do

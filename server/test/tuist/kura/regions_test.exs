@@ -70,6 +70,32 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "bin-packs memory ceilings only where a node budget is advertised" do
+      # Every managed region runs on a bare-metal pool the CAPI provider patches
+      # with a tuist.dev/memory-ceiling-mib budget.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool runs on Elastic Metal, which the provider
+      # does not patch; requesting the extended resource there would leave every
+      # cache pod Pending.
+      refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
+    end
+
+    test "keeps every memory ceiling above its floor" do
+      # A limit below its request is rejected by the API, and a ceiling equal to
+      # the floor would leave no burst headroom for Kura's admission pools.
+      for tier <- [:enterprise, :standard] do
+        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(tier)
+        assert ceiling_mib > floor_mib
+      end
+
+      # The standard floor is what decides how many tenants fit on a box, so it
+      # has to stay well under the enterprise one to be worth tiering at all.
+      assert Regions.memory_profile(:standard).floor_mib < Regions.memory_profile(:enterprise).floor_mib
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 
