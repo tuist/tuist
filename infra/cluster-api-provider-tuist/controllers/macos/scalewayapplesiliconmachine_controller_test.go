@@ -153,7 +153,7 @@ func TestTerminalPhaseSurvivesSubsequentReconciles(t *testing.T) {
 		t.Fatalf("terminal phase must survive later reconciles; got %q", machine.Status.Phase)
 	}
 
-	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+	clearUpdateFailure(machine, "host config drifted since the failure was recorded", logr.Discard(), fakeRecorder())
 	if terminalPhasePinned(machine.Status.FailureReason) {
 		t.Fatal("clearing the terminal failure must unpin the phase")
 	}
