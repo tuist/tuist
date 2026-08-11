@@ -2,10 +2,26 @@ defmodule Tuist.ShardsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
   alias Tuist.Shards
+  alias Tuist.Shards.ShardPlanTestSuite
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
+
+  defp planned_suite_durations(plan) do
+    from(s in ShardPlanTestSuite,
+      where: s.shard_plan_id == ^plan.id,
+      select: {
+        fragment("concat(?, '/', ?)", s.module_name, s.test_suite_name),
+        s.estimated_duration_ms
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
 
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
@@ -248,6 +264,224 @@ defmodule Tuist.ShardsTest do
 
       assert durations["AppTests/SlowSuite"] == 90_000
       assert durations["AppTests/FastSuite"] == 1_000
+    end
+
+    test "prices suites of a parallelizable module by the module's measured concurrency" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 20_000},
+              %{name: "SignupSuite", status: "success", duration: 20_000}
+            ]
+          },
+          %{
+            name: "SerialTests",
+            status: "success",
+            duration: 30_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "SlowSuite", status: "success", duration: 20_000},
+              %{name: "FastSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-parallelism",
+        test_suites: [
+          "ParallelTests/LoginSuite",
+          "ParallelTests/SignupSuite",
+          "SerialTests/SlowSuite",
+          "SerialTests/FastSuite"
+        ],
+        granularity: "suite",
+        shard_total: 4
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      durations = planned_suite_durations(result.plan)
+
+      # ParallelTests finishes in 10s while its suites report 40s, so each suite costs a quarter of
+      # what it reports. SerialTests' suites already add up to its wall clock and stay as measured.
+      assert durations["ParallelTests/LoginSuite"] == 5_000
+      assert durations["ParallelTests/SignupSuite"] == 5_000
+      assert durations["SerialTests/SlowSuite"] == 20_000
+      assert durations["SerialTests/FastSuite"] == 10_000
+    end
+
+    test "packs a parallelizable module alongside other work instead of giving it a whole shard" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 30_000},
+              %{name: "SignupSuite", status: "success", duration: 30_000}
+            ]
+          },
+          %{
+            name: "SerialTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "SlowSuite", status: "success", duration: 10_000},
+              %{name: "FastSuite", status: "success", duration: 10_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-parallelism-packing",
+        test_suites: [
+          "ParallelTests/LoginSuite",
+          "ParallelTests/SignupSuite",
+          "SerialTests/SlowSuite",
+          "SerialTests/FastSuite"
+        ],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      totals = Enum.map(result.shard_assignments, fn a -> a["estimated_duration_ms"] end)
+
+      # Unscaled, ParallelTests alone reports 60s against SerialTests' 20s and fills a shard by
+      # itself. Scaled to its 10s wall clock the two modules weigh the same and split evenly.
+      assert Enum.sum(totals) == 30_000
+      assert Enum.max(totals) == 15_000
+    end
+
+    test "ignores concurrency measured from a module run with a single suite" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [%{name: "OnlySuite", status: "success", duration: 40_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-single",
+        test_suites: ["AppTests/OnlySuite"],
+        granularity: "suite",
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      [assignment] = result.shard_assignments
+      assert assignment["estimated_duration_ms"] == 40_000
+    end
+
+    test "clamps concurrency so an inconsistently recorded module wall clock cannot zero it out" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 100,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 40_000},
+              %{name: "SignupSuite", status: "success", duration: 40_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-clamped",
+        test_suites: ["AppTests/LoginSuite", "AppTests/SignupSuite"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      durations = planned_suite_durations(result.plan)
+
+      # The raw ratio is 800x; the clamp holds it at 16x rather than pricing the module at nothing.
+      assert durations["AppTests/LoginSuite"] == 2_500
+      assert durations["AppTests/SignupSuite"] == 2_500
+    end
+
+    test "leaves module granularity timing untouched" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 20_000},
+              %{name: "SignupSuite", status: "success", duration: 20_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "module-untouched",
+        modules: ["ParallelTests"],
+        granularity: "module",
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      [assignment] = result.shard_assignments
+      assert assignment["estimated_duration_ms"] == 10_000
     end
 
     test "derives suite units from history when the client does not enumerate" do

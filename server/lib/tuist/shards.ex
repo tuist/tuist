@@ -25,6 +25,8 @@ defmodule Tuist.Shards do
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
   @timing_quantile 0.90
+  @min_parallelism_factor 0.5
+  @max_parallelism_factor 16.0
 
   def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
@@ -32,7 +34,11 @@ defmodule Tuist.Shards do
 
     units = resolve_units(project, params, granularity)
     timing_data = fetch_timing_data(project, granularity, units)
-    units_with_durations = assign_durations(units, timing_data, granularity)
+
+    units_with_durations =
+      units
+      |> assign_durations(timing_data, granularity)
+      |> scale_by_module_parallelism(project, granularity)
 
     shard_count =
       BinPacker.determine_shard_count(
@@ -638,6 +644,72 @@ defmodule Tuist.Shards do
 
   defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
   defp round_timing_duration(duration), do: round(duration)
+
+  # A suite plan prices a shard as the sum of its suites' durations, which equals the shard's wall
+  # clock only when a module runs its suites one after another. Xcode runs a parallelizable module's
+  # suites concurrently, so summing them overstates such a module by as much as an order of
+  # magnitude, and the bin packer hands a whole shard to work that finishes in a fraction of the
+  # budget. Dividing each suite by its module's measured concurrency puts every unit back on the same
+  # wall-clock scale before packing.
+  defp scale_by_module_parallelism(units_with_durations, _project, "module"), do: units_with_durations
+
+  defp scale_by_module_parallelism([], _project, "suite"), do: []
+
+  defp scale_by_module_parallelism(units_with_durations, project, "suite") do
+    factors =
+      units_with_durations
+      |> Enum.map(fn {name, _duration} -> suite_module(name) end)
+      |> Enum.uniq()
+      |> then(&fetch_module_parallelism(project, &1))
+
+    Enum.map(units_with_durations, fn {name, duration} ->
+      case Map.get(factors, suite_module(name)) do
+        nil -> {name, duration}
+        factor -> {name, max(round(duration / factor), 1)}
+      end
+    end)
+  end
+
+  # Concurrency is measured per module run as its suites' total duration over its own wall clock,
+  # then taken as the median across runs so a single anomalous run cannot move it. A run with one
+  # suite carries no concurrency signal, and the ratio is clamped because a module row whose duration
+  # was recorded inconsistently with its suites' would otherwise scale that module to near zero.
+  defp fetch_module_parallelism(_project, []), do: %{}
+
+  defp fetch_module_parallelism(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    query = """
+    SELECT module_name, toFloat64(median(suite_sum / module_duration)) AS factor
+    FROM (
+      SELECT
+        mr.name AS module_name,
+        any(mr.duration) AS module_duration,
+        sum(sr.duration) AS suite_sum,
+        count() AS suite_count
+      FROM test_suite_runs AS sr
+      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+      WHERE sr.project_id = {project_id:Int64}
+        AND sr.is_ci = true
+        AND sr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.project_id = {project_id:Int64}
+        AND mr.is_ci = true
+        AND mr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.name IN {modules:Array(String)}
+      GROUP BY module_name, mr.id
+      HAVING module_duration > 0 AND suite_count > 1
+    )
+    GROUP BY module_name
+    """
+
+    params = %{project_id: project.id, cutoff: cutoff, modules: modules}
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Map.new(rows, fn [name, factor] ->
+      {name, factor |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)}
+    end)
+  end
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)
