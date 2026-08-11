@@ -302,6 +302,7 @@ defmodule Tuist.ShardsTest do
 
       params = %{
         reference: "suite-parallelism",
+        parallelizable_modules: ["ParallelTests"],
         test_suites: [
           "ParallelTests/Suite1",
           "ParallelTests/Suite2",
@@ -360,6 +361,7 @@ defmodule Tuist.ShardsTest do
 
       params = %{
         reference: "suite-parallelism-packing",
+        parallelizable_modules: ["ParallelTests"],
         test_suites: [
           "ParallelTests/Suite1",
           "ParallelTests/Suite2",
@@ -380,6 +382,56 @@ defmodule Tuist.ShardsTest do
       # itself. Scaled to its 30s wall clock the plan is 50s of work that splits evenly.
       assert Enum.sum(totals) == 50_000
       assert Enum.max(totals) == 25_000
+    end
+
+    test "leaves a module the client did not declare parallelizable at its measured durations" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      suites = Enum.map(1..4, fn index -> "ParallelTests/Suite#{index}" end)
+
+      # History shows this module running four suites concurrently, but whether it still does is the
+      # client's to state. Without a declaration the measured concurrency is not applied at all,
+      # rather than being carried over from runs whose configuration may no longer hold.
+      undeclared =
+        Shards.create_shard_plan(project, %{
+          reference: "undeclared",
+          test_suites: suites,
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert Map.values(planned_suite_durations(undeclared.plan)) == List.duplicate(20_000, 4)
+
+      declared =
+        Shards.create_shard_plan(project, %{
+          reference: "declared",
+          parallelizable_modules: ["ParallelTests"],
+          test_suites: suites,
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert Map.values(planned_suite_durations(declared.plan)) == List.duplicate(5_000, 4)
     end
 
     test "prices a partial suite inventory by what the plan actually holds" do
@@ -411,6 +463,7 @@ defmodule Tuist.ShardsTest do
       single =
         Shards.create_shard_plan(project, %{
           reference: "partial-one",
+          parallelizable_modules: ["ParallelTests"],
           test_suites: ["ParallelTests/Suite1"],
           granularity: "suite",
           shard_total: 1
@@ -422,6 +475,7 @@ defmodule Tuist.ShardsTest do
       pair =
         Shards.create_shard_plan(project, %{
           reference: "partial-two",
+          parallelizable_modules: ["ParallelTests"],
           test_suites: ["ParallelTests/Suite1", "ParallelTests/Suite2"],
           granularity: "suite",
           shard_total: 1
@@ -472,6 +526,7 @@ defmodule Tuist.ShardsTest do
       result =
         Shards.create_shard_plan(project, %{
           reference: "deduplicated",
+          parallelizable_modules: ["AppTests"],
           test_suites: [
             "AppTests/Suite1",
             "AppTests/Suite2",
@@ -514,6 +569,7 @@ defmodule Tuist.ShardsTest do
 
       params = %{
         reference: "suite-single",
+        parallelizable_modules: ["AppTests"],
         test_suites: ["AppTests/OnlySuite"],
         granularity: "suite",
         shard_total: 1
@@ -552,6 +608,7 @@ defmodule Tuist.ShardsTest do
 
       params = %{
         reference: "suite-clamped",
+        parallelizable_modules: ["AppTests"],
         test_suites: suites,
         granularity: "suite",
         shard_total: 1

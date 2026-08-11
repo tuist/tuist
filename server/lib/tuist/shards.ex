@@ -38,7 +38,7 @@ defmodule Tuist.Shards do
     units_with_durations =
       units
       |> assign_durations(timing_data, granularity)
-      |> scale_by_module_parallelism(project, granularity)
+      |> scale_by_module_parallelism(project, params, granularity)
 
     shard_count =
       BinPacker.determine_shard_count(
@@ -651,12 +651,22 @@ defmodule Tuist.Shards do
   # magnitude, and the bin packer hands a whole shard to work that finishes in a fraction of the
   # budget. Dividing each suite by its module's measured concurrency puts every unit back on the same
   # wall-clock scale before packing.
-  defp scale_by_module_parallelism(units_with_durations, _project, "module"), do: units_with_durations
+  #
+  # Which modules those are is not inferable from run records: it is a property of the test plan and
+  # the `xcodebuild` invocation, and history lags a change to either by the whole lookback window. A
+  # module that just stopped running in parallel would keep being divided for a month. So the client
+  # declares the set, read from `ParallelizationEnabled` in the `.xctestrun` it is about to run, and
+  # history is left to answer only how much concurrency those modules actually achieve. A client that
+  # declares nothing gets no scaling.
+  defp scale_by_module_parallelism(units_with_durations, _project, _params, "module"), do: units_with_durations
 
-  defp scale_by_module_parallelism([], _project, "suite"), do: []
+  defp scale_by_module_parallelism(units_with_durations, project, params, "suite") do
+    parallelizable = params |> Map.get(:parallelizable_modules) |> List.wrap() |> MapSet.new()
 
-  defp scale_by_module_parallelism(units_with_durations, project, "suite") do
-    units_by_module = Enum.group_by(units_with_durations, fn {name, _duration} -> suite_module(name) end)
+    units_by_module =
+      units_with_durations
+      |> Enum.group_by(fn {name, _duration} -> suite_module(name) end)
+      |> Map.filter(fn {module, _units} -> MapSet.member?(parallelizable, module) end)
 
     factors =
       units_by_module
