@@ -34,6 +34,12 @@ struct PeerIdentity {
 /// identity is held behind an atomic swap so a renewal task can rotate the
 /// certificate in place: clients built afterwards (and `state.client` once it is
 /// rebuilt) pick up the new identity without a restart.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PeerClientTimeouts {
+    Download,
+    Upload,
+}
+
 #[derive(Clone)]
 pub struct PeerClientFactory {
     identity: Arc<ArcSwapOption<PeerIdentity>>,
@@ -94,21 +100,36 @@ impl PeerClientFactory {
     }
 
     pub fn build(&self) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PeerClientTimeouts::Download)?
             .build()
             .map_err(|error| format!("failed to build peer HTTP client: {error}"))
     }
 
+    /// A client for streaming request BODIES to a peer (outbox artifact
+    /// replication). It carries no `read_timeout`: while a request body
+    /// uploads, the response read side is silent by design — the receiver
+    /// sends nothing until the whole body has been consumed — so the
+    /// download client's 30s read timeout acts as a hard ceiling on total
+    /// upload time and permanently fails any artifact that streams longer
+    /// (observed in production as an outbox message retrying for hours).
+    /// Stall protection is the caller's byte-progress watchdog, which keys
+    /// on the upload actually moving instead of on response silence.
+    pub fn build_upload(&self) -> Result<Client, String> {
+        self.builder(PeerClientTimeouts::Upload)?
+            .build()
+            .map_err(|error| format!("failed to build peer upload HTTP client: {error}"))
+    }
+
     pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PeerClientTimeouts::Download)?
             .resolve_to_addrs(host, &[address])
             .build()
             .map_err(|error| format!("failed to build peer HTTP client for {host}: {error}"))
     }
 
-    fn builder(&self) -> Result<reqwest::ClientBuilder, String> {
-        let mut builder = Client::builder()
-            .connect_timeout(Duration::from_secs(5))
+    fn builder(&self, timeouts: PeerClientTimeouts) -> Result<reqwest::ClientBuilder, String> {
+        let mut builder = Client::builder().connect_timeout(Duration::from_secs(5));
+        if timeouts == PeerClientTimeouts::Download {
             // Idle/read timeout, NOT a total request timeout. A bootstrap
             // artifact streams its whole body over this client; under
             // cold-start load (bandwidth-limited + congested) a large
@@ -117,7 +138,8 @@ impl PeerClientFactory {
             // (incomplete) response — silently wedging bootstrap. read_timeout
             // resets on each chunk, so a slow-but-progressing transfer
             // completes while a genuinely stalled connection still fails fast.
-            .read_timeout(Duration::from_secs(30));
+            builder = builder.read_timeout(Duration::from_secs(30));
+        }
 
         if let Some(identity) = self.identity.load_full() {
             let id = Identity::from_pem(&identity.identity_pem)

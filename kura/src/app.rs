@@ -155,6 +155,7 @@ async fn run_with_config(
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
+    let upload_client = peer_client_factory.build_upload()?;
     let internal_tls = match &config.peer_tls {
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
@@ -189,6 +190,7 @@ async fn run_with_config(
         usage,
         geoip,
         client: arc_swap::ArcSwap::from_pointee(client),
+        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
@@ -1149,6 +1151,8 @@ pub(crate) async fn apply_renewed_enrollment(
         .await?;
     let new_client = state.peer_client_factory.build()?;
     state.client.store(Arc::new(new_client));
+    let new_upload_client = state.peer_client_factory.build_upload()?;
+    state.upload_client.store(Arc::new(new_upload_client));
 
     // Inbound: rebuild the internal mTLS server config (preserving the client
     // verifier) and hot-swap the leaf.

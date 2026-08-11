@@ -25,6 +25,7 @@ use crate::{
     constants::{
         BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
+        REPLICATION_UPLOAD_STALL_MS,
     },
     failpoints::FailpointName,
     file_cache::FileCachePolicy,
@@ -1489,6 +1490,24 @@ enum ReplicationOutcome {
     DroppedOversized,
 }
 
+/// Resolves once the upload's body stream has produced no chunk for
+/// `REPLICATION_UPLOAD_STALL_MS`. Sleeps until the earliest possible stall
+/// instant rather than polling, so an active transfer wakes this at most
+/// once per stall window.
+async fn upload_stalled(progress: &std::sync::Mutex<Instant>) {
+    let stall = Duration::from_millis(REPLICATION_UPLOAD_STALL_MS);
+    loop {
+        let idle = progress
+            .lock()
+            .expect("upload progress lock poisoned")
+            .elapsed();
+        if idle >= stall {
+            return;
+        }
+        sleep(stall - idle).await;
+    }
+}
+
 async fn replicate_message(
     state: &SharedState,
     message: &OutboxMessage,
@@ -1557,14 +1576,21 @@ async fn replicate_message(
                 url.push_str(&url_encode(trunk));
             }
             let url = url;
+            let size = manifest.size;
             let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
+            let upload_progress = std::sync::Arc::new(std::sync::Mutex::new(Instant::now()));
+            let stream_progress = upload_progress.clone();
             let body_stream = ReaderStream::new(file).then(move |item| {
                 let bandwidth_limiter = bandwidth_limiter.clone();
+                let stream_progress = stream_progress.clone();
                 async move {
                     if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref())
                     {
                         limiter.acquire(chunk.len()).await;
                     }
+                    *stream_progress
+                        .lock()
+                        .expect("upload progress lock poisoned") = Instant::now();
                     item
                 }
             });
@@ -1593,14 +1619,26 @@ async fn replicate_message(
                     HeaderValue::from_static("application/octet-stream"),
                 );
 
-                let response = state
-                    .client()
+                let send = state
+                    .upload_client()
                     .put(&url)
                     .headers(headers)
                     .body(body)
-                    .send()
-                    .await
-                    .map_err(|error| format!("artifact replication request failed: {error:?}"))?;
+                    .send();
+                // The upload client has no read timeout (the response side is
+                // silent until the body completes), so the stall watchdog is
+                // the attempt's only deadline; dropping the send future on
+                // stall tears the connection down.
+                let response = tokio::select! {
+                    response = send => response.map_err(|error| {
+                        format!("artifact replication request failed ({size} bytes): {error:?}")
+                    })?,
+                    () = upload_stalled(&upload_progress) => {
+                        return Err(format!(
+                            "artifact replication upload stalled: no body progress for {REPLICATION_UPLOAD_STALL_MS}ms ({size} bytes)"
+                        ));
+                    }
+                };
                 response_span.record("http.response.status_code", response.status().as_u16());
                 if response.status().is_server_error() {
                     response_span.record("otel.status_code", "ERROR");
@@ -1685,6 +1723,25 @@ mod tests {
             count,
             hash: hash.to_string(),
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn upload_stall_watchdog_fires_only_without_body_progress() {
+        let progress = std::sync::Mutex::new(Instant::now());
+
+        // Progress within the window keeps the watchdog pending.
+        let watchdog = upload_stalled(&progress);
+        tokio::pin!(watchdog);
+        tokio::time::advance(Duration::from_millis(REPLICATION_UPLOAD_STALL_MS / 2)).await;
+        *progress.lock().expect("progress lock") = Instant::now();
+        tokio::time::advance(Duration::from_millis(REPLICATION_UPLOAD_STALL_MS / 2)).await;
+        assert!(
+            futures_util::poll!(watchdog.as_mut()).is_pending(),
+            "a progressing upload must not trip the stall watchdog"
+        );
+
+        tokio::time::advance(Duration::from_millis(REPLICATION_UPLOAD_STALL_MS)).await;
+        watchdog.await;
     }
 
     #[test]

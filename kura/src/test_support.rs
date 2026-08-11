@@ -178,6 +178,11 @@ where
         usage,
         geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
+        upload_client: arc_swap::ArcSwap::from_pointee(
+            PeerClientFactory::plain()
+                .build_upload()
+                .expect("failed to build test upload client"),
+        ),
         peer_client_factory: PeerClientFactory::plain(),
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
