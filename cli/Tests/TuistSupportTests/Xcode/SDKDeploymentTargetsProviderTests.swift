@@ -36,19 +36,30 @@ struct SDKDeploymentTargetsProviderTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func returns_the_mac_catalyst_minimum_of_the_macos_sdk() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        try await stub(
+            sdk: "macosx",
+            in: temporaryDirectory,
+            settings: ["SupportedTargets": [
+                "macosx": ["MinimumDeploymentTarget": "10.13"],
+                "iosmac": ["MinimumDeploymentTarget": "13.1"],
+            ]]
+        )
+        for sdk in ["iphoneos", "watchos", "appletvos", "xros"] {
+            stubMissing(sdk: sdk)
+        }
+
+        let got = await subject.minimumDeploymentTargets()
+
+        #expect(got == SDKDeploymentTargets(macOS: "10.13", macCatalyst: "13.1"))
+    }
+
     @Test(.inTemporaryDirectory) func returns_nil_for_sdks_that_are_not_installed() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await stub(sdk: "macosx", in: temporaryDirectory, settings: sdkSettings(sdk: "macosx", minimum: "12.0"))
         for sdk in ["iphoneos", "watchos", "appletvos", "xros"] {
-            given(commandRunner)
-                .run(
-                    arguments: .value(["/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-path"]),
-                    environment: .any,
-                    workingDirectory: .any
-                )
-                .willProduce { _, _, _ in
-                    AsyncThrowingStream { $0.finish(throwing: TestError("\(sdk) is not installed")) }
-                }
+            stubMissing(sdk: sdk)
         }
 
         let got = await subject.minimumDeploymentTargets()
@@ -68,6 +79,18 @@ struct SDKDeploymentTargetsProviderTests {
         verify(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .called(5)
+    }
+
+    private func stubMissing(sdk: String) {
+        given(commandRunner)
+            .run(
+                arguments: .value(["/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-path"]),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willProduce { _, _, _ in
+                AsyncThrowingStream { $0.finish(throwing: TestError("\(sdk) is not installed")) }
+            }
     }
 
     private func stub(sdk: String, in directory: AbsolutePath, settings: [String: Any]) async throws {
