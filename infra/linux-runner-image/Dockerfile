@@ -41,22 +41,27 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # workflow steps bring their own JDK via mise, so the runner image
 # itself stays JDK-free.
 #
-# Versions are pinned rather than tracking "latest": they must match
-# what `android/app/build.gradle.kts` builds against, so bump them
-# alongside `compileSdk` / `targetSdk` there. The cmdline-tools archive
-# is fetched straight from Google because sdkmanager is what installs
-# every other component (it cannot install itself).
+# Platforms and build-tools are selected by a version FLOOR, not pinned:
+# every release at or above it that Google publishes gets installed. This
+# image runs customer workflows, so it cannot assume anyone's compileSdk
+# — a customer on a newer platform than we happened to pin would fail at
+# Gradle configuration exactly like a missing SDK. GitHub's hosted image
+# takes the same approach (`platform_min_version` / `build_tools_min_version`
+# in its toolset), which also means new platforms roll in on the next
+# image rebuild with no version bump anywhere.
 #
-# cmdline-tools is held at the release GitHub's hosted image pins.
+# The cmdline-tools archive is fetched straight from Google because
+# sdkmanager is what installs every other component (it cannot install
+# itself), and is held at the release GitHub's hosted image pins.
 # sdkmanager stamps a schema version into each installed package's
-# package.xml, and current cmdline-tools writes v4 while AGP 8.7.3
-# only parses up to v3 — which makes every Gradle invocation warn
-# about the skew. Bump this in step with AGP, not ahead of it.
+# package.xml, and current cmdline-tools writes v4 while AGP 8.7 parses
+# only up to v3 — which makes every Gradle invocation warn about the
+# skew. Keep it behind the AGP releases customers are likely to run.
 FROM eclipse-temurin:21-jdk-jammy AS android-sdk
 
 ARG ANDROID_CMDLINE_TOOLS_ARCHIVE=commandlinetools-linux-11076708_latest.zip
-ARG ANDROID_PLATFORM_VERSION=35
-ARG ANDROID_BUILD_TOOLS_VERSION=35.0.1
+ARG ANDROID_PLATFORM_MIN_VERSION=34
+ARG ANDROID_BUILD_TOOLS_MIN_VERSION=34
 
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 
@@ -76,10 +81,28 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # $ANDROID_SDK_ROOT/licenses, Gradle refuses the platform at
     # configuration time the same way a missing SDK does.
     && yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null \
+    # Enumerate what Google currently publishes and keep everything at or
+    # above the floor, rather than hardcoding a list that silently rots.
+    # `rc` build-tools are excluded the way the hosted image excludes them.
+    # Take package ids from the first column of the "Available Packages"
+    # table rather than grepping the raw text: ids are matched whole, so
+    # preview channels (android-37.2-beta1, build-tools;36.0.0-rc1) drop
+    # out instead of being truncated into ids that do not exist. Platform
+    # ids carry an optional minor (android-37.0) and an optional extension
+    # suffix (android-36-ext18); both are real, separate packages.
+    && available="$("${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --list \
+         | sed -n '/Available Packages:/,$p' | cut -d'|' -f1 | tr -d ' ' | sort -u)" \
+    && platforms="$(echo "$available" | grep -E '^platforms;android-[0-9]+(\.[0-9]+)?(-ext[0-9]+)?$' \
+         | awk -F'android-' -v min="${ANDROID_PLATFORM_MIN_VERSION}" '{ split($2, v, "-"); if (v[1] + 0 >= min + 0) print $0 }')" \
+    && build_tools="$(echo "$available" | grep -E '^build-tools;[0-9]+\.[0-9]+\.[0-9]+$' \
+         | awk -F'build-tools;' -v min="${ANDROID_BUILD_TOOLS_MIN_VERSION}" '{ split($2, v, "."); if (v[1] + 0 >= min + 0) print $0 }')" \
+    && test -n "$platforms" && test -n "$build_tools" \
+    && echo "Installing platforms:" $platforms \
+    && echo "Installing build-tools:" $build_tools \
     && "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
          "platform-tools" \
-         "platforms;android-${ANDROID_PLATFORM_VERSION}" \
-         "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
+         $platforms \
+         $build_tools \
     # World-writable, matching the hosted image: AGP writes into the SDK
     # root (temp dirs, package installs) and the workflow runs as
     # `runner`, not root.

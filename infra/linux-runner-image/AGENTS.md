@@ -72,16 +72,25 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
   because Gradle cannot even configure an Android project without
-  a platform + build-tools ("SDK location not found"). Scoped to
-  the single platform and build-tools release `android/` builds
-  against, with no NDK — the hosted image carries every platform
-  from android-34 up plus three NDK majors, which is the bulk of
-  its Android footprint. The versions are `--build-arg`s and must
-  track `compileSdk` / `targetSdk` in
-  `android/app/build.gradle.kts`; a bump there without a bump here
-  fails the release job at Gradle configuration. Resolved in the
-  `android-sdk` builder stage (sdkmanager needs a JVM) so no JDK
-  lands in the final image — workflow steps get theirs from mise.
+  a platform + build-tools ("SDK location not found"). Platforms
+  and build-tools are selected by a version FLOOR
+  (`ANDROID_PLATFORM_MIN_VERSION` / `ANDROID_BUILD_TOOLS_MIN_VERSION`
+  build-args), not pinned: this image runs customer workflows, so
+  it cannot assume anyone's `compileSdk`. Everything Google
+  publishes at or above the floor is installed, which means new
+  platforms roll in on the next image rebuild with no version bump
+  anywhere — the same approach the hosted image takes with
+  `platform_min_version` / `build_tools_min_version`. Do NOT
+  re-pin these to whatever `android/` happens to target; that
+  breaks any customer on a newer platform.
+  No NDK is installed. It is the bulk of the hosted image's
+  Android footprint (three majors, roughly 10GB expanded) and only
+  native-code builds need it. `cmdline-tools` ships in the image,
+  so a workflow that needs it can `sdkmanager ndk;<version>`;
+  revisit baking it in if that becomes common.
+  Resolved in the `android-sdk` builder stage (sdkmanager needs a
+  JVM) so no JDK lands in the final image — workflow steps get
+  theirs from mise.
 
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the
