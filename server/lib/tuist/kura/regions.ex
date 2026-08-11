@@ -81,12 +81,18 @@ defmodule Tuist.Kura.Regions do
   # non-enterprise instance with margin, not from its peak — over-reserving here
   # is what exhausts a box's schedulable memory and caps how many tenants fit.
   #
-  # The enterprise ceiling is twice its floor, which is the point where the
-  # memory-ceiling bin-pack stops being slack: below 2x the native
-  # requests.memory pack is tighter and the extended resource never binds. The
-  # standard tier sits at 3x because those instances are the idle ones, so their
-  # ceiling is where the bin-pack does its real work.
-  @enterprise_memory_floor_mib 2048
+  # Both tiers sit well above a 2x ceiling-to-floor ratio, which is the point
+  # where the tuist.dev/memory-ceiling-mib bin-pack overtakes the native
+  # requests.memory pack and becomes the constraint that decides how many
+  # instances fit on a box. Floors below that ratio buy reclaimable headroom and
+  # kernel protection sized to real use, not extra tenants.
+  #
+  # The enterprise floor is 1Gi rather than a peak-derived number: measured over
+  # 14 days most instances idle between 150 and 290 MB, and a floor is the
+  # standing reservation, not the burst. Instances that do run hot spend their
+  # time above it, which is the intended shape — memory above the floor is
+  # best-effort and reclaimed from whoever is furthest above their own.
+  @enterprise_memory_floor_mib 1024
   @enterprise_memory_ceiling_mib 4096
   @standard_memory_floor_mib 512
   @standard_memory_ceiling_mib 1536
