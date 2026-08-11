@@ -43,20 +43,26 @@ defaults:
 
 jobs:
   swift-test:
-    name: Swift Tests (XCActivityLogParser)
+    name: Swift Tests (${{ matrix.nif }})
     runs-on: tuist-macos
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        # xcresult_nif is not server-only: the CLI compiles its XCResultParser
+        # sources into the binary, so these tests guard both.
+        nif: [xcactivitylog_nif, xcresult_nif]
     defaults:
       run:
-        working-directory: server/native/xcactivitylog_nif
+        working-directory: server/native/${{ matrix.nif }}
     steps:
       - uses: actions/checkout@v4
       - name: Restore SwiftPM Cache
         uses: actions/cache@v4
         with:
-          path: server/native/xcactivitylog_nif/.build
-          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+          path: server/native/${{ matrix.nif }}/.build
+          key: ${{ matrix.nif }}-swiftpm-${{ hashFiles(format('server/native/{0}/Package.resolved', matrix.nif)) }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
   gettext:

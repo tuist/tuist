@@ -428,14 +428,19 @@ defmodule Tuist.Tests do
 
   @doc """
   Lists the run/target-level errors recorded for a test run, oldest-first.
+
+  A sharded run collects errors from every shard, so an error that several
+  shards hit (a target that fails to load in each of them) is stored once per
+  shard. They are collapsed here, keeping the earliest, rather than on write,
+  where concurrent shards could still race past each other.
   """
   def list_run_errors(test_run_id) do
-    ClickHouseRepo.all(
-      from(e in TestRunError,
-        where: e.test_run_id == ^test_run_id,
-        order_by: [asc: e.inserted_at]
-      )
+    from(e in TestRunError,
+      where: e.test_run_id == ^test_run_id,
+      order_by: [asc: e.inserted_at]
     )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(&{&1.module_name, &1.message})
   end
 
   def create_test(attrs) do
@@ -598,6 +603,14 @@ defmodule Tuist.Tests do
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
+
+          # Every shard carries its own errors, and only unattributed issues
+          # leave the shard's status untouched, so dropping these would erase
+          # the diagnostic entirely rather than merely lose detail on an
+          # already-red run. Shards write concurrently and ClickHouse has no
+          # uniqueness, so an error hit by several shards is deduplicated on
+          # read instead of here.
+          create_run_errors(existing_test, Map.get(attrs, :run_errors, []))
 
           insert_shard_run(
             shard_plan_id,
