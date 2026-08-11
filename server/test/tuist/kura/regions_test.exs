@@ -97,14 +97,24 @@ defmodule Tuist.Kura.RegionsTest do
     test "keeps every memory ceiling above its floor" do
       # A limit below its request is rejected by the API, and a ceiling equal to
       # the floor would leave no burst headroom for Kura's admission pools.
-      for tier <- [:enterprise, :standard] do
-        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(tier)
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(plan)
         assert ceiling_mib > floor_mib
       end
 
-      # The standard floor is what decides how many tenants fit on a box, so it
-      # has to stay well under the enterprise one to be worth tiering at all.
-      assert Regions.memory_profile(:standard).floor_mib < Regions.memory_profile(:enterprise).floor_mib
+      # Floors are what decide how many tenants fit on a box, so the ladder has
+      # to actually descend to be worth tiering at all.
+      floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
+      assert floors == Enum.sort(floors, :desc)
+      assert Enum.uniq(floors) == floors
+
+      # Each ceiling has to clear its plan's measured peak by more than the
+      # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
+      # shedding. Peaks: ~1220 MiB for the busiest pro instance, ~150 MiB for air.
+      for {plan, peak_mib} <- [pro: 1220, air: 150] do
+        soft = Regions.memory_profile(plan).ceiling_mib * 0.6
+        assert soft * 0.9 > peak_mib, "#{plan} recovers at #{soft * 0.9} MiB, under its #{peak_mib} MiB peak"
+      end
     end
 
     test "runs eu-central on Dedibox bare metal" do

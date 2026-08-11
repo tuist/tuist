@@ -169,7 +169,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # one is the tier that pays for a guarantee. The ceiling — how large a
       # burst Kura admits before shedding — moves with it.
       assert profile.(:enterprise) == {1024, 4096, true}
-      assert profile.(:air) == {512, 1536, true}
+      assert profile.(:pro) == {512, 3072, true}
+      assert profile.(:air) == {256, 768, true}
     end
 
     test "sizes a self-hosted deployment off its license rather than a subscription" do
@@ -1138,13 +1139,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # the memory profile its instance was created with until some unrelated
       # field happened to move.
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
-      standard = KubernetesController.manifest_revision(account, region)
+      air = KubernetesController.manifest_revision(account, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
+      pro = KubernetesController.manifest_revision(account, region)
 
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
       enterprise = KubernetesController.manifest_revision(account, region)
 
-      assert standard != enterprise
-      assert String.ends_with?(standard, "+mem512-1536")
+      assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
+      assert String.ends_with?(air, "+mem256-768")
+      assert String.ends_with?(pro, "+mem512-3072")
       assert String.ends_with?(enterprise, "+mem1024-4096")
     end
 
