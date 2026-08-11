@@ -865,6 +865,40 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
     }
 }
 
+struct XcodeBuildArchiveStaticXCFrameworkAcceptanceTests {
+    /// A dynamic framework linking a static xcframework gets a generated `-force_load` flag
+    /// pointing at the slice `ProcessXCFramework` extracts. Archiving is the only action that
+    /// tells the two build directories apart: `SKIP_INSTALL=YES` moves the framework's
+    /// `TARGET_BUILD_DIR` to `UninstalledProducts/` while the slice stays in `BUILT_PRODUCTS_DIR`.
+    /// Building the same fixture passes either way, so this has to archive to catch a regression.
+    @Test(
+        .withFixture("generated_ios_app_with_xcframeworks"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_archive_dynamic_framework_linking_static_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildArchiveCommand.self,
+            [
+                "archive",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS",
+                "-archivePath",
+                temporaryDirectory.pathString + "/App.xcarchive",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+}
+
 struct XcodeBuildUnorderedBuildCommandAcceptanceTests {
     @Test(
         .disabled(),
