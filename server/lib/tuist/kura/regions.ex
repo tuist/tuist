@@ -488,9 +488,12 @@ defmodule Tuist.Kura.Regions do
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
         # Packing density is what constrains the shared bare-metal boxes, so
         # their instances are sized per tier rather than taking the controller
-        # default. Ceiling bin-packing (memory_ceiling_bin_packed) is a separate
-        # opt-in that waits for the CAPI provider to advertise the node budget.
+        # default, and their ceilings are bin-packed against the node budget the
+        # CAPI provider advertises. The private runner-cache pool runs on
+        # Elastic Metal, which the provider does not patch, so it takes the
+        # controller default and stays off the bin-pack.
         memory_governed: true,
+        memory_ceiling_bin_packed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true

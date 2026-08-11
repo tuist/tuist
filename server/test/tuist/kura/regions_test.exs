@@ -78,14 +78,17 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
     end
 
-    test "does not bin-pack memory ceilings until a node budget is advertised" do
-      # Pods request tuist.dev/memory-ceiling-mib only once the CAPI provider
-      # that supplies the matching node capacity has rolled. Requesting it first
-      # leaves every cache pod Pending, and the provider deploys to the
-      # management cluster on its own cadence rather than with the server.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
-        refute Regions.memory_ceiling_bin_packed?(Regions.get(id))
+    test "bin-packs memory ceilings only where a node budget is advertised" do
+      # Every managed region runs on a bare-metal pool the CAPI provider patches
+      # with a tuist.dev/memory-ceiling-mib budget.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
       end
+
+      # The private runner-cache pool runs on Elastic Metal, which the provider
+      # does not patch; requesting the extended resource there would leave every
+      # cache pod Pending.
+      refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
     end
 
     test "keeps every memory ceiling above its floor" do
