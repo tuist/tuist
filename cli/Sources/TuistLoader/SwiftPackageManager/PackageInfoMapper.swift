@@ -2349,20 +2349,13 @@ extension ProjectDescription.Settings {
         propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
         baseSettingsDictionary.merge(
             .from(settingsDictionary: propagatedBaseSettings),
-            uniquingKeysWith: { _, new in new }
+            policy: .inheritFromProject
         )
 
         if let userDefinedBaseSettings = targetSettings?.base {
             baseSettingsDictionary.merge(
                 .from(settingsDictionary: userDefinedBaseSettings),
-                uniquingKeysWith: {
-                    switch ($0, $1) {
-                    case let (.array(leftArray), .array(rightArray)):
-                        return SettingValue.array(leftArray + rightArray)
-                    default:
-                        return $1
-                    }
-                }
+                policy: .appendArrays
             )
         }
 
