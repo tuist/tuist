@@ -713,43 +713,44 @@ defmodule Tuist.Shards do
   defp fetch_module_parallelism(project, modules) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    query = """
-    SELECT module_name, toFloat64(median(suite_sum / module_duration)) AS factor
-    FROM (
-      SELECT
-        module_name,
-        any(module_duration) AS module_duration,
-        sum(suite_duration) AS suite_sum,
-        count() AS suite_count
-      FROM (
-        SELECT
-          mr.name AS module_name,
-          mr.id AS module_run_id,
-          sr.id AS suite_run_id,
-          argMax(mr.duration, mr.inserted_at) AS module_duration,
-          argMax(sr.duration, sr.inserted_at) AS suite_duration
-        FROM test_suite_runs AS sr
-        INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
-        WHERE sr.project_id = {project_id:Int64}
-          AND sr.is_ci = true
-          AND sr.ran_at >= {cutoff:DateTime64(6)}
-          AND mr.project_id = {project_id:Int64}
-          AND mr.is_ci = true
-          AND mr.ran_at >= {cutoff:DateTime64(6)}
-          AND mr.name IN {modules:Array(String)}
-        GROUP BY module_name, module_run_id, suite_run_id
+    deduplicated =
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        group_by: [mr.name, mr.id, sr.id],
+        select: %{
+          module_name: mr.name,
+          module_run_id: mr.id,
+          module_duration: fragment("argMax(?, ?)", mr.duration, mr.inserted_at),
+          suite_duration: fragment("argMax(?, ?)", sr.duration, sr.inserted_at)
+        }
       )
-      GROUP BY module_name, module_run_id
-      HAVING module_duration > 0 AND suite_count > 1
+
+    per_module_run =
+      from(d in subquery(deduplicated),
+        group_by: [d.module_name, d.module_run_id],
+        having: fragment("any(?)", d.module_duration) > 0,
+        having: count(d.module_run_id) > 1,
+        select: %{
+          module_name: d.module_name,
+          module_duration: fragment("any(?)", d.module_duration),
+          suite_sum: sum(d.suite_duration)
+        }
+      )
+
+    from(r in subquery(per_module_run),
+      group_by: r.module_name,
+      select: {r.module_name, fragment("toFloat64(median(? / ?))", r.suite_sum, r.module_duration)}
     )
-    GROUP BY module_name
-    """
-
-    params = %{project_id: project.id, cutoff: cutoff, modules: modules}
-
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
-
-    Map.new(rows, fn [name, factor] ->
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {name, factor} ->
       {name, factor |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)}
     end)
   end
