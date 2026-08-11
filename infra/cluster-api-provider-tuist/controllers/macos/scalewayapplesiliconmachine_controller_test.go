@@ -105,6 +105,60 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	}
 }
 
+// Regression for the silent-wedge: the reconcile tail is reached on every
+// pass for a terminal machine (the drift gate skips, it does not return), so
+// an unconditional Phase="Ready" there reset the "Failed" recordUpdateFailure
+// had set. Machines then carried FailureReason while reporting Ready, and the
+// "stuck Failed" alert — which needs phase="Failed" held for 30m — stayed
+// green while hosts sat wedged on a stale tart-kubelet.
+func TestTerminalPhasePinned(t *testing.T) {
+	reason := "TartKubeletUpdateExceededRetries"
+	cases := []struct {
+		name          string
+		failureReason *string
+		want          bool
+	}{
+		{"terminal failure pins the phase", &reason, true},
+		{"healthy machine keeps advancing to Ready", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := terminalPhasePinned(tc.failureReason); got != tc.want {
+				t.Fatalf("terminalPhasePinned() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A machine that exhausts its retry budget must still read as Failed after
+// later reconciles fall through the tail — the exact sequence that hid three
+// production hosts. Phase only returns to Ready once the terminal state is
+// lifted.
+func TestTerminalPhaseSurvivesSubsequentReconciles(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	for i := 0; i < 5; i++ {
+		recordUpdateFailure(machine, errors.New("dial :22 i/o timeout"), 5, "desired-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.Phase != "Failed" {
+		t.Fatalf("Phase after cap: got %q, want Failed", machine.Status.Phase)
+	}
+
+	// Stand in for the reconcile tail running again on a terminal machine.
+	for i := 0; i < 3; i++ {
+		if !terminalPhasePinned(machine.Status.FailureReason) {
+			machine.Status.Phase = "Ready"
+		}
+	}
+	if machine.Status.Phase != "Failed" {
+		t.Fatalf("terminal phase must survive later reconciles; got %q", machine.Status.Phase)
+	}
+
+	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+	if terminalPhasePinned(machine.Status.FailureReason) {
+		t.Fatal("clearing the terminal failure must unpin the phase")
+	}
+}
+
 // Regression for the retry-cap defeat: a broken config never updates
 // Status.HostConfigHash, so the self-heal must key on the FAILED hash — else
 // every reconcile sees drift-vs-applied and clears the cap forever.
