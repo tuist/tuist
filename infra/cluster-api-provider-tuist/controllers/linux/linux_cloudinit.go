@@ -40,6 +40,14 @@ type linuxCloudInitOptions struct {
 	ClusterCAPEM []byte
 
 	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
+	//
+	// Moving this to v1.36 or later silently drops the memory-floor protection
+	// in kubeletMemoryGovernanceBlock: v1.36 gates it behind a new
+	// memoryReservationPolicy field that defaults to None, so MemoryQoS becomes
+	// a no-op here (memoryThrottlingFactor is already pinned to 1.0, which
+	// disables the other half). Add `memoryReservationPolicy: TieredReservation`
+	// in the same change — and not before, since an unknown field fails
+	// KubeletConfiguration's strict decode and the kubelet refuses to start.
 	K8sMinor string
 
 	// Taints are rendered into kubelet's --register-with-taints.

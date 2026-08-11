@@ -217,13 +217,24 @@ how they reach a running node.
    throttle on `memory.current`, which counts the clean artifact page cache a
    warm cache node is supposed to hold.
 
-Note the feature's semantics moved in v1.36 (`memoryReservationPolicy`, where
-`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods
-`memory.low`). Kura cache pods are Burstable by design, so on a v1.36+ kubelet
-expect `memory.low` — best-effort protection, reclaimed only after unprotected
-memory — rather than hard `memory.min`. That is the right tier for pods whose
-ceilings intentionally oversubscribe the box, but it is a weaker guarantee than
-the name "floor" suggests.
+**This is version-dependent, and the fleet is on v1.34.** There, MemoryQoS sets
+`memory.min` from requests for Burstable containers too, so a cache pod's floor
+is hard, unreclaimable protection. That is safe only because the reservations
+land first: `memory.min` is memory the kernel may not reclaim, so it OOMs rather
+than reclaims once the protected total approaches capacity. The
+`sum(requests) <= allocatable` invariant with allocatable properly reserved is
+what keeps the protected total clear of the box.
+
+**Upgrading to v1.36+ silently disables it.** v1.36 splits protection out into a
+new `memoryReservationPolicy` field defaulting to `None`, and retiers it so
+`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods the
+softer `memory.low`. With this config unchanged on v1.36 the result is no
+protection at all and no throttling either (the factor is pinned to 1.0) — a
+silent no-op, not a visible failure. Set `memoryReservationPolicy:
+TieredReservation` as part of the version bump, never before it: an unknown
+field fails KubeletConfiguration's strict decode and the kubelet will not start.
+The same warning sits on `linuxCloudInitOptions.K8sMinor`, which is what an
+upgrade actually edits.
 
 **Propagation.** `desiredKubeletConfigHash` fingerprints the rendered config, so
 any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
