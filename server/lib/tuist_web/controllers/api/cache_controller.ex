@@ -24,7 +24,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -32,9 +32,9 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:access, :endpoints]
+       when action not in [:access, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
 
   plug :sign
 
@@ -133,6 +133,47 @@ defmodule TuistWeb.API.CacheController do
     |> Authentication.authenticated_subject()
     |> Cache.accessible_handles()
     |> then(&json(conn, &1))
+  end
+
+  operation(:token,
+    summary: "Exchange the current credential for a cache token.",
+    description: """
+    Returns a short-lived token that carries the authenticated subject's cache grants.
+
+    Cache nodes verify it themselves and authorize from the grants it carries, so
+    clients holding a credential a cache node cannot verify locally (a CI project
+    token, for example) avoid a server round-trip per cache authorization. Exchange
+    it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    not an API credential.
+    """,
+    operation_id: "getCacheToken",
+    responses: %{
+      ok:
+        {"A cache token for the authenticated subject", "application/json",
+         %Schema{
+           title: "CacheToken",
+           description: "A short-lived token that proves the subject's cache access",
+           type: :object,
+           required: [:token, :expires_in],
+           properties: %{
+             token: %Schema{type: :string, description: "The token to send to cache nodes."},
+             expires_in: %Schema{
+               type: :integer,
+               description: "Seconds until the token expires."
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+    }
+  )
+
+  def token(conn, _params) do
+    {:ok, token, _claims} =
+      conn
+      |> Authentication.authenticated_subject()
+      |> Cache.issue_cache_token()
+
+    json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
   end
 
   operation(:get_cache_action_item,

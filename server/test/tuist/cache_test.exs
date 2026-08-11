@@ -97,6 +97,49 @@ defmodule Tuist.CacheTest do
     end
   end
 
+  describe "issue_cache_token/2" do
+    test "carries the grants for the project the credential reaches" do
+      # Given
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      handle = "#{project.account.name}/#{project.name}"
+
+      # When
+      {:ok, token, _claims} = Cache.issue_cache_token(project)
+
+      # Then
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+      assert claims["cache_grants"]["account"] == %{"read" => [], "write" => []}
+    end
+
+    # A cache token is handed to cache nodes, which are a different trust
+    # boundary from this API. Minting one must not hand out an API credential.
+    test "is rejected as an API credential" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, token, _claims} = Cache.issue_cache_token(project)
+
+      # When
+      subject = Tuist.Authentication.authenticated_subject(token)
+
+      # Then
+      assert is_nil(subject)
+    end
+
+    test "expires" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, token, claims} = Cache.issue_cache_token(project)
+
+      # Then
+      assert claims["exp"] - claims["iat"] == Cache.cache_token_ttl_seconds()
+      assert {:ok, _} = Tuist.Guardian.decode_and_verify(token)
+    end
+  end
+
   # Ecto emits its query telemetry from the process that called the repo, and
   # the handler is global to the node, so the counter only accepts events raised
   # by this test. Without that guard an async run counts every other test's

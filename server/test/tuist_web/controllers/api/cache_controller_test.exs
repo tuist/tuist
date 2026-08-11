@@ -411,6 +411,39 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
   end
 
+  describe "POST /api/cache/token" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
+    # This is the case the endpoint exists for: CI authenticates with an opaque
+    # project token, which a cache node cannot verify on its own.
+    test "returns a token carrying the project's cache grants", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      conn = Plug.Conn.assign(conn, :current_subject, project)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token")
+
+      # Then
+      assert %{"token" => token, "expires_in" => expires_in} = json_response(conn, 200)
+      assert expires_in == Tuist.Cache.cache_token_ttl_seconds()
+
+      handle = "#{project.account.name}/#{project.name}"
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+  end
+
   describe "GET /api/cache/access" do
     test "requires authentication", %{conn: conn} do
       # When

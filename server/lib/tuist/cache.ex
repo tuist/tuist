@@ -17,6 +17,9 @@ defmodule Tuist.Cache do
 
   @short_cache_ttl to_timeout(second: 10)
 
+  @cache_token_type "cache"
+  @cache_token_ttl_seconds 1800
+
   def accessible_handles(resource, opts \\ []) do
     %{
       accounts: accessible_account_handles(resource),
@@ -45,6 +48,32 @@ defmodule Tuist.Cache do
       }
     }
   end
+
+  @doc """
+  Mints a short-lived token that proves the subject's cache access on its own.
+
+  Cache nodes verify it locally and authorize from the grants it carries, with
+  no call back here. It exists for subjects holding an opaque credential, such
+  as a CI project token: a cache node cannot verify those itself, so every
+  authorization that misses its local cache costs a round-trip to introspection.
+  A project token reaches exactly one project, so the grants stay small enough
+  to ride in a request header.
+
+  The lifetime is deliberately short. The grants are a snapshot taken at minting
+  time, so it bounds how long a revoked or narrowed credential keeps working.
+  """
+  def issue_cache_token(subject, opts \\ []) do
+    ttl = Keyword.get(opts, :ttl, @cache_token_ttl_seconds)
+
+    Tuist.Guardian.encode_and_sign(
+      subject,
+      %{"cache_grants" => cache_grants(subject, opts)},
+      token_type: @cache_token_type,
+      ttl: {ttl, :second}
+    )
+  end
+
+  def cache_token_ttl_seconds, do: @cache_token_ttl_seconds
 
   def embedded_cache_claims(resource, opts \\ [])
 
