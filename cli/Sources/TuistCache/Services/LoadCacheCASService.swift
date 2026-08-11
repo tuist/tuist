@@ -63,7 +63,8 @@ public struct LoadCacheCASService: LoadCacheCASServicing {
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
             session: .tuistCAS,
-            retriesTransportErrors: false
+            retriesTransportErrors: false,
+            projectHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
 
