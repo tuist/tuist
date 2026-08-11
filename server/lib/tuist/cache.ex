@@ -25,31 +25,45 @@ defmodule Tuist.Cache do
   end
 
   def cache_grants(resource, opts \\ []) do
+    resource = with_resolved_membership(resource)
+    cache_grants_for(resource, accessible_accounts(resource), accessible_projects(resource, opts))
+  end
+
+  # The accessible account and project lists are resolved by the caller and
+  # shared across all four buckets. Resolving them per bucket used to run the
+  # project query (and, under `:recent`, the last-interaction lookup) once per
+  # bucket for the same answer.
+  defp cache_grants_for(resource, accounts, projects) do
     %{
       "account" => %{
-        "read" => account_cache_handles(resource, :read),
-        "write" => account_cache_handles(resource, :write)
+        "read" => account_cache_handles(resource, accounts, :read),
+        "write" => account_cache_handles(resource, accounts, :write)
       },
       "project" => %{
-        "read" => project_cache_handles(resource, :read, opts),
-        "write" => project_cache_handles(resource, :write, opts)
+        "read" => project_cache_handles(resource, projects, :read),
+        "write" => project_cache_handles(resource, projects, :write)
       }
     }
   end
 
   def embedded_cache_claims(resource, opts \\ [])
 
-  def embedded_cache_claims(%User{} = user, opts), do: project_only_embedded_cache_claims(user, opts)
+  def embedded_cache_claims(%User{} = user, opts) do
+    project_only_embedded_cache_claims(with_resolved_membership(user), opts)
+  end
 
   def embedded_cache_claims(%AuthenticatedAccount{issued_by: %User{}} = subject, opts) do
-    project_only_embedded_cache_claims(subject, opts)
+    project_only_embedded_cache_claims(with_resolved_membership(subject), opts)
   end
 
   def embedded_cache_claims(resource, opts) do
+    resource = with_resolved_membership(resource)
+    projects = accessible_projects(resource, opts)
+
     %{
       "accounts" => accessible_account_handles(resource),
-      "projects" => accessible_project_handles(resource, opts),
-      "cache_grants" => cache_grants(resource, opts)
+      "projects" => project_handles(projects),
+      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
     }
   end
 
@@ -79,9 +93,7 @@ defmodule Tuist.Cache do
   def accessible_project_handles(resource, opts \\ []) do
     resource
     |> accessible_projects(opts)
-    |> Enum.map(&project_handle/1)
-    |> Enum.uniq()
-    |> Enum.sort()
+    |> project_handles()
   end
 
   @doc """
@@ -135,6 +147,17 @@ defmodule Tuist.Cache do
     end
   end
 
+  # Resolving grants checks the subject's membership once per accessible
+  # project, so the memberships are resolved up front and carried on the
+  # subject instead of being read back for each check.
+  defp with_resolved_membership(%User{} = user), do: Accounts.put_organization_roles(user)
+
+  defp with_resolved_membership(%AuthenticatedAccount{issued_by: %User{} = user} = subject) do
+    %{subject | issued_by: Accounts.put_organization_roles(user)}
+  end
+
+  defp with_resolved_membership(resource), do: resource
+
   defp accessible_accounts(%User{} = user) do
     personal_account = Accounts.get_account_from_user(user)
 
@@ -163,33 +186,42 @@ defmodule Tuist.Cache do
   end
 
   defp project_only_embedded_cache_claims(resource, opts) do
+    projects = accessible_projects(resource, opts)
+
     %{
-      "projects" => accessible_project_handles(resource, opts),
+      "projects" => project_handles(projects),
       "cache_grants" => %{
         "account" => %{"read" => [], "write" => []},
         "project" => %{
-          "read" => project_cache_handles(resource, :read, opts),
-          "write" => project_cache_handles(resource, :write, opts)
+          "read" => project_cache_handles(resource, projects, :read),
+          "write" => project_cache_handles(resource, projects, :write)
         }
       }
     }
   end
 
+  # The organization is preloaded alongside the account because the cache
+  # policies ask whether the subject belongs to (or administers) each project's
+  # account. Preloading it batches that into the project query instead of one
+  # account read per project.
   defp accessible_projects(resource, opts) do
-    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, [:account]))
+    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, account: :organization))
   end
 
-  defp account_cache_handles(resource, action) do
-    resource
-    |> accessible_accounts()
+  defp account_cache_handles(resource, accounts, action) do
+    accounts
     |> Enum.filter(&authorized?(:account, cache_action(action), resource, &1))
     |> account_handles()
   end
 
-  defp project_cache_handles(resource, action, opts) do
-    resource
-    |> accessible_projects(opts)
+  defp project_cache_handles(resource, projects, action) do
+    projects
     |> Enum.filter(&authorized?(:project, cache_action(action), resource, &1))
+    |> project_handles()
+  end
+
+  defp project_handles(projects) do
+    projects
     |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()
