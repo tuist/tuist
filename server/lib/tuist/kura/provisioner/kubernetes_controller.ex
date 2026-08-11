@@ -362,9 +362,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
       end
 
-    # Not an entitlement: every governed instance gets a profile, and the plan
-    # picks which one. Modelling it as a feature grant would only be able to say
-    # yes or no, when the answer is which of two sizes.
     memory = if memory_governed?, do: Regions.memory_profile(memory_plan(account))
 
     %{
