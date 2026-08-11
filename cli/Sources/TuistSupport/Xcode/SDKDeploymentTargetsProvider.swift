@@ -94,11 +94,7 @@ public struct SDKDeploymentTargetsProvider: SDKDeploymentTargetsProviding {
 
     private static func minimumDeploymentTarget(of target: String, in supportedTargets: [String: Any]) -> String? {
         guard let target = supportedTargets[target] as? [String: Any] else { return nil }
-        switch target["MinimumDeploymentTarget"] {
-        case let version as String: return version
-        case let version as NSNumber: return version.stringValue
-        default: return nil
-        }
+        return target["MinimumDeploymentTarget"] as? String
     }
 }
 
