@@ -651,6 +651,11 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         sensor_state.memory.observe(snapshot.resident_bytes);
                     }
                 }
+                if let Some((min_bytes, low_bytes)) = crate::memory::container_memory_protection() {
+                    sensor_state
+                        .metrics
+                        .update_memory_protection(min_bytes, low_bytes);
+                }
                 tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
             }
         }

@@ -16,7 +16,7 @@ mod reservation;
 
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
-    container_memory_snapshot,
+    container_memory_protection, container_memory_snapshot,
 };
 pub use pressure::MemoryPressure;
 pub use reservation::{

@@ -272,6 +272,35 @@ pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
     }
 }
 
+/// The reclaim protection the orchestrator has granted this container, as
+/// `(memory.min, memory.low)`.
+///
+/// Both are zero unless the kubelet runs with the MemoryQoS feature gate, which
+/// is what maps a Pod's memory request onto them. That makes this the signal for
+/// whether the memory floor is actually enforced or merely a scheduling promise
+/// — a distinction nothing else observable makes, and one that changes silently:
+/// a kubelet upgrade can stop applying protection without any error surfacing.
+///
+/// Deliberately separate from the pressure sample. Kura never reads these to
+/// decide anything; they describe what the kernel will do on Kura's behalf, so
+/// folding them into admission input would confuse two different things.
+pub fn container_memory_protection() -> Option<(u64, u64)> {
+    #[cfg(target_os = "linux")]
+    {
+        // memory.min is absent on cgroup v1 and on a v2 root cgroup; treat an
+        // unreadable file as no protection rather than as missing data, because
+        // "no protection" is exactly what it means for the caller.
+        Some((
+            read_u64_file("/sys/fs/cgroup/memory.min").unwrap_or(0),
+            read_u64_file("/sys/fs/cgroup/memory.low").unwrap_or(0),
+        ))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[cfg(any(target_os = "linux", test))]
 fn bracketed_working_set_bytes(
     current_before: u64,
