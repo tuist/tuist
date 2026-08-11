@@ -56,11 +56,6 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.html.heex:314
-#, elixir-autogen, elixir-format
-msgid "All billing correspondence will go to this email"
-msgstr ""
-
 #: lib/tuist/billing.ex:47
 #: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format

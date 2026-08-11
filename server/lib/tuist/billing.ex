@@ -161,49 +161,90 @@ defmodule Tuist.Billing do
 
   @doc """
   Half-open reporting windows covering `[period_start, period_end)`,
-  split at the account's subscription renewal boundary when one falls
-  inside the window.
+  split at every service-period boundary that falls inside it.
 
   A meter event carries a single timestamp, so a UTC-day aggregate that
-  straddles a renewal would have to be attributed entirely to one side
-  of the boundary or the other. Splitting first means every event we
-  send lies wholly within one service period, and the value reported is
-  exactly the usage that period earned. Renewals are the only boundary
-  that can fall inside a one-day window, and there can be at most one.
+  straddles a boundary would have to be attributed entirely to one side
+  of it. Splitting first means every event we send lies wholly within one
+  service period, and the value reported is exactly the usage that period
+  earned.
 
-  Falls back to the whole window when the account has no active
-  subscription or Stripe can't be reached: over-reporting into the
-  current period is better than dropping the day entirely, and a
-  customer with no subscription has nothing to invoice against anyway.
+  Two kinds of boundary can land inside a one-day window:
+
+    * a renewal, which opens a new cycle (`current_period_start`)
+    * the end of service, either already reached (`ended_at`) or
+      scheduled by `cancel_at_period_end` (`cancel_at`)
+
+  The cancellation end matters most. Usage on the final day would
+  otherwise be stamped near the end of the UTC day — after the
+  subscription ended — and miss the final invoice, with no following
+  invoice to catch it. Splitting at that instant puts the pre-cancellation
+  portion inside the final period.
+
+  Boundary discovery therefore looks at the account's most recent
+  subscription regardless of status: at `cancel_at_period_end` the local
+  row is no longer active or trialing, yet its final cycle is exactly the
+  one being reported.
+
+  Returns `{:ok, windows}`, or `{:error, reason}` when Stripe cannot be
+  reached. An unknown boundary is not the same as no boundary: on a
+  renewal or cancellation day, treating it as none would permanently
+  snapshot an unsplit value and attribute the earlier portion to the wrong
+  period. The caller retries instead. An account with no subscription at
+  all is not an error — it has nothing to invoice against, and the whole
+  window is reported as one.
   """
   def usage_windows(%Account{} = account, %DateTime{} = period_start, %DateTime{} = period_end) do
-    case renewal_boundary(account) do
-      %DateTime{} = boundary ->
-        if DateTime.after?(boundary, period_start) and DateTime.before?(boundary, period_end) do
-          [{period_start, boundary}, {boundary, period_end}]
-        else
-          [{period_start, period_end}]
-        end
+    case service_period_boundaries(account) do
+      {:ok, boundaries} ->
+        {:ok, split_window(period_start, period_end, boundaries)}
 
-      nil ->
-        [{period_start, period_end}]
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp renewal_boundary(%Account{} = account) do
-    case get_current_active_subscription(account) do
+  defp split_window(period_start, period_end, boundaries) do
+    cuts =
+      boundaries
+      |> Enum.filter(&(DateTime.after?(&1, period_start) and DateTime.before?(&1, period_end)))
+      |> Enum.uniq_by(&DateTime.to_unix(&1, :microsecond))
+      |> Enum.sort(DateTime)
+
+    Enum.zip([period_start | cuts], cuts ++ [period_end])
+  end
+
+  defp service_period_boundaries(%Account{} = account) do
+    case latest_subscription_for_boundaries(account) do
       %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) ->
         case Stripe.Subscription.retrieve(subscription_id) do
-          {:ok, %{current_period_start: current_period_start}} when is_integer(current_period_start) ->
-            DateTime.from_unix!(current_period_start)
-
-          _ ->
-            nil
+          {:ok, stripe_subscription} -> {:ok, boundaries_from_stripe(stripe_subscription)}
+          {:error, reason} -> {:error, reason}
         end
 
       _ ->
-        nil
+        {:ok, []}
     end
+  end
+
+  # `cancel_at` is what `cancel_at_period_end` schedules, and `ended_at` is
+  # what Stripe stamps once the subscription actually ends; taking both
+  # covers the day before and the day after the cancellation lands.
+  defp boundaries_from_stripe(stripe_subscription) do
+    [:current_period_start, :cancel_at, :ended_at]
+    |> Enum.map(&Map.get(stripe_subscription, &1))
+    |> Enum.filter(&is_integer/1)
+    |> Enum.map(&DateTime.from_unix!/1)
+  end
+
+  defp latest_subscription_for_boundaries(%Account{} = account) do
+    Repo.one(
+      from(s in Subscription,
+        where: s.account_id == ^account.id,
+        order_by: [desc: s.inserted_at, desc: s.id],
+        limit: 1
+      )
+    )
   end
 
   @doc """
@@ -298,15 +339,56 @@ defmodule Tuist.Billing do
       {:ok, stripe_subscription} =
         Stripe.Subscription.retrieve(current_subscription.subscription_id)
 
-      item_to_delete = Enum.map(stripe_subscription.items.data, &%{id: &1.id, deleted: true})
-
       {:ok, _} =
         Stripe.Subscription.update(current_subscription.subscription_id, %{
-          items: item_to_delete ++ subscription_items
+          items: reconcile_subscription_items(stripe_subscription, subscription_items)
         })
 
       :ok
     end
+  end
+
+  # A plan change replaces the plan's own items wholesale, but runner items
+  # must survive it untouched. In Stripe's classic billing mode, deleting a
+  # metered item stops the eventual invoice from reflecting the usage that
+  # accrued on it, and a freshly added metered item only captures usage from
+  # the moment it was added. Since runner Prices are plan-independent and
+  # usually unchanged by the plan change, deleting and re-adding them would
+  # silently discard the runner usage already accrued this cycle.
+  #
+  # So: keep every existing item whose Price is a configured runner Price,
+  # delete the rest, and add only the runner Prices that aren't on the
+  # subscription yet. Runner items keep their Stripe item IDs and their
+  # accrued usage across the change.
+  defp reconcile_subscription_items(stripe_subscription, subscription_items) do
+    runner_price_ids = configured_runner_price_ids()
+
+    {retained, replaced} =
+      Enum.split_with(stripe_subscription.items.data, fn item ->
+        MapSet.member?(runner_price_ids, subscription_item_price_id(item))
+      end)
+
+    retained_price_ids = MapSet.new(retained, &subscription_item_price_id/1)
+
+    deletions = Enum.map(replaced, &%{id: &1.id, deleted: true})
+
+    additions =
+      Enum.reject(subscription_items, fn item ->
+        MapSet.member?(retained_price_ids, Map.get(item, :price))
+      end)
+
+    deletions ++ additions
+  end
+
+  defp subscription_item_price_id(%{price: %{id: price_id}}) when is_binary(price_id), do: price_id
+  defp subscription_item_price_id(_item), do: nil
+
+  defp configured_runner_price_ids do
+    (Tuist.Environment.stripe_prices() || %{})
+    |> Map.get("runners", %{})
+    |> Map.values()
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> MapSet.new()
   end
 
   defp get_subscription_items(plan) do
@@ -363,11 +445,10 @@ defmodule Tuist.Billing do
         sub
       else
         {:ok, current_stripe_sub} = Stripe.Subscription.retrieve(current_subscription.subscription_id)
-        items_to_delete = Enum.map(current_stripe_sub.items.data, &%{id: &1.id, deleted: true})
 
         {:ok, sub} =
           Stripe.Subscription.update(current_subscription.subscription_id, %{
-            items: items_to_delete ++ subscription_items,
+            items: reconcile_subscription_items(current_stripe_sub, subscription_items),
             collection_method: "send_invoice",
             days_until_due: Map.get(params, :days_until_due, 30)
           })

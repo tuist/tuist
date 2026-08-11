@@ -62,7 +62,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
     stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
-      [{period_start_datetime, boundary}, {boundary, period_end_datetime}]
+      {:ok, [{period_start_datetime, boundary}, {boundary, period_end_datetime}]}
     end)
 
     stub(Billing, :customer_meter_values, fn ^account, window_start, window_end, [include_qa: false] ->
@@ -90,6 +90,34 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
              {10, DateTime.to_unix(period_start_datetime, :microsecond), DateTime.to_unix(boundary, :microsecond)},
              {20, DateTime.to_unix(boundary, :microsecond), DateTime.to_unix(period_end_datetime, :microsecond)}
            ]
+  end
+
+  test "retries instead of snapshotting an unsplit day when boundary discovery fails" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+    error = %Stripe.Error{source: :network, code: :network_code, message: "boom"}
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
+      {:error, error}
+    end)
+
+    reject(&Billing.customer_meter_values/4)
+
+    assert {:error, ^error} =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 790,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => DateTime.to_unix(period_start_datetime, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end_datetime, :microsecond)
+               }
+             })
+
+    assert all_enqueued(worker: SyncCustomerStripeMeterWorker) == []
   end
 
   test "handles pre-deploy jobs that carry only the customer id" do

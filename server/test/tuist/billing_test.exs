@@ -541,6 +541,126 @@ defmodule Tuist.BillingTest do
     assert %{plan: :pro} = Billing.get_current_active_subscription(account)
   end
 
+  describe "runner subscription items across plan changes" do
+    setup do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos"
+          }
+        }
+      end)
+
+      %{account: Accounts.get_account_from_user(user)}
+    end
+
+    test "keeps existing runner items instead of deleting and re-adding them", %{account: account} do
+      # Given a subscription that already carries the Linux runner item, so its
+      # accrued usage would be lost if the plan change deleted it.
+      stub(Stripe.Subscription, :retrieve, fn "sub_runner" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_air_usage", price: %{id: "air.usage"}},
+               %{id: "si_air_flat", price: %{id: "air.flat.monthly"}},
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_runner", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      Billing.on_subscription_change(%{
+        id: "sub_runner",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]}
+      })
+
+      # When
+      assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then the Linux item is neither deleted nor re-added, and only the
+      # missing macOS runner price is attached.
+      assert_received {:items, items}
+
+      assert items == [
+               %{id: "si_air_usage", deleted: true},
+               %{id: "si_air_flat", deleted: true},
+               %{price: "pro.usage"},
+               %{price: "runner.macos"},
+               %{price: "pro.flat.monthly", quantity: 1}
+             ]
+    end
+
+    test "keeps existing runner items when switching to enterprise", %{account: account} do
+      # Given
+      stub(Stripe.Subscription, :retrieve, fn "sub_runner_enterprise" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_pro_usage", price: %{id: "pro.usage"}},
+               %{id: "si_pro_flat", price: %{id: "pro.flat.monthly"}},
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}},
+               %{id: "si_runner_macos", price: %{id: "runner.macos"}}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_runner_enterprise", %{items: items} ->
+        send(parent, {:items, items})
+
+        {:ok,
+         %{
+           id: "sub_runner_enterprise",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: "pm_some-id",
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
+         }}
+      end)
+
+      Billing.on_subscription_change(%{
+        id: "sub_runner_enterprise",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # When
+      assert {:ok, _} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+
+      # Then both runner items keep their Stripe ids and none is re-added.
+      assert_received {:items, items}
+
+      assert items == [
+               %{id: "si_pro_usage", deleted: true},
+               %{id: "si_pro_flat", deleted: true},
+               %{price: "enterprise.usage"},
+               %{price: "enterprise.flat.monthly", quantity: 0}
+             ]
+    end
+  end
+
   describe "customer_meter_values/4" do
     test "snapshots remote cache and runner values for the supplied period" do
       customer_id = "customer-#{UUIDv7.generate()}"
@@ -733,11 +853,11 @@ defmodule Tuist.BillingTest do
       %{account: account}
     end
 
-    test "returns the whole window when the account has no active subscription", %{account: account} do
+    test "returns the whole window when the account has no subscription at all", %{account: account} do
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
-      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+      assert Billing.usage_windows(account, period_start, period_end) == {:ok, [{period_start, period_end}]}
     end
 
     test "splits the window at a renewal that falls inside it", %{account: account} do
@@ -745,12 +865,14 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2026-07-17 00:00:00.000000Z]
       boundary = ~U[2026-07-16 09:30:00Z]
 
-      subscription = subscription_with_renewal(account, boundary)
+      subscription = subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(boundary)})
 
-      assert Billing.usage_windows(account, period_start, period_end) == [
-               {period_start, boundary},
-               {boundary, period_end}
-             ]
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, boundary},
+                  {boundary, period_end}
+                ]}
 
       assert subscription.status == "active"
     end
@@ -759,33 +881,92 @@ defmodule Tuist.BillingTest do
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
-      subscription_with_renewal(account, ~U[2026-07-10 09:30:00Z])
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(~U[2026-07-10 09:30:00Z])})
 
-      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+      assert Billing.usage_windows(account, period_start, period_end) == {:ok, [{period_start, period_end}]}
     end
 
-    test "keeps the window whole when Stripe can't be reached", %{account: account} do
+    test "splits the window at a scheduled cancellation inside it", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      cancel_at = ~U[2026-07-16 14:00:00Z]
+
+      subscription_with_stripe(account, %{
+        current_period_start: DateTime.to_unix(~U[2026-06-16 14:00:00Z]),
+        cancel_at: DateTime.to_unix(cancel_at)
+      })
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, cancel_at},
+                  {cancel_at, period_end}
+                ]}
+    end
+
+    test "splits the window at the end of a subscription that has already been canceled", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      ended_at = ~U[2026-07-16 14:00:00Z]
+
+      subscription_with_stripe(
+        account,
+        %{
+          current_period_start: DateTime.to_unix(~U[2026-06-16 14:00:00Z]),
+          cancel_at: DateTime.to_unix(ended_at),
+          ended_at: DateTime.to_unix(ended_at)
+        },
+        status: "canceled"
+      )
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, ended_at},
+                  {ended_at, period_end}
+                ]}
+    end
+
+    test "splits at both a renewal and a cancellation falling inside the window", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      renewal = ~U[2026-07-16 06:00:00Z]
+      cancel_at = ~U[2026-07-16 18:00:00Z]
+
+      subscription_with_stripe(account, %{
+        current_period_start: DateTime.to_unix(renewal),
+        cancel_at: DateTime.to_unix(cancel_at)
+      })
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, renewal},
+                  {renewal, cancel_at},
+                  {cancel_at, period_end}
+                ]}
+    end
+
+    test "errors instead of guessing when Stripe can't be reached", %{account: account} do
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
       BillingFixtures.subscription_fixture(account_id: account.id)
 
-      stub(Stripe.Subscription, :retrieve, fn _ ->
-        {:error, %Stripe.Error{source: :network, code: :network_code, message: "boom"}}
-      end)
+      error = %Stripe.Error{source: :network, code: :network_code, message: "boom"}
 
-      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+      stub(Stripe.Subscription, :retrieve, fn _ -> {:error, error} end)
+
+      assert Billing.usage_windows(account, period_start, period_end) == {:error, error}
     end
 
-    defp subscription_with_renewal(account, %DateTime{} = boundary) do
+    defp subscription_with_stripe(account, stripe_attrs, opts \\ []) do
       subscription_id = "sub-#{UUIDv7.generate()}"
 
       subscription =
-        BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: subscription_id)
+        BillingFixtures.subscription_fixture([account_id: account.id, subscription_id: subscription_id] ++ opts)
 
-      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
-        {:ok, %{current_period_start: DateTime.to_unix(boundary)}}
-      end)
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id -> {:ok, stripe_attrs} end)
 
       subscription
     end
