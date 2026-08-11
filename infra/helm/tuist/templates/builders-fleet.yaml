@@ -63,7 +63,7 @@ spec:
       ghActionsRunner:
         ghOrg: {{ .Values.buildersFleet.ghOrg | default "tuist" | quote }}
         ghRunnerLabels: {{ .Values.buildersFleet.ghRunnerLabels | default "self-hosted,macos,bare-metal,vm-image-builder" | quote }}
-        ghRunnerVersion: {{ .Values.buildersFleet.ghRunnerVersion | default "2.334.0" | quote }}
+        ghRunnerVersion: {{ required "buildersFleet.ghRunnerVersion is required" .Values.buildersFleet.ghRunnerVersion | quote }}
         ghAppSecretName: {{ $ghAppSecret | quote }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1

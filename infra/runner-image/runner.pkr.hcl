@@ -102,8 +102,14 @@ variable "runner_version" {
   # deps; falling more than ~1 release behind would re-introduce
   # the v2.328-style deprecation risk so the cadence is
   # load-bearing.
+  #
+  # That cadence is only as good as Renovate's PR budget: a backlog
+  # of unreviewed PRs once filled the concurrency limit and this pin
+  # silently sat three releases behind until GitHub retired it. See
+  # renovate.json for the limits and the dependency dashboard that
+  # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.334.0"
+  default = "2.336.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same

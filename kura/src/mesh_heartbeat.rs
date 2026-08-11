@@ -10,7 +10,10 @@
 //!   backoff), which restores its membership server-side and — because the
 //!   writes it missed while out of the mesh were never enqueued for it —
 //!   resets local bootstrap progress and leaves serving until the full
-//!   dataset has been re-pulled.
+//!   dataset has been re-pulled. Under `KURA_BACKFILL_ENABLED` neither
+//!   applies: watermarks are durable (nothing to reset) and readiness is
+//!   latched for the process lifetime, so reconciliation runs in the
+//!   background without leaving serving.
 //! - **Managed pods** don't enroll (Kubernetes owns their liveness), but they
 //!   consume the same dynamic peer view through a peers-only fetch, so a
 //!   self-hosted peer joining or leaving propagates at heartbeat cadence
