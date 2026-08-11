@@ -131,6 +131,58 @@ RebootWatchdogSec=5min
 	kubeletClientCAPath = "/var/lib/kubelet/ca.crt"
 )
 
+// kubeletMemoryGovernanceBlock is the memory half of the self-join kubelet
+// config: how much of the box is held back from Pods, when the kubelet steps in
+// as memory runs out, and how a Pod's request is protected while it does.
+//
+// Reservations. system/kube-reserved carve the daemons that live OUTSIDE any
+// Pod (kubelet, containerd, systemd, kernel) out of allocatable. Without them
+// allocatable equals capacity and the scheduler can promise Pods the whole box.
+// They are flat daemon costs, so they do not scale with box size; the eviction
+// threshold is a percentage so that headroom does. Deliberately lighter than the
+// runner pool's 2Gi+2Gi/10% (see infra/k8s/clusters/bare-metal.yaml): these
+// boxes are a quarter the size and run a handful of cache instances rather than
+// dozens of microVMs whose guest RAM is their request.
+//
+// evictionHard REPLACES the kubelet's defaults wholesale rather than merging, so
+// the disk signals are restated at their default values. Only memory.available
+// moves: the default is 100Mi, which on a 31GiB box is thin enough that the
+// kernel OOM killer usually wins the race, turning contention into a SIGKILL
+// mid-transfer instead of an evicted Pod with an event. The signal subtracts
+// inactive_file, so a cache node's reclaimable artifact page cache does not
+// count toward it and a percentage threshold is safe on a file-serving box.
+//
+// MemoryQoS maps a Pod's request onto cgroup v2 memory.min/memory.low. Without
+// it a request never reaches the kernel at all, so reclaim takes from whoever
+// the LRU picks rather than from whoever is furthest above their own
+// reservation — which is the whole premise of running cache Pods with a memory
+// ceiling above their floor (see the kura-controller's memory profile). The
+// feature is alpha and off by default; it is enabled here deliberately.
+//
+// memoryThrottlingFactor is pinned to 1.0, which sets memory.high to the limit
+// and disables early throttling, keeping only the memory.min/memory.low
+// protection. The default 0.9 would put memory.high at
+// requests + 0.9*(limits-requests), and memory.high triggers on memory.current,
+// which counts clean page cache. A warm Kura node holds clean artifact pages at
+// its hard watermark as normal steady state (Kura's own shedding deliberately
+// excludes them, keying off pressure_bytes instead), so early throttling would
+// stall a perfectly healthy cache node reclaiming cache it is supposed to hold.
+const kubeletMemoryGovernanceBlock = `systemReserved:
+  cpu: 500m
+  memory: 1Gi
+kubeReserved:
+  cpu: 500m
+  memory: 1Gi
+evictionHard:
+  memory.available: 5%
+  nodefs.available: 10%
+  nodefs.inodesFree: 5%
+  imagefs.available: 15%
+featureGates:
+  MemoryQoS: true
+memoryThrottlingFactor: 1.0
+`
+
 // kubeletConfigContent renders the KubeletConfiguration for the self-join
 // kubelet.
 //
@@ -175,7 +227,7 @@ authentication:
   mode: Webhook
 clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
-`
+` + kubeletMemoryGovernanceBlock
 	if clusterDNS != "" {
 		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
 	}
