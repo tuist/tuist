@@ -98,32 +98,6 @@ public struct SDKDeploymentTargetsProvider: SDKDeploymentTargetsProviding {
     }
 }
 
-/// Caches the first realized value, coalescing concurrent callers onto a single build.
-private actor AsyncCaching<T: Sendable> {
-    private var cachedValue: T?
-    private var inFlightTask: Task<T, Never>?
-    private let builder: @Sendable () async -> T
-
-    init(_ builder: @Sendable @escaping () async -> T) {
-        self.builder = builder
-    }
-
-    func value() async -> T {
-        if let cachedValue {
-            return cachedValue
-        }
-        if let inFlightTask {
-            return await inFlightTask.value
-        }
-        let task = Task { await builder() }
-        inFlightTask = task
-        let realizedValue = await task.value
-        cachedValue = realizedValue
-        inFlightTask = nil
-        return realizedValue
-    }
-}
-
 #if DEBUG
     extension SDKDeploymentTargetsProvider {
         public static var mocked: MockSDKDeploymentTargetsProviding? { current as? MockSDKDeploymentTargetsProviding }
