@@ -20,8 +20,25 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.billing_multiplier(:linux, 4, 8) > Catalog.billing_multiplier(:linux, 2, 16)
     end
 
-    test "is platform independent so the macOS premium stays in the Stripe price" do
-      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.billing_multiplier(:linux, 6, 14)
+    test "carries the macOS premium so one compute unit is worth the same everywhere" do
+      # With a single meter, the platform premium has to be in the
+      # multiplier: the same shape on macOS costs more than on Linux.
+      assert Catalog.billing_multiplier(:macos, 6, 14) ==
+               4 * Catalog.billing_multiplier(:linux, 6, 14)
+
+      assert Catalog.platform_multiplier(:linux) == Catalog.compute_unit_basis_points()
+    end
+
+    test "the real macOS machine is what its premium is defined against" do
+      # 62/24 resource units at a 4x platform coefficient.
+      assert Catalog.billing_multiplier(:macos, 6, 14) == 103_332
+    end
+  end
+
+  describe "resource_multiplier/2" do
+    test "is the platform-independent shape weighting" do
+      assert Catalog.resource_multiplier(2, 8) == Catalog.compute_unit_basis_points()
+      assert Catalog.resource_multiplier(4, 16) == 2 * Catalog.resource_multiplier(2, 8)
     end
   end
 

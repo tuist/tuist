@@ -1,7 +1,8 @@
 defmodule Tuist.Repo.Migrations.AddBillingMultiplierToRunnerSessions do
   @moduledoc """
-  Persists the cost-weighted machine factor used to convert a session's
-  elapsed time into normalized compute units.
+  Persists the effective machine factor used to convert a session's
+  elapsed time into normalized compute units: the cost-weighted resource
+  multiplier times the platform coefficient.
 
   Storing it on the row rather than deriving it at invoice time is what
   makes the runner rate card safe to change: recomputing the multiplier

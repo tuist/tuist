@@ -43,11 +43,12 @@ defmodule Tuist.Runners.Catalog do
            when platform in @platforms and is_integer(vcpus) and vcpus > 0 and
                   is_integer(memory_gb) and memory_gb > 0
 
-  # One compute unit is the baseline shape: 2 vCPU / 8 GB. On a cloud bill
-  # roughly two thirds of a machine's cost is CPU and one third memory, so
+  # One compute unit is the baseline shape: a 2 vCPU / 8 GB Linux machine.
+  # On a cloud bill roughly two thirds of a machine's cost is CPU and one
+  # third memory, so
   #
-  #   units = 2/3 * (vcpus / 2) + 1/3 * (memory_gb / 8)
-  #         = (8 * vcpus + memory_gb) / 24
+  #   resource units = 2/3 * (vcpus / 2) + 1/3 * (memory_gb / 8)
+  #                  = (8 * vcpus + memory_gb) / 24
   #
   # which is exact at the baseline and stays integral in basis points for
   # every shape that doubles from it.
@@ -55,31 +56,57 @@ defmodule Tuist.Runners.Catalog do
   @vcpu_weight 8
   @shape_divisor 24
 
+  # The platform coefficient completes the rate card. Apple Silicon
+  # capacity costs several times equivalent Linux capacity per resource
+  # unit: the hardware is dedicated, a host serves one tenant at a time,
+  # and none of it can be oversubscribed. At 4x, the 6 vCPU / 14 GB macOS
+  # machine bills at 62/24 * 4 ≈ 10.33 baseline units per minute, which
+  # matches the conventional macOS-to-Linux ratio in CI pricing.
+  @platform_weight_bp %{linux: @compute_unit_bp, macos: 4 * @compute_unit_bp}
+
   @doc """
-  Cost-weighted billing multiplier for a machine shape, in basis points
+  Effective billing multiplier for a machine, in basis points
   (10_000 = one compute unit per elapsed millisecond).
 
-  Runner usage is metered as normalized compute units rather than one
-  Stripe meter per exact `(platform, vcpus, memory_gb)` shape. A meter
-  per shape would make every shape a permanent subscription item, and
-  Stripe caps classic subscriptions at 20 items; adding a shape would
-  also mean a new Meter, Price, config key, and a backfill across
-  existing subscriptions. Multiplying elapsed time by an immutable
-  machine factor is still metering: Stripe keeps ownership of the
-  currency amount, tiers, discounts, taxes, and credits.
+  Runner usage is metered as normalized compute units against a single
+  Stripe meter, rather than one meter per exact `(platform, vcpus,
+  memory_gb)` shape. A meter per shape would make every shape a permanent
+  subscription item, and Stripe caps classic subscriptions at 20 items;
+  adding a shape would also mean a new Meter, Price, config key, and a
+  backfill across existing subscriptions. Multiplying elapsed time by an
+  immutable machine factor is still metering: Stripe keeps ownership of
+  the currency amount, tiers, discounts, taxes, and credits.
 
-  The multiplier deliberately encodes only resources. The macOS premium
-  lives in the per-platform Stripe Price, which is why there are two
-  platform meters rather than one global one; that keeps Linux and
-  macOS economics independently priceable without a shape explosion.
+  The multiplier is the resource weighting times the platform
+  coefficient. Both are rate card, so both belong on the same side of the
+  metering boundary — splitting the platform premium out into a separate
+  per-platform Price would make a compute unit worth a different amount
+  depending on which meter it landed in, and would define the macOS Price
+  against a 2 vCPU / 8 GB Mac that does not exist.
 
   The value is persisted on the runner session when it opens (see
   `Tuist.Runners.RunnerSessions.open/1`), so changing this function
-  cannot reprice usage that already happened.
+  cannot reprice usage that already happened. macOS economics can
+  therefore move independently for future sessions without touching
+  usage already recorded.
   """
   def billing_multiplier(platform, vcpus, memory_gb) when valid_machine_resources(platform, vcpus, memory_gb) do
+    div(resource_multiplier(vcpus, memory_gb) * platform_multiplier(platform), @compute_unit_bp)
+  end
+
+  @doc """
+  Resource-only weighting for a shape, in basis points. Exposed for
+  analytics that want to compare shapes independently of the platform
+  premium; billing uses `billing_multiplier/3`.
+  """
+  def resource_multiplier(vcpus, memory_gb) when is_integer(vcpus) and is_integer(memory_gb) do
     div(@compute_unit_bp * (@vcpu_weight * vcpus + memory_gb), @shape_divisor)
   end
+
+  @doc """
+  Platform coefficient in basis points (10_000 = no premium).
+  """
+  def platform_multiplier(platform) when platform in @platforms, do: Map.fetch!(@platform_weight_bp, platform)
 
   @doc """
   Basis points that make up one compute unit. Callers convert weighted

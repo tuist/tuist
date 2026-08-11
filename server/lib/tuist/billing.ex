@@ -131,32 +131,36 @@ defmodule Tuist.Billing do
         []
       end
 
-    # Only report runner meters whose Stripe price is configured. During
-    # the staged rollout `stripe.prices.runners` is empty, so no runner
-    # meters exist in Stripe yet; reporting to an unprovisioned meter just
-    # errors the job and adds Sentry noise, and usage without an attached
-    # price wouldn't bill anyway. Each platform turns on the moment its
-    # price lands in config.
-    runner_prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})
+    # Only report the runner meter once its Stripe price is configured.
+    # During the staged rollout `stripe.prices.runners` is empty, so the
+    # meter doesn't exist in Stripe yet; reporting to an unprovisioned
+    # meter just errors the job and adds Sentry noise, and usage without
+    # an attached price wouldn't bill anyway. Runner billing turns on the
+    # moment the price lands in config.
+    runner_event_name = RunnerBilling.meter_event_name()
 
     runner_values =
-      account_id
-      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
-      |> Enum.map(fn usage ->
-        %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_units}
-      end)
-      |> Enum.filter(&runner_meter_priced?(runner_prices, &1.event_name))
+      if runner_meter_priced?(runner_event_name) do
+        [
+          %{
+            event_name: runner_event_name,
+            value: RunnerBilling.compute_unit_milliseconds(account_id, period_start, period_end)
+          }
+        ]
+      else
+        []
+      end
 
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
     Enum.reject(remote_cache_values ++ language_model_values ++ runner_values, &(&1.value == 0))
   end
 
-  defp runner_meter_priced?(runner_prices, event_name) do
-    case Map.get(runner_prices, event_name) do
-      price when is_binary(price) and price != "" -> true
-      _ -> false
-    end
+  defp runner_meter_priced?(event_name) do
+    (Tuist.Environment.stripe_prices() || %{})
+    |> Map.get("runners", %{})
+    |> Map.get(event_name)
+    |> then(&(is_binary(&1) and &1 != ""))
   end
 
   @doc """

@@ -212,15 +212,14 @@ defmodule Tuist.Runners.BillingTest do
     end
   end
 
-  describe "meter_event_name/1" do
-    test "is one compute-unit meter per platform" do
-      assert Billing.meter_event_name(%{platform: :macos}) == "runner_macos_compute_unit_milliseconds"
-      assert Billing.meter_event_name(%{platform: :linux}) == "runner_linux_compute_unit_milliseconds"
+  describe "meter_event_name/0" do
+    test "is a single compute-unit meter for every machine" do
+      assert Billing.meter_event_name() == "runner_compute_unit_milliseconds"
     end
   end
 
-  describe "compute_units_by_platform/4" do
-    test "weights each shape by its multiplier and collapses to one entry per platform" do
+  describe "compute_unit_milliseconds/4" do
+    test "weights each machine by its multiplier and collapses to one total" do
       account = account_fixture()
       period_start = ~U[2026-05-01 00:00:00.000000Z]
       period_end = ~U[2026-05-02 00:00:00.000000Z]
@@ -237,7 +236,7 @@ defmodule Tuist.Runners.BillingTest do
       )
 
       # Twice the baseline shape, so the same wall-clock time is worth twice
-      # as many units and both land on the single Linux meter.
+      # as many units.
       session_fixture(account,
         fleet_name: "linux-double",
         platform: :linux,
@@ -248,10 +247,22 @@ defmodule Tuist.Runners.BillingTest do
         ended_at: ~U[2026-05-01 11:05:00.000000Z]
       )
 
-      assert [%{platform: :linux, total_units: units}] =
-               Billing.compute_units_by_platform(account.id, period_start, period_end)
+      # A macOS machine carries its platform premium into the same total,
+      # since one compute unit is worth the same wherever it came from.
+      session_fixture(account,
+        fleet_name: "macos-standard",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        billing_multiplier: Catalog.billing_multiplier(:macos, 6, 14),
+        started_at: ~U[2026-05-01 12:00:00.000000Z],
+        ended_at: ~U[2026-05-01 12:05:00.000000Z]
+      )
 
-      assert units == 300_000 + 2 * 300_000
+      macos_units = div(300_000 * Catalog.billing_multiplier(:macos, 6, 14), Catalog.compute_unit_basis_points())
+
+      assert Billing.compute_unit_milliseconds(account.id, period_start, period_end) ==
+               300_000 + 2 * 300_000 + macos_units
     end
 
     test "bills a session at the multiplier it was admitted under, not the current catalog" do
@@ -271,8 +282,7 @@ defmodule Tuist.Runners.BillingTest do
         ended_at: ~U[2026-05-01 10:05:00.000000Z]
       )
 
-      assert [%{platform: :linux, total_units: 300_000}] =
-               Billing.compute_units_by_platform(account.id, period_start, period_end)
+      assert Billing.compute_unit_milliseconds(account.id, period_start, period_end) == 300_000
     end
 
     test "falls back to the catalog multiplier for sessions that never stored one" do
@@ -289,8 +299,7 @@ defmodule Tuist.Runners.BillingTest do
         ended_at: ~U[2026-05-01 10:05:00.000000Z]
       )
 
-      assert [%{platform: :linux, total_units: 600_000}] =
-               Billing.compute_units_by_platform(account.id, period_start, period_end)
+      assert Billing.compute_unit_milliseconds(account.id, period_start, period_end) == 600_000
     end
   end
 
