@@ -168,7 +168,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # The floor is the standing reservation, so the tier that gets the larger
       # one is the tier that pays for a guarantee. The ceiling — how large a
       # burst Kura admits before shedding — moves with it.
-      assert profile.(:enterprise) == {2048, 3072, true}
+      assert profile.(:enterprise) == {2048, 4096, true}
       assert profile.(:air) == {512, 1536, true}
     end
 
@@ -1116,7 +1116,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert standard != enterprise
       assert String.ends_with?(standard, "+mem512-1536")
-      assert String.ends_with?(enterprise, "+mem2048-3072")
+      assert String.ends_with?(enterprise, "+mem2048-4096")
     end
 
     test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do

@@ -80,8 +80,14 @@ defmodule Tuist.Kura.Regions do
   # The standard floor is sized from the measured idle footprint of a
   # non-enterprise instance with margin, not from its peak — over-reserving here
   # is what exhausts a box's schedulable memory and caps how many tenants fit.
+  #
+  # The enterprise ceiling is twice its floor, which is the point where the
+  # memory-ceiling bin-pack stops being slack: below 2x the native
+  # requests.memory pack is tighter and the extended resource never binds. The
+  # standard tier sits at 3x because those instances are the idle ones, so their
+  # ceiling is where the bin-pack does its real work.
   @enterprise_memory_floor_mib 2048
-  @enterprise_memory_ceiling_mib 3072
+  @enterprise_memory_ceiling_mib 4096
   @standard_memory_floor_mib 512
   @standard_memory_ceiling_mib 1536
   @managed_region_specs [
