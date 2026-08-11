@@ -81,8 +81,9 @@ defmodule Tuist.Cache do
   # Narrows the grants to the one project the caller is about to use. An
   # account-wide credential reaches every project its account owns, so an
   # unscoped token hands a cache node everything that credential can reach and
-  # grows with the account, at roughly forty bytes a project. Most accounts are
-  # small enough that neither bites; this bounds both for the ones that are not.
+  # grows with the account at roughly seventy bytes a project. Nearly every
+  # account has one or two, where none of this matters; the largest has enough
+  # for a claim in the thousands of bytes. This bounds both regardless.
   defp scope_grants(grants, nil), do: grants
 
   defp scope_grants(grants, scope) do
