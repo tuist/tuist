@@ -25,11 +25,11 @@ public actor CacheTokenStore: CacheTokenStoring {
         let expiresAt: Date
     }
 
-    // Refresh ahead of expiry so a token does not lapse mid-request.
+    /// Refresh ahead of expiry so a token does not lapse mid-request.
     private static let expiryMargin: TimeInterval = 60
 
-    // A cache client is built per request, so the exchanged tokens are held here
-    // rather than on the client, which would make every request exchange again.
+    /// A cache client is built per request, so the exchanged tokens are held here
+    /// rather than on the client, which would make every request exchange again.
     public static let shared = CacheTokenStore()
 
     private let getCacheTokenService: GetCacheTokenServicing
