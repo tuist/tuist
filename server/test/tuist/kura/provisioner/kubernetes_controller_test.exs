@@ -861,7 +861,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           KubernetesController.manifest(
             "kura-tuist-#{region.id}-1",
             "0.5.2",
-            %{name: "tuist"},
+            # An empty subscription list keeps the plan lookup in memory, and
+            # resolves to :air, which is the profile most regions render.
+            %Account{id: 1, name: "tuist", subscriptions: []},
             region,
             %Server{},
             "return true"
