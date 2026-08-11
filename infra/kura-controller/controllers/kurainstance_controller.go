@@ -2704,9 +2704,16 @@ const memoryCeilingResource corev1.ResourceName = "tuist.dev/memory-ceiling-mib"
 
 // Applied when an instance carries no explicit profile, which keeps a CR
 // written before the memory profile existed on the shape it already had.
+//
+// The ceiling is twice the floor. Below 2x the memory-ceiling bin-pack never
+// binds, because the native requests.memory pack is the tighter of the two, so
+// the extra resource buys nothing. The 60% soft watermark also has to clear a
+// real burst by more than the runtime's 0.9x recovery hysteresis: at a 1.5x
+// ceiling the recovery threshold lands under the largest burst already
+// observed, so a single trip into shedding would last the whole burst.
 const (
 	defaultMemoryFloorMib   int32 = 2048
-	defaultMemoryCeilingMib int32 = 3072
+	defaultMemoryCeilingMib int32 = 4096
 )
 
 // Memory floor and ceiling are deliberately different. Kura sizes every

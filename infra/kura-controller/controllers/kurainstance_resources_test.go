@@ -29,8 +29,8 @@ func TestDefaultResourcesMemoryLimitExceedsRequest(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a memory limit")
 	}
-	if got := limit.String(); got != "3Gi" {
-		t.Fatalf("memory limit = %q, want 3Gi", got)
+	if got := limit.String(); got != "4Gi" {
+		t.Fatalf("memory limit = %q, want 4Gi", got)
 	}
 
 	if limit.Cmp(request) <= 0 {
