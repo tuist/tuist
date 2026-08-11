@@ -70,12 +70,16 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
-    test "sizes the managed regions per tier" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
-        assert Regions.memory_governed?(Regions.get(id))
+    test "does not size the managed regions per tier until the floor is kernel-enforced" do
+      # Tiering drops the floor well below the ceiling, which is what lets a pod
+      # take memory a quieter neighbour was promised. Nothing stops it until the
+      # kubelet runs with MemoryQoS, so per-tier sizing lands with that change
+      # rather than ahead of it. Until then every managed instance takes the
+      # controller's default profile, whose ceiling already carries the burst
+      # headroom the admission pools size from.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
+        refute Regions.memory_governed?(Regions.get(id))
       end
-
-      refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
     end
 
     test "does not bin-pack memory ceilings until a node budget is advertised" do

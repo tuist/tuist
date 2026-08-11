@@ -486,11 +486,6 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
-        # Packing density is what constrains the shared bare-metal boxes, so
-        # their instances are sized per tier rather than taking the controller
-        # default. Ceiling bin-packing (memory_ceiling_bin_packed) is a separate
-        # opt-in that waits for the CAPI provider to advertise the node budget.
-        memory_governed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true
