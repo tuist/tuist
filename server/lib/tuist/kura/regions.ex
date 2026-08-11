@@ -87,15 +87,27 @@ defmodule Tuist.Kura.Regions do
   # instances fit on a box. Floors below that ratio buy reclaimable headroom and
   # kernel protection sized to real use, not extra tenants.
   #
-  # The enterprise floor is 1Gi rather than a peak-derived number: measured over
-  # 14 days most instances idle between 150 and 290 MB, and a floor is the
-  # standing reservation, not the burst. Instances that do run hot spend their
-  # time above it, which is the intended shape — memory above the floor is
+  # Floors are standing reservations, not burst sizes, so they are set from the
+  # 14-day peak working set of the instances on each plan rather than from what
+  # those instances might one day want. An instance that runs hot spends its time
+  # above its floor, which is the intended shape — memory above the floor is
   # best-effort and reclaimed from whoever is furthest above their own.
+  #
+  # Ceilings are what Kura sizes its admission pools from, so they set how large
+  # a burst an instance absorbs before it sheds. Each is kept clear of the
+  # measured peak by more than the pressure machine's 0.9x recovery hysteresis,
+  # or one burst that trips shedding stays shedding for its whole duration.
+  #
+  # Measured peaks: enterprise instances run at whatever ceiling they are given
+  # (1900-2025 MiB against the current 2Gi), the busiest pro instance reaches
+  # ~1220 MiB, and air instances sit at ~150 MiB.
   @enterprise_memory_floor_mib 1024
   @enterprise_memory_ceiling_mib 4096
-  @standard_memory_floor_mib 512
-  @standard_memory_ceiling_mib 1536
+  @pro_memory_floor_mib 512
+  @pro_memory_ceiling_mib 3072
+  # Air, and the fallback for any plan without its own profile.
+  @standard_memory_floor_mib 256
+  @standard_memory_ceiling_mib 768
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -321,12 +333,14 @@ defmodule Tuist.Kura.Regions do
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
-  grant: `:enterprise` reserves the larger floor, and every other plan takes the
-  standard one. Unknown plans fall to standard, which is the safe side on a
-  shared box.
+  grant. `:enterprise` and `:pro` have their own; every other plan, `:air`
+  included, takes the smallest. Unknown plans fall there too, which is the safe
+  side on a shared box.
   """
   def memory_profile(:enterprise),
     do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @enterprise_memory_ceiling_mib}
+
+  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 
