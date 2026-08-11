@@ -431,8 +431,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         return flags
     }
 
+    /// `ProcessXCFramework` always writes the extracted slice into `$(BUILT_PRODUCTS_DIR)`, which is
+    /// where the flag has to point. The two directories only coincide outside install builds: with
+    /// `SKIP_INSTALL=YES` under `archive`, `$(TARGET_BUILD_DIR)` moves to `UninstalledProducts/`
+    /// while the slice stays behind in the shared products directory.
     private func forceLoadFlag(for library: XCFrameworkInfoPlist.Library) -> String {
-        "-Wl,-force_load,$(TARGET_BUILD_DIR)/\(library.forceLoadPath)"
+        "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(library.forceLoadPath)"
     }
 
     private func rewrittenHeaderContents(

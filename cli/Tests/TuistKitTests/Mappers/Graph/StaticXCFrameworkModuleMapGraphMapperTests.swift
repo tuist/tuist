@@ -142,7 +142,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ],
                                 "OTHER_LDFLAGS[sdk=iphoneos*]": [
                                     "$(inherited)",
-                                    "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
+                                    "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
                                     "-lz",
                                     "-framework",
                                     "JavaScriptCore",
@@ -257,7 +257,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_LDFLAGS[sdk=iphoneos*]": [
                                     "$(inherited)",
-                                    "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
+                                    "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
                                     "-framework",
                                     "JavaScriptCore",
                                 ],
@@ -364,7 +364,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_LDFLAGS[sdk=iphoneos*]": [
                                     "$(inherited)",
-                                    "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
+                                    "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
                                     "-framework",
                                     "JavaScriptCore",
                                 ],
@@ -453,7 +453,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_LDFLAGS[sdk=iphoneos*]": [
                                     "$(inherited)",
-                                    "-Wl,-force_load,$(TARGET_BUILD_DIR)/libGoogleMobileAds.a",
+                                    "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/libGoogleMobileAds.a",
                                     "-framework",
                                     "JavaScriptCore",
                                 ],
