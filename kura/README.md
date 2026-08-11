@@ -626,6 +626,11 @@ credentials costs one `kura.http_json` call to the authentication backend
 rather than one per request. Followers are counted as
 `extension_cache{result="coalesced"}`.
 
+Coalescing follows the same rule as caching, so opting out of one opts out of
+both. A hook that returns `ttl_seconds = 0` marks its result as valid only for
+the request that produced it, and followers then run the hook against their own
+`ctx` instead of receiving that result. Hook failures are not shared either.
+
 Hooks run on a pool of independent Lua states so that a hook awaiting
 `kura.http_json` does not block unrelated requests. Two consequences for
 script authors:

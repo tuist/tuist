@@ -108,8 +108,8 @@ pub struct ExtensionEngine {
     runtimes: LuaPool,
     principal_cache: RwLock<HashMap<String, CachedAuthenticateResult>>,
     decision_cache: RwLock<HashMap<String, CachedAuthorizeResult>>,
-    authenticate_flight: SingleFlight<AuthenticateOutcome>,
-    authorize_flight: SingleFlight<AuthorizeOutcome>,
+    authenticate_flight: SingleFlight<FlightOutcome<AuthenticateOutcome>>,
+    authorize_flight: SingleFlight<FlightOutcome<AuthorizeOutcome>>,
     metrics: Metrics,
     script_hash: String,
 }
@@ -230,12 +230,23 @@ struct CachedAuthorizeResult {
 // it a burst of requests carrying the same credentials each runs the hook, and
 // each hook run makes its own call to the authentication backend.
 struct SingleFlight<T> {
-    inflight: StdMutex<HashMap<String, broadcast::Sender<Result<T, String>>>>,
+    inflight: StdMutex<HashMap<String, broadcast::Sender<T>>>,
 }
 
 enum Flight<'a, T: Clone> {
     Leader(FlightGuard<'a, T>),
-    Follower(broadcast::Receiver<Result<T, String>>),
+    Follower(broadcast::Receiver<T>),
+}
+
+// What a leader hands its followers. The cache key covers the credentials but
+// not the rest of the request, so a result is only valid for another request
+// when the hook declared it reusable by returning a non-zero ttl. `Rerun` says
+// it did not (it opted out of caching, or the hook failed) and each follower
+// must run the hook against its own context.
+#[derive(Clone, Debug, PartialEq)]
+enum FlightOutcome<T> {
+    Reusable(T),
+    Rerun,
 }
 
 impl<T: Clone> SingleFlight<T> {
@@ -279,12 +290,12 @@ impl<T: Clone> SingleFlight<T> {
 struct FlightGuard<'a, T: Clone> {
     flight: &'a SingleFlight<T>,
     key: String,
-    sender: broadcast::Sender<Result<T, String>>,
+    sender: broadcast::Sender<T>,
     settled: bool,
 }
 
 impl<T: Clone> FlightGuard<'_, T> {
-    fn publish(mut self, result: Result<T, String>) {
+    fn publish(mut self, result: T) {
         self.settle();
         let _ = self.sender.send(result);
     }
@@ -577,18 +588,28 @@ impl ExtensionEngine {
                     if let Ok(result) = &outcome {
                         self.store_authenticate_result(key, result.clone()).await;
                     }
-                    guard.publish(outcome.clone());
+                    guard.publish(match &outcome {
+                        Ok(result) if !ttl_for_authenticate(&self.config, result).is_zero() => {
+                            FlightOutcome::Reusable(result.clone())
+                        }
+                        _ => FlightOutcome::Rerun,
+                    });
                     return outcome;
                 }
-                Flight::Follower(mut receiver) => {
-                    self.metrics
-                        .record_extension_cache("authenticate", "coalesced");
-                    if let Ok(result) = receiver.recv().await {
-                        return result;
+                Flight::Follower(mut receiver) => match receiver.recv().await {
+                    Ok(FlightOutcome::Reusable(result)) => {
+                        self.metrics
+                            .record_extension_cache("authenticate", "coalesced");
+                        return Ok(result);
+                    }
+                    Ok(FlightOutcome::Rerun) => {
+                        self.metrics.record_extension_cache("authenticate", "miss");
+                        return self.run_authenticate(ctx).await;
                     }
                     // The leader was cancelled before publishing. Retry: either
                     // its result landed in the cache, or we take leadership.
-                }
+                    Err(_) => {}
+                },
             }
         }
     }
@@ -612,16 +633,26 @@ impl ExtensionEngine {
                     if let Ok(result) = &outcome {
                         self.store_authorize_result(key, result.clone()).await;
                     }
-                    guard.publish(outcome.clone());
+                    guard.publish(match &outcome {
+                        Ok(result) if !ttl_for_authorize(&self.config, result).is_zero() => {
+                            FlightOutcome::Reusable(result.clone())
+                        }
+                        _ => FlightOutcome::Rerun,
+                    });
                     return outcome;
                 }
-                Flight::Follower(mut receiver) => {
-                    self.metrics
-                        .record_extension_cache("authorize", "coalesced");
-                    if let Ok(result) = receiver.recv().await {
-                        return result;
+                Flight::Follower(mut receiver) => match receiver.recv().await {
+                    Ok(FlightOutcome::Reusable(result)) => {
+                        self.metrics
+                            .record_extension_cache("authorize", "coalesced");
+                        return Ok(result);
                     }
-                }
+                    Ok(FlightOutcome::Rerun) => {
+                        self.metrics.record_extension_cache("authorize", "miss");
+                        return self.run_authorize(ctx, principal).await;
+                    }
+                    Err(_) => {}
+                },
             }
         }
     }
@@ -1921,6 +1952,99 @@ end
         }
     }
 
+    // The cache key covers the credentials but not the query, so a hook that
+    // authenticates from the query opts out with ttl_seconds = 0. Coalescing
+    // must honour that: requests sharing a credential still have to be told
+    // apart, or a follower is authenticated as whoever led the flight.
+    #[tokio::test]
+    async fn does_not_coalesce_results_the_hook_declined_to_cache() {
+        const CONCURRENT: usize = 4;
+
+        let app = Router::new().route(
+            "/introspect",
+            axum::routing::post(|Json(payload): Json<Value>| async move {
+                Json(serde_json::json!({ "user": payload["user"] }))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock");
+        let base = format!("http://{}", listener.local_addr().expect("mock addr"));
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("serve mock") });
+
+        let engine = test_engine(
+            r#"
+function authenticate(ctx)
+  local response = kura.http_json("backend", {
+    method = "POST",
+    path = "/introspect",
+    body = { user = ctx.query.user },
+  })
+  return {
+    principal = { id = response.body.user, kind = "subject" },
+    ttl_seconds = 0,
+  }
+end
+"#,
+            move |_| unsafe {
+                std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_BACKEND_BASE_URL", &base);
+                std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
+            },
+        )
+        .await;
+
+        // One shared credential, so every request lands on the same flight, and
+        // polling them together lets the leader yield at its backend call before
+        // the rest join it as followers.
+        let requests = (0..CONCURRENT).map(|index| {
+            let engine = engine.clone();
+            async move {
+                let context = ExtensionContext {
+                    transport: "http".into(),
+                    route: "/api/cache/gradle/{cache_key}".into(),
+                    method: "GET".into(),
+                    operation: "artifact.read".into(),
+                    server_tenant_id: "acme".into(),
+                    tenant_id: Some("acme".into()),
+                    namespace_id: None,
+                    producer: Some("gradle".into()),
+                    artifact_key: None,
+                    artifact_hash: None,
+                    headers: BTreeMap::from([(
+                        "authorization".into(),
+                        "Bearer shared-token".to_string(),
+                    )]),
+                    query: BTreeMap::from([("user".into(), format!("user-{index}"))]),
+                    status_code: None,
+                };
+                engine.evaluate_access(&context).await
+            }
+        });
+
+        let decisions = tokio::time::timeout(
+            Duration::from_secs(10),
+            futures_util::future::join_all(requests),
+        )
+        .await
+        .expect("hooks that opt out of caching should not deadlock");
+
+        let ids = decisions
+            .iter()
+            .map(|decision| match decision {
+                AccessDecision::Allow(Some(principal)) => principal.id.clone(),
+                other => panic!("expected an authenticated principal, got {other:?}"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            ids,
+            (0..CONCURRENT)
+                .map(|index| format!("user-{index}"))
+                .collect::<Vec<_>>(),
+            "each request must be authenticated as itself, not as the flight leader"
+        );
+    }
+
     /// Exercises `kura/ops/helm/kura/hooks/tuist.lua` end-to-end through
     /// the real mlua engine. The hook lives in the chart so adopters
     /// can read it; these tests are how we keep its contracts honest:
@@ -2401,7 +2525,10 @@ end
             let base = spawn_tuist_auth_mock(
                 move |_headers, _payload| {
                     *calls_for_handler.lock().unwrap() += 1;
-                    (StatusCode::OK, introspection_payload(cache_grants_payload(&[], &[], &[], &[])))
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+                    )
                 },
                 |_| (StatusCode::OK, cache_access_payload(&[], &[])),
             )
