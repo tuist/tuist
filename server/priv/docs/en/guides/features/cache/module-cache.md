@@ -190,6 +190,16 @@ tuist generate
 
 This can be useful in environments with limited network bandwidth or to reduce system load during cache operations.
 
+### Cache warm scratch directory {#cache-warm-scratch-directory}
+
+By default, `tuist cache` creates a temporary scratch directory for build intermediates and assembled cache artifacts, then removes it when cache warming finishes. To keep those files under a directory you manage, set `TUIST_CACHE_WARM_SCRATCH_DIRECTORY`.
+
+The path can be absolute or relative to the current working directory. Tuist creates the directory when it does not exist. If it already exists, it must be an empty directory.
+
+When this environment variable is set, Tuist leaves the directory and its contents in place after the command finishes. The caller is responsible for cleaning it before the next cache warm. When the variable is unset, Tuist continues to use and remove a temporary directory.
+
+Tuist rejects a caller-owned scratch directory when a foreign build target needs to be warmed. Foreign build scripts control their own output locations, so Tuist cannot guarantee that those outputs stay inside the scratch directory.
+
 ## Troubleshooting {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}

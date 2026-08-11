@@ -166,12 +166,12 @@ public struct CacheURLStore: CacheURLStoring {
     }
 }
 
-enum CacheURLStoreError: LocalizedError, Equatable {
+public enum CacheURLStoreError: LocalizedError, Equatable {
     case noEndpointsAvailable
     case noReachableEndpoints
     case invalidURL(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noEndpointsAvailable:
             return "No cache endpoints are available."

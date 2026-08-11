@@ -83,6 +83,37 @@ struct LaunchctlControllerTests {
             .called(1)
     }
 
+    @Test func kickstart_label() async throws {
+        let label = "tuist.cache.org_project"
+        let uid = getuid()
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.finish()
+            })
+
+        try await subject.kickstart(label: label)
+
+        verify(commandRunner)
+            .run(
+                arguments: .value(
+                    [
+                        "/bin/launchctl",
+                        "kickstart",
+                        "-k",
+                        "gui/\(uid)/\(label)",
+                    ]
+                ),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(1)
+    }
+
     @Test func isLoaded_returnsTrueWhenLaunchctlPrintSucceeds() async throws {
         // Given
         let label = "tuist.cache.org_project"

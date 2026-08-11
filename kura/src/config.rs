@@ -2,12 +2,18 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
-use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+use crate::{
+    constants::{
+        BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
+        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
+        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        default_backfill_ready_ring_percent,
+    },
+    runtime::DataDirLock,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -34,6 +40,8 @@ const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_
 const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
     "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
+const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
+    "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -42,6 +50,7 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
+const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
 const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
@@ -79,8 +88,14 @@ const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
+const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
+const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
+const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
+const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -91,6 +106,7 @@ const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
+const MEMORY_WATERMARK_MIN_GAP_BYTES: u64 = 64 * BYTES_PER_MIB;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
@@ -99,6 +115,8 @@ const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
+#[cfg(target_os = "linux")]
+const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -125,12 +143,20 @@ pub struct Config {
     /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
+    /// When true, evicting a CAS blob cascades: the action-cache entries that
+    /// reference it are removed in the same atomic batch, so an entry never
+    /// outlives its blobs. Gated additionally on the node's blob-refs backfill
+    /// being complete (an incomplete reverse map must not drive deletes). The
+    /// serve-side presence gates stay on regardless as the backstop.
+    pub action_cache_eviction_cascade_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
     pub segment_handle_cache_size: usize,
+    pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
     pub rocksdb_max_open_files: i32,
@@ -144,8 +170,32 @@ pub struct Config {
     pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
+    pub multipart_max_active_uploads: usize,
+    pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
+    /// Boot-time selection of the peer catch-up walker: `true` runs the
+    /// recency-first backfill lifecycle, `false` (the default) the legacy
+    /// bootstrap walker. Read once at process start — the two paths share no
+    /// state and never run together; flipping is an env change plus restart,
+    /// with `backfill/` rows sitting inert while the flag is off.
+    pub backfill_enabled: bool,
+    /// Share of the age-ordered segment ring (counted from the newest) whose
+    /// boundary segment's seal-time stat becomes the backfill horizon; the
+    /// margin's share of the ring's time span is the window's structural
+    /// slack.
+    pub backfill_margin_percent: u64,
+    /// Segment-ring fullness (segment count vs the ring's desired total, as a
+    /// percentage) at which a node still running its initial backfill cycle
+    /// marks itself ready. Defaults to half the backfill margin
+    /// ([`default_backfill_ready_ring_percent`]); an explicit env value
+    /// overrides the derivation. Only consulted while `backfill_enabled`.
+    pub backfill_ready_ring_percent: u64,
+    /// Byte threshold a backfill pass composes one bodies batch against, and
+    /// the cutoff above which a listed entry is fetched through the
+    /// per-artifact endpoint instead of riding a batch. Never exceeds the
+    /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
+    pub backfill_batch_bytes: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -260,7 +310,7 @@ impl HostResources {
                 .max(256),
             memory_limit_bytes: detect_memory_limit_bytes()
                 .unwrap_or(FALLBACK_HOST_MEMORY_LIMIT_BYTES)
-                .max(256 * BYTES_PER_MIB),
+                .max(1),
             cpu_count: detect_cpu_count().max(1),
         }
     }
@@ -279,12 +329,11 @@ impl DerivedRuntimeDefaults {
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
 
-        let memory_limit_bytes = host_resources.memory_limit_bytes.max(256 * BYTES_PER_MIB);
-        let memory_soft_limit_bytes =
-            round_down_to_mib(memory_limit_bytes * 70 / 100).max(128 * BYTES_PER_MIB);
-        let memory_hard_limit_bytes = round_down_to_mib(
-            (memory_limit_bytes * 85 / 100).max(memory_soft_limit_bytes + 64 * BYTES_PER_MIB),
-        );
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 60 / 100).max(1);
+        let memory_hard_limit_bytes = round_down_to_mib(memory_limit_bytes * 85 / 100)
+            .max(memory_soft_limit_bytes.saturating_add(1))
+            .min(memory_limit_bytes.saturating_sub(1).max(1));
         let manifest_cache_max_bytes = clamp_bytes_to_usize(
             round_down_to_mib(memory_soft_limit_bytes / 16),
             8 * BYTES_PER_MIB,
@@ -477,6 +526,17 @@ impl Config {
                 max_concurrent: accelerated_file_serving_max_concurrent,
                 chunk_bytes: accelerated_file_serving_chunk_bytes,
             });
+        let action_cache_eviction_cascade_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -598,7 +658,7 @@ impl Config {
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
             ));
         }
-        let memory_soft_limit_bytes = optional_parsed_value(
+        let memory_soft_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_SOFT_LIMIT_BYTES,
             &mut invalid,
@@ -607,14 +667,15 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_SOFT_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or(derived_defaults.memory_soft_limit_bytes);
+        );
+        let memory_soft_limit_bytes =
+            memory_soft_limit_bytes_override.unwrap_or(derived_defaults.memory_soft_limit_bytes);
         if memory_soft_limit_bytes == 0 {
             invalid.push(format!(
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
-        let memory_hard_limit_bytes = optional_parsed_value(
+        let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
             &mut invalid,
@@ -623,15 +684,64 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_HARD_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or_else(|| {
-            derived_defaults
-                .memory_hard_limit_bytes
-                .max(memory_soft_limit_bytes.saturating_add(64 * BYTES_PER_MIB))
+        );
+        let memory_hard_limit_bytes = memory_hard_limit_bytes_override.unwrap_or_else(|| {
+            if memory_soft_limit_bytes_override.is_some() {
+                derived_defaults
+                    .memory_hard_limit_bytes
+                    .max(memory_soft_limit_bytes.saturating_add(MEMORY_WATERMARK_MIN_GAP_BYTES))
+            } else {
+                derived_defaults.memory_hard_limit_bytes
+            }
         });
         if memory_hard_limit_bytes <= memory_soft_limit_bytes {
             invalid.push(format!(
                 "{KURA_MEMORY_HARD_LIMIT_BYTES} must be greater than {KURA_MEMORY_SOFT_LIMIT_BYTES}"
+            ));
+        }
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        if memory_soft_limit_bytes >= memory_limit_bytes {
+            invalid.push(format!(
+                "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+            ));
+        }
+        if memory_hard_limit_bytes >= memory_limit_bytes {
+            if memory_hard_limit_bytes_override.is_none()
+                && memory_soft_limit_bytes_override.is_some()
+            {
+                invalid.push(format!(
+                    "{KURA_MEMORY_SOFT_LIMIT_BYTES} must leave at least {MEMORY_WATERMARK_MIN_GAP_BYTES} bytes below the detected runtime memory limit of {memory_limit_bytes} bytes when {KURA_MEMORY_HARD_LIMIT_BYTES} is unset; lower {KURA_MEMORY_SOFT_LIMIT_BYTES} or set both watermarks explicitly"
+                ));
+            } else {
+                invalid.push(format!(
+                    "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+                ));
+            }
+        }
+        let snapshot_cache_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_SNAPSHOT_CACHE_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be a valid usize"))
+            },
+        )
+        .unwrap_or_else(|| {
+            clamp_bytes_to_usize(
+                round_down_to_mib(memory_soft_limit_bytes / 4),
+                1,
+                256 * BYTES_PER_MIB,
+            )
+        });
+        if snapshot_cache_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be greater than 0"
+            ));
+        } else if snapshot_cache_max_bytes as u64 >= memory_soft_limit_bytes {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be less than {KURA_MEMORY_SOFT_LIMIT_BYTES} so the cache leaves runtime headroom"
             ));
         }
         let manifest_cache_default = clamp_usize(
@@ -672,6 +782,15 @@ impl Config {
         .unwrap_or(derived_defaults.max_keyvalue_bytes);
         if max_keyvalue_bytes == 0 {
             invalid.push(format!("{KURA_MAX_KEYVALUE_BYTES} must be greater than 0"));
+        } else if max_keyvalue_bytes as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            // Key-value entries are stored inline and replicated inline, and the
+            // inline replication receive path is bounded by
+            // MAX_INLINE_REPLICATION_BODY_BYTES. A larger key-value limit would
+            // let an entry be accepted locally but 413'd by every peer — the
+            // poison-outbox loop this ceiling exists to prevent.
+            invalid.push(format!(
+                "{KURA_MAX_KEYVALUE_BYTES} must be at most {MAX_INLINE_REPLICATION_BODY_BYTES} so inline entries stay replicable"
+            ));
         }
         let rocksdb_max_open_files = optional_parsed_value(
             &mut lookup,
@@ -839,6 +958,38 @@ impl Config {
                 "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
             ));
         }
+        let multipart_max_active_uploads = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_ACTIVE_UPLOADS,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
+        if multipart_max_active_uploads == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
+            ));
+        }
+        let multipart_max_stored_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_STORED_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MULTIPART_MAX_STORED_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(tmp_dir_max_bytes);
+        if multipart_max_stored_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
+            ));
+        }
         let bootstrap_timeout_ms = optional_parsed_value(
             &mut lookup,
             KURA_BOOTSTRAP_TIMEOUT_MS,
@@ -869,6 +1020,61 @@ impl Config {
         if bootstrap_max_concurrent_peers == 0 {
             invalid.push(format!(
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
+            ));
+        }
+        let backfill_enabled =
+            optional_parsed_value(&mut lookup, KURA_BACKFILL_ENABLED, &mut invalid, |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_BACKFILL_ENABLED} must be a valid bool"))
+            })
+            .unwrap_or(false);
+        let backfill_margin_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_MARGIN_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_MARGIN_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_MARGIN_PERCENT);
+        if backfill_margin_percent == 0 || backfill_margin_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_ready_ring_percent = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_READY_RING_PERCENT,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_READY_RING_PERCENT} must be a valid u64"))
+            },
+        )
+        .unwrap_or_else(|| default_backfill_ready_ring_percent(backfill_margin_percent));
+        if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
+            invalid.push(format!(
+                "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_BATCH_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_BATCH_BYTES);
+        if backfill_batch_bytes == 0 || backfill_batch_bytes > BACKFILL_BODIES_BATCH_BYTES {
+            invalid.push(format!(
+                "{KURA_BACKFILL_BATCH_BYTES} must be between 1 and {BACKFILL_BODIES_BATCH_BYTES}"
             ));
         }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
@@ -1270,12 +1476,15 @@ impl Config {
             https_port,
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
+            action_cache_eviction_cascade_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             segment_handle_cache_size,
+            memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
             rocksdb_max_open_files,
@@ -1289,8 +1498,14 @@ impl Config {
             replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
+            multipart_max_active_uploads,
+            multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            backfill_enabled,
+            backfill_margin_percent,
+            backfill_ready_ring_percent,
+            backfill_batch_bytes,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1306,7 +1521,14 @@ impl Config {
         })
     }
 
-    pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+    pub async fn ensure_data_dir_for_lock(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.data_dir).await
+    }
+
+    pub async fn ensure_directories(
+        &self,
+        _data_dir_lock: &DataDirLock,
+    ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
         // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
         // staging) is dead once the process restarts, and a failed transfer can
@@ -1315,7 +1537,7 @@ impl Config {
         // the pod in a crash loop. Clearing them here — before Store::open — lets
         // such a pod free space and recover on the next start instead of staying
         // stuck out-of-space.
-        for staging in ["uploads", "parts", "bootstrap"] {
+        for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
                 Ok(()) => {}
@@ -1326,6 +1548,7 @@ impl Config {
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
         fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
+        fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -1406,9 +1629,12 @@ fn detect_memory_limit_bytes() -> Option<u64> {
 fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
     #[cfg(target_os = "linux")]
     {
-        for path in [
-            "/sys/fs/cgroup/memory.max",
-            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        for (path, unlimited_threshold_bytes) in [
+            ("/sys/fs/cgroup/memory.max", None),
+            (
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+                Some(CGROUP_V1_UNLIMITED_THRESHOLD_BYTES),
+            ),
         ] {
             let Ok(raw) = std::fs::read_to_string(path) else {
                 continue;
@@ -1419,6 +1645,7 @@ fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
             }
             if let Ok(value) = trimmed.parse::<u64>()
                 && value > 0
+                && unlimited_threshold_bytes.is_none_or(|threshold| value < threshold)
             {
                 return Some(value);
             }
@@ -1512,6 +1739,22 @@ mod tests {
     }
 
     #[test]
+    fn keyvalue_limit_is_bounded_by_the_inline_replication_ceiling() {
+        let at_limit = MAX_INLINE_REPLICATION_BODY_BYTES.to_string();
+        let config = config_from(&[(KURA_MAX_KEYVALUE_BYTES, at_limit.as_str())])
+            .expect("a key-value limit at the inline ceiling is allowed");
+        assert_eq!(
+            config.max_keyvalue_bytes as u64,
+            MAX_INLINE_REPLICATION_BODY_BYTES
+        );
+
+        let over_limit = (MAX_INLINE_REPLICATION_BODY_BYTES + 1).to_string();
+        let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
+            .expect_err("a key-value limit above the inline ceiling must fail");
+        assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
             .expect_err("expected missing config to fail");
@@ -1540,11 +1783,16 @@ mod tests {
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
         assert_eq!(config.segment_handle_cache_size, 224);
-        assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
+        assert_eq!(config.memory_limit_bytes, 1024 * BYTES_PER_MIB);
+        assert_eq!(config.memory_soft_limit_bytes, 614 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
+            config.snapshot_cache_max_bytes,
+            (153 * BYTES_PER_MIB) as usize
+        );
+        assert_eq!(
             config.manifest_cache_max_bytes,
-            (44 * BYTES_PER_MIB) as usize
+            (38 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.max_keyvalue_bytes, 1024 * 1024);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1567,6 +1815,11 @@ mod tests {
             512 * BYTES_PER_MIB
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(
+            config.multipart_max_active_uploads,
+            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
+        );
+        assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(
             config.accelerated_file_serving,
@@ -1594,6 +1847,78 @@ mod tests {
     }
 
     #[test]
+    fn memory_watermarks_stay_below_small_runtime_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 4096,
+            memory_limit_bytes: 128 * BYTES_PER_MIB,
+            cpu_count: 2,
+        });
+
+        assert_eq!(defaults.memory_soft_limit_bytes, 76 * BYTES_PER_MIB);
+        assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
+        assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_preserves_proportional_watermarks_for_small_runtime_limits() {
+        let values = base_values();
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected proportional memory defaults to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 153 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 217 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_keeps_headroom_after_an_explicit_soft_watermark() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (160 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected the explicit soft watermark to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 160 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 224 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (200 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect_err("expected the unsafe soft watermark to fail");
+
+        assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
+        assert!(error.contains("set both watermarks explicitly"));
+    }
+
+    #[test]
     fn from_lookup_parses_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
@@ -1612,6 +1937,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "33554432"),
             (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
@@ -1626,6 +1952,8 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
+            (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1657,6 +1985,7 @@ mod tests {
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.snapshot_cache_max_bytes, 33_554_432);
         assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
@@ -1680,6 +2009,8 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1692,6 +2023,90 @@ mod tests {
             config.geoip_refresh_interval_secs,
             DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_enabled() {
+        let config = config_from(&[]).expect("default backfill selection should be valid");
+        assert!(!config.backfill_enabled, "the flag must default off");
+
+        let config = config_from(&[(KURA_BACKFILL_ENABLED, "true")])
+            .expect("an explicit backfill flag should be valid");
+        assert!(config.backfill_enabled);
+
+        let error = config_from(&[(KURA_BACKFILL_ENABLED, "definitely")])
+            .expect_err("a non-bool backfill flag must fail");
+        assert!(error.contains(KURA_BACKFILL_ENABLED));
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_margin_percent() {
+        let config = config_from(&[]).expect("default backfill margin should be valid");
+        assert_eq!(
+            config.backfill_margin_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT
+        );
+
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "25")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_margin_percent, 25);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill margin must fail");
+            assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_ready_ring_percent() {
+        let config = config_from(&[]).expect("default backfill ready percent should be valid");
+        assert_eq!(
+            config.backfill_ready_ring_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT / 2,
+            "the default derives from the margin, not a fixed value"
+        );
+
+        // The derivation follows an overridden margin.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "30")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 15);
+
+        // A 1% margin derives the 1 floor rather than 0.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "1")])
+            .expect("a 1% backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 1);
+
+        // An explicit value overrides the derivation.
+        let config = config_from(&[
+            (KURA_BACKFILL_MARGIN_PERCENT, "30"),
+            (KURA_BACKFILL_READY_RING_PERCENT, "60"),
+        ])
+        .expect("an in-range backfill ready percent should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 60);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_READY_RING_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill ready percent must fail");
+            assert!(error.contains(KURA_BACKFILL_READY_RING_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_batch_bytes() {
+        let config = config_from(&[]).expect("default backfill batch bytes should be valid");
+        assert_eq!(config.backfill_batch_bytes, DEFAULT_BACKFILL_BATCH_BYTES);
+
+        let config = config_from(&[(KURA_BACKFILL_BATCH_BYTES, "1048576")])
+            .expect("an in-range backfill batch threshold should be valid");
+        assert_eq!(config.backfill_batch_bytes, 1_048_576);
+
+        let above_ceiling = (BACKFILL_BODIES_BATCH_BYTES + 1).to_string();
+        for out_of_range in ["0", above_ceiling.as_str()] {
+            let error = config_from(&[(KURA_BACKFILL_BATCH_BYTES, out_of_range)])
+                .expect_err("an out-of-range backfill batch threshold must fail");
+            assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
+        }
     }
 
     #[test]
@@ -1784,6 +2199,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "invalid"),
             (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
@@ -1816,6 +2232,7 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_SNAPSHOT_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
@@ -2364,20 +2781,32 @@ mod tests {
         // real data file, to prove ensure_directories reclaims the former without
         // touching the latter.
         let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let stale_backfill = config.tmp_dir.join("backfill").join("bodies-leftover");
         let kept = config.data_dir.join("rocksdb").join("CURRENT");
         fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(stale_backfill.parent().unwrap())
+            .await
+            .unwrap();
         fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
         fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&stale_backfill, b"stale").await.unwrap();
         fs::write(&kept, b"keep").await.unwrap();
 
         config
-            .ensure_directories()
+            .ensure_data_dir_for_lock()
+            .await
+            .expect("failed to create data directory");
+        let data_dir_lock =
+            DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+        config
+            .ensure_directories(&data_dir_lock)
             .await
             .expect("failed to create Kura directories");
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
         assert!(config.tmp_dir.join("bootstrap").exists());
+        assert!(config.tmp_dir.join("backfill").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
@@ -2387,6 +2816,21 @@ mod tests {
             !stale.exists(),
             "stale staging must be reclaimed on startup"
         );
+        assert!(
+            !stale_backfill.exists(),
+            "stale backfill spool must be reclaimed on startup"
+        );
         assert!(kept.exists(), "persistent data must be preserved");
+
+        let active = config.tmp_dir.join("uploads").join("active");
+        fs::write(&active, b"in-flight").await.unwrap();
+        assert!(
+            DataDirLock::acquire(&config.data_dir).is_err(),
+            "a second runtime must fail before staging cleanup"
+        );
+        assert!(
+            active.exists(),
+            "the rejected runtime must not remove the active owner's staging"
+        );
     }
 }

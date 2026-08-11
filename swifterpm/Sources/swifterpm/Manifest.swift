@@ -61,13 +61,31 @@ enum ManifestLoader {
     }
 
     static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
-        let data = try await ManifestLoader.dumpPackageJSON(
-            packageDir: packageDir, disableSandbox: disableSandbox
-        )
-        return try JSONSerialization.jsonObject(with: data)
+        do {
+            let data = try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox
+            )
+            return try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
     }
 
     static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
+        do {
+            return try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox
+            )
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
+    }
+
+    /// The unattributed load. Both entry points wrap it in `dumpFailure`, so the reading of the
+    /// cache, the `dump-package` hop, and (for `dumpPackage`) the JSON parse are all attributed
+    /// once, by whichever entry point the caller used — a toolchain that prints ahead of the
+    /// JSON must not fail as anonymously as the missing manifest this change is about.
+    private static func loadPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
         if let cached = try await readCachedManifest(packageDir: packageDir) {
             return cached
         }
@@ -80,21 +98,87 @@ enum ManifestLoader {
         let result = try await SystemProcess.run(
             "/usr/bin/swift", args, workingDirectory: packageDir
         )
-        try? await fileSystem.atomicWrite(result.stdout, to: cacheFilePath(packageDir: packageDir))
+        let cache = cacheFilePath(packageDir: packageDir)
+        try? await fileSystem.atomicWrite(result.stdout, to: cache)
+        if let cachePath = try? cache.absolutePath {
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath)
+        }
         return result.stdout
+    }
+
+    /// `swift package dump-package` resolves the package root from its working directory and
+    /// walks up from there, so a directory that holds no manifest fails with SwiftPM's
+    /// "Could not find Package.swift in this directory or any of its parent directories" —
+    /// which names neither the directory swifterpm chose nor the package it stands for. Every
+    /// dump in the graph reaches the user as that same line, so attribute the failure to the
+    /// directory here, and separate a missing manifest (a package that was never materialized,
+    /// or a local dependency pointing at the wrong path) from a manifest that failed to
+    /// evaluate: the two need different fixes.
+    ///
+    /// The classification is a hint layered on the evidence, never a replacement for it: the
+    /// probe can be wrong (a directory the process cannot traverse reads as absent), so the
+    /// underlying error is always appended. The sentence also carries no verb, so it composes
+    /// under callers that add one ("failed to load the manifest for X: no Package.swift in …")
+    /// without saying it twice.
+    static func dumpFailure(packageDir: URL, underlying: any Error) async -> ToolError {
+        let description =
+            switch await manifestPresence(packageDir: packageDir) {
+            case .present, .indeterminate: packageDir.path
+            case .absent: "no Package.swift in \(packageDir.path)"
+            // Deliberately not "does not exist": `exists` reports an unreadable directory as
+            // absent, so that claim would be false for a package under a parent the process
+            // cannot traverse. "Could not read" holds either way, and the underlying error
+            // below already distinguishes ENOENT from EACCES.
+            case .unreadable: "could not read \(packageDir.path)"
+            }
+        return ToolError.message("\(description): \(underlying)")
+    }
+
+    private enum ManifestPresence {
+        case present
+        case absent
+        /// Missing, or present but not readable — `exists` cannot tell the two apart.
+        case unreadable
+        /// The filesystem could not answer, so the failure is reported without a claim about
+        /// what is on disk rather than with a claim that may be false.
+        case indeterminate
+    }
+
+    private static func manifestPresence(packageDir: URL) async -> ManifestPresence {
+        do {
+            let path = try packageDir.absolutePath
+            if try await fileSystem.exists(path.appending(component: "Package.swift")) {
+                return .present
+            }
+            return try await fileSystem.exists(path) ? .absent : .unreadable
+        } catch {
+            return .indeterminate
+        }
     }
 
     private static func readCachedManifest(packageDir: URL) async throws -> Data? {
         let cache = cacheFilePath(packageDir: packageDir)
         let manifest = packageDir.appendingPathComponent("Package.swift")
-        guard try await fileSystem.exists(cache.absolutePath) else { return nil }
-        guard let cacheDate = try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate,
+        let cachePath = try cache.absolutePath
+        guard try await fileSystem.exists(cachePath) else { return nil }
+        guard let cacheDate = try await fileSystem.fileMetadata(at: cachePath)?.lastModificationDate,
               let manifestDate = try await fileSystem.fileMetadata(at: manifest.absolutePath)?.lastModificationDate,
               cacheDate >= manifestDate
         else {
             return nil
         }
-        return try await fileSystem.readFile(at: cache.absolutePath)
+        // A dump is reusable only when it was produced under the current environment. A
+        // missing sidecar means the cache predates environment fingerprinting (or the
+        // sidecar write failed), so the environment that produced the contents is
+        // unknown. Treat that as a miss and re-dump rather than blessing unknown contents
+        // with the current environment, otherwise a legacy cache that was already stale
+        // at upgrade time would stay stale indefinitely.
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cachePath) {
+        case .matching:
+            return try await fileSystem.readFile(at: cachePath)
+        case .mismatching, .missing:
+            return nil
+        }
     }
 }
 
@@ -127,10 +211,21 @@ enum ManifestFileSystemDependencyGraph {
                 continue
             }
 
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: canonicalPath,
-                disableSandbox: disableSandbox
-            )
+            let manifest: Any
+            do {
+                manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: canonicalPath,
+                    disableSandbox: disableSandbox
+                )
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(item.dependency.identity), declared as "\(item.dependency.path)" by \
+                    \(item.parentPackageDir.path): \(error)
+                    """
+                )
+            }
             result.append(
                 ManifestFileSystemPackage(
                     dependency: item.dependency,

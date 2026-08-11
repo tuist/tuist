@@ -1,0 +1,10 @@
+# Pins a node to a forced memory-pressure tier via the test-only
+# KURA_TEST_FORCE_MEMORY_PRESSURE variable so an end-to-end run can reproduce a
+# sustained pressure window deterministically (a real node never sits on one
+# tier for long). Compose merges `environment` key-by-key, so this adds the
+# override on top of the base kura env without dropping the rest of it.
+# Production never sets the variable, so the override is inert outside tests.
+services:
+  kura-us:
+    environment:
+      KURA_TEST_FORCE_MEMORY_PRESSURE: ${KURA_E2E_FORCE_MEMORY_PRESSURE:-constrained}

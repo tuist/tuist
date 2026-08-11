@@ -84,6 +84,101 @@ defmodule Tuist.Runners.PromExPluginTest do
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0}, %{fleet: "fleet-empty"}},
                      500
     end
+
+    test "reports the age of the oldest queued job", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-age"])
+
+      account = account_fixture()
+
+      # Relative to now, not fixed dates: the poll only scans back
+      # `@queue_lookback_days`, so absolute timestamps would age out of
+      # the window and silently drop the expected count.
+      now = DateTime.utc_now()
+      oldest_enqueued_at = DateTime.add(now, -4 * 60 * 60, :second)
+      newer_enqueued_at = DateTime.add(now, -30 * 60, :second)
+
+      # Two queued jobs on one fleet: the gauge tracks the oldest.
+      for {id, enqueued_at} <- [
+            {999_010, oldest_enqueued_at},
+            {999_011, newer_enqueued_at}
+          ] do
+        :ok =
+          Jobs.enqueue(%{
+            workflow_job_id: id,
+            account_id: account.id,
+            fleet_name: "fleet-age",
+            repository: "acme/cli",
+            workflow_run_id: 9010,
+            run_attempt: 1,
+            job_name: "build",
+            head_branch: "main",
+            head_sha: "deadbeef",
+            enqueued_at: enqueued_at
+          })
+      end
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{count: 2, oldest_age_seconds: oldest_age_seconds}, %{fleet: "fleet-age"}},
+                     500
+
+      assert_in_delta oldest_age_seconds, 4 * 60 * 60, 60
+    end
+
+    test "reports zero age for a fleet with an empty queue", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-empty-age"])
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_age_seconds: 0},
+                      %{fleet: "fleet-empty-age"}},
+                     500
+    end
+
+    test "emits a final zero when a queued fleet's pool is gone and its queue clears",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+
+      # The fleet has a queued row but no active RunnerPool — the "pool
+      # deleted while a job was still queued" case. It's visible this
+      # tick only because it has a queued row.
+      stub_pool_list([])
+
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_020,
+          account_id: account.id,
+          fleet_name: "fleet-gone",
+          repository: "acme/cli",
+          workflow_run_id: 9020,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-gone"}},
+                     500
+
+      # The queued row leaves `queued` and the pool is still gone, so the
+      # fleet is now in neither the queue stats nor the active pool list.
+      # Without the seen-set drain, this tick would emit nothing and
+      # last_value would hold the stale non-zero age forever.
+      {:ok, _} = Jobs.complete(999_020, "success")
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
+                      %{fleet: "fleet-gone"}},
+                     500
+    end
   end
 
   describe "execute_claims_telemetry_event/0" do

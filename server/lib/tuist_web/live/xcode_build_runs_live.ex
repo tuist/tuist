@@ -22,17 +22,11 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   end
 
   def assign_handle_params(socket, params) do
+    params = Query.clear_cursors_on_initial_load(params, socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
     build_runs_sort_order = params["build-runs-sort-order"] || "desc"
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
 
     socket
     |> assign(:uri, uri)

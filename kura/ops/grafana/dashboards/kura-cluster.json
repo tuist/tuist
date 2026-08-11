@@ -104,9 +104,111 @@
           "expr": "kura_process_virtual_memory_bytes",
           "legendFormat": "{{region}} virtual",
           "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_current_bytes",
+          "legendFormat": "{{region}} container",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_working_set_bytes",
+          "legendFormat": "{{region}} working set",
+          "refId": "J"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_pressure_bytes",
+          "legendFormat": "{{region}} pressure signal",
+          "refId": "P"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_reclaimable_inactive_file_bytes",
+          "legendFormat": "{{region}} reclaimable inactive file",
+          "refId": "O"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_limit_bytes",
+          "legendFormat": "{{region}} container limit",
+          "refId": "K"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_anon_bytes",
+          "legendFormat": "{{region}} anonymous",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_bytes",
+          "legendFormat": "{{region}} file cache",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_kernel_bytes",
+          "legendFormat": "{{region}} kernel",
+          "refId": "F"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_shmem_bytes",
+          "legendFormat": "{{region}} shared memory",
+          "refId": "L"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_dirty_bytes",
+          "legendFormat": "{{region}} dirty file",
+          "refId": "M"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_writeback_bytes",
+          "legendFormat": "{{region}} file writeback",
+          "refId": "N"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_soft_limit_bytes",
+          "legendFormat": "{{region}} soft watermark",
+          "refId": "G"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_hard_limit_bytes",
+          "legendFormat": "{{region}} hard watermark",
+          "refId": "H"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_transient_reserved_bytes",
+          "legendFormat": "{{region}} transient reserved",
+          "refId": "I"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool capacity",
+          "refId": "S"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region) (kura_response_stream_reserved_bytes)",
+          "legendFormat": "{{region}} stream pool reserved",
+          "refId": "T"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_foreground_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool public ceiling",
+          "refId": "U"
         }
       ],
-      "title": "Process Memory",
+      "title": "Container and Process Memory",
       "type": "timeseries"
     },
     {
@@ -184,6 +286,30 @@
           "expr": "kura_memory_pressure_state",
           "legendFormat": "{{region}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_foreground_memory_waiters",
+          "legendFormat": "{{region}} foreground waiters",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_active)",
+          "legendFormat": "{{region}} {{protocol}} active streams",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_waiters)",
+          "legendFormat": "{{region}} {{protocol}} stream waiters",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol, outcome) (rate(kura_response_stream_admissions_total{outcome=~\"timeout|queue_full\"}[5m]))",
+          "legendFormat": "{{region}} {{protocol}} {{outcome}} rate",
+          "refId": "F"
         }
       ],
       "title": "Memory Pressure State",
@@ -266,6 +392,12 @@
           "expr": "sum by (region, route) (rate(kura_http_requests_total[5m]))",
           "legendFormat": "{{region}} {{route}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, path) (rate(kura_artifact_serving_paths_total[5m]))",
+          "legendFormat": "{{region}} artifact {{path}}",
+          "refId": "B"
         }
       ],
       "title": "HTTP Request Rate",

@@ -4,6 +4,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
 
@@ -42,6 +43,105 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert session.platform == :linux
       assert session.vcpus == 4
       assert session.memory_gb == 16
+    end
+  end
+
+  describe "occupied_counts_per_fleet/0" do
+    test "counts the distinct union of claims and open sessions" do
+      account = account_fixture()
+      fleet = "fleet-occupied"
+      pod_name = "pod-claimed-and-open"
+
+      assert {:ok, _claim} =
+               Claims.attempt(71_001, account.id, fleet, pod_name, %{
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14
+               })
+
+      session_fixture(account,
+        workflow_job_id: 71_001,
+        fleet_name: fleet,
+        pod_name: pod_name
+      )
+
+      session_fixture(account,
+        workflow_job_id: 71_002,
+        fleet_name: fleet,
+        pod_name: "pod-session-tail"
+      )
+
+      assert RunnerSessions.occupied_counts_per_fleet()[fleet] == 2
+    end
+
+    test "ignores closed and stale session-only occupancy" do
+      account = account_fixture()
+      fleet = "fleet-no-longer-occupied"
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        fleet_name: fleet,
+        pod_name: "pod-closed",
+        started_at: DateTime.add(now, -300, :second),
+        ended_at: DateTime.add(now, -60, :second)
+      )
+
+      session_fixture(account,
+        fleet_name: fleet,
+        pod_name: "pod-stale-open",
+        started_at: DateTime.add(now, -7 * 3600, :second)
+      )
+
+      assert Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet, 0) == 0
+    end
+  end
+
+  describe "p95_concurrent_last_hour/1" do
+    test "returns zero for a fleet with no sessions" do
+      assert RunnerSessions.p95_concurrent_last_hour("fleet-empty") == 0
+    end
+
+    test "keeps a sparse completed session visible without zero-demand buckets" do
+      account = account_fixture()
+      fleet = "fleet-sparse-history"
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        fleet_name: fleet,
+        started_at: DateTime.add(now, -40 * 60, :second),
+        ended_at: DateTime.add(now, -39 * 60, :second)
+      )
+
+      assert RunnerSessions.p95_concurrent_last_hour(fleet) == 1
+    end
+
+    test "reports overlapping session capacity" do
+      account = account_fixture()
+      fleet = "fleet-overlap-history"
+      now = DateTime.utc_now()
+
+      for workflow_job_id <- [72_001, 72_002] do
+        session_fixture(account,
+          workflow_job_id: workflow_job_id,
+          fleet_name: fleet,
+          started_at: DateTime.add(now, -10 * 60, :second),
+          ended_at: DateTime.add(now, -5 * 60, :second)
+        )
+      end
+
+      assert RunnerSessions.p95_concurrent_last_hour(fleet) == 2
+    end
+
+    test "clamps an orphaned open session out of the forecast" do
+      account = account_fixture()
+      fleet = "fleet-stale-history"
+
+      session_fixture(account,
+        fleet_name: fleet,
+        started_at: DateTime.add(DateTime.utc_now(), -8 * 3600, :second)
+      )
+
+      assert RunnerSessions.p95_concurrent_last_hour(fleet) == 0
     end
   end
 

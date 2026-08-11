@@ -24,7 +24,7 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
 
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
@@ -200,24 +200,6 @@ defmodule Tuist.Kura.Regions do
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
       storage_size: "50Gi",
-      # A local-path volume is a directory on the node's shared NVMe, so the claim
-      # above bounds nothing and this pool has been running near 137Gi per account
-      # off Kura's statvfs default. This is the whole per-account disk envelope
-      # (ring + index + upload staging) rather than the ring itself — the ring is
-      # what is left after the reserves, ~137GiB here — so it lands the ring back
-      # on roughly what the pool already holds rather than shrinking a healthy
-      # cache to a claim that never applied. Three accounts leave the ~900G node
-      # about half free;
-      # the box tops out near five, so raising this or adding accounts past that
-      # needs a second box, not a bigger number.
-      #
-      # Kept separate from storage_size because raising the claim is not a no-op:
-      # the controller patches existing PVCs up to spec.storageSize on every
-      # reconcile, and scw-local-nvme sets allowVolumeExpansion: false, so the API
-      # would reject each resize and wedge the instances that already exist. Only
-      # meaningful where the claim is a fiction — leave it unset on a class that
-      # enforces the claim, so the ring stays inside the volume.
-      disk_envelope_size: "150Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
@@ -242,6 +224,21 @@ defmodule Tuist.Kura.Regions do
       tolerations: [
         %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
       ]
+    },
+    # A catalog tombstone for runner-cache rows created before the staging
+    # Hetzner runner pool was retired. It is never offered for provisioning,
+    # but keeping the original cluster identity lets the reconciler observe and
+    # delete the old KuraInstance resources instead of failing every tick with
+    # `:not_found` while resolving their stored region.
+    %{
+      id: "hetzner-staging-runners",
+      display_name: "Hetzner staging (retired runner cache)",
+      cluster_id: "staging",
+      node_pool: "kura",
+      storage_class: @managed_region_storage_class,
+      storage_size: "20Gi",
+      runner_platforms: [:linux],
+      retired: true
     }
   ]
 
@@ -261,7 +258,7 @@ defmodule Tuist.Kura.Regions do
     else
       available_region_ids = MapSet.new(Tuist.Environment.kura_available_region_ids())
 
-      Enum.filter(managed_regions(), &MapSet.member?(available_region_ids, &1.id))
+      Enum.filter(managed_regions(), &(not retired?(&1) and MapSet.member?(available_region_ids, &1.id)))
     end
   end
 
@@ -288,6 +285,22 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc "True iff the region remains in the catalog only to clean up stored resources."
+  def retired?(%__MODULE__{retired: retired}), do: retired
+  def retired?(_), do: false
+
+  @doc """
+  Ids of regions kept only as catalog tombstones. A tombstone exists so the
+  reconciler can still resolve a stored server's cluster identity long enough
+  to tear its resources down; servers left in one can never schedule, because
+  the node pool the tombstone names is gone.
+  """
+  def retired_ids do
+    all()
+    |> Enum.filter(&retired?/1)
+    |> Enum.map(& &1.id)
+  end
 
   @doc """
   True iff this private region's runner fleet dials a node-published
@@ -336,6 +349,8 @@ defmodule Tuist.Kura.Regions do
   platform, so a region pinned next to one fleet can't leak its
   in-cluster URL to a fleet on the wrong side of a WAN.
   """
+  def serves_runner_platform?(%__MODULE__{retired: true}, _platform), do: false
+
   def serves_runner_platform?(%__MODULE__{runner_platforms: platforms}, platform) when is_list(platforms) do
     platform in platforms
   end
@@ -451,6 +466,7 @@ defmodule Tuist.Kura.Regions do
       id: spec.id,
       display_name: spec.display_name,
       runner_platforms: spec.runner_platforms,
+      retired: Map.get(spec, :retired, false),
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,

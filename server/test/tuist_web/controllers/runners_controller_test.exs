@@ -10,7 +10,7 @@ defmodule TuistWeb.RunnersControllerTest do
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
-    test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
+    test "returns claimed, occupied, queued, and historical concurrency for the fleet", %{conn: conn} do
       account = account_fixture()
 
       :ok =
@@ -45,6 +45,7 @@ defmodule TuistWeb.RunnersControllerTest do
       body = json_response(conn, 200)
       assert body["fleet"] == "fleet-scale"
       assert body["claimed"] == 1
+      assert body["occupied"] == 1
       assert body["queued"] == 1
       assert is_integer(body["p95_concurrent_last_hour"])
     end
@@ -62,6 +63,7 @@ defmodule TuistWeb.RunnersControllerTest do
       body = json_response(conn, 200)
       assert body["fleet"] == "fleet-empty"
       assert body["claimed"] == 0
+      assert body["occupied"] == 0
       assert body["queued"] == 0
       assert body["p95_concurrent_last_hour"] == 0
     end
@@ -247,6 +249,116 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
 
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
+    end
+  end
+
+  describe "POST /api/internal/runners/volume-head/upload-url" do
+    test "returns a presigned upload URL for the reported digest", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+        |> json_response(200)
+
+      assert body["upload_url"] == "https://bucket.example.com/put"
+    end
+
+    test "422 when the digest is rejected", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, "bad" -> :error end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "bad"})
+        |> json_response(422)
+
+      assert body["error"] == "invalid digest"
+    end
+
+    test "401 without a bearer token", %{conn: conn} do
+      conn = post(conn, "/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "x"})
+      assert json_response(conn, 401)
+    end
+  end
+
+  describe "POST /api/internal/runners/volume-head" do
+    setup %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      {:ok, conn: put_req_header(conn, "authorization", "Bearer valid-token")}
+    end
+
+    test "returns the accepted generation on a fast-forward", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5 -> {:ok, 6} end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{
+          "tree_digest" => digest,
+          "node_name" => "node-1",
+          "base_generation" => 5
+        })
+        |> json_response(200)
+
+      assert body["generation"] == 6
+    end
+
+    test "409 when the fast-forward is rejected as stale", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base -> :conflict end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => 1})
+        |> json_response(409)
+
+      assert body["error"] == "stale base generation"
+    end
+
+    test "parses a string base_generation and defaults a missing one to 0", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base -> {:ok, base + 1} end)
+
+      # A string body value is parsed to an integer.
+      assert %{"generation" => 4} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => "3"})
+               |> json_response(200)
+
+      # A missing base_generation is treated as 0 (a cold job).
+      assert %{"generation" => 1} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest})
+               |> json_response(200)
+    end
+
+    test "422 when the digest is invalid", %{conn: conn} do
+      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base -> :error end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{"tree_digest" => "bad", "base_generation" => 0})
+        |> json_response(422)
+
+      assert body["error"] == "invalid digest"
     end
   end
 end

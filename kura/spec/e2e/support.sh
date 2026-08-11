@@ -113,6 +113,10 @@ container_oom_killed() {
   docker inspect --format '{{.State.OOMKilled}}' "$(dc_container_id "$1")"
 }
 
+container_memory_event() {
+  dc exec -T "$1" awk -v event="$2" '$1 == event { print $2 }' /sys/fs/cgroup/memory.events
+}
+
 run_parallel_http_gets() {
   local url="$1"
   local workers="$2"
@@ -124,6 +128,37 @@ run_parallel_http_gets() {
     (
       for _ in $(seq 1 "$iterations"); do
         curl -fsS --max-time 20 -o /dev/null "$url" || exit 1
+      done
+    ) &
+    pids+=("$!")
+  done
+
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then
+      failures=1
+    fi
+  done
+
+  return "$failures"
+}
+
+run_parallel_http_posts() {
+  local url="$1"
+  local path="$2"
+  local workers="$3"
+  local iterations="$4"
+  local failures=0
+  local status
+  local pids=()
+
+  for worker in $(seq 1 "$workers"); do
+    (
+      for _ in $(seq 1 "$iterations"); do
+        status="$(status_only -X POST \
+          "$url" \
+          -H "content-type: application/octet-stream" \
+          --data-binary "@$path")"
+        [ "$status" = 204 ] || exit 1
       done
     ) &
     pids+=("$!")
@@ -266,6 +301,67 @@ wait_for_all_contains() {
 
   printf 'Timed out waiting for [%s] in %s\n' "$*" "$url" >&2
   return 1
+}
+
+# Sum the samples of one Prometheus family scraped from NODE_URL/metrics.
+# METRIC is the full family name (e.g. kura_backfill_applied_bytes_total);
+# FILTER, when given, is a substring the sample's label set must contain
+# (e.g. 'decision="present"'). Prints an integer; an unscrapable node or an
+# untouched family sums to 0. A rendered sample may carry one extra `_total`
+# beyond the registered name (the prometheus_client crate appends the counter
+# suffix even when the registration already ends in `_total`), so both
+# spellings are accepted — callers always pass the registered name.
+metric_sum() {
+  local url="$1" metric="$2" filter="${3:-}"
+  curl -fsS "${url}/metrics" 2>/dev/null | awk -v metric="$metric" -v filter="$filter" '
+    index($0, metric) == 1 {
+      rest = substr($0, length(metric) + 1)
+      sub(/^_total/, "", rest)
+      tail = substr(rest, 1, 1)
+      if (tail != "{" && tail != " ") { next }
+      if (filter != "" && index($0, filter) == 0) { next }
+      sum += $NF
+    }
+    END { printf "%.0f", sum + 0 }'
+}
+
+# Poll metric_sum until it reaches THRESHOLD; print the value that satisfied
+# the wait. Pass an empty FILTER to sum the whole family.
+wait_for_metric_ge() {
+  local url="$1" metric="$2" filter="$3" threshold="$4" attempts="${5:-45}" sleep_seconds="${6:-2}"
+  local value
+
+  for _ in $(seq 1 "$attempts"); do
+    value="$(metric_sum "$url" "$metric" "$filter")"
+    if [ "${value:-0}" -ge "$threshold" ]; then
+      printf '%s' "$value"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for %s%s on %s to reach %s (last value %s)\n' \
+    "$metric" "${filter:+\{$filter\}}" "$url" "$threshold" "${value:-0}" >&2
+  return 1
+}
+
+# Sample URL SAMPLES times, SLEEP_SECONDS apart, and print how many samples
+# returned a status other than EXPECTED. 0 means the status held for the whole
+# window — the readiness-latch specs use this to assert /ready never regresses
+# across a peer flap.
+count_status_regressions() {
+  local url="$1" expected="$2" samples="$3" sleep_seconds="$4"
+  local regressions=0 status
+
+  for _ in $(seq 1 "$samples"); do
+    status="$(status_only "$url" 2>/dev/null || true)"
+    if [ "$status" != "$expected" ]; then
+      regressions=$((regressions + 1))
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf '%s' "$regressions"
 }
 
 new_marker() {

@@ -23,6 +23,15 @@ defmodule Tuist.Runners.Workers.DispatchWorkerTest do
     )
   end
 
+  describe "new/2" do
+    test "suppresses duplicate deliveries for two hours" do
+      unique = DispatchWorker.new(args()).changes.unique
+
+      assert unique.period == 2 * 60 * 60
+      assert unique.keys == [:delivery_guid]
+    end
+  end
+
   describe "perform/1" do
     test "returns :ok and forwards payload + installation_id when Dispatch reports success" do
       args = args()

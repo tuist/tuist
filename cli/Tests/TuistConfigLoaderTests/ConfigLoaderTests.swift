@@ -79,6 +79,25 @@ struct ConfigLoaderTests {
         #expect(HTTPSettings.current.useEnvironmentProxy == false)
     }
 
+    @Test(.inTemporaryDirectory)
+    func loadConfig_propagates_toml_ca_certificate_to_http_settings() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let tomlConfigLoader = MockTuistTomlConfigLoading()
+        let previousSettings = HTTPSettings.current
+        defer { HTTPSettings.current = previousSettings }
+
+        given(tomlConfigLoader)
+            .loadConfig(at: .any)
+            .willReturn(TuistTomlConfig(network: .init(proxy: true, caCertificate: "/etc/ssl/certs/ca.pem")))
+
+        let subject = makeConfigLoader(tomlConfigLoader: tomlConfigLoader)
+
+        let config = try await subject.loadConfig(path: temporaryDirectory)
+
+        #expect(config.network.caCertificate == "/etc/ssl/certs/ca.pem")
+        #expect(HTTPSettings.current.caCertificatePath == "/etc/ssl/certs/ca.pem")
+    }
+
     private func makeConfigLoader(tomlConfigLoader: TuistTomlConfigLoading) -> ConfigLoader {
         #if os(macOS)
             let swiftConfigLoader = MockSwiftConfigLoading()

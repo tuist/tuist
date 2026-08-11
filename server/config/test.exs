@@ -30,7 +30,13 @@ config :tuist, Tuist.ClickHouseRepo,
   default_dynamic_repo: Tuist.IngestRepo,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+  settings: [
+    readonly: 1,
+    max_threads: 4,
+    max_memory_usage: 6 * 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
 
 config :tuist, Tuist.CommandEvents, metadata_queries_bypass_dynamic_repo: true
 
@@ -55,6 +61,19 @@ config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
 
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: 2,
+  settings: [
+    readonly: 1,
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -68,7 +87,11 @@ config :tuist, Tuist.Repo,
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
-  queue_interval: 1000
+  queue_interval: 1000,
+  # Tolerate transient statement stalls on oversubscribed CI runners where a
+  # single round-trip can block on the socket well past the 15s DBConnection
+  # default; a genuinely hung query still fails within this bound.
+  timeout: 60_000
 
 config :tuist, Tuist.Tasks, sync: true
 
@@ -78,6 +101,11 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
+
+# Production builds keep warm handoffs disabled until the public customer
+# endpoint is owned by a stable account-region binding. Tests enable the
+# transition machinery so its invariants remain covered while that work lands.
+config :tuist, :kura_warm_handoffs_enabled, true
 
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,

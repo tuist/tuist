@@ -1,0 +1,113 @@
+{
+  "name": "Toggle",
+  "tagName": "noora-toggle",
+  "elementClassName": "NooraToggle",
+  "className": "noora-toggle",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Turns a setting on or off.",
+  "usage": "<noora-toggle label=\"Notifications\" name=\"notifications\"></noora-toggle>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "description": "Sets the visible label."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Sets supporting text."
+    },
+    {
+      "name": "checked",
+      "property": "checked",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls the checked state."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Disables interaction."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the submitted field name."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "on",
+      "description": "Sets the submitted field value."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLInputElement | null",
+      "description": "The native checkbox input."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The associated form."
+    }
+  ],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "root",
+      "description": "The toggle label."
+    },
+    {
+      "name": "control",
+      "description": "The visual switch."
+    },
+    {
+      "name": "label",
+      "description": "The label text."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the checked state changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted after the checked state changes."
+    }
+  ],
+  "notes": ["The component emits standard input and change events."],
+  "examples": [
+    {
+      "id": "states",
+      "title": "Basic states",
+      "description": "Compare off and on settings.",
+      "markup": "<noora-toggle label=\"Enable notifications\"></noora-toggle>\n<noora-toggle label=\"Email alerts\" checked></noora-toggle>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled states",
+      "description": "Show disabled settings in both states.",
+      "markup": "<noora-toggle label=\"Disabled off\" disabled></noora-toggle>\n<noora-toggle label=\"Disabled on\" checked disabled></noora-toggle>"
+    },
+    {
+      "id": "description",
+      "title": "With description",
+      "description": "Explain the setting below its label.",
+      "markup": "<noora-toggle label=\"Marketing emails\" description=\"Receive updates about new features and promotions\"></noora-toggle>"
+    }
+  ]
+}

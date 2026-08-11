@@ -83,7 +83,14 @@ persistence:
   storageClass: ""
   annotations: {}
 
-resources: {}
+# Kura derives every memory budget from the container limit. Keep the request
+# equal to the limit so a default install reserves the memory it may consume
+# instead of sizing itself from the shared node's physical memory.
+resources:
+  requests:
+    memory: 1Gi
+  limits:
+    memory: 1Gi
 
 nodeSelector: {}
 tolerations: []
@@ -124,10 +131,44 @@ config:
     mode: splice
     maxConcurrent: 32
     chunkBytes: 1048576
+  actionCache:
+    # When true, evicting a CAS blob cascades to the action-cache entries that
+    # reference it, so an entry never outlives its blobs. The cascade is
+    # additionally gated on the node's one-time reverse-map backfill completing,
+    # and the serve-side presence gates stay on regardless as the backstop.
+    evictionCascadeEnabled: true
+  backfill:
+    # Boot-time selection of the peer catch-up walker: when true the node
+    # runs the recency-first backfill lifecycle instead of the legacy
+    # bootstrap walker. Read once at process start, so flipping it rolls the
+    # pods; watermarks and index rows are durable and sit inert while the
+    # flag is off.
+    enabled: false
+    # Share of the age-ordered segment ring (counted from the newest) whose
+    # boundary segment's seal-time age stat bounds how far back a backfill
+    # pass reaches. The margin's share of the ring's time span is the
+    # window's structural slack; 40 matches the "new" band under the 1:2:2
+    # old/current/new ring ratio.
+    marginPercent: 40
+    # Segment-ring fullness percent at which a node still running its initial
+    # backfill cycle marks itself ready (readiness then latches for the
+    # process lifetime). Leave unset to derive half of marginPercent inside
+    # the binary — set it only to decouple the readiness point from the
+    # margin.
+    readyRingPercent: null
+    # Byte threshold a backfill pass composes one bodies batch against, and
+    # the cutoff above which a listed entry is fetched through the
+    # per-artifact endpoint. Must not exceed the compiled 32 MiB response
+    # ceiling shared by both sides of the bodies protocol.
+    batchBytes: 33554432
   memory:
-    softLimitBytes: 536870912
-    hardLimitBytes: 805306368
-    manifestCacheMaxBytes: 67108864
+    # Leave watermarks and cache capacities unset so Kura derives them from
+    # the container's effective memory limit. Explicit values must remain below
+    # that limit and are intended only for deliberate tuning experiments.
+    softLimitBytes: null
+    hardLimitBytes: null
+    snapshotCacheMaxBytes: null
+    manifestCacheMaxBytes: null
     maxKeyvalueBytes: 1048576
   shutdown:
     drainCompletionTimeoutMs: 240000

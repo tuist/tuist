@@ -66,6 +66,34 @@ func TestCloneTimeoutKillsHungProcess(t *testing.T) {
 	}
 }
 
+// TestRegenerateIdentityRunsRandomSerial pins the exact tart invocation the
+// clone path relies on to break the shared-golden ECID. `tart set
+// --random-serial` (arm64) mints a fresh VZMacMachineIdentifier, from which the
+// serial and IOPlatformUUID derive, so concurrent clones stop colliding at
+// Apple's MobileAsset personalization.
+func TestRegenerateIdentityRunsRandomSerial(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args.txt")
+	script := filepath.Join(dir, "faketart")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsPath + "'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{Binary: script}
+	if err := c.RegenerateIdentity(context.Background(), "vm-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "set\nvm-1\n--random-serial\n"; string(got) != want {
+		t.Fatalf("tart args = %q, want %q", string(got), want)
+	}
+}
+
 func TestStageEnvFile(t *testing.T) {
 	dir := t.TempDir()
 	c := &Client{UserDataDir: dir}

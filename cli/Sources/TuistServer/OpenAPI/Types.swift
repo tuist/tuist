@@ -1808,10 +1808,12 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
     public func getShard(
         path: Operations.getShard.Input.Path,
+        query: Operations.getShard.Input.Query = .init(),
         headers: Operations.getShard.Input.Headers = .init()
     ) async throws -> Operations.getShard.Output {
         try await getShard(Operations.getShard.Input(
             path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -5501,7 +5503,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             @frozen public enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -5510,7 +5512,7 @@ public enum Components {
                 case enterprise = "enterprise"
                 case none = "none"
             }
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
@@ -5540,7 +5542,7 @@ public enum Components {
             ///   - invitations: A list of organization invitations
             ///   - members: A list of organization members
             ///   - name: The organization's name
-            ///   - plan: The plan associated with the organization
+            ///   - plan: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization
@@ -16712,6 +16714,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTest.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTest.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The test run could not be scheduled for processing
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.createTest.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.createTest.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -21322,6 +21375,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_strings`.
@@ -21389,6 +21446,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21406,6 +21464,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21423,6 +21482,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21441,6 +21501,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files
@@ -21577,6 +21638,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_strings`.
@@ -21644,6 +21709,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21661,6 +21727,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21678,6 +21745,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21696,6 +21764,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files
@@ -22477,6 +22546,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_enforced`.
@@ -22500,19 +22573,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization_space__lpar_2_rpar_.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider
@@ -22865,6 +22942,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_enforced`.
@@ -22888,19 +22969,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider
@@ -39904,6 +39989,21 @@ public enum Operations {
                 }
             }
             public var path: Operations.getShard.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The exact shard plan identifier. When present, it takes precedence over the reference.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query/shard_plan_id`.
+                public var shard_plan_id: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - shard_plan_id: The exact shard plan identifier. When present, it takes precedence over the reference.
+                public init(shard_plan_id: Swift.String? = nil) {
+                    self.shard_plan_id = shard_plan_id
+                }
+            }
+            public var query: Operations.getShard.Input.Query
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getShard.AcceptableContentType>]
@@ -39920,12 +40020,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.getShard.Input.Path,
+                query: Operations.getShard.Input.Query = .init(),
                 headers: Operations.getShard.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -39976,6 +40079,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getShard.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getShard.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }

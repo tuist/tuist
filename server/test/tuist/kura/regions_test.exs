@@ -235,6 +235,17 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Enum.map(Regions.available(), & &1.id) == ["eu-central"]
     end
+
+    test "never makes a retired cleanup region available" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["hetzner-staging-runners"]
+      end)
+
+      assert Regions.available() == []
+    end
   end
 
   describe "private runner-cache regions" do
@@ -244,19 +255,24 @@ defmodule Tuist.Kura.RegionsTest do
       assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
 
-      # The cache budget rides disk_envelope_size, and the claim stays put:
-      # scw-local-nvme is not expandable, and the controller patches live PVCs up
-      # to spec.storageSize on every reconcile, so raising the claim would wedge
-      # every runner-cache instance that already exists.
+      # No disk_envelope_size override: the ring derives from storage_size like
+      # every managed region, so a per-account node here sizes its CAS ring the
+      # same as its cross-region mesh peers and can stay caught up.
       assert scw_config.storage_size == "50Gi"
-      assert scw_config.disk_envelope_size == "150Gi"
+      assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      # The only private region. Linux runners have no cache region of their
-      # own: the Hetzner-backed staging one was removed with its node pool.
-      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == ["scw-fr-par-runners"]
+      # The retired Hetzner entry remains fetchable only so old resources can
+      # be deleted. It is not an available serving region.
+      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
+               "scw-fr-par-runners",
+               "hetzner-staging-runners"
+             ]
+
+      assert Regions.retired?(Regions.get("hetzner-staging-runners"))
+      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
     end
   end
 

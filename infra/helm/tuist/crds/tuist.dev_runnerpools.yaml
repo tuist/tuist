@@ -127,6 +127,33 @@ spec:
                     sidecar to every Linux runner Pod. The microVM keeps
                     the sidecar's privileged surface off the bare-metal
                     host.
+                provisioning:
+                  type: object
+                  description: |
+                    Linux Kata sandbox admission controls. Sibling pools that
+                    share `(os, fleetSelector)` also share one provisioning
+                    budget. The controller uses the lowest sibling maximum so
+                    one mismatched pool cannot weaken the fleet safety limit.
+                    Ignored for macOS pools.
+                  properties:
+                    maxConcurrentPerFleetSelector:
+                      type: integer
+                      default: 4
+                      minimum: 1
+                      description: |
+                        Maximum Linux runner Pods across the shared fleet that
+                        may be waiting for their dispatch poller to start.
+                        Excess replica demand remains uncreated and is retried
+                        as existing sandboxes become ready.
+                    startTimeoutSeconds:
+                      type: integer
+                      default: 300
+                      minimum: 0
+                      description: |
+                        Maximum time a Linux runner Pod that is already bound
+                        to a node may wait for its dispatch poller to start.
+                        Timed-out Pods are reaped. Unscheduled Pods are not
+                        timed out. 0 disables the timeout.
                 autoscaling:
                   type: object
                   description: |
@@ -180,14 +207,11 @@ spec:
                 rollout:
                   type: object
                   description: |
-                    Optional image-roll throttle. When `spec.image` changes,
-                    each affected node must `tart pull` the new (tens-of-GB)
-                    image before booting a replacement; unthrottled, the whole
-                    fleet pulls at once and the warm pool collapses for
-                    minutes. The controller marks stale Pods drain-eligible up
-                    to a concurrency cap and only marks more as in-flight
-                    rollers report Ready. Absent block = the built-in default
-                    (5%, min 1).
+                    Optional Pod-template rollout throttle. The controller
+                    bounds unavailable serving capacity while replacing Pods
+                    with a stale image or RuntimeClass revision, and retires
+                    more stale Pods only as current-template Pods become warm.
+                    Absent block means the built-in default (5%, minimum 1).
                   properties:
                     maxConcurrentPercent:
                       type: integer

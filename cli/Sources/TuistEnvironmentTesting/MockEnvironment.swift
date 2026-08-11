@@ -87,6 +87,14 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
+    public func casProxySocketPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas-proxy.sock")
+    }
+
+    public func casProxySocketPathString() -> String {
+        "$HOME/cas-proxy.sock"
+    }
+
     public func casProxyLaunchAgentLabel() -> String {
         "tuist.cas-proxy"
     }

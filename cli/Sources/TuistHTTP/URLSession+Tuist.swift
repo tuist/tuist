@@ -23,6 +23,44 @@ private func resolvedUseEnvironmentProxy(_ useEnvironmentProxy: Bool?) -> Bool {
     useEnvironmentProxy ?? HTTPSettings.current.useEnvironmentProxy
 }
 
+/// Resolves the path to a custom CA certificate bundle. The `TUIST_CA_CERTIFICATE`
+/// environment variable takes precedence over the value declared in the config so it
+/// can be supplied as a CI secret without changing the committed manifest.
+private func resolvedCACertificatePath() -> String? {
+    let environment = Environment.current.variables
+    if let value = environment["TUIST_CA_CERTIFICATE"], !value.isEmpty {
+        return value
+    }
+    return HTTPSettings.current.caCertificatePath
+}
+
+/// The session delegate to use. When a custom CA bundle resolves and parses, a
+/// trust-augmenting delegate is used so a private CA is honored on top of the system
+/// root store. Otherwise the behavior is unchanged from before: HAR metrics delegate
+/// when available, or no delegate at all.
+private func tuistSessionDelegate() -> (URLSessionDelegate & URLSessionTaskDelegate)? {
+    #if canImport(Security)
+        if let path = resolvedCACertificatePath(),
+           let certificates = CACertificateLoader.load(from: path),
+           !certificates.isEmpty
+        {
+            return TuistURLSessionDelegate(additionalCertificates: certificates)
+        }
+    #endif
+    #if canImport(TuistHAR)
+        return URLSessionMetricsDelegate.shared
+    #else
+        return nil
+    #endif
+}
+
+private func makeURLSession(configuration: URLSessionConfiguration) -> URLSession {
+    if let delegate = tuistSessionDelegate() {
+        return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+    }
+    return URLSession(configuration: configuration)
+}
+
 private func environmentInt(_ key: String, default defaultValue: Int) -> Int {
     guard let value = Environment.current.variables[key], let parsed = Int(value) else {
         return defaultValue
@@ -56,15 +94,7 @@ private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> 
 }
 
 private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
-    #if canImport(TuistHAR)
-        return URLSession(
-            configuration: tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy),
-            delegate: URLSessionMetricsDelegate.shared,
-            delegateQueue: nil
-        )
-    #else
-        return URLSession(configuration: tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy))
-    #endif
+    makeURLSession(configuration: tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy))
 }
 
 private final class SharedTuistURLSession: @unchecked Sendable {
@@ -115,11 +145,7 @@ private func makeTuistCASURLSession(useEnvironmentProxy: Bool) -> URLSession {
     let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
     configuration.timeoutIntervalForRequest = 15
     configuration.timeoutIntervalForResource = 300
-    #if canImport(TuistHAR)
-        return URLSession(configuration: configuration, delegate: URLSessionMetricsDelegate.shared, delegateQueue: nil)
-    #else
-        return URLSession(configuration: configuration)
-    #endif
+    return makeURLSession(configuration: configuration)
 }
 
 private let sharedTuistURLSession = SharedTuistURLSession { makeTuistURLSession(useEnvironmentProxy: $0) }

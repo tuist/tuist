@@ -59,6 +59,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           _ -> :ok
         end
 
+      {:error, :project_not_found} ->
+        Logger.warning("Build processing skipped: project #{project_id} not found for build #{build_id}")
+        {:discard, :project_not_found}
+
       {:error, reason} ->
         if attempt >= max_attempts do
           Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")

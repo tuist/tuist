@@ -23,6 +23,15 @@ server:
 
   appUrl: https://canary.tuist.dev
 
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
   # JSON-encodes this into TUIST_STRIPE_PRICES.
@@ -99,9 +108,10 @@ server:
     # advertise the canonical prefix already.
     - name: TUIST_REGISTRY_URL
       value: https://registry-canary.tuist.dev/swift
-    # Cache remains the sole registry writer until the managed cutover.
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     # Single web replica shares this pool between request handling and the
     # in-node Oban queues (default: 10). Sized well above the default-queue
     # concurrency so the steady AlertEvaluationWorker load can't starve web
@@ -137,6 +147,9 @@ objectStorage:
 clickhouse:
   poolSize: "30"
   bufferPoolSize: "30"
+  # Exercise the shared application-user memory guard before production with a
+  # smaller pre-production budget.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:
@@ -162,7 +175,29 @@ registryCache:
     bucket: tuist-can-storage
     rootDirectory: docker-mirror
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Canary mirrors staging's sizing; production is the env that needs HA.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
+
 kuraController:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -263,11 +298,10 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
-# Cache remains the sole registry writer until the managed cutover. The
-# standalone registry continues exercising the read path against the
-# same bucket.
+# The registry sync deployment owns catalog synchronization after the legacy
+# cache writer was disabled. The standalone registry reads from the same bucket.
 swiftRegistrySync:
-  enabled: false
+  enabled: true
   syncAllowlist: alamofire/alamofire
   extraEnv:
     - name: TUIST_DEPLOY_ENV
@@ -381,20 +415,22 @@ macosFleet:
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
-  # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
-  # holds ~16 masters — ample for canary's single replica.
-  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
-  # macOS CI job — the guest mounts the virtio-fs cache share and exports
-  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
-  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
-  # var is exported regardless, so the CLI dies with "Couldn't create the
-  # directory at /Volumes/My Shared Files/cache/tuist/... because its
-  # parent directory doesn't exists". Re-enable only once a real CI job
-  # is verified green on a cache-volume host (host-side provisioning
-  # checks are NOT sufficient — that gap is what let this reach prod).
+  # path rather than risking ENOSPC. With the CAS folded in, a master's
+  # sparse ceiling is masterCapGib (28 GiB); it only bills the quota for
+  # what it actually holds, and the evictor drops whole masters LRU as the
+  # 80 GiB quota fills — ample for canary's single replica.
+  # The 2026-07-16 incident (the guest exported TUIST_XDG_CACHE_HOME at a
+  # virtio-fs share it could not create dirs on, so the CLI died on its
+  # first cache write) was fixed by the disk-image redesign (#11908) — the
+  # cache is now a block-device APFS image, and the guest abandons an
+  # unwritable share for a local cold cache instead of exporting a broken
+  # root. Production has run on that path (gib: 80) since; canary tracks it
+  # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
+  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
   runnerCacheVolume:
-    gib: 0
+    gib: 80
+    masterCapGib: 28
+    casGib: 16
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add

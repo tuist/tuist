@@ -14,6 +14,7 @@
 {{- $webRoleSecretName := include "tuist.cnpgWebRoleSecretName" . -}}
 {{- $processorRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-processor") -}}
 {{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
+{{- $grafanaRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-grafana-ro") -}}
 {{- $swiftRegistrySyncRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-swift-registry-sync") -}}
 # CloudNativePG Cluster. The `cloudnative-pg` operator owns the primary,
 # the synchronous replicas, instance scheduling, role provisioning, and
@@ -185,6 +186,18 @@ spec:
         comment: "Read-only Ops UI inspection role"
         passwordSecret:
           name: {{ $opsRoSecretName }}
+      # Grafana dashboard role. No `inRoles` on purpose: unlike opsRo this
+      # credential is stored in Grafana Cloud, so it must not inherit
+      # pg_read_all_data (which would hand a third party every current and
+      # future table, including users.encrypted_password and projects.token).
+      # CNPG creates the bare role; the column-level SELECTs it needs come from
+      # infra/cnpg/tuist-grafana-ro-grants.sql.
+      - name: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+        ensure: present
+        login: true
+        comment: "Read-only Grafana Product Usage dashboard role"
+        passwordSecret:
+          name: {{ $grafanaRoSecretName }}
       - name: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
         ensure: present
         login: true
@@ -364,6 +377,32 @@ spec:
     - secretKey: password
       remoteRef:
         key: "{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $grafanaRoSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $grafanaRoSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.grafanaRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.grafanaRoPassword.field }}"
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret

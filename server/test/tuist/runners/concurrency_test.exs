@@ -316,4 +316,88 @@ defmodule Tuist.Runners.ConcurrencyTest do
     {:ok, datetime, 0} = DateTime.from_iso8601(value)
     %{datetime | microsecond: {0, 6}}
   end
+
+  describe "headroom_jobs/2" do
+    test "returns how many more jobs of the shape fit under the limit" do
+      account = account_fixture()
+
+      # Default macOS limit is 12 vCPU / 28 GB; a 6/14 shape fits twice.
+      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+               2
+    end
+
+    test "shrinks as claims consume the limit and reaches 0 at the cap" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} =
+               Claims.attempt(11_001, account.id, "macos-pool", "macos-pod-1", shape)
+
+      assert Concurrency.headroom_jobs(account.id, shape) == 1
+
+      assert {:ok, _} =
+               Claims.attempt(11_002, account.id, "macos-pool", "macos-pod-2", shape)
+
+      assert Concurrency.headroom_jobs(account.id, shape) == 0
+    end
+
+    # The whole point of the function: it must admit exactly what
+    # `fits?/3` would admit, or the autoscaler sizes for jobs dispatch
+    # then refuses (or starves a pool that could have been served).
+    test "agrees with fits?/3 at the boundary" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} =
+               Claims.attempt(11_101, account.id, "macos-pool", "macos-pod-1", shape)
+
+      headroom = Concurrency.headroom_jobs(account.id, shape)
+      limit = Concurrency.limits_for(account.id, :macos)
+      used = Map.fetch!(Concurrency.usage_by_platform(account.id), :macos)
+
+      # `headroom` more jobs fit...
+      nth = %{vcpus: shape.vcpus * headroom, memory_gb: shape.memory_gb * headroom}
+      assert Concurrency.fits?(used, limit, nth)
+
+      # ...and one beyond that does not.
+      beyond = %{
+        vcpus: shape.vcpus * (headroom + 1),
+        memory_gb: shape.memory_gb * (headroom + 1)
+      }
+
+      refute Concurrency.fits?(used, limit, beyond)
+    end
+
+    test "is bounded by whichever resource runs out first" do
+      account = account_fixture()
+
+      # Default macOS limit 12 vCPU / 28 GB. This shape is cheap on CPU
+      # (12 fit) but memory-heavy (2 fit), so memory decides.
+      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 1, memory_gb: 14}) ==
+               2
+    end
+
+    test "never returns negative when usage already exceeds the limit" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(11_201, account.id, "macos-pool", "p1", shape)
+      assert {:ok, _} = Claims.attempt(11_202, account.id, "macos-pool", "p2", shape)
+
+      {:ok, _} = Concurrency.update_limits(account, %{"runner_macos_vcpus_limit" => "6"})
+
+      assert Concurrency.headroom_jobs(account.id, shape) == 0
+    end
+
+    # Runs on the autoscaler poll path: one bad account must not raise
+    # and take the whole fleet's demand signal down with it.
+    test "returns 0 for unknown accounts and malformed shapes" do
+      account = account_fixture()
+
+      assert Concurrency.headroom_jobs(-1, %{platform: :macos, vcpus: 6, memory_gb: 14}) == 0
+      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 0, memory_gb: 14}) == 0
+      assert Concurrency.headroom_jobs(account.id, %{platform: :bsd, vcpus: 1, memory_gb: 1}) == 0
+      assert Concurrency.headroom_jobs(account.id, %{}) == 0
+    end
+  end
 end

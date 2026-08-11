@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FailpointName {
     BeforeSegmentFsync,
+    AfterInlineManifestReadBeforeCommit,
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
     AfterReadArtifactBytesBeforeReturn,
@@ -11,12 +12,17 @@ pub(crate) enum FailpointName {
     BeforeDeleteOutboxMessageAfterSuccess,
     BeforeApplyReplicatedTombstone,
     AfterApplyReplicatedTombstone,
+    AfterBackfillIndexBuildChunk,
+    AfterBackfillBodiesSpoolBeforeApply,
+    BetweenBackfillGroupCommits,
+    AfterBackfillBatchCommitBeforeWalFlush,
 }
 
 impl FailpointName {
     fn as_str(self) -> &'static str {
         match self {
             Self::BeforeSegmentFsync => "before_segment_fsync",
+            Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
                 "after_artifact_bytes_durable_before_metadata"
             }
@@ -33,6 +39,12 @@ impl FailpointName {
             }
             Self::BeforeApplyReplicatedTombstone => "before_apply_replicated_tombstone",
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
+            Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",
+            Self::AfterBackfillBodiesSpoolBeforeApply => "after_backfill_bodies_spool_before_apply",
+            Self::BetweenBackfillGroupCommits => "between_backfill_group_commits",
+            Self::AfterBackfillBatchCommitBeforeWalFlush => {
+                "after_backfill_batch_commit_before_wal_flush"
+            }
         }
     }
 }
@@ -82,6 +94,44 @@ impl FailpointSet {
         match action {
             FailpointAction::Sleep(duration) => {
                 tokio::time::sleep(duration).await;
+                Ok(())
+            }
+            FailpointAction::Error(message) => {
+                Err(format!("failpoint {}: {message}", name.as_str()))
+            }
+            FailpointAction::Panic(message) => {
+                panic!("failpoint {}: {message}", name.as_str());
+            }
+        }
+    }
+
+    /// Blocking-context counterpart of [`Self::hit`] for failpoints on code
+    /// that runs on the blocking pool (no async runtime to sleep on).
+    pub(crate) fn hit_blocking(&self, name: FailpointName) -> Result<(), String> {
+        let action = {
+            let mut behaviors = self
+                .behaviors
+                .lock()
+                .expect("failpoint lock should not be poisoned");
+            let Some(behavior) = behaviors.get_mut(&name) else {
+                return Ok(());
+            };
+            let action = behavior.action.clone();
+            match behavior.remaining_hits {
+                Some(remaining_hits) if remaining_hits <= 1 => {
+                    behaviors.remove(&name);
+                }
+                Some(remaining_hits) => {
+                    behavior.remaining_hits = Some(remaining_hits - 1);
+                }
+                None => {}
+            }
+            action
+        };
+
+        match action {
+            FailpointAction::Sleep(duration) => {
+                std::thread::sleep(duration);
                 Ok(())
             }
             FailpointAction::Error(message) => {

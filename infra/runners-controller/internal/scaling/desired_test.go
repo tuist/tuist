@@ -25,7 +25,13 @@ func TestDesiredReplicas(t *testing.T) {
 			name:    "idle with no history uses MinWarmPoolFloor",
 			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 3, MaxReplicas: 30},
-			want:    6, // floor=3 (no p95), target=max(0,3)=3, desired=3+3=6
+			want:    3, // target=max(0,0)=0, desired=0+3=3
+		},
+		{
+			name:    "MinWarmPoolFloor is not double-counted when it exceeds p95",
+			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 1},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 3, MaxReplicas: 30},
+			want:    4, // target=max(0,1)=1, desired=1+3=4
 		},
 		{
 			name:    "steady load matching p95",
@@ -38,6 +44,12 @@ func TestDesiredReplicas(t *testing.T) {
 			signals: Signals{Claimed: 8, Queued: 3, P95ConcurrentLastHour: 5},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},
 			want:    12, // floor=5, target=max(11,5)=11, desired=11+1=12
+		},
+		{
+			name:    "post-job occupancy stays in real load after its claim ends",
+			signals: Signals{Claimed: 1, Occupied: 3, Queued: 2, P95ConcurrentLastHour: 0},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},
+			want:    6,
 		},
 		{
 			name:    "peak inbound beyond claimed",

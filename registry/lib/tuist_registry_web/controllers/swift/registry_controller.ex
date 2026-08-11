@@ -218,26 +218,22 @@ defmodule TuistRegistryWeb.Swift.RegistryController do
         path: "source_archive.zip"
       )
 
-    if S3.exists?(key, type: :registry) do
-      if not head_request?(conn) do
-        :telemetry.execute([:tuist_registry, :swift, :download], %{count: 1}, %{
-          scope: scope,
-          name: name
-        })
-      end
+    case S3.presign_download_url(key, type: :registry, content_type: "application/zip") do
+      {:ok, url} ->
+        if not head_request?(conn) do
+          :telemetry.execute([:tuist_registry, :swift, :download], %{count: 1}, %{
+            scope: scope,
+            name: name
+          })
+        end
 
-      case S3.presign_download_url(key, type: :registry, content_type: "application/zip") do
-        {:ok, url} ->
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(:see_other)
-          |> redirect(external: url)
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:see_other)
+        |> redirect(external: url)
 
-        {:error, _reason} ->
-          registry_not_found_response(conn)
-      end
-    else
-      registry_not_found_response(conn)
+      {:error, _reason} ->
+        service_unavailable_response(conn)
     end
   end
 

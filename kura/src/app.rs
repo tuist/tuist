@@ -12,7 +12,10 @@ use hyper_util::{
     server::conn::auto::Builder as HttpBuilder,
 };
 use tokio::sync::{Notify, Semaphore, oneshot, watch};
-use tokio::{task::JoinHandle, time::Instant};
+use tokio::{
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{Instrument, info, warn};
 
 use crate::{
@@ -29,7 +32,7 @@ use crate::{
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
-    replication::{spawn_membership_task, spawn_outbox_task},
+    replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState, SharedState},
     store::Store,
@@ -46,9 +49,13 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
+const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
+#[cfg(target_os = "linux")]
+const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -101,15 +108,19 @@ async fn run_with_config(
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
         .await
-        .map_err(|error| format!("failed to create directories: {error}"))?;
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
+    config
+        .ensure_directories(&data_dir_lock)
+        .await
+        .map_err(|error| format!("failed to create directories: {error}"))?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
@@ -124,17 +135,24 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_runtime_limit(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
+    let local_data_available_at_join = store.has_artifacts()?;
+    let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
         Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
         Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
     }
+    establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
     let internal_tls = match &config.peer_tls {
@@ -151,13 +169,19 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
+    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.bootstrap_staging_budget_bytes()),
+    );
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
+        snapshot_cache,
         metrics,
         runtime,
         extension,
@@ -171,12 +195,19 @@ async fn run_with_config(
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
+        bootstrap_artifact_semaphore,
+        tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -192,10 +223,15 @@ async fn run_with_config(
     }
 
     spawn_snapshot_task(state.clone());
+    spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    if state.config.action_cache_eviction_cascade_enabled {
+        spawn_action_cache_blob_refs_backfill_task(state.clone());
+    }
     spawn_action_cache_expiry_task(state.clone());
+    spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
@@ -267,7 +303,14 @@ async fn run_with_config(
         );
         Some(tokio::spawn(
             async move {
-                if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
+                // The identity acceptor wraps the plain rustls acceptor to
+                // stamp each request with the handshake-verified client-cert
+                // identity, which the backfill bodies endpoint uses for its
+                // per-peer concurrency cap.
+                if let Err(error) = axum_server::bind(internal_address)
+                    .acceptor(crate::peer_tls::InternalPeerIdentityAcceptor::new(
+                        tls_config,
+                    ))
                     .handle(handle)
                     .serve(internal_router.into_make_service())
                     .await
@@ -397,6 +440,13 @@ async fn run_with_config(
     if let Some(https_task) = https_task {
         wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
     }
+    // Synchronous clean-shutdown stamp for backfill index staleness detection:
+    // after it, any sequence gap the next boot observes means an index-unaware
+    // binary wrote in between (the drain/roll-back/roll-forward shape) and the
+    // index is rebuilt.
+    if let Err(error) = state.store.stamp_backfill_maintained_seq_clean_shutdown() {
+        warn!("failed to write backfill clean-shutdown stamp: {error}");
+    }
 
     Ok(())
 }
@@ -512,13 +562,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 let worker_state = state.clone();
                 match tokio::task::spawn_blocking(move || {
                     let snapshot = worker_state.store.snapshot();
-                    let memory = process_memory_snapshot();
                     let jemalloc = jemalloc_stats_snapshot();
-                    (snapshot, memory, jemalloc)
+                    (snapshot, jemalloc)
                 })
                 .await
                 {
-                    Ok((Ok(snapshot), memory, jemalloc)) => {
+                    Ok((Ok(snapshot), jemalloc)) => {
                         state
                             .metrics
                             .update_outbox_messages(snapshot.outbox_messages);
@@ -544,68 +593,6 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.rocksdb_write_buffer_usage_bytes,
                             snapshot.rocksdb_write_buffer_capacity_bytes,
                         );
-                        if let Some(memory) = memory {
-                            state
-                                .metrics
-                                .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
-                            if let (Some(anon_bytes), Some(file_bytes)) =
-                                (memory.resident_anon_bytes, memory.resident_file_bytes)
-                            {
-                                state
-                                    .metrics
-                                    .update_process_resident_breakdown(anon_bytes, file_bytes);
-                            }
-                            let pressure = state.memory.observe(memory.resident_bytes);
-                            let target_bytes = state
-                                .memory
-                                .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
-                            let evicted =
-                                state.store.trim_manifest_cache_to(target_bytes, "pressure");
-                            if evicted > 0 {
-                                state.metrics.record_memory_action("manifest_cache_trim");
-                            }
-                            let existence_evicted = state.store.trim_existence_cache_to(
-                                state.memory.bounded_cache_target_entries(
-                                    crate::store::EXISTENCE_CACHE_CAPACITY,
-                                ),
-                            );
-                            if existence_evicted > 0 {
-                                state.metrics.record_memory_action("existence_cache_trim");
-                            }
-                            let segment_handle_evicted = state
-                                .store
-                                .trim_segment_handle_cache_to(
-                                    state.memory.bounded_cache_target_entries(
-                                        state.config.segment_handle_cache_size,
-                                    ),
-                                    "pressure",
-                                )
-                                .await;
-                            if segment_handle_evicted > 0 {
-                                state
-                                    .metrics
-                                    .record_memory_action("segment_handle_cache_trim");
-                            }
-                            if pressure == MemoryPressure::Critical
-                                && let Some(extension) = &state.extension
-                            {
-                                let evicted = extension.clear_caches().await;
-                                if evicted > 0 {
-                                    state.metrics.record_memory_action("extension_cache_trim");
-                                }
-                            }
-                            state.metrics.update_background_work_paused(
-                                "outbox",
-                                state.memory.pause_outbox(),
-                            );
-                            state.metrics.update_background_work_paused(
-                                "segment_refresh",
-                                !state.memory.allow_segment_refresh(),
-                            );
-                            state
-                                .metrics
-                                .update_memory_pressure_state(pressure.as_i64());
-                        }
                         if let Some(jemalloc) = jemalloc {
                             state.metrics.update_jemalloc_stats(
                                 jemalloc.allocated_bytes,
@@ -614,7 +601,7 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             );
                         }
                     }
-                    Ok((Err(error), _, _)) => {
+                    Ok((Err(error), _)) => {
                         tracing::warn!("failed to collect store snapshot metrics: {error}");
                     }
                     Err(error) => {
@@ -627,6 +614,226 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
         }
         .in_current_span(),
     );
+}
+
+fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
+    let sensor_state = state.clone();
+    let watchdog_memory = state.memory.clone();
+    let mut sensor = tokio::spawn(
+        async move {
+            loop {
+                if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                    if let Err(error) =
+                        validate_container_memory_limit(&sensor_state.memory, sample)
+                    {
+                        tracing::error!("{error}; terminating Kura");
+                        eprintln!("{error}; terminating Kura");
+                        std::process::exit(1);
+                    }
+                    let previous = sensor_state.memory.pressure();
+                    let pressure = sensor_state.memory.observe_container(sample);
+                    if pressure != previous {
+                        tracing::warn!(
+                            from = previous.as_str(),
+                            to = pressure.as_str(),
+                            raw_bytes = sample.current_bytes,
+                            pressure_bytes = sample.pressure_bytes,
+                            working_set_bytes = sample.working_set_bytes,
+                            runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
+                            transient_reserved_bytes =
+                                sensor_state.memory.transient_reserved_bytes(),
+                            "Kura memory pressure changed"
+                        );
+                    }
+                } else {
+                    #[cfg(not(target_os = "linux"))]
+                    if let Some(snapshot) = process_memory_snapshot() {
+                        sensor_state.memory.observe(snapshot.resident_bytes);
+                    }
+                }
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        .in_current_span(),
+    );
+    tokio::spawn(
+        async move {
+            let mut last_sequence = watchdog_memory.observation_sequence();
+            let mut stale_checks = 0_u8;
+            loop {
+                tokio::select! {
+                    result = &mut sensor => {
+                        tracing::error!(?result, "memory pressure sensor exited; terminating Kura");
+                        eprintln!("memory pressure sensor exited; terminating Kura: {result:?}");
+                        std::process::exit(1);
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        let sequence = watchdog_memory.observation_sequence();
+                        if !cfg!(target_os = "linux")
+                            && !watchdog_memory.uses_container_accounting()
+                        {
+                            continue;
+                        }
+                        if sequence == last_sequence {
+                            stale_checks = stale_checks.saturating_add(1);
+                            if stale_checks >= 5 {
+                                tracing::error!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                eprintln!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                std::process::exit(1);
+                            }
+                        } else {
+                            last_sequence = sequence;
+                            stale_checks = 0;
+                        }
+                    }
+                }
+            }
+        }
+        .in_current_span(),
+    );
+
+    tokio::spawn(
+        async move {
+            loop {
+                let process = process_memory_snapshot();
+                if let Some(process) = process {
+                    state
+                        .metrics
+                        .update_process_memory(process.resident_bytes, process.virtual_bytes);
+                    if let (Some(anon_bytes), Some(file_bytes)) =
+                        (process.resident_anon_bytes, process.resident_file_bytes)
+                    {
+                        state
+                            .metrics
+                            .update_process_resident_breakdown(anon_bytes, file_bytes);
+                    }
+                }
+
+                let container = crate::memory::container_memory_snapshot();
+                if let Some(container) = container {
+                    state
+                        .metrics
+                        .update_container_memory(container, state.memory.runtime_limit_bytes());
+                }
+                state
+                    .metrics
+                    .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+
+                let pressure = state.memory.pressure();
+                let snapshot_target = state
+                    .memory
+                    .snapshot_cache_target_bytes(state.config.snapshot_cache_max_bytes);
+                state
+                    .snapshot_cache
+                    .trim_to(snapshot_target, pressure.as_str(), &state.metrics);
+                state.snapshot_cache.update_metrics(&state.metrics);
+                let target_bytes = state
+                    .memory
+                    .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
+                let evicted = state.store.trim_manifest_cache_to(target_bytes, "pressure");
+                if evicted > 0 {
+                    state.metrics.record_memory_action("manifest_cache_trim");
+                }
+                let existence_evicted = state.store.trim_existence_cache_to(
+                    state
+                        .memory
+                        .bounded_cache_target_entries(crate::store::EXISTENCE_CACHE_CAPACITY),
+                );
+                if existence_evicted > 0 {
+                    state.metrics.record_memory_action("existence_cache_trim");
+                }
+                let segment_handle_evicted = state
+                    .store
+                    .trim_segment_handle_cache_to(
+                        state
+                            .memory
+                            .bounded_cache_target_entries(state.config.segment_handle_cache_size),
+                        "pressure",
+                    )
+                    .await;
+                if segment_handle_evicted > 0 {
+                    state
+                        .metrics
+                        .record_memory_action("segment_handle_cache_trim");
+                }
+                if pressure == MemoryPressure::Critical
+                    && let Some(extension) = &state.extension
+                {
+                    let evicted = extension.clear_caches().await;
+                    if evicted > 0 {
+                        state.metrics.record_memory_action("extension_cache_trim");
+                    }
+                }
+                state.metrics.update_background_work_paused(
+                    "bootstrap",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "snapshot_build",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "segment_refresh",
+                    !state.memory.allow_segment_refresh(),
+                );
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+async fn establish_initial_memory_baseline(memory: &MemoryController) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        for attempt in 1..=INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+            if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                validate_container_memory_limit(memory, sample)?;
+                memory.observe_container(sample);
+                return Ok(());
+            }
+            if attempt < INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        Err(format!(
+            "failed to read Linux control-group memory accounting after {INITIAL_MEMORY_SAMPLE_ATTEMPTS} attempts; refusing to serve without bounded memory accounting"
+        ))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(snapshot) = process_memory_snapshot() {
+            memory.observe(snapshot.resident_bytes);
+        }
+        Ok(())
+    }
+}
+
+fn validate_container_memory_limit(
+    memory: &MemoryController,
+    sample: crate::memory::ContainerMemoryPressureSample,
+) -> Result<(), String> {
+    let Some(enforced_limit_bytes) = sample.limit_bytes else {
+        return Ok(());
+    };
+    if enforced_limit_bytes == 0 {
+        return Err("the Linux control-group memory limit is zero".into());
+    }
+    if memory.runtime_limit_bytes() > enforced_limit_bytes {
+        return Err(format!(
+            "the detected runtime memory limit of {} bytes exceeds the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.runtime_limit_bytes()
+        ));
+    }
+    if memory.hard_limit_bytes() >= enforced_limit_bytes {
+        return Err(format!(
+            "the hard memory watermark of {} bytes must stay below the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.hard_limit_bytes()
+        ));
+    }
+    Ok(())
 }
 
 fn spawn_runtime_metrics_task(state: Arc<AppState>) {
@@ -650,6 +857,110 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
 /// by design: peers apply the same rule over the replicated version_ms and
 /// converge on their own. The manifest-keyspace walk is a full scan, so it
 /// runs on the blocking pool at a long interval.
+/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
+/// from the entries already on disk, then arm the readiness flag that lets the
+/// eviction cascade consult it. Runs on the blocking pool because it scans the
+/// manifest keyspace. Idempotent and marker-gated, so a restart after
+/// completion is cheap; a failure leaves the cascade inert (the serve-side
+/// presence gates keep clients safe) and it retries on the next boot.
+fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            let mut rows = 0_usize;
+            loop {
+                state.memory.wait_for_background_headroom().await;
+                let backfill_state = state.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                })
+                .await;
+                match result {
+                    Ok(Ok(step)) => {
+                        rows += step.rows;
+                        if step.complete {
+                            if rows > 0 {
+                                info!(rows, "action-cache blob-refs backfill complete");
+                            }
+                            break;
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        warn!("action-cache blob-refs backfill failed: {error}");
+                        break;
+                    }
+                    Err(error) => {
+                        warn!("action-cache blob-refs backfill task panicked: {error}");
+                        break;
+                    }
+                }
+                // Rate-limit historical index writes between persisted cursor
+                // checkpoints. The next step is admitted only while the shared
+                // memory controller stays normal.
+                sleep(Duration::from_millis(200)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+/// Backfill index startup task: builds the `backfill/idx/` keyspace over the
+/// pre-existing dataset when `backfill/meta/build_complete` is absent (on the
+/// blocking pool — the build scans the manifest keyspace in cursor-resumed
+/// chunks), retrying on failure so the listing endpoint's "index building"
+/// response cannot persist for the process lifetime, then keeps the periodic
+/// maintenance stamp fresh for rollback-window staleness detection. Serving is
+/// never gated on any of this.
+fn spawn_backfill_index_task(state: Arc<AppState>) {
+    // Supervised like the membership/outbox loops: a panic in the maintenance
+    // loop restarts the task (counted as background_panic_backfill_index)
+    // instead of silently stopping stamping and watermark GC. A restart
+    // re-enters the build loop, which is idempotent (a completed build is a
+    // no-op).
+    spawn_supervised("backfill_index", state, backfill_index_task_loop);
+}
+
+async fn backfill_index_task_loop(state: SharedState) {
+    const BUILD_RETRY_DELAY: Duration = Duration::from_secs(60);
+    let stamp_interval = Duration::from_millis(crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS);
+    // Watermark GC piggybacks on the stamping loop: once at startup, then at
+    // its own (much longer) cadence expressed in stamp intervals.
+    let gc_every_stamps = (crate::constants::BACKFILL_WATERMARK_GC_INTERVAL_MS
+        / crate::constants::BACKFILL_SEQ_STAMP_INTERVAL_MS)
+        .max(1);
+    loop {
+        let build_state = state.clone();
+        match tokio::task::spawn_blocking(move || build_state.store.run_backfill_index_build())
+            .await
+        {
+            Ok(Ok(_)) => break,
+            Ok(Err(error)) => warn!("backfill index build failed: {error}"),
+            Err(error) => warn!("backfill index build task panicked: {error}"),
+        }
+        tokio::time::sleep(BUILD_RETRY_DELAY).await;
+    }
+    let mut stamps_until_gc = 0_u64;
+    loop {
+        if stamps_until_gc == 0 {
+            stamps_until_gc = gc_every_stamps;
+            match state.store.gc_backfill_watermarks(
+                crate::utils::now_ms(),
+                crate::constants::BACKFILL_WATERMARK_RETENTION_MS,
+            ) {
+                Ok(removed) if removed > 0 => {
+                    info!(removed, "backfill watermark gc removed expired rows");
+                }
+                Ok(_) => {}
+                Err(error) => warn!("backfill watermark gc failed: {error}"),
+            }
+        }
+        stamps_until_gc -= 1;
+        tokio::time::sleep(stamp_interval).await;
+        if let Err(error) = state.store.stamp_backfill_maintained_seq() {
+            warn!("failed to stamp backfill maintenance sequence: {error}");
+        }
+    }
+}
+
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
@@ -684,21 +995,39 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
 }
 
 fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    const SCAN_BATCH: usize = 256;
+
     let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
     let ttl_ms = state.config.multipart_upload_ttl_ms;
     tokio::spawn(
         async move {
+            let mut cursor = None;
             loop {
                 tokio::time::sleep(interval).await;
                 let now = crate::utils::now_ms();
                 let cutoff_ms = now.saturating_sub(ttl_ms);
-                let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
-                    Ok(stale) => stale,
-                    Err(error) => {
+                let scan_state = state.clone();
+                let scan_cursor = cursor.clone();
+                let page = tokio::task::spawn_blocking(move || {
+                    scan_state.store.multipart_uploads_older_than_bounded(
+                        cutoff_ms,
+                        scan_cursor.as_deref(),
+                        SCAN_BATCH,
+                    )
+                })
+                .await;
+                let (stale, next_cursor) = match page {
+                    Ok(Ok(page)) => page,
+                    Ok(Err(error)) => {
                         warn!("multipart janitor scan failed: {error}");
                         continue;
                     }
+                    Err(error) => {
+                        warn!("multipart janitor scan task failed: {error}");
+                        continue;
+                    }
                 };
+                cursor = next_cursor;
                 if stale.is_empty() {
                     continue;
                 }
@@ -897,6 +1226,7 @@ fn spawn_drain_signal_task(state: Arc<AppState>) {
 #[cfg(not(unix))]
 fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 
+#[derive(Clone, Copy, Debug)]
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
@@ -1047,6 +1377,52 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    #[test]
+    fn container_limit_validation_rejects_an_oversized_runtime_budget() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        let error = validate_container_memory_limit(
+            &memory,
+            crate::memory::ContainerMemoryPressureSample {
+                current_bytes: 100,
+                pressure_bytes: 100,
+                working_set_bytes: 100,
+                reclaimable_inactive_file_bytes: 0,
+                limit_bytes: Some(200),
+            },
+        )
+        .expect_err("the runtime budget must fit the enforced limit");
+
+        assert!(error.contains("runtime memory limit"));
+    }
+
+    #[test]
+    fn container_limit_validation_accepts_bounded_and_unlimited_groups() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        for limit_bytes in [Some(256), None] {
+            validate_container_memory_limit(
+                &memory,
+                crate::memory::ContainerMemoryPressureSample {
+                    current_bytes: 100,
+                    pressure_bytes: 100,
+                    working_set_bytes: 100,
+                    reclaimable_inactive_file_bytes: 0,
+                    limit_bytes,
+                },
+            )
+            .expect("the runtime budget should fit the container limit");
+        }
     }
 
     #[cfg(not(target_env = "msvc"))]

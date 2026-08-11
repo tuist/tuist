@@ -13,7 +13,16 @@ use sha2::{Digest, Sha256};
 use tokio::{io::AsyncWriteExt, sync::Notify};
 use uuid::Uuid;
 
-use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
+use crate::{
+    artifact::producer::ArtifactProducer,
+    bandwidth::BandwidthLimiter,
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
+        reserve_foreground_staging,
+    },
+    io::{IoController, TrackedFile},
+    memory::MemoryController,
+};
 
 /// Byte-accounted reservation over the shared tmp-dir budget.
 ///
@@ -38,6 +47,49 @@ impl TmpBudget {
             reserved: AtomicU64::new(0),
             available: Notify::new(),
         })
+    }
+
+    /// Reserve `bytes` immediately, rejecting the caller when the shared
+    /// staging budget has no room. Foreground uploads use this instead of
+    /// waiting while they hold a request body and memory admission.
+    pub fn try_reserve(self: &Arc<Self>, bytes: u64) -> Result<TmpReservation, String> {
+        let bytes = bytes.max(1);
+        if bytes > self.capacity {
+            return Err(format!(
+                "tmp dir budget exhausted: {bytes} bytes requested, {} bytes allowed",
+                self.capacity
+            ));
+        }
+
+        let mut current = self.reserved.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(bytes);
+            if requested > self.capacity {
+                return Err(format!(
+                    "tmp dir budget exhausted: {current} bytes reserved, {bytes} bytes requested, {} bytes allowed",
+                    self.capacity
+                ));
+            }
+            match self.reserved.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(TmpReservation {
+                        budget: self.clone(),
+                        bytes,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn reserved_bytes(&self) -> u64 {
+        self.reserved.load(Ordering::Acquire)
     }
 
     /// Reserve `bytes` against the budget, waiting until the reservation fits.
@@ -97,50 +149,186 @@ impl Drop for TmpReservation {
     }
 }
 
-#[derive(Debug)]
 pub struct TempBodyFile {
     pub path: PathBuf,
     pub size: u64,
+    pub file_cache_policy: FileCachePolicy,
+    _cleanup: TempFileCleanup,
+    _memory_reservation: ForegroundFileCacheReservation,
+}
+
+impl TempBodyFile {
+    pub async fn remove_and_disarm(&mut self, io: &IoController) {
+        self._cleanup.remove_and_disarm(io).await;
+    }
+}
+
+impl std::fmt::Debug for TempBodyFile {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TempBodyFile")
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .field("file_cache_policy", &self.file_cache_policy)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TempFileCleanup {
+    path: Option<PathBuf>,
+    reservation: Option<TmpReservation>,
+}
+
+impl TempFileCleanup {
+    pub(crate) fn new(path: PathBuf, reservation: TmpReservation) -> Self {
+        Self {
+            path: Some(path),
+            reservation: Some(reservation),
+        }
+    }
+
+    pub(crate) fn new_unreserved(path: PathBuf) -> Self {
+        Self {
+            path: Some(path),
+            reservation: None,
+        }
+    }
+
+    pub(crate) fn set_reservation(&mut self, reservation: TmpReservation) {
+        debug_assert!(self.reservation.is_none());
+        self.reservation = Some(reservation);
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.path.take();
+        self.reservation.take();
+    }
+
+    pub(crate) async fn remove_and_disarm(&mut self, io: &IoController) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match io.remove_file_if_exists_result(&path).await {
+            Ok(()) => self.disarm(),
+            Err(error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to remove temporary file before releasing its disk reservation: {error}"
+                );
+            }
+        }
+    }
+}
+
+impl Drop for TempFileCleanup {
+    fn drop(&mut self) {
+        let Some(path) = self.path.take() else {
+            return;
+        };
+        // Keep the disk reservation alive until the unlink has actually run.
+        // Releasing it when the task is merely queued would let a cancellation
+        // storm admit replacement files before their predecessors leave disk.
+        let reservation = self.reservation.take();
+        let remove = move || {
+            let removed = match std::fs::remove_file(&path) {
+                Ok(()) => true,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+                Err(error) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        "failed to clean up temporary file on drop; retaining its disk reservation until restart: {error}"
+                    );
+                    false
+                }
+            };
+            if removed {
+                drop(reservation);
+            } else {
+                // Failing closed keeps the configured disk ceiling truthful.
+                // Startup clears the staging directory and rebuilds the
+                // in-memory ledger, so a stuck reservation is recoverable.
+                std::mem::forget(reservation);
+            }
+        };
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                runtime.spawn_blocking(remove);
+            }
+            Err(_) => {
+                remove();
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BodyReadError {
     TooLarge,
     TmpDirFull(String),
+    MemoryPressure,
     Io(String),
+}
+
+pub struct RequestBodyStaging<'a> {
+    pub tmp_budget: &'a Arc<TmpBudget>,
+    pub io: &'a IoController,
+    pub memory: &'a MemoryController,
+    pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
 }
 
 pub async fn read_request_to_temp(
     request: Request,
     directory: &Path,
     max_bytes: u64,
-    tmp_dir: &Path,
-    tmp_dir_max_bytes: u64,
-    io: &IoController,
-    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    staging: RequestBodyStaging<'_>,
 ) -> Result<TempBodyFile, BodyReadError> {
-    ensure_tmp_dir_capacity(tmp_dir, max_bytes, tmp_dir_max_bytes)
+    let declared_or_max_bytes = match request
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+    {
+        Some(declared_bytes) if declared_bytes > max_bytes => {
+            return Err(BodyReadError::TooLarge);
+        }
+        Some(declared_bytes) => declared_bytes,
+        None => max_bytes,
+    };
+    let memory_reservation = reserve_foreground_staging(staging.memory, declared_or_max_bytes)
         .await
+        .map_err(|_| BodyReadError::MemoryPressure)?;
+    let disk_reservation = staging
+        .tmp_budget
+        .try_reserve(declared_or_max_bytes)
         .map_err(BodyReadError::TmpDirFull)?;
+    let file_cache_policy = memory_reservation.file_cache_policy();
 
     let temp_path = temp_file_path(directory, "upload");
     if let Some(parent) = temp_path.parent() {
-        io.create_dir_all(parent).await.map_err(BodyReadError::Io)?;
+        staging
+            .io
+            .create_dir_all(parent)
+            .await
+            .map_err(BodyReadError::Io)?;
     }
+    let cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
 
-    let mut file = io
+    let mut file = staging
+        .io
         .create_file(&temp_path)
         .await
         .map_err(BodyReadError::Io)?;
     let mut stream = request.into_body().into_data_stream();
     let mut size = 0_u64;
+    let mut advised_through = 0_u64;
 
     while let Some(item) = stream.next().await {
         let chunk = match item {
             Ok(chunk) => chunk,
             Err(error) => {
                 drop(file);
-                io.remove_file_if_exists(&temp_path).await;
+                staging.io.remove_file_if_exists(&temp_path).await;
                 return Err(BodyReadError::Io(format!(
                     "failed to read request body: {error}"
                 )));
@@ -149,25 +337,47 @@ pub async fn read_request_to_temp(
         size += chunk.len() as u64;
         if size > max_bytes {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            staging.io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
         }
-        if let Some(limiter) = bandwidth_limiter.as_ref() {
+        if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
         }
 
         if let Err(error) = file.write_all(&chunk).await {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            staging.io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::Io(format!(
                 "failed to write temp file: {error}"
             )));
+        }
+        if file_cache_policy.should_drop(
+            staging.memory.should_reclaim_file_cache(),
+            staging.memory.transient_reserved_bytes(),
+        ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+        {
+            file = match drop_staging_cache_range(
+                file,
+                &temp_path,
+                advised_through,
+                size - advised_through,
+                staging.io,
+            )
+            .await
+            {
+                Ok(file) => file,
+                Err(error) => {
+                    staging.io.remove_file_if_exists(&temp_path).await;
+                    return Err(BodyReadError::Io(error));
+                }
+            };
+            advised_through = size;
         }
     }
 
     if let Err(error) = file.flush().await {
         drop(file);
-        io.remove_file_if_exists(&temp_path).await;
+        staging.io.remove_file_if_exists(&temp_path).await;
         return Err(BodyReadError::Io(format!(
             "failed to flush temp file: {error}"
         )));
@@ -176,47 +386,62 @@ pub async fn read_request_to_temp(
     Ok(TempBodyFile {
         path: temp_path,
         size,
+        file_cache_policy,
+        _cleanup: cleanup,
+        _memory_reservation: memory_reservation,
     })
 }
 
-pub async fn ensure_tmp_dir_capacity(
-    tmp_dir: &Path,
-    incoming_bytes: u64,
-    max_bytes: u64,
-) -> Result<(), String> {
-    let tmp_dir = tmp_dir.to_path_buf();
-    let current_bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
-        .await
-        .unwrap_or(0);
-    let requested_bytes = current_bytes.saturating_add(incoming_bytes);
-    if requested_bytes > max_bytes {
-        return Err(format!(
-            "tmp dir budget exhausted: {current_bytes} bytes staged, {incoming_bytes} bytes requested, {max_bytes} bytes allowed"
-        ));
-    }
-    Ok(())
+pub(crate) async fn drop_staging_cache_range(
+    file: TrackedFile,
+    path: &Path,
+    offset: u64,
+    length: u64,
+    io: &IoController,
+) -> Result<TrackedFile, String> {
+    let file = io
+        .sync_drop_cache_and_reopen_append(file, path, offset, length)
+        .await?;
+    io.metrics().record_memory_action("staging_file_cache_drop");
+    Ok(file)
 }
 
 pub fn directory_size_bytes(path: &Path) -> u64 {
+    try_path_size_bytes(path).unwrap_or(0)
+}
+
+pub fn try_path_size_bytes(path: &Path) -> std::io::Result<u64> {
+    let root_metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    if !root_metadata.is_dir() {
+        return Ok(root_metadata.len());
+    }
+
     let mut total = 0_u64;
     let mut stack = vec![path.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
+        let entries = std::fs::read_dir(&dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
             if file_type.is_dir() {
                 stack.push(entry.path());
-            } else if let Ok(metadata) = entry.metadata() {
-                total = total.saturating_add(metadata.len());
+            } else {
+                total = total
+                    .checked_add(std::fs::symlink_metadata(entry.path())?.len())
+                    .ok_or_else(|| {
+                        std::io::Error::other(format!(
+                            "size overflow while accounting {}",
+                            path.display()
+                        ))
+                    })?;
             }
         }
     }
-    total
+    Ok(total)
 }
 
 pub fn temp_file_path(directory: &Path, prefix: &str) -> PathBuf {
@@ -265,17 +490,290 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
 }
 
+/// Key prefix for the action-cache blob-refs reverse index. The rows live in
+/// the existing `key_value` column family rather than a dedicated one so that a
+/// rollback to a binary that predates this index can still reopen the database:
+/// `DB::open_cf_descriptors` rejects an on-disk column family it was not asked
+/// to open, so introducing one would crash-loop a rolled-back pod. An older
+/// binary simply never point-reads these prefixed keys. The prefix cannot
+/// collide with an inline artifact row (those are keyed by a 64-char hex
+/// `artifact_id`, which never contains `/`).
+const ACTION_CACHE_BLOB_REF_PREFIX: &str = "blob_ref/";
+
+/// Row key in the action-cache blob-refs reverse index: one `{blob}\0{entry}`
+/// pair per (referenced blob, referencing entry). Individual pair rows (empty
+/// value) rather than a set-valued row so two entries referencing the same blob
+/// write disjoint keys and never lose an update. Mirrors the
+/// `segment_artifact_index_key` shape, prefixed to share the `key_value` CF.
+pub fn action_cache_blob_ref_key(blob_artifact_id: &str, entry_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0{entry_artifact_id}")
+}
+
+/// Prefix scan for every entry that references `blob_artifact_id`, used by the
+/// eviction cascade to find the entries an evicted blob strands.
+pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0")
+}
+
+/// Reserved keyspace for the backfill subsystem, shared with inline-artifact
+/// bytes and `blob_ref/` rows in the `key_value` column family for the same
+/// rollback-safety reason as [`ACTION_CACHE_BLOB_REF_PREFIX`]: a new column
+/// family would crash-loop a rolled-back binary at `DB::open_cf_descriptors`,
+/// while prefixed rows in an existing CF are simply never point-read by it.
+/// The prefix contains `/`, so it cannot collide with an inline artifact row
+/// (64-char hex `artifact_id`), and it is disjoint from `blob_ref/`.
+///
+/// Three sub-keyspaces:
+/// - `backfill/idx/`  — the per-entry version-ordered index (this module's codec)
+/// - `backfill/meta/` — build/maintenance markers
+/// - `backfill/wm/`   — per-peer backfill watermarks
+pub const BACKFILL_IDX_PREFIX: &str = "backfill/idx/";
+pub const BACKFILL_META_PREFIX: &str = "backfill/meta/";
+pub const BACKFILL_WM_PREFIX: &str = "backfill/wm/";
+
+/// The record kind byte in a `backfill/idx/` key. The discriminant values are
+/// part of the cursor contract: the kind byte orders rows within one
+/// `version_ms`, and a peer's resume cursor is a raw key, so renumbering these
+/// requires an index rebuild. Action-cache entries are inline artifacts and
+/// ride as `InlineArtifact`; there is deliberately no fourth kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BackfillRecordKind {
+    SegmentArtifact,
+    InlineArtifact,
+    NamespaceTombstone,
+}
+
+impl BackfillRecordKind {
+    pub fn as_byte(self) -> u8 {
+        match self {
+            Self::SegmentArtifact => 1,
+            Self::InlineArtifact => 2,
+            Self::NamespaceTombstone => 3,
+        }
+    }
+
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            1 => Some(Self::SegmentArtifact),
+            2 => Some(Self::InlineArtifact),
+            3 => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
+
+    /// Wire names for the backfill listing endpoint.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SegmentArtifact => "segment_artifact",
+            Self::InlineArtifact => "inline_artifact",
+            Self::NamespaceTombstone => "namespace_tombstone",
+        }
+    }
+
+    /// Inverse of [`Self::as_str`], for requests that carry wire names.
+    pub fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "segment_artifact" => Some(Self::SegmentArtifact),
+            "inline_artifact" => Some(Self::InlineArtifact),
+            "namespace_tombstone" => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
+}
+
+/// Row key in the backfill per-entry index:
+/// `backfill/idx/ ++ !version_ms BE ++ kind byte ++ record_id`.
+///
+/// The version is stored bitwise-NOT big-endian so a forward prefix scan
+/// yields rows newest-first (the `action_cache_index_key` trick). `version_ms`
+/// must be the EFFECTIVE version (`manifest_version_ms` fallback for legacy
+/// `version_ms == 0` records), consistent with the apply-time presence check.
+/// The fixed single-byte kind makes the variable-length `record_id`
+/// (artifact id or namespace id) parse unambiguously. Every put AND delete of
+/// an index row derives its key through this one helper so the two can never
+/// disagree on layout.
+pub fn backfill_index_key(version_ms: u64, kind: BackfillRecordKind, record_id: &str) -> Vec<u8> {
+    let mut key = Vec::with_capacity(BACKFILL_IDX_PREFIX.len() + 8 + 1 + record_id.len());
+    key.extend_from_slice(BACKFILL_IDX_PREFIX.as_bytes());
+    key.extend_from_slice(&(!version_ms).to_be_bytes());
+    key.push(kind.as_byte());
+    key.extend_from_slice(record_id.as_bytes());
+    key
+}
+
+/// Row value in the backfill per-entry index: the record's byte size, 8-byte
+/// big-endian, so a requester can compose byte-bounded body batches from the
+/// listing alone. Tombstones have no body and store an empty value.
+pub fn backfill_index_value(size: Option<u64>) -> Vec<u8> {
+    match size {
+        Some(size) => size.to_be_bytes().to_vec(),
+        None => Vec::new(),
+    }
+}
+
+/// Exclusive upper bound for a range scan or range delete over the whole
+/// `backfill/idx/` keyspace (`/` + 1 = `0`).
+pub fn backfill_index_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_IDX_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
+}
+
+/// A decoded `backfill/idx/` row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillIndexRow {
+    pub version_ms: u64,
+    pub kind: BackfillRecordKind,
+    pub record_id: String,
+    /// `None` for tombstones (sizeless).
+    pub size: Option<u64>,
+}
+
+pub fn decode_backfill_index_row(key: &[u8], value: &[u8]) -> Result<BackfillIndexRow, String> {
+    let tail = key
+        .strip_prefix(BACKFILL_IDX_PREFIX.as_bytes())
+        .ok_or_else(|| "backfill index key is missing its prefix".to_string())?;
+    let (version_bytes, tail) = tail
+        .split_at_checked(8)
+        .ok_or_else(|| "backfill index key is missing its version".to_string())?;
+    let version_ms = !u64::from_be_bytes(version_bytes.try_into().expect("split at 8"));
+    let (&kind_byte, record_id) = tail
+        .split_first()
+        .ok_or_else(|| "backfill index key is missing its kind byte".to_string())?;
+    let kind = BackfillRecordKind::from_byte(kind_byte)
+        .ok_or_else(|| format!("unknown backfill record kind byte {kind_byte}"))?;
+    let record_id = std::str::from_utf8(record_id)
+        .map_err(|error| format!("invalid backfill record id: {error}"))?
+        .to_owned();
+    let size = match (kind, value.len()) {
+        (BackfillRecordKind::NamespaceTombstone, 0) => None,
+        (BackfillRecordKind::NamespaceTombstone, len) => {
+            return Err(format!("backfill tombstone row carries a {len}-byte value"));
+        }
+        (_, 8) => Some(u64::from_be_bytes(value.try_into().expect("checked len"))),
+        (_, len) => {
+            return Err(format!(
+                "backfill artifact row value should be 8 bytes, got {len}"
+            ));
+        }
+    };
+    Ok(BackfillIndexRow {
+        version_ms,
+        kind,
+        record_id,
+        size,
+    })
+}
+
+/// Key of a `backfill/meta/` marker row (build/maintenance state).
+pub fn backfill_meta_key(name: &str) -> String {
+    format!("{BACKFILL_META_PREFIX}{name}")
+}
+
+/// Key of a per-peer backfill watermark row, keyed by the peer's node URL.
+/// Reserved here with the rest of the `backfill/` keyspace; the watermark
+/// read/write lifecycle lives with the backfill walker.
+pub fn backfill_wm_key(node_url: &str) -> String {
+    format!("{BACKFILL_WM_PREFIX}{node_url}")
+}
+
+/// Row value of a `backfill/wm/` watermark row: the watermark and the
+/// local-clock completion stamp retention GC judges the row by, both 8-byte
+/// big-endian. Every read and write goes through this pair of helpers so the
+/// two sides can never disagree on layout.
+pub fn encode_backfill_watermark_value(watermark_ms: u64, refreshed_at_ms: u64) -> Vec<u8> {
+    let mut value = Vec::with_capacity(16);
+    value.extend_from_slice(&watermark_ms.to_be_bytes());
+    value.extend_from_slice(&refreshed_at_ms.to_be_bytes());
+    value
+}
+
+/// Decodes a `backfill/wm/` row into `(watermark_ms, refreshed_at_ms)`.
+pub fn decode_backfill_watermark_value(value: &[u8]) -> Result<(u64, u64), String> {
+    let (watermark_bytes, refreshed_at_bytes) = value.split_at_checked(8).ok_or_else(|| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let refreshed_at_bytes: [u8; 8] = refreshed_at_bytes.try_into().map_err(|_| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let watermark_bytes: [u8; 8] = watermark_bytes.try_into().expect("split at 8");
+    Ok((
+        u64::from_be_bytes(watermark_bytes),
+        u64::from_be_bytes(refreshed_at_bytes),
+    ))
+}
+
+/// Exclusive upper bound for a range scan over the whole `backfill/wm/`
+/// keyspace (`/` + 1 = `0`).
+pub fn backfill_wm_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_WM_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
+}
+
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT
 /// big-endian so a forward prefix scan yields entries newest-first and can
 /// stop at the snapshot's entry cap without sorting. The action hash keeps
 /// same-millisecond rows distinct; the row value is the artifact id.
-pub fn action_cache_index_key(namespace_id: &str, version_ms: u64, action_hash: &str) -> Vec<u8> {
-    let mut key = Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len());
+pub fn action_cache_index_key(
+    namespace_id: &str,
+    version_ms: u64,
+    action_hash: &str,
+    branch: Option<&str>,
+) -> Vec<u8> {
+    let branch = branch.unwrap_or_default();
+    let mut key =
+        Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len() + 1 + branch.len());
     key.extend_from_slice(namespace_id.as_bytes());
     key.push(0);
     key.extend_from_slice(&(!version_ms).to_be_bytes());
     key.extend_from_slice(action_hash.as_bytes());
+    // Always written, so an untagged row is distinguishable from one written
+    // before the branch was recorded at all.
+    key.push(0);
+    key.extend_from_slice(branch.as_bytes());
     key
+}
+
+/// What an index row knows about its entry's branch, so a trunk-scoped scan can
+/// answer the filter from the row itself.
+pub enum IndexRowBranch<'a> {
+    /// Written before the branch was recorded in the key. Only the manifest
+    /// knows, and reading it is the cost the tag exists to avoid.
+    Unknown,
+    /// The entry's tag, `None` for an untagged entry.
+    Known(Option<&'a str>),
+}
+
+/// The branch a row carries, read out of its key.
+///
+/// It rides in the KEY rather than the value, which is what makes it invisible to
+/// a node that predates it: that reader takes only `[prefix .. prefix + 8]` (the
+/// version) out of the key and never parses the rest, and reads the artifact id
+/// from the value, which is unchanged. So an older binary reading these rows finds
+/// them intact. Putting it in the value instead would make every row look like a
+/// dangling artifact id to that binary, which retires unreadable rows as stale, so
+/// a rollback would delete the index it was meant to keep working against.
+pub fn action_cache_index_key_branch(index_key: &[u8], prefix_len: usize) -> IndexRowBranch<'_> {
+    let Some(tail) = index_key.get(prefix_len + 8..) else {
+        return IndexRowBranch::Unknown;
+    };
+    // The action hash is hex, so the first NUL after it opens the branch.
+    let Some(split) = tail.iter().position(|byte| *byte == 0) else {
+        return IndexRowBranch::Unknown;
+    };
+    match std::str::from_utf8(&tail[split + 1..]) {
+        Ok(branch) => IndexRowBranch::Known((!branch.is_empty()).then_some(branch)),
+        Err(_) => IndexRowBranch::Unknown,
+    }
 }
 
 pub fn action_cache_index_prefix(namespace_id: &str) -> Vec<u8> {
@@ -375,6 +873,25 @@ mod tests {
     }
 
     #[test]
+    fn fallible_path_accounting_sums_nested_files_and_accepts_a_missing_root() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let nested = directory.path().join("nested");
+        std::fs::create_dir(&nested).expect("failed to create nested dir");
+        std::fs::write(directory.path().join("first"), b"1234").expect("failed to write file");
+        std::fs::write(nested.join("second"), b"123456").expect("failed to write nested file");
+
+        assert_eq!(
+            try_path_size_bytes(directory.path()).expect("accounting should succeed"),
+            10
+        );
+        assert_eq!(
+            try_path_size_bytes(&directory.path().join("missing"))
+                .expect("a missing root has no retained bytes"),
+            0
+        );
+    }
+
+    #[test]
     fn route_keys_are_scoped() {
         assert_eq!(action_cache_key("cas-1"), "action_cache/cas-1");
         assert_eq!(blob_key("artifact-1"), "blob/artifact-1");
@@ -414,6 +931,102 @@ mod tests {
     }
 
     #[test]
+    fn backfill_index_keys_round_trip_and_scan_newest_first() {
+        let newer = backfill_index_key(2_000, BackfillRecordKind::SegmentArtifact, "artifact-a");
+        let older = backfill_index_key(1_000, BackfillRecordKind::InlineArtifact, "artifact-b");
+        let tombstone = backfill_index_key(1_000, BackfillRecordKind::NamespaceTombstone, "ios");
+
+        // The inverted version makes newer rows sort first; within one version
+        // the kind byte orders segment < inline < tombstone.
+        assert!(newer < older);
+        assert!(older < tombstone);
+        assert!(newer.starts_with(BACKFILL_IDX_PREFIX.as_bytes()));
+        assert!(newer < backfill_index_prefix_upper_bound());
+        assert!(tombstone < backfill_index_prefix_upper_bound());
+
+        let row = decode_backfill_index_row(&newer, &backfill_index_value(Some(42)))
+            .expect("artifact row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 2_000,
+                kind: BackfillRecordKind::SegmentArtifact,
+                record_id: "artifact-a".into(),
+                size: Some(42),
+            }
+        );
+        let row = decode_backfill_index_row(&tombstone, &backfill_index_value(None))
+            .expect("tombstone row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 1_000,
+                kind: BackfillRecordKind::NamespaceTombstone,
+                record_id: "ios".into(),
+                size: None,
+            }
+        );
+    }
+
+    #[test]
+    fn backfill_kind_bytes_are_pinned() {
+        // Part of the cursor contract: raw keys are peer-held cursors, so these
+        // values cannot be renumbered without an index rebuild.
+        assert_eq!(BackfillRecordKind::SegmentArtifact.as_byte(), 1);
+        assert_eq!(BackfillRecordKind::InlineArtifact.as_byte(), 2);
+        assert_eq!(BackfillRecordKind::NamespaceTombstone.as_byte(), 3);
+        for kind in [
+            BackfillRecordKind::SegmentArtifact,
+            BackfillRecordKind::InlineArtifact,
+            BackfillRecordKind::NamespaceTombstone,
+        ] {
+            assert_eq!(BackfillRecordKind::from_byte(kind.as_byte()), Some(kind));
+        }
+        assert_eq!(BackfillRecordKind::from_byte(0), None);
+        assert_eq!(BackfillRecordKind::from_byte(4), None);
+    }
+
+    #[test]
+    fn backfill_index_row_decoding_rejects_malformed_rows() {
+        assert!(decode_backfill_index_row(b"blob_ref/abc\0def", &[]).is_err());
+        assert!(decode_backfill_index_row(BACKFILL_IDX_PREFIX.as_bytes(), &[]).is_err());
+        let key = backfill_index_key(1, BackfillRecordKind::InlineArtifact, "artifact");
+        assert!(decode_backfill_index_row(&key, &[1, 2, 3]).is_err());
+        let tombstone = backfill_index_key(1, BackfillRecordKind::NamespaceTombstone, "ios");
+        assert!(decode_backfill_index_row(&tombstone, &backfill_index_value(Some(1))).is_err());
+    }
+
+    #[test]
+    fn backfill_keyspaces_are_disjoint_from_sibling_key_value_rows() {
+        // All three backfill keyspaces share the `key_value` CF with inline
+        // artifact bytes (64-char hex ids, never containing `/`) and the
+        // `blob_ref/` reverse index; the prefixes must stay disjoint.
+        let hex_id = "ab".repeat(32);
+        for prefix in [
+            BACKFILL_IDX_PREFIX,
+            BACKFILL_META_PREFIX,
+            BACKFILL_WM_PREFIX,
+        ] {
+            assert!(!hex_id.starts_with(prefix));
+            assert!(!prefix.starts_with(ACTION_CACHE_BLOB_REF_PREFIX));
+            assert!(!ACTION_CACHE_BLOB_REF_PREFIX.starts_with(prefix));
+        }
+        assert_eq!(
+            backfill_meta_key("build_complete"),
+            "backfill/meta/build_complete"
+        );
+        assert_eq!(
+            backfill_wm_key("https://peer.example.com"),
+            "backfill/wm/https://peer.example.com"
+        );
+        // The idx upper bound stays inside `backfill/` and below the sibling
+        // keyspaces, so a range delete over the index cannot touch them.
+        let upper = backfill_index_prefix_upper_bound();
+        assert!(upper.as_slice() < BACKFILL_META_PREFIX.as_bytes());
+        assert!(upper.as_slice() < BACKFILL_WM_PREFIX.as_bytes());
+    }
+
+    #[test]
     fn segment_artifact_index_keys_include_segment_and_artifact() {
         assert_eq!(
             segment_artifact_index_key("segment-1", "artifact-1"),
@@ -425,46 +1038,58 @@ mod tests {
     #[tokio::test]
     async fn read_request_to_temp_persists_request_body() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let temp = read_request_to_temp(
+        let mut temp = read_request_to_temp(
             request,
             directory.path(),
             10,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
         )
         .await
         .expect("failed to read request to temp");
 
         assert_eq!(temp.size, 5);
         assert_eq!(
-            std::fs::read_to_string(temp.path).expect("failed to read temp file"),
+            std::fs::read_to_string(&temp.path).expect("failed to read temp file"),
             "hello"
         );
+        assert_eq!(tmp_budget.reserved_bytes(), 10);
+        temp.remove_and_disarm(&io).await;
+        assert!(!temp.path.exists());
+        assert_eq!(tmp_budget.reserved_bytes(), 0);
     }
 
     #[tokio::test]
     async fn read_request_to_temp_rejects_large_payloads() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -473,10 +1098,12 @@ mod tests {
             request,
             directory.path(),
             4,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
         )
         .await
         .expect_err("expected body reader to reject oversized request");
@@ -491,31 +1118,117 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+    async fn read_request_to_temp_cleans_up_when_cancelled() {
         let directory = tempdir().expect("failed to create temp dir");
-        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
+        let body = futures_util::stream::once(async {
+            Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
+        })
+        .chain(futures_util::stream::pending());
+        let request = Request::builder()
+            .body(Body::from_stream(body))
+            .expect("failed to build request");
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(50),
+            read_request_to_temp(
+                request,
+                directory.path(),
+                10,
+                RequestBodyStaging {
+                    tmp_budget: &tmp_budget,
+                    io: &io,
+                    memory: &memory,
+                    bandwidth_limiter: None,
+                },
+            ),
+        )
+        .await;
+
+        assert!(result.is_err(), "the pending body should be cancelled");
+        for _ in 0..100 {
+            if std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "cancellation must not leave a staged file"
+        );
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            0,
+            "disk admission must release after cancellation cleanup"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = IoController::new(
+            metrics.clone(),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(9);
+        let _held = tmp_budget
+            .try_reserve(5)
+            .expect("failed to seed tmp reservation");
         let request = Request::builder()
             .body(Body::from("world"))
             .expect("failed to build request");
 
-        let error =
-            read_request_to_temp(request, directory.path(), 5, directory.path(), 9, &io, None)
-                .await
-                .expect_err("expected body reader to reject exhausted tmp budget");
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            5,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
+        )
+        .await
+        .expect_err("expected body reader to reject exhausted tmp budget");
 
         assert!(matches!(error, BodyReadError::TmpDirFull(_)));
-        assert_eq!(
-            std::fs::read_to_string(directory.path().join("staged"))
-                .expect("failed to read seeded file"),
-            "hello"
-        );
+        assert_eq!(tmp_budget.reserved_bytes(), 5);
+    }
+
+    #[test]
+    fn tmp_budget_rejects_concurrent_reservations_over_capacity() {
+        let budget = TmpBudget::new(100);
+        let first = budget.try_reserve(60).expect("first reservation");
+
+        assert!(budget.try_reserve(41).is_err());
+        let second = budget.try_reserve(40).expect("remaining capacity");
+        assert_eq!(budget.reserved_bytes(), 100);
+
+        drop(first);
+        drop(second);
+        assert_eq!(budget.reserved_bytes(), 0);
     }
 
     #[tokio::test]

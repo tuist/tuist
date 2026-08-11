@@ -139,6 +139,7 @@ private struct DeviceList: Codable {
                 enum TransportType: String, Codable {
                     case localNetwork
                     case wired
+                    case sameMachine
                 }
 
                 enum TunnelState: String, Codable {
@@ -167,6 +168,10 @@ private struct DeviceList: Codable {
 
                 let udid: String?
                 let platform: Platform?
+                /// Decoded as a raw string on purpose: `devicectl` may report values
+                /// beyond "physical"/"simulated", and a strict enum would fail the whole
+                /// device list decode (the same fragility that broke on "sameMachine").
+                let reality: String?
             }
         }
     }
@@ -177,6 +182,10 @@ extension PhysicalDevice {
         // Some properties from the `devicectl` can be `nil`.
         // However, when some properties, like the `platform`, are missing, we can't properly work with the device.
         // In those cases, we return `nil` here and filter such devices out before passing them to the caller.
+        // `devicectl` also lists simulators (reality == "simulated"). Those are surfaced
+        // separately through the simulator controller, so we skip them here to avoid
+        // duplicated destinations and attempting a `devicectl` install on a simulator.
+        if device.hardwareProperties.reality == "simulated" { return nil }
         guard let udid = device.hardwareProperties.udid,
               let hardwarePlatform = device.hardwareProperties.platform,
               let name = device.deviceProperties.name
@@ -191,6 +200,7 @@ extension PhysicalDevice {
         let transportType: PhysicalDevice.TransportType? = switch device.connectionProperties.transportType {
         case .localNetwork: .wifi
         case .wired: .usb
+        case .sameMachine: .none
         case .none: .none
         }
 

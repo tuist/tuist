@@ -61,7 +61,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
 
         given(manifestLoader)
             .loadPackageSettings(at: .any, disableSandbox: .any)
-            .willReturn(.test())
+            .willReturn(.init(includeLocalPackageTestTargets: true))
 
         given(swiftPackageManagerController)
             .getToolsVersion(at: .any)
@@ -85,7 +85,8 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 defaultSettings: .recommended
             ),
             expectedSignatures: [:],
-            targetSettings: [:]
+            targetSettings: [:],
+            includeLocalPackageTestTargets: true
         )
         verify(manifestLoader)
             .register(plugins: .any)

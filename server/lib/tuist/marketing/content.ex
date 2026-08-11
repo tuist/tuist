@@ -25,7 +25,15 @@ defmodule Tuist.Marketing.Content do
   def get_entry_body(entry), do: entry_data(entry).body
   def get_entry_href(entry), do: entry_data(entry).href
   def get_entry_slug(entry), do: entry_data(entry).slug
-  def get_entry_image_url(entry), do: entry_data(entry).image_url
+
+  def get_entry_image_url({:post, post}, post_image_url) when is_function(post_image_url, 1) do
+    post_image_url.(post)
+  end
+
+  def get_entry_image_url({:case_study, case_study}, _post_image_url) do
+    Tuist.Environment.app_url(path: case_study.og_image_path, marketing: true)
+  end
+
   def get_entry_date(entry), do: entry_data(entry).date
   def get_entry_category(entry), do: entry_data(entry).category
   def get_entry_author_name(entry), do: entry_data(entry).author_name
@@ -39,7 +47,6 @@ defmodule Tuist.Marketing.Content do
       body: post.body,
       href: post.slug,
       slug: post.slug,
-      image_url: Blog.get_post_image_url(post),
       date: post.date,
       category: post.category,
       author_name: Blog.get_post_author_name(post),
@@ -55,7 +62,6 @@ defmodule Tuist.Marketing.Content do
       body: case_study.body,
       href: CaseStudy.href(case_study),
       slug: case_study.slug,
-      image_url: Tuist.Environment.app_url(path: case_study.og_image_path, marketing: true),
       date: DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC"),
       category: "case-studies",
       author_name: case_study.company,

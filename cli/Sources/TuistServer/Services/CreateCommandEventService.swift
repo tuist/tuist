@@ -153,6 +153,7 @@
                                             hit: hit,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in
                                                 .init(
+                                                    additional_hashing_inputs: subhashes.additionalHashingInputs,
                                                     additional_strings: subhashes.additionalStrings,
                                                     buildable_folders: subhashes.buildableFolders,
                                                     copy_files: subhashes.copyFiles,
@@ -197,6 +198,7 @@
                                             hit: hit,
                                             subhashes: selectiveTestingMetadata.subhashes.map { subhashes in
                                                 .init(
+                                                    additional_hashing_inputs: subhashes.additionalHashingInputs,
                                                     additional_strings: subhashes.additionalStrings,
                                                     buildable_folders: subhashes.buildableFolders,
                                                     copy_files: subhashes.copyFiles,

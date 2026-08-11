@@ -51,21 +51,80 @@ services:
       CLICKHOUSE_USER: tuist
       CLICKHOUSE_PASSWORD: tuist
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      # Read only once the clickhouse-log-ttl.xml volume below is uncommented;
+      # system log retention is off until then.
+      CLICKHOUSE_SYSTEM_LOG_TTL: "event_date + INTERVAL ${CLICKHOUSE_SYSTEM_LOG_TTL_DAYS:-14} DAY DELETE"
+      CLICKHOUSE_TEXT_LOG_LEVEL: ${CLICKHOUSE_TEXT_LOG_LEVEL:-information}
     ports:
       - "${CLICKHOUSE_HTTP_PORT:-8124}:8123"
       - "${CLICKHOUSE_NATIVE_PORT:-9004}:9000"
     volumes:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/tuist.xml:ro
+      - ./clickhouse-log-level.xml:/etc/clickhouse-server/config.d/tuist-log-level.xml:ro
+      # Retention for ClickHouse's internal system.* log tables, which are
+      # unbounded otherwise. Uncomment to apply it, and set
+      # CLICKHOUSE_SYSTEM_LOG_TTL_DAYS in .env to change the 14-day window.
+      #
+      # On an instance that already has data this is a one-time, one-way step.
+      # Any TTL at all makes those table definitions stop matching, so ClickHouse
+      # renames each one to `<name>_N` and starts a fresh table. The generation
+      # left behind holds everything accumulated so far and carries no TTL of its
+      # own, so set CLICKHOUSE_SUPERSEDED_LOG_TABLES=delete at the same time to
+      # reclaim it. Without that it stays on disk for good and the window only
+      # bounds rows written from then on.
+      # - ./clickhouse-log-ttl.xml:/etc/clickhouse-server/config.d/tuist-log-ttl.xml:ro
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
+      # BusyBox wget, which is what the alpine image ships, has no --user or
+      # --password, so an HTTP probe can never authenticate here.
       test:
         [
           "CMD-SHELL",
-          "wget --quiet --output-document=- --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" \"http://127.0.0.1:8123/?database=$$CLICKHOUSE_DB&query=SELECT%201\" | grep -q '^1$'",
+          "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --database \"$$CLICKHOUSE_DB\" --query 'SELECT 1'",
         ]
       interval: 5s
       timeout: 5s
       retries: 30
+
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:26.5-alpine
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_USER: tuist
+      CLICKHOUSE_PASSWORD: tuist
+      # ClickHouse renames a system log table to `<name>_N` and starts a fresh
+      # one whenever the table definition stops matching the config, and never
+      # reclaims the old one. `ignore` keeps them, `delete` drops them.
+      CLICKHOUSE_SUPERSEDED_LOG_TABLES: ${CLICKHOUSE_SUPERSEDED_LOG_TABLES:-ignore}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        case "$$CLICKHOUSE_SUPERSEDED_LOG_TABLES" in
+          ignore) exit 0 ;;
+          delete) ;;
+          *) echo "CLICKHOUSE_SUPERSEDED_LOG_TABLES must be ignore or delete, got '$$CLICKHOUSE_SUPERSEDED_LOG_TABLES'" >&2; exit 1 ;;
+        esac
+        ch() { clickhouse-client --host clickhouse --port 9000 --user "$$CLICKHOUSE_USER" --password "$$CLICKHOUSE_PASSWORD" "$$@"; }
+        # Reclaiming disk must never keep the stack down, and the tables being
+        # dropped are inert, so nothing below is allowed to fail this service.
+        set +e
+        # ClickHouse supersedes a system log table when it first flushes to it, not
+        # when it starts serving, so the healthcheck passes several seconds
+        # before this upgrade's generations exist. Forcing the flush makes them
+        # all exist before we look.
+        ch --query "SYSTEM FLUSH LOGS"
+        # ClickHouse stops managing a table once it is superseded, so every
+        # generation is inert and safe to drop, including ones for tables
+        # clickhouse-log-ttl.xml cannot declare a TTL for.
+        tables=$$(ch --query "SELECT name FROM system.tables WHERE database = 'system' AND engine = 'MergeTree' AND match(name, '_log_[0-9]+\$$')")
+        for table in $$tables; do
+          echo "dropping system.$$table"
+          ch --query "DROP TABLE IF EXISTS system.\`$$table\` SYNC" || echo "could not drop system.$$table, leaving it in place" >&2
+        done
+        exit 0
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -133,6 +192,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
       kura:

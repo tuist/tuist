@@ -198,6 +198,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
+    case testShardPlanId = "TUIST_SHARD_PLAN_ID"
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
     case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
 
@@ -319,6 +320,7 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateSSOOrganizationName = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_NAME"
     case organizationUpdateSSOProvider = "TUIST_ORGANIZATION_UPDATE_SSO_PROVIDER"
     case organizationUpdateSSOOrganizationId = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_ID"
+    case organizationUpdateSSOEnrollmentPolicy = "TUIST_ORGANIZATION_UPDATE_SSO_ENROLLMENT_POLICY"
     case organizationUpdateSSOPath = "TUIST_ORGANIZATION_UPDATE_SSO_PATH"
 
     // PROJECT DELETE
@@ -474,6 +476,7 @@ public enum EnvKey: String, CaseIterable {
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
+    case cacheWarmScratchDirectory = "TUIST_CACHE_WARM_SCRATCH_DIRECTORY"
     case cacheTargets = "TUIST_CACHE_TARGETS"
 
     // HASH CACHE
@@ -500,6 +503,12 @@ public enum EnvKey: String, CaseIterable {
 
     case bazelSetupPath = "TUIST_BAZEL_SETUP_PATH"
     case bazelCredentialHelperPath = "TUIST_BAZEL_CREDENTIAL_HELPER_PATH"
+
+    // RUN REPORT
+    // Shared by every command that can write a run report, so it's not prefixed with a
+    // command name like the options above. Unrelated to the `tuist run` options.
+
+    case runReportPath = "TUIST_RUN_REPORT_PATH"
 
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]

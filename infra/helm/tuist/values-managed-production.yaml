@@ -34,6 +34,17 @@ server:
 
   appUrl: https://tuist.dev
 
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    # The offline-certificate license config is now the shared default in
+    # values-managed-common.yaml, so production no longer overrides it here.
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
   # and canary use their own (test-mode) IDs in their overlays. The chart
@@ -81,9 +92,8 @@ server:
     # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
       value: https://tuist.dev/api/registry/swift
-    # Enables the server-owned registry sync writer. Cache still writes
-    # too until it is turned off as a separate step; the two coordinate
-    # through the shared S3 sync lock, so dual-writing is safe.
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "true"
     - name: TUIST_DATABASE_POOL_SIZE
@@ -200,6 +210,23 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Grafana load-balances across agents and fails over when one drops, so a
+  # single replica would make a node drain take every PDC-routed panel down.
+  # Three is Grafana's production recommendation.
+  replicas: 3
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+
 kuraController:
   sharedSecrets:
     externalSecret:
@@ -305,6 +332,12 @@ postgresql:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist
+  # reads and writes to eight gibibytes in aggregate, leaving ten gibibytes for
+  # background merges and allocator overhead instead of discovering pressure
+  # at the process-wide ceiling. Ingestion retries and retains buffered rows
+  # when the shared application budget is temporarily full.
+  maxMemoryUsageForUserBytes: "8589934592"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
@@ -391,12 +424,37 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
+  # The legacy cache writer is disabled, so this deployment is the sole
+  # registry synchronization writer.
   enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Production is the only env syncing the full catalog, so it's the only
+  # one that outgrows the common 512Mi/1Gi default. Enabling the sync
+  # (#12136) took this pod from idle to real work and it started getting
+  # OOMKilled every 10-60 minutes: idle working set is 750-850Mi and
+  # per-release jobs peak at 930-995Mi, leaving no room under a 1Gi cap.
+  #
+  # The request matches the measured idle baseline. At 512Mi the pod
+  # permanently exceeded its own request, which made it a first-choice
+  # eviction target whenever a processor node came under memory pressure.
+  # The limit is deliberately well clear of observed peak rather than
+  # just above it — peak scales with :swift_registry_release running 5
+  # jobs concurrently (server/config/runtime.exs), and each one unpacks
+  # and re-zips a package archive under /tmp, so page cache on that
+  # emptyDir counts against this cgroup too. Archive sizes are set by
+  # whatever upstream publishes, so the ceiling isn't ours to predict.
+  # If this OOMs again, lower queueConcurrency before raising memory.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "4Gi"
 
 # Runs as the same env as the build processor; the Tart VM reads its secrets
 # from the environment (config Secret via envFrom + object-storage ESO), same
@@ -425,8 +483,23 @@ xcresultProcessor:
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Deliberately NOT the in-cluster receiver address the Linux deployments
+    # use. These pods are macOS Tart VMs whose only interface is Tailscale, so
+    # `*.svc.cluster.local` does not resolve inside the guest and every span
+    # was being dropped before it left the VM. This is the tailnet hostname of
+    # the Tailscale-operator proxy in front of the same receiver Service, set
+    # up in the k8s-monitoring chart's production values.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-production:4317
+    # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
+    # in-process handler in Tuist.Application.start_loki_logger/0, which is
+    # the only way these pods can ship logs: Alloy cannot tail a Tart guest
+    # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
+    # appends /loki/api/v1/push, matching the loki.source.api endpoint the
+    # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
+    # forwards to Grafana Cloud with the ones it already holds.
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-production:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
@@ -545,17 +618,25 @@ macosFleet:
   # a single host keeps hot once affinity spreads them across the fleet.
   # Kept well under the 512 GB disk, which is dominated by the ~85 GB
   # golden VM image(s) (two during a digest roll) + per-job DerivedData.
-  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
-  # macOS CI job — the guest mounts the virtio-fs cache share and exports
-  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
-  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
-  # var is exported regardless, so the CLI dies with "Couldn't create the
-  # directory at /Volumes/My Shared Files/cache/tuist/... because its
-  # parent directory doesn't exists". Re-enable only once a real CI job
-  # is verified green on a cache-volume host (host-side provisioning
-  # checks are NOT sufficient — that gap is what let this reach prod).
+  # Enabled after the disk-image redesign (#11908): the cache is now a
+  # sparse APFS disk image on the share, not files on it, because virtio-fs
+  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
+  # versioned framework bundles → the ELOOP that broke every macOS job on
+  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
+  # the framework-with-xattr copy that failed on the old share succeeds
+  # inside the image, and a promoted master clones back warm with symlinks
+  # and xattrs intact.
   runnerCacheVolume:
-    gib: 0
+    gib: 80
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free. A typical
+    # binary master is ~2.4 GB, so a 10 GiB binary budget still holds ~4x
+    # headroom while the CAS rides the same clone/promote/converge path. The
+    # guest is fail-safe: a store it cannot write falls back to a VM-local cold
+    # compilation cache, so a bad budget costs warmth, not the job.
+    masterCapGib: 28
+    casGib: 16
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -628,17 +709,23 @@ runnersFleet:
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
-  # dynamically apportioned by queue depth across the pools.
-  # The default (26.6) keeps the warm baseline since most traffic
-  # lands there; older Xcodes sit cold (floor 0) so an unused runner
-  # doesn't tie up a host. Revisit once we open the runners to
-  # general signups where the pool mix is unpredictable in advance.
+  # Floors sum to 1 of the 9-slot budget; the remaining 8 slots are
+  # dynamically apportioned by queue depth across the pools. Older
+  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  #
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 3
+        minWarmPoolFloor: 1
         maxReplicas: 9
     "26.5":
       autoscaling:

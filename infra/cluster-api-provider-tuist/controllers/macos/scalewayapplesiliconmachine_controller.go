@@ -174,6 +174,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// names.
 	RunnerCacheVolumeGiB    int
 	CacheVolumeMasterCapGiB int
+	CacheVolumeCASGiB       int
 
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
@@ -278,6 +279,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
+			// CR is gone; drop its phase series so a deleted machine
+			// stops emitting a phantom phase (and never alerts on a
+			// stale Failed).
+			forgetMachinePhase(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, getErr
@@ -292,6 +297,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 			err = patchErr
 		}
 	}()
+
+	// Publish the phase this reconcile leaves the machine in, so a host
+	// stuck terminal Failed (TartKubeletUpdateExceededRetries) is alertable
+	// instead of only visible via `kubectl get machine`. Deferred so it
+	// reads the final status set below (including the delete path's
+	// Deleting; the NotFound branch above forgets it once fully gone).
+	defer recordMachinePhase(machine)
 
 	// Resolve the parent CAPI Machine, if there is one. The chart
 	// renders MachineDeployment → MachineSet → Machine →
@@ -628,6 +640,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			MaxPods:                 r.TartKubeletMaxPods,
 			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
 			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
 			VNCRelayHost:            vncRelayHost,
 			VNCRelayPort:            vncRelayPort,
 			NodeLabels:              machineNodeLabels(machine),
@@ -797,6 +810,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// config — so the roll looked applied but the feature was off.
 			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
 			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
 			VNCRelayHost:            vncRelayHost,
 			VNCRelayPort:            vncRelayPort,
 			NodeLabels:              machineNodeLabels(machine),
@@ -888,7 +902,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// as bootstrap returns; whether the Node has reported Ready yet is
 	// a separate concern observable via `kubectl get nodes`.
 	machine.Status.Ready = true
-	machine.Status.Phase = "Ready"
+	if !terminalPhasePinned(machine.Status.FailureReason) {
+		machine.Status.Phase = "Ready"
+	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -1047,6 +1063,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
 		svc.Labels["tuist.dev/macmini-egress"] = "true"
 		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+		if machine.Spec.FleetName != "" {
+			svc.Labels["tuist.dev/fleet"] = machine.Spec.FleetName
+		} else {
+			delete(svc.Labels, "tuist.dev/fleet")
+		}
 
 		if svc.Annotations == nil {
 			svc.Annotations = map[string]string{}
@@ -1073,9 +1094,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		// mini's public :22 is filtered (see the update path above). The
 		// tailnet ACL must also grant tcp:22 from tag:tuist-k8s-<env> to
 		// tag:tuist-macmini-<env> (infra/tailscale/acls.json).
+		// pod-metrics (:9091) reaches tart-kubelet's host-side metrics
+		// forwarder, which proxies to the Tart guest's PromEx endpoint.
+		// It has to come through this egress like every other mini port:
+		// the cluster CNI installs no route for 100.64.0.0/10, so a
+		// generic Pod cannot dial a mini's tailnet IPv4 directly. Alloy
+		// was discovering the xcresult-processor Pods by annotation and
+		// scraping their CGNAT address, which fails on every attempt
+		// (`up == 0` on every Tart node, in all three environments).
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+			{Name: "pod-metrics", Port: 9091, Protocol: corev1.ProtocolTCP},
 			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
 			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
 		}
@@ -1114,6 +1144,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {
 // migration case for machines provisioned before the hash existed.
 func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
+}
+
+// terminalPhasePinned reports whether the reconcile tail must leave
+// Status.Phase alone because the machine holds a terminal failure.
+//
+// The drift gate SKIPS a terminal machine rather than returning early, so
+// every reconcile after the one that recorded the failure still falls
+// through to the tail. Writing "Ready" there overwrote the "Failed" that
+// recordUpdateFailure had just set — within a single reconcile interval —
+// leaving machines that carried FailureReason while reporting phase Ready.
+//
+// That combination is invisible to alerting: the "stuck Failed" rule keys
+// on phase="Failed" persisting for 30m, and the phase flapped back to Ready
+// in ~5m, so the rule could never fire. Three production hosts sat wedged on
+// a stale tart-kubelet for weeks with the alert green. Pinning the phase is
+// what makes the terminal state observable; clearUpdateFailure lifts it.
+func terminalPhasePinned(failureReason *string) bool {
+	return failureReason != nil
 }
 
 // shouldClearTerminalFailure reports whether a terminal tart-kubelet-update

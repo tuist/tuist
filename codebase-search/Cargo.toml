@@ -1,0 +1,26 @@
+[package]
+name = "tuist-codebase-search"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+axum = "0.8.9"
+grep-regex = "0.1.14"
+grep-searcher = "0.1.16"
+globset = "0.4.18"
+ignore = "0.4.27"
+percent-encoding = "2.3.2"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.17"
+tokio = { version = "1.48.0", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+tempfile = "3.23.0"
+
+[profile.release]
+lto = "thin"
+opt-level = 2
+strip = true
