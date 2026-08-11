@@ -172,6 +172,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert profile.(:air) == {512, 1536, true}
     end
 
+    test "sizes a self-hosted deployment off its license rather than a subscription" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # A self-hosted deployment has no subscriptions, so resolving a plan would
+      # put every account on the standard profile. Its Enterprise license is the
+      # entitlement, which is why the plan is never looked up here.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      reject(&Tuist.Billing.effective_plan/1)
+
+      spec =
+        "kura-tuist-eu-central-1"
+        |> KubernetesController.manifest(
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{memory_governed: true}),
+          %Server{},
+          "return true"
+        )
+        |> Map.fetch!("spec")
+
+      assert {spec["memoryFloorMib"], spec["memoryCeilingMib"]} == {2048, 4096}
+    end
+
     test "leaves the memory profile to the controller default on a box that does not govern memory" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

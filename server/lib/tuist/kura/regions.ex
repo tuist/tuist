@@ -312,15 +312,17 @@ defmodule Tuist.Kura.Regions do
   def private?(_), do: false
 
   @doc """
-  The `%{floor_mib:, ceiling_mib:}` memory profile for a tier.
+  The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
-  `:enterprise` is gated behind the `:guaranteed_memory_floor` entitlement; the
-  provisioner resolves the tier and every other account gets `:standard`.
+  Every plan gets a profile, so this is a sizing decision rather than a feature
+  grant: `:enterprise` reserves the larger floor, and every other plan takes the
+  standard one. Unknown plans fall to standard, which is the safe side on a
+  shared box.
   """
   def memory_profile(:enterprise),
     do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @enterprise_memory_ceiling_mib}
 
-  def memory_profile(:standard), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+  def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 
   @doc """
   True iff the region sizes its instances per tier rather than taking the
