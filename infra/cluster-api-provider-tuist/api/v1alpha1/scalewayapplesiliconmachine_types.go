@@ -135,13 +135,24 @@ type GHActionsRunnerConfig struct {
 	// +kubebuilder:default="self-hosted,macos,bare-metal,vm-image-builder"
 	GHRunnerLabels string `json:"ghRunnerLabels,omitempty"`
 
-	// GHRunnerVersion pins the actions/runner release the
-	// reconciler downloads onto the host. Keep in sync with
-	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
-	// runner agent baked into the runner-image guest matches the
-	// agent running on the host that bakes that image.
-	// +kubebuilder:default="2.334.0"
-	GHRunnerVersion string `json:"ghRunnerVersion,omitempty"`
+	// GHRunnerVersion is the actions/runner release the reconciler
+	// downloads the first time it bootstraps a host. The host agent
+	// is configured without `--disableupdate`, so it self-updates
+	// from there; changing this on an already-bootstrapped host is a
+	// no-op (installActionsRunner short-circuits on a healthy runner,
+	// and HostConfigHash deliberately excludes GHActionsRunner).
+	//
+	// Required, and deliberately without a default unlike its
+	// siblings: GitHub retires runner releases on a rolling deadline,
+	// so a default baked into the API would rot into a version GitHub
+	// refuses. The chart is the single source of truth
+	// (`buildersFleet.ghRunnerVersion`), Renovate bumps it alongside
+	// `runner_version` in infra/runner-image/runner.pkr.hcl, and a CR
+	// that omits it is rejected instead of silently seeding a
+	// years-old agent.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	GHRunnerVersion string `json:"ghRunnerVersion"`
 
 	// GHAppSecretName is the name of a Secret in the same namespace
 	// carrying the GitHub App credentials the reconciler uses to

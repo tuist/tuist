@@ -78,20 +78,21 @@ defmodule CacheWeb.XcodeControllerTest do
       assert upload.key == key
     end
 
-    test "saves artifact without metadata or S3 transfer DB writes when Xcode database interactions are disabled", %{
+    test "tracks artifact access but skips the S3 upload enqueue when Xcode database interactions are disabled", %{
       conn: conn
     } do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
       body = "test artifact content"
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Cache.Config, :xcode_database_interactions_enabled?, 2, fn -> false end)
-      reject(CacheArtifacts, :track_artifact_access, 1)
+      stub(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      expect(CacheArtifacts, :track_artifact_access, fn ^key -> :ok end)
       reject(S3Transfers, :enqueue_upload_if_missing, 4)
 
       Xcode.Disk
@@ -475,17 +476,21 @@ defmodule CacheWeb.XcodeControllerTest do
       assert conn.resp_body == ""
     end
 
-    test "returns local file without tracking metadata when Xcode database interactions are disabled", %{conn: conn} do
+    # Deliberately mock-identical to the flag-on local-hit test above: it pins
+    # that tracking stays ungated when the flag is off, which is the regression
+    # #12252 fixed. Do not remove it as a duplicate.
+    test "tracks artifact access when serving a local file with Xcode database interactions disabled", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
-      reject(CacheArtifacts, :track_artifact_access, 1)
+      stub(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      expect(CacheArtifacts, :track_artifact_access, fn ^key -> :ok end)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
@@ -543,19 +548,20 @@ defmodule CacheWeb.XcodeControllerTest do
       assert conn.resp_body == ""
     end
 
-    test "returns remote redirect without transfer queue writes when Xcode database interactions are disabled", %{
+    test "tracks artifact access but skips the S3 download enqueue when Xcode database interactions are disabled", %{
       conn: conn
     } do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Cache.Config, :xcode_database_interactions_enabled?, 2, fn -> false end)
-      reject(CacheArtifacts, :track_artifact_access, 1)
+      stub(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      expect(CacheArtifacts, :track_artifact_access, fn ^key -> :ok end)
       reject(S3Transfers, :enqueue_xcode_download, 3)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->

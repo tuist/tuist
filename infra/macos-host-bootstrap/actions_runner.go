@@ -37,11 +37,14 @@ type GHActionsRunnerConfig struct {
 	// `[self-hosted, macos, bare-metal, vm-image-builder]`).
 	GHRunnerLabels string
 
-	// GHRunnerVersion pins the actions/runner release the
-	// reconciler downloads onto the host. Keep in sync with
-	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
-	// runner agent baked into the runner-image guest matches the
-	// agent running on the host that bakes that image.
+	// GHRunnerVersion is the actions/runner release installed on a
+	// host that doesn't have one yet. It is an install-time seed, not
+	// a pin: installActionsRunner skips a host whose runner is already
+	// healthy, and the agent runs without `--disableupdate`, so it
+	// self-updates past this version on its own. Keep in sync with
+	// `runner_version` in infra/runner-image/runner.pkr.hcl so a newly
+	// adopted host starts on the same agent that gets baked into the
+	// guest images it builds.
 	GHRunnerVersion string
 
 	// GHRunnerRegistrationToken is the short-lived (~1h TTL) token
