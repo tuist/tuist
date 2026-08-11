@@ -21,16 +21,24 @@ enum AuthTokenServiceError: LocalizedError, Equatable {
 public struct AuthTokenService {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let getCacheTokenService: GetCacheTokenServicing
 
     public init(
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService()
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.serverEnvironmentService = serverEnvironmentService
+        self.getCacheTokenService = getCacheTokenService
     }
 
-    public func run(serverURL: String?) async throws {
+    public func run(serverURL: String?, projectHandle: String? = nil) async throws {
+        // Print only the bearer so the caller can capture it from stdout.
+        print(try await token(serverURL: serverURL, projectHandle: projectHandle))
+    }
+
+    func token(serverURL: String?, projectHandle: String?) async throws -> String {
         let url = serverURL.flatMap { URL(string: $0) } ?? serverEnvironmentService.url()
         guard let token = try await serverAuthenticationController.authenticationToken(
             serverURL: url,
@@ -38,7 +46,18 @@ public struct AuthTokenService {
         ) else {
             throw AuthTokenServiceError.notAuthenticated(url)
         }
-        // Print only the bearer so the caller can capture it from stdout.
-        print(token.value)
+        return await cacheToken(for: projectHandle, serverURL: url) ?? token.value
+    }
+
+    /// A token a cache node can verify by itself, so authorizing does not cost a
+    /// round-trip back here. Nil when no project was named or the server cannot
+    /// mint one, leaving the caller with the credential it already had, which
+    /// cache nodes still accept.
+    private func cacheToken(for projectHandle: String?, serverURL: URL) async -> String? {
+        guard let projectHandle else { return nil }
+        return try? await getCacheTokenService.getCacheToken(
+            serverURL: serverURL,
+            projectHandle: projectHandle
+        ).token
     }
 }
