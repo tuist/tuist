@@ -1,8 +1,8 @@
 defmodule Tuist.CacheE2ETokenTest do
   @moduledoc """
-  Mints a cache token the way production does, signed with the secret Kura's
-  extension tests verify with, and writes it where the Rust side can pick it up.
-  Run together with the kura test that reads it; see kura/scripts/cache-token-e2e.sh.
+  Mints a cache token the way production does and writes it where the Rust side
+  can pick it up. Only runs as part of kura/scripts/cache-token-e2e.sh, which
+  pins TUIST_SECRET_KEY_TOKENS to the secret Kura's extension tests verify with.
   """
   use TuistTestSupport.Cases.DataCase, async: false
 
@@ -13,15 +13,6 @@ defmodule Tuist.CacheE2ETokenTest do
   @tag :e2e_cache_token
   test "writes a cache token for acme/ios" do
     path = System.get_env("CACHE_TOKEN_OUT") || raise "CACHE_TOKEN_OUT not set"
-
-    previous = Application.get_env(:tuist, Tuist.Guardian)
-
-    Application.put_env(:tuist, Tuist.Guardian,
-      issuer: "tuist",
-      secret_key: "tuist-guardian-secret"
-    )
-
-    on_exit(fn -> Application.put_env(:tuist, Tuist.Guardian, previous) end)
 
     organization = AccountsFixtures.organization_fixture(name: "acme", preload: [:account])
     project = ProjectsFixtures.project_fixture(account: organization.account, name: "ios")

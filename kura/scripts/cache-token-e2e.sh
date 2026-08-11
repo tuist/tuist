@@ -15,7 +15,9 @@ trap 'rm -f "$token_path"' EXIT
 echo "==> minting a cache token from the server"
 (
   cd "$root/server"
-  CACHE_TOKEN_OUT="$token_path" mix test test/tuist/cache_e2e_token_test.exs --include e2e_cache_token
+  CACHE_TOKEN_OUT="$token_path" \
+    TUIST_SECRET_KEY_TOKENS="tuist-guardian-secret" \
+    mix test test/tuist/cache_e2e_token_test.exs --include e2e_cache_token
 )
 
 echo "==> verifying it authorizes on a cache node"
