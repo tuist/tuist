@@ -53,7 +53,8 @@ public struct ModuleCacheExistsService: ModuleCacheExistsServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            projectHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.moduleCacheArtifactExists(

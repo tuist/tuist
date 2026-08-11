@@ -55,7 +55,8 @@ public struct CompleteModuleCacheMultipartUploadService: CompleteModuleCacheMult
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            projectHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.completeModuleCacheMultipartUpload(
