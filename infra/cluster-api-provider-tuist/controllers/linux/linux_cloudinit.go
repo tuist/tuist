@@ -152,9 +152,15 @@ RebootWatchdogSec=5min
 // boxes are a quarter the size and run a handful of cache instances rather than
 // dozens of microVMs whose guest RAM is their request.
 //
-// evictionHard REPLACES the kubelet's defaults wholesale rather than merging, so
-// the disk signals are restated at their default values. Only memory.available
-// moves: the default is 100Mi, which on a 31GiB box is thin enough that the
+// evictionHard REPLACES the kubelet's defaults wholesale rather than merging
+// (mergeDefaultEvictionSettings defaults to false, and an omitted signal is set
+// to 0 rather than left at its default), so all five disk and memory signals are
+// restated. imagefs is its own filesystem on these boxes — bootstrapBody points
+// containerd's root at /data wherever /data is a separate mount — so
+// imagefs.inodesFree is not covered by the nodefs signals on /.
+//
+// Only memory.available moves off its default: 100Mi on a 31GiB box is thin
+// enough that the
 // kernel OOM killer usually wins the race, turning contention into a SIGKILL
 // mid-transfer instead of an evicted Pod with an event. The signal subtracts
 // inactive_file, so a cache node's reclaimable artifact page cache does not
@@ -186,6 +192,7 @@ evictionHard:
   nodefs.available: 10%
   nodefs.inodesFree: 5%
   imagefs.available: 15%
+  imagefs.inodesFree: 5%
 featureGates:
   MemoryQoS: true
 memoryThrottlingFactor: 1.0

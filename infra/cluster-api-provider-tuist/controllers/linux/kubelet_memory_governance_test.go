@@ -80,7 +80,15 @@ func TestKubeletConfigEvictionHardCoversEverySignal(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	for _, signal := range []string{"memory.available", "nodefs.available", "nodefs.inodesFree", "imagefs.available"} {
+	// Every signal in the kubelet's Linux defaults (DefaultEvictionHard). A
+	// signal missing here is disabled on the node, not defaulted.
+	for _, signal := range []string{
+		"memory.available",
+		"nodefs.available",
+		"nodefs.inodesFree",
+		"imagefs.available",
+		"imagefs.inodesFree",
+	} {
 		if parsed.EvictionHard[signal] == "" {
 			t.Fatalf("evictionHard is missing %q; it replaces the defaults rather than merging with them", signal)
 		}
