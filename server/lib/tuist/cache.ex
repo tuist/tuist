@@ -65,13 +65,43 @@ defmodule Tuist.Cache do
   def issue_cache_token(subject, opts \\ []) do
     ttl = Keyword.get(opts, :ttl, @cache_token_ttl_seconds)
 
+    grants =
+      subject
+      |> cache_grants(opts)
+      |> scope_grants(Keyword.get(opts, :scope))
+
     Tuist.Guardian.encode_and_sign(
       subject,
-      %{"cache_grants" => cache_grants(subject, opts)},
+      %{"cache_grants" => grants},
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
   end
+
+  # Narrows the grants to the one project the caller is about to use. An
+  # account-wide credential reaches every project its account owns, and carrying
+  # all of them costs roughly forty bytes each, which outgrows a request header
+  # on a large account. Callers that name their target get a token that stays
+  # small no matter how many projects the account has.
+  defp scope_grants(grants, nil), do: grants
+
+  defp scope_grants(grants, scope) do
+    project = String.downcase(scope)
+    account = project |> String.split("/") |> List.first()
+
+    %{
+      "account" => %{
+        "read" => only(grants["account"]["read"], account),
+        "write" => only(grants["account"]["write"], account)
+      },
+      "project" => %{
+        "read" => only(grants["project"]["read"], project),
+        "write" => only(grants["project"]["write"], project)
+      }
+    }
+  end
+
+  defp only(handles, wanted), do: Enum.filter(handles, &(String.downcase(&1) == wanted))
 
   def cache_token_ttl_seconds, do: @cache_token_ttl_seconds
 

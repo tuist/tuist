@@ -3,6 +3,7 @@ defmodule Tuist.CacheTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Cache
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -125,6 +126,56 @@ defmodule Tuist.CacheTest do
 
       # Then
       assert is_nil(subject)
+    end
+
+    # Account tokens, the replacement for project tokens, usually reach every
+    # project their account owns. Carrying all of them outgrows a request header,
+    # so a caller that names its target gets a token sized to that project alone.
+    test "narrows the grants to the requested project" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+
+      projects =
+        for _ <- 1..5 do
+          ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+        end
+
+      target = Enum.at(projects, 2)
+      handle = "#{target.account.name}/#{target.name}"
+
+      subject = %AuthenticatedAccount{
+        account: organization.account,
+        scopes: ["project:cache:read", "project:cache:write"],
+        all_projects: true
+      }
+
+      # When
+      {:ok, _token, claims} = Cache.issue_cache_token(subject, scope: handle)
+
+      # Then
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
+
+    test "never widens the grants beyond what the credential reaches" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      other = AccountsFixtures.organization_fixture(preload: [:account])
+      unreachable = ProjectsFixtures.project_fixture(account: other.account, preload: [:account])
+
+      subject = %AuthenticatedAccount{
+        account: organization.account,
+        scopes: ["project:cache:read", "project:cache:write"],
+        all_projects: true
+      }
+
+      # When
+      {:ok, _token, claims} =
+        Cache.issue_cache_token(subject, scope: "#{unreachable.account.name}/#{unreachable.name}")
+
+      # Then
+      assert claims["cache_grants"]["project"]["read"] == []
+      assert claims["cache_grants"]["project"]["write"] == []
     end
 
     test "expires" do

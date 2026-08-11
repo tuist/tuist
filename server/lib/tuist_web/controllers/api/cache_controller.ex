@@ -147,6 +147,16 @@ defmodule TuistWeb.API.CacheController do
     not an API credential.
     """,
     operation_id: "getCacheToken",
+    parameters: [
+      {:project_handle,
+       [
+         in: :query,
+         type: :string,
+         required: false,
+         description:
+           "Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account."
+       ]}
+    ],
     responses: %{
       ok:
         {"A cache token for the authenticated subject", "application/json",
@@ -167,11 +177,11 @@ defmodule TuistWeb.API.CacheController do
     }
   )
 
-  def token(conn, _params) do
+  def token(conn, params) do
     {:ok, token, _claims} =
       conn
       |> Authentication.authenticated_subject()
-      |> Cache.issue_cache_token()
+      |> Cache.issue_cache_token(scope: params[:project_handle])
 
     json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
   end
