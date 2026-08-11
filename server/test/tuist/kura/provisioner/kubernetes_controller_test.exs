@@ -156,7 +156,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           |> KubernetesController.manifest(
             "0.5.2",
             %Account{id: 1, name: "tuist"},
-            eu_region(%{memory_ceiling_bin_packed: true}),
+            eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true}),
             %Server{},
             "return true"
           )
@@ -1102,7 +1102,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "crosses a revision boundary on the memory tier so an upgrade re-applies" do
       reject(&Mesh.self_hosted_peer_urls/1)
       account = %Account{id: 1, name: "tuist"}
-      region = eu_region(%{memory_ceiling_bin_packed: true})
+      region = eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
       # Without the profile in the revision an account changing plan would keep

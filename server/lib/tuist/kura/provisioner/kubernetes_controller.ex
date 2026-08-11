@@ -343,11 +343,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp manifest_entitlements(account, %Regions{} = region) do
     configured_egress_mbps = configured_egress_guaranteed_mbps(region)
 
-    # The regions that bin-pack memory ceilings are exactly the shared
-    # bare-metal boxes where packing density is the constraint, so they are also
-    # the ones worth sizing per tier. Everywhere else the controller's default
-    # profile applies and no plan has to be resolved.
-    memory_governed? = Regions.memory_ceiling_bin_packed?(region)
+    # Only a region that sizes instances per tier needs a plan resolved;
+    # everywhere else the controller's default profile applies and the manifest
+    # renders without a subscription lookup.
+    memory_governed? = Regions.memory_governed?(region)
 
     features =
       []

@@ -317,11 +317,26 @@ defmodule Tuist.Kura.Regions do
   def memory_profile(:standard), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 
   @doc """
+  True iff the region sizes its instances per tier rather than taking the
+  controller's default memory profile.
+
+  The shared bare-metal boxes do, because packing density is what constrains
+  them. Elsewhere the default applies and no plan has to be resolved to render a
+  manifest.
+  """
+  def memory_governed?(%__MODULE__{provisioner_config: config}), do: config[:memory_governed] == true
+
+  def memory_governed?(_), do: false
+
+  @doc """
   True iff the region's nodes advertise a `tuist.dev/memory-ceiling-mib` budget,
   so its instances can bin-pack their memory ceilings against it.
 
-  Only the bare-metal pools the CAPI provider patches do. Requesting the
-  extended resource anywhere else leaves every cache pod Pending.
+  Deliberately separate from `memory_governed?/1`: the profile is a property of
+  the account, while the budget is a property of the node pool, and only the
+  pools the CAPI provider patches have one. Requesting the extended resource
+  before a pool advertises it leaves every cache pod Pending, so this stays off
+  until the provider that supplies the capacity has rolled.
   """
   def memory_ceiling_bin_packed?(%__MODULE__{provisioner_config: config}), do: config[:memory_ceiling_bin_packed] == true
 
@@ -471,12 +486,11 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
-        # The managed regions all run on bare-metal pools the CAPI provider
-        # patches with a tuist.dev/memory-ceiling-mib budget, so their instances
-        # bin-pack memory ceilings against it. The private runner-cache pool
-        # runs on Elastic Metal, which the provider does not patch, so it keeps
-        # a right-sized ceiling without joining the bin-pack.
-        memory_ceiling_bin_packed: true,
+        # Packing density is what constrains the shared bare-metal boxes, so
+        # their instances are sized per tier rather than taking the controller
+        # default. Ceiling bin-packing (memory_ceiling_bin_packed) is a separate
+        # opt-in that waits for the CAPI provider to advertise the node budget.
+        memory_governed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true
