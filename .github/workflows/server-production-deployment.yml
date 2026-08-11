@@ -72,10 +72,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    # GitHub-hosted: this job gates the runner-image release jobs, so it must
-    # not itself depend on a Tuist runner — a fleet stuck on a retired
-    # actions/runner version could never release the image that fixes it.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     # release:check only needs the git-cliff + jq installed below, but `mise run`
     # otherwise auto-installs the whole merged mise.toml toolset — including
@@ -1226,10 +1223,7 @@ jobs:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    # GitHub-hosted: this job builds the image the tuist-linux runners boot
-    # from, so running it on tuist-linux is a bootstrap cycle when the fleet
-    # is on a retired actions/runner version.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1343,9 +1337,7 @@ jobs:
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true'
       )
-    # GitHub-hosted: publishes the releases the runner fleet recovery depends
-    # on, so it can't wait on a Tuist runner slot.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     concurrency:
       group: publish-releases-${{ github.run_id }}
@@ -1677,9 +1669,7 @@ jobs:
     # Runs whenever the gate computed, regardless of which (if any) image
     # released; tag_release no-ops the components that didn't.
     if: always() && needs.check-releases.result == 'success'
-    # GitHub-hosted: pushes the tags server-deployment.yml resolves image
-    # versions from, so it can't wait on a Tuist runner slot.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 10
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
