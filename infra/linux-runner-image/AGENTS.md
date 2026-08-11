@@ -68,6 +68,20 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
+- `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
+  and `ANDROID_SDK_ROOT` exported. Same path and same
+  bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
+  because Gradle cannot even configure an Android project without
+  a platform + build-tools ("SDK location not found"). Scoped to
+  the single platform and build-tools release `android/` builds
+  against, with no NDK — the hosted image carries every platform
+  from android-34 up plus three NDK majors, which is the bulk of
+  its Android footprint. The versions are `--build-arg`s and must
+  track `compileSdk` / `targetSdk` in
+  `android/app/build.gradle.kts`; a bump there without a bump here
+  fails the release job at Gradle configuration. Resolved in the
+  `android-sdk` builder stage (sdkmanager needs a JVM) so no JDK
+  lands in the final image — workflow steps get theirs from mise.
 
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the

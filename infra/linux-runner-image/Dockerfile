@@ -36,6 +36,55 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
 
+# Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
+# JDK stage and only the resolved SDK is copied into the final image —
+# workflow steps bring their own JDK via mise, so the runner image
+# itself stays JDK-free.
+#
+# Versions are pinned rather than tracking "latest": they must match
+# what `android/app/build.gradle.kts` builds against, so bump them
+# alongside `compileSdk` / `targetSdk` there. The cmdline-tools archive
+# is fetched straight from Google because sdkmanager is what installs
+# every other component (it cannot install itself).
+#
+# cmdline-tools is held at the release GitHub's hosted image pins.
+# sdkmanager stamps a schema version into each installed package's
+# package.xml, and current cmdline-tools writes v4 while AGP 8.7.3
+# only parses up to v3 — which makes every Gradle invocation warn
+# about the skew. Bump this in step with AGP, not ahead of it.
+FROM eclipse-temurin:21-jdk-jammy AS android-sdk
+
+ARG ANDROID_CMDLINE_TOOLS_ARCHIVE=commandlinetools-linux-11076708_latest.zip
+ARG ANDROID_PLATFORM_VERSION=35
+ARG ANDROID_BUILD_TOOLS_VERSION=35.0.1
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
+    && curl -fSL "https://dl.google.com/android/repository/${ANDROID_CMDLINE_TOOLS_ARCHIVE}" \
+         -o /tmp/cmdline-tools.zip \
+    && unzip -qq /tmp/cmdline-tools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools" \
+    && rm /tmp/cmdline-tools.zip \
+    # sdkmanager only resolves ANDROID_SDK_ROOT when it sits at
+    # cmdline-tools/latest; the archive unpacks to cmdline-tools/.
+    && mv "${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+    # Licenses are accepted at build time. Without the hashes under
+    # $ANDROID_SDK_ROOT/licenses, Gradle refuses the platform at
+    # configuration time the same way a missing SDK does.
+    && yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null \
+    && "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+         "platform-tools" \
+         "platforms;android-${ANDROID_PLATFORM_VERSION}" \
+         "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
+    # World-writable, matching the hosted image: AGP writes into the SDK
+    # root (temp dirs, package installs) and the workflow runs as
+    # `runner`, not root.
+    && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
+
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
@@ -197,6 +246,31 @@ RUN install -m 0755 -d /etc/apt/keyrings \
         docker-compose-plugin \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Android SDK, resolved in the `android-sdk` stage above. Gradle
+# cannot configure an Android project without a platform + build-tools:
+# it fails the task graph with "SDK location not found" before any task
+# runs. GitHub's hosted Ubuntu image bakes the SDK in the same way
+# (`install-android-sdk.sh`, exporting ANDROID_HOME + ANDROID_SDK_ROOT),
+# so workflows assume it is on the machine rather than installing it
+# per job — and the path below matches theirs for workflows that
+# hardcode it.
+#
+# Deliberately narrower than the hosted image, which carries every
+# platform from android-34 up, six build-tools releases and three NDK
+# majors. We ship the single platform + build-tools pair `android/`
+# builds against and no NDK at all (the app has no native code), which
+# is what keeps this a few hundred MB rather than the ~10GB the hosted
+# image spends here.
+COPY --from=android-sdk /opt/android-sdk /usr/local/lib/android/sdk
+# The copied tree keeps the modes set in the builder stage, but COPY
+# creates the destination directory itself as 0755, so the SDK root
+# alone would be read-only for `runner`. Re-chmod just that directory —
+# a recursive chmod here would rewrite every file into a second ~460MB
+# layer.
+RUN chmod a+rwx /usr/local/lib/android/sdk
+ENV ANDROID_HOME=/usr/local/lib/android/sdk \
+    ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
 
 # Non-root runner user. `actions/runner` refuses to register as
 # root unless `RUNNER_ALLOW_RUNASROOT=1` is set. Passwordless sudo
