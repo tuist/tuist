@@ -4282,6 +4282,26 @@ components:
       type: string
       x-struct:
       x-validate:
+    CacheToken:
+      description: A short-lived token that proves the subject's cache access
+      properties:
+        expires_in:
+          description: Seconds until the token expires.
+          type: integer
+          x-struct:
+          x-validate:
+        token:
+          description: The token to send to cache nodes.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - expires_in
+      title: CacheToken
+      type: object
+      x-struct:
+      x-validate:
     CASOutputType:
       enum:
         - swift
@@ -8747,20 +8767,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -8779,10 +8799,10 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -8827,17 +8847,17 @@ paths:
       callbacks: {}
       operationId: createBundle
       parameters:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
@@ -15931,17 +15951,17 @@ paths:
       callbacks: {}
       operationId: getBundle
       parameters:
-        - description: The handle of the account.
+        - description: The handle of the project.
           in: path
-          name: account_handle
+          name: project_handle
           required: true
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
@@ -21287,6 +21307,61 @@ paths:
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/cache/token:
+    post:
+      callbacks: {}
+      description: |
+        Returns a short-lived token that carries the authenticated subject's cache grants.
+
+        Cache nodes verify it themselves and authorize from the grants it carries, so
+        clients holding a credential a cache node cannot verify locally (a CI project
+        token, for example) avoid a server round-trip per cache authorization. Exchange
+        it once and reuse it until it expires. It is only accepted by cache nodes; it is
+        not an API credential.
+      operationId: getCacheToken
+      parameters:
+        - description: 'Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.'
+          in: query
+          name: project_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A short-lived token that proves the subject's cache access
+                properties:
+                  expires_in:
+                    description: Seconds until the token expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  token:
+                    description: The token to send to cache nodes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - token
+                  - expires_in
+                title: CacheToken
+                type: object
+                x-struct:
+                x-validate:
+          description: A cache token for the authenticated subject
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: Exchange the current credential for a cache token.
+      tags:
+        - Cache
 security:
   - authorization: []
   - cookie: []

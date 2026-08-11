@@ -720,6 +720,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
     func createAutomationAlert(_ input: Operations.createAutomationAlert.Input) async throws -> Operations.createAutomationAlert.Output
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -2487,6 +2501,28 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public func getCacheToken(
+        query: Operations.getCacheToken.Input.Query = .init(),
+        headers: Operations.getCacheToken.Input.Headers = .init()
+    ) async throws -> Operations.getCacheToken.Output {
+        try await getCacheToken(Operations.getCacheToken.Input(
+            query: query,
+            headers: headers
         ))
     }
 }
@@ -8671,6 +8707,35 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexAfter`.
         public typealias GenerationsIndexAfter = Swift.String
+        /// A short-lived token that proves the subject's cache access
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheToken`.
+        public struct CacheToken: Codable, Hashable, Sendable {
+            /// Seconds until the token expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/expires_in`.
+            public var expires_in: Swift.Int
+            /// The token to send to cache nodes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheToken/token`.
+            public var token: Swift.String
+            /// Creates a new `CacheToken`.
+            ///
+            /// - Parameters:
+            ///   - expires_in: Seconds until the token expires.
+            ///   - token: The token to send to cache nodes.
+            public init(
+                expires_in: Swift.Int,
+                token: Swift.String
+            ) {
+                self.expires_in = expires_in
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_in
+                case token
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
         @frozen public enum CASOutputType: String, Codable, Hashable, Sendable, CaseIterable {
             case swift = "swift"
@@ -19064,34 +19129,30 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
-                public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
+                public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    account_handle: Swift.String
                 ) {
-                    self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.account_handle = account_handle
                 }
             }
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19100,20 +19161,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -19362,25 +19427,25 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
-                public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
+                public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    account_handle: Swift.String
                 ) {
-                    self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.account_handle = account_handle
                 }
             }
             public var path: Operations.createBundle.Input.Path
@@ -40919,14 +40984,14 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
-                public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
                 /// The ID of the bundle.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
@@ -40934,16 +40999,16 @@ public enum Operations {
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - account_handle: The handle of the account.
                 ///   - bundle_id: The ID of the bundle.
                 public init(
-                    account_handle: Swift.String,
                     project_handle: Swift.String,
+                    account_handle: Swift.String,
                     bundle_id: Swift.String
                 ) {
-                    self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.account_handle = account_handle
                     self.bundle_id = bundle_id
                 }
             }
@@ -57298,6 +57363,225 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Exchange the current credential for a cache token.
+    ///
+    /// Returns a short-lived token that carries the authenticated subject's cache grants.
+    ///
+    /// Cache nodes verify it themselves and authorize from the grants it carries, so
+    /// clients holding a credential a cache node cannot verify locally (a CI project
+    /// token, for example) avoid a server round-trip per cache authorization. Exchange
+    /// it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    /// not an API credential.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/cache/token`.
+    /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
+    public enum getCacheToken {
+        public static let id: Swift.String = "getCacheToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/query/project_handle`.
+                public var project_handle: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - project_handle: Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                public init(project_handle: Swift.String? = nil) {
+                    self.project_handle = project_handle
+                }
+            }
+            public var query: Operations.getCacheToken.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/token/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.getCacheToken.Input.Query = .init(),
+                headers: Operations.getCacheToken.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A short-lived token that proves the subject's cache access
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Seconds until the token expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// The token to send to cache nodes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/json/token`.
+                        public var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_in: Seconds until the token expires.
+                        ///   - token: The token to send to cache nodes.
+                        public init(
+                            expires_in: Swift.Int,
+                            token: Swift.String
+                        ) {
+                            self.expires_in = expires_in
+                            self.token = token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_in
+                            case token
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/200/content/application\/json`.
+                    case json(Operations.getCacheToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A cache token for the authenticated subject
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/token/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getCacheToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }
