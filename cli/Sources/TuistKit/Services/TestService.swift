@@ -1705,20 +1705,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) -> [TargetReference] {
+        // Skipped testables are dropped here so this stays in sync with the two places that decide
+        // what actually runs — `BuildGraphInspector.testableTarget` and the test-plan filter in
+        // `GraphTraverser.filterIncludedTargets`. Counting them would report a target as needing
+        // tests that xcodebuild will never run, and since it never runs it never stores a hash, so
+        // it stays an un-cached miss on every subsequent run.
         return if let testPlanConfiguration {
             scheme.testAction?.testPlans?
                 .first(
                     where: { $0.name == testPlanConfiguration.testPlan }
-                )?.testTargets.map(\.target) ?? []
+                )?.testTargets.filter { !$0.isSkipped }.map(\.target) ?? []
         } else if action == .build, let testPlans = scheme.testAction?.testPlans {
             // If we are building a scheme that has testplans but none specified then we should return all test targets
-            testPlans.flatMap(\.testTargets).map(\.target)
+            testPlans.flatMap(\.testTargets).filter { !$0.isSkipped }.map(\.target)
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
             $0.isDefault
         }) {
-            defaultTestPlan.testTargets.map(\.target)
-        } else if let testActionTargets = scheme.testAction?.targets.map(\.target),
-                  !testActionTargets.isEmpty
+            defaultTestPlan.testTargets.filter { !$0.isSkipped }.map(\.target)
+        } else if let testActionTargets = scheme.testAction?.targets
+            .filter({ !$0.isSkipped }).map(\.target),
+            !testActionTargets.isEmpty
         {
             testActionTargets
         } else {
