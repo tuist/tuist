@@ -138,7 +138,10 @@ struct CacheTokenStoreTests {
         #expect(token == nil)
     }
 
-    @Test func retries_the_exchange_after_a_failure() async throws {
+    /// A server that cannot mint a token stays that way, and a build makes
+    /// thousands of cache calls, so retrying on each one would put a failing
+    /// round-trip in front of every request against an older deployment.
+    @Test func does_not_retry_the_exchange_while_the_cooldown_holds() async throws {
         // Given
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
@@ -148,13 +151,107 @@ struct CacheTokenStoreTests {
         let subject = CacheTokenStore(getCacheTokenService: service)
 
         // When
+        var tokens: [String?] = []
+        for _ in 0 ..< 50 {
+            await tokens.append(
+                subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+            )
+        }
+
+        // Then
+        #expect(tokens.allSatisfy { $0 == nil })
+        verify(service)
+            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .called(1)
+    }
+
+    /// The cooldown suppresses retries, it does not stop them, so a server
+    /// upgraded mid-build starts minting tokens without restarting the CLI.
+    @Test func retries_the_exchange_once_the_cooldown_lapses() async throws {
+        // Given
+        struct UnavailableError: Error {}
+        let service = MockGetCacheTokenServicing()
+        given(service)
+            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .willThrow(UnavailableError())
+        let clock = MutableClock(Date())
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            now: { clock.now }
+        )
+
+        // When
         _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        clock.advance(by: 61)
         _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
 
         // Then
         verify(service)
             .getCacheToken(serverURL: .any, projectHandle: .any)
             .called(2)
+    }
+
+    /// A token that arrives after an earlier failure has to clear the cooldown,
+    /// or a later refresh would be suppressed by a stale entry.
+    @Test func stops_holding_back_retries_once_an_exchange_succeeds() async throws {
+        // Given
+        struct UnavailableError: Error {}
+        let service = FlakyCacheTokenService()
+        let clock = MutableClock(Date())
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            now: { clock.now }
+        )
+
+        // When
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        clock.advance(by: 61)
+        let recovered = await subject.cacheToken(
+            authenticationURL: authenticationURL,
+            projectHandle: "acme/ios"
+        )
+        // Past the token's lifetime, so this needs a fresh exchange rather than
+        // the cooldown left behind by the first failure.
+        clock.advance(by: 1800)
+        let refreshed = await subject.cacheToken(
+            authenticationURL: authenticationURL,
+            projectHandle: "acme/ios"
+        )
+
+        // Then
+        #expect(recovered == "cache-token")
+        #expect(refreshed == "cache-token")
+        #expect(await service.callCount == 3)
+    }
+}
+
+/// Lets a test move past the cooldown without sleeping through it.
+private final class MutableClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+
+    init(_ date: Date) {
+        self.date = date
+    }
+
+    var now: Date {
+        lock.withLock { date }
+    }
+
+    func advance(by interval: TimeInterval) {
+        lock.withLock { date = date.addingTimeInterval(interval) }
+    }
+}
+
+private actor FlakyCacheTokenService: GetCacheTokenServicing {
+    struct UnavailableError: Error {}
+
+    private(set) var callCount = 0
+
+    func getCacheToken(serverURL _: URL, projectHandle _: String?) async throws -> CacheToken {
+        callCount += 1
+        if callCount == 1 { throw UnavailableError() }
+        return CacheToken(token: "cache-token", expiresIn: 1800)
     }
 }
 

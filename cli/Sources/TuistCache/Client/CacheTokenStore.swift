@@ -28,27 +28,44 @@ public actor CacheTokenStore: CacheTokenStoring {
     /// Refresh ahead of expiry so a token does not lapse mid-request.
     private static let expiryMargin: TimeInterval = 60
 
+    /// How long to keep sending the original credential after an exchange fails.
+    /// A server that cannot mint one is the steady state for older self-hosted
+    /// deployments, and a build issues enough cache requests that retrying on
+    /// each one would add thousands of failing round-trips. Short enough that a
+    /// server upgraded mid-build is picked up without restarting the CLI.
+    private static let retryCooldown: TimeInterval = 60
+
     /// A cache client is built per request, so the exchanged tokens are held here
     /// rather than on the client, which would make every request exchange again.
     public static let shared = CacheTokenStore()
 
     private let getCacheTokenService: GetCacheTokenServicing
+    private let now: @Sendable () -> Date
     private var entries: [String: Entry] = [:]
     private var exchanges: [String: Task<CacheToken?, Never>] = [:]
+    private var retryAfter: [String: Date] = [:]
 
     public init() {
         self.init(getCacheTokenService: GetCacheTokenService())
     }
 
-    init(getCacheTokenService: GetCacheTokenServicing) {
+    init(
+        getCacheTokenService: GetCacheTokenServicing,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.getCacheTokenService = getCacheTokenService
+        self.now = now
     }
 
     public func cacheToken(authenticationURL: URL, projectHandle: String?) async -> String? {
         let key = "\(authenticationURL.absoluteString)|\(projectHandle ?? "")"
 
-        if let entry = entries[key], entry.expiresAt > Date() {
+        if let entry = entries[key], entry.expiresAt > now() {
             return entry.token
+        }
+
+        if let retryAfter = retryAfter[key], retryAfter > now() {
+            return nil
         }
 
         // A build issues many cache requests at once, so without this they would
@@ -77,11 +94,15 @@ public actor CacheTokenStore: CacheTokenStoring {
         let cacheToken = await exchange.value
         exchanges[key] = nil
 
-        guard let cacheToken else { return nil }
+        guard let cacheToken else {
+            retryAfter[key] = now().addingTimeInterval(Self.retryCooldown)
+            return nil
+        }
 
+        retryAfter[key] = nil
         entries[key] = Entry(
             token: cacheToken.token,
-            expiresAt: Date().addingTimeInterval(
+            expiresAt: now().addingTimeInterval(
                 max(TimeInterval(cacheToken.expiresIn) - Self.expiryMargin, 0)
             )
         )
