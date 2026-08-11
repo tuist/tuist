@@ -5,6 +5,7 @@ defmodule Tuist.ShardsTest do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Shards
   alias Tuist.Shards.ShardPlanTestSuite
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -277,12 +278,12 @@ defmodule Tuist.ShardsTest do
           %{
             name: "ParallelTests",
             status: "success",
-            duration: 10_000,
+            duration: 20_000,
             test_cases: [],
-            test_suites: [
-              %{name: "LoginSuite", status: "success", duration: 20_000},
-              %{name: "SignupSuite", status: "success", duration: 20_000}
-            ]
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
           },
           %{
             name: "SerialTests",
@@ -302,22 +303,24 @@ defmodule Tuist.ShardsTest do
       params = %{
         reference: "suite-parallelism",
         test_suites: [
-          "ParallelTests/LoginSuite",
-          "ParallelTests/SignupSuite",
+          "ParallelTests/Suite1",
+          "ParallelTests/Suite2",
+          "ParallelTests/Suite3",
+          "ParallelTests/Suite4",
           "SerialTests/SlowSuite",
           "SerialTests/FastSuite"
         ],
         granularity: "suite",
-        shard_total: 4
+        shard_total: 6
       }
 
       result = Shards.create_shard_plan(project, params)
       durations = planned_suite_durations(result.plan)
 
-      # ParallelTests finishes in 10s while its suites report 40s, so each suite costs a quarter of
+      # ParallelTests finishes in 20s while its suites report 80s, so each suite costs a quarter of
       # what it reports. SerialTests' suites already add up to its wall clock and stay as measured.
-      assert durations["ParallelTests/LoginSuite"] == 5_000
-      assert durations["ParallelTests/SignupSuite"] == 5_000
+      assert durations["ParallelTests/Suite1"] == 5_000
+      assert durations["ParallelTests/Suite4"] == 5_000
       assert durations["SerialTests/SlowSuite"] == 20_000
       assert durations["SerialTests/FastSuite"] == 10_000
     end
@@ -333,12 +336,12 @@ defmodule Tuist.ShardsTest do
           %{
             name: "ParallelTests",
             status: "success",
-            duration: 10_000,
+            duration: 30_000,
             test_cases: [],
-            test_suites: [
-              %{name: "LoginSuite", status: "success", duration: 30_000},
-              %{name: "SignupSuite", status: "success", duration: 30_000}
-            ]
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 30_000}
+              end)
           },
           %{
             name: "SerialTests",
@@ -358,8 +361,10 @@ defmodule Tuist.ShardsTest do
       params = %{
         reference: "suite-parallelism-packing",
         test_suites: [
-          "ParallelTests/LoginSuite",
-          "ParallelTests/SignupSuite",
+          "ParallelTests/Suite1",
+          "ParallelTests/Suite2",
+          "ParallelTests/Suite3",
+          "ParallelTests/Suite4",
           "SerialTests/SlowSuite",
           "SerialTests/FastSuite"
         ],
@@ -371,10 +376,120 @@ defmodule Tuist.ShardsTest do
 
       totals = Enum.map(result.shard_assignments, fn a -> a["estimated_duration_ms"] end)
 
-      # Unscaled, ParallelTests alone reports 60s against SerialTests' 20s and fills a shard by
-      # itself. Scaled to its 10s wall clock the two modules weigh the same and split evenly.
-      assert Enum.sum(totals) == 30_000
-      assert Enum.max(totals) == 15_000
+      # Unscaled, ParallelTests alone reports 120s against SerialTests' 20s and fills a shard by
+      # itself. Scaled to its 30s wall clock the plan is 50s of work that splits evenly.
+      assert Enum.sum(totals) == 50_000
+      assert Enum.max(totals) == 25_000
+    end
+
+    test "prices a partial suite inventory by what the plan actually holds" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "ParallelTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 20_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # The module runs four suites concurrently in 20s, so history measures a factor of 4. A plan
+      # holding one of them still has to wait for that suite in full: the other three are not there
+      # to overlap with, so it cannot be priced at a quarter.
+      single =
+        Shards.create_shard_plan(project, %{
+          reference: "partial-one",
+          test_suites: ["ParallelTests/Suite1"],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert planned_suite_durations(single.plan) == %{"ParallelTests/Suite1" => 20_000}
+
+      # Two of the four overlap with each other and nothing else, so together they cost one suite.
+      pair =
+        Shards.create_shard_plan(project, %{
+          reference: "partial-two",
+          test_suites: ["ParallelTests/Suite1", "ParallelTests/Suite2"],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      assert planned_suite_durations(pair.plan) == %{
+               "ParallelTests/Suite1" => 10_000,
+               "ParallelTests/Suite2" => 10_000
+             }
+    end
+
+    test "measures concurrency from deduplicated rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites:
+              Enum.map(1..4, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 10_000}
+              end)
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # Both tables are ReplacingMergeTree keyed on the row id, so a rewritten row leaves a second
+      # physical copy until the parts merge. A duplicated module row multiplies through the join
+      # into every one of its suites on top of the duplicated suite rows themselves.
+      IngestRepo.query!(
+        "INSERT INTO test_module_runs SELECT * FROM test_module_runs WHERE project_id = {project_id:Int64}",
+        %{project_id: project.id}
+      )
+
+      IngestRepo.query!(
+        "INSERT INTO test_suite_runs SELECT * FROM test_suite_runs WHERE project_id = {project_id:Int64}",
+        %{project_id: project.id}
+      )
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "deduplicated",
+          test_suites: [
+            "AppTests/Suite1",
+            "AppTests/Suite2",
+            "AppTests/Suite3",
+            "AppTests/Suite4"
+          ],
+          granularity: "suite",
+          shard_total: 1
+        })
+
+      # 40s of suites in a 20s module is a factor of 2. Counting the physical copies would read it
+      # as 4 or 8 and halve every suite.
+      assert planned_suite_durations(result.plan) == %{
+               "AppTests/Suite1" => 5_000,
+               "AppTests/Suite2" => 5_000,
+               "AppTests/Suite3" => 5_000,
+               "AppTests/Suite4" => 5_000
+             }
     end
 
     test "ignores concurrency measured from a module run with a single suite" do
@@ -423,29 +538,31 @@ defmodule Tuist.ShardsTest do
             status: "success",
             duration: 100,
             test_cases: [],
-            test_suites: [
-              %{name: "LoginSuite", status: "success", duration: 40_000},
-              %{name: "SignupSuite", status: "success", duration: 40_000}
-            ]
+            test_suites:
+              Enum.map(1..20, fn index ->
+                %{name: "Suite#{index}", status: "success", duration: 40_000}
+              end)
           }
         ]
       )
 
       RunsFixtures.optimize_test_runs()
 
+      suites = Enum.map(1..20, fn index -> "AppTests/Suite#{index}" end)
+
       params = %{
         reference: "suite-clamped",
-        test_suites: ["AppTests/LoginSuite", "AppTests/SignupSuite"],
+        test_suites: suites,
         granularity: "suite",
-        shard_total: 2
+        shard_total: 1
       }
 
       result = Shards.create_shard_plan(project, params)
       durations = planned_suite_durations(result.plan)
 
-      # The raw ratio is 800x; the clamp holds it at 16x rather than pricing the module at nothing.
-      assert durations["AppTests/LoginSuite"] == 2_500
-      assert durations["AppTests/SignupSuite"] == 2_500
+      # The raw ratio is 8000x. Twenty planned suites leave the per-plan cap at 20, so the clamp is
+      # what holds the divisor at 16 rather than pricing the module at nothing.
+      assert Map.values(durations) == List.duplicate(2_500, 20)
     end
 
     test "leaves module granularity timing untouched" do

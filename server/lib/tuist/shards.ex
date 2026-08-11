@@ -656,11 +656,13 @@ defmodule Tuist.Shards do
   defp scale_by_module_parallelism([], _project, "suite"), do: []
 
   defp scale_by_module_parallelism(units_with_durations, project, "suite") do
+    units_by_module = Enum.group_by(units_with_durations, fn {name, _duration} -> suite_module(name) end)
+
     factors =
-      units_with_durations
-      |> Enum.map(fn {name, _duration} -> suite_module(name) end)
-      |> Enum.uniq()
+      units_by_module
+      |> Map.keys()
       |> then(&fetch_module_parallelism(project, &1))
+      |> Map.new(fn {module, factor} -> {module, cap_factor(factor, Map.fetch!(units_by_module, module))} end)
 
     Enum.map(units_with_durations, fn {name, duration} ->
       case Map.get(factors, suite_module(name)) do
@@ -670,10 +672,32 @@ defmodule Tuist.Shards do
     end)
   end
 
+  # Concurrency is measured over a module's whole suite set, but a plan can hold only part of it,
+  # and the suites that are missing are no longer there to overlap with. One suite of a four-way
+  # parallel module still takes that suite in full, so a shard's cost for a module can never fall
+  # below its longest planned suite. Capping the divisor at the planned set's own spread enforces
+  # that bound while leaving a complete inventory on the measured factor.
+  defp cap_factor(factor, units) do
+    durations = Enum.map(units, fn {_name, duration} -> duration end)
+    longest = Enum.max(durations)
+
+    if longest > 0 do
+      min(factor, Enum.sum(durations) / longest)
+    else
+      factor
+    end
+  end
+
   # Concurrency is measured per module run as its suites' total duration over its own wall clock,
   # then taken as the median across runs so a single anomalous run cannot move it. A run with one
   # suite carries no concurrency signal, and the ratio is clamped because a module row whose duration
   # was recorded inconsistently with its suites' would otherwise scale that module to near zero.
+  #
+  # Both tables are `ReplacingMergeTree(inserted_at)` keyed on the row id, so a rewritten row (the
+  # `is_flaky` update path) leaves a second physical copy behind until the parts merge. Summing and
+  # counting physical rows would inflate a module's suite total, and a duplicate on the module side
+  # multiplies through the join into every one of its suites. The innermost grouping folds each row
+  # id back to one row first, so neither aggregate can see a duplicate.
   defp fetch_module_parallelism(_project, []), do: %{}
 
   defp fetch_module_parallelism(project, modules) do
@@ -683,20 +707,29 @@ defmodule Tuist.Shards do
     SELECT module_name, toFloat64(median(suite_sum / module_duration)) AS factor
     FROM (
       SELECT
-        mr.name AS module_name,
-        any(mr.duration) AS module_duration,
-        sum(sr.duration) AS suite_sum,
+        module_name,
+        any(module_duration) AS module_duration,
+        sum(suite_duration) AS suite_sum,
         count() AS suite_count
-      FROM test_suite_runs AS sr
-      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
-      WHERE sr.project_id = {project_id:Int64}
-        AND sr.is_ci = true
-        AND sr.ran_at >= {cutoff:DateTime64(6)}
-        AND mr.project_id = {project_id:Int64}
-        AND mr.is_ci = true
-        AND mr.ran_at >= {cutoff:DateTime64(6)}
-        AND mr.name IN {modules:Array(String)}
-      GROUP BY module_name, mr.id
+      FROM (
+        SELECT
+          mr.name AS module_name,
+          mr.id AS module_run_id,
+          sr.id AS suite_run_id,
+          argMax(mr.duration, mr.inserted_at) AS module_duration,
+          argMax(sr.duration, sr.inserted_at) AS suite_duration
+        FROM test_suite_runs AS sr
+        INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+        WHERE sr.project_id = {project_id:Int64}
+          AND sr.is_ci = true
+          AND sr.ran_at >= {cutoff:DateTime64(6)}
+          AND mr.project_id = {project_id:Int64}
+          AND mr.is_ci = true
+          AND mr.ran_at >= {cutoff:DateTime64(6)}
+          AND mr.name IN {modules:Array(String)}
+        GROUP BY module_name, module_run_id, suite_run_id
+      )
+      GROUP BY module_name, module_run_id
       HAVING module_duration > 0 AND suite_count > 1
     )
     GROUP BY module_name
