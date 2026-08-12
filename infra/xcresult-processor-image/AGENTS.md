@@ -123,6 +123,73 @@ changes — only a new Pod with new env vars.
 > the processor onto the ESO config Secret. They need a separate accurate
 > update — left out of this change to keep it a clean rebuild trigger.
 
+## Boot chain and how it fails silently
+
+The launchd unit hard-ANDs the boot steps:
+
+```
+inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
+```
+
+Every step is load-bearing, and the last one is the only one Kubernetes
+can see. tart-kubelet is not a real kubelet: it implements no container
+probes at all, and
+`infra/tart-kubelet/internal/podagent/reconciler.go` sets
+`PodReady=True` (plus synthesized Ready container statuses) as soon as
+the VM has an IP. A VM that boots and then dies at `tailscale-up.sh`
+therefore reads `1/1 Running` forever, the Deployment reports
+`Available=True`, and `:process_xcresult` simply stops being consumed.
+
+This has happened twice, from unrelated causes with the same outward
+shape:
+
+- **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
+  unable to complete a TCP handshake to the Tailscale control plane.
+  `tailscale up` blocked indefinitely. The `--timeout=60s` flag in
+  `tailscale-up.sh` was added in response, so the chain now exits
+  non-zero and launchd's `KeepAlive` retries instead of stranding the
+  VM.
+- **2026-08-12.** The Tailscale pre-auth key expired. `tailscale up`
+  now fails fast rather than hanging, but failing fast in a crash loop
+  is just as invisible: the release still never starts. The queue had
+  zero consumers for roughly thirteen hours, around 4,600 jobs backed
+  up, and roughly 4,000 test runs sat at `status='processing'` across
+  every account using remote processing. It was reported by a customer.
+
+The pre-auth key deserves specific attention. `tailscale up` runs on
+**every VM boot**, and a VM is created fresh on every Pod roll, so
+unlike the Mac mini hosts (which join once and keep their tailnet
+identity across rotations) the processor puts the key on the critical
+path continuously. Tailscale caps pre-auth keys at 90 days, so this
+failure recurs by construction unless the key is rotated ahead of
+expiry. Rotating it means updating the 1Password item that
+`infra/helm/tuist/templates/macos-fleet-tailscale-external-secrets.yaml`
+syncs; ExternalSecrets reports `SecretSynced` / `Ready=True` for an
+expired key exactly as it does for a valid one, so its status is not a
+signal.
+
+**Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
+can see this class of failure, it is caught in the metrics pipeline
+instead. Four rules in
+[`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
+cover it, and they are cause-independent by design:
+
+| Rule | Catches |
+|---|---|
+| `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere. This is the readiness probe tart-kubelet cannot provide. |
+| `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
+| `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
+
+**Reading guest logs.** `kubectl logs` does not work here (the apiserver
+cannot resolve the Tailscale-only kubelet hostnames), and neither does
+Alloy's pod-log collection. Use
+`tailscale ssh admin@<vm-tailnet-ip>` and read
+`/var/log/xcresult-processor/{stdout,stderr,diagnostics}.log`. Note the
+circularity: if the failure is that the VM never joined the tailnet,
+there is no tailnet address to ssh to, and the host's own
+`tart` CLI is the only way in.
+
 ## Releasing this image & schema drift
 
 This image **bakes a full server release**, so its baked code can drift from the

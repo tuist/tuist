@@ -13,6 +13,41 @@ The metrics `cluster` label uses `tuist-production`, `tuist-staging`,
 `tuist-staging`, and `tuist-canary`, so production deliberately differs
 between these two labels.
 
+Metrics scraped over the tailnet (`tuist-macos-node-exporter`,
+`tuist-macos-tart-kubelet`, `tuist-macos-pod-metrics`) come from
+`collectors.alloy-metrics.extraConfig`, which sits outside the chart's
+`declare` blocks and forwards straight to the Grafana Cloud destination.
+They therefore carry the destination's external labels (`cluster`,
+`env`) but not any label a chart feature adds inside its own pipeline.
+Group those rules by `cluster` and `env` together, and confirm both
+labels are present in Explore before saving a rule that relies on one to
+separate environments.
+
+## Routing to Grafana IRM
+
+Every rule below routes through Grafana IRM, which is also what the
+public status page reads: `status/` republishes the Grafana Incident API
+and derives its component list from the IRM label field named by
+`GRAFANA_COMPONENT_LABEL_KEY` (default `affected_service`). See
+[`status/AGENTS.md`](../../../status/AGENTS.md).
+
+Two consequences when creating a rule:
+
+- Give it a `severity` label (`critical` or `warning`) so the existing
+  notification policy routes it. Critical maps to a page; warning maps
+  to the Slack receiver only.
+- Give customer-visible rules an `affected_service` label whose value
+  matches an existing select option on that IRM label field. Without it
+  an incident opened from the alert rolls up to no component and the
+  status page keeps showing the service as operational during an
+  outage. The remote-processing rules in this document are
+  customer-visible: a stalled `:process_xcresult` queue means test runs
+  sit unprocessed for every account using remote processing.
+
+If the option does not exist yet, add it in Grafana Cloud → IRM →
+Settings → Labels first; the worker matches on the option's `value`, and
+an unmatched label value is silently ignored.
+
 ## Critical alerts
 
 ### Kubernetes control endpoint unavailable
@@ -448,6 +483,220 @@ kube_deployment_spec_replicas{
 
 - Pending period: 2 minutes
 - Summary: `Tuist server has unavailable replicas in {{ $labels.namespace }}`
+
+### Remote processing queue has no consumer
+
+`:process_xcresult` and `:process_build` are the two Oban queues whose
+consumers live in a *different* deployment from the web tier: the macOS
+Tart fleet and the Linux processor pods. That split is the whole reason
+this rule exists: when their consumer disappears, every web pod stays
+green, every readiness check stays green, and the only thing that moves
+is the backlog in a Postgres table nobody was watching.
+
+On 2026-08-12 the xcresult consumer was absent for roughly thirteen
+hours. The Tailscale pre-auth key the Tart VMs use had expired, and the
+guest's launchd chain hard-ANDs `tailscale up` before `exec tuist start`
+(`infra/xcresult-processor-image/tailscale-up.sh`), so the release never
+booted. The Pod still reported `1/1 Running`, the Deployment still
+reported `Available=True`, and ExternalSecrets still reported
+`SecretSynced`. A synced secret says nothing about whether the value
+inside it is still valid. Around 4,600 jobs accumulated and roughly
+4,000 test runs sat at `status='processing'`. It was reported by a
+customer, not by an alert. A structurally different failure with the
+identical outward shape (broken host VM to internet NAT on 2026-06-26)
+produced the same silent stall, which is why this rule keys on the
+queue rather than on any particular cause.
+
+```promql
+max by (cluster, env, queue) (
+  tuist_oban_queue_oldest_available_age_seconds{
+    queue=~"process_xcresult|process_build"
+  }
+) > 900
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- Summary: `No consumer is draining the {{ $labels.queue }} Oban queue in
+  {{ $labels.cluster }}: the oldest job has been runnable for over 15
+  minutes`
+
+`tuist_oban_queue_oldest_available_age_seconds` is emitted by
+`Tuist.Oban.PromExPlugin`, which reads the shared `oban_jobs` table
+rather than the polling node's own producers. Every node running PromEx
+therefore reports it, including the always-healthy web pods, so the
+signal survives the complete loss of the deployment that consumes the
+queue. `max by` is required: the same gauge is reported once per pod.
+
+Age, not depth. A queue that is never empty because arrivals are served
+promptly and a queue with no consumer at all both sit at a non-zero
+depth; only age separates them, and only age keeps climbing for as long
+as nothing drains. The gauge covers `available` alone, because
+`scheduled` and `retryable` carry a *future* run-at, so a healthy retry
+backoff would otherwise read as a stall.
+
+15 minutes is well above the normal wait (both queues clear a job within
+seconds of it becoming available, and the worker's own retry backoff
+tops out at 10 minutes) and far below any usable outage budget. With the
+pending period the page lands about 20 minutes in.
+
+The gauge emits an explicit `0` for a queue that has drained since the
+previous poll, so a fired alert resolves on its own. Do not "fix" a
+stuck alert by adding `or vector(0)`; a gauge stuck at its last non-zero
+sample means the zero-emission path regressed.
+
+### Remote processing queue telemetry missing
+
+```promql
+absent_over_time(
+  tuist_oban_queue_oldest_available_age_seconds{
+    cluster="tuist-production", queue="process_xcresult"
+  }[10m]
+)
+or
+absent_over_time(
+  tuist_oban_queue_oldest_available_age_seconds{
+    cluster="tuist-production", queue="process_build"
+  }[10m]
+)
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Summary: `Oban queue-age telemetry is missing for
+  {{ $labels.queue }} in {{ $labels.cluster }}`
+
+The queue-age rule is a threshold rule, so it runs with **No Data:
+Normal** and cannot tell a healthy queue from a gauge that stopped being
+emitted. `Tuist.Oban.PromExPlugin` emits one series per configured queue
+on every poll whether or not the queue has work, so absence means the
+plugin, the scrape, or the queue's registration went away, not that the
+queue is idle. Production only: staging and canary can legitimately run
+with no processor deployment at all.
+
+### xcresult processor guest metrics unavailable fleet-wide
+
+The direct detector for "the BEAM inside the Tart VM is not running".
+tart-kubelet is not a real kubelet: it implements no container probes at
+all and sets `PodReady=True` unconditionally once the VM has an IP
+(`infra/tart-kubelet/internal/podagent/reconciler.go`), so Kubernetes
+cannot tell a booted VM running the release from a booted VM whose
+launchd chain died before it. The `pod-metrics` scrape target *can*: it
+terminates on the guest's PromEx endpoint, which only answers when the
+release is up. This alert is the readiness probe the platform can't
+give us, expressed in the metrics pipeline instead.
+
+```promql
+(
+  sum by (cluster, env) (up{job="tuist-macos-pod-metrics"}) == 0
+)
+and
+(
+  count by (cluster, env) (up{job="tuist-macos-pod-metrics"}) > 0
+)
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- Summary: `No xcresult processor is serving metrics in
+  {{ $labels.cluster }}. The queue consumer is down fleet-wide`
+
+The second clause keeps this distinct from `xcresult processor guest
+telemetry missing` below: it fires only when targets exist and every one
+of them is down, never when the job vanished from discovery.
+
+Fleet-wide rather than per-target because that is what a rollout cannot
+produce. `xcresultProcessor.strategy` sets `maxSurge: 0` and the PDB
+holds `minAvailable: 1`, so a deploy replaces one Tart VM at a time and
+at least one target stays up throughout. Every target down at once is
+never a normal state, which is what lets the pending period stay at 10
+minutes despite a single VM cycle legitimately taking up to
+`progressDeadlineSeconds: 1800`.
+
+### xcresult processor guest metrics unavailable on one host
+
+```promql
+min by (cluster, env, instance) (
+  min_over_time(up{job="tuist-macos-pod-metrics"}[5m])
+) == 0
+```
+
+- Pending period: 45 minutes
+- Severity: warning
+- Summary: `xcresult processor on {{ $labels.instance }} is not serving
+  metrics. The fleet is running below capacity`
+
+The half-capacity companion to the rule above, and the one that also
+covers a Mac mini that is powered on but never joined the cluster: the
+CAPI provider creates the egress Service per `ScalewayAppleSiliconMachine`,
+so the scrape target exists from the moment the machine does, whether or
+not a processor Pod ever lands on it.
+
+45 minutes is deliberately long. One target is legitimately down for a
+full Tart VM teardown + boot on every deploy, and the Deployment budgets
+1800s for exactly one such cycle. Anything under that pages on routine
+rollouts. Detection speed for a total outage comes from
+`Remote processing queue has no consumer` and
+`xcresult processor guest metrics unavailable fleet-wide`, not from
+this one.
+
+### xcresult processor guest telemetry missing
+
+```promql
+absent_over_time(
+  up{cluster="tuist-production", job="tuist-macos-pod-metrics"}[10m]
+)
+or
+absent_over_time(
+  up{cluster="tuist-staging", job="tuist-macos-pod-metrics"}[10m]
+)
+or
+absent_over_time(
+  up{cluster="tuist-canary", job="tuist-macos-pod-metrics"}[10m]
+)
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Summary: `xcresult processor scrape telemetry is missing in
+  {{ $labels.cluster }}`
+
+Covers the discovery layer failing rather than the workload: the
+`tuist.dev/macmini-egress` Services being garbage-collected, the
+`tuist.dev/fleet` label drifting away from the `.*-macos-fleet` matcher
+the Alloy relabel keeps on, or the egress ProxyGroup losing its tailnet
+identity. Without this, every rule above silently evaluates to nothing.
+
+### xcresult processor replicas unavailable
+
+```promql
+kube_deployment_status_replicas_available{
+  namespace=~"tuist|tuist-staging|tuist-canary",
+  deployment="tuist-tuist-xcresult-processor"
+}
+<
+kube_deployment_spec_replicas{
+  namespace=~"tuist|tuist-staging|tuist-canary",
+  deployment="tuist-tuist-xcresult-processor"
+}
+```
+
+- Pending period: 45 minutes
+- Severity: warning
+- Summary: `xcresult processor has unavailable replicas in
+  {{ $labels.namespace }}`
+
+Catches the scheduling half of the same outage: on 2026-08-12 one of the
+two replicas sat `Pending` for over four hours while the Deployment
+reported `Available=True MinimumReplicasAvailable` and
+`Progressing=True NewReplicaSetAvailable`, because both conditions are
+satisfied by `maxUnavailable` rather than by `readyReplicas ==
+spec.replicas`. Kubernetes considers that healthy; it is not.
+
+Same 45-minute rationale as the per-host rule: a Tart VM replacement
+makes one replica unavailable for a long, legitimate window. Deliberately
+does not subsume the metrics rules: a Pod whose VM booted but whose
+release never started counts as available here.
 
 ### Tuist license invalid or near expiration
 
@@ -1062,9 +1311,17 @@ min by (cluster, namespace, repo, database) (
    warnings so a data-source evaluation error does not fan out into unrelated
    warnings.
 9. Add the suggested summary, a `severity` label, and the notification contact
-   point used by the infrastructure team.
+   point used by the infrastructure team. Add `affected_service` to
+   customer-visible rules as described in **Routing to Grafana IRM** above.
 10. Preview the raw metric selector and the final comparison separately against
     recent data before saving it.
+11. For a rule whose healthy state is an empty result *and* whose unhealthy
+    state depends on the series existing (`Remote processing queue has no
+    consumer`, `xcresult processor guest metrics unavailable fleet-wide`),
+    confirm the paired telemetry-missing rule exists before relying on it.
+    A threshold rule with **No Data: Normal** cannot distinguish "healthy"
+    from "the exporter stopped shipping this metric", which is precisely the
+    failure mode these were written for.
 
 The same rules can be created with Grafana Assistant. Give it this prompt:
 
