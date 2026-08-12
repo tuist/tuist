@@ -659,3 +659,42 @@ nil (mail simply degrades) rather than overriding with "".
   value: {{ . | quote }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Cache-volume residency bound for dispatch affinity.
+
+The server prefers handing a polling macOS node a queued job whose account's
+cache master that node still holds. It cannot see the host's disk, so it models
+residency as "the N accounts that most recently ran here", which mirrors the
+host's LRU eviction order. N is derived here, from the same values that bound
+admission host-side, so retuning masterCapGib cannot silently desync the two.
+
+tart-kubelet's admission reserves masterCapGib for the branch it is admitting
+plus every branch already live, so the masters that survive on a host are
+gib/masterCapGib - (liveBranches + 1). A host runs one job VM, but a booted warm
+standby already holds a branch reservation, so liveBranches is 1 in the worst
+case — the case to size for, since over-estimating residency re-saturates the
+preference set until it stops discriminating at all, which is the no-op this
+replaced. Under-estimating only forgoes opportunity.
+
+An unset masterCapGib means the host falls back to tart-kubelet's own 20 GiB
+default (NewVolumeManager), so the derivation mirrors that rather than skipping:
+the host still evicts, and the server should still know how far.
+
+Emits nothing when the feature is off (gib unset or 0), where there are no
+masters to be resident on. A derived 0 IS emitted, and disables the preference
+server-side: at a cap that leaves no surviving master, there is nothing to
+prefer, and dispatch should fall back to plain oldest-queued rather than reorder
+the queue for masters the host is about to evict anyway.
+*/}}
+{{- define "tuist.runnerVolumeResidentMastersEnv" -}}
+{{- with .Values.macosFleet.runnerCacheVolume }}
+{{- if gt (int .gib) 0 }}
+{{- $cap := int (.masterCapGib | default 20) }}
+{{- if le $cap 0 }}{{- $cap = 20 }}{{- end }}
+{{- $resident := sub (div (int .gib) $cap) 2 }}
+- name: TUIST_RUNNER_VOLUME_RESIDENT_MASTERS
+  value: {{ max $resident 0 | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}

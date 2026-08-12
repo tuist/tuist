@@ -521,14 +521,43 @@ defmodule Tuist.RunnersTest do
         :ok
       end)
 
-      # With a single candidate the affinity scoring returns the head; the
+      # With a single candidate the residency scoring returns the head; the
       # point here is that node identity is threaded through and the claim
       # records affinity for that node.
-      expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", _tolerance -> candidate end)
+      expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", opts ->
+        send(test_pid, {:select_opts, opts})
+        {candidate, :head_resident}
+      end)
 
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert_receive {:affinity_recorded, recorded_account_id}
       assert recorded_account_id == account.id
+
+      # The residency bound must reach the policy — without it the preference
+      # set saturates and the scoring silently degrades to "take the head".
+      assert_receive {:select_opts, opts}
+      assert Keyword.fetch!(opts, :resident_limit) > 0
+      assert Keyword.fetch!(opts, :tolerance_seconds) > 0
+    end
+
+    test "does not record volume affinity for an untrusted fork job" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :no_residency} end)
+
+      # Fork: the host is told to skip materialize and promote, so no master is
+      # left behind. Recording one would spend a resident slot in the server's
+      # model on a master that does not exist and push out one that does.
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
+        {:ok, %{"head_repository" => %{"full_name" => "attacker/#{repo}"}, "repository" => %{"full_name" => repo}}}
+      end)
+
+      reject(&VolumeAffinities.record/2)
+
+      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "does not record volume affinity for a non-macOS fleet" do

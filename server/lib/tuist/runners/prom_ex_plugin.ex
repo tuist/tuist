@@ -195,6 +195,19 @@ defmodule Tuist.Runners.PromExPlugin do
             reporter_options: [buckets: @dispatch_duration_buckets],
             tags: [:fleet, :outcome],
             unit: {:native, :millisecond}
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :affinity, :count],
+            event_name: Telemetry.event_name_dispatch_affinity(),
+            measurement: :count,
+            description:
+              "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
+                "`resident` (a likely-resident account's job was preferred) and `head_resident` " <>
+                "are the warm placements; `no_resident_candidate` means nothing queued matched " <>
+                "the node's masters, `head_overdue` means the starvation bound took precedence, " <>
+                "and `no_residency` means the node has no recorded masters yet. A resident share " <>
+                "that tracks the hosts' warm materialize share means the model matches reality.",
+            tags: [:fleet, :outcome]
           )
         ]
       ),

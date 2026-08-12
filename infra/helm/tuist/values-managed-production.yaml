@@ -659,6 +659,11 @@ macosFleet:
     # If the tail ever does starve job VMs, lower gib rather than raising cap:
     # masters fill to roughly gib - cap, so a smaller cap yields MORE total
     # master bytes. gib is the footprint lever, cap is the master-count lever.
+    #
+    # Retuning either value also retunes dispatch: the chart derives the
+    # server's residency bound (how many accounts a node is affine to) from
+    # this same survivor math, so the two cannot drift. See
+    # `tuist.runnerVolumeResidentMastersEnv` in templates/_helpers.tpl.
     masterCapGib: 20
     casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)

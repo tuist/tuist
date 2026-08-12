@@ -140,13 +140,30 @@ defmodule Tuist.Runners do
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
-  # affine to its node only if that job's enqueue time is within the age
-  # tolerance of the queue head, else the head. Both are configuration,
-  # tuned from the affinity hit rate and queue-latency telemetry rather
-  # than re-litigated here; the age tolerance is the precise operational
-  # meaning of the hard rule that affinity never delays a job.
+  # whose account's master the node likely still holds, unless the queue head
+  # has waited past the age tolerance, in which case the head goes out. All
+  # three are configuration, tuned from the affinity outcome and queue-latency
+  # telemetry rather than re-litigated here; the age tolerance is the precise
+  # operational meaning of the hard rule that affinity never delays a job.
   @volume_affinity_top_k 20
-  @volume_affinity_age_tolerance_seconds 30
+
+  # A host materializes one job at a time and evicts masters LRU, so passing
+  # the head over buys a warm materialize whose saving is measured in build
+  # minutes, not seconds. It also returns the host to the pool sooner, so the
+  # trade is not purely the head's loss. 30s was too tight to ever pay out:
+  # in the bursts where placement matters most the head is almost always
+  # older than that, which bypassed affinity exactly when it mattered. This
+  # is the first knob to walk back if dispatch queue-latency p95 regresses.
+  @volume_affinity_age_tolerance_seconds 120
+
+  # How many per-account masters a host is assumed to still hold. Helm derives
+  # it from the same `macosFleet.runnerCacheVolume` values that bound admission
+  # host-side, so retuning `masterCapGib` cannot silently desync the dispatch
+  # model from the fleet. The default is the conservative floor for a host that
+  # reports nothing: preferring fewer accounts than a host really holds only
+  # forgoes opportunity, while preferring more re-saturates the set back into
+  # the no-op it used to be.
+  @volume_affinity_resident_masters 2
 
   defp volume_affinity_top_k do
     Application.get_env(:tuist, :runner_volume_affinity_top_k, @volume_affinity_top_k)
@@ -157,6 +174,14 @@ defmodule Tuist.Runners do
       :tuist,
       :runner_volume_affinity_age_tolerance_seconds,
       @volume_affinity_age_tolerance_seconds
+    )
+  end
+
+  defp volume_affinity_resident_masters do
+    Application.get_env(
+      :tuist,
+      :runner_volume_affinity_resident_masters,
+      @volume_affinity_resident_masters
     )
   end
 
@@ -685,12 +710,10 @@ defmodule Tuist.Runners do
     %{namespace: namespace, sa_name: sa_name, fleet_name: fleet_name, node_name: node_name, candidate: candidate} =
       context
 
-    record_volume_affinity(fleet_name, node_name, candidate.account_id)
-
     case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
       :ok ->
         namespace
-        |> serve_claim(sa_name, fleet_name, candidate, claim)
+        |> serve_claim(sa_name, fleet_name, node_name, candidate, claim)
         |> handle_serve_claim(context)
 
       {:error, :completed} ->
@@ -794,13 +817,14 @@ defmodule Tuist.Runners do
 
   defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
 
-  defp record_volume_affinity(fleet_name, node_name, account_id) do
-    # Record the affinity signal on every claim win, but only for fleets
-    # that actually hold volumes (macOS): a volume for this account
-    # exists (or is about to) where its jobs ran, so future jobs of this
-    # account prefer this node. Volumeless fleets record nothing so their
-    # queues are never reordered for masters that don't exist.
-    if volume_affinity_enabled?(fleet_name) do
+  # Record the residency signal for a committed dispatch that will materialize
+  # a master, but only for fleets that actually hold volumes (macOS): a volume
+  # for this account exists (or is about to) where its jobs ran, so future jobs
+  # of this account prefer this node. Volumeless fleets and untrusted jobs
+  # record nothing, so no queue is ever reordered for a master that doesn't
+  # exist.
+  defp record_volume_affinity(fleet_name, node_name, account_id, trusted) do
+    if trusted and volume_affinity_enabled?(fleet_name) do
       VolumeAffinities.record(node_name, account_id)
     end
   end
@@ -884,9 +908,10 @@ defmodule Tuist.Runners do
   end
 
   # Fetch the K oldest queued candidates and let the volume-affinity policy
-  # pick the one to hand this node: the oldest affine candidate within the
-  # age tolerance of the head, else the head. With no node identity or no
-  # affinity, this is exactly today's "oldest queued job".
+  # pick the one to hand this node: the oldest candidate whose master this node
+  # likely holds, unless the head has waited past the age tolerance, else the
+  # head. With no node identity or no residency, this is exactly today's
+  # "oldest queued job".
   defp pick_affine_candidate(
          fleet_name,
          node_name,
@@ -903,12 +928,7 @@ defmodule Tuist.Runners do
          ) do
       {:ok, candidates} ->
         if volume_affinity_enabled?(fleet_name) do
-          {:ok,
-           VolumeAffinities.select_candidate(
-             candidates,
-             node_name,
-             volume_affinity_age_tolerance_seconds()
-           )}
+          {:ok, select_affine_candidate(candidates, fleet_name, node_name)}
         else
           # No volumes on this fleet: hand out the plain oldest-queued head, no
           # affinity scoring or reordering.
@@ -917,6 +937,31 @@ defmodule Tuist.Runners do
 
       {:error, :empty} ->
         {:error, :empty}
+    end
+  end
+
+  # The affinity outcome is the only server-side read on whether the preference
+  # discriminates at all. The host's warm/cold materialize counter is the ground
+  # truth, but it can't distinguish "dispatch had no resident candidate queued"
+  # from "dispatch preferred one and the host had evicted it anyway" — the two
+  # call for opposite fixes (more hosts holding an account's master vs. a
+  # smaller assumed resident count), so the decision is reported where it's made.
+  defp select_affine_candidate(candidates, fleet_name, node_name) do
+    case VolumeAffinities.select_candidate(candidates, node_name,
+           tolerance_seconds: volume_affinity_age_tolerance_seconds(),
+           resident_limit: volume_affinity_resident_masters()
+         ) do
+      nil ->
+        nil
+
+      {candidate, outcome} ->
+        :telemetry.execute(
+          Telemetry.event_name_dispatch_affinity(),
+          %{count: 1},
+          %{fleet: fleet_name, outcome: Atom.to_string(outcome)}
+        )
+
+        candidate
     end
   end
 
@@ -936,7 +981,7 @@ defmodule Tuist.Runners do
   defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp dispatch_outcome(_), do: "unknown"
 
-  defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
+  defp serve_claim(namespace, sa_name, fleet_name, node_name, candidate, claim) do
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -964,6 +1009,14 @@ defmodule Tuist.Runners do
           # runs a different one. The untrusted label rides the same patch so the
           # host sees both atomically. See stamp_account_label/4.
           stamp_account_label(namespace, pod_name, account, trusted)
+
+          # Record the residency signal here rather than at claim-win, because
+          # only now is it known whether this job will leave a master behind.
+          # An untrusted job carries the label the host reads to skip
+          # materialize and promote, so it never creates one; recording it
+          # would spend one of the node's few resident slots on a master that
+          # does not exist and push out one that does.
+          record_volume_affinity(fleet_name, node_name, candidate.account_id, trusted)
 
           # Open the per-Pod billing session only after dispatch
           # commits — JIT minted, PG marked running, CH state
