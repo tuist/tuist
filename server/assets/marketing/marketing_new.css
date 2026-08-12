@@ -23,6 +23,8 @@
 @import "css/new/routes/home-hero.css";
 @import "css/new/routes/blog.css";
 @import "css/new/routes/blog-post.css";
+@import "css/routes/changelog-new.css";
+@import "css/routes/changelog-entry-new.css";
 @import "css/new/layouts/components/navbar.css";
 @import "css/new/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
