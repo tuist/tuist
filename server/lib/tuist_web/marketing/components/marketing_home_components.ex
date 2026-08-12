@@ -260,7 +260,7 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
 
     ~H"""
     <div data-part="widget" data-widget="kura-nodes">
-      <span data-part="label">KURA NODES</span>
+      <span data-part="label">CACHE NODES</span>
       <div data-part="circles">
         <div :for={row <- @rows} data-part="row">
           <span :for={lit <- row} data-lit={to_string(lit)}></span>
