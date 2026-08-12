@@ -1,0 +1,469 @@
+/*
+ * About page styles for the REDESIGNED marketing site (bundle-new.css).
+ * Ported from routes/about.css; hardcoded light-only shadows/fills are
+ * swapped for theme-aware Noora tokens so the page works in dark mode.
+ */
+#marketing-about {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  /* Same page skeleton as #marketing-home: 2px page-level seams, sections
+     bring their own vertical rhythm via margin-top. */
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  & > section {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    margin-top: var(--noora-spacing-9);
+
+    @media (min-width: 1024px) {
+      margin-top: var(--noora-spacing-11);
+    }
+  }
+
+  /* Hero-style header card on the home page frame: 1200px shell, stroke
+     border, primary surface. The header[data-part] selector matches the
+     specificity of pages.css's `[id^="marketing-"] > header:not(...)`
+     (its :not counts the navbar ID), whose 20px margins must lose here. */
+  & > header[data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    align-self: center;
+    gap: var(--noora-spacing-9);
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom already provides the 2px seam. */
+    margin: 0;
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-10);
+    /* Same 1200px shell as the home sections (and the navbar mega menu),
+       so the card's borders line up with the rest of the page frame. */
+    width: 100%;
+    max-width: 1200px;
+    text-align: center;
+
+    @media (max-width: 1032px) {
+      width: calc(100% - 2 * var(--noora-spacing-1));
+    }
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-10);
+    }
+
+    /* Same type as the home hero: regular display/large with tightened
+       tracking, regular body/large subtitle. */
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-align: center;
+      text-wrap: pretty;
+    }
+  }
+
+  /* Blueprint mosaic band below the header card, echoing the home hero
+     canvas: empty stroked boxes with 2px seams on the 1200px shell. The
+     page-level flex gap provides the 2px seam to the header above. Flex
+     values are the box widths from the 1200x250 Figma comp. */
+  & > [data-part="blueprint"] {
+    display: flex;
+    gap: var(--noora-spacing-1);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    height: 160px;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+      height: 250px;
+    }
+
+    & > [data-part="cluster"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-1);
+      min-width: 0;
+
+      &:first-child {
+        flex: 430 1 0;
+      }
+
+      /* Mobile shows a lighter mosaic: left cluster + panel only. */
+      &:last-child {
+        display: none;
+        flex: 546 1 0;
+
+        @media (min-width: 1024px) {
+          display: flex;
+        }
+      }
+    }
+
+    & > [data-part="panel"] {
+      flex: 145 1 0;
+    }
+
+    & [data-part="row"] {
+      display: flex;
+      flex: 1 1 0;
+      gap: var(--noora-spacing-1);
+      min-width: 0;
+    }
+
+    & > [data-part="panel"],
+    & [data-part="box"] {
+      box-sizing: border-box;
+      border: 1px solid var(--marketing-stroke-default);
+    }
+
+    & > [data-part="cluster"]:first-child > [data-part="row"]:first-child > [data-part="box"] {
+      &:nth-child(1) {
+        flex: 162 1 0;
+      }
+      &:nth-child(2) {
+        flex: 30 1 0;
+      }
+      &:nth-child(3) {
+        flex: 236 1 0;
+      }
+    }
+
+    & > [data-part="cluster"]:first-child > [data-part="row"]:last-child > [data-part="box"] {
+      &:nth-child(1) {
+        flex: 187 1 0;
+      }
+      &:nth-child(2) {
+        flex: 97 1 0;
+      }
+      &:nth-child(3) {
+        flex: 145 1 0;
+      }
+    }
+
+    & > [data-part="cluster"]:last-child > [data-part="row"]:first-child > [data-part="box"] {
+      &:nth-child(1) {
+        flex: 193 1 0;
+      }
+      &:nth-child(2) {
+        flex: 353 1 0;
+      }
+    }
+
+    & > [data-part="cluster"]:last-child > [data-part="row"]:last-child > [data-part="box"] {
+      &:nth-child(1) {
+        flex: 193 1 0;
+      }
+      &:nth-child(2) {
+        flex: 80 1 0;
+      }
+      &:nth-child(3) {
+        flex: 80 1 0;
+      }
+      &:nth-child(4) {
+        flex: 193 1 0;
+      }
+    }
+  }
+
+  /* Mission section: eyebrow + two-column row, same text ramp and spacing
+     as the home features blocks. Sits on the page's 2px seam below the
+     blueprint band, text 8px inside the border. */
+  & > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    /* Full shorthand so pages.css's blanket 20px section margin can't leak
+       in on any side — the page's 2px flex gap is the only spacing. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    /* Figma: 72px top padding, 8px sides/bottom. */
+    padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin-right: 0;
+      margin-left: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-transform: uppercase;
+    }
+
+    & > [data-part="main"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+      margin-top: var(--noora-spacing-7);
+
+      @media (min-width: 1024px) {
+        flex-direction: row;
+        /* Figma: 96px between the title and body columns. */
+        gap: var(--noora-spacing-16);
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+
+        @media (min-width: 1024px) {
+          flex: 0 0 auto;
+        }
+
+        & > [data-part="line"] {
+          display: block;
+        }
+      }
+
+      & > [data-part="body"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        /* Figma: 24px between paragraphs and above the Learn more link. */
+        gap: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+        @media (min-width: 1024px) {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+      }
+    }
+  }
+
+  /* Team block: lives inside the mission container, 96px below the mission
+     row. Eyebrow + left-aligned header, then a 4-up member grid with
+     hairline seams. Figma: 96px between the header block and the grid. */
+  & > [data-part="content"] > [data-part="team"] {
+    display: flex;
+    flex-direction: column;
+    margin-top: var(--noora-spacing-16);
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-transform: uppercase;
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      /* Figma: 8px between title and subtitle. */
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-7);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    /* Edge-to-edge grid: negative margins bleed through the container's 8px
+       padding so the cells meet its border; the 1px grid gap over a stroke
+       background paints single shared hairlines between cells. */
+    & > [data-part="members"] {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1px;
+      /* Figma: 48px from the header block to the grid. */
+      margin: var(--noora-spacing-11) calc(-1 * var(--noora-spacing-4)) calc(-1 * var(--noora-spacing-4));
+      border-top: 1px solid var(--marketing-stroke-default);
+      background: var(--marketing-stroke-default);
+      padding: 0;
+      list-style: none;
+
+      @media (min-width: 720px) {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      & > [data-part="member"] {
+        display: flex;
+        flex-direction: column;
+        background: var(--noora-surface-background-primary);
+
+        /* Dithered member portraits: the SVGs (186x232, single path) are
+           applied as alpha masks so the fill follows the illustration ramp
+           token in both themes instead of the export's hardcoded grey. */
+        & > [data-part="photo"] {
+          position: relative;
+          margin: 0;
+          height: 232px;
+          overflow: hidden;
+
+          /* Drifting dither field behind the portrait, same treatment as
+             the divider bands. */
+          & > [data-part="dither"] {
+            display: block;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+          }
+
+          & > [data-part="portrait"] {
+            display: block;
+            position: absolute;
+            inset: 0;
+            background: var(--noora-surface-label-secondary);
+            mask-repeat: no-repeat;
+            mask-position: center bottom;
+            -webkit-mask-repeat: no-repeat;
+            -webkit-mask-position: center bottom;
+          }
+
+          /* Each member has a light/dark export pair (different dither
+             densities); the theme bootstrap stamps data-theme on <html>,
+             which picks the matching mask. */
+          &[data-member="pedro"] > [data-part="portrait"] {
+            mask-image: url("/marketing/images/about/team/pedro.svg");
+            -webkit-mask-image: url("/marketing/images/about/team/pedro.svg");
+
+            :root[data-theme="dark"] & {
+              mask-image: url("/marketing/images/about/team/pedro-dark.svg");
+              -webkit-mask-image: url("/marketing/images/about/team/pedro-dark.svg");
+            }
+          }
+
+          &[data-member="marek"] > [data-part="portrait"] {
+            mask-image: url("/marketing/images/about/team/marek.svg");
+            -webkit-mask-image: url("/marketing/images/about/team/marek.svg");
+
+            :root[data-theme="dark"] & {
+              mask-image: url("/marketing/images/about/team/marek-dark.svg");
+              -webkit-mask-image: url("/marketing/images/about/team/marek-dark.svg");
+            }
+          }
+
+          &[data-member="asmit"] > [data-part="portrait"] {
+            mask-image: url("/marketing/images/about/team/asmit.svg");
+            -webkit-mask-image: url("/marketing/images/about/team/asmit.svg");
+
+            :root[data-theme="dark"] & {
+              mask-image: url("/marketing/images/about/team/asmit-dark.svg");
+              -webkit-mask-image: url("/marketing/images/about/team/asmit-dark.svg");
+            }
+          }
+
+          &[data-member="eduardo"] > [data-part="portrait"] {
+            mask-image: url("/marketing/images/about/team/eduardo.svg");
+            -webkit-mask-image: url("/marketing/images/about/team/eduardo.svg");
+
+            :root[data-theme="dark"] & {
+              mask-image: url("/marketing/images/about/team/eduardo-dark.svg");
+              -webkit-mask-image: url("/marketing/images/about/team/eduardo-dark.svg");
+            }
+          }
+        }
+
+        & > [data-part="info"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+          border-top: 1px solid var(--marketing-stroke-default);
+          padding: var(--noora-spacing-6);
+
+          & > [data-part="name"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+          & > [data-part="role"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+        }
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    height: 120px;
+    overflow: hidden;
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
