@@ -128,14 +128,22 @@ runs:
           #   monolithic     one request per blob, no rate limiting seen,
           #                  but every attempt died with "The request
           #                  timed out" partway through the disk (best
-          #                  attempt reached 42%). A single multi-hour
-          #                  request has no way to resume, so a hiccup
-          #                  restarts the whole blob.
+          #                  attempt reached 42%). That error is a
+          #                  URLError raised by Tart's own client, not a
+          #                  registry response.
           #
           # Do not "fix" a rate-limited push by reaching for a larger
           # chunk or for monolithic. The levers that remain are the retry
           # budget below, not pushing several large images concurrently,
           # and the image size itself.
+          #
+          # Retrying is worth more than it looks: Tart splits the disk
+          # into layers of at most 512 MiB, and skips any layer whose
+          # digest the registry already has (DiskV2.push does a
+          # blobExists HEAD per layer). Attempts therefore accumulate
+          # instead of starting over, and a failure costs only the layer
+          # in flight, whose upload session never closes and so never
+          # registers.
           if tart push \
             --concurrency "$TART_PUSH_CONCURRENCY" \
             --chunk-size "$TART_PUSH_CHUNK_SIZE" \
