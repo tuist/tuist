@@ -25,6 +25,7 @@ libc = "0.2.177"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 maxminddb = "0.27.0"
 memmap2 = "0.9.10"
+moka = { version = "0.12.16", features = ["future"] }
 opentelemetry = "0.31.0"
 opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
