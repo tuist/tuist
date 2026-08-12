@@ -106,6 +106,12 @@ function decodeRuns() {
 
 export const TuistDitherParticles = {
   mounted() {
+    // A bfcache restore re-mounts hooks without ever calling destroyed() on
+    // the previous instance (see LogoTransition); tear the old one down so
+    // two observers and reveal loops don't fight over the same canvas.
+    if (this.el.ditherTeardown) this.el.ditherTeardown();
+    this.el.ditherTeardown = () => this.teardown();
+
     this.canvas = this.el;
     this.ctx = this.canvas.getContext("2d");
     this.host = this.canvas.parentElement;
@@ -182,10 +188,46 @@ export const TuistDitherParticles = {
     };
     this.observer = new ResizeObserver(this.resize);
     this.observer.observe(this.canvas);
+
+    // The ResizeObserver only reacts to layout changes; a devicePixelRatio
+    // change (moving the window to another display, browser zoom) leaves the
+    // fixed-size box untouched, so the buffer would stay at the old density
+    // and the upscale reads as blocky pixels. The media query matches the
+    // current dpr only, so it fires exactly when the dpr moves off it —
+    // re-arm against the new value each time.
+    this.armDprWatch = () => {
+      const dpr = window.devicePixelRatio || 1;
+      this.dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+      this.onDprChange = () => {
+        this.armDprWatch();
+        this.resize();
+      };
+      this.dprQuery.addEventListener("change", this.onDprChange, { once: true });
+    };
+    this.armDprWatch();
+
+    // Long-hidden tabs can have canvas backing stores evicted (the particle
+    // layer comes back blank behind the composite), and a bfcache restore
+    // resumes with whatever the buffers froze as; resize() rebuilds the
+    // layer from scratch up to the current reveal cut, so run it on return.
+    this.onVisible = () => {
+      if (!document.hidden) this.resize();
+    };
+    document.addEventListener("visibilitychange", this.onVisible);
+    this.onPageshow = (event) => {
+      if (event.persisted) this.resize();
+    };
+    window.addEventListener("pageshow", this.onPageshow);
+
     this.resize();
   },
 
   destroyed() {
+    this.teardown();
+  },
+
+  teardown() {
+    if (this.el.ditherTeardown) this.el.ditherTeardown = null;
     if (this.offThemeChange) this.offThemeChange();
     if (this.observer) this.observer.disconnect();
     if (this.io) this.io.disconnect();
@@ -195,6 +237,9 @@ export const TuistDitherParticles = {
       this.gridEl.removeEventListener("mousemove", this.onMove);
       this.gridEl.removeEventListener("mouseleave", this.onLeave);
     }
+    if (this.dprQuery) this.dprQuery.removeEventListener("change", this.onDprChange);
+    document.removeEventListener("visibilitychange", this.onVisible);
+    window.removeEventListener("pageshow", this.onPageshow);
   },
 
   // Precompute the reveal: per shade, sort the runs by their admission key

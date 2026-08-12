@@ -1,12 +1,11 @@
 .code-window {
-  --docs-terminal-shell-shadow: var(--noora-light-border-default);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   /* Seam between the bar and the code box (the grouped variant uses 6px —
      see code-group.css). */
   gap: 4px;
-  box-shadow: var(--docs-terminal-shell-shadow);
+  box-shadow: var(--noora-light-border-default);
   border-radius: 8px;
   background: var(--noora-surface-background-primary);
   /* No shell padding: the code box sticks to the component's edges and the
@@ -14,11 +13,6 @@
   padding: 0;
   min-width: 0;
   max-width: 100%;
-}
-
-html[data-theme="dark"] .code-window {
-  --docs-terminal-shell-shadow: 0px 1px 1px 0px rgb(14 14 14 / 0.3), 0px 0px 0px 1px rgb(113 113 113 / 0.45),
-    0px 2px 3px 0px rgb(0 0 0 / 0.3);
 }
 
 .code-window > [data-part="bar"] {
@@ -124,12 +118,58 @@ html[data-theme="dark"] .code-window {
 .code-window > [data-part="code"] {
   position: relative;
   box-shadow: var(--noora-light-border-default);
+  /* Figma's "clip content": on the sides and bottom this box sits flush with
+     the shell, which already draws the outer hairline there — clip our ring
+     so the two alpha shadows don't stack into a darker edge. The negative
+     top inset keeps the seam hairline under the bar unclipped, and the
+     rounded bottom corners make the clip hug the 8px border radius (a square
+     clip would let the ring's corner arcs survive and stack into a darker
+     curve). */
+  clip-path: inset(-8px 0 0 0 round 0 0 8px 8px);
   /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);
   padding: 16px 12px;
   overflow-x: auto;
   font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+  /* Scrollbar styled after Noora's table (see noora/css/table.css). Reset the
+     inherited globals first: any non-auto `scrollbar-color` (the marketing
+     root sets one) makes Chromium ignore the `::-webkit-scrollbar` rules
+     below and fall back to a full-width bar flush against the bottom edge. */
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+
+  /* Firefox has no `::-webkit-scrollbar`; give it the thin variant. Scoped so
+     Chromium/Safari fall through to the detailed styling below. */
+  @supports (scrollbar-width: thin) and (not selector(::-webkit-scrollbar)) {
+    scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+.code-window > [data-part="code"]::-webkit-scrollbar {
+  height: var(--noora-spacing-6);
+  background: transparent;
+}
+
+/* Keeps the thumb's travel clear of the rounded bottom corners. */
+.code-window > [data-part="code"]::-webkit-scrollbar-track {
+  margin: 0 var(--noora-spacing-2);
+  background: transparent;
+}
+
+/* Transparent borders + padding-box clip float the 8px pill inside the 16px
+   lane: 2px to the code above, 6px of air to the box's bottom edge. The
+   pill's visible rounding is the radius minus each side's border, so the
+   asymmetric radius below is what makes every corner of the clipped pill
+   come out at 4px — a true capsule (a single oversized radius would leave
+   the bottom corners at 2px and read as clipped). */
+.code-window > [data-part="code"]::-webkit-scrollbar-thumb {
+  border: solid transparent;
+  border-width: var(--noora-spacing-1) var(--noora-spacing-2) var(--noora-spacing-3);
+  border-radius: var(--noora-radius-4) / var(--noora-radius-3) var(--noora-radius-3) var(--noora-radius-5) var(--noora-radius-5);
+  background-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
+  background-clip: padding-box;
 }
 
 /* MDEx's html_inline formatter adds an inline background-color on <pre>,
