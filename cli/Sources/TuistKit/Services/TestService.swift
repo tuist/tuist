@@ -1705,26 +1705,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) -> [TargetReference] {
-        // Skipped testables are dropped here so this stays in sync with the two places that decide
-        // what actually runs — `BuildGraphInspector.testableTarget` and the test-plan filter in
-        // `GraphTraverser.filterIncludedTargets`. Counting them would report a target as needing
-        // tests that xcodebuild will never run, and since it never runs it never stores a hash, so
-        // it stays an un-cached miss on every subsequent run.
+        // Skipped testables are dropped because xcodebuild never runs them: counting one reports a
+        // target as needing tests that can never record a result, so it stays an un-cached miss on
+        // every subsequent run. On the plan-based paths this matches the test-plan filter in
+        // `GraphTraverser.filterIncludedTargets` and `BuildGraphInspector.isIncluded`. Note the two
+        // still diverge on the no-plan path: `BuildGraphInspector.testableTarget`'s final fallback
+        // anchors on `testAction.targets.first` without consulting `isSkipped`.
         return if let testPlanConfiguration {
             scheme.testAction?.testPlans?
                 .first(
                     where: { $0.name == testPlanConfiguration.testPlan }
-                )?.testTargets.filter { !$0.isSkipped }.map(\.target) ?? []
+                )?.testTargets.enabled.map(\.target) ?? []
         } else if action == .build, let testPlans = scheme.testAction?.testPlans {
             // If we are building a scheme that has testplans but none specified then we should return all test targets
-            testPlans.flatMap(\.testTargets).filter { !$0.isSkipped }.map(\.target)
+            testPlans.flatMap(\.testTargets).enabled.map(\.target)
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
             $0.isDefault
         }) {
-            defaultTestPlan.testTargets.filter { !$0.isSkipped }.map(\.target)
-        } else if let testActionTargets = scheme.testAction?.targets
-            .filter({ !$0.isSkipped }).map(\.target),
-            !testActionTargets.isEmpty
+            defaultTestPlan.testTargets.enabled.map(\.target)
+        } else if let testActionTargets = scheme.testAction?.targets.enabled.map(\.target),
+                  !testActionTargets.isEmpty
         {
             testActionTargets
         } else {
