@@ -383,6 +383,25 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := container.Resources.Limits.Memory().String(); got != "4Gi" {
 		t.Fatalf("expected default memory limit, got %q", got)
 	}
+	// Kura sizes its anonymous-memory admission budget from the floor, so the
+	// floor has to reach the container: requests.memory is not otherwise visible
+	// inside a pod. A resourceFieldRef naming a container the pod does not have
+	// fails admission, and a divisor other than 1 would silently round the value,
+	// so both are pinned.
+	var memoryFloor *corev1.EnvVar
+	for i := range container.Env {
+		if container.Env[i].Name == "KURA_MEMORY_FLOOR_BYTES" {
+			memoryFloor = &container.Env[i]
+		}
+	}
+	if memoryFloor == nil || memoryFloor.ValueFrom == nil || memoryFloor.ValueFrom.ResourceFieldRef == nil {
+		t.Fatal("expected KURA_MEMORY_FLOOR_BYTES from a resourceFieldRef; without it Kura sizes its anon budget from the ceiling")
+	}
+	if ref := memoryFloor.ValueFrom.ResourceFieldRef; ref.ContainerName != kuraContainerName ||
+		ref.Resource != "requests.memory" || ref.Divisor.String() != "1" {
+		t.Fatalf("expected requests.memory of %q with divisor 1, got %q/%q divisor %q",
+			kuraContainerName, ref.ContainerName, ref.Resource, ref.Divisor.String())
+	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
 	}

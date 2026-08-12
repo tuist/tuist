@@ -46,9 +46,19 @@ impl MemoryPools {
         runtime_limit_bytes: u64,
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
+        anon_budget_bytes: Option<u64>,
     ) -> Self {
         let headroom_bytes = hard_limit_bytes.saturating_sub(soft_limit_bytes);
-        let transient_capacity_bytes = semaphore_capacity(headroom_bytes);
+        // Transient is the anonymous-memory budget: response send buffers,
+        // upload staging, materialization. Above the pod's floor that memory is
+        // unreclaimable and unprotected, so the kernel's only remedy is the OOM
+        // killer. When the orchestrator publishes a floor, bound the budget by
+        // it, which keeps the floor-to-ceiling gap for page cache and
+        // mmap-served segments instead. Without one, fall back to the
+        // ceiling-derived headroom.
+        let transient_capacity_bytes = semaphore_capacity(
+            anon_budget_bytes.map_or(headroom_bytes, |budget| budget.min(headroom_bytes)),
+        );
         let reapi_materialization_limit_bytes =
             reapi_materialization_limit_bytes(transient_capacity_bytes);
         let mmap_serving_bytes = mmap_serving_bytes(headroom_bytes);

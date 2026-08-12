@@ -55,6 +55,13 @@ const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
 const KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: &str = "KURA_METADATA_STORE_MAX_BACKGROUND_JOBS";
+// The process's own anonymous footprint outside every tracked cache and pool:
+// stacks, the allocator's retained arenas, and per-connection state. Measured at
+// ~74 MiB on idle instances (a ~150 MiB working set less their cache sizes);
+// rounded up so the derived admission budget errs small rather than committing
+// anon the floor does not cover.
+const PROCESS_ANON_BASELINE_BYTES: u64 = 96 * 1024 * 1024;
+const KURA_MEMORY_FLOOR_BYTES: &str = "KURA_MEMORY_FLOOR_BYTES";
 const KURA_METADATA_STORE_READ_CACHE_BYTES: &str = "KURA_METADATA_STORE_READ_CACHE_BYTES";
 const KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: &str =
     "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES";
@@ -156,6 +163,10 @@ pub struct Config {
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    /// The pod's `requests.memory`, published by the orchestrator. `None` when
+    /// nothing publishes it (self-hosted, local runs, a controller too old to
+    /// set it), which keeps the ceiling-derived sizing.
+    pub memory_floor_bytes: Option<u64>,
     pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
@@ -381,6 +392,31 @@ impl DerivedRuntimeDefaults {
 }
 
 impl Config {
+    /// The anonymous-memory budget admission may commit, derived from the pod's
+    /// memory floor.
+    ///
+    /// Anything above the floor is memory the pod was never guaranteed. The
+    /// kernel can take reclaimable pages back under contention, but anonymous
+    /// memory it can only OOM-kill, so committing anon above the floor trades a
+    /// retryable `503` for a dead pod. Bounding admission by the floor keeps the
+    /// floor-to-ceiling gap for page cache and mmap-served segments, which is
+    /// memory the kernel *can* reclaim.
+    ///
+    /// Subtracts the anon this process holds outside admission: the metadata
+    /// store's block cache and write-buffer pool, the manifest cache, and a
+    /// baseline for the process itself (measured at ~150 MiB total on an idle
+    /// instance, of which the caches are the larger part).
+    ///
+    /// `None` when nothing published a floor, which leaves the ceiling-derived
+    /// sizing in place.
+    pub fn anon_admission_budget_bytes(&self) -> Option<u64> {
+        let untracked = (self.rocksdb_block_cache_bytes as u64)
+            .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        Some(self.memory_floor_bytes?.saturating_sub(untracked))
+    }
+
     pub fn from_env() -> Result<Self, String> {
         Self::from_lookup_with_resources(|key| std::env::var(key).ok(), HostResources::detect())
     }
@@ -675,6 +711,17 @@ impl Config {
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
+        let memory_floor_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MEMORY_FLOOR_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MEMORY_FLOOR_BYTES} must be a valid u64"))
+            },
+        )
+        .filter(|floor| *floor > 0);
         let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
@@ -1484,6 +1531,7 @@ impl Config {
             memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_floor_bytes,
             snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
