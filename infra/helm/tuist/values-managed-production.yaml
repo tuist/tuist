@@ -628,14 +628,25 @@ macosFleet:
   runnerCacheVolume:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free. A typical
-    # binary master is ~2.4 GB, so a 10 GiB binary budget still holds ~4x
-    # headroom while the CAS rides the same clone/promote/converge path. The
-    # guest is fail-safe: a store it cannot write falls back to a VM-local cold
-    # compilation cache, so a bad budget costs warmth, not the job.
-    masterCapGib: 28
-    casGib: 16
+    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
+    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
+    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
+    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # store it cannot write falls back to a VM-local cold compilation cache, so
+    # a bad budget costs warmth, not the job.
+    #
+    # The cap is bounded by admission, not by taste. Admission reserves
+    # masterCapGib per live branch plus one, so on a gib-sized root with B
+    # concurrent VMs the resident masters that survive are gib/cap - (B+1) + 1.
+    # At 2 VMs per mini on an 80 GiB root that is 80/cap - 2: cap 28 leaves 0.86
+    # (every job evicted the master it was about to use, so warm materializes ran
+    # ~18%), cap 20 leaves 2. Two masters covers the fleet's account set with
+    # dispatch affinity, and 2x20 GiB resident also fits the host's disk budget:
+    # the boot container is 460 GiB with ~330 GiB free idle, but two concurrent
+    # job VMs transiently take it down to ~45 GiB, so the cache's real ceiling is
+    # that trough, not the gib quota.
+    masterCapGib: 20
+    casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
