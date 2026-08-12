@@ -109,7 +109,18 @@ runs:
             exit 0
           fi
 
+          # GHCR reports its secondary rate limit as a 403 whose OCI
+          # error code is DENIED, which the permissions match below
+          # reads as a credentials problem and fails the push outright.
+          # The throttle clears in minutes and the backoff already
+          # waits longer than that, so classify it first and let the
+          # retry loop ride it out. Ordering is the whole point here:
+          # both patterns match the same log line.
           if grep -Eqi \
+            'secondary rate limit|too many requests|toomanyrequests|code: 429' \
+            "$attempt_log"; then
+            echo "::warning::Tart push hit a registry rate limit; retrying"
+          elif grep -Eqi \
             'unauthorized|authentication required|denied|invalid reference' \
             "$attempt_log"; then
             echo "::error::Tart push failed with a non-retryable error"
