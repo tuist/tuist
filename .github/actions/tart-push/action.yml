@@ -9,9 +9,12 @@ inputs:
     description: Newline-separated remote image names
     required: true
   attempts:
-    description: Maximum number of push attempts
+    description: >-
+      Maximum number of push attempts. Attempts accumulate rather than
+      start over, so this is a progress budget and not just a way to wait
+      out a bad window.
     required: false
-    default: "5"
+    default: "8"
   concurrency:
     description: Number of concurrent registry uploads within Tart
     required: false
@@ -178,11 +181,24 @@ runs:
             exit 1
           fi
 
+          # The ramp is capped at 5 minutes rather than 10. Sleeping
+          # longer made sense when a retry was assumed to start over,
+          # where the only thing waiting bought was a chance the
+          # condition had cleared. Layers persist between attempts, so
+          # wall clock spent uploading banks progress and wall clock
+          # spent sleeping does not, and 5 minutes already matches what
+          # GitHub asks for after a secondary rate limit.
+          #
+          # The budget is sized against the 90-minute timeout every
+          # caller puts on this step: 8 attempts sleep ~26 minutes plus
+          # jitter, leaving roughly 50 minutes of uploading. Raising
+          # `attempts` past that trades a clear "failed N times" error
+          # for a step killed mid-upload.
           case "$attempt" in
             1) base_delay=60 ;;
             2) base_delay=120 ;;
-            3) base_delay=300 ;;
-            *) base_delay=600 ;;
+            3) base_delay=180 ;;
+            *) base_delay=300 ;;
           esac
           jitter=$((RANDOM % (base_delay / 2 + 1)))
           delay=$((base_delay + jitter))
