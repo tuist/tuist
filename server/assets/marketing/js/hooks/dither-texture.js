@@ -80,7 +80,16 @@ void main() {
 `;
 
 const FRAGMENT_SRC = `
+/* highp where available: Chrome's ANGLE promotes mediump to FP32 anyway, but
+   Firefox's backend can honor it as real FP16, whose ~3 decimal digits wreck
+   the device-px coordinates, the growing u_time, and the sin-based cell hash
+   — the field then jumps coarsely every tick and cells strobe across the
+   Bayer threshold (constant flicker on Firefox). */
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 
 uniform vec2 u_resolution;   /* device px */
 uniform float u_time;
