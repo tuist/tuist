@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::extension::{DenyDecision, ExtensionContext};
+use crate::auth::{DenyDecision, RequestContext};
 
 /// What a request names. A request that names no project is asking about the
 /// account's own cache, which is a different thing from any project in it.
@@ -16,7 +16,7 @@ pub enum Scope {
 }
 
 impl Scope {
-    fn key(&self) -> &'static str {
+    pub fn key(&self) -> &'static str {
         match self {
             Scope::Account => "account",
             Scope::Project => "project",
@@ -28,6 +28,15 @@ impl Scope {
 pub enum Action {
     Read,
     Write,
+}
+
+impl Action {
+    pub fn key(&self) -> &'static str {
+        match self {
+            Action::Read => "read",
+            Action::Write => "write",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,19 +62,19 @@ fn query_value(query: &BTreeMap<String, String>, key: &str) -> Option<String> {
     normalized(query.get(key).map(String::as_str))
 }
 
-fn server_tenant(ctx: &ExtensionContext) -> Option<String> {
+fn server_tenant(ctx: &RequestContext) -> Option<String> {
     normalized(Some(ctx.server_tenant_id.as_str()))
 }
 
 /// The tenant the request names, falling back to the query because some routes
 /// carry it there rather than in the path.
-fn request_tenant(ctx: &ExtensionContext) -> Option<String> {
+fn request_tenant(ctx: &RequestContext) -> Option<String> {
     normalized(ctx.tenant_id.as_deref())
         .or_else(|| query_value(&ctx.query, "account_handle"))
         .or_else(|| query_value(&ctx.query, "tenant_id"))
 }
 
-fn request_namespace(ctx: &ExtensionContext) -> Option<String> {
+fn request_namespace(ctx: &RequestContext) -> Option<String> {
     normalized(ctx.namespace_id.as_deref())
         .or_else(|| query_value(&ctx.query, "project_handle"))
         .or_else(|| query_value(&ctx.query, "namespace_id"))
@@ -73,7 +82,7 @@ fn request_namespace(ctx: &ExtensionContext) -> Option<String> {
 
 /// Read or write, from the operation when it says, and from the method when it
 /// does not.
-pub fn request_action(ctx: &ExtensionContext) -> Action {
+pub fn request_action(ctx: &RequestContext) -> Action {
     let operation = ctx.operation.to_lowercase();
 
     if operation.ends_with(".read") || operation.ends_with(".inspect") {
@@ -89,7 +98,7 @@ pub fn request_action(ctx: &ExtensionContext) -> Action {
     }
 }
 
-pub fn request_target(ctx: &ExtensionContext) -> Result<RequestTarget, DenyDecision> {
+pub fn request_target(ctx: &RequestContext) -> Result<RequestTarget, DenyDecision> {
     let Some(tenant) = server_tenant(ctx) else {
         return Err(DenyDecision {
             status: 503,
@@ -138,8 +147,8 @@ pub fn request_target(ctx: &ExtensionContext) -> Result<RequestTarget, DenyDecis
 mod tests {
     use super::*;
 
-    fn ctx() -> ExtensionContext {
-        ExtensionContext {
+    fn ctx() -> RequestContext {
+        RequestContext {
             transport: "http".into(),
             route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),

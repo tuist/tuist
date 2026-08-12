@@ -42,10 +42,6 @@ impl GrantBucket {
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.read.is_empty() && self.write.is_empty()
-    }
-
     /// Every handle this bucket mentions, reads first, without duplicates.
     fn flattened(&self) -> Vec<String> {
         let mut flattened: Vec<String> = Vec::new();
@@ -83,15 +79,25 @@ impl CacheGrants {
     /// Absent or malformed grants read as empty rather than failing, so a token
     /// that predates them falls through to the paths that handle it.
     pub fn from_body(body: &Value) -> Self {
-        let grants = body.get("cache_grants");
+        Self::from_grants_value(body.get("cache_grants"))
+    }
+
+    /// Reads the grants back off a principal, distinguishing a principal that
+    /// carries none at all from one that carries empty ones. Only the former
+    /// falls back to the legacy project handles: a principal that was built
+    /// from grants has already had its say.
+    pub fn from_principal_attributes(attributes: &Value) -> Option<Self> {
+        match attributes.get("cache_grants") {
+            None | Some(Value::Null) => None,
+            grants => Some(Self::from_grants_value(grants)),
+        }
+    }
+
+    fn from_grants_value(grants: Option<&Value>) -> Self {
         Self {
             account: GrantBucket::from_value(grants.and_then(|grants| grants.get("account"))),
             project: GrantBucket::from_value(grants.and_then(|grants| grants.get("project"))),
         }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.account.is_empty() && self.project.is_empty()
     }
 
     fn bucket(&self, scope: &Scope) -> &GrantBucket {
@@ -149,10 +155,18 @@ mod tests {
     }
 
     #[test]
-    fn treats_absent_grants_as_empty() {
-        assert!(CacheGrants::from_body(&json!({})).is_empty());
-        assert!(CacheGrants::from_body(&json!({ "cache_grants": null })).is_empty());
-        assert!(CacheGrants::from_body(&json!({ "cache_grants": { "project": 7 } })).is_empty());
+    fn absent_or_malformed_grants_grant_nothing() {
+        for body in [
+            json!({}),
+            json!({ "cache_grants": null }),
+            json!({ "cache_grants": { "project": 7 } }),
+        ] {
+            let grants = CacheGrants::from_body(&body);
+
+            assert!(!grants.allow(&target(Scope::Project, "acme/ios"), &Action::Read));
+            assert!(!grants.allow(&target(Scope::Account, "acme"), &Action::Read));
+            assert!(grants.projects().is_empty());
+        }
     }
 
     #[test]

@@ -21,9 +21,9 @@ use tracing::{Instrument, info, warn};
 use crate::{
     accelerated_file_serving,
     analytics::Analytics,
+    auth::AuthEngine,
     bandwidth::BandwidthLimiter,
     config::Config,
-    extension::ExtensionEngine,
     geoip::GeoIp,
     http,
     io::IoController,
@@ -121,9 +121,8 @@ async fn run_with_config(
         .ensure_directories(&data_dir_lock)
         .await
         .map_err(|error| format!("failed to create directories: {error}"))?;
-    let extension = ExtensionEngine::from_env(metrics.clone())
-        .await
-        .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
+    let auth = AuthEngine::from_env(metrics.clone())
+        .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
@@ -184,7 +183,7 @@ async fn run_with_config(
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
         usage,
         geoip,
@@ -757,11 +756,11 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         .record_memory_action("segment_handle_cache_trim");
                 }
                 if pressure == MemoryPressure::Critical
-                    && let Some(extension) = &state.extension
+                    && let Some(auth) = &state.auth
                 {
-                    let evicted = extension.clear_caches().await;
+                    let evicted = auth.clear_caches().await;
                     if evicted > 0 {
-                        state.metrics.record_memory_action("extension_cache_trim");
+                        state.metrics.record_memory_action("auth_cache_trim");
                     }
                 }
                 state.metrics.update_background_work_paused(

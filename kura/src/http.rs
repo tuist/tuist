@@ -26,6 +26,7 @@ use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    auth::{AccessDecision, RequestContext},
     bandwidth::BandwidthLimiter,
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
@@ -34,7 +35,6 @@ use crate::{
         MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
         RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
-    extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
     memory::{
         MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
@@ -1204,7 +1204,7 @@ fn overloaded_response(message: &str) -> Response {
 }
 
 async fn apply_extensions(State(state): State<SharedState>, req: Request, next: Next) -> Response {
-    let Some(extension) = state.extension.as_ref() else {
+    let Some(auth) = state.auth.as_ref() else {
         return next.run(req).await;
     };
 
@@ -1239,7 +1239,7 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         }
     }
 
-    let context = extension_context_from_http(
+    let context = request_context_from_http(
         &state,
         HttpExtensionRequest {
             route: &route,
@@ -1253,41 +1253,11 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
     )
     .await;
 
-    let principal = match extension.evaluate_access(&context).await {
-        AccessDecision::Allow(principal) => principal,
-        AccessDecision::Deny(deny) => {
-            return error_response(status_from_u16(deny.status), deny.message);
-        }
-    };
-
-    let mut response = next.run(req).await;
-
-    let response_context = extension_context_from_http(
-        &state,
-        HttpExtensionRequest {
-            route: &route,
-            method: &method,
-            path: &path,
-            query: &query,
-            headers: &request_headers,
-            body: request_body.as_deref(),
-            status_code: Some(response.status().as_u16()),
-        },
-    )
-    .await;
-    let headers = extension
-        .response_headers(&response_context, principal.as_ref())
-        .await;
-    for (name, value) in headers.headers {
-        if let (Ok(name), Ok(value)) = (
-            axum::http::header::HeaderName::try_from(name),
-            HeaderValue::from_str(&value),
-        ) {
-            response.headers_mut().insert(name, value);
-        }
+    if let AccessDecision::Deny(deny) = auth.evaluate_access(&context).await {
+        return error_response(status_from_u16(deny.status), deny.message);
     }
 
-    response
+    next.run(req).await
 }
 
 fn should_skip_extension_route(route: &str) -> bool {
@@ -1305,10 +1275,10 @@ fn is_http1(version: Version) -> bool {
     matches!(version, Version::HTTP_10 | Version::HTTP_11)
 }
 
-async fn extension_context_from_http(
+async fn request_context_from_http(
     state: &SharedState,
     request: HttpExtensionRequest<'_>,
-) -> ExtensionContext {
+) -> RequestContext {
     let metadata = http_extension_metadata(
         state,
         request.route,
@@ -1318,7 +1288,7 @@ async fn extension_context_from_http(
         request.body,
     )
     .await;
-    ExtensionContext {
+    RequestContext {
         transport: "http".into(),
         route: request.route.to_owned(),
         method: request.method.to_owned(),
@@ -6895,7 +6865,7 @@ mod tests {
         let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
         let headers = BTreeMap::new();
 
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
             HttpExtensionRequest {
                 route: ROUTE_API_CACHE_MODULE_PART,
@@ -6909,11 +6879,11 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
-        assert_eq!(extension_context.artifact_hash.as_deref(), Some("hash-1"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.artifact_hash.as_deref(), Some("hash-1"));
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("builds/hash-1/Module.framework")
         );
     }
@@ -6922,7 +6892,7 @@ mod tests {
     async fn extension_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
             HttpExtensionRequest {
                 route: ROUTE_API_CACHE_CAS,
@@ -6936,15 +6906,15 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
     }
 
     #[tokio::test]
     async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
             HttpExtensionRequest {
                 route: ROUTE_API_CACHE_CAS,
@@ -6958,8 +6928,8 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id, None);
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id, None);
     }
 
     #[tokio::test]
@@ -6967,7 +6937,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
         let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
             HttpExtensionRequest {
                 route: ROUTE_API_CACHE_KEYVALUE,
@@ -6982,7 +6952,7 @@ mod tests {
         .await;
 
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("action_cache/cas-1")
         );
     }

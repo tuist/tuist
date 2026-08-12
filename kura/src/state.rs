@@ -18,11 +18,11 @@ use tracing::{info, warn};
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
-    extension::SharedExtension,
     geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
@@ -46,7 +46,7 @@ pub struct AppState {
     pub snapshot_cache: Arc<SnapshotCache>,
     pub metrics: Metrics,
     pub runtime: Arc<RuntimeState>,
-    pub extension: Option<SharedExtension>,
+    pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
     pub geoip: Option<GeoIp>,
