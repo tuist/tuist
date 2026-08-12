@@ -16,6 +16,10 @@ on:
       # SwifterPMCore is compiled into the command-line binary through
       # TuistSupport, so its changes must run the command-line test suite.
       - "swifterpm/**"
+      # XCResultParser lives with the server's xcresult NIF but is built into
+      # the command-line binary from those sources, so its changes must run the
+      # command-line test suite.
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -42,6 +46,10 @@ on:
       # SwifterPMCore is compiled into the command-line binary through
       # TuistSupport, so its changes must run the command-line test suite.
       - "swifterpm/**"
+      # XCResultParser lives with the server's xcresult NIF but is built into
+      # the command-line binary from those sources, so its changes must run the
+      # command-line test suite.
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"

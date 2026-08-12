@@ -16,7 +16,7 @@ mod reservation;
 
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
-    container_memory_snapshot,
+    container_memory_protection, container_memory_snapshot,
 };
 pub use pressure::MemoryPressure;
 pub use reservation::{
@@ -119,6 +119,30 @@ impl MemoryController {
         )
     }
 
+    /// Sizes the anonymous-admission budget from `anon_budget_bytes` (derived
+    /// from the pod's memory floor) instead of from the ceiling. `None` keeps
+    /// the ceiling-derived sizing, which is what a deployment with no published
+    /// floor gets.
+    pub fn with_anon_budget(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        anon_budget_bytes: Option<u64>,
+    ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+            anon_budget_bytes,
+        )
+    }
+
+    /// Ceiling-derived sizing with no published floor. Production goes through
+    /// `with_anon_budget`, which passes `None` for the same effect.
+    #[cfg(test)]
     pub fn with_runtime_limit(
         metrics: Metrics,
         runtime_limit_bytes: u64,
@@ -131,6 +155,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             forced_memory_pressure_for_tests(),
+            None,
         )
     }
 
@@ -154,6 +179,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             Some(forced),
+            None,
         )
     }
 
@@ -163,10 +189,16 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
         forced_pressure: Option<MemoryPressure>,
+        anon_budget_bytes: Option<u64>,
     ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
-        let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
+        let pools = MemoryPools::new(
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            anon_budget_bytes,
+        );
         metrics.update_response_stream_pool_capacity(
             pools.response_streaming_bytes(),
             pools.foreground_response_streaming_bytes(),
@@ -1136,6 +1168,52 @@ mod tests {
         );
         assert!(!controller.container_at_hard_limit());
         assert!(controller.allow_background_admission());
+    }
+
+    #[test]
+    fn the_anon_budget_bounds_transient_admission_below_the_ceiling_headroom() {
+        // A 4Gi ceiling gives 1Gi of ceiling-derived headroom, but anon above the
+        // pod's floor is memory the kernel can only OOM-kill, so a published
+        // floor has to win. The floor-to-ceiling gap stays available to page
+        // cache and mmap-served segments, which reclaim instead.
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let ceiling_headroom = (hard_limit - soft_limit) as usize;
+
+        let unbounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            None,
+        );
+        assert_eq!(
+            unbounded.transient_capacity_bytes(),
+            ceiling_headroom as u64
+        );
+
+        let anon_budget = 600 * 1024 * 1024_u64;
+        let bounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(anon_budget),
+        );
+        assert_eq!(bounded.transient_capacity_bytes(), anon_budget);
+        assert!(bounded.transient_capacity_bytes() < unbounded.transient_capacity_bytes());
+
+        // A floor roomier than the ceiling allows cannot inflate the budget past
+        // what the ceiling can actually hold.
+        let generous = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(runtime_limit * 4),
+        );
+        assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
     }
 
     #[test]

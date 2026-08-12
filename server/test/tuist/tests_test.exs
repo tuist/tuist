@@ -2060,6 +2060,89 @@ defmodule Tuist.TestsTest do
       assert updated_test.duration == 800
     end
 
+    test "keeps run errors reported by a shard other than the first" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_attrs = fn shard_index, extra ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id,
+            shard_index: shard_index
+          },
+          extra
+        )
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0, %{}))
+
+      {:ok, updated_test} =
+        Tests.create_test(
+          shard_attrs.(1, %{
+            run_errors: [
+              %{target: "ChatTests", message: "Issue recorded without an associated test: ChatTests.swift:107: failed"}
+            ]
+          })
+        )
+
+      assert updated_test.id == first_test.id
+
+      # Unattributed issues leave the shard's status alone, so this is the only
+      # surviving trace of them.
+      assert updated_test.status == "success"
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "ChatTests"
+      assert error.message =~ "ChatTests.swift:107"
+    end
+
+    test "collapses a run error reported by every shard into one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      run_errors = [%{target: "AboutUserTests", message: "Failed to create a bundle instance."}]
+
+      shard_attrs = fn shard_index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "failure",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: shard_index,
+          run_errors: run_errors
+        }
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0))
+      {:ok, _} = Tests.create_test(shard_attrs.(1))
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "AboutUserTests"
+    end
+
     test "uses the shard-run mapping instead of scanning test runs for later shards" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account

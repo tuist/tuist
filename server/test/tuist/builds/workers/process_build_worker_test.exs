@@ -196,6 +196,30 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
+    test "snoozes while the uploaded archive is not visible yet", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :object_not_found} end)
+      reject(&Tuist.Builds.create_build/1)
+
+      assert {:snooze, 15} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
+    end
+
+    test "fails once the archive is still missing after the snoozes", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :object_not_found} end)
+      reject(&Tuist.Builds.create_build/1)
+
+      assert {:error, :object_not_found} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 7))
+    end
+
     test "discards the job when the project is not found", %{
       account: account,
       build: build
