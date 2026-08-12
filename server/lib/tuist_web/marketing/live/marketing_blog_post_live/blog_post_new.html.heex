@@ -1,0 +1,167 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog-post" phx-hook="CodeCopy">
+    <article data-part="article">
+      <header data-part="header">
+        <div data-part="breadcrumb">
+          <a href={~p"/blog"}>{dgettext("marketing", "Blog")}</a>
+          <.math_slash aria-hidden="true" />
+          <span>{@post.category |> to_string() |> String.capitalize()}</span>
+        </div>
+
+        <h1 data-part="title">{@post.title}</h1>
+
+        <div data-part="metadata">
+          <span data-part="author">{@post.interviewee_name || @author["name"]}</span>
+          <span data-part="separator" aria-hidden="true">&bull;</span>
+          <span data-part="date">{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
+        </div>
+      </header>
+
+      <img
+        data-part="image"
+        src={TuistWeb.Marketing.MarketingHTML.static_asset_path(Blog.get_post_image_url(@post))}
+        alt=""
+        decoding="async"
+      />
+
+      <section id="blog-post-content" data-part="content" data-prose>
+        {render_post_body(@post, assigns)}
+      </section>
+    </article>
+
+    <section data-part="read-next" aria-labelledby="read-next-title">
+      <h2 id="read-next-title" data-part="title">{dgettext("marketing", "Read next")}</h2>
+      <%!-- Same card anatomy as the blog index grid (see blog-new.css), so the
+      two pages read as one system. --%>
+      <div data-part="posts">
+        <.link
+          :for={post <- @read_next_posts}
+          data-part="post"
+          href={Localization.localized_href(post.slug)}
+        >
+          <div data-part="cover">
+            <img
+              data-part="image"
+              src={
+                TuistWeb.Marketing.MarketingHTML.static_asset_path(Blog.get_post_image_url(post))
+              }
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <div data-part="content">
+            <h3 data-part="title">{post.title}</h3>
+            <p data-part="excerpt">{post.excerpt}</p>
+          </div>
+          <footer data-part="footer">
+            <div data-part="metadata">
+              <span data-part="author">
+                {post.interviewee_name || Blog.get_post_author_name(post)}
+              </span>
+              <span data-part="separator" aria-hidden="true">&bull;</span>
+              <span data-part="date">{Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}</span>
+            </div>
+            <%!-- Wrapped because Noora's icon components raw-render their SVG and
+            drop any attributes passed to them, data-part included. --%>
+            <span data-part="icon">
+              <.arrow_right />
+            </span>
+          </footer>
+        </.link>
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="blog-post-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">
+        {@post.cta_title || dgettext("marketing", "AI moves fast. So should your builds.")}
+      </h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="blog-post-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+
+  <script nonce={@csp_nonce}>
+    // Generic Intersection Observer for iframe visualizations
+    // Automatically starts/pauses/resumes iframe animations based on visibility
+    (function() {
+      const observerOptions = {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+      };
+
+      const startedIframes = new WeakSet();
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const iframe = entry.target;
+          if (entry.isIntersecting) {
+            if (!startedIframes.has(iframe)) {
+              startedIframes.add(iframe);
+              iframe.contentWindow?.postMessage({ action: 'start' }, '*');
+            } else {
+              iframe.contentWindow?.postMessage({ action: 'resume' }, '*');
+            }
+          } else {
+            iframe.contentWindow?.postMessage({ action: 'pause' }, '*');
+          }
+        });
+      }, observerOptions);
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const iframes = document.querySelectorAll('iframe[data-visualization]');
+        iframes.forEach(iframe => observer.observe(iframe));
+      });
+    })();
+  </script>
+</TuistWeb.Marketing.Layouts.marketing>
