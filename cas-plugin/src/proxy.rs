@@ -1633,17 +1633,19 @@ impl Proxy {
             let mut ordered: Vec<&ManifestEntry> =
                 missing.iter().copied().filter(|entry| !is_root(entry)).collect();
             ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
+            // Whether the root is ours to publish at all. A root already present
+            // locally is not in `missing`, and its absence from the loop is not a
+            // withheld closure.
+            let root_pending = missing.iter().any(|entry| is_root(entry));
+            let mut root_stored = false;
+            // Counts the OTHER nodes only. A root that fails on its own is not
+            // evidence about its children, and reporting it as one of them would
+            // misdescribe which side of the graph the remote could not produce.
             let mut skipped = 0usize;
 
             for entry in ordered {
-                if is_root(entry) && skipped > 0 {
-                    state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
-                    crate::log_line(&format!(
-                        "incomplete closure, root withheld: root={} skipped={} of {}",
-                        crate::analytics::hex_upper(&entry.llcas_digest),
-                        skipped,
-                        manifest.len()
-                    ));
+                let entry_is_root = is_root(entry);
+                if entry_is_root && skipped > 0 {
                     continue;
                 }
                 let (blob, inlined) = match &entry.contents {
@@ -1656,18 +1658,18 @@ impl Proxy {
                         // needs it retries — and surfaces the failure —
                         // per object.
                         None => {
-                            skipped += 1;
+                            skipped += usize::from(!entry_is_root);
                             continue;
                         }
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
-                    skipped += 1;
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
-                    skipped += 1;
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let codec_elapsed = phase.elapsed();
@@ -1700,6 +1702,7 @@ impl Proxy {
                 }
                 let phase = Instant::now();
                 unsafe { store_node(state, &node)? };
+                root_stored |= entry_is_root;
                 state
                     .ms_store
                     .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
@@ -1726,6 +1729,37 @@ impl Proxy {
                     .get_mut(&entry.llcas_digest)
                 {
                     instruction.contents = None;
+                }
+            }
+            // Reported once, AFTER the pass, because the root can fail to land in
+            // two ways and only one of them is visible at its turn in the loop:
+            // it is withheld because a child was skipped, or its own blob was
+            // missing, undecompressible, or undecodable. Deciding this inside the
+            // loop missed the second case entirely, since nothing runs after the
+            // root, which left the store's most consequential outcome silent.
+            if root_pending && !root_stored {
+                state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                let root_hex = root_digest
+                    .as_deref()
+                    .map(crate::analytics::hex_upper)
+                    .unwrap_or_default();
+                if skipped > 0 {
+                    crate::log_line(&format!(
+                        "incomplete closure, root withheld: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        manifest.len()
+                    ));
+                } else {
+                    // The remote produced the children but not the root itself,
+                    // so the graph is unusable for a different reason than the
+                    // withhold: retrying it is pointless until the root's blob is
+                    // actually serveable.
+                    crate::log_line(&format!(
+                        "incomplete closure, root unavailable: root={} of {}",
+                        root_hex,
+                        manifest.len()
+                    ));
                 }
             }
         }
@@ -3025,7 +3059,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -3036,6 +3070,7 @@ impl Proxy {
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
+                state.stats_incomplete_closures.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -4474,6 +4509,54 @@ mod tests {
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The root can also fail on its own terms, and nothing runs after it: the
+    /// withhold decision is made at its turn in the loop, so deciding there left
+    /// a corrupt root uncounted and unlogged. Its children landing is exactly
+    /// what makes this case distinct, and why it reports a different reason than
+    /// a withhold: retrying is pointless until the remote can serve the root.
+    #[test]
+    fn a_root_that_fails_on_its_own_is_still_reported() {
+        let dir = TempCasDir::new("corrupt-root");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/corrupt-root");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // The child is sound and the ROOT is the undecodable one, which is the
+        // inverse of the case above.
+        let root = vec![0x21];
+        let child = vec![0x22];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "ee".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a corrupt root is not an error either, it is the case being handled");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "and the root did not, so no association can be recorded over it"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "the root failing on its own must be counted too: it is the store's \
+             most consequential outcome, and deciding this at the root's turn in \
+             the loop reported only the case where a CHILD was skipped"
+        );
     }
 
     /// Skipping a node is a designed outcome here, so "root present, child

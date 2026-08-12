@@ -607,11 +607,19 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // This does cover the build system's own instance, which issues the gets.
         let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
         let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
-        let deferred = state.stats_deferred_puts.load(Ordering::Relaxed);
-        if unbacked > 0 || poisoned > 0 || deferred > 0 {
+        if unbacked > 0 || poisoned > 0 {
             log_line(&format!(
-                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned} deferred_puts={deferred}"
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
             ));
+        }
+        // Deliberately NOT part of `degraded:`. A deferral is the expected
+        // outcome whenever a resolve outruns its materialization, so a cold build
+        // defers routinely and reporting that as degradation would train the
+        // reader to ignore the line that does mean something. What matters is the
+        // trend across builds, not its presence in one.
+        let deferred = state.stats_deferred_puts.load(Ordering::Relaxed);
+        if deferred > 0 {
+            log_line(&format!("deferred_puts={deferred}"));
         }
         // Ingestion counters, logged whether or not this build reached the
         // proxy, so a floor build produces the same accounting as a warm one.
