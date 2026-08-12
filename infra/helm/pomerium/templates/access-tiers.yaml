@@ -181,6 +181,13 @@ rules:
 #   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
 #     failure so the drift loop retries. No delete: the CAPI Machine delete
 #     cascades to the infra machine on its own.
+#   * machines/status update/patch — the owning CAPI Machine keeps its own
+#     terminal failureReason/failureMessage, and clearing the infra machine's
+#     status does not clear the parent's. Without this the Machine reports
+#     Failed for a host that has been healthy and Running for weeks, which
+#     makes `get machines` useless for spotting the next real failure. Granted
+#     on the status subresource only: the spec stays immutable, so this cannot
+#     retarget a Machine, only correct what it reports.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -194,6 +201,9 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: ["machines"]
     verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machines/status"]
+    verbs: ["update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachines", "scalewayapplesiliconmachines/status"]
     verbs: ["get", "list", "watch", "update", "patch"]
