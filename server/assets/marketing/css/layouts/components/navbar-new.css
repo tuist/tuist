@@ -109,14 +109,6 @@
           font: inherit;
           text-decoration: none;
 
-          /* Ring in the primary label color: it flips with the scheme by
-             construction, where a fixed neutral shade disappears against
-             one of the two backgrounds. */
-          &:focus-visible {
-            outline: 2px solid var(--noora-surface-label-primary);
-            outline-offset: 2px;
-          }
-
           /* Reduce padding on medium screens */
           @media (min-width: 960px) and (max-width: 1024px) {
             padding-right: var(--noora-spacing-2);
@@ -852,13 +844,11 @@
   & [data-part="feature"],
   & [data-part="link"],
   & [data-part="resource"] {
-    /* Inset ring: the panel clips its content (overflow: hidden for the
-       rounded corners) and these cards sit flush against its edges, so an
-       outside ring would be shaved wherever a card touches the panel. The
-       primary label color flips with the scheme, where a fixed neutral
-       shade disappears against one of the two backgrounds. */
+    /* The panel clips its content (overflow: hidden for the rounded
+       corners) and these cards sit flush against its edges — pull the
+       global focus ring (see marketing_new.css) inward so the clip can't
+       shave it. */
     &:focus-visible {
-      outline: 2px solid var(--noora-surface-label-primary);
       outline-offset: -2px;
       border-radius: var(--noora-radius-2);
     }
