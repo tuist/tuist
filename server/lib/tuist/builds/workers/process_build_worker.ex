@@ -139,6 +139,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
+  # `inserted_at` is deliberately carried over from the placeholder: it is the
+  # build's own timestamp and the table's partition key, and moving it would
+  # both misreport when the build ran and risk landing the replacement in a
+  # different monthly partition, where it could never dedup. Ordering the two
+  # rows is `updated_at`'s job, stamped per write in `Build.to_buffer_map/1`.
   defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
     case Builds.get_build(build_id, project_id: project_id) do
       {:error, :not_found} ->

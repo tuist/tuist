@@ -2,6 +2,13 @@ defmodule Tuist.Builds.Build do
   @moduledoc """
   A build represents a single build run of a project, such as when building an app from Xcode.
   This is a ClickHouse entity that stores build run data.
+
+  `build_runs` is `ReplacingMergeTree(updated_at)`: a build is written once as a
+  `processing` placeholder and again once `ProcessBuildWorker` has parsed its
+  xcactivitylog. `updated_at` is the dedup version and is stamped fresh on every
+  write, so the later row always wins; `inserted_at` stays the build's own
+  timestamp and the partition key. Callers must not carry `updated_at` over from
+  an existing row — `to_buffer_map/1` overwrites it for that reason.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -63,6 +70,7 @@ defmodule Tuist.Builds.Build do
     field :xcode_cache_upload_enabled, :boolean, default: false
     field :generation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    field :updated_at, Ch, type: "DateTime64(6)"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
@@ -172,6 +180,7 @@ defmodule Tuist.Builds.Build do
       %DateTime{} = dt -> DateTime.to_naive(dt)
       other -> other
     end)
+    |> Map.put(:updated_at, NaiveDateTime.utc_now())
     |> Map.new(fn
       {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}
       other -> other

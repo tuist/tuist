@@ -159,4 +159,26 @@ defmodule Tuist.Builds.BuildTest do
       assert Enum.any?(errors, &String.contains?(&1, "exceeds maximum length of 500 characters"))
     end
   end
+
+  describe "to_buffer_map/1" do
+    test "stamps a fresh updated_at instead of reusing the one carried over from a previous write" do
+      carried_over = ~N[2023-10-01 12:00:00.000000]
+
+      build = %Build{
+        id: "B12673DA-1345-4077-BB30-D7576FEACE09",
+        duration: 120,
+        is_ci: true,
+        project_id: 1,
+        account_id: 1,
+        status: "success",
+        inserted_at: carried_over,
+        updated_at: carried_over
+      }
+
+      buffer_map = Build.to_buffer_map(build)
+
+      assert buffer_map.inserted_at == carried_over
+      assert NaiveDateTime.after?(buffer_map.updated_at, carried_over)
+    end
+  end
 end

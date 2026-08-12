@@ -2,7 +2,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.Builds
+  alias Tuist.Builds.Build
   alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Processor.BuildProcessor
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -96,7 +100,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data()}
       end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.id == build.id
         assert attrs.project_id == project.id
         assert attrs.duration == 1200
@@ -120,7 +124,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data_with_machine_metrics()}
       end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert length(attrs.machine_metrics) == 2
 
         [first, second] = attrs.machine_metrics
@@ -150,7 +154,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :closed} end)
-      reject(&Tuist.Builds.create_build/1)
+      reject(&Builds.create_build/1)
 
       assert {:error, :closed} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 3))
@@ -163,7 +167,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :not_found} end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         {:ok, %{id: build.id}}
       end)
@@ -183,7 +187,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:error, "NIF not loaded"}
       end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         {:ok, %{id: build.id}}
       end)
@@ -196,7 +200,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       account: account,
       build: build
     } do
-      reject(&Tuist.Builds.create_build/1)
+      reject(&Builds.create_build/1)
       reject(&Tuist.Storage.download_to_file/3)
 
       assert {:discard, :project_not_found} =
@@ -212,7 +216,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
       expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
-      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+      expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
 
       vcs_params = %{
         "git_commit_sha" => "abc123",
@@ -240,7 +244,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
       expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
-      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+      expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
       assert :ok ==
@@ -258,7 +262,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:error, "boom"}
       end)
 
-      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+      expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
       assert {:error, _} =
@@ -274,7 +278,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :timeout} end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         assert attrs.duration == 0
         assert attrs.id == build.id
@@ -306,9 +310,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "git_commit_sha" => "abc123"
       }
 
-      expect(Tuist.Builds, :get_build, fn ^non_existent_build_id, _opts -> {:error, :not_found} end)
+      expect(Builds, :get_build, fn ^non_existent_build_id, _opts -> {:error, :not_found} end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         assert attrs.duration == 0
         assert attrs.id == non_existent_build_id
@@ -339,7 +343,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
       expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.id == build.id
         assert attrs.project_id == project.id
         assert attrs.account_id == account.id
@@ -395,7 +399,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data_with_cache}
       end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         refute Map.has_key?(attrs, :cacheable_tasks_count)
         refute Map.has_key?(attrs, :cacheable_task_local_hits_count)
         refute Map.has_key?(attrs, :cacheable_task_remote_hits_count)
@@ -420,13 +424,56 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, data_without_metrics}
       end)
 
-      expect(Tuist.Builds, :create_build, fn attrs ->
+      expect(Builds, :create_build, fn attrs ->
         assert attrs.machine_metrics == []
         {:ok, %{id: build.id}}
       end)
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+  end
+
+  describe "perform/1 deduplication" do
+    test "writes a processed row that supersedes the processing placeholder", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(BuildProcessor, :process_build, fn _, _ ->
+        {:ok, Map.put(parsed_data(), "targets", [])}
+      end)
+
+      assert :ok ==
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+
+      Build.Buffer.flush()
+
+      rows =
+        ClickHouseRepo.all(
+          from(b in Build,
+            where: b.project_id == ^project.id and b.id == ^build.id,
+            order_by: [asc: b.updated_at]
+          )
+        )
+
+      assert [placeholder, processed] = rows
+      assert placeholder.status == "processing"
+      assert processed.status == "success"
+
+      # Both rows describe the same build at the same point in time, so
+      # inserted_at cannot order them. Only a version that advances per write
+      # lets the merge and the read path pick the processed row.
+      assert placeholder.inserted_at == processed.inserted_at
+      assert NaiveDateTime.after?(processed.updated_at, placeholder.updated_at)
+
+      IngestRepo.query!("OPTIMIZE TABLE build_runs FINAL")
+
+      assert {:ok, merged} = Builds.get_build(build.id, project_id: project.id)
+      assert merged.status == "success"
+      assert merged.duration == 1200
     end
   end
 
@@ -441,7 +488,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       expect(BuildProcessor, :process_build, 2, fn _, _ -> {:ok, parsed_data()} end)
-      expect(Tuist.Builds, :create_build, 2, fn _attrs -> {:ok, %{id: build.id}} end)
+      expect(Builds, :create_build, 2, fn _attrs -> {:ok, %{id: build.id}} end)
 
       job = oban_job(job_args(build.id, account.id, project.id))
       ProcessBuildWorker.perform(job)
