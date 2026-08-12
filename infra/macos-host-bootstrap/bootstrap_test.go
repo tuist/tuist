@@ -496,16 +496,26 @@ func TestRenderSSHIngressGuardScript(t *testing.T) {
 		// loopback would read to it as a permanent wedge.
 		"pass in quick on lo0 proto tcp to any port 22",
 		"block drop in quick proto tcp to any port 22",
-		// Anchor-scoped load: `pfctl -f /etc/pf.conf` on a live host collides
-		// with the system ruleset and aborts, which terminal-fails the machine
-		// on the drift path.
-		"pfctl -a tuist.sshguard -f /etc/pf.anchors/tuist.sshguard",
-		"# BEGIN tuist.sshguard",
-		"# END tuist.sshguard",
+		// Must load under com.apple/, which the stock pf.conf already attaches
+		// to the live ruleset. See the no-pf.conf assertion below.
+		`pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard`,
+		// Re-arm on boot and on an interval, so the rules survive a reboot or
+		// an external ruleset flush without another SSH round trip.
+		"dev.tuist.pfctl-sshguard",
+		"<key>RunAtLoad</key>",
+		"<key>StartInterval</key>",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("renderSSHIngressGuardScript missing %q", want)
 		}
+	}
+	// The guard MUST NOT rely on a top-level anchor appended to /etc/pf.conf.
+	// That file is only read on a full ruleset load, which happens at boot, so
+	// on a live host `pfctl -a` would populate an anchor nothing evaluates
+	// while the drift update stamped HostConfigHash as converged: the guard
+	// would report shipped and silently filter nothing until a reboot.
+	if strings.Contains(s, "/etc/pf.conf") {
+		t.Error("guard touches /etc/pf.conf; a top-level anchor is not live until the next full load, so the rules would be inert on a running host")
 	}
 	// pf is first-match-wins across `quick` rules, so a block that renders above
 	// the passes would drop every management connection including our own.
@@ -599,5 +609,22 @@ func TestRenderVMNATScript_HelperIsValidSh(t *testing.T) {
 	}
 	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
 		t.Fatalf("helper is not valid sh: %v\n%s\n---\n%s", err, combined, body)
+	}
+}
+
+// The guard is delivered as nested heredocs, so a syntax error in it is
+// invisible until pf holds no rules on a live host, which reads exactly like
+// the wedge the guard exists to prevent.
+func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	script := filepath.Join(t.TempDir(), "tuist-ssh-ingress-guard")
+	if err := os.WriteFile(script, []byte(s), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("guard script is not valid sh: %v\n%s", err, combined)
 	}
 }

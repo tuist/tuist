@@ -2128,9 +2128,22 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // the public dial is dropped, the drift loop falls back to the tailnet,
 // and that push rewrites the table with the new address.
 //
+// The rules load into the `com.apple/tuist.sshguard` sub-anchor, the same
+// trick renderVMNATScript uses and for the same reason. A top-level
+// `anchor "tuist.sshguard"` appended to /etc/pf.conf only enters the live
+// ruleset when the whole file is loaded, which happens at boot; on a running
+// host `pfctl -a` would populate an anchor nothing evaluates, the drift update
+// would stamp HostConfigHash as converged, and the guard would sit inert until
+// the next reboot. The stock pf.conf already carries `anchor "com.apple/*"`,
+// so a sub-anchor underneath it is attached to the live ruleset from the
+// moment it is written, and it lands ahead of anything appended to the end of
+// pf.conf. That is also why nothing here edits /etc/pf.conf.
+//
+// A LaunchDaemon re-loads the anchor on boot and every 60s. The anchor file is
+// the source of truth, so the re-arm needs no SSH session and restores the
+// rules after a reboot or an external ruleset flush within a minute.
+//
 // Folded into the host config hash so an allow-list change re-pushes.
-// Reboot persistence rides the existing dev.tuist.pfctl-runners job,
-// which loads all of /etc/pf.conf and so picks up this anchor too.
 func renderSSHIngressGuardScript(cfg Config) (string, error) {
 	allow := ""
 	for _, cidr := range cfg.SSHIngressAllowCIDRs {
@@ -2171,26 +2184,46 @@ pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
 block drop in quick proto tcp to any port 22
 PFCONF
 
-# Manage the anchor block in /etc/pf.conf via begin/end markers, the
-# same strip-and-append shape the VM egress filter uses: any number of
-# pre-existing marker-delimited blocks get removed before the canonical
-# block is written.
-sudo sed -i.bak '/^# BEGIN tuist.sshguard$/,/^# END tuist.sshguard$/d' /etc/pf.conf
-sudo rm -f /etc/pf.conf.bak
-sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
-# BEGIN tuist.sshguard
-# Tuist runner SSH ingress guard, see /etc/pf.anchors/tuist.sshguard
-anchor "tuist.sshguard"
-load anchor "tuist.sshguard" from "/etc/pf.anchors/tuist.sshguard"
-# END tuist.sshguard
-PFCONFENTRY
-
-# Anchor-scoped load for the same reason the VM egress filter uses one:
-# 'pfctl -f /etc/pf.conf' on a live host collides with macOS's
-# system-managed ruleset and aborts, which would terminal-fail the
-# machine on the drift path.
+sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
+#!/bin/sh
+# Re-loads the SSH ingress guard into the com.apple/tuist.sshguard pf
+# sub-anchor (see installSSHIngressGuard in macos-host-bootstrap). The
+# anchor file is the source of truth, so this needs no SSH session and
+# re-converges after a reboot or an external ruleset flush. pfctl swaps
+# anchor contents atomically, so re-running is cheap and never leaves a
+# window with no rules.
+set -u
+[ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
+pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard
+SSHGUARD
+sudo chmod 0755 /usr/local/bin/tuist-pf-sshguard
 sudo pfctl -E 2>/dev/null || true
-sudo pfctl -a tuist.sshguard -f /etc/pf.anchors/tuist.sshguard
+sudo /usr/local/bin/tuist-pf-sshguard
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-sshguard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-sshguard</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pf-sshguard.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
+sudo launchctl bootout system/dev.tuist.pfctl-sshguard 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
 `, allow), nil
 }
 

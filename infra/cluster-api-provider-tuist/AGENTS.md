@@ -141,6 +141,16 @@ own source address. Notes:
 - It runs *after* Tailscale so it never narrows `:22` before the fallback path
   exists, and it no-ops entirely when Tailscale isn't wired: without a second
   path, a wrong allow list strands the host behind VNC.
+- The rules live in the `com.apple/tuist.sshguard` sub-anchor, the same trick
+  `renderVMNATScript` uses. A top-level `anchor` appended to `/etc/pf.conf` is
+  only read on a full ruleset load (i.e. at boot), so on a running host
+  `pfctl -a` would populate an anchor nothing evaluates while the drift update
+  stamped `HostConfigHash` as converged: the guard would report shipped and
+  filter nothing until a reboot. The stock pf.conf already carries
+  `anchor "com.apple/*"`, so a sub-anchor under it is live the moment it is
+  written. Nothing here edits `/etc/pf.conf`, and a test asserts that.
+  `dev.tuist.pfctl-sshguard` re-loads the anchor file at boot and every 60s, so
+  the rules survive a reboot or an external flush with no SSH round trip.
 - Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
   probe reads as a permanent wedge and reloads ssh every minute.
 - Folding the live session's source into the table makes the guard
