@@ -1621,13 +1621,21 @@ impl Proxy {
             // load per node on the serial task-setup thread. Storing the root
             // first therefore published a graph we already knew was incomplete.
             //
-            // Ordering it last makes "root present" mean "closure complete" for
-            // this author, which is exactly what that probe already tests. An
-            // incomplete closure leaves the root absent, so the plugin records no
-            // association and the next build resolves again — re-materializing,
-            // by then possibly in full. The CURRENT build loses nothing: its load
-            // of the root goes to FETCH_OBJECT, whose instructions stay
-            // registered for every node skipped here.
+            // Ordering it last stops THIS writer publishing a root over a hole,
+            // which is a property of the materializer and not of the store:
+            // `fetch_object` stores whatever single node it is asked for, and a
+            // withheld root keeps its instruction, so the demand load that
+            // follows the served value puts the root back standalone. After that
+            // the probe passes and the association is recorded. The ordering
+            // buys that this crate stops CREATING the state unconditionally, not
+            // that it cannot be reached. A closure check in `fetch_object` would
+            // cost the transitive walk the root-only probe exists to avoid.
+            //
+            // Repair is per object and on demand: every skipped node keeps its
+            // fetch instructions, and the load that needs one fetches it. The
+            // graph is not re-materialized on the next build, because the
+            // `resolved` fast path counts a value with registered instructions as
+            // present and serves the cached Hit. Latency, not a safety hole.
             let root_digest = manifest.first().map(|entry| entry.llcas_digest.clone());
             let is_root = |entry: &ManifestEntry| Some(&entry.llcas_digest) == root_digest.as_ref();
             let mut ordered: Vec<&ManifestEntry> =
@@ -1731,24 +1739,40 @@ impl Proxy {
                     instruction.contents = None;
                 }
             }
-            // Reported once, AFTER the pass, because the root can fail to land in
-            // two ways and only one of them is visible at its turn in the loop:
-            // it is withheld because a child was skipped, or its own blob was
-            // missing, undecompressible, or undecodable. Deciding this inside the
-            // loop missed the second case entirely, since nothing runs after the
-            // root, which left the store's most consequential outcome silent.
-            if root_pending && !root_stored {
+            // Reported once, AFTER the pass, in three distinct shapes. Deciding
+            // it at the root's turn in the loop saw only the first: nothing runs
+            // after the root, and a root already on disk never enters the loop at
+            // all. The counts are against `missing`, not `manifest`, because that
+            // is the set this pass was actually responsible for fetching:
+            // measuring against the whole graph reads as `skipped=1 of 40` when
+            // only two nodes were in play, which under-reports the failure rate
+            // this counter exists to trend.
+            let root_already_local = !root_pending;
+            if skipped > 0 || (root_pending && !root_stored) {
                 state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
                 let root_hex = root_digest
                     .as_deref()
                     .map(crate::analytics::hex_upper)
                     .unwrap_or_default();
-                if skipped > 0 {
+                if root_already_local {
+                    // The one this crate cannot withhold its way out of: the root
+                    // was stored by an earlier pass or a demand load, so it is
+                    // present over a closure this pass just failed to complete.
+                    // The read guard's probe passes and the association gets
+                    // recorded, which is why it is counted rather than treated as
+                    // a non-event.
+                    crate::log_line(&format!(
+                        "incomplete closure, root already local: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        missing.len()
+                    ));
+                } else if skipped > 0 {
                     crate::log_line(&format!(
                         "incomplete closure, root withheld: root={} skipped={} of {}",
                         root_hex,
                         skipped,
-                        manifest.len()
+                        missing.len()
                     ));
                 } else {
                     // The remote produced the children but not the root itself,
@@ -1758,7 +1782,7 @@ impl Proxy {
                     crate::log_line(&format!(
                         "incomplete closure, root unavailable: root={} of {}",
                         root_hex,
-                        manifest.len()
+                        missing.len()
                     ));
                 }
             }
@@ -4509,6 +4533,60 @@ mod tests {
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The case withholding cannot address: the root is ALREADY on disk, so it
+    /// never enters the loop (`missing` filters out whatever `is_local` answers
+    /// yes for) and there is nothing to withhold. An earlier pass or a demand
+    /// load put it there, and this pass then fails to complete its closure. The
+    /// read guard's probe passes and the association is recorded over the hole,
+    /// which makes this the shape most worth counting, not the least.
+    #[test]
+    fn an_incomplete_closure_under_an_already_local_root_is_counted() {
+        let dir = TempCasDir::new("root-already-local");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/already-local");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let root_entry = ManifestEntry {
+            llcas_digest: root.clone(),
+            blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
+            contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+        };
+
+        // First pass: the root alone, which lands.
+        proxy
+            .materialize_manifest(&remote, state, &[root_entry.clone()], observed)
+            .expect("materialize");
+        assert!(proxy.is_local(state, observed, &root), "the root is on disk now");
+
+        // Second pass over the same key, now with a child that cannot decode.
+        let manifest = vec![
+            root_entry,
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "1b".repeat(32), size_bytes: 5 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(!proxy.is_local(state, observed, &child), "the child still did not land");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "and the root stays present, because this pass never had it to withhold"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "so it must be COUNTED: keying the report off the withhold alone left \
+             the one case the read guard cannot catch as the only silent one"
+        );
     }
 
     /// The root can also fail on its own terms, and nothing runs after it: the
