@@ -388,35 +388,6 @@ func main() {
 		return labels, nil
 	}
 
-	// Golden advertisements and per-account cache-master advertisements share
-	// the one DynamicLabels slot. A cache-master scan failure degrades to
-	// "advertise no masters" rather than failing the whole provider: the server
-	// then simply has no residency preference for this host and hands it
-	// oldest-queued work, whereas failing outright would drop the golden labels
-	// too and cost the image-locality steering as well. The maintainer prunes
-	// `tuist.dev/*` labels it no longer owns, so a master evicted since the last
-	// heartbeat has its advertisement retired here with no extra bookkeeping.
-	dynamicLabelProvider := func(ctx context.Context) (map[string]string, error) {
-		labels, err := goldenLabelProvider(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cacheMasters, cacheErr := volumes.CacheMasterNodeLabels()
-		if cacheErr != nil {
-			setupLog.Error(cacheErr,
-				"cache-master advertisement scan failed; host advertises no resident masters this heartbeat")
-			return labels, nil
-		}
-		merged := make(map[string]string, len(labels)+len(cacheMasters))
-		for k, v := range labels {
-			merged[k] = v
-		}
-		for k, v := range cacheMasters {
-			merged[k] = v
-		}
-		return merged, nil
-	}
-
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:     mgr.GetClient(),
 		NodeName:   nodeName,
@@ -438,7 +409,18 @@ func main() {
 			}
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
-		DynamicLabels: dynamicLabelProvider,
+		DynamicLabels: []nodeagent.LabelAdvertisement{
+			{Name: "golden-images", Labels: goldenLabelProvider},
+			// Unlike goldens, a failed scan is NOT masked with the last good
+			// result. The scan reads the runner-cache root, so it typically
+			// fails because the volume is unmounted — in which case the masters
+			// really are unusable and advertising them would send warm-expecting
+			// work to a host that will materialize cold. Retiring the labels
+			// costs at most a heartbeat of oldest-queued dispatch.
+			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				return volumes.CacheMasterNodeLabels()
+			}},
+		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
