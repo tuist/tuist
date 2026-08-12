@@ -628,14 +628,39 @@ macosFleet:
   runnerCacheVolume:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free. A typical
-    # binary master is ~2.4 GB, so a 10 GiB binary budget still holds ~4x
-    # headroom while the CAS rides the same clone/promote/converge path. The
-    # guest is fail-safe: a store it cannot write falls back to a VM-local cold
-    # compilation cache, so a bad budget costs warmth, not the job.
-    masterCapGib: 28
-    casGib: 16
+    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
+    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
+    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
+    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # store it cannot write falls back to a VM-local cold compilation cache, so
+    # a bad budget costs warmth, not the job.
+    #
+    # The cap is bounded by admission, not by taste. Admission reserves
+    # masterCapGib for the branch it is admitting plus every branch already
+    # live, so with B branches already held the resident masters that survive
+    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
+    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
+    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
+    # which is what the fleet showed, hosts flapping between one master and
+    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
+    # covers the account set with dispatch affinity scoring on residency.
+    #
+    # Raising gib is NOT the alternative fix. Masters that survive scale as
+    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
+    # PEAK claim on the shared boot container by 60 GiB. There is no room for
+    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
+    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
+    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
+    # residents raises the volume's sustained floor, not that peak, which is
+    # why it fits where a bigger quota would not. gib also needs a host
+    # replacement (the provisioning script never resizes), while cap is an
+    # operator flag that rolls in place, so cap is the tunable one.
+    #
+    # If the tail ever does starve job VMs, lower gib rather than raising cap:
+    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
+    # master bytes. gib is the footprint lever, cap is the master-count lever.
+    masterCapGib: 20
+    casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
