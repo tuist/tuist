@@ -16,6 +16,9 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
   embed_templates "marketing_blog_post_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (blog_post_new/1) distinct from the legacy blog_post/1.
+  embed_templates "marketing_blog_post_live/new/*", suffix: "_new"
 
   def render(%{new_design: true} = assigns), do: blog_post_new(assigns)
   def render(assigns), do: blog_post(assigns)
