@@ -1779,11 +1779,16 @@ buildersFleet:
   # selectors of the workflows that schedule onto this fleet.
   ghOrg: tuist
   ghRunnerLabels: "self-hosted,macos,bare-metal,vm-image-builder"
+  # The actions/runner release installed on a host the first time it
+  # is bootstrapped. Unlike the guest runners, the host agent is
+  # configured without `--disableupdate`, so it self-updates from
+  # here; the pin only decides what a freshly-adopted host lands on.
   # Keep in sync with `runner_version` in
   # `infra/runner-image/runner.pkr.hcl` so the runner agent baked
   # into the runner-image guest matches the one running on the
   # host that bakes it. Renovate-tracked: bump both pins together.
-  ghRunnerVersion: "2.334.0"
+  # renovate: datasource=github-releases depName=actions/runner
+  ghRunnerVersion: "2.336.0"
   # Override the auto-derived Secret name (default:
   # `<fleetName>-gh-app`). Self-hosters who manage the Secret
   # out-of-band point at their own name here. The Secret has three
