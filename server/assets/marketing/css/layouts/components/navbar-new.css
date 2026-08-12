@@ -109,9 +109,11 @@
           font: inherit;
           text-decoration: none;
 
+          /* Ring in the primary label color: it flips with the scheme by
+             construction, where a fixed neutral shade disappears against
+             one of the two backgrounds. */
           &:focus-visible {
-            outline: 2px solid
-              light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-dark-1200));
+            outline: 2px solid var(--noora-surface-label-primary);
             outline-offset: 2px;
           }
 
@@ -852,10 +854,11 @@
   & [data-part="resource"] {
     /* Inset ring: the panel clips its content (overflow: hidden for the
        rounded corners) and these cards sit flush against its edges, so an
-       outside ring would be shaved wherever a card touches the panel. */
+       outside ring would be shaved wherever a card touches the panel. The
+       primary label color flips with the scheme, where a fixed neutral
+       shade disappears against one of the two backgrounds. */
     &:focus-visible {
-      outline: 2px solid
-        light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-dark-1200));
+      outline: 2px solid var(--noora-surface-label-primary);
       outline-offset: -2px;
       border-radius: var(--noora-radius-2);
     }
