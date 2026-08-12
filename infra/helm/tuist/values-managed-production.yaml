@@ -645,13 +645,20 @@ macosFleet:
     # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
     # covers the account set with dispatch affinity scoring on residency.
     #
-    # Watch the disk after changing this. The bug kept the volume near-empty
-    # (~28 GiB of one master), so restoring 2-3 residents actually occupies the
-    # quota (~60 GiB) and claims that much more of the shared boot container —
-    # 460 GiB with ~330 GiB free idle, but a single job VM's CoW growth
-    # transiently takes it to ~55 GiB. If that tail starts biting jobs, lower
-    # gib rather than raising cap: a smaller cap yields MORE total master bytes
-    # (masters fill to roughly gib - cap), so gib is the footprint lever.
+    # Raising gib is NOT the alternative fix. Masters that survive scale as
+    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
+    # PEAK claim on the shared boot container by 60 GiB. There is no room for
+    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
+    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
+    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
+    # residents raises the volume's sustained floor, not that peak, which is
+    # why it fits where a bigger quota would not. gib also needs a host
+    # replacement (the provisioning script never resizes), while cap is an
+    # operator flag that rolls in place, so cap is the tunable one.
+    #
+    # If the tail ever does starve job VMs, lower gib rather than raising cap:
+    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
+    # master bytes. gib is the footprint lever, cap is the master-count lever.
     masterCapGib: 20
     casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
