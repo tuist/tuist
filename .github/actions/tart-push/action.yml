@@ -18,12 +18,12 @@ inputs:
     default: "1"
   chunk-size:
     description: >-
-      Upload chunk size in megabytes. 0 uploads each blob monolithically,
-      which is what GHCR wants for images this size. GHCR rejects chunks of
-      4 megabytes and up, so chunked mode cannot send fewer than roughly one
-      request per 3 megabytes of image.
+      Upload chunk size in megabytes, or 0 for monolithic uploads. GHCR
+      rejects chunks of 4 megabytes and up, so 3 is the largest chunked
+      value it accepts. Monolithic was measured here and does not work at
+      this image size: see the comment on the push call below.
     required: false
-    default: "0"
+    default: "3"
 
 runs:
   using: composite
@@ -117,14 +117,25 @@ runs:
           attempt_log="${RUNNER_TEMP:-/tmp}/tart-push-${GITHUB_RUN_ID:-local}-${attempt}.log"
           echo "Tart push attempt ${attempt}/${TART_PUSH_ATTEMPTS} at $(date -u +%H:%M:%SZ)" >&2
 
-          # `--chunk-size 0` is Tart's monolithic upload. Chunking was
-          # introduced here to make a multi-gigabyte push resumable, but
-          # GHCR caps a chunk below 4 megabytes, so a ~50 gigabyte disk
-          # became on the order of 17,000 requests and started tripping
-          # GHCR's secondary rate limit a few minutes into every attempt.
-          # There is no middle setting to reach for: the ceiling is the
-          # value we were already using. Monolithic trades chunk-level
-          # resumability for one request per blob.
+          # Both upload modes were measured against this image on
+          # 2026-08-12, and 3 megabytes is the least bad of the two:
+          #
+          #   chunked, 3MB   ~17,000 requests for a ~50 gigabyte disk,
+          #                  roughly 120 per minute, which trips GHCR's
+          #                  secondary rate limit under load. GHCR
+          #                  rejects chunks of 4MB and up, so this is
+          #                  already the largest chunk it accepts.
+          #   monolithic     one request per blob, no rate limiting seen,
+          #                  but every attempt died with "The request
+          #                  timed out" partway through the disk (best
+          #                  attempt reached 42%). A single multi-hour
+          #                  request has no way to resume, so a hiccup
+          #                  restarts the whole blob.
+          #
+          # Do not "fix" a rate-limited push by reaching for a larger
+          # chunk or for monolithic. The levers that remain are the retry
+          # budget below, not pushing several large images concurrently,
+          # and the image size itself.
           if tart push \
             --concurrency "$TART_PUSH_CONCURRENCY" \
             --chunk-size "$TART_PUSH_CHUNK_SIZE" \
