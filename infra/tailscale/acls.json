@@ -173,7 +173,7 @@
 		// `*.svc.cluster.local` names. Subnet-routed destinations are
 		// matched by CIDR, not by the router's tag, hence the literal
 		// prefix in dst. Per-account isolation is enforced at the Kura
-		// app layer (the tuist.lua tenant hook verifies the build's JWT),
+		// app layer (Kura's authorization verifies the build's JWT),
 		// same as for Linux runners.
 		//
 		// Staging only for now: all envs share this Service CIDR, so the
