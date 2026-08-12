@@ -147,14 +147,17 @@ defmodule Tuist.Runners do
   # operational meaning of the hard rule that affinity never delays a job.
   @volume_affinity_top_k 20
 
-  # A host materializes one job at a time and evicts masters LRU, so passing
-  # the head over buys a warm materialize whose saving is measured in build
-  # minutes, not seconds. It also returns the host to the pool sooner, so the
-  # trade is not purely the head's loss. 30s was too tight to ever pay out:
-  # in the bursts where placement matters most the head is almost always
-  # older than that, which bypassed affinity exactly when it mattered. This
-  # is the first knob to walk back if dispatch queue-latency p95 regresses.
-  @volume_affinity_age_tolerance_seconds 120
+  # Queue latency is not spent to buy cache warmth. Past this age the head is
+  # handed out even when a resident candidate is queued behind it, which caps
+  # any job's affinity-induced delay at the tolerance.
+  #
+  # This bounds REORDERING only, not warmth: `select_candidate/3` checks whether
+  # the head's own account is resident before it checks the age, so an overdue
+  # head still lands warm whenever its master is already on the node. What the
+  # tolerance gives up is the narrower case of passing an older job over for a
+  # younger resident one, and it gives it up exactly when the fleet is backed
+  # up and throughput matters more than any single job's warmth.
+  @volume_affinity_age_tolerance_seconds 30
 
   # How many per-account masters a host is assumed to still hold. Helm derives
   # it from the same `macosFleet.runnerCacheVolume` values that bound admission
