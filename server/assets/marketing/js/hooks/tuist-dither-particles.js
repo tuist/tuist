@@ -16,12 +16,18 @@
  * layer and blits it, so the animation stays cheap no matter how many
  * particles there are.
  *
- * After the reveal, hovering scatters the particles (physics ported from
- * asmitbm/dither-tool): particles inside the cursor's influence radius are
- * pushed away with a cubic falloff, a spring pulls them back to rest,
- * friction damps the motion and a position decay caps the trail. The
- * physics loop only runs while the cursor is near or particles are still
- * settling. Static (fully drawn, no hover) under prefers-reduced-motion.
+ * After the reveal, hovering scatters the particles (look modeled on
+ * asmitbm/dither-tool): each particle owes a displacement target — its rest
+ * spot pushed radially away from the cursor with a cubic falloff — and
+ * chases it with an under-damped spring, which gives the overshoot and the
+ * trailing lag behind a sweeping cursor. The target is a pure function of
+ * the cursor and the rest position, so a stationary cursor yields a
+ * stationary equilibrium the spring provably converges to (a force
+ * integrator here had a limit cycle: particles under a still cursor
+ * jittered forever, worse on slow frames). The loop pauses whenever both
+ * movement and spring tension die out — equilibrium under the cursor or
+ * fully returned — and mousemove/mouseleave restart it. Static under
+ * prefers-reduced-motion.
  */
 
 import { TUIST_DITHER } from "./tuist-dither-data.js";
@@ -42,13 +48,17 @@ const REVEAL_TICK_HZ = 24; // quantized appends — dithery cadence without chun
 // 0 = a hard top→bottom sweep, 1 = pure scatter with no direction.
 const REVEAL_JITTER = 0.45;
 
-// Hover physics (dither-tool's defaults, in artwork px where relevant).
+// Hover physics (artwork px where relevant). Particles chase their target
+// with a lightly under-damped spring: stiffness sets the tempo (settle time
+// is roughly 2π/√stiffness), damping sets the bounce — critical damping is
+// 2·√stiffness (≈26 here), lower rings longer. The current pair sits just
+// under critical (damping ratio ≈0.77): a whisper of overshoot and a
+// trailing lag, close to the original dither-tool tightness.
 const PHYS_RADIUS = 100; // cursor influence radius
-const PHYS_PUSH = 50; // push strength
-const PHYS_RETURN = 0.05; // spring return speed per frame
-const PHYS_FRICTION = 0.85; // velocity damping per frame
-const PHYS_DECAY = 0.8; // per-frame lerp back toward rest (trail limiter)
-const PHYS_SETTLE = 0.05; // displacement/velocity below this = settled
+const PHYS_PUSH = 50; // max radial displacement at the cursor core
+const PHYS_STIFFNESS = 170; // spring stiffness toward the target, 1/s²
+const PHYS_DAMPING = 20; // velocity decay, 1/s
+const PHYS_SETTLE = 0.05; // movement AND spring tension below this = settled
 
 // Stable per-particle hash (0..1) jittering a particle's reveal order.
 function particleHash(x, y) {
@@ -161,6 +171,9 @@ export const TuistDitherParticles = {
       };
       this.onLeave = () => {
         this.mouse = null;
+        // The loop pauses at equilibrium while hovered, so the return trip
+        // needs an explicit restart.
+        this.startPhysics();
       };
       this.gridEl.addEventListener("mousemove", this.onMove);
       this.gridEl.addEventListener("mouseleave", this.onLeave);
@@ -292,10 +305,18 @@ export const TuistDitherParticles = {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       const settled = this.stepPhysics(dt);
-      if (settled && !this.mouse) {
-        this.snapToRest();
-        this.draw();
+      if (settled) {
+        // Movement stopped: pause the loop instead of redrawing identical
+        // frames (the redraw churn itself read as flicker on slower
+        // browsers). Under a stationary cursor the scattered pose holds;
+        // the next mousemove or mouseleave restarts the loop.
         this.physRaf = null;
+        if (this.mouse) {
+          this.drawPhysics();
+        } else {
+          this.snapToRest();
+          this.draw();
+        }
         return;
       }
       this.drawPhysics();
@@ -304,15 +325,21 @@ export const TuistDitherParticles = {
     this.physRaf = requestAnimationFrame(tick);
   },
 
-  // One physics step (dither-tool's model): cubic-falloff push away from
-  // the cursor, spring back to rest, friction, then a position decay that
-  // caps how far the trail can stretch. Returns true when everything has
-  // settled back to rest.
+  // One step of the hover displacement. Each particle's target is its rest
+  // spot pushed radially away from the cursor (cubic falloff, computed from
+  // the REST position — no feedback from the current position, so the
+  // target is a true fixed point). Positions chase the target with an
+  // under-damped spring (semi-implicit Euler; damping applied as an exact
+  // exponential so slow frames don't ring harder): the overshoot on the way
+  // out and the lag behind a sweeping cursor are the spring/trail feel, and
+  // because the target is fixed the spring provably converges — unlike the
+  // old force integrator, which orbited a limit cycle under a still cursor.
+  // Returns true only when both movement and remaining spring tension are
+  // negligible, so the loop can't pause at the top of an overshoot arc.
   stepPhysics(dt) {
     const m = this.mouse;
-    const f = dt * 60;
+    const damp = Math.exp(-PHYS_DAMPING * dt);
     const radiusSq = PHYS_RADIUS * PHYS_RADIUS;
-    const decayD = 1 - Math.pow(1 - PHYS_DECAY, f);
     let maxSq = 0;
     for (let s = 0; s < this.phys.length; s++) {
       const runs = this.reveal[s].runs;
@@ -320,29 +347,37 @@ export const TuistDitherParticles = {
       for (let k = 0; k < cx.length; k++) {
         const rx = runs[k * 3];
         const ry = runs[k * 3 + 1];
+        let tx = rx;
+        let ty = ry;
         if (m) {
-          const dx = cx[k] - m.x;
-          const dy = cy[k] - m.y;
+          const dx = rx - m.x;
+          const dy = ry - m.y;
           const dSq = dx * dx + dy * dy;
-          if (dSq < radiusSq && dSq > 0.01) {
+          if (dSq < radiusSq) {
             const dist = Math.sqrt(dSq);
             const t = 1 - dist / PHYS_RADIUS;
-            const force = PHYS_PUSH * t * t * t * f;
-            vx[k] += (dx / dist) * force;
-            vy[k] += (dy / dist) * force;
+            const push = PHYS_PUSH * t * t * t;
+            if (dist > 0.01) {
+              tx = rx + (dx / dist) * push;
+              ty = ry + (dy / dist) * push;
+            } else {
+              // Cursor dead on the rest spot: push along a stable,
+              // hash-picked direction instead of dividing by zero.
+              const ang = particleHash(rx, ry) * 6.28318;
+              tx = rx + Math.cos(ang) * push;
+              ty = ry + Math.sin(ang) * push;
+            }
           }
         }
-        vx[k] += (rx - cx[k]) * PHYS_RETURN;
-        vy[k] += (ry - cy[k]) * PHYS_RETURN;
-        vx[k] *= PHYS_FRICTION;
-        vy[k] *= PHYS_FRICTION;
-        cx[k] += vx[k] * f;
-        cy[k] += vy[k] * f;
-        cx[k] += (rx - cx[k]) * decayD;
-        cy[k] += (ry - cy[k]) * decayD;
-        const ox = cx[k] - rx;
-        const oy = cy[k] - ry;
-        const sq = Math.max(ox * ox + oy * oy, vx[k] * vx[k] + vy[k] * vy[k]);
+        const ex = tx - cx[k];
+        const ey = ty - cy[k];
+        vx[k] = (vx[k] + ex * PHYS_STIFFNESS * dt) * damp;
+        vy[k] = (vy[k] + ey * PHYS_STIFFNESS * dt) * damp;
+        const mx = vx[k] * dt;
+        const my = vy[k] * dt;
+        cx[k] += mx;
+        cy[k] += my;
+        const sq = Math.max(mx * mx + my * my, ex * ex + ey * ey);
         if (sq > maxSq) maxSq = sq;
       }
     }
