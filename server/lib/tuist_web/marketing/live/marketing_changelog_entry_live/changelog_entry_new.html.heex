@@ -1,0 +1,39 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-changelog-entry" phx-hook="CodeCopy">
+    <article data-part="article">
+      <header data-part="header">
+        <div data-part="breadcrumb">
+          <a href={~p"/changelog"}>{dgettext("marketing", "Changelog")}</a>
+          <.math_slash aria-hidden="true" />
+          <span>{@entry.category}</span>
+        </div>
+
+        <h1 data-part="title">{@entry.title}</h1>
+
+        <div data-part="metadata">
+          <span data-part="date">{Timex.format!(@entry.date, "{Mfull} {D}, {YYYY}")}</span>
+          <span :if={not is_nil(@entry.pull_request)} data-part="separator" aria-hidden="true">
+            &bull;
+          </span>
+          <div :if={not is_nil(@entry.pull_request)} data-part="pr">
+            <.button
+              variant="secondary"
+              size="medium"
+              label={"##{@entry.pull_request}"}
+              href={"https://github.com/tuist/tuist/pull/#{@entry.pull_request}"}
+              target="_blank"
+            >
+              <:icon_left>
+                <.git_merge />
+              </:icon_left>
+            </.button>
+          </div>
+        </div>
+      </header>
+
+      <section id="changelog-entry-content" data-part="content" data-prose>
+        {raw(TuistWeb.Marketing.MarketingHTML.content_html(@entry.body))}
+      </section>
+    </article>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
