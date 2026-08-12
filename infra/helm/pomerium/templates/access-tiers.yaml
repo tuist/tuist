@@ -181,6 +181,14 @@ rules:
 #   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
 #     failure so the drift loop retries. No delete: the CAPI Machine delete
 #     cascades to the infra machine on its own.
+#   * scalewayapplesiliconmachinetemplates update/patch — heal spec drift on the
+#     template a MachineSet clones. Helm patches these CRs manifest-to-manifest,
+#     so a field the live object never received is never backfilled, and an
+#     invalid clone fails every scale-up. Without this verb the `machines` delete
+#     above is a one-way trapdoor: the operator can retire a host but the
+#     MachineSet cannot recreate it, and repairing the template needs
+#     break-glass. Update/patch only — create/delete would change which template
+#     a fleet renders from, which is fleet management.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -196,6 +204,9 @@ rules:
     verbs: ["get", "list", "watch", "delete"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachines", "scalewayapplesiliconmachines/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
