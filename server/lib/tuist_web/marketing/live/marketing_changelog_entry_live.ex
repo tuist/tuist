@@ -11,6 +11,9 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias TuistWeb.Marketing.Design
 
   embed_templates "marketing_changelog_entry_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (changelog_entry_new/1) distinct from the legacy changelog_entry/1.
+  embed_templates "marketing_changelog_entry_live/new/*", suffix: "_new"
 
   def render(%{new_design: true} = assigns), do: changelog_entry_new(assigns)
   def render(assigns), do: changelog_entry(assigns)
