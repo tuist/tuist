@@ -70,6 +70,7 @@ const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
 const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
@@ -1286,7 +1287,13 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
+        // Usage reporting and authorization talk to the same Tuist server, so a
+        // node that has been told where it is for one purpose has been told for
+        // both. Without this a deployment that sets only the authorization URL
+        // alongside control-plane credentials fails the all-or-nothing check
+        // below and the node refuses to start.
         let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| lookup(KURA_AUTH_TUIST_URL))
             .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1752,6 +1759,49 @@ mod tests {
         let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
             .expect_err("a key-value limit above the inline ceiling must fail");
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    // The configuration the self-hosting guides tell operators to write: the
+    // authorization URL plus control-plane credentials, and no
+    // KURA_CONTROL_PLANE_URL. Usage reporting reads the same server, so this
+    // has to resolve rather than trip the all-or-nothing check.
+    #[test]
+    fn usage_reporting_accepts_the_authorization_url_as_its_control_plane_url() {
+        let config = config_from(&[
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("the documented self-hosted configuration must start");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://tuist.acme.internal");
+    }
+
+    #[test]
+    fn an_explicit_control_plane_url_still_wins() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://usage.acme.internal"),
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("config should build");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://usage.acme.internal");
+    }
+
+    // Credentials without any URL at all is still a half-configured node.
+    #[test]
+    fn credentials_without_any_server_url_are_still_rejected() {
+        let error = config_from(&[
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect_err("credentials with no server URL must fail");
+
+        assert!(error.contains(KURA_CONTROL_PLANE_URL));
     }
 
     #[test]
