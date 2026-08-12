@@ -3,6 +3,7 @@ mod action_cache_refs;
 mod analytics;
 mod app;
 mod artifact;
+mod auth;
 mod backfill;
 mod bandwidth;
 mod config;
