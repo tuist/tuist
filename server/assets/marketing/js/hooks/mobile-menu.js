@@ -42,6 +42,8 @@ export const MobileMenu = {
     const isOpen = this.isOpen || false;
     navbar.dataset.mobileMenuOpen = isOpen ? "true" : "false";
     this.el.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    // Drives the NooraIconTransition morph (menu <-> close).
+    this.el.dataset.state = isOpen ? "open" : "closed";
     document.body.style.overflow = isOpen ? "hidden" : "";
   },
 
@@ -65,6 +67,8 @@ export const MobileMenu = {
       this.isOpen = state;
       navbar.dataset.mobileMenuOpen = state ? "true" : "false";
       button.setAttribute("aria-expanded", state ? "true" : "false");
+      // Drives the NooraIconTransition morph (menu <-> close).
+      button.dataset.state = state ? "open" : "closed";
       document.body.style.overflow = state ? "hidden" : "";
     };
 
@@ -86,5 +90,16 @@ export const MobileMenu = {
 
     addListener(button, "click", toggleMenu);
     addListener(document, "keydown", handleEscape);
+
+    // Force-close when the viewport grows past the mobile breakpoint (e.g.
+    // leaving responsive mode in devtools), so the open state and the body
+    // scroll lock never leak into the desktop layout.
+    const desktopQuery = window.matchMedia("(min-width: 961px)");
+    const handleViewportChange = () => {
+      if (desktopQuery.matches && this.isOpen) {
+        setOpenState(false);
+      }
+    };
+    addListener(desktopQuery, "change", handleViewportChange);
   },
 };

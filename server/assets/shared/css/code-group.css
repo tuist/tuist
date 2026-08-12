@@ -2,13 +2,15 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  box-shadow:
-    0 1px 1px 0 rgba(22, 24, 28, 0.05),
-    0 0 0 1px rgba(46, 51, 56, 0.08),
-    0 1px 1px 0 rgba(46, 51, 56, 0.1);
-  border-radius: 12px;
+  /* Seam between the tabs header and the code box (the single code-window
+     uses 4px — see code-window.css). */
+  gap: 6px;
+  box-shadow: var(--noora-light-border-default);
+  border-radius: 8px;
   background: var(--noora-surface-background-primary);
-  padding: 4px;
+  /* No shell padding: the code box sticks to the component's edges and the
+     header carries its own insets. */
+  padding: 0;
   min-width: 0;
   max-width: 100%;
 
@@ -18,16 +20,17 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--noora-surface-border-primary);
-    padding: 4px 8px;
+    /* 8px sides/top, 2px seam to the code box below (the 32px copy button
+       sets the header's height). */
+    padding: 8px 8px 2px;
 
     & > [data-part="tabs"] {
       display: flex;
+      position: relative;
       flex: 1;
       flex-direction: row;
       align-items: center;
-      gap: 24px;
-      padding: 2px 0 12px;
+      gap: 8px;
       min-width: 0;
       overflow-x: auto;
       scrollbar-width: none;
@@ -36,14 +39,20 @@
         display: none;
       }
 
+      /* Tabs are pills: every tab carries the 8px/4px padding so the row
+         doesn't shift when the selection (and its background) moves. */
       & > [data-part="tab"] {
         position: relative;
         flex-shrink: 0;
         appearance: none;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
         cursor: pointer;
         border: none;
+        border-radius: var(--noora-radius-3);
         background: transparent;
-        padding: 0;
+        padding: 4px 8px;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         white-space: nowrap;
@@ -53,64 +62,126 @@
         }
 
         &[data-selected="true"] {
+          background: var(--noora-surface-background-secondary);
           color: var(--noora-surface-label-primary);
+        }
+      }
 
-          &::after {
-            position: absolute;
-            right: 0;
-            bottom: -12px;
-            left: 0;
-            border-radius: 1px;
-            background: var(--noora-surface-label-primary);
-            height: 2px;
-            content: "";
+      /* The floating pill that slides between tabs (injected and positioned
+         by code-group.js). It renders before the tabs so their labels paint
+         above it — both are positioned, so tree order decides. */
+      & > [data-part="tab-pill"] {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-secondary);
+        pointer-events: none;
+
+        &[data-ready] {
+          transition:
+            transform 200ms var(--ease-out-cubic),
+            width 200ms var(--ease-out-cubic),
+            height 200ms var(--ease-out-cubic);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          &[data-ready] {
+            transition: none;
           }
         }
       }
+
+      /* Once the animated pill is live, it owns the selected background. */
+      &[data-animated] > [data-part="tab"][data-selected="true"] {
+        background: transparent;
+      }
     }
 
+    /* The button itself is Noora's neutral button (large): its class
+       provides the surface, hover/active states and radius. Only the fixed
+       32px box, the icon-swap and the "Copied" tooltip are ours. */
     & > [data-part="copy"] {
-      display: flex;
+      display: inline-grid;
+      position: relative;
+      box-sizing: border-box;
       flex-shrink: 0;
-      justify-content: center;
-      align-items: center;
+      place-items: center;
       align-self: center;
-      cursor: pointer;
       border: none;
-      border-radius: 6px;
-      background: var(--noora-surface-background-primary);
-      padding: 6px;
-      padding-left: 12px;
-      color: var(--noora-button-neutral-label);
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      /* Rapid clicks escalate to double/triple-click selection, which would
+         otherwise spill onto the code's first line. */
+      user-select: none;
 
-      & svg {
-        width: 20px;
-        height: 20px;
+      /* Noora's `> span` rule pads label spans; the icon wrappers aren't
+         labels. */
+      & > span {
+        padding: 0;
       }
 
+      /* Sized here because the icons sit inside the data-part spans, out of
+         reach of Noora's direct-child `> svg` size rules. */
+      & svg {
+        width: var(--noora-icon-size-large);
+        height: var(--noora-icon-size-large);
+      }
+
+      /* Copy → check swap: stacked-grid crossfade where the hidden icon
+         sits at half scale, so the swap fades and grows in rather than
+         flipping. */
       & [data-part="copy-icon"],
       & [data-part="copy-check-icon"] {
-        display: flex;
+        display: inline-flex;
+        grid-area: 1 / 1;
+        opacity: 1;
+        transform: scale(1);
+        transition:
+          opacity 200ms ease-in-out,
+          transform 200ms ease-in-out;
       }
 
       & [data-part="copy-check-icon"] {
-        display: none;
+        opacity: 0;
+        transform: scale(0.5);
       }
 
       &[data-copied] [data-part="copy-icon"] {
-        display: none;
+        opacity: 0;
+        transform: scale(0.5);
       }
 
       &[data-copied] [data-part="copy-check-icon"] {
-        display: flex;
+        opacity: 1;
+        transform: scale(1);
       }
 
-      &:hover {
-        opacity: 0.7;
+      @media (prefers-reduced-motion: reduce) {
+        & [data-part="copy-icon"],
+        & [data-part="copy-check-icon"] {
+          transition: none;
+        }
       }
 
-      &:active {
-        opacity: 0.5;
+      /* "Copied" bubble above the button while the check is flashed (the JS
+         holds data-copied for 2s). Styled after Noora's tooltip. */
+      &[data-copied]::after {
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: var(--noora-z-index-12);
+        box-shadow: var(--noora-tooltip-border);
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-tooltip-background);
+        padding: var(--noora-spacing-2) var(--noora-spacing-3);
+        width: max-content;
+        color: var(--noora-tooltip-label-primary);
+        font: var(--noora-font-body-small);
+        pointer-events: none;
+        content: "Copied";
       }
     }
   }
@@ -143,4 +214,13 @@
       }
     }
   }
+}
+
+/* Match the code-window's stronger dark-mode shell border (the light token
+   is too faint on dark surfaces). */
+html[data-theme="dark"] .code-group {
+  box-shadow:
+    0px 1px 1px 0px rgb(14 14 14 / 0.3),
+    0px 0px 0px 1px rgb(113 113 113 / 0.45),
+    0px 2px 3px 0px rgb(0 0 0 / 0.3);
 }

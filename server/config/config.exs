@@ -63,6 +63,26 @@ config :esbuild,
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
+  # CSS-only bundle for the redesigned marketing pages. The root layout links
+  # bundle-new.css instead of bundle.css when TuistWeb.Marketing.Design flags
+  # the page onto the new design; JS stays in the shared marketing bundle.
+  marketing_new: [
+    args: [
+      "marketing_new.css",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--outfile=../../priv/static/marketing/assets/bundle-new.css",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--external:/marketing/*",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
+    cd: Path.expand("../assets/marketing", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
   docs: [
     args: [
       "docs.js",

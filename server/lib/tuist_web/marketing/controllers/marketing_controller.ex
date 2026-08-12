@@ -14,6 +14,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
 
   plug :assign_default_head_tags
@@ -41,23 +42,198 @@ defmodule TuistWeb.Marketing.MarketingController do
   def home(conn, _params) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
 
-    conn
-    |> assign(:head_title, "Tuist")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+    conn =
+      conn
+      |> assign(:head_title, "Tuist")
+      |> assign(
+        :head_description,
+        dgettext(
+          "marketing",
+          "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+        )
       )
-    )
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: home_open_graph_image_path())
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:featured_testimonials, get_featured_testimonials(locale))
-    |> assign(:testimonial_columns, get_testimonial_columns(locale))
-    |> render(:home, layout: false)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: home_open_graph_image_path())
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign(:featured_testimonials, get_featured_testimonials(locale))
+      |> assign(:testimonial_columns, get_testimonial_columns(locale))
+
+    if Design.new?(conn, :home) do
+      conn
+      |> assign(:new_design, true)
+      |> assign(:home_new_testimonials, get_home_new_testimonials())
+      |> render(:home_new, layout: false)
+    else
+      render(conn, :home, layout: false)
+    end
+  end
+
+  # The new home's testimonial marquee: two rows in the design's order,
+  # reusing the existing testimonial entries (quotes stay translatable
+  # through their original dgettext calls) plus the OpenAI quote.
+  # The Toss quotes sit antipodally within each row (4 apart on the 8-card
+  # marquee loop, so two can't share the ~3-card viewport — "2nd last" would
+  # wrap around next to the 1st at the loop seam), and the two rows' pairs
+  # are staggered against each other to keep cross-row coincidences rare.
+  @home_new_testimonial_rows [
+    [:junyoung, "Alon Zilbershtein", "Shahzad Majeed", "Kai Oelfke", :hyojun, :openai, :yusuf, :wojtek],
+    ["Garnik Harutyunyan", :fetch, :jinkyu, "Yousef Moahmed", :gustavo, "Cedric Gatay", :wanbok, "Alberto Salas"]
+  ]
+
+  defp get_home_new_testimonials do
+    testimonials = List.flatten(get_english_testimonial_columns())
+
+    Enum.map(@home_new_testimonial_rows, fn row ->
+      Enum.map(row, fn
+        :openai -> get_openai_testimonial()
+        :fetch -> get_fetch_testimonial()
+        :wojtek -> get_wojtek_testimonial()
+        :gustavo -> get_gustavo_testimonial()
+        :yusuf -> get_yusuf_testimonial()
+        :junyoung -> get_junyoung_testimonial()
+        :hyojun -> get_hyojun_testimonial()
+        :jinkyu -> get_jinkyu_testimonial()
+        :wanbok -> get_wanbok_testimonial()
+        name -> Enum.find(testimonials, &(&1.name == name))
+      end)
+    end)
+  end
+
+  defp get_openai_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist has made a meaningful difference to developer productivity across our growing iOS engineering organization which means faster iteration for both our engineers and coding agents working alongside them. Tuist has helped us turn build performance into a scalable advantage"
+        ),
+      name: "Eric Burke",
+      role: dgettext("marketing", "Member of Technical Staff, OpenAI"),
+      avatar_src: "/marketing/images/home/testimonials/eric.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_fetch_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist has made a real difference in how we work with Fetch's large, highly modular iOS codebase. Its remote module cache has materially reduced build times and tightened feedback loops for engineers locally and in CI, while Build Insights gives us valuable visibility into build performance and where to focus next. That combination of speed and observability has made the developer experience meaningfully better."
+        ),
+      name: "Greg Young",
+      role: dgettext("marketing", "Senior iOS Engineer at Fetch"),
+      avatar_src: "/marketing/images/home/testimonials/greg.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_yusuf_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist cuts our build times by 65% and reduces project conflicts, letting us focus on developer experience and testing. Hundreds of devs across multiple organizations, alongside AI agents, collaborate on Trendyol. Tuist is key to running tens of thousands of UI and unit tests across thousands of pipelines every day."
+        ),
+      name: "Yusuf Özgül",
+      role: dgettext("marketing", "Senior Software Engineer II at Trendyol"),
+      avatar_src: "/marketing/images/home/testimonials/yusuf.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_gustavo_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Since adopting Tuist as our iOS build system and Gradle remote caching solution, the results have been nothing short of incredible. It's directly impacted both our CI and local build times, and increased the visibility of our platform through Tuist's insights dashboard. We're now seeing a 64% reduction in CI time and 4x faster clean builds. It's been just a month since we completed the integration, and the value is already showing across the company."
+        ),
+      name: "Gustavo Tiago",
+      role: dgettext("marketing", "Senior Software Engineer at SafetyCulture"),
+      avatar_src: "/marketing/images/home/testimonials/gustavo.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_wojtek_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
+        ),
+      name: "Wojtek Mandrysz",
+      role: dgettext("marketing", "Senior Software Engineer at Zabka"),
+      avatar_src: "/marketing/images/home/testimonials/wojtek.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_junyoung_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist made git worktrees practical on our huge codebase. Worktrees used to be painful here — every new one ate serious disk space, opening the project over and over had real overhead, and each fresh worktree meant another clean build. Tuist shrank all of those hurdles, so now I spin up worktrees without hesitation — which is exactly what AI-assisted development needs."
+        ),
+      name: "Junyoung Jung",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/junyoung.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_hyojun_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "With Tuist's development cache and focused modules, our local feedback loop got dramatically shorter. A build that took around 4 minutes drops to about 25 seconds on the next run — 123 of 124 targets served straight from cache. The feeling of facing the entire project on every build is gone; I just iterate on the modules I'm actually changing, and I rarely think about project file conflicts anymore."
+        ),
+      name: "Hyojun Park",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/hyojun.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_jinkyu_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Our workspace definition became pure Swift code. Touching the project structure used to mean editing .pbxproj files whose diffs no human can read; now each domain team declares and owns its module configuration in Swift, and structure changes are reviewable diffs. Dependencies became visible data too — with the module graph declared in code, we finally have concrete, shared data to ground our dependency discussions."
+        ),
+      name: "Jinkyu Kim",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/jinkyu.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  defp get_wanbok_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "It's now trivial to spin up a compact Example app for any module. Even app extensions like widgets and Live Activities can be wrapped in their own Example apps just as easily. Instead of launching the entire app to try something out, I work against a small app that contains only the part I care about — and that alone changes how quickly you can iterate."
+        ),
+      name: "Wanbok Choi",
+      role: dgettext("marketing", "iOS Developer at Toss"),
+      avatar_src: "/marketing/images/home/testimonials/wanbok.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
   end
 
   defp get_featured_testimonials("ko") do
@@ -146,7 +322,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           quote:
             dgettext(
               "marketing",
-              "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+              "It made the transition to SPM and the migration of our private pods to our monorepo super easy. We were able to create a framework template, making the option to build a modular project very simple. After integrating Tuist, we reduced our build time by 30%! We have no more project file conflicts and honestly - once you try it, you'll never go back"
             ),
           name: "Alon Zilbershtein",
           role: "Staff Software Engineer at Chegg",
@@ -163,7 +339,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
             ),
           name: "Garnik Harutyunyan",
-          role: "Senior iOS developer at FREENOW",
+          role: "Senior iOS Developer at FREENOW",
           avatar_src: "/marketing/images/home/testimonials/garnik.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -178,7 +354,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
             ),
           name: "Shahzad Majeed",
-          role: "Sr Lead Software Engineer at DraftKings",
+          role: "Senior Software Engineer at DraftKings",
           avatar_src: "/marketing/images/home/testimonials/shahzad.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -202,7 +378,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
             ),
           name: "Yousef Moahmed",
-          role: "Senior iOS Dev at Bazargate",
+          role: "Senior iOS Developer at Bazargate",
           avatar_src: "/marketing/images/home/testimonials/yousef.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -217,7 +393,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
             ),
           name: "Kai Oelfke",
-          role: "Indie developer",
+          role: "Indie Developer",
           avatar_src: "/marketing/images/home/testimonials/kai.jpeg",
           highlighted: false,
           logo_svg: nil
@@ -229,7 +405,7 @@ defmodule TuistWeb.Marketing.MarketingController do
               "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
             ),
           name: "Cedric Gatay",
-          role: "iOS Lead Dev (Contractor) at Chanel",
+          role: "iOS Lead Developer (Contractor) at Chanel",
           avatar_src: "/marketing/images/home/testimonials/cedric.jpeg",
           highlighted: true,
           logo_svg: """

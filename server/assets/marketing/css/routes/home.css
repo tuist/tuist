@@ -378,6 +378,9 @@
     & [data-part="org-logo"] {
       flex-shrink: 0;
       max-height: 64px;
+      /* The logo SVGs switched from hardcoded #848F9A fills to currentColor
+         for the redesigned pages; keep the legacy gray here. */
+      color: #848f9a;
 
       & > svg {
         width: 100%;

@@ -1,0 +1,398 @@
+/*
+ * Home hero with the blueprint "platform" decoration (ported from the
+ * tuist-demo prototype). The composition is a fixed 1497x496 stage: wireframe
+ * panels are absolutely positioned around a centered hero card. On narrower
+ * viewports the stage is cropped symmetrically (never reflowed); below the
+ * crop minimum the panels disappear and the hero reflows responsively.
+ *
+ * Grey values map onto the marketing illustration ramp:
+ *   panel/widget borders  → --marketing-stroke-default / illustration 2-3
+ *   mono labels           → illustration 4
+ *   cursor edge glow      → illustration 6
+ */
+
+#marketing-home > [data-part="platform-hero"] {
+  display: flex;
+  justify-content: center;
+  align-self: stretch;
+  overflow-x: clip;
+
+  & > [data-part="stage"] {
+    position: relative;
+    flex: none;
+    /* The composition renders at its authored size: centered and cropped on
+       narrower viewports, framed by empty margins on wider ones. */
+    width: 1497px;
+
+    @media (max-width: 1032px) {
+      width: 100%;
+    }
+  }
+
+  /* ── Hero layout: top strip + centered shell, hero card capped inside ── */
+  [data-part="layout"] {
+    display: grid;
+    position: relative;
+    grid-template-columns: 1fr min(1136px, calc(100% - 32px)) 1fr;
+    /* 96px top strip + hero row. The hero row is a minimum, not fixed: with
+       the card's uniform 64px padding its bottom edge lines up with the
+       panels' bottom (y=520) while longer content (e.g. wordier locales)
+       can still grow past it instead of clipping. */
+    grid-template-rows: 96px minmax(400px, auto);
+
+    /* Panels hidden: the hero card runs edge to edge with a 2px inset on
+       every side — 2px side tracks here, and a 2px top strip as the seam
+       below the navbar hairline. */
+    @media (max-width: 1032px) {
+      grid-template-columns: var(--noora-spacing-1) 1fr var(--noora-spacing-1);
+      grid-template-rows: var(--noora-spacing-1) auto;
+    }
+  }
+
+  [data-part="hero-row"] {
+    display: grid;
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: 1fr min(1000px, 100%) 1fr;
+    align-items: stretch;
+    min-width: 0;
+
+    @media (max-width: 1032px) {
+      grid-template-columns: 0 1fr 0;
+    }
+  }
+
+  [data-part="hero"] {
+    display: flex;
+    position: relative;
+    grid-column: 2;
+    flex-direction: column;
+    align-items: center;
+    /* 32px between title, subtitle, and actions. */
+    gap: var(--noora-spacing-9);
+    z-index: 2;
+    margin: 1px 1px 0;
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-13);
+    text-align: center;
+
+    /* The 1px margin exists to complete the 2px seams between the card and
+       the panel canvases; without panels the row's 2px strip is the whole
+       navbar-to-hero gap. */
+    @media (max-width: 1032px) {
+      margin: 0;
+    }
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-10);
+    }
+
+    /* Inside-border via ::before so the card never reflows on state changes. */
+    &::before {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      animation: marketing-hero-border-fade-in 0.45s cubic-bezier(0.23, 1, 0.32, 1) 0.1s forwards;
+      border: 1px solid var(--marketing-stroke-default);
+      pointer-events: none;
+      content: "";
+    }
+
+    /* Cursor-proximity recolor of the card border (fed --hx/--hy by JS). */
+    & > [data-part="edge-glow"] {
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--marketing-edge-glow-color);
+      pointer-events: none;
+      -webkit-mask-image: radial-gradient(
+        170px circle at var(--hx, -9999px) var(--hy, -9999px),
+        var(--marketing-edge-glow-stops)
+      );
+      mask-image: radial-gradient(
+        170px circle at var(--hx, -9999px) var(--hy, -9999px),
+        var(--marketing-edge-glow-stops)
+      );
+    }
+
+    & [data-part="title"] {
+      & h1 {
+        color: var(--noora-surface-label-primary);
+        /* Figma: desktop/display/large, regular. The token is responsive
+           (4rem/4.375rem at >=768px, 2.375rem/2.875rem below). */
+        font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+        letter-spacing: -0.035em;
+        text-wrap: balance;
+      }
+
+      & [data-part="line"] {
+        display: block;
+      }
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+
+      & p {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        text-wrap: pretty;
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      justify-content: center;
+      gap: var(--noora-spacing-4);
+      flex-wrap: wrap;
+    }
+  }
+
+  /* ── Blueprint panels ── */
+  [data-part="panels"] {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    user-select: none;
+
+    @media (max-width: 1032px) {
+      display: none;
+    }
+  }
+
+  [data-part="panel"] {
+    position: absolute;
+    box-sizing: border-box;
+    left: var(--panel-x);
+    width: var(--panel-w);
+    border: 1px solid var(--marketing-stroke-default);
+
+    /* Cursor-proximity recolor drawn exactly over the panel's own border. */
+    &::after {
+      position: absolute;
+      inset: -1px;
+      border: 1px solid var(--marketing-edge-glow-color);
+      content: "";
+      -webkit-mask-image: radial-gradient(
+        170px circle at var(--hx, -9999px) var(--hy, -9999px),
+        var(--marketing-edge-glow-stops)
+      );
+      mask-image: radial-gradient(
+        170px circle at var(--hx, -9999px) var(--hy, -9999px),
+        var(--marketing-edge-glow-stops)
+      );
+    }
+  }
+
+  [data-part="widget"] {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    color: var(--marketing-illustration-neutral-3);
+    font-family: var(--noora-font-code);
+  }
+
+  /* ── CACHE HIT % (A5) ── */
+  [data-widget="cache-hit"] {
+    /* A step-line meter that scrolls continuously; the path's `d` is driven
+       by the PlatformBackground hook (static single frame under
+       prefers-reduced-motion). */
+    & > [data-part="graph"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    & [data-part="line"] {
+      stroke: var(--marketing-illustration-neutral-2);
+      stroke-width: 1;
+      stroke-linejoin: miter;
+      /* viewBox is stretched to the panel, so keep the stroke a crisp 1px. */
+      vector-effect: non-scaling-stroke;
+    }
+
+    & > [data-part="label"] {
+      position: absolute;
+      top: 9px;
+      left: 8px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+  }
+
+  /* ── Vertical hairlines (A6) ── */
+  [data-widget="vlines"] {
+    inset: 4px auto 4px 7px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--marketing-illustration-neutral-3) 0,
+      var(--marketing-illustration-neutral-3) 0.5px,
+      transparent 0.5px,
+      transparent 6px
+    );
+    width: 31px;
+  }
+
+  /* ── ALL SYSTEMS NORMAL (A7) ── */
+  [data-widget="all-systems"] {
+    & > [data-part="bars"] {
+      display: flex;
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      flex-direction: column;
+      gap: 2px;
+
+      & > span {
+        transform-origin: left center;
+        animation: marketing-status-bar-pulse 5s ease-in-out infinite;
+        background: var(--marketing-illustration-neutral-3);
+        width: 10px;
+        height: 2px;
+
+        &:nth-child(2) {
+          animation-delay: 0.7s;
+        }
+
+        &:nth-child(3) {
+          animation-delay: 1.4s;
+        }
+      }
+    }
+
+    & > [data-part="label"] {
+      position: absolute;
+      top: 4px;
+      left: 21px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+  }
+
+  /* ── AUTH toggle (A14) ── */
+  [data-widget="auth"] {
+    display: flex;
+    align-items: center;
+    inset: auto 8px 6px auto;
+    gap: 6px;
+
+    & > [data-part="label"] {
+      font-size: 11px;
+    }
+
+    & > [data-part="toggle"] {
+      position: relative;
+      border: 0.5px solid var(--marketing-illustration-neutral-3);
+      border-radius: 2px;
+      width: 18px;
+      height: 9px;
+    }
+
+    & [data-part="knob"] {
+      position: absolute;
+      inset: 1px auto 1px 1px;
+      border-radius: 1.5px;
+      background: var(--marketing-illustration-neutral-2);
+      width: 8px;
+    }
+  }
+
+  /* ── KURA NODES (A15) ── */
+  [data-widget="kura-nodes"] {
+    & > [data-part="label"] {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    & > [data-part="circles"] {
+      display: flex;
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    & [data-part="row"] {
+      display: flex;
+      gap: 4px;
+
+      & > span {
+        transition:
+          background-color 0.9s ease,
+          border-color 0.9s ease;
+        border: 1px solid var(--marketing-illustration-neutral-2);
+        border-radius: 50%;
+        width: 9px;
+        height: 9px;
+
+        &[data-lit="true"] {
+          border-color: var(--marketing-illustration-neutral-3);
+          background: var(--marketing-illustration-neutral-1);
+        }
+      }
+    }
+  }
+
+  /* ── OPTIMIZE / OBSERVE / SHIP (A18) ── */
+  [data-widget="oos"] {
+    & > [data-part="words"] {
+      display: flex;
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      flex-direction: column;
+      gap: 9px;
+      font-size: 11px;
+    }
+
+    & > [data-part="mark"] {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 14px;
+      height: 14px;
+      color: var(--marketing-illustration-neutral-2);
+    }
+  }
+}
+
+@keyframes marketing-hero-border-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes marketing-status-bar-pulse {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+
+  50% {
+    transform: scaleX(0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #marketing-home > [data-part="platform-hero"] {
+    & [data-part="hero"] {
+      &::before {
+        animation: none;
+        opacity: 1;
+      }
+    }
+
+    & [data-widget="all-systems"] [data-part="bars"] > span {
+      animation: none;
+    }
+  }
+}

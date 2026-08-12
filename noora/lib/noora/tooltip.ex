@@ -28,6 +28,11 @@ defmodule Noora.Tooltip do
   attr(:id, :string, required: true)
   attr(:disabled, :boolean, default: false)
 
+  attr(:placement, :string,
+    default: "bottom-start",
+    doc: "Positioning placement of the tooltip (e.g. \"bottom\", \"bottom-start\", \"top\")"
+  )
+
   attr(:size, :string, values: ~w(small large), default: "small", doc: "Size of the tooltip")
   attr(:title, :string, required: true, doc: "Tooltip title")
   attr(:description, :string, doc: "Tooltip description. Only shown when `size` is set to large.")
@@ -49,7 +54,7 @@ defmodule Noora.Tooltip do
       data-open-delay="250"
       data-close-delay="150"
       data-interactive
-      data-positioning-placement="bottom-start"
+      data-positioning-placement={@placement}
     >
       {render_slot(@trigger, %{"data-part" => "trigger"})}
       <div data-part="positioner">

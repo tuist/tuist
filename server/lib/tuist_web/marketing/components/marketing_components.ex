@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.MarketingIcons
+  import TuistWeb.Marketing.MarketingIllustrations
 
   embed_templates "marketing_layout_components/*"
 
