@@ -116,12 +116,6 @@
          otherwise spill onto the code's first line. */
       user-select: none;
 
-      /* Noora's `> span` rule pads label spans; the icon wrappers aren't
-         labels. */
-      & > span {
-        padding: 0;
-      }
-
       /* Sized here because the icons sit inside the data-part spans, out of
          reach of Noora's direct-child `> svg` size rules. */
       & svg {

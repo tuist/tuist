@@ -48,11 +48,6 @@
   user-select: none;
 }
 
-/* Noora's `> span` rule pads label spans; the icon wrappers aren't labels. */
-.code-window > [data-part="bar"] > [data-part="copy"] > span {
-  padding: 0;
-}
-
 /* Sized here because the icons sit inside the data-part spans, out of reach
    of Noora's direct-child `> svg` size rules. */
 .code-window > [data-part="bar"] > [data-part="copy"] svg {
