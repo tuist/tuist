@@ -359,6 +359,12 @@ export const DitherTexture = {
       depth: false,
       stencil: false,
       powerPreference: "low-power",
+      // The loop draws on quantized 16Hz ticks and skips the rAF frames in
+      // between. With the default (false) the buffer is invalidated after
+      // each composite, and Firefox can composite that cleared buffer on
+      // scroll/invalidation frames between draws — streaks and flicker.
+      // Chrome re-composites from its retained texture either way.
+      preserveDrawingBuffer: true,
     });
     if (gl && this.setupGL(gl)) {
       this.mode = "gl";
