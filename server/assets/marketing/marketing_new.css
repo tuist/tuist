@@ -41,14 +41,33 @@
   color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 
-/* Fills for the framework logos' pixel-grid SVGs. They used to carry
-   fill="var(--…)" as a presentation attribute, but Firefox does not resolve
-   var() in SVG presentation attributes (Chromium and Safari do), which
-   rendered every path in fallback black. A CSS rule resolves var()
-   everywhere — and the short data-fill attribute keeps thousands of paths
-   lighter than per-path style attributes would. */
+/* Theme-following fills for inline illustration SVGs (framework logos and
+   friends): a path carries data-fill="neutral-N" and picks up the matching
+   illustration-ramp token here. CSS rather than fill="var(--…)" presentation
+   attributes, because Firefox does not resolve var() inside presentation
+   attributes (Chromium and Safari do) and renders fallback black. */
 [data-fill="neutral-1"] {
   fill: var(--marketing-illustration-neutral-1);
+}
+
+[data-fill="neutral-2"] {
+  fill: var(--marketing-illustration-neutral-2);
+}
+
+[data-fill="neutral-3"] {
+  fill: var(--marketing-illustration-neutral-3);
+}
+
+[data-fill="neutral-4"] {
+  fill: var(--marketing-illustration-neutral-4);
+}
+
+[data-fill="neutral-5"] {
+  fill: var(--marketing-illustration-neutral-5);
+}
+
+[data-fill="neutral-6"] {
+  fill: var(--marketing-illustration-neutral-6);
 }
 
 [data-fill="neutral-7"] {
@@ -57,6 +76,14 @@
 
 [data-fill="neutral-8"] {
   fill: var(--marketing-illustration-neutral-8);
+}
+
+[data-fill="neutral-9"] {
+  fill: var(--marketing-illustration-neutral-9);
+}
+
+[data-fill="neutral-10"] {
+  fill: var(--marketing-illustration-neutral-10);
 }
 
 /* One focus treatment for the whole redesign, noora components included:
