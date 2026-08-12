@@ -464,3 +464,70 @@ func TestRenderVMNATScript_AssertsDefaultRouteNATLeg(t *testing.T) {
 		t.Fatalf("expected short-circuit to verify the live anchor still holds rules\n%s", out)
 	}
 }
+
+// renderSSHIngressGuardScript must drop inbound :22 from everything except the
+// tailnet, loopback and the configured allow list. The flood that wedges a
+// runner arrives on the public interface from scanner ranges, and because
+// launchd binds the ssh socket to *:22 an exhausted backlog takes the tailnet
+// path down with it, so filtering the SYNs is what keeps the operator's
+// management channel alive.
+func TestRenderSSHIngressGuardScript(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		// The tailnet is the unconditional escape hatch: a wrong allow list must
+		// still leave the drift loop a way back in over the fallback path.
+		"100.64.0.0/10",
+		"203.0.113.7/32",
+		// The reachability watchdog probes 127.0.0.1:22 every minute; blocking
+		// loopback would read to it as a permanent wedge.
+		"pass in quick on lo0 proto tcp to any port 22",
+		"block drop in quick proto tcp to any port 22",
+		// Anchor-scoped load: `pfctl -f /etc/pf.conf` on a live host collides
+		// with the system ruleset and aborts, which terminal-fails the machine
+		// on the drift path.
+		"pfctl -a tuist.sshguard -f /etc/pf.anchors/tuist.sshguard",
+		"# BEGIN tuist.sshguard",
+		"# END tuist.sshguard",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// pf is first-match-wins across `quick` rules, so a block that renders above
+	// the passes would drop every management connection including our own.
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") <
+		strings.Index(s, "pass in quick proto tcp from <ssh_allowed> to any port 22") {
+		t.Error("block rule renders before the pass rules; pf is first-match-wins on quick")
+	}
+}
+
+// A malformed allow CIDR must fail closed rather than render a creative
+// ruleset onto a host we can only reach through the port it governs.
+func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
+	for _, bad := range []string{"not-a-cidr", "203.0.113.7", "2001:db8::/32"} {
+		if _, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{bad}}); err == nil {
+			t.Errorf("renderSSHIngressGuardScript accepted %q; must fail closed", bad)
+		}
+	}
+}
+
+// The guard needs a second path to be safe: without a tailnet, an allow list
+// that turns out to be wrong strands the host behind VNC with no way back.
+func TestInstallSSHIngressGuard_SkipsWithoutTailnet(t *testing.T) {
+	if err := installSSHIngressGuard(context.Background(), nil, Config{}); err != nil {
+		t.Fatalf("expected a no-op without a tailscale auth key, got %v", err)
+	}
+}
+
+// The allow list is fleet config, not per-host state, so a policy change has to
+// move the hash or it would never roll to already-bootstrapped minis.
+func TestHostConfigHash_ChangesWithSSHIngressAllowCIDRs(t *testing.T) {
+	base := Config{}
+	changed := Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when the ssh ingress allow list changes")
+	}
+}

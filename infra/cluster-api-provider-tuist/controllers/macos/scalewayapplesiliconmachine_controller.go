@@ -154,6 +154,14 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	VMCachePNName string
 	VMCachePNCIDR string
 
+	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
+	// and loopback, allowed to reach :22 on each Mac mini. Flows into
+	// bootstrap.Config.SSHIngressAllowCIDRs, where a pf anchor drops
+	// everything else so internet scan traffic can't exhaust the ssh
+	// listen backlog. Rides the drift loop, so a policy change lands on
+	// existing minis with the next operator-image roll.
+	SSHIngressAllowCIDRs []string
+
 	// VPC find-or-creates the runner-cache Private Network the Mac
 	// fleet shares with the Elastic Metal cache node, resolving
 	// VMCachePNName to an ID. Same shared client as the EM reconciler,
@@ -633,6 +641,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			VMKuraEgressCIDR:        r.VMKuraEgressCIDR,
 			VMClusterDNSIP:          r.VMClusterDNSIP,
 			VMCachePNCIDR:           r.VMCachePNCIDR,
+			SSHIngressAllowCIDRs:    r.SSHIngressAllowCIDRs,
 			VMCachePNVLAN:           vmCachePNVLAN,
 			NodeExporterBinary:      r.NodeExporterBinary,
 			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
@@ -788,6 +797,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
 			VMClusterDNSIP:        r.VMClusterDNSIP,
 			VMCachePNCIDR:         r.VMCachePNCIDR,
+			SSHIngressAllowCIDRs:  r.SSHIngressAllowCIDRs,
 			VMCachePNVLAN:         vmCachePNVLAN,
 			// node_exporter is re-installed on every drift-loop run,
 			// not just on first bootstrap, so a chart-driven binary

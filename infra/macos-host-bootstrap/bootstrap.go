@@ -200,6 +200,17 @@ type Config struct {
 	// is set, for hosts configured out-of-band).
 	VMCachePNVLAN uint32
 
+	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
+	// and loopback, that may reach the host's :22. Everything else is
+	// dropped at the pf edge by installSSHIngressGuard. The operator's
+	// own SSH egress belongs here so the public-IP dial path (the one
+	// that can still update Tailscale itself) keeps working; the
+	// tailnet fallback is allowed unconditionally. Each entry must
+	// parse as an IPv4 CIDR and bootstrap fails closed otherwise.
+	// Empty installs the guard with just the tailnet and loopback
+	// allowances plus the live session's source address.
+	SSHIngressAllowCIDRs []string
+
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
 	// (cross-compiled in the operator image from
 	// github.com/prometheus/node_exporter at build time). Installed
@@ -367,6 +378,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the guard's unconditional allowance is the
+	// tailnet, so it must not narrow :22 before that path exists.
+	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install ssh ingress guard: %w", err)
+	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
@@ -462,6 +478,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
+	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
@@ -527,6 +546,10 @@ func HostConfigHash(cfg Config) string {
 		// validates these inputs before they reach a host.
 		firewall = "ERROR:" + err.Error()
 	}
+	sshGuard, err := renderSSHIngressGuardScript(cfg)
+	if err != nil {
+		sshGuard = "ERROR:" + err.Error()
+	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
 		{"vmnat", renderVMNATScript(cfg)},
@@ -538,6 +561,7 @@ func HostConfigHash(cfg Config) string {
 		{"node-exporter", renderNodeExporterScript()},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
+		{"ssh-ingress-guard", sshGuard},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -2021,6 +2045,124 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
 sudo launchctl bootout system/dev.tuist.ssh-reachability 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
 `
+}
+
+// installSSHIngressGuard drops inbound :22 from everywhere except the
+// tailnet, loopback and cfg.SSHIngressAllowCIDRs, so internet scan
+// traffic can't exhaust the ssh listen backlog. See
+// renderSSHIngressGuardScript.
+//
+// No-op when Tailscale isn't wired: without a tailnet there is no
+// second path to the host, so a guard whose allow list turned out to be
+// wrong would strand it behind VNC with no way back in.
+func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	script, err := renderSSHIngressGuardScript(cfg)
+	if err != nil {
+		return err
+	}
+	return RunCommand(ctx, client, script)
+}
+
+// renderSSHIngressGuardScript builds the pf anchor that filters inbound
+// SSH.
+//
+// A Scaleway Mac mini's public interface is internet-facing and its :22
+// absorbs continuous brute-force traffic. Observed on a wedged runner:
+// several hundred half-open connections from scanner ranges sitting in
+// SYN_RCVD, well past SOMAXCONN, so the kernel dropped every new SYN.
+// launchd (not sshd) owns that listener and binds it to *:22, so an
+// exhausted backlog blocks the tailnet just as hard as the public
+// interface, which is how a host stops accepting operator config pushes
+// on both paths at once and drifts on a stale tart-kubelet.
+//
+// The host-side backlog drain (renderSSHReachabilityScript) reloads the
+// socket but cannot win: it clears a queue that the flood refills within
+// seconds. Filtering the SYNs at the pf edge removes the pressure
+// instead of racing it, and lets the existing SYN_RCVD entries age out
+// on their own, so a host recovers within a couple of minutes of the
+// rules loading.
+//
+// The allow list is source-based rather than interface-based: the public
+// interface name varies across hosts, while the sources we trust
+// (tailnet CGNAT, loopback, the operator's egress) are the same
+// everywhere. Loopback must stay open or the reachability watchdog's
+// 127.0.0.1 probe reads as permanently wedged and reloads ssh every
+// minute.
+//
+// The live session's own source address is folded into the table on the
+// host at render time, so a roll can never sever the connection
+// carrying it. That also makes the guard self-correcting: if the
+// operator's egress address changes and the configured list goes stale,
+// the public dial is dropped, the drift loop falls back to the tailnet,
+// and that push rewrites the table with the new address.
+//
+// Folded into the host config hash so an allow-list change re-pushes.
+// Reboot persistence rides the existing dev.tuist.pfctl-runners job,
+// which loads all of /etc/pf.conf and so picks up this anchor too.
+func renderSSHIngressGuardScript(cfg Config) (string, error) {
+	allow := ""
+	for _, cidr := range cfg.SSHIngressAllowCIDRs {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil || ip.To4() == nil {
+			return "", fmt.Errorf("ssh ingress allow cidr %q is not an IPv4 CIDR: %v", cidr, err)
+		}
+		allow += ", " + cidr
+	}
+
+	return fmt.Sprintf(`set -euo pipefail
+
+# Source address of the SSH session running this script, folded into the
+# allow table so the roll can't drop the connection it arrived on.
+SESSION_SRC="$(printf '%%s\n' "${SSH_CONNECTION:-}" | awk '{print $1}' | grep -E '^[0-9]+(\.[0-9]+){3}$' || true)"
+SESSION_ENTRY=""
+if [ -n "$SESSION_SRC" ]; then
+  SESSION_ENTRY=", $SESSION_SRC"
+fi
+
+sudo mkdir -p /etc/pf.anchors
+sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
+# Tuist runner SSH ingress guard.
+#
+# Keeps internet scan traffic off the host's :22 so it can't exhaust
+# launchd's ssh listen backlog and lock the operator out on every
+# path at once.
+#
+# pf is first-match-wins across 'quick' rules, so the pass lines
+# MUST stay above the block.
+
+table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
+
+# The reachability watchdog probes 127.0.0.1:22 every minute; a
+# blocked loopback reads as a permanent wedge to it.
+pass in quick on lo0 proto tcp to any port 22 keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+block drop in quick proto tcp to any port 22
+PFCONF
+
+# Manage the anchor block in /etc/pf.conf via begin/end markers, the
+# same strip-and-append shape the VM egress filter uses: any number of
+# pre-existing marker-delimited blocks get removed before the canonical
+# block is written.
+sudo sed -i.bak '/^# BEGIN tuist.sshguard$/,/^# END tuist.sshguard$/d' /etc/pf.conf
+sudo rm -f /etc/pf.conf.bak
+sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+# BEGIN tuist.sshguard
+# Tuist runner SSH ingress guard, see /etc/pf.anchors/tuist.sshguard
+anchor "tuist.sshguard"
+load anchor "tuist.sshguard" from "/etc/pf.anchors/tuist.sshguard"
+# END tuist.sshguard
+PFCONFENTRY
+
+# Anchor-scoped load for the same reason the VM egress filter uses one:
+# 'pfctl -f /etc/pf.conf' on a live host collides with macOS's
+# system-managed ruleset and aborts, which would terminal-fail the
+# machine on the drift path.
+sudo pfctl -E 2>/dev/null || true
+sudo pfctl -a tuist.sshguard -f /etc/pf.anchors/tuist.sshguard
+`, allow), nil
 }
 
 // renderNodeExporterScript is the static SSH script that installs the
