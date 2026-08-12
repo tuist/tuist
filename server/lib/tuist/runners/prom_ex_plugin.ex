@@ -202,11 +202,14 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :count,
             description:
               "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
-                "`resident` (a likely-resident account's job was preferred) and `head_resident` " <>
-                "are the warm placements; `no_resident_candidate` means nothing queued matched " <>
-                "the node's masters, `head_overdue` means the starvation bound took precedence, " <>
-                "and `no_residency` means the node has no recorded masters yet. A resident share " <>
-                "that tracks the hosts' warm materialize share means the model matches reality.",
+                "One sample per COMMITTED dispatch, so it shares a denominator with the hosts' " <>
+                "materialize counter. `resident` (a likely-resident account's job was preferred) " <>
+                "and `head_resident` are the warm placements; `no_resident_candidate` means " <>
+                "nothing queued matched the node's masters, `head_overdue` means the starvation " <>
+                "bound took precedence, `no_residency` means the node has no recorded masters " <>
+                "yet, and `untrusted` means a fork job the host runs cold by design. A resident " <>
+                "share that tracks the hosts' warm materialize share means the model matches " <>
+                "reality.",
             tags: [:fleet, :outcome]
           )
         ]

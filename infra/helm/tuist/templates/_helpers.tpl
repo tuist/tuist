@@ -682,10 +682,15 @@ default (NewVolumeManager), so the derivation mirrors that rather than skipping:
 the host still evicts, and the server should still know how far.
 
 Emits nothing when the feature is off (gib unset or 0), where there are no
-masters to be resident on. A derived 0 IS emitted, and disables the preference
-server-side: at a cap that leaves no surviving master, there is nothing to
-prefer, and dispatch should fall back to plain oldest-queued rather than reorder
-the queue for masters the host is about to evict anyway.
+masters to be resident on. The server defaults to 0 in that case, which is the
+same "no preference" the derivation would produce: dispatch must not reorder a
+queue, or hold its head for the tolerance, on a fleet whose hosts materialize
+nothing.
+
+A derived 0 IS emitted, and disables the preference for the same reason: at a
+cap that leaves no surviving master there is nothing to prefer, so dispatch
+falls back to plain oldest-queued rather than reordering for masters the host
+is about to evict anyway.
 */}}
 {{- define "tuist.runnerVolumeResidentMastersEnv" -}}
 {{- with .Values.macosFleet.runnerCacheVolume }}

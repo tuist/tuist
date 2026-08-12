@@ -106,7 +106,9 @@ end
 # from the same `macosFleet.runnerCacheVolume` sizing that bounds admission
 # host-side, so the dispatch model tracks `masterCapGib` retunes instead of
 # drifting from them. A non-positive value disables the preference and dispatch
-# falls back to plain oldest-queued.
+# falls back to plain oldest-queued, which is also what an unset var leaves in
+# place: a server that was never told how many masters a host keeps must not
+# reorder queues for them.
 case System.get_env("TUIST_RUNNER_VOLUME_RESIDENT_MASTERS") do
   nil ->
     :ok
