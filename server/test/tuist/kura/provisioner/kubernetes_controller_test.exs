@@ -1148,9 +1148,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       enterprise = KubernetesController.manifest_revision(account, region)
 
       assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
-      assert String.ends_with?(air, "+mem256-768")
-      assert String.ends_with?(pro, "+mem512-3072")
-      assert String.ends_with?(enterprise, "+mem1024-4096")
+      assert String.contains?(air, "+mem256-768")
+      assert String.contains?(pro, "+mem512-3072")
+      assert String.contains?(enterprise, "+mem1024-4096")
+    end
+
+    test "crosses a revision boundary on the bin-pack flag so both flip directions re-apply" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      # memory_ceiling_bin_packed is region config, not a property of the
+      # account, so flipping it alone leaves the profile identical. Without its
+      # own marker the rendered spec would gain or lose the extended-resource
+      # request under an unchanged revision and live instances would never
+      # re-apply — worst of all turning it off, which is the remedy when pods go
+      # Pending because a node stopped advertising the budget.
+      packed =
+        KubernetesController.manifest_revision(
+          account,
+          eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
+        )
+
+      unpacked =
+        KubernetesController.manifest_revision(account, eu_region(%{memory_governed: true}))
+
+      assert packed != unpacked
+      assert String.contains?(packed, "+mem1024-4096")
+      assert String.contains?(unpacked, "+mem1024-4096")
+      assert String.ends_with?(packed, "+binpack")
+      refute String.contains?(unpacked, "+binpack")
     end
 
     test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do

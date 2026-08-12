@@ -407,15 +407,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
       backfill_revision_suffix(entitlements) <>
-      memory_revision_suffix(entitlements)
+      memory_revision_suffix(region, entitlements)
   end
 
   # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
   # profile it was created with until some unrelated field happened to change.
-  defp memory_revision_suffix(%{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}}),
-    do: "+mem#{floor_mib}-#{ceiling_mib}"
+  #
+  # The bin-pack marker is separate from the profile because the flag is region
+  # config, not a property of the account: flipping it alone leaves the floor and
+  # ceiling identical, so without its own marker the rendered spec would gain or
+  # lose the tuist.dev/memory-ceiling-mib request under an unchanged revision and
+  # live instances would never re-apply. That matters most turning it off, which
+  # is the remedy when pods go Pending because a node stopped advertising the
+  # budget.
+  defp memory_revision_suffix(%Regions{} = region, entitlements) do
+    profile =
+      case entitlements do
+        %{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}} -> "+mem#{floor_mib}-#{ceiling_mib}"
+        _ -> ""
+      end
 
-  defp memory_revision_suffix(_entitlements), do: ""
+    if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile
+  end
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
   # peer changes the desired revision and the reconciler re-applies the manifest.
