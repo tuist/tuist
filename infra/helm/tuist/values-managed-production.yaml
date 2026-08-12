@@ -636,15 +636,22 @@ macosFleet:
     # a bad budget costs warmth, not the job.
     #
     # The cap is bounded by admission, not by taste. Admission reserves
-    # masterCapGib per live branch plus one, so on a gib-sized root with B
-    # concurrent VMs the resident masters that survive are gib/cap - (B+1) + 1.
-    # At 2 VMs per mini on an 80 GiB root that is 80/cap - 2: cap 28 leaves 0.86
-    # (every job evicted the master it was about to use, so warm materializes ran
-    # ~18%), cap 20 leaves 2. Two masters covers the fleet's account set with
-    # dispatch affinity, and 2x20 GiB resident also fits the host's disk budget:
-    # the boot container is 460 GiB with ~330 GiB free idle, but two concurrent
-    # job VMs transiently take it down to ~45 GiB, so the cache's real ceiling is
-    # that trough, not the gib quota.
+    # masterCapGib for the branch it is admitting plus every branch already
+    # live, so with B branches already held the resident masters that survive
+    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
+    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
+    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
+    # which is what the fleet showed, hosts flapping between one master and
+    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
+    # covers the account set with dispatch affinity scoring on residency.
+    #
+    # Watch the disk after changing this. The bug kept the volume near-empty
+    # (~28 GiB of one master), so restoring 2-3 residents actually occupies the
+    # quota (~60 GiB) and claims that much more of the shared boot container —
+    # 460 GiB with ~330 GiB free idle, but a single job VM's CoW growth
+    # transiently takes it to ~55 GiB. If that tail starts biting jobs, lower
+    # gib rather than raising cap: a smaller cap yields MORE total master bytes
+    # (masters fill to roughly gib - cap), so gib is the footprint lever.
     masterCapGib: 20
     casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
