@@ -821,15 +821,6 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     region: registry_s3_region
 end
 
-# Kura controller rollout assets. Each env is enumerated explicitly so a
-# new one fails loudly rather than silently picking the wrong hook path.
-kura_hook_path =
-  case env do
-    e when e in [:prod, :stag, :can, :preview] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
-    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
-    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
-  end
-
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
@@ -847,7 +838,6 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
-config :tuist, :kura_hook_path, kura_hook_path
 
 if otel_endpoint do
   config :opentelemetry,

@@ -60,10 +60,6 @@ spec:
       value: {{ $controlPlaneURL }}
     - name: KURA_AUTH_TUIST_URL
       value: {{ $controlPlaneURL }}
-    # Read by Kura releases that predate KURA_AUTH_TUIST_URL. Drop once every
-    # instance runs a release that reads the name above.
-    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
-      value: {{ $controlPlaneURL }}
   {{- with $instance.nodeSelector }}
   nodeSelector:
     {{- toYaml . | nindent 4 }}
@@ -71,9 +67,5 @@ spec:
   {{- with $instance.tolerations }}
   tolerations:
     {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- with $instance.extensionScript }}
-  extensionScript: |
-    {{- . | nindent 4 }}
   {{- end }}
 {{- end }}

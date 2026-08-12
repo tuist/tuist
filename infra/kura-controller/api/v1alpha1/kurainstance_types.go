@@ -39,9 +39,8 @@ type KuraInstanceSpec struct {
 	// (which carries role=preview:NoSchedule) instead of pinning to a
 	// dedicated Kura node pool, so the preview lifecycle does not depend on
 	// Kura-specific capacity.
-	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
-	ExtraEnv        []corev1.EnvVar     `json:"extraEnv,omitempty"`
-	ExtensionScript string              `json:"extensionScript,omitempty"`
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	ExtraEnv    []corev1.EnvVar     `json:"extraEnv,omitempty"`
 
 	// Private marks a region with no public endpoint, reachable only
 	// over the cluster's internal Service DNS (today: the runner-cache
