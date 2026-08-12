@@ -1,9 +1,11 @@
-//! The Tuist policy, driven end to end against a stand-in for Tuist's server.
+//! The policy, driven end to end against a stand-in for Tuist's server.
 //!
-//! These came over from the hook they replaced and assert the same outcomes, so
-//! they are what says the port kept its behaviour. They no longer set process
-//! environment variables to configure the engine, which used to make them share
-//! state with every other test in the binary.
+//! Each test builds an engine pointed at a mock and asserts the decision a real
+//! request would get, so the fallbacks between verifying a token, introspecting
+//! it, and asking the legacy route are exercised as a whole rather than
+//! separately. The engine is configured directly rather than through process
+//! environment variables, which are shared with every other test in the
+//! binary.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -202,7 +204,7 @@ async fn denies_when_authorization_header_is_missing() {
 
 #[tokio::test]
 async fn self_hosted_introspection_only_loads_and_denies_without_authorization() {
-    // The hook builds with no verifier configured and still fails closed
+    // A node with no verifier configured still fails closed
     // on an unauthenticated request.
     let engine = engine_introspection_only("http://127.0.0.1:1");
 

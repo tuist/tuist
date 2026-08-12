@@ -1,7 +1,9 @@
-//! Resolving what a request is asking for, and whether a set of grants covers
-//! it. Ported from the policy that used to live in the Lua hook, so the rules
-//! here are deliberately the ones that shipped rather than the ones that read
-//! best: a half-rolled fleet has to authorize identically either side.
+//! Resolving what a request is asking for: which tenant and project it names,
+//! and whether it is reading or writing.
+//!
+//! Kura rolls with mixed versions, so these rules are pinned rather than
+//! tidied. Both sides of a deploy have to reach the same answer for the same
+//! request, or access flickers as pods roll.
 
 use std::collections::BTreeMap;
 
@@ -49,8 +51,8 @@ pub struct RequestTarget {
     pub identifier: String,
 }
 
-/// Lowercased, with empty treated as absent: the hook compared handles as
-/// lowercase strings and treated `""` the same as nil.
+/// Handles compare lowercased, and an empty value counts as absent rather than
+/// as a handle named "".
 fn normalized(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
@@ -184,8 +186,7 @@ mod tests {
         assert_eq!(target.identifier, "acme/ios");
     }
 
-    // Some routes carry the target in the query rather than the path, and the
-    // hook read both.
+    // Some routes carry the target in the query rather than the path.
     #[test]
     fn falls_back_to_the_query_for_the_target() {
         let mut context = ctx();

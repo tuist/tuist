@@ -1,9 +1,9 @@
 //! The cache grants a token or an introspection response carries, and whether
 //! they cover a request.
 //!
-//! The server mints these; this reads them back. Both halves used to assert
-//! their own idea of the shape against tokens they built themselves, which is
-//! why the shape is a type here rather than a set of map lookups.
+//! Tuist's server mints these and this reads them back, so the shape is a type
+//! rather than a set of map lookups: the two sides agree by convention, and a
+//! type is where that convention is written down on this side.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,7 +11,7 @@ use serde_json::Value;
 use super::target::{Action, RequestTarget, Scope};
 
 /// Handles are compared lowercased, and an empty handle is treated as absent,
-/// matching what the server writes and what the hook compared.
+/// matching what the server writes.
 fn normalized_handles(value: Option<&Value>) -> Vec<String> {
     let Some(Value::Array(items)) = value else {
         return Vec::new();

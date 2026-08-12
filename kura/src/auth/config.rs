@@ -9,11 +9,11 @@ use std::time::Duration;
 
 use super::tuist::{IntrospectionCredentials, JwtVerifier};
 
-// Each setting is read from its own name first and from the name the extension
-// point used second. A node that is unconfigured does not authorize at all, so
-// a new binary meeting an old configuration has to keep working: the image
-// rolls before whatever sets its environment does. The fallbacks come out once
-// every deployment writes the current names.
+// Each setting is read from its current name first and its previous name
+// second. A node that is unconfigured does not authorize at all, and the image
+// rolls before whatever sets its environment does, so a new binary meeting an
+// older environment has to keep working. The previous names come out once every
+// deployment writes the current ones.
 const ENABLED: &[&str] = &["KURA_AUTH_ENABLED", "KURA_EXTENSION_ENABLED"];
 const TUIST_URL: &[&str] = &[
     "KURA_AUTH_TUIST_URL",
@@ -134,8 +134,7 @@ fn introspection_from_env() -> Option<IntrospectionCredentials> {
     })
 }
 
-/// The first of these names that is set, so the current name always wins over
-/// the one it replaced.
+/// The first of these names that is set, so the current name always wins.
 fn env_entry(keys: &[&'static str]) -> Option<(&'static str, String)> {
     first_set(keys, |key| std::env::var(key).ok())
 }
@@ -193,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn prefers_the_current_name_over_the_one_it_replaced() {
+    fn prefers_the_current_name_over_the_previous_one() {
         let entry = first_set(
             TUIST_URL,
             lookup(&[
@@ -208,10 +207,10 @@ mod tests {
         assert_eq!(entry.expect("a value").1, "https://tuist.dev");
     }
 
-    // A node whose environment still carries only the old names has to keep
-    // authorizing: unconfigured means it authorizes nothing at all.
+    // A node whose environment still carries only the previous names has to
+    // keep authorizing: unconfigured means it authorizes nothing at all.
     #[test]
-    fn still_reads_the_name_the_extension_point_used() {
+    fn still_reads_the_previous_name() {
         let entry = first_set(
             TUIST_URL,
             lookup(&[(

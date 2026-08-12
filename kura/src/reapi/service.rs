@@ -67,7 +67,7 @@ pub struct ReapiService {
 }
 
 #[derive(Clone)]
-struct GrpcExtensionSpec<'a> {
+struct GrpcRequestSpec<'a> {
     route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
@@ -166,7 +166,7 @@ impl ReapiService {
     async fn authorize_request<T>(
         &self,
         request: &Request<T>,
-        spec: GrpcExtensionSpec<'_>,
+        spec: GrpcRequestSpec<'_>,
     ) -> Result<(), Status> {
         self.authorize_metadata(request.metadata(), spec).await
     }
@@ -178,7 +178,7 @@ impl ReapiService {
     async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
-        spec: GrpcExtensionSpec<'_>,
+        spec: GrpcRequestSpec<'_>,
     ) -> Result<(), Status> {
         if self.state.runtime.is_draining() {
             return Err(Status::unavailable("server is draining"));
@@ -186,7 +186,7 @@ impl ReapiService {
         let Some(auth) = self.state.auth.as_ref() else {
             return Ok(());
         };
-        let context = grpc_extension_context(&self.state.config.tenant_id, &spec, metadata, None);
+        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata, None);
         match auth.evaluate_access(&context).await {
             AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
@@ -333,7 +333,7 @@ impl ReapiService {
                 }
             } else {
                 let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
-                let write_extension = GrpcExtensionSpec {
+                let write_spec = GrpcRequestSpec {
                     route: "reapi.bytestream.write",
                     operation: "artifact.write",
                     namespace_id: Some(&parsed_resource.namespace_id),
@@ -341,7 +341,7 @@ impl ReapiService {
                     artifact_key: None,
                     artifact_hash: None,
                 };
-                self.authorize_metadata(&metadata, write_extension).await?;
+                self.authorize_metadata(&metadata, write_spec).await?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 let disk_reservation = self
@@ -985,7 +985,7 @@ impl Capabilities for ReapiService {
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some(namespace_id),
@@ -1044,7 +1044,7 @@ impl ActionCache for ReapiService {
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
         let key = action_cache_key(&digest_key(digest)?);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.action_cache.get",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
@@ -1322,7 +1322,7 @@ impl ActionCache for ReapiService {
             .clone()
             .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
         let key = action_cache_key(&digest_key(digest)?);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.action_cache.update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
@@ -1401,7 +1401,7 @@ impl ContentAddressableStorage for ReapiService {
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.find_missing",
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
@@ -1450,7 +1450,7 @@ impl ContentAddressableStorage for ReapiService {
             .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
@@ -1521,7 +1521,7 @@ impl ContentAddressableStorage for ReapiService {
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.cas.batch_read",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
@@ -1633,7 +1633,7 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
@@ -1794,7 +1794,7 @@ impl ByteStream for ReapiService {
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
-        let auth = GrpcExtensionSpec {
+        let auth = GrpcRequestSpec {
             route: "reapi.bytestream.query_write_status",
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
@@ -2340,7 +2340,7 @@ const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
 
 // The request-declared tenant, read straight from the metadata: the first
 // non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
-// key. Authorization (`grpc_extension_context`) and billing (`usage_tenant_id`)
+// key. Authorization (`grpc_request_context`) and billing (`usage_tenant_id`)
 // both resolve the tenant through this one function so a client that duplicates
 // the header can never be authorized as one account and billed to another.
 fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<String> {
@@ -2364,9 +2364,9 @@ fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: 
     tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
 }
 
-fn grpc_extension_context(
+fn grpc_request_context(
     server_tenant_id: &str,
-    spec: &GrpcExtensionSpec<'_>,
+    spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
     status_code: Option<u16>,
 ) -> RequestContext {
@@ -4495,7 +4495,7 @@ mod tests {
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
-        test_support::{TestContext, test_context, test_context_with_extension},
+        test_support::{TestContext, test_context, test_context_with_auth},
     };
 
     // Serves the REAPI routes over a plaintext h2c listener for the tests
@@ -5207,8 +5207,8 @@ mod tests {
         assert_eq!(error.code(), tonic::Code::InvalidArgument);
     }
 
-    fn grpc_spec() -> GrpcExtensionSpec<'static> {
-        GrpcExtensionSpec {
+    fn grpc_spec() -> GrpcRequestSpec<'static> {
+        GrpcRequestSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: Some("ios"),
@@ -5229,7 +5229,7 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_kura_header() {
         let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -5237,14 +5237,14 @@ mod tests {
     #[test]
     fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
         let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
     }
 
     #[test]
     fn grpc_context_without_tenant_header_leaves_tenant_unset() {
         let metadata = tonic::metadata::MetadataMap::new();
-        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        let ctx = grpc_request_context("acme", &grpc_spec(), &metadata, None);
         assert_eq!(ctx.tenant_id, None);
         assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
     }
@@ -5308,7 +5308,7 @@ mod tests {
     #[tokio::test]
     async fn get_capabilities_authorizes_against_instance_namespace() {
         let auth = namespace_policy_auth();
-        let context = test_context_with_extension(|_| {}, Some(auth)).await;
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
@@ -5335,7 +5335,7 @@ mod tests {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
         let auth = namespace_policy_auth();
-        let context = test_context_with_extension(|_| {}, Some(auth)).await;
+        let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind test listener");
@@ -6029,12 +6029,12 @@ mod tests {
         metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
         metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
 
-        // The authorization path (grpc_extension_context) and the billing path
+        // The authorization path (grpc_request_context) and the billing path
         // (usage_tenant_id) read the same value.
         assert_eq!(tenant_id_from_metadata(&metadata).as_deref(), Some("acme"));
         assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
 
-        let spec = GrpcExtensionSpec {
+        let spec = GrpcRequestSpec {
             route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some("ios"),
@@ -6042,7 +6042,7 @@ mod tests {
             artifact_key: None,
             artifact_hash: None,
         };
-        let context = grpc_extension_context("acme", &spec, &metadata, None);
+        let context = grpc_request_context("acme", &spec, &metadata, None);
         assert_eq!(context.tenant_id.as_deref(), Some("acme"));
     }
 

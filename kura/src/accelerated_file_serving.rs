@@ -1341,7 +1341,7 @@ mod tests {
     }
 
     #[test]
-    fn module_nx_and_metro_requests_carry_extension_artifact_hash() {
+    fn module_nx_and_metro_requests_carry_auth_artifact_hash() {
         let nx = artifact_request("/v1/cache/nx-hash", "acme").expect("nx request should parse");
         assert_eq!(nx.artifact_hash.as_deref(), Some("nx-hash"));
 

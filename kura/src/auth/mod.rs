@@ -1,10 +1,8 @@
-//! Tuist's cache authorization, in Rust.
+//! Deciding whether a cache request is allowed.
 //!
-//! This was a Lua hook loaded through a generic extension point. Nothing
-//! outside Tuist ever wrote one, so the policy moved into the binary and the
-//! scripting layer went with it: no interpreter pool to keep hooks from
-//! serializing, no marshalling of the request into Lua values per call, and a
-//! claim shape the compiler checks rather than a cross-language test.
+//! A request arrives with a token. Where the token can answer for itself the
+//! decision is made here and never leaves the node; where it cannot, Tuist's
+//! server is asked. Both answers are cached per credentials.
 
 use std::collections::BTreeMap;
 

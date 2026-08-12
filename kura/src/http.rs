@@ -128,7 +128,7 @@ pub fn public_router(state: SharedState) -> Router {
     public_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -166,7 +166,7 @@ pub fn combined_router(state: SharedState) -> Router {
         .merge(internal_routes())
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1203,7 +1203,7 @@ fn overloaded_response(message: &str) -> Response {
     response
 }
 
-async fn apply_extensions(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
     let Some(auth) = state.auth.as_ref() else {
         return next.run(req).await;
     };
@@ -1211,7 +1211,7 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
     let mut req = req;
     let route = request_route(&req);
     let path = req.uri().path().to_owned();
-    if should_skip_extension_route(&route) {
+    if skips_authorization(&route) {
         return next.run(req).await;
     }
 
@@ -1241,7 +1241,7 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 
     let context = request_context_from_http(
         &state,
-        HttpExtensionRequest {
+        HttpRequestFacts {
             route: &route,
             method: &method,
             path: &path,
@@ -1260,7 +1260,7 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
     next.run(req).await
 }
 
-fn should_skip_extension_route(route: &str) -> bool {
+fn skips_authorization(route: &str) -> bool {
     is_probe_route(route) || route.starts_with("/_internal/")
 }
 
@@ -1277,9 +1277,9 @@ fn is_http1(version: Version) -> bool {
 
 async fn request_context_from_http(
     state: &SharedState,
-    request: HttpExtensionRequest<'_>,
+    request: HttpRequestFacts<'_>,
 ) -> RequestContext {
-    let metadata = http_extension_metadata(
+    let metadata = http_request_metadata(
         state,
         request.route,
         request.method,
@@ -1309,7 +1309,7 @@ async fn request_context_from_http(
     }
 }
 
-struct HttpExtensionRequest<'a> {
+struct HttpRequestFacts<'a> {
     route: &'a str,
     method: &'a str,
     path: &'a str,
@@ -1319,7 +1319,7 @@ struct HttpExtensionRequest<'a> {
     status_code: Option<u16>,
 }
 
-struct HttpExtensionMetadata {
+struct HttpRequestMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
@@ -1328,20 +1328,20 @@ struct HttpExtensionMetadata {
     artifact_hash: Option<String>,
 }
 
-async fn http_extension_metadata(
+async fn http_request_metadata(
     state: &SharedState,
     route: &str,
     method: &str,
     path: &str,
     query: &HashMap<String, String>,
     request_body: Option<&[u8]>,
-) -> HttpExtensionMetadata {
+) -> HttpRequestMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
     let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
-        ROUTE_API_CACHE_KEYVALUE_ID => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
@@ -1349,7 +1349,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_KEYVALUE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE => HttpRequestMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
@@ -1362,7 +1362,7 @@ async fn http_extension_metadata(
                 .map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_CAS => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CAS => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -1375,7 +1375,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_GRADLE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_GRADLE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -1388,7 +1388,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_MODULE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_MODULE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("HEAD") || method.eq_ignore_ascii_case("GET")
             {
                 "artifact.read"
@@ -1428,7 +1428,7 @@ async fn http_extension_metadata(
                 .cloned()
                 .or_else(|| multipart_upload.map(|u| u.hash));
 
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
@@ -1437,7 +1437,7 @@ async fn http_extension_metadata(
                 artifact_hash,
             }
         }
-        ROUTE_API_CACHE_CLEAN => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CLEAN => HttpRequestMetadata {
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
@@ -1447,7 +1447,7 @@ async fn http_extension_metadata(
         },
         ROUTE_V1_CACHE => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -1463,7 +1463,7 @@ async fn http_extension_metadata(
         }
         ROUTE_API_METRO_CACHE => {
             namespace_id = Some(METRO_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -1477,7 +1477,7 @@ async fn http_extension_metadata(
                 artifact_hash: last_path_segment,
             }
         }
-        _ => HttpExtensionMetadata {
+        _ => HttpRequestMetadata {
             operation: "request".into(),
             tenant_id,
             namespace_id,
@@ -6855,7 +6855,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_resolves_namespace_from_multipart_upload() {
+    async fn request_context_resolves_namespace_from_multipart_upload() {
         let context = test_context(|_| {}).await;
         let upload_id = context
             .state
@@ -6867,7 +6867,7 @@ mod tests {
 
         let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_MODULE_PART,
                 method: "POST",
                 path: ROUTE_API_CACHE_MODULE_PART,
@@ -6889,12 +6889,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_uses_handle_aliases() {
+    async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
         let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/artifact-1",
@@ -6911,12 +6911,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
+    async fn request_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
         let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/account-artifact",
@@ -6933,13 +6933,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
+    async fn request_context_uses_keyvalue_cas_id_from_request_body() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
         let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
         let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_KEYVALUE,
                 method: "PUT",
                 path: ROUTE_API_CACHE_KEYVALUE,

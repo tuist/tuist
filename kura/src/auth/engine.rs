@@ -193,9 +193,7 @@ fn result_label(result: &Authentication) -> &'static str {
 }
 
 /// Exactly what authentication reads, so two requests carrying the same token
-/// share a result and nothing else about them can split it. The hook this
-/// replaced also keyed on `cookie`, `proxy-authorization` and `x-api-key`,
-/// which no policy has ever consulted.
+/// share a result and nothing else about them can split it.
 fn credentials(ctx: &RequestContext) -> String {
     ctx.headers
         .get("authorization")

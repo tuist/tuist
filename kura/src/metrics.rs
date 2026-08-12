@@ -888,22 +888,22 @@ impl Metrics {
         );
         registry.register(
             "kura_auth_decisions_total",
-            "Extension hook invocations by hook and result",
+            "Authorization decisions by stage and result",
             auth_decisions.clone(),
         );
         registry.register(
             "kura_auth_decision_duration_seconds",
-            "Extension hook execution latency by hook",
+            "Authorization decision latency by stage",
             auth_decision_duration.clone(),
         );
         registry.register(
             "kura_auth_cache_total",
-            "Extension cache lookups by cache and result",
+            "Authorization cache lookups by cache and result",
             auth_cache.clone(),
         );
         registry.register(
             "kura_auth_backend_requests_total",
-            "Extension HTTP client requests by client, route, result, status class, and error kind",
+            "Authentication backend requests by route, result, status class, and error kind",
             auth_backend_requests.clone(),
         );
         registry.register(

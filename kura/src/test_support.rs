@@ -31,10 +31,10 @@ pub(crate) async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
-    test_context_with_extension(override_config, None).await
+    test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_extension<F>(
+pub(crate) async fn test_context_with_auth<F>(
     override_config: F,
     auth: Option<SharedAuth>,
 ) -> TestContext
