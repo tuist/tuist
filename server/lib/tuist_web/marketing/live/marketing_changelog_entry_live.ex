@@ -8,9 +8,15 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Design
 
-  def mount(_params, _session, socket) do
-    {:ok, socket}
+  embed_templates "marketing_changelog_entry_live/*"
+
+  def render(%{new_design: true} = assigns), do: changelog_entry_new(assigns)
+  def render(assigns), do: changelog_entry(assigns)
+
+  def mount(_params, session, socket) do
+    {:ok, assign(socket, :new_design, Design.new?(session, :changelog_entry))}
   end
 
   def handle_params(%{"id" => id}, _url, socket) do

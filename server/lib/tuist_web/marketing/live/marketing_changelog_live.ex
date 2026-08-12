@@ -6,10 +6,16 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
+  alias TuistWeb.Marketing.Design
 
   @page_size 10
 
-  def mount(params, _session, socket) do
+  embed_templates "marketing_changelog_live/*"
+
+  def render(%{new_design: true} = assigns), do: changelog_new(assigns)
+  def render(assigns), do: changelog(assigns)
+
+  def mount(params, session, socket) do
     entries = Changelog.get_entries()
     categories = Changelog.get_categories()
     category = Map.get(params, "category")
@@ -23,6 +29,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
+      |> assign(:new_design, Design.new?(session, :changelog))
       |> assign(:entries, paginated_entries)
       |> assign(:all_entries, filtered_entries)
       |> assign(:categories, categories)

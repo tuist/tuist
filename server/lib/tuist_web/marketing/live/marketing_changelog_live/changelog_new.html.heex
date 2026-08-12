@@ -1,0 +1,104 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-changelog" phx-hook="CodeCopy">
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Changelog")}</h1>
+
+      <div data-part="filters-bar">
+        <div data-part="categories">
+          <.link patch={~p"/changelog"} data-selected={is_nil(@category)} data-part="category">
+            {dgettext("marketing", "All")}
+          </.link>
+          <.link
+            :for={category <- @categories}
+            patch={~p"/changelog?#{%{category: category}}"}
+            data-selected={@category == category}
+            data-part="category"
+          >
+            {category}
+          </.link>
+        </div>
+
+        <%!-- Tab/mobile swap the pill row for a dropdown; it renders as a tray
+        with a modal scrim on phones (same treatment as the blog index). --%>
+        <.dropdown
+          id="changelog-category-select"
+          data-part="category-select"
+          size="large"
+          label={@category || dgettext("marketing", "All")}
+        >
+          <.dropdown_item value="all" label={dgettext("marketing", "All")} patch={~p"/changelog"} />
+          <.dropdown_item
+            :for={category <- @categories}
+            value={category}
+            label={category}
+            patch={~p"/changelog?#{%{category: category}}"}
+          />
+        </.dropdown>
+
+        <div data-part="actions">
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/rss.xml"}
+            target="_blank"
+          >
+            <.rss />
+          </.button>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/changelog/atom.xml"}
+            target="_blank"
+          >
+            <.atom />
+          </.button>
+        </div>
+      </div>
+    </header>
+
+    <section data-part="timeline" id="changelog-timeline">
+      <%= for entry <- @entries do %>
+        <div data-part="date-cell">
+          <div data-part="date-group">
+            <time data-part="date" datetime={Timex.format!(entry.date, "{ISOdate}")}>
+              {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+            </time>
+            <.tag label={entry.category} data-part="category" />
+          </div>
+        </div>
+        <article data-part="entry" id={entry.id}>
+          <h2 data-part="title">
+            <a href={~p"/changelog/#{entry.id}"}>{entry.title}</a>
+          </h2>
+          <div :if={not is_nil(entry.pull_request)} data-part="pr">
+            <.button
+              variant="secondary"
+              size="medium"
+              label={"##{entry.pull_request}"}
+              href={"https://github.com/tuist/tuist/pull/#{entry.pull_request}"}
+              target="_blank"
+            >
+              <:icon_left>
+                <.git_merge />
+              </:icon_left>
+            </.button>
+          </div>
+          <div data-part="body" data-prose>
+            {raw(TuistWeb.Marketing.MarketingHTML.content_html(entry.body))}
+          </div>
+        </article>
+      <% end %>
+
+      <div :if={@has_more?} data-part="more">
+        <.button
+          variant="primary"
+          size="large"
+          label={dgettext("marketing", "Load more")}
+          phx-click="load_more"
+        />
+      </div>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
