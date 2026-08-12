@@ -1337,12 +1337,6 @@
           display: block;
         }
 
-        /* The Kotlin mark fills its canvas edge to edge, so at natural
-           size it reads bigger than its neighbors; rein it in a touch. */
-        &[data-framework="kotlin"] [data-part="framework-logo"] > svg {
-          width: 50px;
-          height: 50px;
-        }
       }
     }
   }
