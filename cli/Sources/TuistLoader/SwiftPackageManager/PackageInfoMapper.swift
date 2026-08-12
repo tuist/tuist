@@ -876,11 +876,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let version = try Version(versionString: try await SwiftVersionProvider.current.swiftVersion(), usesLenientParsing: true)
-        let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
+        let minDeploymentTargets = try await ProjectDescription.DeploymentTargets.minimumSupportedVersions()
 
-        let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
+        let deploymentTargets = try await ProjectDescription.DeploymentTargets.from(
             minDeploymentTargets: minDeploymentTargets,
+            minMacCatalystDeploymentTarget: ProjectDescription.DeploymentTargets.minimumSupportedMacCatalystVersion(),
             package: packageInfo.platforms,
             destinations: destinations,
             packageName: packageInfo.name
@@ -1788,6 +1788,41 @@ private struct StaticLibraryArtifactBundleSliceIdentifier: Hashable, Comparable 
 }
 
 extension ProjectDescription.DeploymentTargets {
+    /// The oldest version of each platform that packages can be generated for.
+    ///
+    /// The versions come from the SDKs of the selected Xcode, which is what rejects a deployment target that is too
+    /// old at build time. `oldestVersions(for:)` covers the platforms whose SDK can't be read, and every platform
+    /// where Xcode is not available.
+    static func minimumSupportedVersions() async throws -> ProjectDescription.DeploymentTargets {
+        let sdkVersions = await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets()
+        if let iOS = sdkVersions.iOS, let macOS = sdkVersions.macOS, let watchOS = sdkVersions.watchOS,
+           let tvOS = sdkVersions.tvOS, let visionOS = sdkVersions.visionOS
+        {
+            return .multiplatform(iOS: iOS, macOS: macOS, watchOS: watchOS, tvOS: tvOS, visionOS: visionOS)
+        }
+
+        let swiftVersion = try Version(
+            versionString: try await SwiftVersionProvider.current.swiftVersion(),
+            usesLenientParsing: true
+        )
+        let fallback = oldestVersions(for: swiftVersion)
+        return .multiplatform(
+            iOS: sdkVersions.iOS ?? fallback.iOS,
+            macOS: sdkVersions.macOS ?? fallback.macOS,
+            watchOS: sdkVersions.watchOS ?? fallback.watchOS,
+            tvOS: sdkVersions.tvOS ?? fallback.tvOS,
+            visionOS: sdkVersions.visionOS ?? fallback.visionOS
+        )
+    }
+
+    /// The oldest deployment target that a Mac Catalyst build can use, or `nil` when the SDK can't be read.
+    ///
+    /// Catalyst targets carry the iOS deployment target, and the Catalyst variant of the macOS SDK stops
+    /// supporting versions that the iOS SDK still builds for.
+    static func minimumSupportedMacCatalystVersion() async -> String? {
+        await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets().macCatalyst
+    }
+
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
         if swiftVersion < Version(5, 7, 0) {
@@ -1843,6 +1878,7 @@ extension ProjectDescription.DeploymentTargets {
 
     fileprivate static func from(
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
+        minMacCatalystDeploymentTarget: String?,
         package: [PackageInfo.Platform],
         destinations: ProjectDescription.Destinations,
         packageName _: String
@@ -1857,7 +1893,11 @@ extension ProjectDescription.DeploymentTargets {
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
             guard destinationTypes.contains(platform) else { return nil }
-            return try max(minDeploymentTargets[platform], platformInfos[platform])
+            var minimum = minDeploymentTargets[platform]
+            if platform == .iOS, destinations.contains(.macCatalyst) {
+                minimum = try max(minimum, minMacCatalystDeploymentTarget)
+            }
+            return try max(minimum, platformInfos[platform])
         }
 
         return .multiplatform(

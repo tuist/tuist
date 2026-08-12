@@ -13,7 +13,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
-@Suite(.withMockedSwiftBackDeploymentLibrariesProvider)
+@Suite(.withMockedSwiftBackDeploymentLibrariesProvider, .withMockedSDKDeploymentTargetsProvider)
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
     private let fileSystem = FileSystem()
@@ -23,6 +23,10 @@ struct PackageInfoMapperTests {
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.9")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(.none)
         let swiftBackDeploymentLibrariesProviderMock = try #require(SwiftBackDeploymentLibrariesProvider.mocked)
         given(swiftBackDeploymentLibrariesProviderMock)
             .runpathSearchPaths()
@@ -2962,12 +2966,284 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenUsingSwift64_clampsPackageDeploymentTargetsToXcode27Minimums() async throws {
+    ) func map_whenSDKMinimumsAreUnavailable_clampsPackageDeploymentTargetsToSwiftVersionMinimums() async throws {
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         swiftVersionProviderMock.reset()
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("6.4")
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.10", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageDeploymentTargetsAreOlderThanTheSDKs_clampsThemToTheSDKMinimums() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(iOS: "15.0", macOS: "12.0", watchOS: "9.0", tvOS: "15.0", visionOS: "1.0")
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.15", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageDeploymentTargetsAreSupportedByTheSDKs_keepsThem() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.3")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(iOS: "12.0", macOS: "10.13", watchOS: "4.0", tvOS: "12.0", visionOS: "1.0")
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "14.0", options: []),
+                        .init(platformName: "macos", version: "10.15", options: []),
+                        .init(platformName: "watchos", version: "7.0", options: []),
+                        .init(platformName: "tvos", version: "14.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "14.0",
+                macOS: "10.15",
+                watchOS: "7.0",
+                tvOS: "14.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetBuildsForMacCatalyst_clampsIOSToTheCatalystSDKMinimum() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(
+                    iOS: "12.0",
+                    macOS: "10.13",
+                    watchOS: "4.0",
+                    tvOS: "12.0",
+                    visionOS: "1.0",
+                    macCatalyst: "13.1"
+                )
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "12.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(target.destinations.contains(ProjectDescription.Destination.macCatalyst))
+        #expect(target.deploymentTargets?.iOS == "13.1")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetDoesNotBuildForMacCatalyst_keepsTheIOSSDKMinimum() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(
+                    iOS: "12.0",
+                    macOS: "10.13",
+                    watchOS: "4.0",
+                    tvOS: "12.0",
+                    visionOS: "1.0",
+                    macCatalyst: "13.1"
+                )
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "12.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productDestinations: ["Product1": [.iPhone, .iPad]],
+                baseSettings: .default
+            )
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(!target.destinations.contains(ProjectDescription.Destination.macCatalyst))
+        #expect(target.deploymentTargets?.iOS == "12.0")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenOnlySomeSDKMinimumsAreAvailable_fallsBackToSwiftVersionMinimumsForTheRest() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.4")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(SDKDeploymentTargets(macOS: "12.0"))
 
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
