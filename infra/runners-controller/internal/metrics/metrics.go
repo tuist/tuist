@@ -27,7 +27,7 @@ const (
 )
 
 var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
-var admissionBlockReasons = []string{"fleet_cap", "no_healthy_node", "fleet_view_error"}
+var admissionBlockReasons = []string{"fleet_cap", "pool_unschedulable", "no_healthy_node", "fleet_view_error"}
 var fleetNodeFilterReasons = []string{"unschedulable", "not_ready", "memory_pressure", "disk_pressure", "pid_pressure"}
 var podStartTimeoutReasons = []string{"poller_not_started"}
 

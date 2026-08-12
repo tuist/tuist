@@ -399,6 +399,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"creating", createLimit,
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
+					"unschedulableForPool", admission.unschedulableForPool,
 					"cap", admission.cap,
 					"healthyNodes", admission.healthyNodes,
 				)

@@ -77,12 +77,13 @@ func (s *creationReservationStore) reconcile(
 }
 
 type provisioningAdmission struct {
-	available       int
-	pendingForPool  int
-	pendingForFleet int
-	cap             int
-	healthyNodes    int
-	blockedReason   string
+	available            int
+	pendingForPool       int
+	pendingForFleet      int
+	unschedulableForPool int
+	cap                  int
+	healthyNodes         int
+	blockedReason        string
 }
 
 func isLinuxKataPool(pool *tuistv1.RunnerPool) bool {
@@ -94,6 +95,24 @@ func isLinuxKataPool(pool *tuistv1.RunnerPool) bool {
 // excludes it. Deleting and terminal Pods are excluded by isAlive.
 func isLinuxProvisioningPod(pod *corev1.Pod) bool {
 	return isAlive(pod) && isIdle(pod) && !pollerRunning(pod)
+}
+
+// isUnschedulable reports whether the scheduler has actively rejected the Pod,
+// as opposed to not having reached it yet. Only an explicit Unschedulable
+// condition counts: a freshly created Pod carries no PodScheduled condition at
+// all and must keep its place in the provisioning budget, since it is about to
+// boot a sandbox.
+func isUnschedulable(pod *corev1.Pod) bool {
+	if pod.Spec.NodeName != "" {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled {
+			return condition.Status == corev1.ConditionFalse &&
+				condition.Reason == corev1.PodReasonUnschedulable
+		}
+	}
+	return false
 }
 
 func (r *RunnerPoolReconciler) provisioningAdmission(
@@ -126,19 +145,35 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		return provisioningAdmission{}, fmt.Errorf("list fleet runner pods: %w", err)
 	}
 
+	// The fleet budget governs concurrent sandbox starts, so a Pod the
+	// scheduler has rejected does not belong in it: it boots nothing, and
+	// nothing about waiting on it frees the budget. Counting it let one
+	// pool's unplaceable Pods (no node has memory for its shape) hold the
+	// whole fleetSelector's budget indefinitely, starving every sibling
+	// shape of creations. Unschedulable Pods are bounded per pool instead,
+	// so a pool that cannot place anything stops piling up Pending Pods
+	// without taking its siblings down with it.
 	observed := make(map[string]struct{}, len(pods.Items))
 	pendingForFleet := 0
 	pendingForPool := 0
+	unschedulableForPool := 0
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		observed[pod.Namespace+"/"+pod.Name] = struct{}{}
 		if _, ok := poolNames[pod.Labels["tuist.dev/runner-pool"]]; !ok || !isLinuxProvisioningPod(pod) {
 			continue
 		}
-		pendingForFleet++
-		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
+		ownPool := pod.Labels["tuist.dev/runner-pool"] == pool.Name
+		if ownPool {
 			pendingForPool++
 		}
+		if isUnschedulable(pod) {
+			if ownPool {
+				unschedulableForPool++
+			}
+			continue
+		}
+		pendingForFleet++
 	}
 
 	reserved, reservedByPool := r.creationReservations.reconcile(
@@ -161,10 +196,11 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	metrics.RecordPendingProvisioningPods(pool.Name, pendingForPool)
 
 	admission := provisioningAdmission{
-		pendingForPool:  pendingForPool,
-		pendingForFleet: pendingForFleet,
-		cap:             capN,
-		healthyNodes:    healthyNodes,
+		pendingForPool:       pendingForPool,
+		pendingForFleet:      pendingForFleet,
+		unschedulableForPool: unschedulableForPool,
+		cap:                  capN,
+		healthyNodes:         healthyNodes,
 	}
 	if healthyNodes == 0 {
 		admission.blockedReason = "no_healthy_node"
@@ -174,7 +210,11 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		admission.blockedReason = "fleet_cap"
 		return admission, nil
 	}
-	admission.available = capN - pendingForFleet
+	if unschedulableForPool >= capN {
+		admission.blockedReason = "pool_unschedulable"
+		return admission, nil
+	}
+	admission.available = min(capN-pendingForFleet, capN-unschedulableForPool)
 	return admission, nil
 }
 

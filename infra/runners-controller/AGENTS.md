@@ -118,6 +118,18 @@ independent workqueues:
   fleet boundary. Excess demand remains a replica gap and is retried
   every five seconds. macOS pools skip this gate.
 
+  Pods the scheduler has explicitly rejected (`PodScheduled=False`,
+  reason `Unschedulable`) are excluded from that fleet-wide count: they
+  boot no sandbox, so the velocity boundary they would enforce is
+  imaginary, and waiting on them frees nothing. They are instead bounded
+  by the same ceiling *per pool*, blocking with reason
+  `pool_unschedulable`. Without the split, a pool whose shape no node
+  can fit holds the whole `FleetSelector`'s budget indefinitely and
+  starves every sibling shape of creations — a shape with queued jobs
+  and healthy dispatch then reconciles at `observed: 0` forever. Note
+  that unschedulable Pods are also never reaped by the start timeout
+  (the clock starts at node binding), so nothing else bounds them.
+
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
   successful create and counts it until the cache observes the Pod. This
