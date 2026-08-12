@@ -88,13 +88,15 @@ defmodule Tuist.Cache do
 
   defp scope_grants(grants, scope) do
     project = String.downcase(scope)
-    account = project |> String.split("/") |> List.first()
 
+    # The account buckets go empty rather than being filtered to the project's
+    # own account. A cache node picks the bucket by what the request asks for
+    # and never falls back between them, so a request naming no project is
+    # authorized against the account bucket alone. Keeping it would leave a
+    # token minted for one project holding its account's cache too, which is
+    # the access scoping exists to drop.
     %{
-      "account" => %{
-        "read" => only(grants["account"]["read"], account),
-        "write" => only(grants["account"]["write"], account)
-      },
+      "account" => %{"read" => [], "write" => []},
       "project" => %{
         "read" => only(grants["project"]["read"], project),
         "write" => only(grants["project"]["write"], project)

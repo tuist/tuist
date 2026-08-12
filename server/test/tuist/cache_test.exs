@@ -157,6 +157,41 @@ defmodule Tuist.CacheTest do
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end
 
+    # A cache node authorizes a request naming no project against the account
+    # bucket alone, so leaving the target's own account in it would hand a token
+    # minted for one project its account's cache as well.
+    test "drops account grants when narrowing to a project" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+
+      project =
+        ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+
+      handle = "#{project.account.name}/#{project.name}"
+
+      subject = %AuthenticatedAccount{
+        account: organization.account,
+        scopes: [
+          "account:cache:read",
+          "account:cache:write",
+          "project:cache:read",
+          "project:cache:write"
+        ],
+        all_projects: true
+      }
+
+      # When
+      {:ok, _token, unscoped} = Cache.issue_cache_token(subject)
+      {:ok, _token, scoped} = Cache.issue_cache_token(subject, scope: handle)
+
+      # Then
+      assert unscoped["cache_grants"]["account"]["write"] == [organization.account.name]
+      assert scoped["cache_grants"]["account"]["read"] == []
+      assert scoped["cache_grants"]["account"]["write"] == []
+      assert scoped["cache_grants"]["project"]["read"] == [handle]
+      assert scoped["cache_grants"]["project"]["write"] == [handle]
+    end
+
     test "never widens the grants beyond what the credential reaches" do
       # Given
       organization = AccountsFixtures.organization_fixture(preload: [:account])
