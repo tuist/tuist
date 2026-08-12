@@ -154,6 +154,7 @@ defmodule TuistWeb.Router do
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
+    plug TuistWeb.Marketing.Design
   end
 
   pipeline :browser_docs do

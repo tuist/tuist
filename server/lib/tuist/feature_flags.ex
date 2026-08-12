@@ -55,6 +55,20 @@ defmodule Tuist.FeatureFlags do
     FunWithFlags.enabled?(:kura_backfill, for: account)
   end
 
+  @doc """
+  Whether a marketing page should render the redesigned version instead of
+  the legacy one. The redesign ships page by page: each page gets its own
+  boolean flag (`:new_marketing_home`, `:new_marketing_pricing`, ...) that is
+  flipped for everyone at once — marketing traffic is mostly anonymous, so
+  there is no actor to gate on. Team members can preview a page before the
+  flip via the `?design=new` cookie override in `TuistWeb.Marketing.Design`,
+  which is also why callers should go through that module rather than
+  checking this flag directly.
+  """
+  def new_marketing_page_enabled?(page) when is_atom(page) do
+    FunWithFlags.enabled?(:"new_marketing_#{page}")
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

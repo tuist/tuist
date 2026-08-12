@@ -1,15 +1,62 @@
 export const LogoTransition = {
   mounted() {
+    // A bfcache restore re-mounts hooks without ever calling destroyed() on
+    // the previous instance; tear its timers down first so two loops don't
+    // fight over the same logo groups (stuck, overlapping logos).
+    if (this.el.logoTransitionTeardown) {
+      this.el.logoTransitionTeardown();
+    }
+    this.teardownRef = () => this.teardown();
+    this.el.logoTransitionTeardown = this.teardownRef;
+
     this.currentIndex = 0;
     this.isAnimating = false;
     this.intervalId = null;
+    this.cleanupTimeout = null;
     this.animationFrame = null;
     this.originalHTML = this.el.innerHTML;
     this.currentMode = null;
 
     this.handleResize = this.handleResize.bind(this);
     window.addEventListener("resize", this.handleResize);
+    // Hidden tabs throttle timers and don't paint transitions, which can
+    // strand a crossfade halfway; stop the loop while hidden and restart
+    // from a clean state on return.
+    this.handleVisibility = this.handleVisibility.bind(this);
+    document.addEventListener("visibilitychange", this.handleVisibility);
+    // A bfcache restore does NOT fire visibilitychange — the page was frozen
+    // in the "visible" state. pageshow with persisted=true is the only
+    // signal, and the restored page resumes whatever half-finished crossfade
+    // it was frozen with; reset it.
+    this.handlePageshow = (event) => {
+      if (event.persisted && this.currentMode === "desktop") {
+        this.setupDesktopAnimation();
+      }
+    };
+    this.handlePagehide = () => this.stopDesktopLoop();
+    window.addEventListener("pageshow", this.handlePageshow);
+    window.addEventListener("pagehide", this.handlePagehide);
     this.init();
+  },
+
+  handleVisibility() {
+    if (document.hidden) {
+      this.stopDesktopLoop();
+    } else if (this.currentMode === "desktop") {
+      this.setupDesktopAnimation();
+    }
+  },
+
+  stopDesktopLoop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.cleanupTimeout) {
+      clearTimeout(this.cleanupTimeout);
+      this.cleanupTimeout = null;
+    }
+    this.isAnimating = false;
   },
 
   init() {
@@ -33,6 +80,7 @@ export const LogoTransition = {
   },
 
   setupDesktopAnimation() {
+    this.stopDesktopLoop();
     this.restoreOriginal();
     this.el.setAttribute("data-animation-mode", "desktop");
     const groups = Array.from(this.el.querySelectorAll('[data-part="logo-group"]'));
@@ -43,22 +91,19 @@ export const LogoTransition = {
       if (groupIndex === 0) {
         group.setAttribute("data-state", "active");
         logos.forEach((logo) => {
+          logo.style.transitionDelay = "0ms";
           logo.setAttribute("data-state", "visible");
         });
       } else {
         group.setAttribute("data-state", "hidden");
         logos.forEach((logo) => {
+          logo.style.transitionDelay = "0ms";
           logo.setAttribute("data-state", "hidden");
         });
       }
     });
 
     this.groups = groups;
-
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-
     this.currentIndex = 0;
     this.intervalId = setInterval(() => this.transition(), 3000);
   },
@@ -127,6 +172,18 @@ export const LogoTransition = {
     const nextIndex = (this.currentIndex + 1) % this.groups.length;
     const nextGroup = this.groups[nextIndex];
 
+    // Self-heal before animating: if a lost cleanup timer (throttled tab,
+    // bfcache freeze) left extra groups visible, hide everything that isn't
+    // part of this crossfade.
+    this.groups.forEach((group, index) => {
+      if (index === this.currentIndex || index === nextIndex) return;
+      group.setAttribute("data-state", "hidden");
+      group.querySelectorAll('[data-part="org-logo"]').forEach((logo) => {
+        logo.style.transitionDelay = "0ms";
+        logo.setAttribute("data-state", "hidden");
+      });
+    });
+
     const currentLogos = Array.from(currentGroup.querySelectorAll('[data-part="org-logo"]'));
     const nextLogos = Array.from(nextGroup.querySelectorAll('[data-part="org-logo"]'));
 
@@ -147,7 +204,8 @@ export const LogoTransition = {
 
     const maxDelay = Math.max(currentLogos.length, nextLogos.length) * 40 + 500;
 
-    setTimeout(() => {
+    this.cleanupTimeout = setTimeout(() => {
+      this.cleanupTimeout = null;
       this.isAnimating = false;
 
       this.groups.forEach((group, index) => {
@@ -164,10 +222,7 @@ export const LogoTransition = {
   },
 
   cleanupDesktop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.stopDesktopLoop();
 
     this.el.removeAttribute("data-animation-mode");
 
@@ -194,9 +249,20 @@ export const LogoTransition = {
     this.init();
   },
 
-  destroyed() {
-    this.cleanupDesktop();
+  teardown() {
+    this.stopDesktopLoop();
     this.cleanupMobile();
     window.removeEventListener("resize", this.handleResize);
+    document.removeEventListener("visibilitychange", this.handleVisibility);
+    window.removeEventListener("pageshow", this.handlePageshow);
+    window.removeEventListener("pagehide", this.handlePagehide);
+    if (this.el.logoTransitionTeardown === this.teardownRef) {
+      delete this.el.logoTransitionTeardown;
+    }
+  },
+
+  destroyed() {
+    this.cleanupDesktop();
+    this.teardown();
   },
 };

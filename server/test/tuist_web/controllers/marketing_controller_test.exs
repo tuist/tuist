@@ -18,6 +18,66 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET / (new design rollout)" do
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_home -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "?design=new previews the new design and persists the override in a cookie", %{
+      conn: conn
+    } do
+      conn = get(conn, "/?design=new")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      assert conn.resp_cookies["tuist_marketing_design"].value == "new"
+
+      conn = conn |> recycle() |> get("/")
+
+      assert html_response(conn, 200) =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "?design=old forces the legacy design even when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_home -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/?design=old")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "?design=default clears the override cookie", %{conn: conn} do
+      conn = get(conn, "/?design=new")
+      assert conn.resp_cookies["tuist_marketing_design"].value == "new"
+
+      conn = conn |> recycle() |> get("/?design=default")
+
+      assert html_response(conn, 200) =~ "/marketing/assets/bundle.css"
+      assert conn.resp_cookies["tuist_marketing_design"].max_age == 0
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given

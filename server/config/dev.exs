@@ -18,6 +18,7 @@ code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in
 base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
+  esbuild_marketing_new: {Esbuild, :install_and_run, [:marketing_new, ~w(--sourcemap=inline --watch)]},
   esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap=inline --watch)]},
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
 ]
