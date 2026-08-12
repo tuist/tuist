@@ -2257,7 +2257,11 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
+		binPackCeiling, err := r.ceilingBudgetAdvertised(ctx, instance)
+		if err != nil {
+			return err
+		}
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {
@@ -2605,7 +2609,44 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string) corev1.PodTemplateSpec {
+// ceilingBudgetAdvertised reports whether a node this instance can land on
+// actually publishes tuist.dev/memory-ceiling-mib.
+//
+// The spec flag states the server's intent; this checks it against reality. The
+// CAPI provider that advertises the budget rolls to the management cluster on
+// its own cadence, so the server can ask for the resource before any node
+// offers it, and a pod requesting an extended resource no node advertises stays
+// Pending forever. Resolving it here makes the ordering a property of the
+// system rather than a runbook step, in both directions: the request appears
+// within a reconcile of the provider rolling, and disappears within a reconcile
+// of a node ceasing to advertise, which is what lets a provider rollback
+// un-wedge Pending pods without a server deploy.
+//
+// Allocatable, not Capacity: that is the field the scheduler fits against. The
+// kubelet mirrors externally patched extended-resource capacity into it.
+func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	if !instance.Spec.MemoryCeilingBinPacked {
+		return false, nil
+	}
+	nodes := &corev1.NodeList{}
+	var opts []client.ListOption
+	if len(instance.Spec.NodeSelector) > 0 {
+		opts = append(opts, client.MatchingLabels(instance.Spec.NodeSelector))
+	}
+	if err := r.List(ctx, nodes, opts...); err != nil {
+		return false, err
+	}
+	for i := range nodes.Items {
+		if quantity, ok := nodes.Items[i].Status.Allocatable[memoryCeilingResource]; ok && !quantity.IsZero() {
+			return true, nil
+		}
+	}
+	log.FromContext(ctx).Info("memory ceiling bin-packing requested but no node advertises the budget; omitting the request",
+		"instance", instance.Name, "resource", memoryCeilingResource)
+	return false, nil
+}
+
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
@@ -2624,7 +2665,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Ports:           containerPorts(instance),
 				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
-				Resources:       defaultResources(instance),
+				Resources:       defaultResources(instance, binPackCeiling),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
@@ -2729,7 +2770,7 @@ const (
 // bare-metal boxes reserve several times the working set the fleet actually
 // peaks at, so raising it in step would exhaust a box's schedulable memory
 // without serving a single extra byte.
-func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) corev1.ResourceRequirements {
 	floorMib := instance.Spec.MemoryFloorMib
 	if floorMib <= 0 {
 		floorMib = defaultMemoryFloorMib
@@ -2756,9 +2797,9 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 	}
 	// Ceiling bin-packing is opt-in per region, for the same reason the egress
 	// floor is: a pod that requests an extended resource its node does not
-	// advertise never schedules. Only the node pools the CAPI provider patches
-	// turn it on.
-	if instance.Spec.MemoryCeilingBinPacked {
+	// advertise never schedules. The caller resolves this against the live node
+	// budget rather than trusting the spec alone.
+	if binPackCeiling {
 		q := *resource.NewQuantity(int64(ceilingMib), resource.DecimalSI)
 		r.Requests[memoryCeilingResource] = q
 		r.Limits[memoryCeilingResource] = q
