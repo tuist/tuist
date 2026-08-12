@@ -160,7 +160,7 @@ struct CacheTokenStoreTests {
     /// A server that cannot mint a token stays that way, and a build makes
     /// thousands of cache calls, so retrying on each one would put a failing
     /// round-trip in front of every request against an older deployment.
-    @Test func does_not_retry_the_exchange_while_the_cooldown_holds() async throws {
+    @Test func does_not_exchange_again_while_the_server_is_known_unavailable() async throws {
         // Given
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
@@ -187,9 +187,9 @@ struct CacheTokenStoreTests {
             .called(1)
     }
 
-    /// The cooldown suppresses retries, it does not stop them, so a server
+    /// Unavailability is remembered for a while, not forever, so a server
     /// upgraded mid-build starts minting tokens without restarting the CLI.
-    @Test func retries_the_exchange_once_the_cooldown_lapses() async throws {
+    @Test func exchanges_again_once_the_unavailability_lapses() async throws {
         // Given
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
@@ -214,8 +214,8 @@ struct CacheTokenStoreTests {
             .called(2)
     }
 
-    /// A token that arrives after an earlier failure has to clear the cooldown,
-    /// or a later refresh would be suppressed by a stale entry.
+    /// A token that arrives after an earlier failure has to clear the recorded
+    /// unavailability, or a later refresh would be suppressed by a stale entry.
     @Test func stops_holding_back_retries_once_an_exchange_succeeds() async throws {
         // Given
         struct UnavailableError: Error {}
@@ -235,7 +235,7 @@ struct CacheTokenStoreTests {
             fullHandle: "acme/ios"
         )
         // The token it hands back is already past the refresh margin, so this
-        // needs a fresh exchange and would be blocked by a cooldown the earlier
+        // needs a fresh exchange and would be blocked by the unavailability the earlier
         // failure left behind.
         let refreshed = await subject.cacheToken(
             authenticationURL: authenticationURL,
@@ -249,7 +249,7 @@ struct CacheTokenStoreTests {
     }
 }
 
-/// Lets a test move past the cooldown without sleeping through it.
+/// Lets a test move past the recorded unavailability without sleeping through it.
 private final class MutableClock: Sendable {
     private let date: Mutex<Date>
 
@@ -272,7 +272,7 @@ private actor FlakyCacheTokenService: GetCacheTokenServicing {
     private(set) var callCount = 0
 
     /// Short enough that the refresh margin makes every token it mints already
-    /// stale, so a caller that is not held back by a cooldown exchanges again.
+    /// stale, so a caller that is not held back exchanges again.
     func getCacheToken(serverURL _: URL, fullHandle _: String?) async throws -> CacheToken {
         callCount += 1
         if callCount == 1 { throw UnavailableError() }

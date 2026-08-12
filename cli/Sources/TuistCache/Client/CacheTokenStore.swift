@@ -24,11 +24,12 @@ public actor CacheTokenStore: CacheTokenStoring {
     private static let expiryMargin: TimeInterval = 60
 
     /// How long to keep sending the original credential after an exchange fails.
-    /// A server that cannot mint one is the steady state for older self-hosted
-    /// deployments, and a build issues enough cache requests that retrying on
-    /// each one would add thousands of failing round-trips. Short enough that a
-    /// server upgraded mid-build is picked up without restarting the CLI.
-    private static let retryCooldown: TimeInterval = 60
+    /// This suppresses attempts rather than making them: a server without the
+    /// endpoint fails identically every time, so re-attempting is the failure
+    /// mode, not the fix, and the transport already retries what is worth
+    /// retrying. Short enough that a server upgraded mid-build is picked up
+    /// without restarting the CLI.
+    private static let unavailabilityLifetime: TimeInterval = 60
 
     /// A cache client is built per request, so the exchanged tokens are held here
     /// rather than on the client, which would make every request exchange again.
@@ -40,7 +41,7 @@ public actor CacheTokenStore: CacheTokenStoring {
 
     /// Failures are held here rather than in the value store, which does not
     /// memoize an absent result by design.
-    private var retryAfter: [String: Date] = [:]
+    private var unavailableUntil: [String: Date] = [:]
 
     public init() {
         self.init(getCacheTokenService: GetCacheTokenService())
@@ -59,7 +60,7 @@ public actor CacheTokenStore: CacheTokenStoring {
     public func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String? {
         let key = "cache-token-\(authenticationURL.absoluteString)-\(fullHandle ?? "")"
 
-        if let retryAfter = retryAfter[key], retryAfter > now() {
+        if let unavailableUntil = unavailableUntil[key], unavailableUntil > now() {
             return nil
         }
 
@@ -80,7 +81,7 @@ public actor CacheTokenStore: CacheTokenStoring {
                     )
                 )
             }
-            retryAfter[key] = nil
+            unavailableUntil[key] = nil
             return token
         } catch {
             // Cache nodes still accept the original credential, so a server
@@ -88,7 +89,7 @@ public actor CacheTokenStore: CacheTokenStoring {
             // example) leaves cache access working exactly as before.
             Logger.current
                 .debug("Using the original credential for cache requests: \(error)")
-            retryAfter[key] = now().addingTimeInterval(Self.retryCooldown)
+            unavailableUntil[key] = now().addingTimeInterval(Self.unavailabilityLifetime)
             return nil
         }
     }
