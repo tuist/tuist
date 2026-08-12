@@ -140,6 +140,25 @@
             }
           }
 
+          /* Plain entries (Pricing, Blog): the focusable element is this
+             inner link, not the padded wrapper, so its focus ring would hug
+             the bare text with square corners. Grow the link's own box to
+             the wrapper's footprint (equal padding, cancelled by negative
+             margin) and round it, so ring and hit target match the
+             triggers'. */
+          & > a[data-part="title"] {
+            margin: calc(-1 * var(--noora-spacing-2)) calc(-1 * var(--noora-spacing-3));
+            border-radius: var(--noora-radius-2);
+            padding: var(--noora-spacing-2) var(--noora-spacing-3);
+
+            @media (min-width: 960px) and (max-width: 1024px) {
+              margin-right: calc(-1 * var(--noora-spacing-2));
+              margin-left: calc(-1 * var(--noora-spacing-2));
+              padding-right: var(--noora-spacing-2);
+              padding-left: var(--noora-spacing-2);
+            }
+          }
+
           & > [data-part="chevron"] {
             display: inline-flex;
             transition:
