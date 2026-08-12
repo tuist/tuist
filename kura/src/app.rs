@@ -53,6 +53,12 @@ const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEN
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+// The kubelet writes memory.min/memory.low once at container creation, so this
+// gauge only has to notice a change across a kubelet restart or upgrade. It
+// rides the pressure loop rather than owning one, and samples far slower than
+// it: two sysfs reads five times a second would add I/O to the loop the
+// watchdog supervises for a value scraped every 15-60s.
+const MEMORY_PROTECTION_SAMPLE_INTERVAL: Duration = Duration::from_secs(60);
 const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
 #[cfg(target_os = "linux")]
 const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
@@ -621,6 +627,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
     let watchdog_memory = state.memory.clone();
     let mut sensor = tokio::spawn(
         async move {
+            // Zero-valued so the first pass through the loop publishes the gauge
+            // immediately rather than leaving it unset for the first minute.
+            let mut next_protection_sample_at = tokio::time::Instant::now();
             loop {
                 if let Some(sample) = crate::memory::container_memory_pressure_sample() {
                     if let Err(error) =
@@ -651,7 +660,12 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         sensor_state.memory.observe(snapshot.resident_bytes);
                     }
                 }
-                if let Some((min_bytes, low_bytes)) = crate::memory::container_memory_protection() {
+                let now = tokio::time::Instant::now();
+                if now >= next_protection_sample_at
+                    && let Some((min_bytes, low_bytes)) =
+                        crate::memory::container_memory_protection()
+                {
+                    next_protection_sample_at = now + MEMORY_PROTECTION_SAMPLE_INTERVAL;
                     sensor_state
                         .metrics
                         .update_memory_protection(min_bytes, low_bytes);
