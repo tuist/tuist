@@ -23,9 +23,6 @@ pub struct TokenProvider {
     // How to fetch a fresh token. Absent (direct/bench mode) means the seeded
     // env token is all there is.
     fetch: Option<TokenFetch>,
-    // The token seeded from the environment, kept even when the cache starts
-    // cold so a failed exchange still leaves a usable bearer.
-    seed: Option<String>,
 }
 
 /// A bearer plus the expiry parsed from its JWT `exp` claim, if any. Opaque
@@ -45,49 +42,22 @@ impl CachedToken {
 struct TokenFetch {
     tuist_bin: String,
     server_url: Option<String>,
-    project: Option<String>,
 }
 
 impl TokenProvider {
     /// Builds a provider from the environment: `TUIST_CAS_TOKEN` seeds the
     /// cache; `TUIST_CAS_TUIST_BIN` (+ optional `TUIST_CAS_SERVER_URL`) enables
-    /// shell-out refresh via the CLI; `TUIST_CAS_ACCOUNT`/`TUIST_CAS_PROJECT`
-    /// let that fetch ask for a token scoped to this build's project.
+    /// shell-out refresh via the CLI.
     pub fn from_env() -> Arc<Self> {
-        let seed = env_nonempty("TUIST_CAS_TOKEN");
-        let project = match (
-            env_nonempty("TUIST_CAS_ACCOUNT"),
-            env_nonempty("TUIST_CAS_PROJECT"),
-        ) {
-            (Some(account), Some(project)) => Some(format!("{account}/{project}")),
-            _ => None,
-        };
+        let cached = env_nonempty("TUIST_CAS_TOKEN").map(CachedToken::new);
         let fetch = env_nonempty("TUIST_CAS_TUIST_BIN").map(|tuist_bin| TokenFetch {
             tuist_bin,
             server_url: env_nonempty("TUIST_CAS_SERVER_URL"),
-            project,
         });
-        Self::new(seed, fetch)
-    }
-
-    fn new(seed: Option<String>, fetch: Option<TokenFetch>) -> Arc<Self> {
-        // CI seeds the credential itself, which is opaque: a cache node cannot
-        // verify one, so every authorization it misses costs a round-trip to
-        // the server. It also carries no expiry, so nothing here would ever
-        // replace it. When the CLI can exchange it for a token the node
-        // verifies itself, leave the cache cold so the first caller fetches
-        // that instead. The seed stays behind it as the fallback.
-        let exchangeable = fetch.as_ref().is_some_and(|fetch| fetch.project.is_some());
-        let cached = seed
-            .clone()
-            .filter(|value| !(exchangeable && jwt_expiry(value).is_none()))
-            .map(CachedToken::new);
-
         Arc::new(Self {
             cached: Mutex::new(cached),
             refreshing: Mutex::new(()),
             fetch,
-            seed,
         })
     }
 
@@ -97,9 +67,7 @@ impl TokenProvider {
         if let Some(cached) = self.cached.lock().unwrap().as_ref() {
             return Some(cached.value.clone());
         }
-        let Some(fetch) = self.fetch.as_ref() else {
-            return self.seed.clone();
-        };
+        let fetch = self.fetch.as_ref()?;
         let _guard = self.refreshing.lock().unwrap();
         // The cache may have filled while we waited for the guard.
         if let Some(cached) = self.cached.lock().unwrap().as_ref() {
@@ -108,11 +76,8 @@ impl TokenProvider {
         let fresh = run_token_command(fetch);
         if let Some(token) = &fresh {
             *self.cached.lock().unwrap() = Some(CachedToken::new(token.clone()));
-            return fresh;
         }
-        // Nothing to exchange with, so fall back to whatever seeded us rather
-        // than leaving the proxy with no bearer at all.
-        self.seed.clone()
+        fresh
     }
 
     /// Refreshes the bearer only when the cached JWT is within `lead` of its
@@ -204,9 +169,6 @@ fn run_token_command(fetch: &TokenFetch) -> Option<String> {
     if let Some(url) = &fetch.server_url {
         command.arg("--url").arg(url);
     }
-    if let Some(project) = &fetch.project {
-        command.arg("--project").arg(project);
-    }
     let output = command.output().ok()?;
     if !output.status.success() {
         return None;
@@ -232,74 +194,6 @@ mod tests {
         let payload =
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload_json.as_bytes());
         format!("{header}.{payload}.")
-    }
-
-    fn fetch_for(project: Option<&str>) -> TokenFetch {
-        TokenFetch {
-            // Not a real binary: these cases must be decided without running it.
-            tuist_bin: "/nonexistent/tuist".into(),
-            server_url: None,
-            project: project.map(str::to_string),
-        }
-    }
-
-    // The seeded credential is what CI has, and it is exactly the token a cache
-    // node cannot verify. Holding onto it would keep the proxy on the slow path
-    // for the whole build, since an opaque token never expires out of the cache.
-    #[test]
-    fn starts_cold_when_an_opaque_seed_could_be_exchanged() {
-        let provider = TokenProvider::new(
-            Some("opaque-project-token".into()),
-            Some(fetch_for(Some("acme/ios"))),
-        );
-
-        assert!(provider.cached.lock().unwrap().is_none());
-    }
-
-    #[test]
-    fn keeps_an_opaque_seed_when_there_is_no_project_to_scope_to() {
-        let provider =
-            TokenProvider::new(Some("opaque-project-token".into()), Some(fetch_for(None)));
-
-        assert_eq!(
-            provider
-                .cached
-                .lock()
-                .unwrap()
-                .as_ref()
-                .map(|c| c.value.clone()),
-            Some("opaque-project-token".to_string())
-        );
-    }
-
-    // A JWT seed is already verifiable on the node, so there is nothing to
-    // upgrade and discarding it would cost a needless shell-out.
-    #[test]
-    fn keeps_a_jwt_seed() {
-        let jwt = make_jwt(r#"{"exp":9999999999}"#);
-        let provider = TokenProvider::new(Some(jwt.clone()), Some(fetch_for(Some("acme/ios"))));
-
-        assert_eq!(
-            provider
-                .cached
-                .lock()
-                .unwrap()
-                .as_ref()
-                .map(|c| c.value.clone()),
-            Some(jwt)
-        );
-    }
-
-    // Dropping the seed to try for a better token must not leave the proxy with
-    // no bearer when the exchange cannot happen.
-    #[test]
-    fn falls_back_to_the_seed_when_the_exchange_fails() {
-        let provider = TokenProvider::new(
-            Some("opaque-project-token".into()),
-            Some(fetch_for(Some("acme/ios"))),
-        );
-
-        assert_eq!(provider.current(), Some("opaque-project-token".to_string()));
     }
 
     #[test]

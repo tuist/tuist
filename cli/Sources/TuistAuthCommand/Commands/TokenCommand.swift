@@ -19,13 +19,7 @@ public struct TokenCommand: AsyncParsableCommand {
     )
     var url: String?
 
-    @Option(
-        name: .long,
-        help: "The `account/project` the token will be used against. Exchanges the credential for one a cache node can verify by itself."
-    )
-    var project: String?
-
     public func run() async throws {
-        try await AuthTokenService().run(serverURL: url, projectHandle: project)
+        try await AuthTokenService().run(serverURL: url)
     }
 }
