@@ -54,7 +54,7 @@ public class GraphTraverser: GraphTraversing {
             if !directConditionalTargets.contains(node) {
                 references.insert(node)
             }
-            if let deps = graph.dependencies[node] {
+            if let deps = graph.dependencies[node.graphKey] {
                 for dep in deps where !visited.contains(dep) {
                     stack.append(dep)
                 }
@@ -229,7 +229,7 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
 
-            queue.append(contentsOf: graph.dependencies[dependency, default: []])
+            queue.append(contentsOf: graph.dependencies[dependency.graphKey, default: []])
         }
 
         return result
@@ -559,7 +559,7 @@ public class GraphTraverser: GraphTraversing {
                 from: targetGraphDependency
             )
             .flatMap { dependency -> [GraphDependencyReference] in
-                let dependencies = self.graph.dependencies[dependency, default: []]
+                let dependencies = self.graph.dependencies[dependency.graphKey, default: []]
                 return dependencies.compactMap {
                     dependencyDependency -> GraphDependencyReference? in
                     guard case GraphDependency.sdk = dependencyDependency else { return nil }
@@ -657,7 +657,7 @@ public class GraphTraverser: GraphTraversing {
 
             let staticDependenciesDynamicLibrariesAndFrameworks =
                 transitiveStaticTargetReferences.flatMap { dependency in
-                    self.graph.dependencies[dependency, default: []]
+                    self.graph.dependencies[dependency.graphKey, default: []]
                         .lazy
                         .filter(\.isTarget)
                         .filter(isEmbeddableDependencyTarget)
@@ -665,7 +665,7 @@ public class GraphTraverser: GraphTraversing {
 
             let staticDependenciesPrecompiledLibrariesAndFrameworks =
                 transitiveStaticTargetReferences.flatMap { dependency in
-                    self.graph.dependencies[dependency, default: []]
+                    self.graph.dependencies[dependency.graphKey, default: []]
                         .lazy
                         .filter { $0.isPrecompiled && $0.isLinkable }
                 }
@@ -724,10 +724,10 @@ public class GraphTraverser: GraphTraversing {
         while let dependency = dependenciesToVisit.popLast() {
             guard let accumulatedCondition = dependencyConditions[dependency] else { continue }
 
-            for childDependency in graph.dependencies[dependency, default: []] {
+            for childDependency in graph.dependencies[dependency.graphKey, default: []] {
                 let condition = intersection(
                     accumulatedCondition,
-                    with: graph.dependencyConditions[(dependency, childDependency)]
+                    with: graph.dependencyConditions[(dependency.graphKey, childDependency)]
                 )
                 guard condition != .incompatible else { continue }
 
@@ -1426,7 +1426,7 @@ public class GraphTraverser: GraphTraversing {
                 continue
             }
 
-            graph.dependencies[node]?.forEach { nodeDependency in
+            graph.dependencies[node.graphKey]?.forEach { nodeDependency in
                 if !visited.contains(nodeDependency) {
                     stack.push(nodeDependency)
                 }
@@ -1460,19 +1460,19 @@ public class GraphTraverser: GraphTraversing {
         }
 
         // if we're at a leaf dependency, there is nothing else to traverse.
-        guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
+        guard let dependencies = graph.dependencies[rootDependency.graphKey] else { return .incompatible }
 
         let result: PlatformCondition.CombinationResult
 
         // We've reached our destination, return a condition for the leaf relationship (`nil` or a `PlatformFilters` set)
         if dependencies.contains(transitiveDependency) {
-            result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
+            result = .condition(graph.dependencyConditions[(rootDependency.graphKey, transitiveDependency)])
         } else {
             // Capture the filters that could be applied to intermediate dependencies
             // A --> (.ios) B --> C : C should have the .ios filter applied due to B
             let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
                 let transitive = combinedCondition(to: transitiveDependency, from: node)
-                let currentCondition = graph.dependencyConditions[(rootDependency, node)]
+                let currentCondition = graph.dependencyConditions[(rootDependency.graphKey, node)]
                 switch transitive {
                 case .incompatible:
                     return .incompatible

@@ -152,6 +152,23 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
+    /// The dependency in the form graphs use as a key.
+    ///
+    /// A linking status describes the edge that points at a target rather than the target itself, so both
+    /// `Graph.dependencies` and the `from` side of `Graph.dependencyConditions` key targets without one,
+    /// while the values they hold carry the status declared for their edge. Lookups have to normalize
+    /// first: the status is left out of `hash(into:)` but still compared by `==`, so feeding a value back
+    /// in as a key finds the right bucket and then misses. Normalize the key only — the `to` side of
+    /// `Graph.dependencyConditions` is stored with its status and has to be matched as it is.
+    public var graphKey: GraphDependency {
+        switch self {
+        case let .target(name, path, status) where status != .required:
+            return .target(name: name, path: path)
+        case .target, .macro, .foreignBuildOutput, .xcframework, .framework, .library, .bundle, .packageProduct, .sdk:
+            return self
+        }
+    }
+
     public var isTarget: Bool {
         switch self {
         case .macro: return false
