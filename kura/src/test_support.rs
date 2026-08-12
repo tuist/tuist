@@ -73,6 +73,7 @@ where
         memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
+        memory_floor_bytes: None,
         snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,

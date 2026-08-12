@@ -2618,7 +2618,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			Tolerations:                   instance.Spec.Tolerations,
 			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
-				Name:            "kura",
+				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
@@ -2701,6 +2701,11 @@ const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 // requests.memory bin-pack. The CAPI provider advertises the matching capacity
 // as a multiple of node allocatable. See KuraInstanceSpec.MemoryCeilingMib.
 const memoryCeilingResource corev1.ResourceName = "tuist.dev/memory-ceiling-mib"
+
+// kuraContainerName is the pod's Kura container. The Downward API's
+// resourceFieldRef names it explicitly, and a name that does not match a
+// container in the pod fails admission, so both sites read this.
+const kuraContainerName = "kura"
 
 // Applied when an instance carries no explicit profile, which keeps a CR
 // written before the memory profile existed on the shape it already had.
@@ -2986,6 +2991,20 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
+		// Kura reads its ceiling from the cgroup, but requests.memory never
+		// reaches the container, and the two answer different questions. The
+		// ceiling bounds everything; the floor bounds what Kura may hold in
+		// anonymous memory, since anything anonymous above the floor is
+		// unprotected and the kernel's only remedy for it is the OOM killer.
+		// Publishing the floor lets Kura size its admission budget from what it
+		// is guaranteed and leave the floor-to-ceiling gap to page cache and
+		// mmap-served segments, which reclaim instead. Divisor 1 yields bytes;
+		// resourceFieldRef rounds up to it.
+		{Name: "KURA_MEMORY_FLOOR_BYTES", ValueFrom: &corev1.EnvVarSource{ResourceFieldRef: &corev1.ResourceFieldSelector{
+			ContainerName: kuraContainerName,
+			Resource:      "requests.memory",
+			Divisor:       resource.MustParse("1"),
+		}}},
 	}
 	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
 		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
