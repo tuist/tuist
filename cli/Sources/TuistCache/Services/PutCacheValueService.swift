@@ -64,7 +64,7 @@ public struct PutCacheValueService: PutCacheValueServicing {
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
-            projectHandle: fullHandle
+            fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
 

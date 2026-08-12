@@ -19129,30 +19129,34 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/project_handle`.
-                public var project_handle: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
                 public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/project_handle`.
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - project_handle: The handle of the project.
                 ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
                 public init(
-                    project_handle: Swift.String,
-                    account_handle: Swift.String
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
                 ) {
-                    self.project_handle = project_handle
                     self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19161,24 +19165,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -19427,25 +19427,25 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
-                public var project_handle: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
                 public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - project_handle: The handle of the project.
                 ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
                 public init(
-                    project_handle: Swift.String,
-                    account_handle: Swift.String
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
                 ) {
-                    self.project_handle = project_handle
                     self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.createBundle.Input.Path
@@ -40984,14 +40984,14 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
-                public var project_handle: Swift.String
                 /// The handle of the account.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
                 public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
                 /// The ID of the bundle.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
@@ -40999,16 +40999,16 @@ public enum Operations {
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - project_handle: The handle of the project.
                 ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
                 ///   - bundle_id: The ID of the bundle.
                 public init(
-                    project_handle: Swift.String,
                     account_handle: Swift.String,
+                    project_handle: Swift.String,
                     bundle_id: Swift.String
                 ) {
-                    self.project_handle = project_handle
                     self.account_handle = account_handle
+                    self.project_handle = project_handle
                     self.bundle_id = bundle_id
                 }
             }
@@ -57419,14 +57419,14 @@ public enum Operations {
             public struct Query: Sendable, Hashable {
                 /// Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/token/POST/query/project_handle`.
-                public var project_handle: Swift.String?
+                /// - Remark: Generated from `#/paths/api/cache/token/POST/query/full_handle`.
+                public var full_handle: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - project_handle: Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
-                public init(project_handle: Swift.String? = nil) {
-                    self.project_handle = project_handle
+                ///   - full_handle: Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.
+                public init(full_handle: Swift.String? = nil) {
+                    self.full_handle = full_handle
                 }
             }
             public var query: Operations.getCacheToken.Input.Query

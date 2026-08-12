@@ -18,7 +18,7 @@ extension Client {
     ///     transient failures. The CAS download path passes `false` so a hung backend
     ///     reaches the circuit breaker through the short `.tuistCAS` timeout instead of
     ///     being replayed. Retryable HTTP responses such as 503 keep retrying either way.
-    ///   - projectHandle: The `account/project` the requests are for. Used to
+    ///   - fullHandle: The `account/project` the requests are for. Used to
     ///     narrow the cache token to that project, which matters for an
     ///     account-wide credential: without it the token carries every project
     ///     the credential reaches.
@@ -28,7 +28,7 @@ extension Client {
         serverAuthenticationController: ServerAuthenticationControlling,
         session: URLSession? = nil,
         retriesTransportErrors: Bool = true,
-        projectHandle: String? = nil
+        fullHandle: String? = nil
     ) -> Client {
         .init(
             serverURL: cacheURL,
@@ -43,7 +43,7 @@ extension Client {
                     authenticationURL: authenticationURL,
                     serverAuthenticationController: serverAuthenticationController,
                     cacheTokenStore: CacheTokenStore.shared,
-                    projectHandle: projectHandle
+                    fullHandle: fullHandle
                 ),
                 VerboseLoggingMiddleware(serviceName: "Tuist Cache"),
                 OutputWarningsMiddleware(),

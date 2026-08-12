@@ -148,7 +148,7 @@ defmodule TuistWeb.API.CacheController do
     """,
     operation_id: "getCacheToken",
     parameters: [
-      {:project_handle,
+      {:full_handle,
        [
          in: :query,
          type: :string,
@@ -181,7 +181,7 @@ defmodule TuistWeb.API.CacheController do
     {:ok, token, _claims} =
       conn
       |> Authentication.authenticated_subject()
-      |> Cache.issue_cache_token(scope: params[:project_handle])
+      |> Cache.issue_cache_token(scope: params[:full_handle])
 
     json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
   end

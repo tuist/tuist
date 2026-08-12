@@ -8,18 +8,18 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
     private let authenticationURL: URL
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheTokenStore: CacheTokenStoring
-    private let projectHandle: String?
+    private let fullHandle: String?
 
     init(
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling,
         cacheTokenStore: CacheTokenStoring,
-        projectHandle: String?
+        fullHandle: String?
     ) {
         self.authenticationURL = authenticationURL
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheTokenStore = cacheTokenStore
-        self.projectHandle = projectHandle
+        self.fullHandle = fullHandle
     }
 
     func intercept(
@@ -43,10 +43,10 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
         // header, so exchanging without one would risk a token carrying every
         // project an account-wide credential reaches.
         var value = token.value
-        if let projectHandle,
+        if let fullHandle,
            let cacheToken = await cacheTokenStore.cacheToken(
                authenticationURL: authenticationURL,
-               projectHandle: projectHandle
+               fullHandle: fullHandle
            )
         {
             value = cacheToken

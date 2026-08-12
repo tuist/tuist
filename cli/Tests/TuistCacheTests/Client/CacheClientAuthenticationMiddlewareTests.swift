@@ -20,16 +20,16 @@ struct CacheClientAuthenticationMiddlewareTests {
             authenticationURL: URL(string: "https://auth.tuist.dev")!,
             serverAuthenticationController: mockServerAuthenticationController,
             cacheTokenStore: mockCacheTokenStore,
-            projectHandle: nil
+            fullHandle: nil
         )
     }
 
-    private func subject(projectHandle: String?) -> CacheClientAuthenticationMiddleware {
+    private func subject(fullHandle: String?) -> CacheClientAuthenticationMiddleware {
         CacheClientAuthenticationMiddleware(
             authenticationURL: URL(string: "https://auth.tuist.dev")!,
             serverAuthenticationController: mockServerAuthenticationController,
             cacheTokenStore: mockCacheTokenStore,
-            projectHandle: projectHandle
+            fullHandle: fullHandle
         )
     }
 
@@ -139,7 +139,7 @@ struct CacheClientAuthenticationMiddlewareTests {
         // Then
         #expect(capturedRequest.headerFields[.authorization] == "Bearer opaque-token")
         verify(mockCacheTokenStore)
-            .cacheToken(authenticationURL: .any, projectHandle: .any)
+            .cacheToken(authenticationURL: .any, fullHandle: .any)
             .called(0)
     }
 
@@ -149,14 +149,14 @@ struct CacheClientAuthenticationMiddlewareTests {
             .authenticationToken(serverURL: .any)
             .willReturn(.project("opaque-token"))
         given(mockCacheTokenStore)
-            .cacheToken(authenticationURL: .any, projectHandle: .value("acme/ios"))
+            .cacheToken(authenticationURL: .any, fullHandle: .value("acme/ios"))
             .willReturn("cache-token")
 
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         var capturedRequest: HTTPRequest!
 
         // When
-        _ = try await subject(projectHandle: "acme/ios").intercept(
+        _ = try await subject(fullHandle: "acme/ios").intercept(
             request,
             body: nil,
             baseURL: URL(string: "https://cache.tuist.dev")!,
@@ -178,14 +178,14 @@ struct CacheClientAuthenticationMiddlewareTests {
             .authenticationToken(serverURL: .any)
             .willReturn(.project("opaque-token"))
         given(mockCacheTokenStore)
-            .cacheToken(authenticationURL: .any, projectHandle: .any)
+            .cacheToken(authenticationURL: .any, fullHandle: .any)
             .willReturn(nil)
 
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         var capturedRequest: HTTPRequest!
 
         // When
-        _ = try await subject(projectHandle: "acme/ios").intercept(
+        _ = try await subject(fullHandle: "acme/ios").intercept(
             request,
             body: nil,
             baseURL: URL(string: "https://cache.tuist.dev")!,

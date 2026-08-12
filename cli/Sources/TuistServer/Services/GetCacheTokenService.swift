@@ -14,7 +14,7 @@ public struct CacheToken: Equatable, Sendable {
 
 @Mockable
 public protocol GetCacheTokenServicing: Sendable {
-    func getCacheToken(serverURL: URL, projectHandle: String?) async throws -> CacheToken
+    func getCacheToken(serverURL: URL, fullHandle: String?) async throws -> CacheToken
 }
 
 enum GetCacheTokenServiceError: LocalizedError {
@@ -34,11 +34,11 @@ enum GetCacheTokenServiceError: LocalizedError {
 public struct GetCacheTokenService: GetCacheTokenServicing {
     public init() {}
 
-    public func getCacheToken(serverURL: URL, projectHandle: String?) async throws -> CacheToken {
+    public func getCacheToken(serverURL: URL, fullHandle: String?) async throws -> CacheToken {
         let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.getCacheToken(
-            .init(query: .init(project_handle: projectHandle))
+            .init(query: .init(full_handle: fullHandle))
         )
 
         switch response {

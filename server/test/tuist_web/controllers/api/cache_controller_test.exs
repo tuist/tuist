@@ -442,6 +442,31 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end
+
+    test "narrows the grants to the full handle it is given", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      target = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
+      _other = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["project:cache:read", "project:cache:write"],
+          all_projects: true
+        })
+
+      handle = "#{target.account.name}/#{target.name}"
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?full_handle=#{handle}")
+
+      # Then
+      assert %{"token" => token} = json_response(conn, 200)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(token)
+      assert claims["cache_grants"]["project"]["read"] == [handle]
+      assert claims["cache_grants"]["project"]["write"] == [handle]
+    end
   end
 
   describe "GET /api/cache/access" do

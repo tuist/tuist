@@ -62,7 +62,7 @@ public struct UploadModuleCachePartService: UploadModuleCachePartServicing {
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
-            projectHandle: "\(accountHandle)/\(projectHandle)"
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.uploadModuleCachePart(

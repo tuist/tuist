@@ -13,14 +13,14 @@ struct CacheTokenStoreTests {
         // Given
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 1800))
         let subject = CacheTokenStore(getCacheTokenService: service)
 
         // When
         let token = await subject.cacheToken(
             authenticationURL: authenticationURL,
-            projectHandle: "acme/ios"
+            fullHandle: "acme/ios"
         )
 
         // Then
@@ -33,7 +33,7 @@ struct CacheTokenStoreTests {
         // Given
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 1800))
         let subject = CacheTokenStore(getCacheTokenService: service)
 
@@ -41,13 +41,13 @@ struct CacheTokenStoreTests {
         for _ in 0 ..< 5 {
             _ = await subject.cacheToken(
                 authenticationURL: authenticationURL,
-                projectHandle: "acme/ios"
+                fullHandle: "acme/ios"
             )
         }
 
         // Then
         verify(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .called(1)
     }
 
@@ -57,17 +57,17 @@ struct CacheTokenStoreTests {
         // Given
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 10))
         let subject = CacheTokenStore(getCacheTokenService: service)
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
 
         // Then
         verify(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .called(2)
     }
 
@@ -75,16 +75,16 @@ struct CacheTokenStoreTests {
         // Given
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .value("acme/ios"))
+            .getCacheToken(serverURL: .any, fullHandle: .value("acme/ios"))
             .willReturn(CacheToken(token: "ios-token", expiresIn: 1800))
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .value("acme/android"))
+            .getCacheToken(serverURL: .any, fullHandle: .value("acme/android"))
             .willReturn(CacheToken(token: "android-token", expiresIn: 1800))
         let subject = CacheTokenStore(getCacheTokenService: service)
 
         // When
-        let ios = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
-        let android = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/android")
+        let ios = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
+        let android = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/android")
 
         // Then
         #expect(ios == "ios-token")
@@ -105,7 +105,7 @@ struct CacheTokenStoreTests {
                 group.addTask {
                     await subject.cacheToken(
                         authenticationURL: URL(string: "https://auth.tuist.dev")!,
-                        projectHandle: "acme/ios"
+                        fullHandle: "acme/ios"
                     )
                 }
             }
@@ -125,14 +125,14 @@ struct CacheTokenStoreTests {
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willThrow(UnavailableError())
         let subject = CacheTokenStore(getCacheTokenService: service)
 
         // When
         let token = await subject.cacheToken(
             authenticationURL: authenticationURL,
-            projectHandle: "acme/ios"
+            fullHandle: "acme/ios"
         )
 
         // Then
@@ -147,7 +147,7 @@ struct CacheTokenStoreTests {
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willThrow(UnavailableError())
         let subject = CacheTokenStore(getCacheTokenService: service)
 
@@ -155,14 +155,14 @@ struct CacheTokenStoreTests {
         var tokens: [String?] = []
         for _ in 0 ..< 50 {
             await tokens.append(
-                subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+                subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
             )
         }
 
         // Then
         #expect(tokens.allSatisfy { $0 == nil })
         verify(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .called(1)
     }
 
@@ -173,7 +173,7 @@ struct CacheTokenStoreTests {
         struct UnavailableError: Error {}
         let service = MockGetCacheTokenServicing()
         given(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .willThrow(UnavailableError())
         let clock = MutableClock(Date())
         let subject = CacheTokenStore(
@@ -182,13 +182,13 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
         clock.advance(by: 61)
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
 
         // Then
         verify(service)
-            .getCacheToken(serverURL: .any, projectHandle: .any)
+            .getCacheToken(serverURL: .any, fullHandle: .any)
             .called(2)
     }
 
@@ -205,18 +205,18 @@ struct CacheTokenStoreTests {
         )
 
         // When
-        _ = await subject.cacheToken(authenticationURL: authenticationURL, projectHandle: "acme/ios")
+        _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
         clock.advance(by: 61)
         let recovered = await subject.cacheToken(
             authenticationURL: authenticationURL,
-            projectHandle: "acme/ios"
+            fullHandle: "acme/ios"
         )
         // Past the token's lifetime, so this needs a fresh exchange rather than
         // the cooldown left behind by the first failure.
         clock.advance(by: 1800)
         let refreshed = await subject.cacheToken(
             authenticationURL: authenticationURL,
-            projectHandle: "acme/ios"
+            fullHandle: "acme/ios"
         )
 
         // Then
@@ -248,7 +248,7 @@ private actor FlakyCacheTokenService: GetCacheTokenServicing {
 
     private(set) var callCount = 0
 
-    func getCacheToken(serverURL _: URL, projectHandle _: String?) async throws -> CacheToken {
+    func getCacheToken(serverURL _: URL, fullHandle _: String?) async throws -> CacheToken {
         callCount += 1
         if callCount == 1 { throw UnavailableError() }
         return CacheToken(token: "cache-token", expiresIn: 1800)
@@ -258,7 +258,7 @@ private actor FlakyCacheTokenService: GetCacheTokenServicing {
 private actor SlowCacheTokenService: GetCacheTokenServicing {
     private(set) var callCount = 0
 
-    func getCacheToken(serverURL _: URL, projectHandle _: String?) async throws -> CacheToken {
+    func getCacheToken(serverURL _: URL, fullHandle _: String?) async throws -> CacheToken {
         callCount += 1
         try? await Task.sleep(nanoseconds: 100_000_000)
         return CacheToken(token: "cache-token", expiresIn: 1800)

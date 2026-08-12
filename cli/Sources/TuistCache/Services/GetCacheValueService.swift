@@ -63,7 +63,7 @@ public struct GetCacheValueService: GetCacheValueServicing {
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
-            projectHandle: fullHandle
+            fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
 

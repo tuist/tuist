@@ -9,7 +9,7 @@ public protocol CacheTokenStoring: Sendable {
     /// caller's credential for one when there is no live token to reuse.
     /// Returns nil when the exchange is unavailable, leaving the caller to send
     /// the credential it already has.
-    func cacheToken(authenticationURL: URL, projectHandle: String?) async -> String?
+    func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String?
 }
 
 /// Exchanges the credential the CLI authenticates with for one a cache node can
@@ -57,8 +57,8 @@ public actor CacheTokenStore: CacheTokenStoring {
         self.now = now
     }
 
-    public func cacheToken(authenticationURL: URL, projectHandle: String?) async -> String? {
-        let key = "\(authenticationURL.absoluteString)|\(projectHandle ?? "")"
+    public func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String? {
+        let key = "\(authenticationURL.absoluteString)|\(fullHandle ?? "")"
 
         if let entry = entries[key], entry.expiresAt > now() {
             return entry.token
@@ -78,7 +78,7 @@ public actor CacheTokenStore: CacheTokenStoring {
             do {
                 return try await getCacheTokenService.getCacheToken(
                     serverURL: authenticationURL,
-                    projectHandle: projectHandle
+                    fullHandle: fullHandle
                 )
             } catch {
                 // Cache nodes still accept the original credential, so a server
