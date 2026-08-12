@@ -184,6 +184,16 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// the manager binary; chart can override per env if needed.
 	TartKubeletMaxUpdateAttempts int32
 
+	// TartKubeletTerminalRetryAfter re-arms the drift loop this long
+	// after the update failure that drove a host terminal. The terminal
+	// state's other exit — a new HostConfigHash — only covers a host
+	// that rejected the config; it never fires for the common case of a
+	// host that was unreachable while the operator tried to push, which
+	// then stays frozen at a stale config forever while its Node keeps
+	// taking jobs. A cooldown bounds that to one fresh attempt budget
+	// per interval. Zero disables the re-arm (hash-drift only).
+	TartKubeletTerminalRetryAfter time.Duration
+
 	// BootstrapRebootAfter is the consecutive-failure count at which
 	// the BootstrapFailed path asks Scaleway to reboot the host. The
 	// reboot clears volatile state (PAM lockouts, sshd throttling)
@@ -712,8 +722,27 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// every reconcile and hammer the same broken config indefinitely, defeating
 	// the cap. Against the failed hash, an unchanged broken config stays
 	// terminal while a genuinely new config retries.
-	if shouldClearTerminalFailure(r.HostConfigHash, machine.Status.FailedHostConfigHash, terminalFailure) {
-		clearUpdateFailure(machine, logger, r.Recorder)
+	//
+	// Self-heal on time too: config drift only lifts the state for a host that
+	// REJECTED the config, and most terminal failures are instead a host the
+	// operator could not reach (`dial tcp ...:22: i/o timeout`). Those stayed
+	// terminal indefinitely — Ready, schedulable, still running jobs — pinned
+	// to whatever config was last pushed, so a networking fix could roll to the
+	// fleet and silently miss them. The cooldown gives such a host one fresh
+	// attempt budget per interval once it is reachable again.
+	if shouldClearTerminalFailure(
+		r.HostConfigHash,
+		machine.Status.FailedHostConfigHash,
+		terminalFailure,
+		machine.Status.LastUpdateFailureTime,
+		r.TartKubeletTerminalRetryAfter,
+		time.Now(),
+	) {
+		reason := "host config drifted since the failure was recorded"
+		if r.HostConfigHash != "" && r.HostConfigHash == machine.Status.FailedHostConfigHash {
+			reason = "retry cooldown elapsed"
+		}
+		clearUpdateFailure(machine, reason, logger, r.Recorder)
 		terminalFailure = false
 	}
 	if configDrift && !terminalFailure {
@@ -902,7 +931,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// as bootstrap returns; whether the Node has reported Ready yet is
 	// a separate concern observable via `kubectl get nodes`.
 	machine.Status.Ready = true
-	machine.Status.Phase = "Ready"
+	if !terminalPhasePinned(machine.Status.FailureReason) {
+		machine.Status.Phase = "Ready"
+	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -1144,17 +1175,69 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
 }
 
+// terminalPhasePinned reports whether the reconcile tail must leave
+// Status.Phase alone because the machine holds a terminal failure.
+//
+// The drift gate SKIPS a terminal machine rather than returning early, so
+// every reconcile after the one that recorded the failure still falls
+// through to the tail. Writing "Ready" there overwrote the "Failed" that
+// recordUpdateFailure had just set — within a single reconcile interval —
+// leaving machines that carried FailureReason while reporting phase Ready.
+//
+// That combination is invisible to alerting: the "stuck Failed" rule keys
+// on phase="Failed" persisting for 30m, and the phase flapped back to Ready
+// in ~5m, so the rule could never fire. Three production hosts sat wedged on
+// a stale tart-kubelet for weeks with the alert green. Pinning the phase is
+// what makes the terminal state observable; clearUpdateFailure lifts it.
+func terminalPhasePinned(failureReason *string) bool {
+	return failureReason != nil
+}
+
 // shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
-// failure should be cleared so the drift loop retries. It clears only when the
-// operator's desired config differs from the one that exhausted its retry
-// budget (failedHash) — NOT from the last successfully applied hash. A broken
-// config can never be applied, so the applied hash never advances to it and a
-// desired-vs-applied comparison would report drift forever, resetting the cap
-// on every reconcile and retrying the same broken config indefinitely. Keyed on
-// the failed hash instead, an unchanged broken config keeps its terminal state
-// while a genuinely new (typically fixed) config gets a fresh budget.
-func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure bool) bool {
-	return terminalFailure && desiredHash != "" && desiredHash != failedHash
+// failure should be cleared so the drift loop retries.
+//
+// Two independent exits:
+//
+// Config drift — the operator's desired config differs from the one that
+// exhausted its retry budget (failedHash), NOT from the last successfully
+// applied hash. A broken config can never be applied, so the applied hash never
+// advances to it and a desired-vs-applied comparison would report drift
+// forever, resetting the cap on every reconcile and retrying the same broken
+// config indefinitely. Keyed on the failed hash instead, an unchanged broken
+// config keeps its terminal state while a genuinely new (typically fixed)
+// config gets a fresh budget.
+//
+// Cooldown — retryAfter has elapsed since the failure. Config drift alone reads
+// every terminal failure as a verdict on the CONFIG, but most are a verdict on
+// REACHABILITY: the operator could not open :22. Such a host stayed terminal
+// until someone shipped an unrelated config change or hand-patched its status,
+// all the while Ready, schedulable, and running jobs against a frozen host
+// config — which is how a fleet ends up with hosts silently missing a
+// networking fix. The cooldown bounds a persistently-broken config to one fresh
+// attempt budget per interval rather than per reconcile, so the cap still does
+// its job.
+func shouldClearTerminalFailure(
+	desiredHash, failedHash string,
+	terminalFailure bool,
+	lastFailure *metav1.Time,
+	retryAfter time.Duration,
+	now time.Time,
+) bool {
+	if !terminalFailure {
+		return false
+	}
+	if desiredHash != "" && desiredHash != failedHash {
+		return true
+	}
+	// A terminal CR recorded before this field existed carries no
+	// timestamp; treat it as due rather than stranding it forever.
+	if retryAfter <= 0 {
+		return false
+	}
+	if lastFailure == nil {
+		return true
+	}
+	return !now.Before(lastFailure.Time.Add(retryAfter))
 }
 
 // recordUpdateFailure increments the drift-loop retry counter and,
@@ -1169,6 +1252,9 @@ func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure 
 // the loop resumes.
 func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, operatorHash string, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
+	// Stamped on every failure, not only the terminal one, so the cooldown
+	// measures from the last attempt actually made.
+	machine.Status.LastUpdateFailureTime = &metav1.Time{Time: time.Now()}
 	logger.Error(err, "tart-kubelet update step failed",
 		"attempt", machine.Status.TartKubeletUpdateAttempts,
 		"max", maxAttempts)
@@ -1200,12 +1286,20 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 // config is a fresh target (typically a fix) that deserves its own retry
 // budget rather than the old config's terminal verdict, so a bad rollout
 // self-heals on the next config push instead of stranding every affected
-// host on a manual `kubectl patch`. No-op when there is nothing to clear.
-func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger logr.Logger, recorder record.EventRecorder) {
+// host on a manual `kubectl patch`. Also called when the retry cooldown has
+// elapsed, which is what recovers a host that was merely unreachable. The
+// caller passes which of the two applies so the log and Event name the real
+// trigger. No-op when there is nothing to clear.
+//
+// LastUpdateFailureTime is deliberately left in place: it records when the
+// host last failed, and the next failure re-stamps it. Clearing it here would
+// make a re-failed host read as never-failed.
+func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, reason string, logger logr.Logger, recorder record.EventRecorder) {
 	if machine.Status.FailureReason == nil && machine.Status.FailureMessage == nil && machine.Status.TartKubeletUpdateAttempts == 0 {
 		return
 	}
-	logger.Info("clearing terminal tart-kubelet-update failure; host config drifted since it was recorded — retrying against the new config",
+	logger.Info("clearing terminal tart-kubelet-update failure; retrying",
+		"reason", reason,
 		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
 	machine.Status.FailureReason = nil
 	machine.Status.FailureMessage = nil
@@ -1215,7 +1309,7 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger log
 		machine.Status.Phase = ""
 	}
 	recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRollRetried",
-		"host config drifted since the terminal tart-kubelet update failure; cleared it and retrying against the new config")
+		"cleared the terminal tart-kubelet update failure (%s); retrying", reason)
 }
 
 // bootstrapRecoveryClient is the narrow Scaleway surface

@@ -135,13 +135,24 @@ type GHActionsRunnerConfig struct {
 	// +kubebuilder:default="self-hosted,macos,bare-metal,vm-image-builder"
 	GHRunnerLabels string `json:"ghRunnerLabels,omitempty"`
 
-	// GHRunnerVersion pins the actions/runner release the
-	// reconciler downloads onto the host. Keep in sync with
-	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
-	// runner agent baked into the runner-image guest matches the
-	// agent running on the host that bakes that image.
-	// +kubebuilder:default="2.334.0"
-	GHRunnerVersion string `json:"ghRunnerVersion,omitempty"`
+	// GHRunnerVersion is the actions/runner release the reconciler
+	// downloads the first time it bootstraps a host. The host agent
+	// is configured without `--disableupdate`, so it self-updates
+	// from there; changing this on an already-bootstrapped host is a
+	// no-op (installActionsRunner short-circuits on a healthy runner,
+	// and HostConfigHash deliberately excludes GHActionsRunner).
+	//
+	// Required, and deliberately without a default unlike its
+	// siblings: GitHub retires runner releases on a rolling deadline,
+	// so a default baked into the API would rot into a version GitHub
+	// refuses. The chart is the single source of truth
+	// (`buildersFleet.ghRunnerVersion`), Renovate bumps it alongside
+	// `runner_version` in infra/runner-image/runner.pkr.hcl, and a CR
+	// that omits it is rejected instead of silently seeding a
+	// years-old agent.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	GHRunnerVersion string `json:"ghRunnerVersion"`
 
 	// GHAppSecretName is the name of a Secret in the same namespace
 	// carrying the GitHub App credentials the reconciler uses to
@@ -237,6 +248,21 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// every 60s indefinitely with no terminal-failure signal.
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
+
+	// LastUpdateFailureTime is when the drift loop last recorded an
+	// update failure for this host. It exists so the terminal Failed
+	// state can expire: FailedHostConfigHash alone only lifts it when a
+	// NEW config ships, which is right for a config the host rejected
+	// but wrong for the far more common verdict — the host was simply
+	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
+	// terminal indefinitely while remaining Ready and schedulable, so
+	// they kept running jobs on a host config frozen at whatever the
+	// operator last managed to push. Re-arming after a cooldown lets a
+	// host that has since come back take the current config on its own,
+	// while a genuinely broken config still backs off to a handful of
+	// attempts per cooldown instead of hammering every reconcile.
+	// +optional
+	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
 
 	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
 	// failures on the currently-adopted host. Reset to zero on a

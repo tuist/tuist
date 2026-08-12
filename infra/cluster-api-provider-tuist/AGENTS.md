@@ -84,8 +84,20 @@ startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
 tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
-survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
-`Status.FailureReason` is cleared.
+survive `UpdateTartKubelet`).
+
+Terminal-failed CRs are excluded from the drift loop, but the exclusion
+expires. It lifts on either a new `HostConfigHash` (compared against
+`Status.FailedHostConfigHash`, not the last-applied one — a broken config never
+becomes the applied one) or `--tartkubelet-terminal-retry-after` elapsing since
+`Status.LastUpdateFailureTime` (default 30m). The cooldown exists because the
+hash exit only covers a host that REJECTED the config, while most terminal
+failures are a host the operator could not reach (`dial tcp ...:22: i/o
+timeout`). Those used to stay terminal indefinitely — Ready, schedulable, still
+running jobs — pinned to whatever config was last pushed, so a fleet-wide fix
+could roll and silently miss them. A persistently-broken config still backs off
+to one attempt budget per cooldown rather than per reconcile, so the retry cap
+keeps doing its job.
 
 The drift re-push dials the mini's **public IP first, then falls back to the
 tailnet**. Once a runner mini starts booting Tart VMs its Internet Sharing /
@@ -107,8 +119,8 @@ the operator) never touch the tailnet path, and by the time a mini's public
 path is filtered its egress Service has long existed. cfg.IP is a pure dial
 target on the update path (HostConfigHash strips it), so the fallback re-points
 it without changing what's pushed; the whole transport is controller-side only,
-so `HostConfigHash` is unchanged and already-terminal CRs still need
-`Status.FailureReason` cleared to retry.
+so `HostConfigHash` is unchanged and an already-terminal CR only retries once
+its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
 Two auxiliary controllers run alongside it:
 
