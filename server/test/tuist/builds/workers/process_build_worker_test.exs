@@ -202,7 +202,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :object_not_found} end)
-      reject(&Tuist.Builds.create_build/1)
+      reject(&Builds.create_build/1)
 
       assert {:snooze, 15} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
@@ -214,7 +214,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:error, :object_not_found} end)
-      reject(&Tuist.Builds.create_build/1)
+      reject(&Builds.create_build/1)
 
       assert {:error, :object_not_found} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 7))
