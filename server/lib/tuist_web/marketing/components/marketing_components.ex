@@ -10,6 +10,9 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   import TuistWeb.Marketing.MarketingIllustrations
 
   embed_templates "marketing_layout_components/*"
+  # Layout components for the redesigned marketing pages. The suffix keeps the
+  # function names (e.g. navbar_new/1) distinct from their legacy counterparts.
+  embed_templates "marketing_layout_components/new/*", suffix: "_new"
 
   attr :href, :string, default: nil
   attr :rest, :global, include: ~w(target rel)
