@@ -431,7 +431,13 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg"))
+        Tuist.Environment.app_url(
+          path:
+            OpenGraph.image_path(:marketing,
+              title: dgettext("marketing", "About Tuist"),
+              icon: "static/marketing/images/about/logo.webp"
+            )
+        )
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(
