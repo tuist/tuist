@@ -23,7 +23,7 @@
         </div>
 
         <%!-- Tab/mobile swap the pill row for a dropdown; it renders as a tray
-        with a modal scrim on phones (see routes/blog-new.css). --%>
+        with a modal scrim on phones (see css/new/routes/blog.css). --%>
         <.dropdown
           id="blog-category-select"
           data-part="category-select"
@@ -126,9 +126,7 @@
           <img
             data-part="image"
             src={
-              TuistWeb.Marketing.MarketingHTML.static_asset_path(
-                Content.get_entry_image_url(post)
-              )
+              TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))
             }
             alt=""
             loading="lazy"
