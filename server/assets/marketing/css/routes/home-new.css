@@ -1,0 +1,3000 @@
+/* Spinner for the compute task feed's "processing" rows. */
+/* Testimonials marquee: the track holds two identical groups, so scrolling
+   half its width loops seamlessly. */
+@keyframes marketing-testimonials-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes compute-task-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 3-dot ellipsis shown while a task step is running. */
+@keyframes compute-task-dots {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+#marketing-home {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  /* Redesigned sections are spaced by this page-level gap; each section
+     brings no margin of its own. */
+  gap: var(--noora-spacing-1);
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  & > [data-part="body"],
+  & > [data-part="header"] {
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @media (min-width: 1024px) {
+      margin-right: auto;
+      margin-left: auto;
+      padding-right: var(--noora-spacing-6);
+      padding-left: var(--noora-spacing-6);
+      width: 650px;
+      max-width: 650px;
+    }
+  }
+
+  /* The old design relied on a page-level flex gap for section spacing;
+     the redesign gives each section its own spacing instead. This margin
+     keeps the not-yet-redesigned sections spaced as before. */
+  & > section,
+  & > header:not(#marketing-navbar) {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    margin-top: var(--noora-spacing-9);
+
+    @media (min-width: 1024px) {
+      margin-top: var(--noora-spacing-11);
+    }
+  }
+
+  /* Full-width dithered band below the features box (same Bayer texture as the
+     navbar changelog panel), acting as a section divider. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    /* Match the features box width so it reads as a divider between the two
+       sections, not a full-bleed background band. */
+    margin: 0 var(--noora-spacing-1);
+    height: 120px;
+    overflow: hidden;
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  & > [data-part="company-logos"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+    /* 2px seams matching the hero canvas; same inset on mobile. */
+    gap: var(--noora-spacing-1);
+    margin: 0 var(--noora-spacing-1);
+    height: 88px;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      /* Match the hero stage: its 1497px composition is centered and
+         framed by empty margins on wider viewports (pages.css would
+         otherwise cap sections at 1296px). The canvas panels are drawn
+         with a 2px inset from the stage edges, so the strip's visible
+         bounds match 1497px minus that inset on each side. */
+      max-width: calc(1497px - 2 * var(--noora-spacing-1));
+      /* Like the hero stage, the fixed-width logos box is cropped
+         symmetrically on viewports narrower than it. */
+      overflow-x: clip;
+    }
+
+    /* Blueprint-style empty boxes filling the leftover space beside the
+       logos so the strip reads as part of the hero canvas. Mirrored on the
+       right; three more boxes cascade below the strip with fading opacity,
+       hanging out of it without affecting layout. */
+    & > [data-part="side-panel"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: flex;
+        position: relative;
+        flex: 1 1 0;
+        gap: var(--noora-spacing-1);
+        min-width: 0;
+
+        & > [data-part="box"] {
+          border: 1px solid var(--marketing-stroke-default);
+
+          &:first-child {
+            flex: 1 1 0;
+          }
+
+          &:nth-child(2) {
+            flex: 2 1 0;
+            opacity: 0.8;
+          }
+        }
+
+        & > [data-part="grid-block"] {
+          position: absolute;
+          left: 0;
+          /* border-box, or the 1px borders widen each box and swallow the
+             2px seam between the row's two boxes. */
+          box-sizing: border-box;
+          border: 1px solid var(--marketing-stroke-default);
+          height: 88px;
+
+          &:nth-child(3) {
+            top: calc(100% + var(--noora-spacing-1));
+            width: 75%;
+            opacity: 0.6;
+          }
+
+          &:nth-child(4) {
+            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
+            width: 55%;
+            opacity: 0.4;
+          }
+
+          &:nth-child(5) {
+            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
+            width: 35%;
+            opacity: 0.2;
+          }
+
+          /* Inner partners completing each cascade row up to the logos-side
+             edge, across the 2px seam. */
+          &[data-fill] {
+            right: 0;
+            left: auto;
+          }
+
+          &[data-fill]:nth-child(6) {
+            top: calc(100% + var(--noora-spacing-1));
+            width: calc(25% - var(--noora-spacing-1));
+            opacity: 0.6;
+          }
+
+          &[data-fill]:nth-child(7) {
+            top: calc(100% + 88px + 2 * var(--noora-spacing-1));
+            width: calc(45% - var(--noora-spacing-1));
+            opacity: 0.4;
+          }
+
+          &[data-fill]:nth-child(8) {
+            top: calc(100% + 176px + 3 * var(--noora-spacing-1));
+            width: calc(65% - var(--noora-spacing-1));
+            opacity: 0.2;
+          }
+        }
+      }
+
+      &:last-of-type {
+        flex-direction: row-reverse;
+
+        & > [data-part="grid-block"] {
+          right: 0;
+          left: auto;
+
+          &[data-fill] {
+            right: auto;
+            left: 0;
+          }
+        }
+      }
+    }
+
+    & > [data-part="logos"] {
+      display: flex;
+      flex-direction: row;
+      flex: 1 1 auto;
+      justify-content: center;
+      align-items: center;
+      /* Figma draws the stroke inside the 1200x88 frame; border-box keeps
+         the border from growing the box past it. */
+      box-sizing: border-box;
+      border: 1px solid var(--marketing-stroke-default);
+      padding: var(--noora-spacing-5) 0;
+      overflow: hidden;
+
+      @media (min-width: 1024px) {
+        position: relative;
+        flex: none;
+        width: 1200px;
+        overflow: visible;
+      }
+
+      & [data-part="org-logo"] {
+        flex-shrink: 0;
+        max-height: 64px;
+        color: var(--noora-surface-label-tertiary);
+
+        & > svg {
+          width: 100%;
+          height: 100%;
+        }
+      }
+
+      & > [data-part="track"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-9);
+        will-change: transform;
+      }
+
+      & > [data-part="logo-group"] {
+        display: none;
+
+        @media (min-width: 1024px) {
+          display: flex;
+          position: absolute;
+          /* Absolute positioning ignores the box's padding, so the 12px
+             vertical inset is restated here. */
+          inset: var(--noora-spacing-5) 0;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+
+          /* The groups are stacked; until the LogoTransition hook mounts and
+             assigns data-states, only the first may show — otherwise every
+             navigation flashes all groups overlapped while the JS loads.
+             The hook's [data-animation-mode] rules below out-rank this. */
+          &:not(:first-child) {
+            opacity: 0;
+          }
+
+          & [data-part="org-logo"] {
+            flex: 1 1 0;
+            min-width: 0;
+          }
+        }
+      }
+
+      &[data-animation-mode="desktop"] > [data-part="logo-group"] {
+        @media (min-width: 1024px) {
+          &[data-state="active"] {
+            opacity: 1;
+          }
+
+          &[data-state="hidden"] {
+            opacity: 0;
+          }
+
+          & [data-part="org-logo"] {
+            transition:
+              transform 0.5s ease-out,
+              opacity 0.5s ease-out,
+              filter 0.5s ease-out;
+            will-change: transform, opacity, filter;
+
+            &[data-state="visible"] {
+              transform: translateY(0);
+              opacity: 1;
+              filter: blur(0px);
+            }
+
+            &[data-state="hidden"] {
+              transform: translateY(20px);
+              opacity: 0;
+              filter: blur(4px);
+              transition: none;
+            }
+
+            &[data-state="exiting"] {
+              transform: translateY(-20px);
+              opacity: 0;
+              filter: blur(4px);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* Spacing convention for the redesigned sections: uniform space between
+     siblings is the parent's flex gap; margins are reserved for ramps whose
+     gaps differ per pair (eyebrow → h2 → p → button); padding is reserved
+     for insets of painted/bordered boxes. */
+  & > [data-part="features"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-16);
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    padding-top: var(--noora-spacing-14);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="cache"] {
+      display: flex;
+      flex-direction: column;
+      /* 48px between the text block and the illustration. */
+      gap: var(--noora-spacing-11);
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > h2 {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > p {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+
+        & > .noora-button {
+          margin-top: var(--noora-spacing-7);
+        }
+      }
+
+      & > [data-part="illustration"] {
+        /* Two panels — "without cache" (red) and "with cache" (purple), each
+           pairing a stats bar with its chart. Stacked on mobile (red above,
+           purple below); side by side on desktop, where the divider between
+           them recreates the single split-chart look. */
+        --chart-without-stroke: light-dark(var(--noora-red-500), var(--noora-red-400));
+        --chart-with-stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+        display: flex;
+        flex-direction: column;
+
+        @media (min-width: 1024px) {
+          flex-direction: row;
+          height: 322px;
+        }
+
+        & > [data-part="panel"] {
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+
+          @media (min-width: 1024px) {
+            flex: 1;
+          }
+
+          /* Divider between the two halves — only when side by side. */
+          &[data-variant="without-cache"] {
+            @media (min-width: 1024px) {
+              border-right: 1px solid var(--marketing-stroke-default);
+            }
+          }
+
+          & > [data-part="stats"] {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            box-sizing: border-box;
+            border-top: 1px solid var(--marketing-stroke-default);
+            border-bottom: 1px solid var(--marketing-stroke-default);
+            height: 36px;
+
+            & > [data-part="stat"] {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              gap: var(--noora-spacing-2);
+              padding: 0 var(--noora-spacing-4);
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+              white-space: nowrap;
+
+              &:not(:last-child) {
+                border-right: 1px solid var(--marketing-stroke-default);
+              }
+
+              & > strong {
+                color: var(--noora-surface-label-primary);
+                font-weight: var(--noora-font-weight-medium);
+                /* Tabular figures so the counting numbers don't reflow the
+                   row as digit widths change. */
+                font-variant-numeric: tabular-nums;
+              }
+
+              /* 16px between the build-time value and its badge; the row's
+                 spacing-2 flex gap already contributes, so subtract it. */
+              & > .noora-badge {
+                margin-left: calc(var(--noora-spacing-6) - var(--noora-spacing-2));
+
+                /* Tabular figures so the live percentage doesn't resize the
+                   badge as digit widths change while it counts. */
+                & [data-count-format] {
+                  font-variant-numeric: tabular-nums;
+                }
+              }
+            }
+          }
+
+          & > [data-part="chart"] {
+            position: relative;
+            height: 143px;
+            min-height: 0;
+
+            @media (min-width: 1024px) {
+              flex: 1;
+              height: auto;
+            }
+
+            & > [data-part="chart-label"] {
+              position: absolute;
+              top: var(--noora-spacing-2);
+              left: var(--noora-spacing-2);
+              color: var(--noora-surface-label-tertiary);
+              font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+              white-space: nowrap;
+              pointer-events: none;
+            }
+
+            & > canvas {
+              display: block;
+              width: 100%;
+              height: 100%;
+            }
+          }
+
+          /* light-dark() only resolves in real properties, so the hook reads
+             theme-dependent colors off real color properties: border-top is
+             the fill, border-bottom the stroke, per half. */
+          &[data-variant="without-cache"] > [data-part="chart"] > canvas {
+            border-top-color: var(--marketing-tint-red);
+            border-bottom-color: var(--chart-without-stroke);
+          }
+
+          &[data-variant="with-cache"] > [data-part="chart"] > canvas {
+            border-top-color: var(--marketing-tint-purple);
+            border-bottom-color: var(--chart-with-stroke);
+          }
+
+          /* On desktop the "With cache" label sits top-right of the whole
+             chart (its panel is the right half); top-left when stacked. */
+          &[data-variant="with-cache"] > [data-part="chart"] > [data-part="chart-label"] {
+            @media (min-width: 1024px) {
+              left: auto;
+              right: var(--noora-spacing-2);
+            }
+          }
+        }
+      }
+    }
+
+    /* Compute feature — same structure/padding/spacing as the cache feature;
+       only the illustration differs (single full-width panel, 332px, filled
+       in later). */
+    & > [data-part="compute"] {
+      display: flex;
+      flex-direction: column;
+      /* 48px between the text block and the illustration. */
+      gap: var(--noora-spacing-11);
+      /* The runner grid reads the purple tint softer than the flat fills
+         (dither over dark cells), so it gets its own dark alpha — 16%
+         instead of the global --marketing-tint-alpha. Light mode keeps the
+         solid purple-50 like everywhere else. */
+      --marketing-tint-purple: light-dark(
+        var(--noora-purple-50),
+        color-mix(in oklch, var(--noora-purple-500) 16%, transparent)
+      );
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > h2 {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > p {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+
+        & > .noora-button {
+          margin-top: var(--noora-spacing-7);
+        }
+      }
+
+      & > [data-part="illustration"] {
+        display: flex;
+        flex-direction: column;
+        /* Gap between the stats bar and the canvas. Kept small so the stage
+           (illustration height − stats − gap) stays taller than the 280px
+           runner grid; otherwise the grid fills the stage exactly and its top
+           row gets clipped by overflow: hidden. */
+        gap: var(--noora-spacing-4);
+        height: 332px;
+
+        /* The horizontal + vertical copies share all the styling here; the
+           vertical one is a 340px-wide centered column, hidden on desktop and
+           swapped in below 1024px. */
+        &[data-orientation="vertical"] {
+          display: none;
+          height: auto;
+          align-items: center;
+
+          /* Stats span the full width; only the scene below is the 340 column. */
+          & > [data-part="stats"] {
+            align-self: stretch;
+          }
+
+          & > [data-part="stage"] {
+            flex: none;
+            width: 340px;
+            height: 921px;
+            justify-content: center;
+          }
+
+          & > [data-part="stage"] > [data-part="scene"] {
+            width: 340px;
+            height: 921px;
+          }
+        }
+
+        @media (max-width: 1023px) {
+          &[data-orientation="horizontal"] {
+            display: none;
+          }
+
+          &[data-orientation="vertical"] {
+            display: flex;
+          }
+        }
+
+        /* Stats bar — same treatment as the cache feature's, but a single
+           full-width row of four columns. Values are updated live by the
+           illustration below. */
+        & > [data-part="stats"] {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          box-sizing: border-box;
+          flex-shrink: 0;
+          border-top: 1px solid var(--marketing-stroke-default);
+          border-bottom: 1px solid var(--marketing-stroke-default);
+          height: 36px;
+
+          & > [data-part="stat"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            padding: 0 var(--noora-spacing-4);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+            white-space: nowrap;
+
+            &:not(:last-child) {
+              border-right: 1px solid var(--marketing-stroke-default);
+            }
+
+            & > strong {
+              color: var(--noora-surface-label-primary);
+              font-weight: var(--noora-font-weight-medium);
+              /* Tabular figures so the counting numbers don't reflow the row
+                 as digit widths change. */
+              font-variant-numeric: tabular-nums;
+            }
+          }
+        }
+
+        /* Runner-fan illustration: lead line → logo → dotted fan → runner
+           grid → converging flows → completed-task list. Drawn as one inline
+           SVG (fixed px, cropped left-to-right on narrower viewports). */
+        & > [data-part="stage"] {
+          display: flex;
+          align-items: center;
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+
+          /* The scene holds the SVG (280px tall) + the logo hub together and is
+             vertically centered in the stage, so both shift as one — the grid
+             gets top/bottom margin AND the hub stays aligned with the lines. */
+          & > [data-part="scene"] {
+            position: relative;
+            flex-shrink: 0;
+            height: 280px;
+          }
+
+          /* Central logo hub — an HTML box so it can use the real noora
+             light/border/default shadow token; positioned to line up with the
+             SVG's logo coordinates (inline left/top/size). */
+          [data-part="hub"] {
+            position: absolute;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: var(--noora-surface-background-primary);
+            box-shadow: var(--noora-border-light-default);
+
+            & > svg {
+              width: 45px;
+              height: 45px;
+              overflow: visible;
+            }
+
+            & [data-part="logo-mark"] {
+              fill: none;
+              stroke: var(--marketing-illustration-neutral-4);
+              stroke-width: 1;
+            }
+          }
+
+          /* Spark canvas — overlays the scene (1:1 with the wires). z-index
+             above the logo hub so the scan line shows over the logo box (the
+             hub's opaque background would otherwise hide it); the pulse and
+             transmit packets live outside the box, so nothing else overlaps. */
+          [data-part="spark"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+          }
+
+          /* Runner grid — animated canvas (dither twinkle + activation flicker),
+             overlaid on the scene 1:1 with the wires, above them so the cells
+             sit over the line ends. Extended 3px past the top/bottom (matched by
+             the hook's PAD) so the edge rows' strokes aren't clipped. */
+          [data-part="runners"] {
+            position: absolute;
+            top: -3px;
+            left: 0;
+            width: 100%;
+            height: calc(100% + 6px);
+            pointer-events: none;
+          }
+
+          [data-part="wires"] {
+            display: block;
+            height: 100%;
+            /* The 280px grid fills the 280px viewBox exactly; without this the
+               SVG crops the top/bottom rows' strokes at its own edge. The stage
+               (with the centered scene's margin) is the real clip boundary. */
+            overflow: visible;
+
+            [data-part="wire-lead"],
+            [data-part="wire-flow"] {
+              stroke: var(--marketing-illustration-neutral-4);
+              stroke-width: 0.5;
+            }
+
+            [data-part="wire-fan"] {
+              stroke: var(--marketing-illustration-neutral-4);
+              stroke-width: 0.5;
+              stroke-dasharray: 5 5;
+              stroke-linecap: round;
+            }
+
+
+          }
+
+          /* Task panel — HTML (not SVG) so it can use the tabler circle-check
+             icon, real mono/Inter fonts, and a mask gradient that fades rows at
+             the top/bottom as they scroll (upcoming). Rectangular, no radius;
+             positioned to line up with the SVG's task_x. */
+          [data-part="tasks"] {
+            position: absolute;
+            box-sizing: border-box;
+            /* No top/bottom border — the fade below covers where they'd be. */
+            border-left: 1px solid var(--marketing-stroke-default);
+            border-right: 1px solid var(--marketing-stroke-default);
+            background: var(--noora-surface-background-primary);
+            overflow: hidden;
+            /* Fade the whole panel — rows AND the left/right border rails — into
+               the background at the top/bottom. A mask (not an overlay) is what
+               lets the borders fade too; the background behind the panel is the
+               same neutral-50, so it reads identically to the Figma overlay. */
+            --task-fade: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+            mask-image: var(--task-fade);
+            -webkit-mask-image: var(--task-fade);
+
+            & > [data-part="task-list"] {
+              position: relative; /* rows are absolutely positioned + scrolled */
+              height: 100%;
+              /* Reset the <ul> defaults (list bullets + 40px inline padding). */
+              margin: 0;
+              padding: 0;
+              list-style: none;
+            }
+
+            /* Feed rows — absolutely positioned + translated up by the hook. */
+            [data-part="task-row"] {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 32px;
+              box-sizing: border-box;
+              display: flex;
+              align-items: center;
+              gap: var(--noora-spacing-3);
+              padding: 0 var(--noora-spacing-4);
+              border-bottom: 1px solid var(--marketing-stroke-default);
+              will-change: transform;
+            }
+
+            [data-part="task-icon"] {
+              display: flex;
+              flex-shrink: 0;
+
+              & > svg {
+                width: 18px;
+                height: 18px;
+              }
+            }
+
+            /* One icon per state: green check when complete, a spinning purple
+               dashed ring while processing. */
+            [data-part="icon-done"],
+            [data-part="icon-processing"] {
+              display: none;
+            }
+
+            [data-part="task-row"][data-state="complete"] [data-part="icon-done"] {
+              display: block;
+              color: light-dark(var(--noora-green-500), var(--noora-green-400));
+            }
+
+            [data-part="task-row"][data-state="processing"] [data-part="icon-processing"] {
+              display: block;
+              color: var(--marketing-illustration-neutral-4);
+              transform-box: fill-box;
+              transform-origin: center;
+              animation: compute-task-spin 1.4s linear infinite;
+            }
+
+            [data-part="task-label"] {
+              flex: 1;
+              min-width: 0;
+              color: var(--noora-surface-label-primary);
+              font-family: var(--noora-font-code);
+              font-size: 11px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+
+            [data-part="task-dur"] {
+              flex-shrink: 0;
+              color: var(--noora-surface-label-primary);
+              font-family: var(--noora-font-body);
+              font-size: 11px;
+              font-variant-numeric: tabular-nums;
+            }
+
+            /* Animated 3-dot ellipsis shown instead of the time while running. */
+            [data-part="task-dots"] {
+              display: none;
+              flex-shrink: 0;
+              align-items: center;
+              gap: 3px;
+              color: var(--noora-surface-label-tertiary);
+
+              & > i {
+                width: 3px;
+                height: 3px;
+                border-radius: 50%;
+                background: currentColor;
+                opacity: 0.25;
+                animation: compute-task-dots 1.2s infinite;
+              }
+
+              & > i:nth-child(2) {
+                animation-delay: 0.16s;
+              }
+
+              & > i:nth-child(3) {
+                animation-delay: 0.32s;
+              }
+            }
+
+            /* Processing rows read as in-progress — muted label, dots not time. */
+            [data-part="task-row"][data-state="processing"] {
+              & [data-part="task-label"] {
+                color: var(--noora-surface-label-secondary);
+              }
+
+              & [data-part="task-dur"] {
+                display: none;
+              }
+
+              & [data-part="task-dots"] {
+                display: flex;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    /* Tests feature — same layout as the compute feature (text block + stats bar
+       over an illustration), with a 320px illustration. Illustration content is
+       added later. */
+    & > [data-part="tests"] {
+      display: flex;
+      flex-direction: column;
+      /* 48px between the text block and the illustration. */
+      gap: var(--noora-spacing-11);
+      /* The test grid's purple cell fills get their own dark alpha — 20%
+         instead of the global --marketing-tint-alpha (like the runner
+         grid's 16%). Light mode keeps the solid purple-50. */
+      --marketing-tint-purple: light-dark(
+        var(--noora-purple-50),
+        color-mix(in oklch, var(--noora-purple-500) 20%, transparent)
+      );
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > h2 {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > p {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+
+        & > .noora-button {
+          margin-top: var(--noora-spacing-7);
+        }
+      }
+
+      & > [data-part="illustration"] {
+        display: flex;
+        flex-direction: column;
+        /* 320 illustration − 36 stats − 8 gap = 276 stage, a touch taller than
+           the 268 grid so it centres with ~4px of margin and the edge rows'
+           strokes aren't clipped by the stage's overflow. */
+        gap: var(--noora-spacing-4);
+        height: 320px;
+
+        & > [data-part="stats"] {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          box-sizing: border-box;
+          flex-shrink: 0;
+          border-top: 1px solid var(--marketing-stroke-default);
+          border-bottom: 1px solid var(--marketing-stroke-default);
+          height: 36px;
+
+          & > [data-part="stat"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            padding: 0 var(--noora-spacing-4);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+            white-space: nowrap;
+
+            &:not(:last-child) {
+              border-right: 1px solid var(--marketing-stroke-default);
+            }
+
+            & > strong {
+              color: var(--noora-surface-label-primary);
+              font-weight: var(--noora-font-weight-medium);
+              /* Tabular figures keep digit widths equal, and the reserved
+                 min-width stops the label from shifting as the count grows from
+                 one to three digits while animating. */
+              font-variant-numeric: tabular-nums;
+              display: inline-block;
+              min-width: 3ch;
+              text-align: left;
+            }
+          }
+        }
+
+        /* The grid canvas spans the full width; the hook draws only as many of
+           the 45 columns as fit, centred, so boxes are never cut. It's centred
+           in the slightly-taller stage so the top/bottom rows clear the crop. */
+        & > [data-part="stage"] {
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+
+          & > [data-part="grid"] {
+            display: block;
+            width: 100%;
+            height: 100%;
+          }
+        }
+
+        /* Responsive: skipped | ran on top, flaky spanning the full width
+           below, and pin the stage height so the 12-row grid still fits (the
+           section just grows taller). */
+        @media (max-width: 1023px) {
+          height: auto;
+
+          & > [data-part="stats"] {
+            grid-template-columns: repeat(2, 1fr);
+            /* Two rows, each the same 36px as the other sections' stat bars. */
+            height: auto;
+            grid-auto-rows: 36px;
+
+            & > [data-part="stat"] {
+              &:not(:last-child) {
+                border-right: none;
+              }
+
+              &:nth-child(1) {
+                border-right: 1px solid var(--marketing-stroke-default);
+              }
+
+              &:nth-child(-n + 2) {
+                border-bottom: 1px solid var(--marketing-stroke-default);
+              }
+
+              &:last-child {
+                grid-column: 1 / -1;
+              }
+            }
+          }
+
+          & > [data-part="stage"] {
+            flex: none;
+            height: 276px;
+          }
+        }
+      }
+    }
+
+    /* Toolbox — same eyebrow/title/subtitle header as the other feature blocks.
+       Its cards are added later. */
+    & > [data-part="toolbox"] {
+      display: flex;
+      flex-direction: column;
+      /* 48px between the text block and the cards. */
+      gap: var(--noora-spacing-11);
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > h2 {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > p {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+      }
+
+      /* Three equal cards that fill the width; height follows their content +
+         padding (48px block / 24px inline). Stacked on mobile, a row from
+         1024px with dividers between them. */
+      & > [data-part="cards"] {
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid var(--marketing-stroke-default);
+
+        @media (min-width: 1024px) {
+          flex-direction: row;
+        }
+
+        & > [data-part="card"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-4);
+          padding: var(--noora-spacing-11) var(--noora-spacing-8);
+          border-bottom: 1px solid var(--marketing-stroke-default);
+          text-decoration: none;
+
+          @media (min-width: 1024px) {
+            border-bottom: none;
+            border-left: 1px solid var(--marketing-stroke-default);
+
+            &:first-child {
+              border-left: none;
+            }
+          }
+
+          /* Arrow slides in next to the title on hover — same as the navbar. */
+          & > [data-part="card-title"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+            font-family: var(--noora-font-heading);
+
+            & svg {
+              width: 18px;
+              height: 18px;
+              opacity: 0;
+              transform: translateX(-4px);
+              transition:
+                opacity 0.2s ease,
+                transform 0.2s var(--ease-out-cubic);
+            }
+          }
+
+          &:hover > [data-part="card-title"] svg {
+            opacity: 1;
+            transform: translateX(0);
+          }
+
+          & > [data-part="card-description"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+            font-family: var(--noora-font-body);
+          }
+        }
+      }
+    }
+
+    & > [data-part="quote-feature"] {
+      box-sizing: border-box;
+      display: flex;
+      position: relative;
+      flex-direction: column;
+      border-top: 1px solid var(--marketing-stroke-default);
+      border-bottom: 1px solid var(--marketing-stroke-default);
+      /* The background logo layer is wider than mobile viewports; crop it. */
+      overflow: hidden;
+
+      /* OpenAI knot outline as a watermark behind the quote: pinned to the
+         row's top-left corner, cropped by the container's overflow.
+         Desktop-only — on mobile the quote stands alone. */
+      & > [data-part="illustration"] {
+        display: none;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 450px;
+        pointer-events: none;
+
+        @media (min-width: 1024px) {
+          display: block;
+        }
+
+        & > [data-part="logo-outline"] {
+          display: block;
+          opacity: 0.8;
+          width: 450px;
+          height: 450px;
+        }
+      }
+
+      & > [data-part="text"] {
+        box-sizing: border-box;
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        align-items: flex-start;
+        /* 24px between the quote and the author. */
+        gap: var(--noora-spacing-8);
+        width: 100%;
+        /* 32px top/bottom, 8px sides. */
+        padding: var(--noora-spacing-9) var(--noora-spacing-4);
+
+        & > [data-part="quote"] {
+          /* align-items: flex-start sizes children to content width, so the
+             quote wouldn't wrap to the column and would overflow on the
+             right. Stretch it to fill the column so it wraps. */
+          align-self: stretch;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
+
+          & > strong {
+            font-weight: var(--noora-font-weight-medium);
+          }
+        }
+
+        & > [data-part="author"] {
+          display: flex;
+          align-self: flex-start;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          @media (min-width: 1024px) {
+            align-self: flex-end;
+          }
+
+          & > [data-part="logo"] {
+            flex-shrink: 0;
+            width: 90px;
+            height: 24px;
+            /* Paths use fill="currentColor" so they pick up this token. */
+            color: var(--noora-surface-label-primary);
+          }
+
+          & > [data-part="identity"] {
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--marketing-stroke-default);
+            padding-left: var(--noora-spacing-4);
+
+            & > [data-part="name"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+            }
+
+            & > [data-part="role"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* ── Frameworks ("Built for every stack") ── */
+  & > [data-part="frameworks"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* The dither bands above/below provide the section spacing; the page
+       gap is the only separation, like the features box. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      flex-direction: row;
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="text"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: var(--noora-spacing-9) var(--noora-spacing-4);
+
+      /* Same text ramp as the features blocks. */
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      & > h2 {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > p {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    & > [data-part="grid"] {
+      display: grid;
+      flex-shrink: 0;
+      /* The framework logos follow the illustration ramp's own light-dark
+         pairs, so they flip with the theme like the rest of the artwork. */
+      /* Cells stay at or under 128px: auto-fill adds columns as the
+         viewport widens (3-up on phones, 4+ on wider screens) instead of
+         letting three columns grow huge. */
+      /* Mobile: 4 columns so the 12 cells fill three even rows. */
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--marketing-stroke-default);
+      /* Cells draw right/bottom hairlines; the -1px margins overlap the
+         outer ones with the section border so the edges don't double up. */
+      margin-right: -1px;
+      margin-bottom: -1px;
+
+      /* Tablet: cap at 6 columns so the 12 cells split into two even rows
+         instead of a near-full first row with a lone straggler below. */
+      @media (min-width: 640px) and (max-width: 1023px) {
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(3, 1fr);
+        border-top: none;
+        border-left: 1px solid var(--marketing-stroke-default);
+        /* 3 columns of 128px cells; 4 rows put the section at 512px. */
+        width: 384px;
+      }
+
+      & > [data-part="cell"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-right: 1px solid var(--marketing-stroke-default);
+        border-bottom: 1px solid var(--marketing-stroke-default);
+        aspect-ratio: 1;
+
+        /* The tooltip trigger stretches to the full cell so the whole tile
+           is the hover hit area and the tooltip centers on the cell. */
+        & > .noora-tooltip {
+          position: relative;
+          width: 100%;
+          height: 100%;
+
+          & > [data-part="trigger"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            cursor: default;
+          }
+
+          /* With the trigger spanning the tile, floating-ui would drop the
+             bubble below the cell (outside the grid). Pin it inside the
+             tile instead, centered above the bottom edge; !important beats
+             zag's inline styles. */
+          & > [data-part="positioner"] {
+            position: absolute !important;
+            top: auto !important;
+            bottom: var(--noora-spacing-4) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+          }
+        }
+
+        &[data-more] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+        }
+
+        /* The logos render at their exports' natural size (60px, Go 72px,
+           via their width/height attributes) so the 1px dither grain never
+           lands on fractional pixels. */
+        & [data-part="framework-logo"] > svg {
+          display: block;
+        }
+
+        /* The Kotlin mark fills its canvas edge to edge, so at natural
+           size it reads bigger than its neighbors; rein it in a touch. */
+        &[data-framework="kotlin"] [data-part="framework-logo"] > svg {
+          width: 50px;
+          height: 50px;
+        }
+      }
+    }
+  }
+
+  /* ── Transparency ("Built in the open, secured for scale") ── */
+  & > [data-part="transparency"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* Purple dither ramp shared by the section's dither effects (OSS logo,
+       SOC slider): bright lavenders in light mode, deep solid purples in
+       dark mode. */
+    --marketing-transparency-dither-shallow: light-dark(var(--noora-purple-100), var(--noora-purple-500));
+    --marketing-transparency-dither-mid: light-dark(var(--noora-purple-200), var(--noora-purple-600));
+    --marketing-transparency-dither-deep: light-dark(var(--noora-purple-300), var(--noora-purple-700));
+    /* Same shell as the frameworks box: the dither band above provides the
+       section spacing, the box draws its own border. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    /* The header is a padded cell of the bordered box (not a flex gap): the
+       section's later rows sit flush against each other, so its sibling
+       spacing isn't uniform — the 48px to the cards is the cell's bottom
+       inset instead. */
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-11);
+
+      /* Same text ramp as the features blocks. */
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      & > h2 {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > p {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    & > [data-part="cards"] {
+      display: grid;
+      border-top: 1px solid var(--marketing-stroke-default);
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      & > [data-part="card"] {
+        display: flex;
+        flex-direction: column;
+
+        /* The SOC ping's ramp, one step darker than the section's (it
+           reads too faint in light mode). "Deep" is the strong signal
+           next to the shield, "shallow" the sparse far scatter — so the
+           field runs dark purple → light outward in light mode, and
+           light purple → dark outward in dark mode. */
+        &[data-card="security"] {
+          --marketing-transparency-dither-shallow: light-dark(var(--noora-purple-200), var(--noora-purple-700));
+          --marketing-transparency-dither-mid: light-dark(var(--noora-purple-300), var(--noora-purple-600));
+          --marketing-transparency-dither-deep: light-dark(var(--noora-purple-400), var(--noora-purple-500));
+        }
+
+        &:not(:last-child) {
+          border-bottom: 1px solid var(--marketing-stroke-default);
+        }
+
+        @media (min-width: 1024px) {
+          &:not(:last-child) {
+            border-right: 1px solid var(--marketing-stroke-default);
+            border-bottom: none;
+          }
+        }
+
+        & > [data-part="illustration"] {
+          box-sizing: border-box;
+          display: flex;
+          position: relative;
+          justify-content: center;
+          align-items: center;
+          border-bottom: 1px solid var(--marketing-stroke-default);
+          height: 200px;
+          overflow: hidden;
+
+          & svg {
+            display: block;
+          }
+
+          /* Stacked windows sit bottom-center; the export's viewBox already
+             crops the front window so it reads as cut off by the hairline. */
+          & [data-part="windows"] {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+
+          & [data-part="oss-logo"] {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+
+            & > svg path {
+              stroke: var(--noora-purple-400);
+              stroke-width: 1;
+            }
+
+            /* Bayer-dither fill (DitherTexture in the purple ramp) clipped
+               to the logo shape; revealed while the card is hovered. */
+            & > [data-part="oss-dither"] {
+              position: absolute;
+              inset: 0;
+              transition: opacity 0.4s ease;
+              opacity: 0;
+              width: 100%;
+              height: 100%;
+              pointer-events: none;
+              clip-path: url(#transparency-oss-clip);
+            }
+          }
+
+          /* SOC badge (security card): the shield illustration, centered,
+             with the radar-ping dither canvas behind it — hovering the card
+             pulses a dithered wave outward from the badge that settles into
+             a background field for as long as the card is hovered. */
+          & [data-part="soc-ping"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+          }
+
+          & [data-part="soc-badge"] {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 145px;
+            height: 145px;
+
+            & > svg {
+              display: block;
+              width: 100%;
+              height: 100%;
+            }
+          }
+
+          /* Stacked card faces (infrastructure card): overlapping skewed
+             faces reading as a stack of dedicated machines, cropped by the
+             tile's edges. */
+          /* Stacked card faces (infrastructure card): the whole arrangement
+             is one Figma export; anchored from the top so the 234px-tall
+             faces overflow past the tile's bottom hairline. */
+          & [data-part="faces"] {
+            display: flex;
+            position: absolute;
+            top: 57px;
+            right: var(--noora-spacing-6);
+            left: var(--noora-spacing-6);
+
+            /* Two pre-composed variants of the same stack: a 12-face version
+               for the narrow desktop tiles (wider than the tile, cropped at
+               both edges) and a 30-face version filling wide single-column
+               tiles — one SVG each, so there are no tiling seams. */
+            & > [data-part="faces-desktop"] {
+              display: none;
+              flex: none;
+            }
+
+            & > [data-part="faces-wide"] {
+              flex: none;
+            }
+
+            @media (min-width: 1024px) {
+              justify-content: center;
+
+              & > [data-part="faces-desktop"] {
+                display: block;
+              }
+
+              & > [data-part="faces-wide"] {
+                display: none;
+              }
+            }
+
+            /* Risen faces translate above the viewBox; don't clip them. */
+            & svg {
+              overflow: visible;
+            }
+
+            & svg rect {
+              stroke-width: 1;
+              /* The faces are skewed via a matrix transform, which would
+                 distort the stroke; render it as a true screen-space 1px.
+                 translate composes on top of that matrix, so the hover
+                 rise keeps the lean. */
+              vector-effect: non-scaling-stroke;
+              transition: translate 0.4s ease;
+            }
+
+            /* Dither twins of the highlighted faces: hidden at rest, and
+               only allowed to disappear after their dots have dissolved
+               out (the delayed 0s opacity hop). */
+            & svg [data-part="face-dither"] {
+              transition:
+                translate 0.4s ease,
+                opacity 0s linear 0.5s;
+              opacity: 0;
+              stroke-width: 1;
+              vector-effect: non-scaling-stroke;
+              pointer-events: none;
+            }
+
+            /* The pattern's dots dissolve in six staggered waves; the rest
+               delays run top-first so the exit mirrors the entry. */
+            & svg pattern [data-stage] {
+              transition: opacity 0.14s ease;
+              opacity: 0;
+            }
+
+            & svg pattern [data-stage="0"] {
+              transition-delay: 0.3s;
+            }
+
+            & svg pattern [data-stage="1"] {
+              transition-delay: 0.24s;
+            }
+
+            & svg pattern [data-stage="2"] {
+              transition-delay: 0.18s;
+            }
+
+            & svg pattern [data-stage="3"] {
+              transition-delay: 0.12s;
+            }
+
+            & svg pattern [data-stage="4"] {
+              transition-delay: 0.06s;
+            }
+
+            & svg pattern [data-stage="5"] {
+              transition-delay: 0s;
+            }
+
+            /* Highlighted faces, one per 5. The rects are drawn
+               right-to-left, so nth-of-type counts from the rightmost face;
+               the formula covers both the 12- and 30-face variants. */
+            & svg rect:nth-of-type(5n + 3) {
+              stroke: var(--noora-purple-400);
+            }
+          }
+
+
+        }
+
+        &:hover > [data-part="illustration"] [data-part="oss-logo"] > [data-part="oss-dither"] {
+          opacity: 1;
+        }
+
+        /* Infrastructure card hover: the purple-stroked faces rise while
+           their dither twins materialize dot-wave by dot-wave from the
+           bottom (pattern fills can't transition, so the twin + staged
+           pattern dots carry the effect). */
+        &:hover > [data-part="illustration"] [data-part="faces"] svg rect:nth-of-type(5n + 3) {
+          translate: 0 -20px;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg [data-part="face-dither"] {
+          transition:
+            translate 0.4s ease,
+            opacity 0s linear;
+          translate: 0 -20px;
+          opacity: 1;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage] {
+          opacity: 1;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="0"] {
+          transition-delay: 0s;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="1"] {
+          transition-delay: 0.06s;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="2"] {
+          transition-delay: 0.12s;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="3"] {
+          transition-delay: 0.18s;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="4"] {
+          transition-delay: 0.24s;
+        }
+
+        &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage="5"] {
+          transition-delay: 0.3s;
+        }
+
+        & > [data-part="info"] {
+          padding: var(--noora-spacing-10) var(--noora-spacing-7);
+
+          & > h3 {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          }
+
+          & > p {
+            margin-top: var(--noora-spacing-4);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+          }
+        }
+      }
+    }
+
+    /* ── Community row: shares the transparency box, split evenly between
+       the text half and the (upcoming) grid half. ── */
+    & > [data-part="community"] {
+      display: grid;
+      border-top: 1px solid var(--marketing-stroke-default);
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(2, 1fr);
+        /* Fixed row height per the design; the halves fill it. */
+        height: 600px;
+      }
+
+      & > [data-part="community-text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: var(--noora-spacing-10) var(--noora-spacing-4);
+
+        /* Same text ramp as the other sections. */
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > h2 {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > p {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+
+        & > [data-part="actions"] {
+          display: flex;
+          gap: var(--noora-spacing-4);
+          margin-top: var(--noora-spacing-9);
+        }
+      }
+
+      & > [data-part="community-grid"] {
+        position: relative;
+        /* Mobile: separator between the stacked text half and the grid. */
+        border-top: 1px solid var(--marketing-stroke-default);
+        min-height: 320px;
+        overflow: hidden;
+
+        /* 4×4 hairline grid over the square: only the three interior lines
+           per axis, so the box borders aren't doubled at the edges. */
+        background-image:
+          linear-gradient(
+            90deg,
+            transparent calc(25% - 1px),
+            var(--marketing-stroke-default) calc(25% - 1px) 25%,
+            transparent 25% calc(50% - 1px),
+            var(--marketing-stroke-default) calc(50% - 1px) 50%,
+            transparent 50% calc(75% - 1px),
+            var(--marketing-stroke-default) calc(75% - 1px) 75%,
+            transparent 75%
+          ),
+          linear-gradient(
+            0deg,
+            transparent calc(25% - 1px),
+            var(--marketing-stroke-default) calc(25% - 1px) 25%,
+            transparent 25% calc(50% - 1px),
+            var(--marketing-stroke-default) calc(50% - 1px) 50%,
+            transparent 50% calc(75% - 1px),
+            var(--marketing-stroke-default) calc(75% - 1px) 75%,
+            transparent 75%
+          );
+
+        @media (min-width: 1024px) {
+          /* Desktop: the community row's own hairline covers the top. */
+          border-top: none;
+          border-left: 1px solid var(--marketing-stroke-default);
+          min-height: 0;
+        }
+
+        /* Tuist logo-burst outline, anchored to the right edge (the
+           export's viewBox already crops its right side). */
+        & > [data-part="tuist-outline"] {
+          position: absolute;
+          /* Mobile (short grid): anchor to the top so the burst's upper
+             part shows; desktop anchors to the bottom of the 600px square. */
+          top: 0;
+          right: 0;
+          /* Window onto the left portion of the 570×570 burst artwork. */
+          width: 286px;
+          height: 569px;
+          overflow: hidden;
+          pointer-events: none;
+
+          @media (min-width: 1024px) {
+            top: auto;
+            bottom: 0;
+          }
+
+          & > [data-part="tuist-dither"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 568px;
+            height: 568px;
+
+            @media (min-width: 1024px) {
+              top: auto;
+              bottom: 0;
+            }
+          }
+        }
+
+        /* 600×600 playground for the dither treatment. */
+        & > [data-part="grid-label"] {
+          position: absolute;
+          color: var(--noora-surface-label-tertiary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          white-space: nowrap;
+
+          /* Each label floats near a grid intersection: a small inset off
+             its column line and row line. */
+          &[data-pos="members"] {
+            right: calc(75% + 1px);
+            bottom: calc(75% + 1px);
+          }
+
+          &[data-pos="committers"] {
+            right: calc(50% + 1px);
+            bottom: calc(50% + 1px);
+          }
+
+          &[data-pos="teams"] {
+            right: calc(75% + 1px);
+            bottom: calc(25% + 1px);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="features-title"] {
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    padding-top: var(--noora-spacing-15);
+
+    & > h2 {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--noora-surface-label-primary);
+      font-family: var(--noora-font-heading);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+
+      @media (min-width: 1024px) {
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--noora-spacing-4);
+      }
+
+      & > [data-part="box"] {
+        box-shadow:
+          0 -1px 2px 0 rgba(61, 61, 61, 0.25) inset,
+          0 2px 4px 0 rgba(0, 0, 0, 0.06),
+          0 1px 2px 0 rgba(0, 0, 0, 0.06),
+          0 4px 5px 0 rgba(255, 255, 255, 0.03) inset,
+          0 1.5px 1.5px 0 rgba(255, 255, 255, 0.03) inset,
+          0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset,
+          0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
+        border-radius: var(--noora-radius-6);
+        /* The tint/gloss layers are translucent and read correctly on both
+           bases; only the base flips (pale lavender / translucent purple). */
+        background: radial-gradient(
+            62.73% 96.07% at 43.01% 61.96%,
+            rgba(111, 44, 255, 0.14) 0%,
+            rgba(244, 66, 119, 0.04) 100%
+          ),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%),
+          var(--marketing-tint-purple);
+        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+        text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.25);
+      }
+    }
+  }
+
+  & > [data-part="builds-feature"],
+  & > [data-part="tests-feature"],
+  & > [data-part="quality-assurance"],
+  & > [data-part="other-features"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding-top: var(--noora-spacing-13);
+
+    @media (min-width: 1180px) {
+      flex-direction: row;
+      gap: var(--noora-spacing-1);
+      padding-top: var(--noora-spacing-13);
+    }
+
+    & > [data-part="sidebar"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      padding: 0 var(--noora-spacing-5);
+
+      @media (min-width: 1180px) {
+        flex: 1 1 auto;
+        padding: 0 var(--noora-spacing-5);
+        min-width: 0;
+        max-width: 400px;
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        font-family: var(--noora-font-heading);
+      }
+
+      & > [data-part="description"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+        font-family: var(--noora-font-heading);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: column;
+      width: auto;
+    }
+
+    & [data-part="feature-block"] {
+      display: flex;
+      position: relative;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-6);
+      border-left: none;
+      padding: var(--noora-spacing-5) 0;
+
+      &[data-variant="cache"] {
+        border-bottom: 1px solid var(--noora-surface-border-primary);
+      }
+
+      @media (min-width: 1180px) {
+        border-left: 1px solid var(--noora-surface-border-primary);
+        padding: var(--noora-spacing-8) 0;
+      }
+
+      & > [data-part="overlay-link"] {
+        display: block;
+        position: absolute;
+        z-index: var(--noora-z-index-3);
+        inset: 0;
+        border-radius: inherit;
+        text-decoration: none;
+      }
+
+      & > [data-part="overlay-link"]:focus-visible {
+        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline-offset: 6px;
+      }
+
+      &:hover {
+        & > [data-part="feature-info"] {
+          & > [data-part="feature-title"] {
+            & svg {
+              visibility: visible;
+              opacity: 1;
+            }
+          }
+        }
+      }
+
+      & > [data-part="image-container"] {
+        display: flex;
+        position: relative;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 320px;
+
+        @media (min-width: 1180px) {
+          justify-content: flex-start;
+          box-sizing: border-box;
+          padding: 0 var(--noora-spacing-14);
+          height: 260px;
+          overflow: hidden;
+        }
+
+        & > [data-part="illustration"] {
+          width: 100%;
+          max-width: 718px;
+          height: 100%;
+          max-height: 260px;
+          object-fit: cover;
+          object-position: center;
+
+          @media (min-width: 1180px) {
+            transform: scale(1);
+            object-fit: contain;
+          }
+        }
+      }
+
+      &[data-variant="cache"] > [data-part="image-container"] > [data-part="illustration"] {
+        object-position: 20% center;
+
+        @media (min-width: 1180px) {
+          object-position: center;
+        }
+      }
+
+      &[data-variant="insights"] > [data-part="image-container"] > [data-part="illustration"] {
+        object-position: 90% center;
+
+        @media (min-width: 1180px) {
+          object-position: center;
+        }
+      }
+
+      & > [data-part="feature-info"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+        box-sizing: border-box;
+        padding: 0 var(--noora-spacing-6);
+        padding-bottom: var(--noora-spacing-6);
+        width: 100%;
+        max-width: 718px;
+
+        @media (min-width: 1180px) {
+          padding: 0 var(--noora-spacing-14);
+          padding-bottom: 0;
+        }
+
+        & > [data-part="feature-title"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-2);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+          font-family: var(--noora-font-heading);
+
+          & svg {
+            visibility: hidden;
+            opacity: 0;
+            transition:
+              opacity 0.2s ease-in-out,
+              visibility 0.2s ease-in-out;
+          }
+        }
+
+        & > [data-part="feature-description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+          font-family: var(--noora-font-body);
+        }
+      }
+    }
+  }
+
+  & > [data-part="other-features"] {
+    & > [data-part="sidebar"] {
+      @media (min-width: 1180px) {
+        min-width: 0;
+        max-width: 400px;
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: column;
+      max-width: 863px;
+    }
+
+    & [data-part="feature-row"] {
+      display: flex;
+      flex-direction: column;
+
+      @media (min-width: 1180px) {
+        flex-direction: row;
+      }
+
+      & > [data-part="feature-block"] {
+        flex: 1;
+
+        @media (min-width: 1180px) {
+          width: 446px;
+        }
+
+        &[data-variant="generated-projects"],
+        &[data-variant="registry"] {
+          & > [data-part="feature-info"] {
+            padding-right: var(--noora-spacing-10);
+            padding-left: var(--noora-spacing-10);
+          }
+        }
+
+        &[data-variant="generated-projects"] {
+          border-bottom: 1px solid var(--noora-surface-border-primary);
+
+          @media (min-width: 1180px) {
+            border-right: 1px solid var(--noora-surface-border-primary);
+            border-bottom: none;
+          }
+        }
+
+        &[data-variant="registry"] {
+          @media (min-width: 1180px) {
+            border-left: none;
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="tests-feature"] {
+    & > [data-part="sidebar"] {
+      @media (min-width: 1180px) {
+        min-width: 0;
+        max-width: 400px;
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: column;
+      max-width: 863px;
+    }
+
+    & [data-part="feature-block"] {
+      &[data-variant="selective-testing"] {
+        border-bottom: 1px solid var(--noora-surface-border-primary);
+      }
+
+      &[data-variant="selective-testing"] > [data-part="image-container"] {
+        @media (min-width: 1180px) {
+          padding: 0;
+          width: 718px;
+          min-width: 718px;
+          height: 260px;
+        }
+
+        & > [data-part="illustration"] {
+          object-position: 90% center;
+
+          @media (min-width: 1180px) {
+            object-position: center;
+          }
+        }
+      }
+
+      &[data-variant="flaky-tests"] > [data-part="image-container"] {
+        @media (min-width: 1180px) {
+          padding: 0;
+          width: 446px;
+          height: 260px;
+        }
+
+        & > [data-part="illustration"] {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center;
+        }
+      }
+
+      &[data-variant="test-insights"] > [data-part="image-container"] {
+        @media (min-width: 1180px) {
+          padding: 0;
+          width: 446px;
+          height: 260px;
+        }
+
+        & > [data-part="illustration"] {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center;
+        }
+      }
+    }
+
+    & [data-part="feature-row"] {
+      display: flex;
+      flex-direction: column;
+
+      @media (min-width: 1180px) {
+        flex-direction: row;
+      }
+
+      & > [data-part="feature-block"] {
+        flex: 1;
+
+        &[data-variant="flaky-tests"] {
+          border-bottom: 1px solid var(--noora-surface-border-primary);
+
+          @media (min-width: 1180px) {
+            border-right: 1px solid var(--noora-surface-border-primary);
+            border-bottom: none;
+          }
+        }
+
+        &[data-variant="test-insights"] {
+          @media (min-width: 1180px) {
+            border-left: none;
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="public-dashboard"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+
+    @media (min-width: 1024px) {
+      gap: var(--noora-spacing-11);
+    }
+
+    & > [data-part="title"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: var(--noora-spacing-10);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+
+      @media (min-width: 1024px) {
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--noora-spacing-4);
+        padding-top: var(--noora-spacing-15);
+      }
+
+      & > :nth-child(2) {
+        box-shadow:
+          0 -1px 2px 0 rgba(61, 61, 61, 0.25) inset,
+          0 2px 4px 0 rgba(0, 0, 0, 0.06),
+          0 1px 2px 0 rgba(0, 0, 0, 0.06),
+          0 4px 5px 0 rgba(255, 255, 255, 0.03) inset,
+          0 1.5px 1.5px 0 rgba(255, 255, 255, 0.03) inset,
+          0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset,
+          0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
+        border-radius: var(--noora-radius-6);
+        background: radial-gradient(
+            62.73% 96.07% at 43.01% 61.96%,
+            rgba(111, 44, 255, 0.14) 0%,
+            rgba(244, 66, 119, 0.04) 100%
+          ),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%), var(--Purple-50, #f4f4ff);
+        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+      }
+    }
+
+    & > [data-part="dashboard"] {
+      position: relative;
+      padding: 0 var(--noora-spacing-6);
+
+      & > [data-part="overlay-link"] {
+        display: block;
+        position: absolute;
+        z-index: var(--noora-z-index-2);
+        cursor: pointer;
+        inset: 0;
+        border-radius: inherit;
+        text-decoration: none;
+      }
+
+      & > [data-part="overlay-link"]:focus-visible {
+        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline-offset: 6px;
+      }
+
+      & > img {
+        max-width: 100%;
+        height: auto;
+      }
+
+      & > img[data-part="default"] {
+        display: none;
+
+        @media (min-width: 1024px) {
+          display: block;
+        }
+      }
+
+      & > img[data-part="hover"],
+      & > img[data-part="hover-mobile"] {
+        display: none;
+      }
+
+      & > img[data-part="default-mobile"] {
+        display: block;
+
+        @media (min-width: 1024px) {
+          display: none;
+        }
+      }
+
+      &:hover > img[data-part="default"],
+      &:hover > img[data-part="default-mobile"] {
+        display: none;
+      }
+
+      &:hover > img[data-part="hover"] {
+        @media (min-width: 1024px) {
+          display: block;
+        }
+      }
+
+      &:hover > img[data-part="hover-mobile"] {
+        display: block;
+
+        @media (min-width: 1024px) {
+          display: none;
+        }
+      }
+
+      & > .noora-button {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
+      &:hover > .noora-button {
+        pointer-events: auto;
+      }
+    }
+  }
+
+  & > [data-part="testimonial"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    padding-top: var(--noora-spacing-10);
+
+    & > [data-part="quote"] {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+
+      & > h3 {
+        color: var(--noora-surface-label-primary);
+        font-family: var(--noora-font-heading);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
+
+        & > span[data-part="line-one"] {
+          display: inline;
+
+          @media (min-width: 1024px) {
+            display: block;
+          }
+        }
+
+        & > span[data-part="line-two"] {
+          display: inline;
+          background: linear-gradient(180deg, rgba(111, 44, 255, 0.8) 40.79%, rgba(255, 255, 255, 0) 143.42%);
+          background-clip: text;
+          -webkit-background-clip: text;
+          text-shadow: 0px 1px 1px rgba(126, 125, 125, 0.25);
+          -webkit-text-fill-color: transparent;
+
+          @media (min-width: 1024px) {
+            display: block;
+          }
+        }
+      }
+    }
+
+    & > [data-part="name"] {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > p {
+        color: var(--noora-surface-label-primary);
+        font-family: var(--noora-font-body);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="case-study"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--noora-spacing-5);
+
+    @media (min-width: 1024px) {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    & > [data-part="customer-one"],
+    [data-part="customer-two"] {
+      display: flex;
+      position: relative;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: var(--noora-spacing-7);
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-6);
+
+      @media (min-width: 1024px) {
+        width: 642px;
+      }
+
+      & > [data-part="overlay-link"] {
+        display: block;
+        position: absolute;
+        z-index: var(--noora-z-index-2);
+        inset: 0;
+        border-radius: inherit;
+        text-decoration: none;
+      }
+
+      & > [data-part="overlay-link"]:focus-visible {
+        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline-offset: 6px;
+      }
+
+      & > [data-part="background"] {
+        position: absolute;
+        top: 0;
+        z-index: var(--noora-z-index-1);
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+
+        & > img {
+          position: absolute;
+          top: 0;
+          left: 0;
+          border-radius: var(--noora-radius-6);
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+
+      & > [data-part="content"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: var(--noora-spacing-7);
+        z-index: var(--noora-z-index-3);
+        padding: var(--noora-spacing-10);
+        padding-bottom: 0;
+        pointer-events: none;
+
+        & * {
+          pointer-events: none;
+        }
+
+        & > [data-part="name"] {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+        }
+
+        & > h3 {
+          color: var(--noora-surface-label-primary);
+          font-family: var(--noora-font-heading);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        }
+
+        & .noora-button {
+          position: relative;
+          z-index: var(--noora-z-index-4);
+          pointer-events: auto;
+        }
+
+        & [data-part="customer-story-button"] {
+          & > span:not([data-part]) {
+            display: none;
+
+            @media (min-width: 1024px) {
+              display: inline;
+            }
+          }
+        }
+      }
+
+      & > [data-part="graphic"] {
+        position: relative;
+        z-index: var(--noora-z-index-3);
+        width: 100%;
+        pointer-events: none;
+
+        & * {
+          pointer-events: none;
+        }
+
+        & > img {
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+        }
+      }
+    }
+  }
+
+  & > [data-part="stats"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--noora-spacing-5);
+
+    @media (min-width: 1024px) {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    & > [data-part="column"] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      gap: var(--noora-spacing-5);
+
+      @media (min-width: 1024px) {
+        align-items: center;
+      }
+
+      & > [data-part="github-card"],
+      & > [data-part="oss-card"],
+      & > [data-part="minutes-card"],
+      & > [data-part="slack-card"],
+      & > [data-part="teams-card"],
+      & > [data-part="contributors-card"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
+        box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-6);
+        padding: var(--noora-spacing-9) var(--noora-spacing-10);
+
+        & > [data-part="background"] {
+          position: absolute;
+          top: 0;
+          width: 100%;
+          height: 100%;
+
+          & > img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            mix-blend-mode: overlay;
+            border-radius: var(--noora-radius-6);
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        & > [data-part="content"] {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > h1 {
+            color: var(--noora-surface-label-primary);
+            font-family: var(--noora-font-display);
+            font: var(--noora-font-weight-semibold) var(--noora-font-display-xlarge);
+            letter-spacing: -0.045rem;
+            text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
+          }
+
+          & > p {
+            color: var(--noora-surface-label-primary);
+            font-family: var(--noora-font-body);
+            font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+          }
+        }
+      }
+
+      & > [data-part="github-card"] {
+        gap: var(--noora-spacing-4);
+        background: linear-gradient(279deg, #f0e8ff 0%, #fff 108.26%);
+
+        @media (min-width: 1024px) {
+          width: 399.5px;
+          min-height: 174px;
+        }
+      }
+
+      & > [data-part="oss-card"] {
+        gap: var(--noora-spacing-4);
+        background: linear-gradient(79deg, #fff 0%, #f4f0fd 100.11%);
+
+        @media (min-width: 1024px) {
+          width: 399.5px;
+          min-height: 174px;
+        }
+      }
+
+      & > [data-part="minutes-card"] {
+        gap: var(--noora-spacing-8);
+        background: linear-gradient(112deg, #f8f5ff 0%, #f2effa 100.86%);
+
+        @media (min-width: 1024px) {
+          width: 473px;
+          min-height: 190px;
+        }
+      }
+
+      & > [data-part="slack-card"] {
+        gap: var(--noora-spacing-4);
+        background: linear-gradient(0deg, #fff 0%, #f4f0fd 100%);
+        @media (min-width: 1024px) {
+          width: 473px;
+          height: 158px;
+        }
+      }
+
+      & > [data-part="teams-card"] {
+        gap: var(--noora-spacing-4);
+        background: linear-gradient(279deg, #fff 0%, #f4f0fd 98.92%);
+        @media (min-width: 1024px) {
+          width: 399.5px;
+          min-height: 174px;
+        }
+      }
+
+      & > [data-part="contributors-card"] {
+        gap: var(--noora-spacing-4);
+        background: linear-gradient(79deg, #f4f0fd 0%, #fff 100.11%);
+        @media (min-width: 1024px) {
+          width: 399.5px;
+          min-height: 174px;
+        }
+      }
+    }
+  }
+
+  & > [data-part="testimonials"] > [data-part="customers"] {
+    display: flex;
+    flex-direction: column;
+
+    /* Same padded header cell and text ramp as the testimonials header —
+       48px bottom inset to the flush stories row below. */
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-11);
+
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      & > h2 {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > p {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+
+      & > .noora-button {
+        margin-top: var(--noora-spacing-7);
+      }
+    }
+
+    /* Two customer-story cells: stacked on mobile, side by side on desktop
+       with a shared hairline divider. The bottom border closes the cards
+       row off from the testimonials header that follows in the same box. */
+    & > [data-part="stories"] {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--marketing-stroke-default);
+      border-bottom: 1px solid var(--marketing-stroke-default);
+
+      @media (min-width: 1024px) {
+        flex-direction: row;
+      }
+
+      & > [data-part="story"] {
+        box-sizing: border-box;
+        display: flex;
+        position: relative;
+        flex: 1;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        /* Figma: 300-tall cell with the logo + caption stack anchored
+           23px from the top (centered horizontally), above the dot field
+           along the bottom. */
+        padding-top: 23px;
+        min-height: 300px;
+        overflow: hidden;
+        /* Neutral ramp for the dither-dot field behind the logo, shared by
+           both cards: the 500/700 neutrals, with the tiers flipped in dark
+           mode so shallow stays the dimmer one. */
+        --marketing-customers-dither-shallow: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700));
+        --marketing-customers-dither-mid: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-500));
+        /* Hover ramp for the graph, per company brand: three solid shades
+           (strong / mid / soft) that the hooks hash across per dot.
+           Translucent brand dots washed out to pink on the light
+           background, so the depth comes from solid darker-to-lighter
+           brand mixes instead of alpha; dark mode ramps the brand toward
+           the black background. */
+        &[data-company="monzo"] {
+          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff4f40 70%, black), #ff4f40);
+          --marketing-customers-dither-hover-mid: light-dark(#ff4f40, color-mix(in oklch, #ff4f40 65%, black));
+          --marketing-customers-dither-hover-soft: light-dark(
+            color-mix(in oklch, #ff4f40 55%, white),
+            color-mix(in oklch, #ff4f40 40%, black)
+          );
+        }
+
+        &[data-company="trendyol"] {
+          --marketing-customers-dither-hover-strong: light-dark(color-mix(in oklch, #ff6720 70%, black), #ff6720);
+          --marketing-customers-dither-hover-mid: light-dark(#ff6720, color-mix(in oklch, #ff6720 65%, black));
+          --marketing-customers-dither-hover-soft: light-dark(
+            color-mix(in oklch, #ff6720 55%, white),
+            color-mix(in oklch, #ff6720 40%, black)
+          );
+        }
+
+        /* Whole cell links to the case study, like the feature cards. */
+        & > [data-part="overlay-link"] {
+          display: block;
+          position: absolute;
+          z-index: var(--noora-z-index-2);
+          inset: 0;
+          text-decoration: none;
+        }
+
+        & > [data-part="overlay-link"]:focus-visible {
+          outline: 3px solid var(--noora-purple-60, #6f2cff);
+          /* Inward: the cell's overflow: hidden would clip an outset ring. */
+          outline-offset: -3px;
+        }
+
+        /* Dither-dot field (the Figma export's dots, canvas-animated)
+           anchored to the card's bottom edge and spanning its full width:
+           the hook keeps the 600×180 artwork centered at its natural size
+           (the 2px grain never scales) and fills wider cards by tiling
+           mirrored copies outward, so stacked tablet cards have no empty
+           flanks. */
+        & > [data-part="dots"] {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          /* Explicit width: a canvas is a replaced element, so absolute
+             left/right insets alone won't stretch it — width: auto would
+             resolve to the backing store's intrinsic size instead. */
+          width: 100%;
+          height: 180px;
+          pointer-events: none;
+        }
+
+        & > [data-part="logo"],
+        & > p {
+          position: relative;
+          z-index: var(--noora-z-index-1);
+        }
+
+        &:first-child {
+          border-bottom: 1px solid var(--marketing-stroke-default);
+
+          @media (min-width: 1024px) {
+            border-right: 1px solid var(--marketing-stroke-default);
+            border-bottom: none;
+          }
+        }
+
+        & > [data-part="logo"] {
+          display: flex;
+
+          & svg {
+            display: block;
+            width: auto;
+            height: 95px;
+          }
+        }
+
+        /* The Trendyol mark is a currentColor SVG: painting it with the
+           primary label color keeps it legible in both themes. */
+        &[data-company="trendyol"] > [data-part="logo"] {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & > p {
+          margin: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+          text-align: center;
+        }
+      }
+    }
+  }
+
+  & > [data-part="testimonials"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* Same shell as the transparency box. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    /* Same padded header cell as the transparency box (48px bottom inset
+       to the flush marquee row below); 96px top inset from the customer
+       stories row above. */
+    & > [data-part="text"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: var(--noora-spacing-16) var(--noora-spacing-4) var(--noora-spacing-11);
+
+      /* Same text ramp as the features blocks. */
+      & > [data-part="eyebrow"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        text-transform: uppercase;
+      }
+
+      & > h2 {
+        margin-top: var(--noora-spacing-7);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      }
+
+      & > p {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      }
+    }
+
+    & > [data-part="marquee"] {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--marketing-stroke-default);
+      overflow: hidden;
+
+      & > [data-part="row"] {
+        overflow: hidden;
+
+        &[data-viewport="desktop"] {
+          display: none;
+        }
+
+        @media (min-width: 1024px) {
+          &[data-viewport="mobile"] {
+            display: none;
+          }
+
+          &[data-viewport="desktop"] {
+            display: block;
+          }
+
+          /* Hairline between the two desktop rows. */
+          &[data-viewport="desktop"]:last-child {
+            border-top: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        /* Top desktop row drifts left → right, the bottom right → left. */
+        &[data-direction="reverse"] > [data-part="track"] {
+          animation-direction: reverse;
+        }
+
+        &:hover > [data-part="track"] {
+          animation-play-state: paused;
+        }
+
+        & > [data-part="track"] {
+          display: flex;
+          width: max-content;
+          /* One loop covers one group's width (card count × card width), so
+             scaling the period by the row's card count keeps every row —
+             desktop and mobile — drifting at the same speed. */
+          animation: marketing-testimonials-marquee calc(var(--marquee-card-count, 4) * 12s) linear infinite;
+
+          @media (prefers-reduced-motion: reduce) {
+            animation: none;
+          }
+        }
+      }
+
+      [data-part="group"] {
+        display: flex;
+        align-items: stretch;
+      }
+
+      [data-part="card"] {
+        box-sizing: border-box;
+        display: flex;
+        flex: none;
+        flex-direction: column;
+        border-right: 1px solid var(--marketing-stroke-default);
+        width: min(400px, 85vw);
+
+        & > [data-part="quote"] {
+          flex: 1;
+          margin: 0;
+          padding: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+
+        & > [data-part="author"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          border-top: 1px solid var(--marketing-stroke-default);
+          padding: var(--noora-spacing-7);
+
+          & > [data-part="avatar"] {
+            border-radius: var(--noora-radius-4);
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+          }
+
+          & > [data-part="identity"] {
+            display: flex;
+            flex-direction: column;
+
+            & > [data-part="name"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+            }
+
+            & > [data-part="role"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="cta"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Same shell as the transparency/testimonials boxes. */
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+
+}

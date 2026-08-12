@@ -254,11 +254,15 @@
 }
 
 .noora-neutral-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   cursor: pointer;
   border-radius: var(--noora-radius-3);
   background: unset;
   padding: var(--noora-spacing-3);
   color: var(--noora-button-neutral-label);
+  text-decoration: none;
   transition: transform 150ms var(--ease-out-cubic);
 
   &:not(:disabled):hover {
@@ -275,7 +279,13 @@
     color: var(--noora-button-neutral-disabled-label);
   }
 
+  & > span {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
   &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
     & > svg {
       width: var(--noora-icon-size-large);
       height: var(--noora-icon-size-large);
@@ -283,6 +293,8 @@
   }
 
   &[data-size="medium"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
     & > svg {
       width: var(--noora-icon-size-medium);
       height: var(--noora-icon-size-medium);
@@ -290,6 +302,8 @@
   }
 
   &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
     & > svg {
       width: var(--noora-icon-size-small);
       height: var(--noora-icon-size-small);
