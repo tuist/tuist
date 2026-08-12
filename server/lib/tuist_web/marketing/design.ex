@@ -36,12 +36,15 @@ defmodule TuistWeb.Marketing.Design do
   def call(conn, _opts) do
     conn = conn |> fetch_query_params() |> fetch_cookies()
 
-    case conn.query_params["design"] do
-      "new" -> put_override(conn, "new")
-      "old" -> put_override(conn, "old")
-      "default" -> conn |> delete_resp_cookie(@cookie) |> delete_session(@session_key)
-      _ -> sync_session(conn)
-    end
+    conn =
+      case conn.query_params["design"] do
+        "new" -> put_override(conn, "new")
+        "old" -> put_override(conn, "old")
+        "default" -> conn |> delete_resp_cookie(@cookie) |> delete_session(@session_key)
+        _ -> sync_session(conn)
+      end
+
+    maybe_bypass_shared_caches(conn)
   end
 
   @doc """
@@ -65,6 +68,21 @@ defmodule TuistWeb.Marketing.Design do
     conn
     |> put_resp_cookie(@cookie, value, max_age: @cookie_max_age)
     |> put_session(@session_key, value)
+  end
+
+  # Marketing responses are `public, max-age=60, stale-while-revalidate=86400`,
+  # and once the override cookie and session agree the response carries no
+  # Set-Cookie — nothing would stop a shared cache from storing a previewer's
+  # variant at the ordinary URL and serving it to every visitor. Any request
+  # rendered under an override (or clearing one) must therefore not be stored.
+  # register_before_send, because the controller stamps cache-control in a
+  # plug that runs after this one and would overwrite a header set here.
+  defp maybe_bypass_shared_caches(conn) do
+    if conn.query_params["design"] in ["new", "old", "default"] or conn.cookies[@cookie] in ["new", "old"] do
+      register_before_send(conn, &put_resp_header(&1, "cache-control", "private, no-store"))
+    else
+      conn
+    end
   end
 
   # The cookie is the override's home, so a browser that got one before the

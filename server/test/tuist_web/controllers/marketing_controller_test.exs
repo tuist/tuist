@@ -76,6 +76,25 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html_response(conn, 200) =~ "/marketing/assets/bundle.css"
       assert conn.resp_cookies["tuist_marketing_design"].max_age == 0
     end
+
+    test "responses without an override stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
+    end
+
+    test "override-driven responses are not cacheable by shared caches", %{conn: conn} do
+      conn = get(conn, "/?design=new")
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+
+      # The steady state: cookie and session agree, no Set-Cookie is emitted,
+      # so only the cache-control header keeps the variant out of shared caches.
+      conn = conn |> recycle() |> get("/")
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+
+      conn = conn |> recycle() |> get("/?design=default")
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
   end
 
   describe "POST /newsletter" do
