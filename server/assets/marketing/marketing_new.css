@@ -41,6 +41,24 @@
   color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 
+/* Fills for the framework logos' pixel-grid SVGs. They used to carry
+   fill="var(--…)" as a presentation attribute, but Firefox does not resolve
+   var() in SVG presentation attributes (Chromium and Safari do), which
+   rendered every path in fallback black. A CSS rule resolves var()
+   everywhere — and the short data-fill attribute keeps thousands of paths
+   lighter than per-path style attributes would. */
+[data-fill="neutral-1"] {
+  fill: var(--marketing-illustration-neutral-1);
+}
+
+[data-fill="neutral-7"] {
+  fill: var(--marketing-illustration-neutral-7);
+}
+
+[data-fill="neutral-8"] {
+  fill: var(--marketing-illustration-neutral-8);
+}
+
 /* One focus treatment for the whole redesign, noora components included:
    Tuist purple, flipped per scheme (500 needs the light background, 300 the
    dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
