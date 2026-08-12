@@ -5,10 +5,15 @@ defmodule Tuist.Builds.Build do
 
   `build_runs` is `ReplacingMergeTree(updated_at)`: a build is written once as a
   `processing` placeholder and again once `ProcessBuildWorker` has parsed its
-  xcactivitylog. `updated_at` is the dedup version and is stamped fresh on every
-  write, so the later row always wins; `inserted_at` stays the build's own
-  timestamp and the partition key. Callers must not carry `updated_at` over from
-  an existing row — `to_buffer_map/1` overwrites it for that reason.
+  xcactivitylog. `updated_at` is the dedup version, so the row written second has
+  to carry the higher one; `inserted_at` stays the build's own timestamp and the
+  partition key.
+
+  A first write takes `updated_at` from `inserted_at`. A write that replaces a
+  known row passes that row's version, bumped, as `updated_at`, and
+  `to_buffer_map/1` treats it as a floor: the stored version is the later of it
+  and now. Ordering therefore does not depend on the writing pods' clocks
+  agreeing, only on each writer reading the row it replaces.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -112,6 +117,7 @@ defmodule Tuist.Builds.Build do
         :project_id,
         :account_id,
         :inserted_at,
+        :updated_at,
         :status,
         :category,
         :configuration,
@@ -180,7 +186,12 @@ defmodule Tuist.Builds.Build do
       %DateTime{} = dt -> DateTime.to_naive(dt)
       other -> other
     end)
-    |> Map.put(:updated_at, NaiveDateTime.utc_now())
+    |> then(fn attrs ->
+      Map.update(attrs, :updated_at, attrs.inserted_at, fn
+        nil -> attrs.inserted_at
+        floor -> Enum.max([NaiveDateTime.utc_now(), floor], NaiveDateTime)
+      end)
+    end)
     |> Map.new(fn
       {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}
       other -> other

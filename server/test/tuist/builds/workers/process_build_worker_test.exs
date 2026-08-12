@@ -475,6 +475,48 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert merged.status == "success"
       assert merged.duration == 1200
     end
+
+    test "supersedes the placeholder even when the processing pod's clock is behind", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      {:ok, placeholder} = Builds.get_build(build.id, project_id: project.id)
+
+      # A processor pod whose clock trails the pod that wrote the placeholder.
+      # The version has to come from the row being replaced, not from here.
+      stub(NaiveDateTime, :utc_now, fn ->
+        NaiveDateTime.add(placeholder.updated_at, -1, :hour)
+      end)
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      expect(BuildProcessor, :process_build, fn _, _ ->
+        {:ok, Map.put(parsed_data(), "targets", [])}
+      end)
+
+      assert :ok ==
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+
+      Build.Buffer.flush()
+
+      [_placeholder, processed] =
+        ClickHouseRepo.all(
+          from(b in Build,
+            where: b.project_id == ^project.id and b.id == ^build.id,
+            order_by: [asc: b.updated_at]
+          )
+        )
+
+      assert processed.status == "success"
+      assert NaiveDateTime.after?(processed.updated_at, placeholder.updated_at)
+
+      IngestRepo.query!("OPTIMIZE TABLE build_runs FINAL")
+
+      assert {:ok, merged} = Builds.get_build(build.id, project_id: project.id)
+      assert merged.status == "success"
+      assert merged.duration == 1200
+    end
   end
 
   describe "perform/1 concurrency" do

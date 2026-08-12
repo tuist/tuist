@@ -161,24 +161,47 @@ defmodule Tuist.Builds.BuildTest do
   end
 
   describe "to_buffer_map/1" do
-    test "stamps a fresh updated_at instead of reusing the one carried over from a previous write" do
-      carried_over = ~N[2023-10-01 12:00:00.000000]
+    defp build_with(attrs) do
+      struct!(
+        %Build{
+          id: "B12673DA-1345-4077-BB30-D7576FEACE09",
+          duration: 120,
+          is_ci: true,
+          project_id: 1,
+          account_id: 1,
+          status: "success"
+        },
+        attrs
+      )
+    end
 
-      build = %Build{
-        id: "B12673DA-1345-4077-BB30-D7576FEACE09",
-        duration: 120,
-        is_ci: true,
-        project_id: 1,
-        account_id: 1,
-        status: "success",
-        inserted_at: carried_over,
-        updated_at: carried_over
-      }
+    test "versions a first write with its own inserted_at" do
+      inserted_at = ~N[2023-10-01 12:00:00.000000]
 
-      buffer_map = Build.to_buffer_map(build)
+      buffer_map = Build.to_buffer_map(build_with(inserted_at: inserted_at))
 
-      assert buffer_map.inserted_at == carried_over
-      assert NaiveDateTime.after?(buffer_map.updated_at, carried_over)
+      assert buffer_map.updated_at == inserted_at
+    end
+
+    test "treats a supplied updated_at as a floor, not as the version to store" do
+      buffer_map =
+        Build.to_buffer_map(
+          build_with(
+            inserted_at: ~N[2023-10-01 12:00:00.000000],
+            updated_at: ~N[2023-10-01 12:00:00.000001]
+          )
+        )
+
+      assert NaiveDateTime.after?(buffer_map.updated_at, ~N[2023-10-01 12:00:00.000001])
+    end
+
+    test "keeps a floor that is ahead of the clock" do
+      floor = NaiveDateTime.add(NaiveDateTime.utc_now(), 1, :hour)
+
+      buffer_map =
+        Build.to_buffer_map(build_with(inserted_at: ~N[2023-10-01 12:00:00.000000], updated_at: floor))
+
+      assert buffer_map.updated_at == %{floor | microsecond: {elem(floor.microsecond, 0), 6}}
     end
   end
 end

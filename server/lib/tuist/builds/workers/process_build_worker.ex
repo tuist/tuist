@@ -143,7 +143,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   # build's own timestamp and the table's partition key, and moving it would
   # both misreport when the build ran and risk landing the replacement in a
   # different monthly partition, where it could never dedup. Ordering the two
-  # rows is `updated_at`'s job, stamped per write in `Build.to_buffer_map/1`.
+  # rows is `updated_at`'s job, and the version to beat is the one on the row
+  # this write replaces, not this pod's clock — the placeholder is written by a
+  # server pod and this runs on a processor pod.
   defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
     case Builds.get_build(build_id, project_id: project_id) do
       {:error, :not_found} ->
@@ -167,6 +169,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           :cacheable_task_local_hits_count,
           :cacheable_task_remote_hits_count
         ])
+        |> Map.put(:updated_at, NaiveDateTime.add(existing_build.updated_at, 1, :microsecond))
     end
   end
 

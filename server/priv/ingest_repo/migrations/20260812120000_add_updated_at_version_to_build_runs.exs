@@ -24,9 +24,15 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
   it. That repairs, in one pass, every stuck pair whose two rows have not been
   merged away yet.
 
-  The old table is left behind as `build_runs_new` so the swap can be undone;
-  a follow-up migration drops it once the new table has been verified, the
-  same sequence used by the previous `build_runs` swap.
+  Rows written to the old table between the copy and the exchange are replayed
+  by the migration that follows this one; they cannot be selected on time here
+  because a replacement carries the placeholder's `inserted_at`, which says
+  nothing about when the row was written.
+
+  The old table is left behind as `build_runs_new` — the replay reads from it,
+  and it makes the swap reversible. A follow-up migration drops it once the new
+  table has been verified, the same sequence used by the previous `build_runs`
+  swap.
   """
   use Ecto.Migration
 
@@ -37,16 +43,28 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  # Rows written to the old table between the copy's snapshot and the exchange
-  # would otherwise be lost. The tail copy replays a window wide enough to
-  # cover that gap plus ingestion buffers that flush on a delay; re-inserting
-  # rows already copied is harmless because the engine dedups them.
-  @tail_copy_window_minutes 10
+  # Deterministic, so the replay that follows produces byte-identical rows for
+  # everything this copy already wrote.
+  @version "if(status = 'processing', inserted_at, addSeconds(inserted_at, 1))"
 
   def up do
+    if version_column_present?() do
+      # A failure anywhere after `EXCHANGE TABLES` leaves the migration marked
+      # as failed with the swap already done, so a re-run must not rebuild the
+      # table from what is now the swapped-in copy.
+      Logger.info("build_runs already dedups on updated_at; leaving it as is")
+    else
+      swap_in_versioned_table()
+    end
+  end
+
+  def down do
+    :ok
+  end
+
+  defp swap_in_versioned_table do
     IngestRepo.query!("DROP TABLE IF EXISTS build_runs_new")
 
-    started_at = DateTime.utc_now()
     columns = column_names("build_runs")
     column_definitions = column_definitions("build_runs")
     indexes = index_definitions("build_runs")
@@ -68,7 +86,7 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
     IngestRepo.query!(
       """
       INSERT INTO build_runs_new (#{columns}, updated_at)
-      SELECT #{columns}, #{version_expression()}
+      SELECT #{columns}, #{@version}
       FROM build_runs
       """,
       [],
@@ -77,28 +95,18 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
 
     IngestRepo.query!("EXCHANGE TABLES build_runs AND build_runs_new")
 
-    tail_copy_floor = DateTime.add(started_at, -@tail_copy_window_minutes, :minute)
-
-    IngestRepo.query!(
-      """
-      INSERT INTO build_runs (#{columns}, updated_at)
-      SELECT #{columns}, #{version_expression()}
-      FROM build_runs_new
-      WHERE inserted_at >= {floor:DateTime64(6)}
-      """,
-      %{floor: tail_copy_floor},
-      timeout: 1_200_000
-    )
-
     Logger.info("build_runs now dedups on updated_at; previous table kept as build_runs_new")
   end
 
-  def down do
-    :ok
-  end
+  defp version_column_present? do
+    {:ok, %{rows: [[count]]}} =
+      IngestRepo.query("""
+      SELECT count()
+      FROM system.columns
+      WHERE database = currentDatabase() AND table = 'build_runs' AND name = 'updated_at'
+      """)
 
-  defp version_expression do
-    "if(status = 'processing', inserted_at, addSeconds(inserted_at, 1))"
+    count > 0
   end
 
   defp column_names(table_name) do
