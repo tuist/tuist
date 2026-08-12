@@ -21,6 +21,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   @posts_per_page %{"grid" => 9, "list" => 20}
 
   embed_templates "marketing_blog_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (blog_new/1) distinct from the legacy blog/1.
+  embed_templates "marketing_blog_live/new/*", suffix: "_new"
 
   def render(%{new_design: true} = assigns), do: blog_new(assigns)
   def render(assigns), do: blog(assigns)
@@ -185,6 +188,15 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     {:noreply, assign(socket, :search_open, true)}
   end
 
+  def handle_event("close_search", _params, socket) do
+    %{selected_category: category, view_mode: view_mode} = socket.assigns
+
+    {:noreply,
+     socket
+     |> assign(:search_open, false)
+     |> push_patch(to: blog_href(category, "", 1, view_mode))}
+  end
+
   defp entry_image_url(entry) do
     Content.get_entry_image_url(entry, &post_image_url/1)
   end
@@ -195,15 +207,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         OpenGraph.image_path(:marketing_text, title: post.title)
 
     Tuist.Environment.app_url(path: path, marketing: true)
-  end
-
-  def handle_event("close_search", _params, socket) do
-    %{selected_category: category, view_mode: view_mode} = socket.assigns
-
-    {:noreply,
-     socket
-     |> assign(:search_open, false)
-     |> push_patch(to: blog_href(category, "", 1, view_mode))}
   end
 
   defp category_label(nil), do: dgettext("marketing", "All")
