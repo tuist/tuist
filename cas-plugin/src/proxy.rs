@@ -421,6 +421,11 @@ pub struct PathState {
     // through a separate BatchReadBlobs round-trip (kura's
     // `inline_output_files: ["*"]` extension).
     pub stats_blobs_inlined: AtomicU64,
+    // Value graphs whose root was withheld because a node in their closure could
+    // not be stored. Each one is a key that resolves again next build instead of
+    // being served over a hole. Persistently non-zero means the remote is handing
+    // out entries whose blobs it cannot produce.
+    pub stats_incomplete_closures: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -1293,6 +1298,7 @@ impl Proxy {
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -1605,7 +1611,41 @@ impl Proxy {
                 .map(|entry| entry.blob.size_bytes)
                 .sum::<i64>()
                 .max(1);
-            for entry in &missing {
+            // The value ROOT goes in LAST, and only if every other node landed.
+            //
+            // Skipping a node below is a DESIGNED outcome (an incomplete graph on
+            // the server, a writer still uploading), so "root present, child
+            // absent" is reachable in normal operation rather than only after a
+            // prune. That shape is invisible to a reader: the get path probes the
+            // ROOT and nothing deeper, because verifying a closure there means a
+            // load per node on the serial task-setup thread. Storing the root
+            // first therefore published a graph we already knew was incomplete.
+            //
+            // Ordering it last makes "root present" mean "closure complete" for
+            // this author, which is exactly what that probe already tests. An
+            // incomplete closure leaves the root absent, so the plugin records no
+            // association and the next build resolves again — re-materializing,
+            // by then possibly in full. The CURRENT build loses nothing: its load
+            // of the root goes to FETCH_OBJECT, whose instructions stay
+            // registered for every node skipped here.
+            let root_digest = manifest.first().map(|entry| entry.llcas_digest.clone());
+            let is_root = |entry: &ManifestEntry| Some(&entry.llcas_digest) == root_digest.as_ref();
+            let mut ordered: Vec<&ManifestEntry> =
+                missing.iter().copied().filter(|entry| !is_root(entry)).collect();
+            ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
+            let mut skipped = 0usize;
+
+            for entry in ordered {
+                if is_root(entry) && skipped > 0 {
+                    state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                    crate::log_line(&format!(
+                        "incomplete closure, root withheld: root={} skipped={} of {}",
+                        crate::analytics::hex_upper(&entry.llcas_digest),
+                        skipped,
+                        manifest.len()
+                    ));
+                    continue;
+                }
                 let (blob, inlined) = match &entry.contents {
                     Some(bytes) => (bytes, true),
                     None => match contents.get(&entry.blob.hash) {
@@ -1615,14 +1655,19 @@ impl Proxy {
                         // instructions registered so the demand load that
                         // needs it retries — and surfaces the failure —
                         // per object.
-                        None => continue,
+                        None => {
+                            skipped += 1;
+                            continue;
+                        }
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
+                    skipped += 1;
                     continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
+                    skipped += 1;
                     continue;
                 };
                 let codec_elapsed = phase.elapsed();
@@ -4122,6 +4167,7 @@ mod tests {
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -4428,6 +4474,94 @@ mod tests {
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Skipping a node is a designed outcome here, so "root present, child
+    /// absent" is reachable without any prune — and invisible to a reader, whose
+    /// guard probes the ROOT and nothing deeper. Storing the root last, and only
+    /// when the rest of its closure landed, is what makes that probe mean
+    /// "complete". Without it this manifest publishes a root over a hole.
+    #[test]
+    fn an_incomplete_closure_withholds_its_root() {
+        let dir = TempCasDir::new("incomplete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/incomplete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // Root first, as an ActionResult's output order puts it. Both arrive
+        // inlined, so nothing is fetched and the remote is never consulted; the
+        // child's bytes are not a frame, which is one of the ways a node is
+        // skipped.
+        let root = vec![0x01];
+        let child = vec![0x02];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "aa".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "bb".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a skipped node is not an error, it is the case being handled");
+
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "the root must NOT be published when a node in its closure was skipped: \
+             a later get probes only the root, so storing it here is what turns an \
+             incomplete graph into a hit that fails at load on the child"
+        );
+        assert!(!proxy.is_local(state, observed, &child), "and the child did not land");
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "and the condition is counted rather than silent -- it was the silence \
+             that let this go undiagnosed"
+        );
+    }
+
+    /// The other half: withholding must be conditional, or no graph would ever
+    /// become locally resolvable and every build would re-resolve every key.
+    #[test]
+    fn a_complete_closure_publishes_its_root() {
+        let dir = TempCasDir::new("complete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/complete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x11];
+        let child = vec![0x12];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "cc".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "dd".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "so the root is published and the key resolves locally next build"
+        );
+        assert_eq!(state.stats_incomplete_closures.load(Ordering::Relaxed), 0);
     }
 
     // A demand fetch is a door into the same store, and it does not have to come
