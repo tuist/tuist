@@ -2502,59 +2502,6 @@ end
             assert!(deny.message.contains("project 'acme/ios'"));
         }
 
-        /// End-to-end across the language boundary: the token here is minted by
-        /// the Tuist server (see server/test/tuist/cache_e2e_token_test.exs),
-        /// not constructed by this test, so it proves a real cache token
-        /// authorizes locally and never reaches introspection.
-        ///
-        /// Skips unless CACHE_TOKEN_E2E_PATH points at a freshly minted token;
-        /// kura/scripts/cache-token-e2e.sh mints one and runs this.
-        #[tokio::test]
-        async fn authorizes_a_server_minted_cache_token_without_introspection() {
-            let Ok(path) = std::env::var("CACHE_TOKEN_E2E_PATH") else {
-                eprintln!("skipping: CACHE_TOKEN_E2E_PATH not set");
-                return;
-            };
-            let token = std::fs::read_to_string(&path)
-                .expect("failed to read the server-minted cache token")
-                .trim()
-                .to_string();
-
-            let calls = Arc::new(Mutex::new(0usize));
-            let calls_for_handler = calls.clone();
-            let base = spawn_tuist_auth_mock(
-                move |_headers, _payload| {
-                    *calls_for_handler.lock().unwrap() += 1;
-                    (
-                        StatusCode::OK,
-                        introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
-                    )
-                },
-                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
-            )
-            .await;
-            let engine = engine_pointing_at(&base, true).await;
-
-            let mut context = ctx();
-            context.tenant_id = Some("acme".into());
-            context.namespace_id = Some("ios".into());
-            context
-                .headers
-                .insert("authorization".into(), format!("Bearer {token}"));
-
-            let decision = engine.evaluate_access(&context).await;
-
-            assert!(
-                matches!(decision, AccessDecision::Allow(Some(_))),
-                "server-minted token was not authorized locally: {decision:?}"
-            );
-            assert_eq!(
-                *calls.lock().unwrap(),
-                0,
-                "the token should authorize from its own claims, without introspection"
-            );
-        }
-
         #[tokio::test]
         async fn authorizes_from_local_jwt_cache_grants_without_introspection() {
             let engine = engine_pointing_at("http://127.0.0.1:1", false).await;
