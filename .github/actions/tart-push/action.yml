@@ -17,9 +17,13 @@ inputs:
     required: false
     default: "1"
   chunk-size:
-    description: Upload chunk size in megabytes
+    description: >-
+      Upload chunk size in megabytes. 0 uploads each blob monolithically,
+      which is what GHCR wants for images this size. GHCR rejects chunks of
+      4 megabytes and up, so chunked mode cannot send fewer than roughly one
+      request per 3 megabytes of image.
     required: false
-    default: "3"
+    default: "0"
 
 runs:
   using: composite
@@ -44,6 +48,15 @@ runs:
           local value="$2"
           if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::${name} must be a positive integer, got '${value}'"
+            exit 1
+          fi
+        }
+
+        require_non_negative_integer() {
+          local name="$1"
+          local value="$2"
+          if [[ ! "$value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::${name} must be a non-negative integer, got '${value}'"
             exit 1
           fi
         }
@@ -76,7 +89,7 @@ runs:
 
         require_positive_integer "attempts" "$TART_PUSH_ATTEMPTS"
         require_positive_integer "concurrency" "$TART_PUSH_CONCURRENCY"
-        require_positive_integer "chunk-size" "$TART_PUSH_CHUNK_SIZE"
+        require_non_negative_integer "chunk-size" "$TART_PUSH_CHUNK_SIZE"
 
         remote_names=()
         while IFS= read -r remote_name; do
@@ -93,13 +106,25 @@ runs:
         echo "Tart version: $(tart --version)"
         echo "Host macOS version: $(sw_vers -productVersion)"
         echo "Registry concurrency: ${TART_PUSH_CONCURRENCY}"
-        echo "Upload chunk size: ${TART_PUSH_CHUNK_SIZE} megabytes"
+        if [ "$TART_PUSH_CHUNK_SIZE" -eq 0 ]; then
+          echo "Upload mode: monolithic (one request per blob)"
+        else
+          echo "Upload mode: chunked, ${TART_PUSH_CHUNK_SIZE} megabytes per request"
+        fi
         probe_registry_path
 
         for ((attempt = 1; attempt <= TART_PUSH_ATTEMPTS; attempt++)); do
           attempt_log="${RUNNER_TEMP:-/tmp}/tart-push-${GITHUB_RUN_ID:-local}-${attempt}.log"
           echo "Tart push attempt ${attempt}/${TART_PUSH_ATTEMPTS} at $(date -u +%H:%M:%SZ)" >&2
 
+          # `--chunk-size 0` is Tart's monolithic upload. Chunking was
+          # introduced here to make a multi-gigabyte push resumable, but
+          # GHCR caps a chunk below 4 megabytes, so a ~50 gigabyte disk
+          # became on the order of 17,000 requests and started tripping
+          # GHCR's secondary rate limit a few minutes into every attempt.
+          # There is no middle setting to reach for: the ceiling is the
+          # value we were already using. Monolithic trades chunk-level
+          # resumability for one request per blob.
           if tart push \
             --concurrency "$TART_PUSH_CONCURRENCY" \
             --chunk-size "$TART_PUSH_CHUNK_SIZE" \
