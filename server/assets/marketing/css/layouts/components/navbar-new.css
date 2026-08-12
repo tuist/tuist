@@ -90,16 +90,30 @@
 
         & > [data-part="action"] {
           display: flex;
+          /* The dropdown triggers are real <button>s so keyboard users can
+             reach and open them; strip the UA button chrome so they render
+             exactly like the sibling link actions. */
+          appearance: none;
+          margin: 0;
           flex-direction: row;
           align-items: center;
           gap: var(--noora-spacing-3);
           cursor: pointer;
+          border: none;
           border-radius: var(--noora-radius-2);
+          background: transparent;
           padding-top: var(--noora-spacing-2);
           padding-right: var(--noora-spacing-3);
           padding-bottom: var(--noora-spacing-2);
           padding-left: var(--noora-spacing-3);
+          font: inherit;
           text-decoration: none;
+
+          &:focus-visible {
+            outline: 2px solid
+              light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-dark-1200));
+            outline-offset: 2px;
+          }
 
           /* Reduce padding on medium screens */
           @media (min-width: 960px) and (max-width: 1024px) {
