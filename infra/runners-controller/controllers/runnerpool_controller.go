@@ -244,6 +244,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 
+		if unschedulableTimedOut(p, pool, r.now()) {
+			rejectedAt, _ := unschedulableSince(p)
+			logger.Info("reap runner pod the scheduler could not place",
+				"pod", p.Name,
+				"bound", false,
+				"age", r.now().Sub(rejectedAt).String(),
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodUnschedulable",
+					"No node could accommodate this Pod for %d seconds; releasing its fleet provisioning slot",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault())
+			}
+			metrics.RecordPodStartTimeout(pool.Name, unschedulableTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap unschedulable runner pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
 		switch {
 		case isAlive(p):
 			alive++
@@ -399,7 +421,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					"creating", createLimit,
 					"pendingForPool", admission.pendingForPool,
 					"pendingForFleet", admission.pendingForFleet,
-					"unschedulableForPool", admission.unschedulableForPool,
 					"cap", admission.cap,
 					"healthyNodes", admission.healthyNodes,
 				)
