@@ -416,31 +416,33 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def about(conn, _params) do
-    conn
-    |> assign_structured_data(get_organization_structured_data())
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "About"), Tuist.Environment.app_url(path: ~p"/about")}
-      ])
-    )
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing,
-            title: dgettext("marketing", "About Tuist"),
-            icon: "static/marketing/images/about/logo.webp"
-          )
+    conn =
+      conn
+      |> assign_structured_data(get_organization_structured_data())
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "About"), Tuist.Environment.app_url(path: ~p"/about")}
+        ])
       )
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      "Learn more about Tuist, the open-source project that helps you scale your Swift development."
-    )
-    |> assign(:head_title, "About Tuist")
-    |> render(:about, layout: false)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg"))
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign(
+        :head_description,
+        "Learn more about Tuist, the open-source project that helps you scale your Swift development."
+      )
+      |> assign(:head_title, "About Tuist")
+
+    if Design.new?(conn, :about) do
+      conn
+      |> assign(:new_design, true)
+      |> render(:about_new, layout: false)
+    else
+      render(conn, :about, layout: false)
+    end
   end
 
   def support(conn, _params) do
