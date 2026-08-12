@@ -335,6 +335,103 @@ sum by (cluster) (
 - Pending period: 2 minutes
 - Summary: `Cilium is dropping stable outbound traffic in {{ $labels.cluster }}`
 
+### Kura cache rejecting runner traffic
+
+```promql
+sum by (cluster, node) (
+  rate(cilium_drop_count_total{
+    direction="INGRESS",
+    reason="Policy denied"
+  }[10m])
+  * on (cluster, pod) group_left(node)
+  kube_pod_info{
+    namespace="kube-system",
+    pod=~"cilium-.*",
+    node=~".*-kura-fleet-.*"
+  }
+) > 0
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- Already created: rule `ffuscyncueo74d`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2` — alongside the other runner-host alerts,
+  since the actionable target is a Mac mini even though the signal is measured
+  at the cache.
+- The metric carries no `node` label, hence the `kube_pod_info` join on the
+  Cilium agent pod. The `node=~".*-kura-fleet-.*"` matcher restricts this to the
+  co-located runner-cache nodes, whose steady-state rate is exactly zero; other
+  pools carry background policy drops and would make it noisy.
+- Summary: `Kura cache on {{ $labels.node }} is dropping runner traffic at the
+  NetworkPolicy ({{ $labels.cluster }}) — builds on the affected runner will
+  hang until their client timeouts`
+- Blind spot, covered by the next rule: this detects VM traffic *arriving*
+  mis-sourced. A host with no PN VLAN at all has no PN route, so its cache
+  traffic never reaches the kura node and this counter stays at zero while the
+  build hangs identically.
+
+A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
+and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
+is not masqueraded to its host's PN VLAN address arrives from outside that block,
+so Cilium drops it at ingress — silently, with no RST. The client sees no
+connection at all and every cache request hangs until its own timeout, which has
+turned 8-minute CI jobs into 6-hour ones while every dashboard showed kura
+healthy and idle. The drop counter is the only signal that fires, and it tracks
+the stuck job almost exactly: zero before it starts, a steady ~2/s SYN-retransmit
+trickle for its whole life, zero again within a scrape of it being cancelled.
+
+Note the counter carries no source address, so it says *that* a host is
+mis-sourced but not *which* one. Correlating it back to a Mac mini currently
+needs Hubble flow metrics with source labels on the cache node, or catching the
+job live (`kubectl get pod -o wide`) and checking
+`pfctl -a com.apple/tuist.vmnat -s nat` plus `ifconfig vlan0` on that host.
+
+### Runner host PN VLAN missing
+
+```promql
+count by (instance) (
+  node_load1{job="tuist-macos-node-exporter"}
+)
+unless
+count by (instance) (
+  node_network_transmit_bytes_total{
+    job="tuist-macos-node-exporter",
+    device=~"vlan.*"
+  }
+)
+```
+
+- Pending period: 10 minutes (a legitimate re-attachment recreates the
+  interface, so don't fire on the gap)
+- Severity: critical
+- Already created: rule `afuvzdl0z4mwwe`, folder `Alerts`, group `Runners`,
+  receiver `Slack #notifications 2`
+- Summary: `macOS host {{ $labels.instance }} has no PN VLAN interface — VM
+  cache traffic cannot be NAT'd onto the Private Network`
+
+The companion to the rule above, covering the failure it structurally cannot
+see. That one fires when VM traffic *reaches* the kura node with the wrong
+source. A host with no `vlan*` device has no PN route at all, so its cache
+traffic falls to the default route, is deliberately excluded from the
+general-internet masquerade (`renderVMNATScript`, so it can never leave with the
+host's public source), and dies at the upstream gateway as an RFC1918
+destination. Nothing arrives, the policy-drop counter stays at zero, and the
+build hangs exactly the same way. Nothing re-converges it either: the operator's
+drift loop keys on desired config, not live host state.
+
+`node_load1` is just a per-host liveness anchor — any always-present series from
+the same job works. The `unless` yields one series per host that is scraping but
+has no VLAN, and nothing at all in the healthy case, which is why **No Data**
+must be **Normal** here.
+
+Residual gap, deliberately not covered: a VLAN that exists but has lost its DHCP
+address also has no PN route and is invisible to both rules. node_exporter runs
+on these hosts without the `netclass` collector, so there is no
+`node_network_up` to key an address-level check on. Closing that needs either
+that collector enabled or a per-host sink (a Node condition from tart-kubelet,
+which already has the DiskPressure probe pattern, or a node_exporter textfile
+gauge written by `tuist-pf-vmnat` itself).
+
 ### Tuist server replicas unavailable
 
 ```promql

@@ -2618,7 +2618,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			Tolerations:                   instance.Spec.Tolerations,
 			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
-				Name:            "kura",
+				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
@@ -2695,19 +2695,73 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 // KuraInstanceSpec.EgressGuaranteedMbps.
 const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
-// The memory request matches the limit because Kura sizes its memory
-// budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
-// and routinely operates above 1Gi, so the full 2Gi must be reserved
-// at scheduling time to avoid node overcommit.
+// memoryCeilingResource is the integer extended resource a shared bare-metal
+// node advertises so the scheduler can bin-pack memory *ceilings*, which
+// oversubscribe the box by design and are therefore invisible to the native
+// requests.memory bin-pack. The CAPI provider advertises the matching capacity
+// as a multiple of node allocatable. See KuraInstanceSpec.MemoryCeilingMib.
+const memoryCeilingResource corev1.ResourceName = "tuist.dev/memory-ceiling-mib"
+
+// kuraContainerName is the pod's Kura container. The Downward API's
+// resourceFieldRef names it explicitly, and a name that does not match a
+// container in the pod fails admission, so both sites read this.
+const kuraContainerName = "kura"
+
+// Applied when an instance carries no explicit profile, which keeps a CR
+// written before the memory profile existed on the shape it already had.
+//
+// The ceiling is twice the floor. Below 2x the memory-ceiling bin-pack never
+// binds, because the native requests.memory pack is the tighter of the two, so
+// the extra resource buys nothing. The 60% soft watermark also has to clear a
+// real burst by more than the runtime's 0.9x recovery hysteresis: at a 1.5x
+// ceiling the recovery threshold lands under the largest burst already
+// observed, so a single trip into shedding would last the whole burst.
+const (
+	defaultMemoryFloorMib   int32 = 2048
+	defaultMemoryCeilingMib int32 = 4096
+)
+
+// Memory floor and ceiling are deliberately different. Kura sizes every
+// admission pool from the cgroup limit at startup (soft limit 60%, hard limit
+// 85% of it; the public response-stream pool is half the remaining 15%), and
+// those pools are semaphores, not allocations — a higher ceiling costs nothing
+// until a burst arrives. The floor is the standing reservation, and the shared
+// bare-metal boxes reserve several times the working set the fleet actually
+// peaks at, so raising it in step would exhaust a box's schedulable memory
+// without serving a single extra byte.
 func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+	floorMib := instance.Spec.MemoryFloorMib
+	if floorMib <= 0 {
+		floorMib = defaultMemoryFloorMib
+	}
+	ceilingMib := instance.Spec.MemoryCeilingMib
+	if ceilingMib <= 0 {
+		ceilingMib = defaultMemoryCeilingMib
+	}
+	// The API rejects a limit below its request, so a profile that inverts the
+	// two would make every pod of the instance unadmittable. Clamping keeps the
+	// floor authoritative: a reservation is a promise, a ceiling is headroom.
+	if ceilingMib < floorMib {
+		ceilingMib = floorMib
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("500m"),
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	// Ceiling bin-packing is opt-in per region, for the same reason the egress
+	// floor is: a pod that requests an extended resource its node does not
+	// advertise never schedules. Only the node pools the CAPI provider patches
+	// turn it on.
+	if instance.Spec.MemoryCeilingBinPacked {
+		q := *resource.NewQuantity(int64(ceilingMib), resource.DecimalSI)
+		r.Requests[memoryCeilingResource] = q
+		r.Limits[memoryCeilingResource] = q
 	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended
@@ -2720,6 +2774,10 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 		r.Limits[egressMbpsResource] = q
 	}
 	return r
+}
+
+func mibQuantity(mib int32) resource.Quantity {
+	return *resource.NewQuantity(int64(mib)*1024*1024, resource.BinarySI)
 }
 
 func publicIngressAnnotations() map[string]string {
@@ -2888,7 +2946,7 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 // baseEnv carries only the values the controller must set: identity,
 // per-pod paths, peer wiring, the drain timeout that has to stay in
 // sync with the pod's terminationGracePeriodSeconds, and bounded cache
-// budgets for the managed two-gibibyte memory profile. Other
+// budgets for the managed memory profile (see defaultResources). Other
 // resource-shaped knobs are derived from the pod's cgroup and rlimit
 // at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
@@ -2933,6 +2991,20 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
+		// Kura reads its ceiling from the cgroup, but requests.memory never
+		// reaches the container, and the two answer different questions. The
+		// ceiling bounds everything; the floor bounds what Kura may hold in
+		// anonymous memory, since anything anonymous above the floor is
+		// unprotected and the kernel's only remedy for it is the OOM killer.
+		// Publishing the floor lets Kura size its admission budget from what it
+		// is guaranteed and leave the floor-to-ceiling gap to page cache and
+		// mmap-served segments, which reclaim instead. Divisor 1 yields bytes;
+		// resourceFieldRef rounds up to it.
+		{Name: "KURA_MEMORY_FLOOR_BYTES", ValueFrom: &corev1.EnvVarSource{ResourceFieldRef: &corev1.ResourceFieldSelector{
+			ContainerName: kuraContainerName,
+			Resource:      "requests.memory",
+			Divisor:       resource.MustParse("1"),
+		}}},
 	}
 	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
 		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})

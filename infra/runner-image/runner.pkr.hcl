@@ -59,14 +59,18 @@ packer {
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
-# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
-# with a `/Users/runner` symlink to `/Users/admin` plus a configured
-# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
-# a real `runner` user that *also* points at `/Users/runner` —
-# sysadminctl can't overwrite the existing path, so it assigns a
-# fresh UID against the symlinked home. Both users end up sharing
-# `.zprofile`, which is how the runner's login shell sees the
-# brew-installed tools from the base.
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
+# user and a `/Users/runner` placeholder. Our flow wipes that
+# placeholder and creates a real `runner` user with a home of its
+# own (see the addUser provisioner below), so `admin` and `runner`
+# are distinct accounts with distinct homes — the account that
+# builds the image is not the account that runs jobs.
+#
+# That split is the thing to keep in mind when changing this file.
+# Anything the base set up under `admin` is not automatically
+# usable by `runner`: the Homebrew prefix has to be handed over
+# explicitly (see the chown provisioner below), and the sanity
+# checks at the end assert against `runner`, never `admin`.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -187,6 +191,34 @@ build {
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  # Hand the Homebrew prefix to `runner`. The base images install
+  # brew and its formulae as `admin`, so the prefix ends up owned
+  # by an account that never runs jobs — `brew install <formula>`
+  # from a workflow step then fails the writability audit with
+  # "/opt/homebrew is not writable" across ~16 directories.
+  #
+  # GitHub-hosted macOS images build and run under a single
+  # account, so the job user owns the prefix and unprivileged
+  # `brew install` just works. Customer workflows assume that.
+  # Reachability was never the problem (the login shell resolves
+  # `brew` fine, and the sanity check below has always covered
+  # it) — ownership was.
+  #
+  # This belongs here and not in macos-xcode-image: that base is
+  # shared with xcresult-processor, which keeps running as `admin`
+  # and drives brew-installed binaries itself (`sudo
+  # /opt/homebrew/bin/tailscaled install-system-daemon`). Chowning
+  # in the shared layer would fix this image and break that one.
+  #
+  # `runner:admin` matches Homebrew's own default ownership on
+  # macOS rather than inventing a scheme.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S chown -R runner:admin /opt/homebrew"
     ]
   }
 
@@ -406,6 +438,27 @@ build {
       "set -euo pipefail",
       "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
       "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+    ]
+  }
+
+  # Sanity check: `brew` being on PATH says nothing about whether a
+  # workflow step can install with it. The check above passed for
+  # months while every `brew install` on this image failed on prefix
+  # ownership, so assert the operation rather than the binary.
+  # `hello` is Homebrew's own smoke-test formula: no dependencies,
+  # installs in seconds, and uninstalling leaves the image clean.
+  #
+  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
+  # critical path — it would otherwise re-fetch every tap and make
+  # image builds fail on transient GitHub blips. The chown is
+  # recursive, so tap writability moves with the prefix; what's
+  # actually at risk of regressing, and what this exercises, is
+  # writing into Cellar and the lock/var dirs.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
+      "sudo -u runner /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
     ]
   }
 }

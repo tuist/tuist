@@ -84,8 +84,20 @@ startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
 tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
-survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
-`Status.FailureReason` is cleared.
+survive `UpdateTartKubelet`).
+
+Terminal-failed CRs are excluded from the drift loop, but the exclusion
+expires. It lifts on either a new `HostConfigHash` (compared against
+`Status.FailedHostConfigHash`, not the last-applied one — a broken config never
+becomes the applied one) or `--tartkubelet-terminal-retry-after` elapsing since
+`Status.LastUpdateFailureTime` (default 30m). The cooldown exists because the
+hash exit only covers a host that REJECTED the config, while most terminal
+failures are a host the operator could not reach (`dial tcp ...:22: i/o
+timeout`). Those used to stay terminal indefinitely — Ready, schedulable, still
+running jobs — pinned to whatever config was last pushed, so a fleet-wide fix
+could roll and silently miss them. A persistently-broken config still backs off
+to one attempt budget per cooldown rather than per reconcile, so the retry cap
+keeps doing its job.
 
 The drift re-push dials the mini's **public IP first, then falls back to the
 tailnet**. Once a runner mini starts booting Tart VMs its Internet Sharing /
@@ -107,8 +119,8 @@ the operator) never touch the tailnet path, and by the time a mini's public
 path is filtered its egress Service has long existed. cfg.IP is a pure dial
 target on the update path (HostConfigHash strips it), so the fallback re-points
 it without changing what's pushed; the whole transport is controller-side only,
-so `HostConfigHash` is unchanged and already-terminal CRs still need
-`Status.FailureReason` cleared to retry.
+so `HostConfigHash` is unchanged and an already-terminal CR only retries once
+its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
 ### SSH ingress guard
 
@@ -202,6 +214,52 @@ installs them automatically on first `helm install` (Helm 3 ignores
 the `crds/` directory on upgrades, which is what we want — CRD
 schema changes go through a deliberate `kubectl apply` rather than
 piggybacking on routine deploys).
+
+## Node extended resources
+
+The Linux machine controllers patch two integer extended resources onto the
+Nodes they own (`controllers/shared/node_egress.go`, `node_memory.go`), both
+re-applied every reconcile so a kubelet re-registration that resets status
+cannot strand them. Each exists because the scheduler's native bin-pack cannot
+see the quantity in question:
+
+- `tuist.dev/egress-mbps` — the box's NIC budget, which Kubernetes has no
+  concept of. Taken from the machine's `EgressBudgetMbps`.
+- `tuist.dev/memory-ceiling-mib` — a bounded multiple
+  (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
+  Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
+  oversubscribe the box while `requests.memory` only bin-packs the floors. This
+  is what bounds that overlap, keeping the worst case within what kernel reclaim
+  can absorb instead of what the OOM killer has to resolve.
+
+Consumers request the matching resource with request == limit (extended
+resources are integer and non-overcommittable). A pod that requests one on a
+node that does not advertise it never schedules, which is why both are opt-in
+on the consumer side.
+
+### MemoryQoS
+
+The floor half of that model is currently advisory: `requests.memory` never
+reaches the kernel, so nothing stops a pod that has expanded toward its ceiling
+from taking memory a quieter neighbour was promised. The kubelet's `MemoryQoS`
+feature gate is what closes it, mapping requests onto cgroup v2 `memory.min` /
+`memory.low` so reclaim takes from whoever is furthest above their own floor.
+
+It is deliberately **not** enabled in `kubeletConfigContent`
+(`controllers/linux/linux_cloudinit.go`). Enabling it is a one-line change
+there, and because `desiredKubeletConfigHash` fingerprints the rendered config,
+the drift loop would re-push it to every already-Ready node and restart their
+kubelets — no machine roll, but a simultaneous kubelet restart across all three
+Linux fleets. Before turning it on:
+
+- The feature is alpha and off by default (still so as of v1.36), and its
+  semantics have moved: v1.36 adds `memoryReservationPolicy`, where
+  `TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods
+  `memory.low`. Cache pods are Burstable by design, so confirm which protection
+  they actually get on the fleet's kubelet version rather than assuming
+  `memory.min`.
+- Tier the floors first. `memory.min` derived from today's uniform reservations
+  would pin far more unreclaimable memory per box than the instances use.
 
 ## Operator UX: one Secret in 1Password
 

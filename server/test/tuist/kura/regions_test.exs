@@ -70,6 +70,51 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "does not size the managed regions per tier until the floor is kernel-enforced" do
+      # Tiering drops the floor well below the ceiling, which is what lets a pod
+      # take memory a quieter neighbour was promised. Nothing stops it until the
+      # kubelet runs with MemoryQoS, so per-tier sizing lands with that change
+      # rather than ahead of it. Until then every managed instance takes the
+      # controller's default profile, whose ceiling already carries the burst
+      # headroom the admission pools size from.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
+        refute Regions.memory_governed?(Regions.get(id))
+      end
+    end
+
+    test "does not bin-pack memory ceilings until a node budget is advertised" do
+      # Pods request tuist.dev/memory-ceiling-mib only once the CAPI provider
+      # that supplies the matching node capacity has rolled. Requesting it first
+      # leaves every cache pod Pending, and the provider deploys to the
+      # management cluster on its own cadence rather than with the server.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
+        refute Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
+    end
+
+    test "keeps every memory ceiling above its floor" do
+      # A limit below its request is rejected by the API, and a ceiling equal to
+      # the floor would leave no burst headroom for Kura's admission pools.
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(plan)
+        assert ceiling_mib > floor_mib
+      end
+
+      # Floors are what decide how many tenants fit on a box, so the ladder has
+      # to actually descend to be worth tiering at all.
+      floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
+      assert floors == Enum.sort(floors, :desc)
+      assert Enum.uniq(floors) == floors
+
+      # Each ceiling has to clear its plan's measured peak by more than the
+      # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
+      # shedding. Peaks: ~1220 MiB for the busiest pro instance, ~150 MiB for air.
+      for {plan, peak_mib} <- [pro: 1220, air: 150] do
+        soft = Regions.memory_profile(plan).ceiling_mib * 0.6
+        assert soft * 0.9 > peak_mib, "#{plan} recovers at #{soft * 0.9} MiB, under its #{peak_mib} MiB peak"
+      end
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 

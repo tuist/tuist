@@ -6,6 +6,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -454,8 +457,16 @@ func TestRenderVMNATScript_AssertsDefaultRouteNATLeg(t *testing.T) {
 	if !strings.Contains(out, "route -n get default") {
 		t.Fatalf("expected default-route interface discovery\n%s", out)
 	}
-	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)") {
+	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to $DEFDST -> ($DEFIF)") {
 		t.Fatalf("expected general-internet NAT leg on the default route\n%s", out)
+	}
+	// ...but the PN must be carved out of its destination, so cache traffic is
+	// never masqueraded to the host's public address while the PN route is
+	// briefly absent (that source is outside the kura NetworkPolicy's
+	// 172.16.0.0/22 ipBlock and gets dropped at ingress with no RST).
+	if !strings.Contains(out, `DEFDST="any"`) ||
+		!strings.Contains(out, `[ -n "$PNCIDR" ] && DEFDST="! $PNCIDR"`) {
+		t.Fatalf("expected the general-internet leg to exclude the PN CIDR\n%s", out)
 	}
 	// The idempotency short-circuit must re-converge after an external
 	// anchor flush: skipping the reload purely on a snapshot match would
@@ -529,5 +540,64 @@ func TestHostConfigHash_ChangesWithSSHIngressAllowCIDRs(t *testing.T) {
 	changed := Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}}
 	if HostConfigHash(base) == HostConfigHash(changed) {
 		t.Fatal("HostConfigHash must change when the ssh ingress allow list changes")
+	}
+}
+
+// The PN NAT leg must be emitted as soon as the VLAN device exists, not only
+// once DHCP has given it an address. Gating on the address left a window in
+// which the ruleset carried no PN leg at all; a VM booting into that window ran
+// its whole job un-NAT'd and every cache request hung, because once the address
+// (and route) arrived its packets reached the kura node with a 192.168.64.x
+// source that the per-instance NetworkPolicy denies at ingress.
+func TestRenderVMNATScript_PNLegKeysOnDeviceExistenceNotAddress(t *testing.T) {
+	out := renderVMNATScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+
+	// An addressed VLAN still wins when several exist, so a leftover device
+	// from a re-attachment cannot shadow the live one...
+	if !strings.Contains(out, `if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then`) {
+		t.Fatalf("expected an addressed vlan to be preferred\n%s", out)
+	}
+	// ...but an unaddressed one is still recorded rather than skipped.
+	if !strings.Contains(out, `[ -n "$PNIF" ] || PNIF="$IFACE"`) {
+		t.Fatalf("expected an unaddressed vlan to be used as a fallback\n%s", out)
+	}
+	// pf re-resolves a parenthesised interface, so the rule is correct even
+	// when emitted before the address lands.
+	if !strings.Contains(out, "nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)") {
+		t.Fatalf("expected a dynamic-interface PN NAT leg\n%s", out)
+	}
+	// A host with no PN VLAN at all cannot translate cache traffic; that must
+	// reach the daemon log instead of degrading silently.
+	if !strings.Contains(out, "no vlan* interface for PN") {
+		t.Fatalf("expected a missing PN interface to be logged\n%s", out)
+	}
+}
+
+// The helper the LaunchDaemon runs every 60s is written as a heredoc, so a
+// syntax error in it is invisible until pf silently holds no rules on a live
+// host — which reads exactly like the outage this leg exists to prevent.
+func TestRenderVMNATScript_HelperIsValidSh(t *testing.T) {
+	out := renderVMNATScript(Config{
+		VMKuraEgressCIDR: "10.96.0.0/12",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	const open = "<<'VMNAT'\n"
+	start := strings.Index(out, open)
+	if start < 0 {
+		t.Fatalf("no VMNAT heredoc in rendered script\n%s", out)
+	}
+	body := out[start+len(open):]
+	end := strings.Index(body, "\nVMNAT\n")
+	if end < 0 {
+		t.Fatalf("unterminated VMNAT heredoc\n%s", out)
+	}
+	body = body[:end]
+
+	script := filepath.Join(t.TempDir(), "tuist-pf-vmnat")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write helper: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("helper is not valid sh: %v\n%s\n---\n%s", err, combined, body)
 	}
 }

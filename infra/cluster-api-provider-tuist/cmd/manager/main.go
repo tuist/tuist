@@ -91,6 +91,7 @@ func main() {
 		cacheVolumeMasterCapGiB      int
 		cacheVolumeCASGiB            int
 		tartKubeletMaxUpdateAttempts int
+		terminalRetryAfter           time.Duration
 		bootstrapRebootAfter         int
 		bootstrapMaxAttempts         int
 
@@ -239,6 +240,10 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
+		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
+			"Recovers a host that was merely unreachable when the operator tried to push, "+
+			"which config-hash drift alone never lifts. Set to 0 to disable the re-arm.")
 	flag.IntVar(&bootstrapRebootAfter, "bootstrap-reboot-after", 3,
 		"Consecutive BootstrapFailed count at which the controller asks Scaleway to "+
 			"reboot the host once to clear volatile state (PAM lockouts, sshd throttling). "+
@@ -511,29 +516,30 @@ func main() {
 		// `tag:tuist-k8s-<env>` dial access to this tag on the
 		// scrape ports; cross-env scraping is blocked once the
 		// wide-open catch-all is removed.
-		TailscaleTags:                parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes:        tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:             vmKuraEgressCIDR,
-		VMClusterDNSIP:               vmClusterDNSIP,
-		VMCachePNName:                vmCachePNName,
-		VMCachePNCIDR:                vmCachePNCIDR,
-		SSHIngressAllowCIDRs:         parseCommaList(sshIngressAllowRaw),
-		VPC:                          vpcClient,
-		TartKubeletHostCPU:           tartKubeletHostCPU,
-		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
-		TartKubeletMaxPods:           tartKubeletMaxPods,
-		RunnerCacheVolumeGiB:         runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:      cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:            cacheVolumeCASGiB,
-		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
-		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
-		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),
-		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
-		DefaultAdoptPoolPrefix:       defaultAdoptPoolPrefix,
-		EgressNamespace:              egressNamespace,
-		EgressProxyGroup:             egressProxyGroup,
-		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
-		RunnerResolver:               runnerResolver,
+		TailscaleTags:                 parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:         tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:              vmKuraEgressCIDR,
+		VMClusterDNSIP:                vmClusterDNSIP,
+		VMCachePNName:                 vmCachePNName,
+		VMCachePNCIDR:                 vmCachePNCIDR,
+		SSHIngressAllowCIDRs:          parseCommaList(sshIngressAllowRaw),
+		VPC:                           vpcClient,
+		TartKubeletHostCPU:            tartKubeletHostCPU,
+		TartKubeletHostMemoryMB:       tartKubeletHostMemory,
+		TartKubeletMaxPods:            tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:          runnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB:       cacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:             cacheVolumeCASGiB,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		DefaultAdoptPoolPrefix:        defaultAdoptPoolPrefix,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		RunnerResolver:                runnerResolver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)
