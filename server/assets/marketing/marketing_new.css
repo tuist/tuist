@@ -41,6 +41,17 @@
   color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 
+/* One focus treatment for the whole redesign, noora components included:
+   Tuist purple, flipped per scheme (500 needs the light background, 300 the
+   dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
+   flush against a clipping container pull the ring inward with an
+   outline-offset override (see the mega-menu cards in navbar-new.css);
+   everything else floats it 2px out. */
+:focus-visible {
+  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
+  outline-offset: 2px;
+}
+
 body {
   display: flex;
   flex-direction: column;
