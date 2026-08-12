@@ -132,12 +132,12 @@ defmodule Noora.Button do
         data-size={@size}
         {@rest}
       >
-        <span :if={@label}>{@label}</span>
+        <span :if={@label} data-part="label">{@label}</span>
         {render_slot(@inner_block)}
       </.link>
     <% else %>
       <button class="noora-neutral-button" data-variant={@variant} data-size={@size} {@rest}>
-        <span :if={@label}>{@label}</span>
+        <span :if={@label} data-part="label">{@label}</span>
         {render_slot(@inner_block)}
       </button>
     <% end %>
