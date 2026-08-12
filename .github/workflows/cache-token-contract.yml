@@ -13,7 +13,6 @@ on:
     paths:
       - server/lib/tuist/cache.ex
       - server/lib/tuist/guardian.ex
-      - server/config/runtime.exs
       - server/test/tuist/cache_e2e_token_test.exs
       - kura/src/extension/**
       - kura/scripts/cache-token-e2e.sh
@@ -23,7 +22,6 @@ on:
     paths:
       - server/lib/tuist/cache.ex
       - server/lib/tuist/guardian.ex
-      - server/config/runtime.exs
       - server/test/tuist/cache_e2e_token_test.exs
       - kura/src/extension/**
       - kura/scripts/cache-token-e2e.sh
