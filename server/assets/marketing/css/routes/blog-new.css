@@ -1,0 +1,490 @@
+/*
+ * Blog index styles for the REDESIGNED marketing site (bundle-new.css).
+ *
+ * Same page skeleton as the new home/about: blocks are 1200px bordered boxes
+ * separated by 2px seams. The header box holds the title and the filters bar,
+ * and the posts grid is a single bordered box whose cells are divided by 1px
+ * hairlines instead of card shadows (the legacy design in routes/blog.css).
+ */
+#marketing-blog {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* The header[data-part] selector matches the specificity of pages.css's
+     `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
+     ID), whose margins and 1296px max-width must lose to the page frame. */
+  & > header[data-part="header"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the header. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(header[data-part="header"], [data-part="posts"], [data-part="list"], [data-part="pagination-control"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  /* Title + filters share one box: no hairline between them, and the box's
+     insets are the page's 64px gutter on desktop. */
+  & > header[data-part="header"] {
+    /* pages.css puts every section on the same z-index, so the boxes below
+       would paint over the category dropdown escaping this one. While the menu
+       is open the header also has to clear the sticky navbar, so the phone
+       tray's scrim covers the whole viewport. */
+    z-index: var(--noora-z-index-2);
+    padding: var(--noora-spacing-10) var(--noora-spacing-8);
+
+    &:has([data-part="trigger"][data-state="open"]) {
+      z-index: var(--noora-z-index-12);
+    }
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13);
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+    }
+  }
+
+  & [data-part="filters-bar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    margin-top: var(--noora-spacing-9);
+
+    /* The pill row is the desktop presentation of the categories; below 1024px
+       the dropdown below takes over (the list grows with the blog and doesn't
+       fit next to the search field). */
+    & > [data-part="categories"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: flex;
+        column-gap: var(--noora-spacing-2);
+        row-gap: var(--noora-spacing-3);
+        flex: 1;
+        /* Wrap rather than clip: cutting a pill mid-word reads as the search
+           field overlapping it. */
+        flex-wrap: wrap;
+        align-items: center;
+        min-width: 0;
+      }
+
+      & > [data-part="category"] {
+        flex-shrink: 0;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+        border-radius: var(--noora-radius-99);
+        padding: var(--noora-spacing-3) var(--noora-spacing-6);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-decoration: none;
+        white-space: nowrap;
+
+        &[data-selected] {
+          background: var(--noora-surface-background-secondary);
+          color: var(--noora-surface-label-primary);
+        }
+
+        &:not([data-selected]):hover {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+
+    /* Category dropdown: the tab/mobile stand-in for the pill row. Hidden on
+       desktop, and swapped out for the search field while that is open. */
+    & > [data-part="category-select"] {
+      flex-shrink: 0;
+
+      @media (min-width: 1024px) {
+        display: none;
+      }
+
+      /* On phones the menu is a tray pinned to the bottom of the viewport
+         behind a modal scrim, instead of a popover anchored to the trigger.
+         Zag positions the popover with inline styles, so overriding its
+         placement needs !important. */
+      @media (max-width: 767px) {
+        & > [data-part="positioner"] {
+          position: fixed !important;
+          transform: none !important;
+          z-index: var(--noora-z-index-12);
+          inset: auto 0 0 0 !important;
+          padding: 0;
+
+          /* The scrim. Same treatment as Noora's modal backdrop, painted by the
+             positioner so it only exists while the menu is open. */
+          &::before {
+            position: fixed;
+            backdrop-filter: blur(2.5px);
+            inset: 0;
+            background: var(--noora-surface-overlay);
+            content: "";
+          }
+        }
+
+        /* Edge to edge, flush with the bottom of the viewport, so only the top
+           corners are rounded. */
+        & .noora-dropdown-content {
+          position: relative;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-4) var(--noora-radius-4) 0 0;
+          width: 100%;
+          max-height: 60vh;
+        }
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      /* Keeps the buttons at the right edge next to the narrow dropdown. */
+      margin-left: auto;
+
+      & form {
+        /* Tablets have room for the field beside the dropdown, so only phones
+           get the toggle treatment below. */
+        @media (min-width: 768px) {
+          flex: 0 0 200px;
+        }
+      }
+
+      /* The X in the field clears the query and closes the compact search. */
+      & [data-part="clear-search"] {
+        display: flex;
+        /* The suffix stretches the button past the icon's height, so the icon
+           needs centering rather than the flex default of sitting at the top. */
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        border: 0;
+        background: none;
+        padding: 0;
+        color: var(--noora-surface-label-secondary);
+
+        & svg {
+          display: block;
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+        }
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+
+      & > [data-part="search-toggle"] {
+        @media (min-width: 768px) {
+          display: none;
+        }
+      }
+    }
+
+    /* Compact search, phones only: the field is always in the DOM (a
+       display:none input can't take focus, and the toggle focuses it in the
+       same click), so it is clipped to zero width until opened. */
+    @media (max-width: 767px) {
+      & > [data-part="actions"] > form {
+        flex: 0 0 0;
+        opacity: 0;
+        transition:
+          flex-basis 0.2s ease,
+          opacity 0.2s ease;
+        width: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      &[data-search-open] {
+        & > [data-part="category-select"],
+        & > [data-part="actions"] > [data-part="search-toggle"] {
+          display: none;
+        }
+
+        /* The open field starts where the dropdown it replaced did, so the row
+           spans the full width instead of hugging the right edge. */
+        & > [data-part="actions"] {
+          flex: 1;
+          margin-left: 0;
+        }
+
+        & > [data-part="actions"] > form {
+          flex: 1;
+          opacity: 1;
+          width: auto;
+          overflow: visible;
+          pointer-events: auto;
+        }
+      }
+    }
+  }
+
+  & > [data-part="posts"] {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Interior hairlines only: a cell draws the line above it (skipped in the
+       first row) and to its left (skipped in the first column), so the box's
+       own border is the only line on all four outer edges — nothing doubles
+       up against it. The blank filler cells stretch to the row height, which
+       keeps the column lines running through a last row that isn't full. */
+    & > [data-part="post"],
+    & > [data-part="filler"] {
+      border-top: 1px solid var(--marketing-stroke-default);
+
+      &:first-child {
+        border-top: none;
+      }
+
+      /* Two-up on tablets. The filler cells are display:none below 1024px, so
+         they sit outside this layout — they're always the last children, which
+         leaves the posts' nth-child positions untouched. */
+      @media (min-width: 768px) and (max-width: 1023px) {
+        &:nth-child(-n + 2) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(2n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+
+      @media (min-width: 1024px) {
+        &:nth-child(-n + 3) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(3n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+    }
+
+    & > [data-part="filler"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: block;
+      }
+    }
+
+    & > [data-part="post"] {
+      display: flex;
+      flex-direction: column;
+      transition: background 0.2s ease;
+      padding: var(--noora-spacing-8);
+      color: inherit;
+      text-decoration: none;
+
+      /* :focus-visible too, so the arrow isn't hover-only for keyboard use. */
+      &:hover,
+      &:focus-visible {
+        background: var(--noora-surface-background-secondary);
+
+        /* Spelled out to the icon rather than a descendant match: the rule that
+           hides it further down is `> [footer] > [icon]`, which ties on
+           specificity and would win on source order. */
+        & > [data-part="footer"] > [data-part="icon"] {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      & > [data-part="cover"] {
+        background: var(--marketing-illustration-neutral-2);
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+
+        & > [data-part="image"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      }
+
+      & > [data-part="content"] {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        margin-top: var(--noora-spacing-6);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          text-wrap: pretty;
+        }
+
+        /* Excerpts run to whatever length the post's frontmatter has, so cap
+           them at three lines and ellipsize — otherwise one long excerpt sets
+           the height of its whole grid row. */
+        & > [data-part="excerpt"] {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+          line-clamp: 3;
+          overflow: hidden;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      /* Pinned to the bottom of the cell so the metadata rows line up across
+         cards with different title/excerpt lengths. */
+      & > [data-part="footer"] {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        margin-top: var(--noora-spacing-8);
+
+        & > [data-part="metadata"] {
+          display: flex;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+          & > [data-part="separator"] {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+
+        /* Slides in on hover with the same motion as the navbar dropdown's item
+           arrows (see navbar-new.css): a fade plus 4px of travel from the
+           left. */
+        & > [data-part="icon"] {
+          display: flex;
+          flex-shrink: 0;
+          transform: translateX(-4px);
+          opacity: 0;
+          transition:
+            opacity 0.2s ease,
+            transform 0.2s var(--ease-out-cubic);
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+  }
+
+  /* List view: rows of Noora table cells (title / category / date). The
+     `.noora-table` class is only there to scope those cells' styling — the
+     table's own shadow, radius and header surface are reset, because the page
+     frame provides the box. */
+  & > [data-part="list"] {
+    box-shadow: none;
+    border-radius: 0;
+
+    & > [data-part="row"] {
+      display: grid;
+      /* Fixed tag/date columns: rows are independent grids, so auto-sized
+         columns would leave every row's tag at its own offset instead of a
+         shared left edge. */
+      grid-template-columns: minmax(0, 1fr) 9rem 10.5rem;
+      align-items: center;
+      transition: background 0.2s ease;
+      text-decoration: none;
+
+      &:not(:first-child) {
+        border-top: 1px solid var(--marketing-stroke-default);
+      }
+
+      &:hover {
+        background: var(--noora-surface-background-secondary);
+      }
+
+      /* Pinned columns so a post without a category doesn't pull the date
+         into the middle of the row. */
+      & > [data-column="category"] {
+        grid-column: 2;
+      }
+
+      & > [data-column="date"] {
+        grid-column: 3;
+        justify-self: end;
+        white-space: nowrap;
+
+        & [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+
+      /* Phones don't have the width for three columns, so the row becomes a
+         wrapping title with the date and tag beneath it. The cells' own padding
+         goes to the row, otherwise stacking them doubles it up. */
+      @media (max-width: 767px) {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: var(--noora-spacing-4) var(--noora-spacing-5);
+        padding: var(--noora-spacing-7);
+
+        & > [data-part="cell"] {
+          padding: 0;
+        }
+
+        & > [data-column="title"] {
+          grid-column: 1 / -1;
+
+          & [data-part="label"] {
+            overflow: visible;
+            text-overflow: clip;
+            white-space: normal;
+          }
+        }
+
+        & > [data-column="category"] {
+          grid-row: 2;
+          grid-column: 1;
+        }
+
+        & > [data-column="date"] {
+          grid-row: 2;
+          grid-column: 2;
+          justify-self: end;
+        }
+      }
+    }
+  }
+
+  /* Its own box on the page frame, a 2px seam below the grid — the grid's
+     cells draw that seam's top edge, so this one keeps all four borders. */
+  & > [data-part="pagination-control"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--noora-spacing-9) var(--noora-spacing-8);
+    /* 32px above/below the group, in a 96px-tall box per the comp (a min, so
+       it grows instead of clipping if the group ever wraps). */
+    min-height: var(--noora-spacing-16);
+  }
+}

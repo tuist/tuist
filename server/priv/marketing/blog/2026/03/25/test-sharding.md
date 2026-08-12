@@ -2,7 +2,7 @@
 title: "Run your test suite across balanced shards"
 category: "product"
 tags: ["product", "test-sharding", "test-insights", "ci"]
-excerpt: "When parallelizing tests on a single machine isn't enough, sharding across multiple CI runners is the next step. Tuist uses historical timing data to create dynamically balanced shards so every runner finishes roughly at the same time."
+excerpt: "Tuist uses historical timing data to dynamically balance tests across CI runners, so every shard finishes around the same time."
 author: fortmarek
 og_image_path: /marketing/images/blog/2026/03/25/test-sharding/og.jpg
 highlighted: true
