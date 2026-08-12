@@ -47,8 +47,6 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   require Logger
 
-  @reserved_tuist_cache "tuist-cache"
-
   @cache_master_label_prefix "tuist.dev/cache-master-"
 
   # A node advertises on a 30s heartbeat and masters change on the order of a
@@ -56,9 +54,6 @@ defmodule Tuist.Runners.VolumeAffinities do
   # keeps the apiserver read off the per-poll path: nine hosts polling every 2s
   # would otherwise be ~4.5 Node GETs/s, on the latency-sensitive dispatch path.
   @residency_cache_ttl to_timeout(second: 10)
-
-  @doc "The reserved volume name for the managed Tuist module cache."
-  def reserved_tuist_cache, do: @reserved_tuist_cache
 
   @doc """
   Set of account ids whose cache masters `node_name` currently holds, read from
