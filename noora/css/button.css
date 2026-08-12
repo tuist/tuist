@@ -279,7 +279,10 @@
     color: var(--noora-button-neutral-disabled-label);
   }
 
-  & > span {
+  /* Only the label span the component generates for the `label` attr:
+     existing consumers wrap icons in direct spans too (e.g. chevrons in
+     the test views), and those must not pick up label padding. */
+  & > [data-part="label"] {
     padding: 0rem var(--noora-spacing-2);
   }
 
