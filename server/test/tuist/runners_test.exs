@@ -1207,7 +1207,35 @@ defmodule Tuist.RunnersTest do
       end
 
       assert Jobs.queued_count_by_fleet(fleet) == queued
-      assert %{queued: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{queued: ^headroom, withheld: 5} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The capped depth alone can't distinguish "nothing queued" from
+    # "queued but unservable". Without `withheld` the controller reads
+    # the second as idle and, on a saturated fleet, never grants the
+    # pool the Pod it needs to claim once headroom frees.
+    test "reports work withheld by the cap so a blocked pool is not read as idle" do
+      account = account_fixture()
+      fleet = "macos-signal-blocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+
+      for i <- 1..(headroom + 2) do
+        queue_job(account, 91_500 + i, fleet, resources)
+      end
+
+      assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "reports nothing withheld when every queued job is dispatchable" do
+      account = account_fixture()
+      fleet = "macos-signal-unblocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_601, fleet, resources)
+
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
     end
 
     test "counts each account's headroom independently" do
@@ -1241,7 +1269,7 @@ defmodule Tuist.RunnersTest do
       queue_job(account, 91_401, fleet, %{platform: :linux, vcpus: 4, memory_gb: 16})
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
-      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 end

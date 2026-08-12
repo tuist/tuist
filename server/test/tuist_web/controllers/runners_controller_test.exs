@@ -47,6 +47,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["claimed"] == 1
       assert body["occupied"] == 1
       assert body["queued"] == 1
+      assert body["withheld"] == 0
       assert is_integer(body["p95_concurrent_last_hour"])
     end
 
@@ -65,6 +66,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["claimed"] == 0
       assert body["occupied"] == 0
       assert body["queued"] == 0
+      assert body["withheld"] == 0
       assert body["p95_concurrent_last_hour"] == 0
     end
 
