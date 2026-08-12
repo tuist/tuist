@@ -5,9 +5,9 @@
  * flagged onto the new design (see TuistWeb.Marketing.Design). Old and new
  * designs restyle the same selectors (#marketing-home, the navbar classes),
  * so they must never be loaded together: page-level styles for redesigned
- * pages live in *-new.css files imported here, and their legacy counterparts
- * stay in marketing.css. Once every page has migrated, this file replaces
- * marketing.css and the legacy files are deleted.
+ * pages live under css/new/ and are imported here, while their legacy
+ * counterparts stay in marketing.css. Once every page has migrated, this
+ * file replaces marketing.css and the legacy files are deleted.
  */
 
 /* Self-hosted fonts (loaded before noora to provide font definitions) */
@@ -18,10 +18,10 @@
 @import "../shared/css/code-window.css";
 @import "css/shared/pages.css";
 @import "css/routes/shared/page.css";
-@import "css/routes/home-new.css";
-@import "css/routes/home-hero.css";
-@import "css/layouts/components/navbar-new.css";
-@import "css/layouts/components/footer-new.css";
+@import "css/new/routes/home.css";
+@import "css/new/routes/home-hero.css";
+@import "css/new/layouts/components/navbar.css";
+@import "css/new/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/agent-prompt.css";
 @import "../shared/css/code-group.css";
@@ -90,7 +90,7 @@
    Tuist purple, flipped per scheme (500 needs the light background, 300 the
    dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
    flush against a clipping container pull the ring inward with an
-   outline-offset override (see the mega-menu cards in navbar-new.css);
+   outline-offset override (see the mega-menu cards in css/new/layouts/components/navbar.css);
    everything else floats it 2px out. */
 :focus-visible {
   outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));

@@ -37,7 +37,7 @@ defmodule TuistWeb.Marketing.MarketingIllustrations do
   # Shield SOC badge (security card): grey outline on the neutral ramp,
   # lettering on purple-400 — the same purple as the OSS logo stroke and
   # the infra cards' highlighted face borders. The hover dither is a
-  # DitherTexture canvas clipped to the shield (see home_new.html.heex),
+  # DitherTexture canvas clipped to the shield (see marketing_html/new/home.html.heex),
   # not a recolored SVG twin.
   @security_badge_tokens %{
     "#C9CCCF" => "var(--marketing-illustration-neutral-4)",
