@@ -1287,16 +1287,6 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
-        // Usage reporting and authorization talk to the same Tuist server, so a
-        // node that has been told where it is for one purpose has been told for
-        // both. Without this a deployment that sets only the authorization URL
-        // alongside control-plane credentials fails the all-or-nothing check
-        // below and the node refuses to start.
-        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_AUTH_TUIST_URL))
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
-            .map(|value| value.trim().trim_end_matches('/').to_owned())
-            .filter(|value| !value.is_empty());
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
             .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
@@ -1304,6 +1294,22 @@ impl Config {
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
             .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        // Usage reporting and authorization address the same server, so a node
+        // given credentials and only the authorization URL has still said where
+        // to report. On its own that URL says where to authorize and nothing
+        // more: reading it as a usage URL would half-configure the tuple below
+        // and stop a node that only authorizes from booting at all.
+        let has_credentials =
+            control_plane_client_id.is_some() && control_plane_client_secret.is_some();
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
+            .or_else(|| {
+                has_credentials
+                    .then(|| lookup(KURA_AUTH_TUIST_URL))
+                    .flatten()
+            })
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
         let usage = match (
             control_plane_url,
@@ -1759,6 +1765,18 @@ mod tests {
         let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
             .expect_err("a key-value limit above the inline ceiling must fail");
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    // The authorization URL on its own says where to authorize, not that usage
+    // should be reported. Treating it as a usage URL half-configures the tuple
+    // and stops the node booting, which is what the end-to-end nodes do: they
+    // authorize from a token and have no control-plane credentials at all.
+    #[test]
+    fn the_authorization_url_alone_leaves_usage_reporting_off() {
+        let config = config_from(&[(KURA_AUTH_TUIST_URL, "http://127.0.0.1:1")])
+            .expect("a node that only authorizes must still start");
+
+        assert!(config.usage.is_none());
     }
 
     // The configuration the self-hosting guides tell operators to write: the
