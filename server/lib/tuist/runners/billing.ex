@@ -63,6 +63,18 @@ defmodule Tuist.Runners.Billing do
   @max_session_lifetime_seconds 6 * 60 * 60
 
   @doc """
+  The clamp above, for callers that need to write an `ended_at` this
+  query would have applied anyway.
+
+  `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker` closes a session
+  whose Pod is gone at `LEAST(now, started_at + this)`, which makes the
+  close billing-neutral: the row was already being charged against that
+  bound, so materialising it changes only what the autoscaler counts as
+  occupied.
+  """
+  def max_session_lifetime_seconds, do: @max_session_lifetime_seconds
+
+  @doc """
   Total billable minutes for `account_id` over the window, plus a
   per-bucket series + trend versus the previous equivalent window.
   The underlying source is `runner_sessions` — the same number that

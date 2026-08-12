@@ -208,6 +208,74 @@ func TestPodLifecycle_FallsBackToDeletionTimestamp(t *testing.T) {
 	}
 }
 
+func TestPodLifecycle_ReportsStoppedForVanishedPod(t *testing.T) {
+	// The reap deleted the Pod before we drained its terminal
+	// transition. Reporting is the only thing that closes the
+	// session, and an unclosed session withholds a host from the
+	// sibling pools for six hours.
+	reapedAt := time.Date(2026, 8, 12, 7, 33, 0, 0, time.UTC)
+
+	r, rec, stop := newReconciler(t, nil)
+	defer stop()
+	r.Now = func() time.Time { return reapedAt }
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-gone")}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	reqs := rec.all()
+	if len(reqs) != 1 {
+		t.Fatalf("got %d requests, want 1", len(reqs))
+	}
+	if reqs[0].PodName != "tuist-pod-gone" {
+		t.Errorf("pod_name = %q, want tuist-pod-gone", reqs[0].PodName)
+	}
+	if !reqs[0].EndedAt.Equal(reapedAt) {
+		t.Errorf("ended_at = %v, want now %v", reqs[0].EndedAt, reapedAt)
+	}
+}
+
+func TestPodLifecycle_VanishedPodDoesNotReReportAfterAccurateClose(t *testing.T) {
+	// The accurate close won: we reported finishedAt while the Pod
+	// still existed, then observed its deletion. A second POST would
+	// be discarded by the server's MIN-bias anyway, but the dedup
+	// cache should keep it off the wire.
+	finished := time.Date(2026, 8, 12, 7, 33, 0, 0, time.UTC)
+	pod := runnerPodWithTerminated("tuist-pod-raced", finished, corev1.PodSucceeded)
+
+	r, rec, stop := newReconciler(t, []*corev1.Pod{pod})
+	defer stop()
+
+	req := ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-raced")}
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("Reconcile (terminal): %v", err)
+	}
+	if err := r.Delete(context.Background(), pod); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("Reconcile (vanished): %v", err)
+	}
+
+	if got := len(rec.all()); got != 1 {
+		t.Fatalf("got %d requests, want 1 (vanished reconcile should dedupe)", got)
+	}
+}
+
+func TestPodLifecycle_VanishedPodRequeuesOnReportFailure(t *testing.T) {
+	r, _, stop := newReconciler(t, nil)
+	defer stop()
+	r.SessionsClient.BaseURL = "http://127.0.0.1:1/api/internal/runners"
+
+	res, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-unreachable")})
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if res.RequeueAfter == 0 {
+		t.Fatal("want a requeue so the close is retried, got none")
+	}
+}
+
 func runnerPodExit(name string, exitCode int32, phase corev1.PodPhase) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

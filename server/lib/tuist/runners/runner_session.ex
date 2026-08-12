@@ -26,6 +26,10 @@ defmodule Tuist.Runners.RunnerSession do
     field :workflow_name, :string, default: ""
     field :started_at, :utc_datetime_usec
     field :ended_at, :utc_datetime_usec
+    # First observation of the Pod's absence from a complete cluster
+    # read. Reset to NULL whenever the Pod is seen again, so only
+    # consecutive absence accumulates toward an orphan close.
+    field :pod_missing_since, :utc_datetime_usec
 
     belongs_to :account, Account
 

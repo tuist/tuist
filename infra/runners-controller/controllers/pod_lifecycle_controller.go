@@ -96,16 +96,7 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	pod := &corev1.Pod{}
 	if err := r.Get(ctx, req.NamespacedName, pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			// Pod is fully gone from the apiserver. If we never
-			// reported it stopped (controller raced the reap), the
-			// server-side max-lifetime safety clamp in
-			// `Tuist.Runners.Billing` bounds the over-bill — we
-			// have no finishedAt to send at this point anyway.
-			// Drop the reported entry so a re-created Pod with the
-			// same name (unlikely; names carry a random suffix)
-			// gets a fresh emission.
-			r.reported.Delete(req.NamespacedName.String())
-			return ctrl.Result{}, nil
+			return r.reconcileVanished(ctx, req)
 		}
 		return ctrl.Result{}, err
 	}
@@ -138,6 +129,51 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	r.reported.Store(key, struct{}{})
 	logger.V(1).Info("reported pod stopped", "endedAt", endedAt)
+	return ctrl.Result{}, nil
+}
+
+// reconcileVanished handles a request whose Pod is already gone from
+// the apiserver by the time the workqueue item is drained.
+//
+// This used to return without reporting, on the reasoning that the
+// server's max-lifetime clamp bounds the resulting over-bill. That
+// reasoning only covered billing. The same unclosed `runner_sessions`
+// row is also what the autoscaler counts as an occupied host, and
+// there the clamp is six hours of a Mac mini withheld from every
+// sibling pool — so silence here is not an acceptable fallback.
+//
+// Two shapes reach this branch, and neither is rare:
+//
+//   - The reap wins the race. A reconciler delete on an idle or
+//     Pending runner collects the object with no grace period to
+//     speak of, so the terminal transition can be gone before we
+//     dequeue it. Clearing `reported` and returning guaranteed
+//     nothing would ever report that Pod.
+//   - The controller restarts. `reported` is in-memory and the
+//     informer only replays objects that still exist, so every Pod
+//     that ended during the downtime is invisible on resync.
+//
+// `now()` is the only bound still provable once the object is gone:
+// the Pod stopped no later than this. It is later than the real
+// `finishedAt`, so the server's MIN-bias discards it outright if an
+// accurate close already landed, and it caps the leak at one reconcile
+// otherwise.
+func (r *PodLifecycleReconciler) reconcileVanished(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	key := req.NamespacedName.String()
+	if _, already := r.reported.Load(key); already {
+		// Drop the entry so a re-created Pod with the same name
+		// (unlikely; names carry a random suffix) gets a fresh
+		// emission.
+		r.reported.Delete(key)
+		return ctrl.Result{}, nil
+	}
+
+	if err := r.SessionsClient.Stopped(ctx, req.Name, r.now()); err != nil {
+		log.FromContext(ctx).Error(err, "report vanished pod stopped; will retry", "pod", req.NamespacedName)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	log.FromContext(ctx).V(1).Info("reported vanished pod stopped", "pod", req.NamespacedName)
 	return ctrl.Result{}, nil
 }
 

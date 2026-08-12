@@ -49,8 +49,8 @@ defmodule Tuist.Runners.RunnerSessions do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.Billing
   alias Tuist.Runners.RunnerSession
-  alias Tuist.Runners.Telemetry
 
   require Logger
 
@@ -214,6 +214,12 @@ defmodule Tuist.Runners.RunnerSessions do
   Pod-stopped event cannot keep speculative capacity warm forever.
   Returns zero on an empty fleet or a query failure; current occupied
   and queued demand still drive safe scale-up in that case.
+
+  The clamp is a last line of defence, not the mechanism: sessions whose
+  Pod is gone are closed by `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker`
+  long before six hours. `clamped_open_session_counts_per_fleet/0` exports
+  how many rows still reach it, which is the signal that the reaper has
+  stopped working.
   """
   def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
     query = """
@@ -249,25 +255,12 @@ defmodule Tuist.Runners.RunnerSessions do
       COALESCE(
         percentile_disc(0.95) WITHIN GROUP (ORDER BY concurrent_count),
         0
-      )::integer AS p95,
-      (
-        SELECT COUNT(*)::integer
-        FROM runner_sessions
-        WHERE fleet_name = $1
-          AND ended_at IS NULL
-          AND started_at < CURRENT_TIMESTAMP - INTERVAL '6 hours'
-      ) AS clamped_open_sessions
+      )::integer AS p95
     FROM active_buckets
     """
 
     case Repo.query(query, [fleet_name]) do
-      {:ok, %{rows: [[p95, clamped_open_sessions]]}} when is_integer(p95) ->
-        :telemetry.execute(
-          Telemetry.event_name_session_clamp(),
-          %{count: clamped_open_sessions},
-          %{fleet: fleet_name}
-        )
-
+      {:ok, %{rows: [[p95]]}} when is_integer(p95) ->
         p95
 
       {:error, reason} ->
@@ -286,6 +279,148 @@ defmodule Tuist.Runners.RunnerSessions do
 
         0
     end
+  end
+
+  @doc """
+  Open sessions per fleet that have already passed the six-hour safety
+  bound — the rows `p95_concurrent_last_hour/1` clamps out of the
+  forecast and that `occupied_counts_per_fleet/0` has stopped counting.
+
+  Every row here is a Pod-stopped signal we never received *and* a Pod
+  the reaper never managed to confirm gone, so a non-zero value is the
+  leak detector for both paths at once. It is exported as a polled gauge
+  rather than emitted from the forecast: the forecast only runs for
+  fleets the autoscaler happens to be polling, on whichever replica
+  serves that request, which is exactly how the signal stayed invisible
+  while sessions leaked in production.
+
+  Zero-valued fleets are omitted; the caller decides which fleets need
+  an explicit zero (see `Tuist.Runners.PromExPlugin`).
+  """
+  def clamped_open_session_counts_per_fleet do
+    bound = DateTime.add(DateTime.utc_now(), -Billing.max_session_lifetime_seconds(), :second)
+
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.started_at < ^bound)
+    |> group_by([s], s.fleet_name)
+    |> select([s], {s.fleet_name, count(s.id)})
+    |> Repo.all()
+    |> Map.new(fn {fleet_name, count} -> {fleet_name || "", count} end)
+  end
+
+  @doc """
+  Open sessions old enough to be judged against the observed Pod set,
+  carrying the `pod_missing_since` clock so the caller can tell a first
+  absence from a confirmed one.
+
+  `grace_threshold` keeps young sessions out: a session is opened at
+  claim-win and the cluster read is eventually consistent, so a Pod that
+  is legitimately present can be missing from the listing for a while
+  after its session exists.
+  """
+  def list_open_for_pod_reconciliation(%DateTime{} = grace_threshold) do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.pod_name != "" and s.started_at < ^grace_threshold)
+    |> select([s], %{id: s.id, pod_name: s.pod_name, pod_missing_since: s.pod_missing_since})
+    |> Repo.all()
+  end
+
+  @doc """
+  Stamps `pod_missing_since` on sessions whose Pod was absent this tick,
+  leaving an existing stamp alone so the clock measures the FIRST
+  observed absence rather than the most recent one.
+  """
+  def mark_pods_missing([], _now), do: 0
+
+  def mark_pods_missing(ids, %DateTime{} = now) when is_list(ids) do
+    {count, _} =
+      RunnerSession
+      |> where([s], s.id in ^ids and is_nil(s.pod_missing_since))
+      |> Repo.update_all(set: [pod_missing_since: now])
+
+    count
+  end
+
+  @doc """
+  Clears `pod_missing_since` for sessions whose Pod is present again, so
+  an intermittently-visible Pod never accumulates its way to a close.
+  """
+  def clear_pods_missing([]), do: 0
+
+  def clear_pods_missing(ids) when is_list(ids) do
+    {count, _} =
+      RunnerSession
+      |> where([s], s.id in ^ids and not is_nil(s.pod_missing_since))
+      |> Repo.update_all(set: [pod_missing_since: nil])
+
+    count
+  end
+
+  @doc """
+  Sessions whose Pod has been continuously absent since before
+  `confirmed_before`, oldest absence first, at most `limit` per call.
+
+  The limit bounds a wrong-but-plausible cluster read that survives the
+  caller's guards, and gives the first run after a long leak a bounded
+  amount of work per tick instead of one enormous transaction.
+  """
+  def list_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and not is_nil(s.pod_missing_since) and s.pod_missing_since < ^confirmed_before)
+    |> order_by([s], asc: s.pod_missing_since)
+    |> limit(^limit)
+    |> select([s], %{id: s.id, pod_name: s.pod_name, pod_missing_since: s.pod_missing_since})
+    |> Repo.all()
+  end
+
+  @doc """
+  Closes one session selected by `list_pods_missing_since/2`, keyed on
+  the `pod_missing_since` handle it was selected with.
+
+  The handle closes a race against the authoritative close path: if the
+  controller's pod-stopped report lands between selection and write, it
+  sets `ended_at` and the row no longer matches `is_nil(ended_at)`, so
+  the accurate timestamp wins over this estimate.
+
+  `ended_at` is `LEAST(now, started_at + max_session_lifetime)` — the
+  exact instant the billing query already clamps an open session to. The
+  close is therefore billing-neutral for a long-leaked row, and for a
+  fresh orphan it over-states the window by at most one reaper tick,
+  which is the only bound still provable once the Pod is gone.
+
+  Returns `:ok` when the row was closed, `{:error, :stale_session}` when
+  it no longer matches.
+  """
+  def close_pod_missing(id, %DateTime{} = pod_missing_since, %DateTime{} = now) when is_integer(id) do
+    {count, _} =
+      RunnerSession
+      |> where([s], s.id == ^id and is_nil(s.ended_at) and s.pod_missing_since == ^pod_missing_since)
+      |> update([s],
+        set: [
+          ended_at:
+            fragment(
+              "LEAST(?, ? + make_interval(secs => ?))",
+              ^now,
+              s.started_at,
+              ^Billing.max_session_lifetime_seconds()
+            ),
+          updated_at: ^DateTime.truncate(now, :second)
+        ]
+      )
+      |> Repo.update_all([])
+
+    if count == 1, do: :ok, else: {:error, :stale_session}
+  end
+
+  @doc """
+  Count of sessions eligible for an orphan close right now, ignoring the
+  per-tick limit, so a sustained backlog is visible instead of silently
+  trickling.
+  """
+  def count_pods_missing_since(%DateTime{} = confirmed_before) do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and not is_nil(s.pod_missing_since) and s.pod_missing_since < ^confirmed_before)
+    |> Repo.aggregate(:count)
   end
 
   @doc """
