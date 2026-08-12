@@ -17,6 +17,19 @@ The Cirrus base image's pre-existing `admin` user is kept around
 as the Packer SSH provisioning identity but is not used at
 runtime — no service, sudo entry, or auto-login targets it.
 
+Because the base images provision as `admin` and jobs run as
+`runner`, anything the base installs under `admin` has to be
+handed over explicitly. `/opt/homebrew` is the case that bit us:
+the prefix shipped owned by `admin`, so `brew install` from a
+workflow step failed its writability audit while `brew` itself
+resolved fine on `PATH`. GitHub-hosted images build and run under
+one account, so the job user owns the prefix — this image chowns
+it to `runner` to match. When adding tooling to the base, check
+ownership, not just reachability. The `brew install hello`
+sanity check at the end of the Packer template exists because a
+reachability-only check stayed green through months of broken
+installs.
+
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
   by `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).
