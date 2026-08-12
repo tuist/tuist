@@ -817,6 +817,31 @@ defmodule Tuist.Runners do
     if trusted and volume_affinity_enabled?(fleet_name) do
       VolumeAffinities.record(node_name, account_id)
     end
+
+    :ok
+  rescue
+    # This runs AFTER the dispatch has committed: the JIT is minted and the
+    # claim is already `running`. An exception escaping here (a Postgres blip
+    # on the insert) would skip `release_safely/3` and 500 the poll, so the Pod
+    # never receives its JIT, no runner ever registers with GitHub, and the job
+    # never completes. `StaleClaimsWorker` deliberately does not reap `running`
+    # claims, and its completion pass needs a completion that will never
+    # arrive, so the account's cap slot would be held indefinitely.
+    #
+    # Affinity is a cache-warmth optimization. Losing one record costs a later
+    # job a cold materialize; failing the dispatch costs a stuck slot. Unlike
+    # `record_running_safe/2` just above, which rescues in order to ABORT
+    # (ClickHouse state the rest of the system reads must be right), this
+    # rescues in order to CONTINUE.
+    e ->
+      Logger.warning("runners: volume affinity record raised; dispatch continues cold",
+        node: node_name,
+        account_id: account_id,
+        fleet: fleet_name,
+        reason: Exception.message(e)
+      )
+
+      :ok
   end
 
   defp retry_claim_and_serve(

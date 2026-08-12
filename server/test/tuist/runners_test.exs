@@ -672,6 +672,29 @@ defmodule Tuist.RunnersTest do
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
+    test "still serves the JIT when the volume affinity write raises" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
+
+      # The affinity write happens after the JIT is minted and the claim is
+      # already `running`. If it escaped, the poll would 500 without
+      # `release_safely/3`: the Pod gets no JIT, no runner ever registers, no
+      # completion is ever recorded, and StaleClaimsWorker does not reap
+      # `running` claims — so the account's cap slot would be held for good.
+      # A lost affinity row costs one cold materialize instead.
+      stub(VolumeAffinities, :record, fn _node, _account_id ->
+        raise Postgrex.Error, message: "connection not available"
+      end)
+
+      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert result.workflow_job_id == 90_001
+      assert result.jit
+    end
+
     test "does not record volume affinity for a non-macOS fleet" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
