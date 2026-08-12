@@ -5,6 +5,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <%!-- Prerender marketing pages when a link is hovered (moderate
+    eagerness), so the navigation is already rendered by click time.
+    Chromium-only; other engines ignore the script. App, auth, docs and
+    feed URLs are excluded — prerendering those would waste work or open
+    sockets/sessions early. --%>
+    <script type="speculationrules" nonce={get_csp_nonce()}>
+      {
+        "prerender": [
+          {
+            "where": {
+              "and": [
+                { "href_matches": "/*" },
+                { "not": { "href_matches": "/users/*" } },
+                { "not": { "href_matches": "/docs*" } },
+                { "not": { "href_matches": "/api/*" } },
+                { "not": { "href_matches": "/ops/*" } },
+                { "not": { "href_matches": "/agent/*" } },
+                { "not": { "href_matches": "/*.xml" } },
+                { "not": { "href_matches": "/blog/*/iframe.html" } }
+              ]
+            },
+            "eagerness": "moderate"
+          }
+        ]
+      }
+    </script>
+    <%= if assigns[:new_design] do %>
+      <%!-- Theme bootstrap for the redesigned pages (the legacy design is
+      light-only, pinned via bundle.css). Runs before the stylesheet loads to
+      avoid a flash of the wrong theme. Shares the dashboard's
+      "preferred-theme" localStorage key so the theme follows the app, and
+      keeps data-theme in sync with the system scheme (Noora's shadow tokens
+      key off data-theme, its colors off color-scheme). Canvas hooks resolve
+      token colors at mount, so they listen for tuist:theme-change to
+      re-resolve. --%>
+      <script nonce={get_csp_nonce()}>
+        (function() {
+          function preferredTheme() {
+            try {
+              const stored = localStorage.getItem("preferred-theme");
+              return stored === null || stored === "null" ? "system" : stored;
+            } catch (e) {
+              return "system";
+            }
+          }
+
+          const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+          function applyTheme() {
+            const theme = preferredTheme();
+            const resolved = theme === "system" ? (systemDark.matches ? "dark" : "light") : theme;
+            document.documentElement.style.setProperty("color-scheme", theme === "system" ? "light dark" : theme);
+            document.documentElement.setAttribute("data-theme", resolved);
+            return resolved;
+          }
+
+          applyTheme();
+
+          systemDark.addEventListener("change", function() {
+            const before = document.documentElement.getAttribute("data-theme");
+            const after = applyTheme();
+            if (before !== after) {
+              window.dispatchEvent(new CustomEvent("tuist:theme-change", { detail: { theme: after } }));
+            }
+          });
+        })();
+      </script>
+    <% end %>
     <.live_title>
       {assigns[:head_title] || "Tuist"}
     </.live_title>
@@ -45,7 +113,11 @@
       <%= raw structured_data %>
     </script>
     <!-- Assets -->
-    <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
+    <%= if assigns[:new_design] do %>
+      <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle-new.css"} />
+    <% else %>
+      <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
+    <% end %>
     <script defer phx-track-static type="module" src={~p"/marketing/assets/bundle.js"}>
     </script>
     <!-- Mermaid (loaded only on pages that contain a diagram) -->

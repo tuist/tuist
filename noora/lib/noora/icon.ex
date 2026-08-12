@@ -27,8 +27,10 @@ defmodule Noora.Icon do
   Strategies:
   - `"morph"` — tween one filled path into the other. Raises at render time if
     either icon is not a filled path (see `morphable?/1`).
+  - `"crossfade"` — opacity-only crossfade between the two icons. Works for any pair.
   - `"crossfade_rotate"` — crossfade and rotate the two icons. Works for any pair.
-  - `"auto"` (default) — morph when both icons are compatible, otherwise crossfade.
+  - `"auto"` (default) — morph when both icons are compatible, otherwise crossfade
+    with rotation.
 
   ## Adding an icon
 
@@ -75,7 +77,7 @@ defmodule Noora.Icon do
 
     case resolve_transition(assigns.transition, assigns.name, active_name) do
       :morph -> render_morph_icon(assigns)
-      :crossfade_rotate -> render_crossfade_icon(assigns)
+      kind when kind in [:crossfade, :crossfade_rotate] -> render_crossfade_icon(assign(assigns, :resolved_transition, kind))
     end
   end
 
@@ -139,6 +141,8 @@ defmodule Noora.Icon do
   # (filled-path) icons and raises otherwise so misuse fails loudly rather than
   # rendering an incorrect shape. `"auto"` morphs when possible and crossfades
   # otherwise.
+  defp resolve_transition("crossfade", _from, _to), do: :crossfade
+
   defp resolve_transition("crossfade_rotate", _from, _to), do: :crossfade_rotate
 
   defp resolve_transition("auto", from, to) do
@@ -197,7 +201,7 @@ defmodule Noora.Icon do
       class="noora-icon-transition"
       phx-hook="NooraIconTransition"
       phx-update="ignore"
-      data-transition="crossfade_rotate"
+      data-transition={@resolved_transition}
       data-watch={@watch}
       data-active-state={@active_state}
     >

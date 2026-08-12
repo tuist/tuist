@@ -1,15 +1,17 @@
 .code-window {
   --docs-terminal-shell-shadow: var(--noora-light-border-default);
-  --docs-terminal-body-shadow: var(--noora-light-border-default);
-  --docs-terminal-body-highlight: inset 0 1px 0 0 light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.06));
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  /* Seam between the bar and the code box (the grouped variant uses 6px —
+     see code-group.css). */
+  gap: 4px;
   box-shadow: var(--docs-terminal-shell-shadow);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--noora-surface-background-primary);
-  padding: 4px;
+  /* No shell padding: the code box sticks to the component's edges and the
+     bar carries its own insets. */
+  padding: 0;
   min-width: 0;
   max-width: 100%;
 }
@@ -17,9 +19,6 @@
 html[data-theme="dark"] .code-window {
   --docs-terminal-shell-shadow: 0px 1px 1px 0px rgb(14 14 14 / 0.3), 0px 0px 0px 1px rgb(113 113 113 / 0.45),
     0px 2px 3px 0px rgb(0 0 0 / 0.3);
-  --docs-terminal-body-shadow: 0px 1px 1px 0px rgb(14 14 14 / 0.8), 0px 0px 0px 1px rgb(58 58 58 / 0.7),
-    0px 2px 2px 0px rgb(0 0 0 / 0.24);
-  --docs-terminal-body-highlight: inset 0px 1px 0px 0px rgb(255 255 255 / 0.2);
 }
 
 .code-window > [data-part="bar"] {
@@ -27,72 +26,110 @@ html[data-theme="dark"] .code-window {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
+  /* 8px sides, 4px top, 2px seam to the code box below. */
+  padding: 4px 8px 2px;
 }
 
+/* Same 8px/4px insets as a group tab, so the label sits exactly where a tab
+   would (just without the pill background). */
 .code-window > [data-part="bar"] > [data-part="language"] {
+  padding: 4px 8px;
   color: var(--noora-surface-label-primary);
-  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 }
 
+/* The button itself is Noora's neutral button (large): its class provides
+   the surface, hover/active states and radius. Only the fixed 32px box, the
+   icon-swap and the "Copied" tooltip are ours. */
 .code-window > [data-part="bar"] > [data-part="copy"] {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: opacity 0.2s ease;
-  cursor: pointer;
-  border-radius: 6px;
-  padding: 6px;
-  color: var(--noora-button-neutral-label);
+  display: inline-grid;
+  position: relative;
+  box-sizing: border-box;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  /* Rapid clicks escalate to double/triple-click selection, which would
+     otherwise spill onto the code's first line. */
+  user-select: none;
 }
 
+/* Noora's `> span` rule pads label spans; the icon wrappers aren't labels. */
+.code-window > [data-part="bar"] > [data-part="copy"] > span {
+  padding: 0;
+}
+
+/* Sized here because the icons sit inside the data-part spans, out of reach
+   of Noora's direct-child `> svg` size rules. */
 .code-window > [data-part="bar"] > [data-part="copy"] svg {
-  width: 12px;
-  height: 12px;
+  width: var(--noora-icon-size-large);
+  height: var(--noora-icon-size-large);
 }
 
+/* "Copied" bubble above the button while the check is flashed (the JS holds
+   data-copied for 2s). Styled after Noora's tooltip. */
+.code-window > [data-part="bar"] > [data-part="copy"][data-copied]::after {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--noora-z-index-12);
+  box-shadow: var(--noora-tooltip-border);
+  border-radius: var(--noora-radius-3);
+  background: var(--noora-tooltip-background);
+  padding: var(--noora-spacing-2) var(--noora-spacing-3);
+  width: max-content;
+  color: var(--noora-tooltip-label-primary);
+  font: var(--noora-font-body-small);
+  pointer-events: none;
+  content: "Copied";
+}
+
+/* Copy → check swap: stacked-grid crossfade where the hidden icon sits at
+   half scale, so the swap fades and grows in rather than flipping. */
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-icon"],
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
-  display: flex;
+  display: inline-flex;
+  grid-area: 1 / 1;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 200ms ease-in-out,
+    transform 200ms ease-in-out;
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
-  display: none;
+  opacity: 0;
+  transform: scale(0.5);
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-icon"] {
-  display: none;
+  opacity: 0;
+  transform: scale(0.5);
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-check-icon"] {
-  display: flex;
+  opacity: 1;
+  transform: scale(1);
 }
 
-.code-window > [data-part="bar"] > [data-part="copy"]:hover {
-  opacity: 0.7;
+@media (prefers-reduced-motion: reduce) {
+  .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-icon"],
+  .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
+    transition: none;
+  }
 }
 
-.code-window > [data-part="bar"] > [data-part="copy"]:active {
-  opacity: 0.5;
-}
 
 .code-window > [data-part="code"] {
   position: relative;
-  box-shadow: var(--docs-terminal-body-shadow);
+  box-shadow: var(--noora-light-border-default);
+  /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);
   padding: 16px 12px;
   overflow-x: auto;
   font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-
-  &::after {
-    position: absolute;
-    inset: 0;
-    box-shadow: var(--docs-terminal-body-highlight);
-    border-radius: inherit;
-    pointer-events: none;
-    content: "";
-  }
 }
 
 /* MDEx's html_inline formatter adds an inline background-color on <pre>,

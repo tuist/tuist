@@ -1,0 +1,94 @@
+/*
+ * Entry point for the REDESIGNED marketing pages (served as bundle-new.css).
+ *
+ * The root layout links this bundle instead of bundle.css when a page is
+ * flagged onto the new design (see TuistWeb.Marketing.Design). Old and new
+ * designs restyle the same selectors (#marketing-home, the navbar classes),
+ * so they must never be loaded together: page-level styles for redesigned
+ * pages live in *-new.css files imported here, and their legacy counterparts
+ * stay in marketing.css. Once every page has migrated, this file replaces
+ * marketing.css and the legacy files are deleted.
+ */
+
+/* Self-hosted fonts (loaded before noora to provide font definitions) */
+@import "../app/css/fonts.css";
+@import "noora/noora.css";
+@import "css/shared/tokens.css";
+@import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
+@import "css/shared/pages.css";
+@import "css/routes/shared/page.css";
+@import "css/routes/home-new.css";
+@import "css/routes/home-hero.css";
+@import "css/layouts/components/navbar-new.css";
+@import "css/layouts/components/footer-new.css";
+@import "css/layouts/components/banner.css";
+@import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
+
+:root {
+  /* thumb, then track */
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600))
+    light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1100));
+  scrollbar-width: thin;
+  /* Both schemes are supported; the root layout's theme bootstrap narrows
+     this (and sets data-theme) when the user has an explicit preference. */
+  color-scheme: light dark;
+}
+
+::selection {
+  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+  color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  background: var(--noora-surface-background-primary);
+  padding: 0px;
+  overflow-x: hidden;
+  font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Nicer paragraph wrapping site-wide (avoids orphans/short last lines).
+     Inherited, so it cascades to all body text; headings override below. */
+  text-wrap: pretty;
+
+  & > div[data-part="content"] {
+    background: var(--noora-surface-background-primary);
+  }
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+/* Balanced line breaks on headings site-wide (no-op where text fits one line). */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
