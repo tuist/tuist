@@ -1,8 +1,3 @@
-/*
- * About page styles for the REDESIGNED marketing site (bundle-new.css).
- * Ported from routes/about.css; hardcoded light-only shadows/fills are
- * swapped for theme-aware Noora tokens so the page works in dark mode.
- */
 #marketing-about {
   display: flex;
   position: relative;
