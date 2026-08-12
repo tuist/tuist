@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import Synchronization
 import Testing
 import TuistServer
 
@@ -226,20 +227,19 @@ struct CacheTokenStoreTests {
 }
 
 /// Lets a test move past the cooldown without sleeping through it.
-private final class MutableClock: @unchecked Sendable {
-    private let lock = NSLock()
-    private var date: Date
+private final class MutableClock: Sendable {
+    private let date: Mutex<Date>
 
     init(_ date: Date) {
-        self.date = date
+        self.date = Mutex(date)
     }
 
     var now: Date {
-        lock.withLock { date }
+        date.withLock { $0 }
     }
 
     func advance(by interval: TimeInterval) {
-        lock.withLock { date = date.addingTimeInterval(interval) }
+        date.withLock { $0 = $0.addingTimeInterval(interval) }
     }
 }
 

@@ -9,7 +9,10 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-token_path="$(mktemp -t cache-token-e2e)"
+# Spelled as an explicit template rather than `-t cache-token-e2e`, which BSD
+# mktemp accepts as a prefix but GNU rejects for having too few X's, so the
+# script died on the Linux runner before reaching either half.
+token_path="$(mktemp "${TMPDIR:-/tmp}/cache-token-e2e.XXXXXX")"
 trap 'rm -f "$token_path"' EXIT
 
 echo "==> minting a cache token from the server"
