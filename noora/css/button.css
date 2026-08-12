@@ -286,30 +286,57 @@
     padding: 0rem var(--noora-spacing-2);
   }
 
-  &[data-size="large"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  /* Spacing and positioning mirror .noora-button's size rules exactly, so
+     the two variants can sit side by side (e.g. the navbar's action
+     cluster) without drifting: the same data-icon-only gating, the same
+     per-size paddings, and descendant svg sizing through the shared icon
+     custom property (reaching icons nested in wrapper spans, which a
+     direct-child selector missed). */
+  &[data-icon-only] {
+    padding: var(--noora-spacing-3);
+  }
 
-    & > svg {
-      width: var(--noora-icon-size-large);
-      height: var(--noora-icon-size-large);
+  &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="medium"],
+  &[data-size="large"] {
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3);
     }
   }
 
   &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    & > svg {
-      width: var(--noora-icon-size-medium);
-      height: var(--noora-icon-size-medium);
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 
-  &[data-size="small"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+  &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
 
-    & > svg {
-      width: var(--noora-icon-size-small);
-      height: var(--noora-icon-size-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 }
