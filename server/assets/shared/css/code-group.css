@@ -215,12 +215,3 @@
     }
   }
 }
-
-/* Match the code-window's stronger dark-mode shell border (the light token
-   is too faint on dark surfaces). */
-html[data-theme="dark"] .code-group {
-  box-shadow:
-    0px 1px 1px 0px rgb(14 14 14 / 0.3),
-    0px 0px 0px 1px rgb(113 113 113 / 0.45),
-    0px 2px 3px 0px rgb(0 0 0 / 0.3);
-}
