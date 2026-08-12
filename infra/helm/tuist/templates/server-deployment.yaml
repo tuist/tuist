@@ -294,7 +294,6 @@ spec:
             - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
               value: {{ $serverXcodeVersions | toJson | quote }}
             {{- end }}
-            {{- include "tuist.runnerVolumeResidentMastersEnv" . | nindent 12 }}
             {{- end }}
             {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
             # Namespace of the CNPG Cluster + Backup CRs (this release's

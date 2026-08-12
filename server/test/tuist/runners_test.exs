@@ -5,6 +5,7 @@ defmodule Tuist.RunnersTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
   alias Tuist.Runners.CacheGrant
@@ -507,62 +508,63 @@ defmodule Tuist.RunnersTest do
       assert result.volume_head == nil
     end
 
-    test "records volume affinity for the polling node on a successful claim" do
+    test "threads the polling node's identity into the residency lookup" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
 
-      # Affinity is macOS-only (only the Mac fleet holds cache masters), so the
-      # fleet must resolve to :macos for record/select to run at all.
+      # Residency scoring is macOS-only (only the Mac fleet holds cache
+      # masters), so the fleet must resolve to :macos for it to run at all.
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
 
-      expect(VolumeAffinities, :record, fn "mac-07", account_id ->
-        send(test_pid, {:affinity_recorded, account_id})
-        :ok
-      end)
-
-      # With a single candidate the residency scoring returns the head; the
-      # point here is that node identity is threaded through and the claim
-      # records affinity for that node.
+      # The node name is what the residency lookup keys on: without it reaching
+      # the policy, every host would be scored against the same (empty) answer.
       expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", opts ->
         send(test_pid, {:select_opts, opts})
         {candidate, :head_resident}
       end)
 
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert_receive {:affinity_recorded, recorded_account_id}
-      assert recorded_account_id == account.id
 
-      # The residency bound must reach the policy — without it the preference
-      # set saturates and the scoring silently degrades to "take the head".
       assert_receive {:select_opts, opts}
-      assert Keyword.has_key?(opts, :resident_limit)
       assert Keyword.fetch!(opts, :tolerance_seconds) > 0
     end
 
-    test "defaults to no residency preference, so a cache-off macOS fleet is never reordered" do
+    test "serves the head unreordered when the host advertises no cache masters" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
 
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(VolumeAffinities, :record, fn _node, _account_id -> :ok end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
-      stub(VolumeAffinities, :select_candidate, fn [c], _node, opts ->
-        send(test_pid, {:select_opts, opts})
-        {c, :no_residency}
+      # A macOS host with cache volumes off (or a kubelet that does not
+      # advertise yet) publishes no cache-master labels. The platform gate alone
+      # cannot tell that apart from a host full of masters, so residency has to:
+      # nothing is resident, nothing is reordered, the head goes out.
+      stub(K8sClient, :get_node, fn "mac-07" ->
+        {:ok, %{"metadata" => %{"labels" => %{"tuist.dev/runtime" => "tart"}}}}
       end)
 
-      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
 
-      # Residency is knowledge the chart supplies from the host's own sizing.
-      # Unconfigured (a `gib: 0` fleet, or any install not wiring the env var)
-      # the bound must be 0, which empties the preference set: a host that
-      # holds no masters must never have the queue head delayed for one.
-      assert_receive {:select_opts, opts}
-      assert Keyword.fetch!(opts, :resident_limit) == 0
+    test "dispatches without a preference when the Node read fails" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      # Residency is an optimization input read before the claim, so a bad
+      # apiserver must cost warmth, not dispatch: letting this escape would 500
+      # every poll on the fleet for as long as the read keeps failing.
+      stub(K8sClient, :get_node, fn _ -> raise "apiserver unreachable" end)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "emits the affinity outcome once, only after the dispatch commits" do
@@ -583,7 +585,6 @@ defmodule Tuist.RunnersTest do
       stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
 
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(VolumeAffinities, :record, fn _node, _account_id -> :ok end)
       stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
 
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
@@ -614,10 +615,10 @@ defmodule Tuist.RunnersTest do
       stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
 
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      # The account is resident here from earlier trusted jobs, so scoring
-      # prefers it — but the host skips materialize for a fork, so the job runs
-      # cold regardless. Counting it as `resident` would overstate warm
-      # placements against the host's warm/cold counter.
+      # The account's master is resident here, so scoring prefers it — but the
+      # host skips materialize for a fork, so the job runs cold regardless.
+      # Counting it as `resident` would overstate warm placements against the
+      # host's warm/cold counter.
       stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
 
       stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
@@ -645,67 +646,15 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
+
+      # Linux runners hold no cache masters, so they are never scored and never
+      # read a Node — the plain oldest-queued head is dispatched.
       stub(Catalog, :fleet_platform, fn _ -> :linux end)
-
-      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-
-      refute_receive {:affinity, _}, 50
-    end
-
-    test "does not record volume affinity for an untrusted fork job" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default")
-      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
-
-      stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :no_residency} end)
-
-      # Fork: the host is told to skip materialize and promote, so no master is
-      # left behind. Recording one would spend a resident slot in the server's
-      # model on a master that does not exist and push out one that does.
-      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
-        {:ok, %{"head_repository" => %{"full_name" => "attacker/#{repo}"}, "repository" => %{"full_name" => repo}}}
-      end)
-
-      reject(&VolumeAffinities.record/2)
-
-      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "still serves the JIT when the volume affinity write raises" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default")
-      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
-
-      stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
-
-      # The affinity write happens after the JIT is minted and the claim is
-      # already `running`. If it escaped, the poll would 500 without
-      # `release_safely/3`: the Pod gets no JIT, no runner ever registers, no
-      # completion is ever recorded, and StaleClaimsWorker does not reap
-      # `running` claims — so the account's cap slot would be held for good.
-      # A lost affinity row costs one cold materialize instead.
-      stub(VolumeAffinities, :record, fn _node, _account_id ->
-        raise Postgrex.Error, message: "connection not available"
-      end)
-
-      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert result.workflow_job_id == 90_001
-      assert result.jit
-    end
-
-    test "does not record volume affinity for a non-macOS fleet" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default")
-      stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
-
-      # Linux runners hold no cache masters, so affinity must not reorder or
-      # record for them — the plain oldest-queued head is dispatched.
-      stub(Catalog, :fleet_platform, fn _ -> :linux end)
-      reject(&VolumeAffinities.record/2)
+      reject(&VolumeAffinities.select_candidate/3)
+      reject(&K8sClient.get_node/1)
 
       assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      refute_receive {:affinity, _}, 50
     end
 
     test "registers the runner under the repo's GitHub org login, not the Tuist account handle" do

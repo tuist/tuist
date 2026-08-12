@@ -159,21 +159,6 @@ defmodule Tuist.Runners do
   # up and throughput matters more than any single job's warmth.
   @volume_affinity_age_tolerance_seconds 30
 
-  # How many per-account masters a host is assumed to still hold. Helm derives
-  # it from the same `macosFleet.runnerCacheVolume` values that bound admission
-  # host-side, so retuning `masterCapGib` cannot silently desync the dispatch
-  # model from the fleet.
-  #
-  # Defaults to 0, which disables the preference. Residency is knowledge the
-  # server only has because the chart told it, and the platform gate is a proxy
-  # that can't see whether a macOS host runs cache volumes at all: on a
-  # `gib: 0` fleet (the chart default, and every self-hosted macOS install that
-  # hasn't turned the feature on) a non-zero default would reorder queues and
-  # delay the head by the tolerance for masters that are never materialized.
-  # Guessing high costs real queue latency, guessing low costs nothing but the
-  # opportunity, so an unconfigured server does not guess.
-  @volume_affinity_resident_masters 0
-
   defp volume_affinity_top_k do
     Application.get_env(:tuist, :runner_volume_affinity_top_k, @volume_affinity_top_k)
   end
@@ -183,14 +168,6 @@ defmodule Tuist.Runners do
       :tuist,
       :runner_volume_affinity_age_tolerance_seconds,
       @volume_affinity_age_tolerance_seconds
-    )
-  end
-
-  defp volume_affinity_resident_masters do
-    Application.get_env(
-      :tuist,
-      :runner_volume_affinity_resident_masters,
-      @volume_affinity_resident_masters
     )
   end
 
@@ -810,43 +787,6 @@ defmodule Tuist.Runners do
 
   defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
 
-  # Record the residency signal for a committed dispatch that will materialize
-  # a master, but only for fleets that actually hold volumes (macOS): a volume
-  # for this account exists (or is about to) where its jobs ran, so future jobs
-  # of this account prefer this node. Volumeless fleets and untrusted jobs
-  # record nothing, so no queue is ever reordered for a master that doesn't
-  # exist.
-  defp record_volume_affinity(fleet_name, node_name, account_id, trusted) do
-    if trusted and volume_affinity_enabled?(fleet_name) do
-      VolumeAffinities.record(node_name, account_id)
-    end
-
-    :ok
-  rescue
-    # This runs AFTER the dispatch has committed: the JIT is minted and the
-    # claim is already `running`. An exception escaping here (a Postgres blip
-    # on the insert) would skip `release_safely/3` and 500 the poll, so the Pod
-    # never receives its JIT, no runner ever registers with GitHub, and the job
-    # never completes. `StaleClaimsWorker` deliberately does not reap `running`
-    # claims, and its completion pass needs a completion that will never
-    # arrive, so the account's cap slot would be held indefinitely.
-    #
-    # Affinity is a cache-warmth optimization. Losing one record costs a later
-    # job a cold materialize; failing the dispatch costs a stuck slot. Unlike
-    # `record_running_safe/2` just above, which rescues in order to ABORT
-    # (ClickHouse state the rest of the system reads must be right), this
-    # rescues in order to CONTINUE.
-    e ->
-      Logger.warning("runners: volume affinity record raised; dispatch continues cold",
-        node: node_name,
-        account_id: account_id,
-        fleet: fleet_name,
-        reason: Exception.message(e)
-      )
-
-      :ok
-  end
-
   defp retry_claim_and_serve(
          namespace,
          sa_name,
@@ -961,8 +901,7 @@ defmodule Tuist.Runners do
 
   defp select_affine_candidate(candidates, node_name) do
     case VolumeAffinities.select_candidate(candidates, node_name,
-           tolerance_seconds: volume_affinity_age_tolerance_seconds(),
-           resident_limit: volume_affinity_resident_masters()
+           tolerance_seconds: volume_affinity_age_tolerance_seconds()
          ) do
       nil -> {:ok, nil, nil}
       {candidate, outcome} -> {:ok, candidate, outcome}
@@ -1018,7 +957,6 @@ defmodule Tuist.Runners do
       namespace: namespace,
       sa_name: sa_name,
       fleet_name: fleet_name,
-      node_name: node_name,
       candidate: candidate,
       affinity_outcome: affinity_outcome
     } = context
@@ -1051,13 +989,6 @@ defmodule Tuist.Runners do
           # host sees both atomically. See stamp_account_label/4.
           stamp_account_label(namespace, pod_name, account, trusted)
 
-          # Record the residency signal here rather than at claim-win, because
-          # only now is it known whether this job will leave a master behind.
-          # An untrusted job carries the label the host reads to skip
-          # materialize and promote, so it never creates one; recording it
-          # would spend one of the node's few resident slots on a master that
-          # does not exist and push out one that does.
-          record_volume_affinity(fleet_name, node_name, candidate.account_id, trusted)
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
           # Open the per-Pod billing session only after dispatch

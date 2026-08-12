@@ -1,125 +1,127 @@
 defmodule Tuist.Runners.VolumeAffinities do
   @moduledoc """
-  Dispatch-time volume affinity: the query API over
-  `runner_volume_affinities`.
+  Dispatch-time cache-volume affinity: prefer handing a polling runner a queued
+  job whose account's cache master is already resident on that node, so the job
+  materializes warm instead of cold.
 
   Affinity is a pure dispatch-scoring policy over the shared warm pool — no
-  Kubernetes scheduling change. `record/4` stamps "this account materialized a
-  master on this host" on every claim that can leave one behind;
-  `select_candidate/3` prefers a queued job whose account is one of the host's
-  likely-resident masters, bounded by an age tolerance so affinity never delays
-  a job past the tolerance (the precise operational meaning of the hard rule
-  that affinity never starves an account holding no volume).
+  Kubernetes scheduling change. `select_candidate/3` prefers a resident
+  account's queued job, bounded by an age tolerance so affinity never delays a
+  job past the tolerance (the precise operational meaning of the hard rule that
+  affinity never starves an account holding no volume).
 
-  ## Why the resident set is bounded
+  ## Where residency comes from
 
-  A host holds only the last M masters it materialized: tart-kubelet's
-  admission evicts masters in LRU order (by master-image mtime, which
-  materialize touches) until the branch it is admitting fits. Recording
-  affinity without that bound made a node affine to every account that had
-  ever run on it inside the retention window, so the "preference" contained
-  the queue head's account too and `select_candidate/3` reduced to "take the
-  head" — byte-identical to no affinity at all.
+  The host reports it. tart-kubelet scans the runner-cache root each node
+  heartbeat and advertises one `tuist.dev/cache-master-<account_id>` Node label
+  per resident master (`VolumeManager.CacheMasterNodeLabels`), the same
+  mechanism it already uses to advertise its golden base VMs. Master
+  directories are named after the account id the server stamps on the Pod, so
+  the labels are account ids and need no translation.
 
-  So the resident set is the `limit` most recent distinct accounts by
-  `last_run_at`, which mirrors the host's own eviction order. It is an
-  approximation, not ground truth (the host, not the server, knows which
-  masters survived), and both error directions are graceful: too small
-  prefers a subset of what the host really holds, too large drifts back
-  toward preferring nothing in particular. Bias the bound low.
+  This replaced a server-side model of residency built from dispatch history
+  ("the N accounts that ran here most recently, where N is derived from the
+  host's disk sizing"). That model was wrong in ways it could not detect:
 
-  The approximation is also self-correcting rather than one-shot. Once a node
-  prefers accounts A and B, the jobs it wins are mostly A's and B's, which
-  keeps A and B at the top of its `last_run_at` order and keeps their masters
-  freshest in the host's LRU. Preference and residency reinforce each other, so
-  the fleet settles into a stable partition of accounts over hosts without the
-  server ever placing a job on a chosen host — which is what makes the
-  node-pull dispatch direction sufficient here.
+    * An admission decline under disk pressure runs the job cold and creates no
+      master, but the account still ran here most recently.
+    * The background watermark evictor drops masters between jobs.
+    * A reprovisioned host has nothing, and its dispatch history says otherwise.
+    * N came from `gib/masterCapGib - (liveBranches + 1)`, a worst-case
+      reservation formula, while admission actually compares free bytes against
+      sparse images — so the survivor count was an assumption, not a fact.
+
+  Reading the host's own scan makes all four moot.
+
+  ## Why a node-pull dispatch is enough
+
+  The server cannot place a job on a host of its choosing; it can only answer
+  the host that asked. That is sufficient because the preference is
+  self-reinforcing: a node that wins account A's jobs keeps A's master resident
+  (materialize touches its mtime, so LRU keeps it), which keeps the node
+  advertising A, which keeps A's jobs going there. The fleet settles into a
+  stable partition of accounts over hosts without anything scheduling it.
   """
-  import Ecto.Query
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client, as: K8sClient
 
-  alias Tuist.Repo
-  alias Tuist.Runners.VolumeAffinity
+  require Logger
 
   @reserved_tuist_cache "tuist-cache"
 
-  @default_resident_limit 2
+  @cache_master_label_prefix "tuist.dev/cache-master-"
+
+  # A node advertises on a 30s heartbeat and masters change on the order of a
+  # job, so a few seconds of staleness costs at most one cold materialize. This
+  # keeps the apiserver read off the per-poll path: nine hosts polling every 2s
+  # would otherwise be ~4.5 Node GETs/s, on the latency-sensitive dispatch path.
+  @residency_cache_ttl to_timeout(second: 10)
 
   @doc "The reserved volume name for the managed Tuist module cache."
   def reserved_tuist_cache, do: @reserved_tuist_cache
 
   @doc """
-  Records that `account_id` ran a job on `node_name`, bumping last_run_at.
-  Upserts on the (node_name, account_id, volume_name) key so a host keeps
-  one row per account. No-op-safe to call on every claim.
+  Set of account ids whose cache masters `node_name` currently holds, read from
+  the labels the host advertises.
 
-  Only call this for a job that will actually materialize a master. An
-  untrusted (fork) job is dispatched with the cache-untrusted label and the
-  host skips materialize and promote for it, so it leaves no master behind;
-  recording it would spend one of the host's few resident slots in this
-  model on a master that does not exist, evicting a real one from the
-  preference set.
+  Returns an empty set when the node is unknown, unreadable, or advertises
+  nothing — a host that reports no masters gets no preference and is handed
+  plain oldest-queued work, which is also what every host does before the
+  advertising build of tart-kubelet reaches it.
   """
-  def record(node_name, account_id, volume_name \\ @reserved_tuist_cache)
+  def resident_account_ids(node_name)
 
-  def record(node_name, account_id, volume_name)
-      when is_binary(node_name) and node_name != "" and is_integer(account_id) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-
-    Repo.insert_all(
-      VolumeAffinity,
-      [
-        %{
-          node_name: node_name,
-          account_id: account_id,
-          volume_name: volume_name,
-          last_run_at: now,
-          inserted_at: now,
-          updated_at: now
-        }
-      ],
-      on_conflict: {:replace, [:last_run_at, :updated_at]},
-      conflict_target: [:node_name, :account_id, :volume_name]
+  def resident_account_ids(node_name) when is_binary(node_name) and node_name != "" do
+    KeyValueStore.get_or_update(
+      [:runner_volume_residency, node_name],
+      [ttl: @residency_cache_ttl],
+      fn -> fetch_resident_account_ids(node_name) end
     )
-
-    :ok
   end
 
-  # No node identity (pod without spec.nodeName, or a lookup that failed):
-  # there's nothing to record. Affinity degrades to "no preference", which
-  # is exactly today's behaviour.
-  def record(_node_name, _account_id, _volume_name), do: :ok
+  def resident_account_ids(_node_name), do: MapSet.new()
 
-  @doc """
-  Set of account ids whose masters `node_name` most likely still holds: the
-  `limit` accounts that ran there most recently, newest first, which is the
-  inverse of the host's LRU eviction order.
+  defp fetch_resident_account_ids(node_name) do
+    case K8sClient.get_node(node_name) do
+      {:ok, node} ->
+        node
+        |> get_in(["metadata", "labels"])
+        |> account_ids_from_labels()
 
-  `limit` is the host's surviving master count. A non-positive limit disables
-  the preference (empty set) rather than falling back to unbounded, so a
-  misconfigured bound degrades to plain oldest-queued dispatch instead of
-  silently reinstating the saturated set.
-  """
-  def resident_account_ids(node_name, limit \\ @default_resident_limit, volume_name \\ @reserved_tuist_cache)
+      {:error, _reason} ->
+        MapSet.new()
+    end
+  rescue
+    # A Node read is an optimization input, not a correctness gate, and this
+    # runs before the claim — so the cost of letting it escape is not a stranded
+    # dispatch but a fleet-wide stall: every poll would 500 for as long as the
+    # apiserver is unhappy. Degrade to no preference, which is just
+    # oldest-queued. Mirrors how a failed `get_pod` already downgrades to `:ok`
+    # and lets dispatch proceed.
+    e ->
+      Logger.warning("runners: cache residency lookup failed; dispatching without preference",
+        node: node_name,
+        reason: Exception.message(e)
+      )
 
-  def resident_account_ids(node_name, limit, volume_name)
-      when is_binary(node_name) and node_name != "" and is_integer(limit) and limit > 0 do
-    from(v in VolumeAffinity,
-      where: v.node_name == ^node_name and v.volume_name == ^volume_name,
-      order_by: [desc: v.last_run_at, desc: v.account_id],
-      limit: ^limit,
-      select: v.account_id
-    )
-    |> Repo.all()
-    |> MapSet.new()
+      MapSet.new()
   end
 
-  def resident_account_ids(_node_name, _limit, _volume_name), do: MapSet.new()
+  defp account_ids_from_labels(labels) when is_map(labels) do
+    for {key, "true"} <- labels,
+        String.starts_with?(key, @cache_master_label_prefix),
+        {account_id, ""} <- [Integer.parse(String.replace_prefix(key, @cache_master_label_prefix, ""))],
+        into: MapSet.new() do
+      account_id
+    end
+  end
+
+  defp account_ids_from_labels(_labels), do: MapSet.new()
 
   @doc """
   Picks the candidate a polling runner on `node_name` should be handed
   from a top-K list of queued candidates (ordered oldest-enqueued first):
-  the oldest one whose account is likely resident on the node, UNLESS the
+  the oldest one whose account's master is resident on the node, UNLESS the
   queue head has itself been waiting longer than `:tolerance_seconds`, in
   which case the head is returned so it can't be passed over indefinitely.
 
@@ -134,23 +136,19 @@ defmodule Tuist.Runners.VolumeAffinities do
   why that candidate was picked, so dispatch can report whether the preference
   is discriminating at all:
 
-    * `:resident` — a queued job of a likely-resident account was preferred.
-    * `:head_resident` — the head's own account is likely resident; nothing
-      was reordered but the job still lands warm.
-    * `:no_resident_candidate` — the node has a resident set, but none of the
-      top-K queued jobs belong to it; the head goes out cold.
-    * `:no_residency` — the node has no resident set at all (first jobs on a
-      fresh host, or the bound is disabled).
+    * `:resident` — a queued job of a resident account was preferred.
+    * `:head_resident` — the head's own account is resident; nothing was
+      reordered but the job still lands warm.
+    * `:no_resident_candidate` — the node holds masters, but none of the top-K
+      queued jobs belong to them; the head goes out cold.
+    * `:no_residency` — the node advertises no masters at all (a fresh or
+      cache-off host, or one whose kubelet does not advertise yet).
     * `:head_overdue` — a resident candidate was queued, but the head hit the
-      starvation bound and took precedence. This is the only outcome the
-      tolerance costs anything, so it is the one to tune it against.
+      starvation bound and took precedence.
 
   ## Options
 
     * `:tolerance_seconds` — the starvation bound. Required.
-    * `:resident_limit` — how many masters the host is assumed to hold.
-      Defaults to #{@default_resident_limit}.
-    * `:volume_name` — defaults to the reserved Tuist cache volume.
   """
   def select_candidate(candidates, node_name, opts)
 
@@ -158,10 +156,7 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   def select_candidate([head | _] = candidates, node_name, opts) do
     tolerance_seconds = Keyword.fetch!(opts, :tolerance_seconds)
-    limit = Keyword.get(opts, :resident_limit, @default_resident_limit)
-    volume_name = Keyword.get(opts, :volume_name, @reserved_tuist_cache)
-
-    resident = resident_account_ids(node_name, limit, volume_name)
+    resident = resident_account_ids(node_name)
 
     cond do
       MapSet.size(resident) == 0 ->
@@ -195,19 +190,6 @@ defmodule Tuist.Runners.VolumeAffinities do
     end
   end
 
-  @doc """
-  Deletes affinity rows older than `older_than_seconds` (default 14 days).
-  Called on the periodic runner-maintenance sweep. A pruned row only costs
-  a status-quo cold job that re-warms the volume anyway.
-  """
-  def prune(older_than_seconds \\ 14 * 24 * 60 * 60) do
-    cutoff = DateTime.add(DateTime.utc_now(), -older_than_seconds, :second)
-
-    {deleted, _} = Repo.delete_all(from(v in VolumeAffinity, where: v.last_run_at < ^cutoff))
-
-    deleted
-  end
-
   # The head is overdue once it has been queued longer than the tolerance,
   # measured from now. Past that point affinity must stop passing it over.
   defp head_overdue?(%{enqueued_at: %DateTime{} = head_enqueued_at}, tolerance_seconds) do
@@ -215,6 +197,6 @@ defmodule Tuist.Runners.VolumeAffinities do
   end
 
   # Defensive: a head with no enqueue time can't be aged, so never treat it as
-  # overdue — affinity may still prefer an affine candidate.
+  # overdue — affinity may still prefer a resident candidate.
   defp head_overdue?(_head, _tolerance_seconds), do: false
 end

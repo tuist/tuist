@@ -101,32 +101,6 @@ case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
     end
 end
 
-# How many per-account cache masters a macOS host is assumed to still hold, and
-# therefore how many accounts a node is affine to at dispatch. Helm derives it
-# from the same `macosFleet.runnerCacheVolume` sizing that bounds admission
-# host-side, so the dispatch model tracks `masterCapGib` retunes instead of
-# drifting from them. A non-positive value disables the preference and dispatch
-# falls back to plain oldest-queued, which is also what an unset var leaves in
-# place: a server that was never told how many masters a host keeps must not
-# reorder queues for them.
-case System.get_env("TUIST_RUNNER_VOLUME_RESIDENT_MASTERS") do
-  nil ->
-    :ok
-
-  "" ->
-    :ok
-
-  value ->
-    case Integer.parse(value) do
-      {masters, ""} ->
-        config :tuist, :runner_volume_affinity_resident_masters, masters
-
-      _ ->
-        raise "TUIST_RUNNER_VOLUME_RESIDENT_MASTERS is set but is not an integer " <>
-                "(Helm derives it from macosFleet.runnerCacheVolume). Got: #{inspect(value)}"
-    end
-end
-
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end

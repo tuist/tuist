@@ -1,96 +1,90 @@
 defmodule Tuist.Runners.VolumeAffinitiesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Ecto.Query
-  import TuistTestSupport.Fixtures.AccountsFixtures
+  import Mimic
 
-  alias Tuist.Repo
+  alias Tuist.KeyValueStore
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.VolumeAffinities
-  alias Tuist.Runners.VolumeAffinity
 
-  # Records `account` on `node` as having run `seconds_ago` seconds ago, so a
-  # test can lay out an explicit recency order (the inverse of the host's LRU
-  # eviction order) instead of relying on insert timing.
-  defp record_at(node, account, seconds_ago) do
-    :ok = VolumeAffinities.record(node, account.id)
+  setup :verify_on_exit!
 
-    last_run_at =
-      DateTime.utc_now()
-      |> DateTime.add(-seconds_ago, :second)
-      |> DateTime.truncate(:second)
-
-    {1, _} =
-      Repo.update_all(
-        from(v in VolumeAffinity, where: v.node_name == ^node and v.account_id == ^account.id),
-        set: [last_run_at: last_run_at]
-      )
-
+  setup do
+    # Residency is cached per node to keep the apiserver read off the dispatch
+    # path. Bypass it here so each case exercises the label parsing rather than
+    # a neighbouring case's cached answer for the same node name.
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     :ok
   end
 
-  describe "record/3" do
-    test "upserts one row per (node, account, volume) and bumps last_run_at" do
-      account = account_fixture()
+  # A Node as tart-kubelet advertises it: one `tuist.dev/cache-master-<id>`
+  # label per resident master, alongside the golden-image labels it already
+  # publishes on the same heartbeat.
+  defp node_with_masters(account_ids, extra_labels \\ %{}) do
+    labels =
+      account_ids
+      |> Map.new(fn id -> {"tuist.dev/cache-master-#{id}", "true"} end)
+      |> Map.merge(extra_labels)
 
-      assert :ok = VolumeAffinities.record("mac-01", account.id)
-      assert MapSet.member?(VolumeAffinities.resident_account_ids("mac-01"), account.id)
-
-      # A second claim on the same host upserts (no duplicate row); the
-      # account stays resident.
-      assert :ok = VolumeAffinities.record("mac-01", account.id)
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([account.id])
-    end
-
-    test "no-ops without node identity (nil/empty node)" do
-      account = account_fixture()
-      assert :ok = VolumeAffinities.record(nil, account.id)
-      assert :ok = VolumeAffinities.record("", account.id)
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
-    end
+    {:ok, %{"metadata" => %{"labels" => labels}}}
   end
 
-  describe "resident_account_ids/3" do
-    test "scopes to the node and volume" do
-      a = account_fixture()
-      b = account_fixture()
-      VolumeAffinities.record("mac-01", a.id)
-      VolumeAffinities.record("mac-02", b.id)
+  describe "resident_account_ids/1" do
+    test "reads the account ids the host advertises" do
+      stub(K8sClient, :get_node, fn "mac-01" -> node_with_masters([42, 7]) end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([a.id])
-      assert VolumeAffinities.resident_account_ids("mac-02") == MapSet.new([b.id])
-      assert VolumeAffinities.resident_account_ids("mac-03") == MapSet.new()
+      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42, 7])
     end
 
-    test "keeps only the most recent `limit` accounts, mirroring host LRU eviction" do
-      newest = account_fixture()
-      middle = account_fixture()
-      oldest = account_fixture()
+    test "ignores labels that are not cache-master advertisements" do
+      stub(K8sClient, :get_node, fn "mac-01" ->
+        node_with_masters([42], %{
+          "tuist.dev/golden-abc123" => "true",
+          "tuist.dev/runtime" => "tart",
+          "kubernetes.io/os" => "darwin"
+        })
+      end)
 
-      record_at("mac-01", oldest, 300)
-      record_at("mac-01", middle, 200)
-      record_at("mac-01", newest, 100)
-
-      # The host holds 2 masters, so the third-most-recent account has been
-      # evicted there and must not be preferred. This is the whole fix: left
-      # unbounded, the set contains every account that ever ran on the node,
-      # which makes the preference indistinguishable from no preference.
-      assert VolumeAffinities.resident_account_ids("mac-01", 2) == MapSet.new([newest.id, middle.id])
-      assert VolumeAffinities.resident_account_ids("mac-01", 1) == MapSet.new([newest.id])
-      assert VolumeAffinities.resident_account_ids("mac-01", 3) == MapSet.new([newest.id, middle.id, oldest.id])
+      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42])
     end
 
-    test "a non-positive limit disables the preference rather than unbounding it" do
-      account = account_fixture()
-      VolumeAffinities.record("mac-01", account.id)
+    test "ignores a cache-master label whose suffix is not an account id" do
+      stub(K8sClient, :get_node, fn "mac-01" ->
+        node_with_masters([42], %{"tuist.dev/cache-master-not-an-id" => "true"})
+      end)
 
-      assert VolumeAffinities.resident_account_ids("mac-01", 0) == MapSet.new()
-      assert VolumeAffinities.resident_account_ids("mac-01", -1) == MapSet.new()
+      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new([42])
+    end
+
+    test "returns an empty set when the node is unreadable" do
+      # Degrades to no preference rather than failing dispatch: a host we cannot
+      # read is simply handed plain oldest-queued work.
+      stub(K8sClient, :get_node, fn _ -> {:error, :not_found} end)
+
+      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
+    end
+
+    test "returns an empty set without node identity" do
+      reject(&K8sClient.get_node/1)
+
+      assert VolumeAffinities.resident_account_ids(nil) == MapSet.new()
+      assert VolumeAffinities.resident_account_ids("") == MapSet.new()
+    end
+
+    test "returns an empty set for a host advertising no masters" do
+      stub(K8sClient, :get_node, fn _ -> node_with_masters([]) end)
+
+      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
     end
   end
 
   describe "select_candidate/3" do
     setup do
-      %{account: account_fixture(), other: account_fixture()}
+      %{account: 4242, other: 7777}
+    end
+
+    defp stub_residency(account_ids) do
+      stub(K8sClient, :get_node, fn _ -> node_with_masters(account_ids) end)
     end
 
     test "returns nil for no candidates" do
@@ -98,9 +92,10 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
     end
 
     test "returns the head when the node holds no masters", %{account: account, other: other} do
+      stub_residency([])
       now = DateTime.utc_now()
-      head = %{account_id: other.id, enqueued_at: now}
-      resident = %{account_id: account.id, enqueued_at: DateTime.add(now, 5, :second)}
+      head = %{account_id: other, enqueued_at: now}
+      resident = %{account_id: account, enqueued_at: DateTime.add(now, 5, :second)}
 
       assert VolumeAffinities.select_candidate([head, resident], "mac-01", tolerance_seconds: 30) ==
                {head, :no_residency}
@@ -110,39 +105,34 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       account: account,
       other: other
     } do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
-      head = %{account_id: other.id, enqueued_at: now}
-      resident = %{account_id: account.id, enqueued_at: DateTime.add(now, 10, :second)}
+      head = %{account_id: other, enqueued_at: now}
+      resident = %{account_id: account, enqueued_at: DateTime.add(now, 10, :second)}
 
       assert VolumeAffinities.select_candidate([head, resident], "mac-01", tolerance_seconds: 30) ==
                {resident, :resident}
     end
 
-    test "does not prefer an account the node has evicted", %{account: account, other: other} do
-      evicted = account_fixture()
+    test "does not prefer an account whose master the host has evicted", %{account: account, other: other} do
+      evicted = 999
 
-      record_at("mac-01", evicted, 300)
-      record_at("mac-01", account, 200)
-      record_at("mac-01", other, 100)
-
+      # The host advertises what is on disk, so an evicted master simply stops
+      # appearing. This is the case a dispatch-history model could not see: the
+      # account may well have run here most recently.
+      stub_residency([account, other])
       now = DateTime.utc_now()
-      head = %{account_id: account.id, enqueued_at: now}
-      evicted_candidate = %{account_id: evicted.id, enqueued_at: DateTime.add(now, 5, :second)}
+      head = %{account_id: account, enqueued_at: now}
+      evicted_candidate = %{account_id: evicted, enqueued_at: DateTime.add(now, 5, :second)}
 
-      # `evicted` ran here least recently, so at a bound of 2 its master is
-      # gone; the queue must not be reordered for it. The head's own account is
-      # still resident, so this dispatch is warm anyway.
-      assert VolumeAffinities.select_candidate([head, evicted_candidate], "mac-01",
-               tolerance_seconds: 30,
-               resident_limit: 2
-             ) == {head, :head_resident}
+      assert VolumeAffinities.select_candidate([head, evicted_candidate], "mac-01", tolerance_seconds: 30) ==
+               {head, :head_resident}
     end
 
     test "reports when nothing queued matches the node's masters", %{account: account, other: other} do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
-      head = %{account_id: other.id, enqueued_at: now}
+      head = %{account_id: other, enqueued_at: now}
 
       assert VolumeAffinities.select_candidate([head], "mac-01", tolerance_seconds: 30) ==
                {head, :no_resident_candidate}
@@ -150,12 +140,12 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
     test "affinity wins regardless of the enqueue gap to the head, as long as the head is fresh",
          %{account: account, other: other} do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
       # Far newer than the head, but the head itself has waited ~0s, so the
       # bound is on head age (from now), not the candidate-vs-head gap.
-      head = %{account_id: other.id, enqueued_at: now}
-      resident = %{account_id: account.id, enqueued_at: DateTime.add(now, 300, :second)}
+      head = %{account_id: other, enqueued_at: now}
+      resident = %{account_id: account, enqueued_at: DateTime.add(now, 300, :second)}
 
       assert VolumeAffinities.select_candidate([head, resident], "mac-01", tolerance_seconds: 30) ==
                {resident, :resident}
@@ -165,14 +155,14 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       account: account,
       other: other
     } do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
       # Head was enqueued 60s ago, exceeding the 30s tolerance: it must be
       # handed out now even though a resident candidate exists. This is the
       # burst-starvation bound — a run of resident jobs can't pass the head
       # over indefinitely, because the head's own age caps the delay.
-      head = %{account_id: other.id, enqueued_at: DateTime.add(now, -60, :second)}
-      resident = %{account_id: account.id, enqueued_at: DateTime.add(now, -50, :second)}
+      head = %{account_id: other, enqueued_at: DateTime.add(now, -60, :second)}
+      resident = %{account_id: account, enqueued_at: DateTime.add(now, -50, :second)}
 
       assert VolumeAffinities.select_candidate([head, resident], "mac-01", tolerance_seconds: 30) ==
                {head, :head_overdue}
@@ -182,12 +172,12 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       account: account,
       other: other
     } do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
       # Overdue, but there was no resident candidate to give up, so the bound
       # cost nothing. Reporting :head_overdue here would overstate what the
       # tolerance is costing and push it to be raised for no gain.
-      head = %{account_id: other.id, enqueued_at: DateTime.add(now, -60, :second)}
+      head = %{account_id: other, enqueued_at: DateTime.add(now, -60, :second)}
 
       assert VolumeAffinities.select_candidate([head], "mac-01", tolerance_seconds: 30) ==
                {head, :no_resident_candidate}
@@ -197,42 +187,26 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       account: account,
       other: other
     } do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
-      head = %{account_id: other.id, enqueued_at: DateTime.add(now, -31, :second)}
+      head = %{account_id: other, enqueued_at: DateTime.add(now, -31, :second)}
 
       residents =
-        for offset <- 1..20, do: %{account_id: account.id, enqueued_at: DateTime.add(now, -30 + offset, :second)}
+        for offset <- 1..20, do: %{account_id: account, enqueued_at: DateTime.add(now, -30 + offset, :second)}
 
       assert {^head, :head_overdue} =
                VolumeAffinities.select_candidate([head | residents], "mac-01", tolerance_seconds: 30)
     end
 
     test "returns the oldest resident candidate when several are resident", %{account: account} do
-      VolumeAffinities.record("mac-01", account.id)
+      stub_residency([account])
       now = DateTime.utc_now()
       # head is resident too; oldest wins.
-      head = %{account_id: account.id, enqueued_at: now}
-      newer_resident = %{account_id: account.id, enqueued_at: DateTime.add(now, 5, :second)}
+      head = %{account_id: account, enqueued_at: now}
+      newer_resident = %{account_id: account, enqueued_at: DateTime.add(now, 5, :second)}
 
       assert VolumeAffinities.select_candidate([head, newer_resident], "mac-01", tolerance_seconds: 30) ==
                {head, :head_resident}
-    end
-  end
-
-  describe "prune/1" do
-    test "deletes rows older than the retention window" do
-      account = account_fixture()
-      VolumeAffinities.record("mac-01", account.id)
-
-      # Nothing to prune yet.
-      assert VolumeAffinities.prune() == 0
-      assert MapSet.member?(VolumeAffinities.resident_account_ids("mac-01"), account.id)
-
-      # A negative retention pushes the cutoff into the future, so the
-      # just-written row falls outside the window and is pruned.
-      assert VolumeAffinities.prune(-1) == 1
-      assert VolumeAffinities.resident_account_ids("mac-01") == MapSet.new()
     end
   end
 end
