@@ -20,11 +20,6 @@ public protocol CacheTokenStoring: Sendable {
 /// round-trip on every authorization that misses the node's own cache. A cache
 /// token carries its grants instead, so the node answers from the token alone.
 public actor CacheTokenStore: CacheTokenStoring {
-    private struct Entry {
-        let token: String
-        let expiresAt: Date
-    }
-
     /// Refresh ahead of expiry so a token does not lapse mid-request.
     private static let expiryMargin: TimeInterval = 60
 
@@ -40,9 +35,11 @@ public actor CacheTokenStore: CacheTokenStoring {
     public static let shared = CacheTokenStore()
 
     private let getCacheTokenService: GetCacheTokenServicing
+    private let cachedValueStore: CachedValueStoring
     private let now: @Sendable () -> Date
-    private var entries: [String: Entry] = [:]
-    private var exchanges: [String: Task<CacheToken?, Never>] = [:]
+
+    /// Failures are held here rather than in the value store, which does not
+    /// memoize an absent result by design.
     private var retryAfter: [String: Date] = [:]
 
     public init() {
@@ -51,61 +48,48 @@ public actor CacheTokenStore: CacheTokenStoring {
 
     init(
         getCacheTokenService: GetCacheTokenServicing,
+        cachedValueStore: CachedValueStoring = CachedValueStore.current,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.getCacheTokenService = getCacheTokenService
+        self.cachedValueStore = cachedValueStore
         self.now = now
     }
 
     public func cacheToken(authenticationURL: URL, fullHandle: String?) async -> String? {
-        let key = "\(authenticationURL.absoluteString)|\(fullHandle ?? "")"
-
-        if let entry = entries[key], entry.expiresAt > now() {
-            return entry.token
-        }
+        let key = "cache-token-\(authenticationURL.absoluteString)-\(fullHandle ?? "")"
 
         if let retryAfter = retryAfter[key], retryAfter > now() {
             return nil
         }
 
-        // A build issues many cache requests at once, so without this they would
-        // each start their own exchange while the first one is still in flight.
-        if let exchange = exchanges[key] {
-            return await exchange.value?.token
-        }
-
-        let exchange = Task<CacheToken?, Never> { [getCacheTokenService] in
-            do {
-                return try await getCacheTokenService.getCacheToken(
+        do {
+            // The store holds the token until shortly before it expires and
+            // collapses the concurrent callers a build produces onto one
+            // exchange, so this only reaches the server when there is nothing
+            // live to reuse.
+            let token: String? = try await cachedValueStore.getValue(key: key) { [getCacheTokenService] in
+                let cacheToken = try await getCacheTokenService.getCacheToken(
                     serverURL: authenticationURL,
                     fullHandle: fullHandle
                 )
-            } catch {
-                // Cache nodes still accept the original credential, so a server
-                // that cannot mint one (an older self-hosted deployment, for
-                // example) leaves cache access working exactly as before.
-                Logger.current
-                    .debug("Using the original credential for cache requests: \(error)")
-                return nil
+                return (
+                    value: cacheToken.token,
+                    expiresAt: Date().addingTimeInterval(
+                        max(TimeInterval(cacheToken.expiresIn) - Self.expiryMargin, 0)
+                    )
+                )
             }
-        }
-        exchanges[key] = exchange
-
-        let cacheToken = await exchange.value
-        exchanges[key] = nil
-
-        guard let cacheToken else {
+            retryAfter[key] = nil
+            return token
+        } catch {
+            // Cache nodes still accept the original credential, so a server
+            // that cannot mint one (an older self-hosted deployment, for
+            // example) leaves cache access working exactly as before.
+            Logger.current
+                .debug("Using the original credential for cache requests: \(error)")
             retryAfter[key] = now().addingTimeInterval(Self.retryCooldown)
             return nil
         }
-
-        retryAfter[key] = nil
-        entries[key] = Entry(
-            token: cacheToken.token,
-            expiresAt: now().addingTimeInterval(
-                max(TimeInterval(cacheToken.expiresIn) - Self.expiryMargin, 0)
-            )
-        )
-        return cacheToken.token
     }
 }

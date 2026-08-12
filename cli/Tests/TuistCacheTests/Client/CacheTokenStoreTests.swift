@@ -15,7 +15,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 1800))
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         let token = await subject.cacheToken(
@@ -35,7 +38,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 1800))
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         for _ in 0 ..< 5 {
@@ -59,7 +65,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
             .willReturn(CacheToken(token: "cache-token", expiresIn: 10))
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         _ = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
@@ -80,7 +89,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .value("acme/android"))
             .willReturn(CacheToken(token: "android-token", expiresIn: 1800))
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         let ios = await subject.cacheToken(authenticationURL: authenticationURL, fullHandle: "acme/ios")
@@ -97,7 +109,10 @@ struct CacheTokenStoreTests {
     @Test func coalesces_concurrent_exchanges_into_one() async throws {
         // Given
         let service = SlowCacheTokenService()
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         let tokens = await withTaskGroup(of: String?.self) { group in
@@ -127,7 +142,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
             .willThrow(UnavailableError())
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         let token = await subject.cacheToken(
@@ -149,7 +167,10 @@ struct CacheTokenStoreTests {
         given(service)
             .getCacheToken(serverURL: .any, fullHandle: .any)
             .willThrow(UnavailableError())
-        let subject = CacheTokenStore(getCacheTokenService: service)
+        let subject = CacheTokenStore(
+            getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
 
         // When
         var tokens: [String?] = []
@@ -178,6 +199,7 @@ struct CacheTokenStoreTests {
         let clock = MutableClock(Date())
         let subject = CacheTokenStore(
             getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess),
             now: { clock.now }
         )
 
@@ -201,6 +223,7 @@ struct CacheTokenStoreTests {
         let clock = MutableClock(Date())
         let subject = CacheTokenStore(
             getCacheTokenService: service,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess),
             now: { clock.now }
         )
 
@@ -211,9 +234,9 @@ struct CacheTokenStoreTests {
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
         )
-        // Past the token's lifetime, so this needs a fresh exchange rather than
-        // the cooldown left behind by the first failure.
-        clock.advance(by: 1800)
+        // The token it hands back is already past the refresh margin, so this
+        // needs a fresh exchange and would be blocked by a cooldown the earlier
+        // failure left behind.
         let refreshed = await subject.cacheToken(
             authenticationURL: authenticationURL,
             fullHandle: "acme/ios"
@@ -248,10 +271,12 @@ private actor FlakyCacheTokenService: GetCacheTokenServicing {
 
     private(set) var callCount = 0
 
+    /// Short enough that the refresh margin makes every token it mints already
+    /// stale, so a caller that is not held back by a cooldown exchanges again.
     func getCacheToken(serverURL _: URL, fullHandle _: String?) async throws -> CacheToken {
         callCount += 1
         if callCount == 1 { throw UnavailableError() }
-        return CacheToken(token: "cache-token", expiresIn: 1800)
+        return CacheToken(token: "cache-token", expiresIn: 10)
     }
 }
 
