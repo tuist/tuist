@@ -1468,7 +1468,8 @@ sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #     1200 = 1280 - 40 (TCP/IP headers) with margin.
 #   - Private Network: VM -> PN subnet via the macOS VLAN
 #     interface (installVMCachePNInterface). No clamp: the VLAN
-#     runs at the same 1500 MTU as vmnet.
+#     runs at the same 1500 MTU as vmnet. Emitted whenever the VLAN
+#     device exists, addressed or not — see the leg below for why.
 #   - General internet: VM -> public internet via the default-route
 #     NIC. vmnet/InternetSharing is *supposed* to own this leg, but on
 #     2026-06-26 its en0 NAT silently stopped translating after heavy
@@ -1505,8 +1506,20 @@ if [ -n "$PNCIDR" ]; then
   # NAT was silently skipped — VM traffic then egressed with its 192.168.64.x
   # source, which the kura node can neither reply to nor admit past its
   # NetworkPolicy. Pick the interface directly: the bootstrap creates exactly
-  # one PN VLAN (networksetup -createVLAN pn en0), so it is the vlan* device
-  # holding an inet address; skip until DHCP lands one (StartInterval re-runs).
+  # one PN VLAN (networksetup -createVLAN pn en0), so it is the vlan* device.
+  #
+  # Key on the device EXISTING, not on it already holding an inet address.
+  # Requiring an address made the leg disappear from the ruleset for as long as
+  # DHCP had not landed, and a VM that booted into that ruleset ran its whole
+  # job un-NAT'd: its packets still reached the kura node once the address (and
+  # with it the route) arrived, but with a 192.168.64.x source the per-instance
+  # NetworkPolicy admits http only from ipBlock 172.16.0.0/22, so Cilium
+  # dropped them at ingress with no RST and every cache request hung until its
+  # client-side timeout. '-> ($PNIF)' is a DYNAMIC interface reference: pf
+  # re-resolves the address as it changes, so emitting the rule before DHCP
+  # lands is correct and the leg simply starts translating when the address
+  # arrives. Prefer an addressed vlan when several exist, so a leftover from a
+  # re-attachment can't win over the live one.
   PNIF=""
   for IFACE in $(ifconfig -l 2>/dev/null); do
     case "$IFACE" in
@@ -1515,11 +1528,17 @@ if [ -n "$PNCIDR" ]; then
           PNIF="$IFACE"
           break
         fi
+        [ -n "$PNIF" ] || PNIF="$IFACE"
         ;;
     esac
   done
   if [ -n "$PNIF" ]; then
     RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+  else
+    # No PN VLAN at all: installVMCachePNInterface has not run or the
+    # attachment is gone. Nothing here can translate cache traffic, so say so
+    # in the daemon log rather than leaving a silent cache-less host.
+    echo "tuist-pf-vmnat: no vlan* interface for PN $PNCIDR; VM cache traffic will not be NAT'd" >&2
   fi
 fi
 # General internet leg (see header): NAT VM egress on the default
@@ -1530,7 +1549,17 @@ fi
 # first-match and interface-scoped, so this never shadows them).
 DEFIF=$(route -n get default 2>/dev/null | awk '/interface/{print $2}')
 if [ -n "$DEFIF" ]; then
-  RULES="${RULES}nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)${NL}"
+  # Carve the PN out of this leg's destination. While the PN route is absent
+  # (VLAN down, lease not yet landed) cache traffic falls back to the default
+  # route, and "to any" would masquerade it to the host's PUBLIC address — an
+  # RFC1918 destination leaving on the public NIC, which upstream drops, and
+  # which on any path that does reach the kura node presents a source outside
+  # 172.16.0.0/22 that its NetworkPolicy denies. Either way the build hangs
+  # with no signal. Excluding the PN keeps cache traffic on the PN leg or
+  # nowhere, never silently mis-sourced.
+  DEFDST="any"
+  [ -n "$PNCIDR" ] && DEFDST="! $PNCIDR"
+  RULES="${RULES}nat on $DEFIF from 192.168.64.0/22 to $DEFDST -> ($DEFIF)${NL}"
 fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within
