@@ -412,6 +412,22 @@ export const DitherTexture = {
       if (this.dprQuery) this.dprQuery.query.removeEventListener("change", this.dprQuery.onChange);
     });
 
+    // Only instances near the viewport render. Several of these WebGL
+    // canvases tick simultaneously, and Firefox in particular struggles when
+    // many contexts composite on the same frame — offscreen ones contribute
+    // nothing anyway. The margin starts them slightly before they scroll in,
+    // and re-entry repaints immediately so the first visible frame is fresh.
+    this.inView = false;
+    this.viewObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) this.inView = entry.isIntersecting;
+        if (this.inView) this.render(performance.now());
+      },
+      { rootMargin: "160px" },
+    );
+    this.viewObserver.observe(this.canvas);
+    this.cleanups.push(() => this.viewObserver.disconnect());
+
     if (!this.reduced) {
       // Quantized clock: the field only advances on discrete ticks, so the
       // animation steps frame-by-frame like pixel art instead of gliding. The
@@ -421,6 +437,7 @@ export const DitherTexture = {
       this.lastTick = -1;
       const tick = (now) => {
         this.raf = requestAnimationFrame(tick);
+        if (!this.inView) return;
         // Skip work while hidden (e.g. the dropdown is closed).
         if (this.canvas.checkVisibility && !this.canvas.checkVisibility()) return;
         const step = Math.floor((now / 1000) * TICK_HZ);
