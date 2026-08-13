@@ -104,14 +104,14 @@
     & > [data-part="copy"] {
       display: inline-grid;
       position: relative;
-      box-sizing: border-box;
       flex-shrink: 0;
       place-items: center;
       align-self: center;
+      box-sizing: border-box;
       border: none;
+      padding: 0;
       width: 32px;
       height: 32px;
-      padding: 0;
       /* Rapid clicks escalate to double/triple-click selection, which would
          otherwise spill onto the code's first line. */
       user-select: none;
@@ -130,26 +130,26 @@
       & [data-part="copy-check-icon"] {
         display: inline-flex;
         grid-area: 1 / 1;
-        opacity: 1;
         transform: scale(1);
+        opacity: 1;
         transition:
           opacity 200ms ease-in-out,
           transform 200ms ease-in-out;
       }
 
       & [data-part="copy-check-icon"] {
-        opacity: 0;
         transform: scale(0.5);
+        opacity: 0;
       }
 
       &[data-copied] [data-part="copy-icon"] {
-        opacity: 0;
         transform: scale(0.5);
+        opacity: 0;
       }
 
       &[data-copied] [data-part="copy-check-icon"] {
-        opacity: 1;
         transform: scale(1);
+        opacity: 1;
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -172,10 +172,10 @@
         background: var(--noora-tooltip-background);
         padding: var(--noora-spacing-2) var(--noora-spacing-3);
         width: max-content;
-        color: var(--noora-tooltip-label-primary);
-        font: var(--noora-font-body-small);
         pointer-events: none;
         content: "Copied";
+        color: var(--noora-tooltip-label-primary);
+        font: var(--noora-font-body-small);
       }
     }
   }

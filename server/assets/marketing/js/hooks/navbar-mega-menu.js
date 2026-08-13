@@ -13,14 +13,14 @@
  */
 export const NavbarMegaMenu = {
   mounted() {
-    this.navbar =
-      this.el.closest("#marketing-navbar") || document.getElementById("marketing-navbar");
+    this.navbar = this.el.closest("#marketing-navbar") || document.getElementById("marketing-navbar");
     this.triggers = [...this.navbar.querySelectorAll("[data-nav-trigger]")];
     this.order = this.triggers.map((t) => t.dataset.navTrigger);
     this.contents = new Map(
-      [...this.el.querySelectorAll(':scope > [data-part="panel"] > [data-part="content"]')].map(
-        (el) => [el.dataset.dropdown, el]
-      )
+      [...this.el.querySelectorAll(':scope > [data-part="panel"] > [data-part="content"]')].map((el) => [
+        el.dataset.dropdown,
+        el,
+      ]),
     );
     this.active = null;
     // A click-opened panel is pinned: hover-out reasons can't close it (so
@@ -57,9 +57,7 @@ export const NavbarMegaMenu = {
     // Hovering a plain menu link (Pricing, Blog), the logo, or the actions
     // cluster closes the panel — those signal the user has left the menu.
     const closers = [
-      ...this.navbar.querySelectorAll(
-        '[data-part="menus"] [data-part="action"]:not([data-nav-trigger])'
-      ),
+      ...this.navbar.querySelectorAll('[data-part="menus"] [data-part="action"]:not([data-nav-trigger])'),
       this.navbar.querySelector('[data-part="bar"] > [data-part="tuist"]'),
       this.navbar.querySelector('[data-part="bar"] > [data-part="actions"]'),
     ].filter(Boolean);
