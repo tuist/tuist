@@ -422,11 +422,12 @@ defmodule Tuist.Application do
 
   # Runtime Open Graph image rendering (headless-browser pool + its task
   # supervisor) backs the marketing/docs site, which only the hosted service
-  # serves. On-premise instances do not need it, so it is started only when
-  # hosted or in local dev (where the marketing site is developed), and only
-  # in web mode — see `RuntimeChildren.open_graph_image_renderer/1`.
+  # serves. The pool eagerly warms Chrome instances that each hold a temporary
+  # user-data directory, so it is started only when hosted, and only in web
+  # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
+  # render/2 falls back to libvips.
   defp open_graph_image_children do
-    if Environment.tuist_hosted?() or Environment.dev?() do
+    if Environment.tuist_hosted?() do
       RuntimeChildren.open_graph_image_renderer(Environment.mode())
     else
       []
