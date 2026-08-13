@@ -559,7 +559,79 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert DateTime.compare(Repo.reload!(session).ended_at, accurate_close) == :eq
     end
 
-    test "close_pod_missing/3 rejects a handle that no longer matches" do
+    test "close_pod_missing/4 closes at the job's real completion when one was resolved" do
+      # Closing at the clamp would bill six hours for a job that ran for
+      # five minutes; closing at `now` would bill the reaper's own
+      # detection delay. Neither is what the customer used.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -1800, :second)
+      completed_at = DateTime.add(started_at, 300, :second)
+      missing_since = DateTime.add(now, -600, :second)
+
+      session = session_fixture(account, pod_name: "pod-real-end", started_at: started_at)
+      RunnerSessions.mark_pods_missing([session.id], missing_since)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: completed_at)
+      assert DateTime.compare(Repo.reload!(session).ended_at, completed_at) == :eq
+    end
+
+    test "close_pod_missing/4 never lets a late completion extend past now" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      missing_since = DateTime.add(now, -600, :second)
+      bogus_future = DateTime.add(now, 3600, :second)
+
+      session =
+        session_fixture(account,
+          pod_name: "pod-future-completion",
+          started_at: DateTime.add(now, -1800, :second)
+        )
+
+      RunnerSessions.mark_pods_missing([session.id], missing_since)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: bogus_future)
+      assert DateTime.compare(Repo.reload!(session).ended_at, now) == :eq
+    end
+
+    test "close_pod_missing/4 still honours the six-hour bound" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -3 * 24 * 3600, :second)
+      # A job GitHub reported as running for a day: the safety bound
+      # outranks it, same as it does for the no-completion path.
+      completed_at = DateTime.add(started_at, 24 * 3600, :second)
+      missing_since = DateTime.add(now, -600, :second)
+
+      session = session_fixture(account, pod_name: "pod-overlong", started_at: started_at)
+      RunnerSessions.mark_pods_missing([session.id], missing_since)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: completed_at)
+
+      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
+      assert DateTime.compare(Repo.reload!(session).ended_at, expected) == :eq
+    end
+
+    test "close_pod_missing/4 floors an inverted interval at started_at" do
+      # GitHub's clock and ours can disagree. Writing a completion that
+      # precedes `started_at` would give the billing query negative time.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -1800, :second)
+      skewed = DateTime.add(started_at, -120, :second)
+      missing_since = DateTime.add(now, -600, :second)
+
+      session = session_fixture(account, pod_name: "pod-clock-skew", started_at: started_at)
+      RunnerSessions.mark_pods_missing([session.id], missing_since)
+
+      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: skewed)
+
+      ended_at = Repo.reload!(session).ended_at
+      assert DateTime.compare(ended_at, started_at) == :eq
+      assert DateTime.compare(ended_at, session.started_at) != :lt
+    end
+
+    test "close_pod_missing/4 rejects a handle that no longer matches" do
       account = account_fixture()
       now = DateTime.utc_now()
       session = session_fixture(account, pod_name: "pod-recovered")

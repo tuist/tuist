@@ -601,6 +601,45 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Terminal completion timestamps for `workflow_job_ids`, as
+  `%{workflow_job_id => completed_at}`.
+
+  A job appears only when its *latest* state is `completed` **and** its
+  `completed_at` is non-NULL. Both predicates carry weight for the
+  caller, `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker`:
+
+    * `completed_at` is when the runner's work actually finished, which
+      is the honest close for a session whose Pod-stopped report was
+      lost. Without it the reaper can only fall back to the six-hour
+      billing clamp.
+    * The status check is what stops a stale completion from closing a
+      session belonging to a live re-claim. A retry inserts a *new*
+      `runner_sessions` row per claim while this table is keyed on
+      `workflow_job_id` alone, so a job that went `completed` and then
+      back to `queued` → `running` must not hand its old completion to
+      the Pod running it now.
+
+  Uses the `argMax(col, updated_at) GROUP BY workflow_job_id` pattern
+  this module documents rather than `FINAL` — same logical view, no
+  per-read part merge. The caller passes a bounded id list, which the
+  table's `ORDER BY (workflow_job_id)` serves off the primary index.
+  """
+  def terminal_completions([]), do: %{}
+
+  def terminal_completions(workflow_job_ids) when is_list(workflow_job_ids) do
+    from(j in Job,
+      where: j.workflow_job_id in ^workflow_job_ids,
+      group_by: j.workflow_job_id,
+      having:
+        fragment("argMax(?, ?)", j.status, j.updated_at) == "completed" and
+          not is_nil(fragment("argMax(?, ?)", j.completed_at, j.updated_at)),
+      select: {j.workflow_job_id, fragment("argMax(?, ?)", j.completed_at, j.updated_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Stamps the job row with the time its gzipped log archive landed in
   S3 (or clears it when the archive has been pruned). State-transition
   INSERT, carrying all other columns forward.

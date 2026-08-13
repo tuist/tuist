@@ -362,14 +362,27 @@ defmodule Tuist.Runners.RunnerSessions do
 
   The limit bounds a wrong-but-plausible cluster read that survives the
   caller's guards, and gives the first run after a long leak a bounded
-  amount of work per tick instead of one enormous transaction.
+  amount of work per tick instead of one enormous transaction. It also
+  bounds the single ClickHouse lookup the caller makes to resolve these
+  sessions' real end times.
+
+  Both job ids come back because either can carry the completion:
+  `executed_workflow_job_id` is what GitHub proved ran on the runner,
+  `workflow_job_id` is what the claim was minted for, and a runner
+  handed a sibling's job has them differ.
   """
   def list_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
     RunnerSession
     |> where([s], is_nil(s.ended_at) and not is_nil(s.pod_missing_since) and s.pod_missing_since < ^confirmed_before)
     |> order_by([s], asc: s.pod_missing_since)
     |> limit(^limit)
-    |> select([s], %{id: s.id, pod_name: s.pod_name, pod_missing_since: s.pod_missing_since})
+    |> select([s], %{
+      id: s.id,
+      pod_name: s.pod_name,
+      pod_missing_since: s.pod_missing_since,
+      workflow_job_id: s.workflow_job_id,
+      executed_workflow_job_id: s.executed_workflow_job_id
+    })
     |> Repo.all()
   end
 
@@ -382,34 +395,70 @@ defmodule Tuist.Runners.RunnerSessions do
   sets `ended_at` and the row no longer matches `is_nil(ended_at)`, so
   the accurate timestamp wins over this estimate.
 
-  `ended_at` is `LEAST(now, started_at + max_session_lifetime)` — the
-  exact instant the billing query already clamps an open session to. The
-  close is therefore billing-neutral for a long-leaked row, and for a
-  fresh orphan it over-states the window by at most one reaper tick,
-  which is the only bound still provable once the Pod is gone.
+  ## Which `ended_at` gets written
+
+  With `:completed_at` — the terminal completion the caller resolved
+  from ClickHouse — the write is
+  `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`.
+  That is the runner's real end: the Pod stopped because its job
+  finished, so the customer is billed for the work rather than for how
+  long the reaper took to notice. `LEAST` against `now` keeps the
+  under-bill bias, so a late or bogus completion can never extend the
+  window; `GREATEST` against `started_at` floors it, because GitHub and
+  Postgres clocks can disagree and a `completed_at` before `started_at`
+  would otherwise write an inverted interval the billing query reads as
+  negative time.
+
+  Without it — the job never reached a terminal state, or ClickHouse was
+  unavailable — the write falls back to
+  `LEAST(now, started_at + max_session_lifetime)`, the exact instant the
+  billing query already clamps an open session to. That is
+  billing-neutral for a long-leaked row and the conservative answer when
+  we have no evidence of a real end.
 
   Returns `:ok` when the row was closed, `{:error, :stale_session}` when
   it no longer matches.
   """
-  def close_pod_missing(id, %DateTime{} = pod_missing_since, %DateTime{} = now) when is_integer(id) do
+  def close_pod_missing(id, %DateTime{} = pod_missing_since, %DateTime{} = now, opts \\ []) when is_integer(id) do
     {count, _} =
       RunnerSession
       |> where([s], s.id == ^id and is_nil(s.ended_at) and s.pod_missing_since == ^pod_missing_since)
-      |> update([s],
-        set: [
-          ended_at:
-            fragment(
-              "LEAST(?, ? + make_interval(secs => ?))",
-              ^now,
-              s.started_at,
-              ^Billing.max_session_lifetime_seconds()
-            ),
-          updated_at: ^DateTime.truncate(now, :second)
-        ]
-      )
+      |> orphan_close_update(Keyword.get(opts, :completed_at), now)
       |> Repo.update_all([])
 
     if count == 1, do: :ok, else: {:error, :stale_session}
+  end
+
+  defp orphan_close_update(query, nil, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "LEAST(?, ? + make_interval(secs => ?))",
+            ^now,
+            s.started_at,
+            ^Billing.max_session_lifetime_seconds()
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
+  end
+
+  defp orphan_close_update(query, %DateTime{} = completed_at, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "GREATEST(?, LEAST(?, ?, ? + make_interval(secs => ?)))",
+            s.started_at,
+            ^completed_at,
+            ^now,
+            s.started_at,
+            ^Billing.max_session_lifetime_seconds()
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
   end
 
   @doc """

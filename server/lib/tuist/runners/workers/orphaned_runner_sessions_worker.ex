@@ -48,26 +48,37 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
     5. **Bounded blast radius.** At most `@max_closes_per_tick` per run,
        with the overflow reported rather than silently trickled.
 
-  ## Why `ended_at` is the billing clamp
+  ## Which `ended_at` gets written
 
-  `RunnerSessions.close_pod_missing/3` writes
-  `LEAST(now, started_at + max_session_lifetime)` — the instant
-  `Tuist.Runners.Billing` was already clamping the open row to. The close
-  is therefore billing-neutral and only changes what the autoscaler sees.
-  It also means the backlog of already-leaked rows can be drained by this
-  worker rather than by a one-off script: each one closes at the bound it
-  was already charged against.
+  Closing at the six-hour billing clamp would fix capacity and leave the
+  invoice wrong. The clamp is what an unclosed row was *already* being
+  charged against, so draining the backlog there is a no-op on billing:
+  one account's month-to-date orphans would settle at roughly 36,000
+  minutes against about 1,400 minutes of real work. A fresh orphan is
+  wrong the other way — it would bill a floor of
+  `@grace_seconds + @confirm_seconds` whether the job ran for two hours
+  or ninety seconds.
 
-  For a fresh orphan the same expression resolves to `now`, overstating
-  the window by at most one tick. That is the only bound still provable
-  once the Pod is gone, and it errs in the direction that cannot
-  under-bill a customer who really did hold a runner.
+  So each tick resolves the batch against `Jobs.terminal_completions/1`
+  first: one ClickHouse query, bounded by `@max_closes_per_tick`,
+  returning `completed_at` for the jobs whose latest state is terminal.
+  A session that resolves closes at its job's real completion;
+  everything else closes at the clamp, which stays the right
+  conservative answer when there is no evidence of a real end.
+
+  Both directions are bounded — see
+  `RunnerSessions.close_pod_missing/4` for why the write is
+  `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`
+  rather than the completion alone. A ClickHouse failure degrades the
+  whole batch to the clamp, so the capacity fix never waits on the
+  billing refinement.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
 
@@ -173,10 +184,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
     confirmed_before = DateTime.add(now, -@confirm_seconds, :second)
     eligible = RunnerSessions.count_pods_missing_since(confirmed_before)
 
-    closed =
-      confirmed_before
-      |> RunnerSessions.list_pods_missing_since(@max_closes_per_tick)
-      |> Enum.filter(&(RunnerSessions.close_pod_missing(&1.id, &1.pod_missing_since, now) == :ok))
+    candidates = RunnerSessions.list_pods_missing_since(confirmed_before, @max_closes_per_tick)
+    completions = fetch_terminal_completions(candidates)
+
+    closed = Enum.filter(candidates, &close_one(&1, completions, now))
 
     count = length(closed)
 
@@ -206,6 +217,43 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
     end
 
     count
+  end
+
+  defp close_one(session, completions, now) do
+    RunnerSessions.close_pod_missing(session.id, session.pod_missing_since, now,
+      completed_at: completed_at_for(session, completions)
+    ) == :ok
+  end
+
+  # `executed_workflow_job_id` outranks the claim-time `workflow_job_id`:
+  # a runner can be handed a sibling's job, and it is the job GitHub
+  # actually ran — the one whose completion released the Pod — that
+  # dates the session's end. `nil` falls through both lookups and the
+  # close reverts to the billing clamp.
+  defp completed_at_for(session, completions) do
+    Map.get(completions, session.executed_workflow_job_id) ||
+      Map.get(completions, session.workflow_job_id)
+  end
+
+  # One ClickHouse query per tick, bounded by `@max_closes_per_tick`.
+  # A failure here must not block the capacity fix, so it degrades to an
+  # empty map and every session in the batch closes at the billing clamp
+  # exactly as it would have before completions were consulted.
+  defp fetch_terminal_completions([]), do: %{}
+
+  defp fetch_terminal_completions(candidates) do
+    candidates
+    |> Enum.flat_map(&[&1.executed_workflow_job_id, &1.workflow_job_id])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Jobs.terminal_completions()
+  rescue
+    e ->
+      Logger.warning("runners: terminal completion lookup failed; closing at the billing clamp",
+        ch_error: Exception.message(e)
+      )
+
+      %{}
   end
 
   defp observed_pod_names do

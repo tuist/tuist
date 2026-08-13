@@ -1286,4 +1286,67 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
     end
   end
+
+  describe "terminal_completions/1" do
+    test "returns completed_at for jobs whose latest state is terminal" do
+      account = account_fixture()
+      completed_at = ~U[2026-08-12 09:15:00.000000Z]
+
+      completed_job_fixture(account, 78_001, completed_at: completed_at)
+
+      assert %{78_001 => returned} = Jobs.terminal_completions([78_001])
+      assert DateTime.compare(returned, completed_at) == :eq
+    end
+
+    test "returns an empty map for an empty id list" do
+      assert Jobs.terminal_completions([]) == %{}
+    end
+
+    test "omits ids with no row at all" do
+      assert Jobs.terminal_completions([78_002]) == %{}
+    end
+
+    test "omits a job that was re-queued after completing" do
+      # The guard that matters for the reaper: a retry inserts a new
+      # `runner_sessions` row per claim while `runner_jobs` is keyed on
+      # workflow_job_id alone, so handing the old completion to the Pod
+      # running now would close a live session in the past.
+      account = account_fixture()
+
+      completed_job_fixture(account, 78_003, completed_at: ~U[2026-08-12 09:15:00.000000Z])
+      :ok = Jobs.record_queued(78_003)
+
+      assert Jobs.terminal_completions([78_003]) == %{}
+    end
+
+    test "omits a job that never reached a terminal state" do
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 78_004,
+          account_id: account.id,
+          fleet_name: "fleet-a",
+          repository: "acme/cli",
+          workflow_run_id: 780_040,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      assert Jobs.terminal_completions([78_004]) == %{}
+    end
+
+    test "resolves a batch, returning only the terminal members" do
+      account = account_fixture()
+      completed_at = ~U[2026-08-12 09:15:00.000000Z]
+
+      completed_job_fixture(account, 78_005, completed_at: completed_at)
+      completed_job_fixture(account, 78_006, completed_at: completed_at)
+      :ok = Jobs.record_queued(78_006)
+
+      assert [78_005] == [78_005, 78_006, 78_007] |> Jobs.terminal_completions() |> Map.keys()
+    end
+  end
 end

@@ -4,9 +4,12 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.IngestRepo
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Billing
+  alias Tuist.Runners.Job
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.OrphanedRunnerSessionsWorker
@@ -29,7 +32,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
     session =
       Repo.insert!(%RunnerSession{
         account_id: account.id,
-        workflow_job_id: System.unique_integer([:positive]),
+        workflow_job_id: Keyword.get_lazy(opts, :workflow_job_id, fn -> System.unique_integer([:positive]) end),
+        executed_workflow_job_id: Keyword.get(opts, :executed_workflow_job_id),
         fleet_name: Keyword.get(opts, :fleet_name, "fleet-a"),
         pod_name: pod_name,
         runner_name: "",
@@ -46,6 +50,39 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
   end
 
   defp reload(session), do: Repo.reload!(session)
+
+  defp completed_job_fixture(account, workflow_job_id, completed_at) do
+    {1, _} =
+      IngestRepo.insert_all(Job, [
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "fleet-a",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14,
+          repository: "acme/cli",
+          workflow_run_id: workflow_job_id * 10,
+          run_attempt: 1,
+          workflow_name: "CI",
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          status: "completed",
+          conclusion: "success",
+          enqueued_at: completed_at,
+          claimed_at: completed_at,
+          started_at: completed_at,
+          completed_at: completed_at,
+          pod_name: "",
+          runner_name: "",
+          requested_dispatch_label: "",
+          updated_at: completed_at
+        }
+      ])
+
+    :ok
+  end
 
   describe "guards" do
     # Guard 1. A failed read is indistinguishable from every Pod having
@@ -211,6 +248,135 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
 
       assert_received {:recovery, %{count: 1}, %{kind: "orphaned_runner_session"}}
+    end
+  end
+
+  describe "resolving the real end time" do
+    test "closes at the job's completion rather than the clamp" do
+      # This is what keeps the backlog drain from being a no-op on
+      # billing: 90 seconds of real work bills as 90 seconds, not as the
+      # six-hour bound the open row was already charged against.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -5 * 24 * 3600, :second)
+      completed_at = DateTime.add(started_at, 90, :second)
+
+      session =
+        session_fixture(account, "pod-completed",
+          workflow_job_id: 79_001,
+          age_seconds: 5 * 24 * 3600,
+          missing_for_seconds: 400
+        )
+
+      completed_job_fixture(account, 79_001, completed_at)
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
+      assert DateTime.compare(reload(session).ended_at, completed_at) == :eq
+    end
+
+    test "prefers the job GitHub proved ran over the job the claim was minted for" do
+      # A runner handed a sibling's job: the executed job's completion is
+      # what released the Pod, so it dates the session's end.
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -3600, :second)
+      claimed_job_completion = DateTime.add(started_at, 60, :second)
+      executed_job_completion = DateTime.add(started_at, 600, :second)
+
+      session =
+        session_fixture(account, "pod-sibling",
+          workflow_job_id: 79_002,
+          executed_workflow_job_id: 79_003,
+          age_seconds: 3600,
+          missing_for_seconds: 400
+        )
+
+      completed_job_fixture(account, 79_002, claimed_job_completion)
+      completed_job_fixture(account, 79_003, executed_job_completion)
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
+      assert DateTime.compare(reload(session).ended_at, executed_job_completion) == :eq
+    end
+
+    test "falls back to the claim-time job when GitHub never proved an execution" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      started_at = DateTime.add(now, -3600, :second)
+      completed_at = DateTime.add(started_at, 300, :second)
+
+      session =
+        session_fixture(account, "pod-unproven",
+          workflow_job_id: 79_004,
+          age_seconds: 3600,
+          missing_for_seconds: 400
+        )
+
+      completed_job_fixture(account, 79_004, completed_at)
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
+      assert DateTime.compare(reload(session).ended_at, completed_at) == :eq
+    end
+
+    test "falls back to the clamp for a job that never reached a terminal state" do
+      account = account_fixture()
+      started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
+
+      session =
+        session_fixture(account, "pod-never-terminal",
+          workflow_job_id: 79_005,
+          age_seconds: 5 * 24 * 3600,
+          missing_for_seconds: 400
+        )
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
+
+      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
+      assert reload(session).ended_at |> DateTime.diff(expected, :second) |> abs() <= 5
+    end
+
+    test "a ClickHouse failure degrades the batch to the clamp instead of blocking the close" do
+      # The capacity fix must not wait on the billing refinement.
+      account = account_fixture()
+      started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
+
+      session =
+        session_fixture(account, "pod-ch-down",
+          age_seconds: 5 * 24 * 3600,
+          missing_for_seconds: 400
+        )
+
+      stub(Jobs, :terminal_completions, fn _ids -> raise "clickhouse unavailable" end)
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
+
+      expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
+      assert reload(session).ended_at |> DateTime.diff(expected, :second) |> abs() <= 5
+    end
+
+    test "resolves the whole batch with a single ClickHouse query" do
+      account = account_fixture()
+
+      for i <- 1..3 do
+        session_fixture(account, "pod-batch-#{i}", workflow_job_id: 79_100 + i, missing_for_seconds: 400)
+      end
+
+      expect(Jobs, :terminal_completions, 1, fn ids ->
+        assert length(ids) == 3
+        %{}
+      end)
+
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
+
+      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
     end
   end
 
