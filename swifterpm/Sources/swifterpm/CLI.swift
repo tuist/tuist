@@ -519,8 +519,8 @@ enum CLIRunner {
             cli.cachedDirectoryMaterialization
         ) {
             let paths = try await CLIPathResolver(chdir: cli.chdir)
-            let netrc = netrcConfiguration(cli: cli, paths: paths)
-            try await Netrc.validate(netrc)
+            let netrc = try await Netrc.resolve(
+                netrcConfiguration(cli: cli, paths: paths), environment: Environment.current)
             try await Environment.withNetrc(netrc) {
                 try await runCommand(cli: cli, paths: paths)
             }

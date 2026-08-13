@@ -16,67 +16,89 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
     public static let `default` = SwifterPMNetrcConfiguration()
 }
 
-enum Netrc {
-    /// SwiftPM refuses to run when `--netrc-file` points at a file that isn't there rather than
-    /// downgrading to unauthenticated requests, which would otherwise surface much later as an
-    /// opaque 401 or 404 from a private registry.
-    static func validate(_ configuration: SwifterPMNetrcConfiguration) async throws {
-        guard configuration.isEnabled, let path = configuration.path else { return }
-        guard try await fileSystem.exists(path.absolutePath, isDirectory: false) else {
-            throw ToolError.message("did not find netrc file at \(path.path)")
-        }
-    }
+/// The netrc credentials a resolution runs with, read and parsed once up front so
+/// every later lookup is a search over `machines` rather than another file read.
+struct ResolvedNetrc: Sendable {
+    static let none = ResolvedNetrc(sources: [])
 
-    static func credential(
-        for url: URL,
-        environment: [String: String]
-    ) async -> RegistryCredential? {
-        let configuration = Environment.netrcConfiguration
-        guard configuration.isEnabled else { return nil }
+    /// Parsed sources in priority order. `SWIFTPM_NETRC_DATA` and `~/.netrc` are
+    /// both consulted, the environment first, because a host missing from one has
+    /// always fallen through to the other.
+    private let sources: [[NetrcMachine]]
 
-        if let path = configuration.path {
-            return await credential(for: url, atPath: path)
-        }
-
-        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty,
-           let credential = RegistryNetrc(content: data).credential(for: url)
-        {
-            return credential
-        }
-
-        guard let home = environment["HOME"] else { return nil }
-        return await credential(
-            for: url,
-            atPath: URL(fileURLWithPath: home).appendingPathComponent(".netrc")
-        )
-    }
-
-    private static func credential(for url: URL, atPath path: URL) async -> RegistryCredential? {
-        guard let data = try? await fileSystem.readFile(at: path.absolutePath),
-              let content = String(data: data, encoding: .utf8)
-        else {
-            return nil
-        }
-        return RegistryNetrc(content: content).credential(for: url)
-    }
-}
-
-struct RegistryNetrc {
-    private let machines: [Machine]
-
-    init(content: String) {
-        machines = Self.parse(content: content)
+    init(sources: [[NetrcMachine]]) {
+        self.sources = sources
     }
 
     func credential(for url: URL) -> RegistryCredential? {
         guard let host = url.host?.lowercased() else { return nil }
-        let machine = machines.last(where: { $0.name == host }) ?? machines.first(where: \.isDefault)
-        return machine.map { RegistryCredential(user: $0.login, password: $0.password) }
+        for machines in sources {
+            if let machine = machines.last(where: { $0.name == host })
+                ?? machines.first(where: \.isDefault)
+            {
+                return RegistryCredential(user: machine.login, password: machine.password)
+            }
+        }
+        return nil
+    }
+}
+
+enum Netrc {
+    static func resolve(
+        _ configuration: SwifterPMNetrcConfiguration,
+        environment: [String: String]
+    ) async throws -> ResolvedNetrc {
+        guard configuration.isEnabled else { return .none }
+
+        // An explicit `--netrc-file` is the only source when it is given, and it has
+        // to be there. SwiftPM refuses to run on a missing one rather than downgrading
+        // to unauthenticated requests, which would surface much later as an opaque 401
+        // or 404 from a private registry.
+        if let path = configuration.path {
+            guard try await fileSystem.exists(path.absolutePath, isDirectory: false) else {
+                throw ToolError.message("did not find netrc file at \(path.path)")
+            }
+            return ResolvedNetrc(sources: [NetrcParser.machines(in: try await contents(of: path))])
+        }
+
+        var sources: [[NetrcMachine]] = []
+        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty {
+            sources.append(NetrcParser.machines(in: data))
+        }
+        if let home = environment["HOME"] {
+            let path = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
+            if let content = try? await contents(of: path) {
+                sources.append(NetrcParser.machines(in: content))
+            }
+        }
+        return ResolvedNetrc(sources: sources)
     }
 
-    private static func parse(content: String) -> [Machine] {
+    private static func contents(of path: URL) async throws -> String {
+        let data = try await fileSystem.readFile(at: path.absolutePath)
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw ToolError.message("netrc file at \(path.path) is not valid UTF-8")
+        }
+        return content
+    }
+}
+
+struct NetrcMachine: Equatable, Sendable {
+    let name: String
+    let login: String
+    let password: String
+
+    var isDefault: Bool { name == "default" }
+}
+
+enum NetrcParser {
+    /// netrc is a token stream rather than a line-oriented format, so the content is
+    /// flattened into tokens first and then scanned for the two keywords that open an
+    /// entry. Anything else at that level is skipped, which is what lets `macdef`
+    /// blocks and unknown fields pass through without derailing the scan.
+    static func machines(in content: String) -> [NetrcMachine] {
         var tokens = tokenize(content)
-        var machines: [Machine] = []
+        var machines: [NetrcMachine] = []
         while let token = tokens.first {
             switch token {
             case "machine":
@@ -97,7 +119,7 @@ struct RegistryNetrc {
         return machines
     }
 
-    private static func parseMachine(name: String, tokens: inout [String]) -> Machine? {
+    private static func parseMachine(name: String, tokens: inout [String]) -> NetrcMachine? {
         var login: String?
         var password: String?
         while let key = tokens.first {
@@ -119,7 +141,7 @@ struct RegistryNetrc {
             }
         }
         guard let login, let password else { return nil }
-        return Machine(name: name, login: login, password: password)
+        return NetrcMachine(name: name, login: login, password: password)
     }
 
     private static func tokenize(_ content: String) -> [String] {
@@ -160,14 +182,6 @@ struct RegistryNetrc {
             tokens.append(token)
         }
         return tokens
-    }
-
-    private struct Machine {
-        let name: String
-        let login: String
-        let password: String
-
-        var isDefault: Bool { name == "default" }
     }
 }
 

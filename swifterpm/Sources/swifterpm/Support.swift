@@ -276,7 +276,7 @@ enum HTTPAuthorization {
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
         if let header = prioritizedHeader(
             isGitHub: isGitHub(url),
-            netrcCredential: await Netrc.credential(for: url, environment: environment),
+            netrcCredential: Environment.resolvedNetrc.credential(for: url),
             gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header

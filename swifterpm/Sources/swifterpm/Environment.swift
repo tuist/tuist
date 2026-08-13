@@ -8,21 +8,23 @@ enum Environment {
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
     @TaskLocal
-    static var netrc: SwifterPMNetrcConfiguration?
+    static var netrc: ResolvedNetrc?
 
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
     }
 
-    static var netrcConfiguration: SwifterPMNetrcConfiguration {
-        netrc ?? .default
+    /// The netrc every download authenticates against. Entry points install it once
+    /// per resolution, so an unset task local means no netrc source was configured.
+    static var resolvedNetrc: ResolvedNetrc {
+        netrc ?? .none
     }
 
     static func withNetrc<T>(
-        _ configuration: SwifterPMNetrcConfiguration,
+        _ netrc: ResolvedNetrc,
         operation: () async throws -> T
     ) async throws -> T {
-        try await Environment.$netrc.withValue(configuration) {
+        try await Environment.$netrc.withValue(netrc) {
             try await operation()
         }
     }

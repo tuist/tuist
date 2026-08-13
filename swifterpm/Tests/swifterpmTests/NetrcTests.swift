@@ -4,7 +4,37 @@ import Testing
 
 struct NetrcTests {
     @Test
-    func credentialReadsTheConfiguredNetrcFile() async throws {
+    func parserMatchesHostAndFallsBackToDefault() throws {
+        let machines = NetrcParser.machines(
+            in: """
+            machine registry.example.com login example password secret
+            default login fallback password fallback-secret
+            """
+        )
+        let netrc = ResolvedNetrc(sources: [machines])
+
+        #expect(
+            netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
+                .password == "secret")
+        #expect(
+            netrc.credential(for: try #require(URL(string: "https://other.example.com")))?
+                .password == "fallback-secret")
+    }
+
+    @Test
+    func parserSkipsEntriesWithoutBothCredentials() {
+        let machines = NetrcParser.machines(
+            in: """
+            machine incomplete.example.com login example
+            machine complete.example.com login example password secret
+            """
+        )
+
+        #expect(machines == [NetrcMachine(name: "complete.example.com", login: "example", password: "secret")])
+    }
+
+    @Test
+    func resolveReadsTheConfiguredNetrcFile() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
@@ -12,14 +42,10 @@ struct NetrcTests {
                 to: netrcFile
             )
 
-            let credential = try await Environment.withNetrc(
-                SwifterPMNetrcConfiguration(path: netrcFile)
-            ) {
-                await Netrc.credential(
-                    for: try #require(URL(string: "https://registry.example.com")),
-                    environment: [:]
-                )
-            }
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
+            let credential = netrc.credential(
+                for: try #require(URL(string: "https://registry.example.com")))
 
             #expect(credential?.user == "example")
             #expect(credential?.password == "from-file")
@@ -27,44 +53,78 @@ struct NetrcTests {
     }
 
     @Test
-    func configuredNetrcFileBeatsEnvironmentData() async throws {
+    func configuredNetrcFileIsTheOnlySource() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
                 "machine registry.example.com login example password from-file",
                 to: netrcFile
             )
+            try await fileSystem.atomicWrite(
+                "machine other.example.com login example password from-home",
+                to: root.appendingPathComponent(".netrc")
+            )
 
-            let credential = try await Environment.withNetrc(
-                SwifterPMNetrcConfiguration(path: netrcFile)
-            ) {
-                await Netrc.credential(
-                    for: try #require(URL(string: "https://registry.example.com")),
-                    environment: [
-                        "SWIFTPM_NETRC_DATA":
-                            "machine registry.example.com login example password from-environment",
-                    ]
-                )
-            }
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(path: netrcFile),
+                environment: [
+                    "HOME": root.path,
+                    "SWIFTPM_NETRC_DATA":
+                        "machine registry.example.com login example password from-environment",
+                ]
+            )
 
-            #expect(credential?.password == "from-file")
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
+                    .password == "from-file")
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://other.example.com"))) == nil)
         }
     }
 
     @Test
-    func credentialFallsBackToTheHomeNetrcFile() async throws {
+    func environmentDataWinsButHomeStillCoversOtherHosts() async throws {
+        try await withTemporaryDirectory { root in
+            try await fileSystem.atomicWrite(
+                """
+                machine registry.example.com login example password from-home
+                machine other.example.com login example password home-only
+                """,
+                to: root.appendingPathComponent(".netrc")
+            )
+
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(),
+                environment: [
+                    "HOME": root.path,
+                    "SWIFTPM_NETRC_DATA":
+                        "machine registry.example.com login example password from-environment",
+                ]
+            )
+
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
+                    .password == "from-environment")
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://other.example.com")))?
+                    .password == "home-only")
+        }
+    }
+
+    @Test
+    func resolveFallsBackToTheHomeNetrcFile() async throws {
         try await withTemporaryDirectory { root in
             try await fileSystem.atomicWrite(
                 "machine registry.example.com login example password from-home",
                 to: root.appendingPathComponent(".netrc")
             )
 
-            let credential = await Netrc.credential(
-                for: try #require(URL(string: "https://registry.example.com")),
-                environment: ["HOME": root.path]
-            )
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path])
 
-            #expect(credential?.password == "from-home")
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
+                    .password == "from-home")
         }
     }
 
@@ -76,50 +136,47 @@ struct NetrcTests {
                 to: root.appendingPathComponent(".netrc")
             )
 
-            let credential = try await Environment.withNetrc(
-                SwifterPMNetrcConfiguration(isEnabled: false)
-            ) {
-                await Netrc.credential(
-                    for: try #require(URL(string: "https://registry.example.com")),
-                    environment: [
-                        "HOME": root.path,
-                        "SWIFTPM_NETRC_DATA":
-                            "machine registry.example.com login example password from-environment",
-                    ]
-                )
-            }
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(isEnabled: false),
+                environment: [
+                    "HOME": root.path,
+                    "SWIFTPM_NETRC_DATA":
+                        "machine registry.example.com login example password from-environment",
+                ]
+            )
 
-            #expect(credential == nil)
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://registry.example.com")))
+                    == nil)
         }
     }
 
     @Test
-    func validateRejectsAMissingConfiguredNetrcFile() async throws {
+    func resolveRejectsAMissingConfiguredNetrcFile() async throws {
         try await withTemporaryDirectory { root in
             let missing = root.appendingPathComponent("netrc")
 
             await #expect(throws: (any Error).self) {
-                try await Netrc.validate(SwifterPMNetrcConfiguration(path: missing))
+                try await Netrc.resolve(
+                    SwifterPMNetrcConfiguration(path: missing), environment: [:])
             }
         }
     }
 
     @Test
-    func validateAcceptsAnExistingFileAMissingOneWhenDisabledAndNoFileAtAll() async throws {
+    func resolveIgnoresAMissingNetrcFileWhenDisabledOrUnconfigured() async throws {
         try await withTemporaryDirectory { root in
-            let netrcFile = root.appendingPathComponent("netrc")
-            try await fileSystem.atomicWrite("machine example.com login a password b", to: netrcFile)
+            let missing = root.appendingPathComponent("netrc")
 
-            try await Netrc.validate(SwifterPMNetrcConfiguration(path: netrcFile))
-            try await Netrc.validate(
-                SwifterPMNetrcConfiguration(
-                    isEnabled: false, path: root.appendingPathComponent("missing")))
-            try await Netrc.validate(SwifterPMNetrcConfiguration())
+            _ = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(isEnabled: false, path: missing), environment: [:])
+            _ = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(), environment: ["HOME": root.path])
         }
     }
 
     @Test
-    func registryAuthorizationUsesTheConfiguredNetrcFile() async throws {
+    func registryAuthorizationUsesTheResolvedNetrc() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
@@ -131,9 +188,11 @@ struct NetrcTests {
                 configPath: nil,
                 defaultRegistryURL: "https://registry.example.com"
             )
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
 
             let header = try await Environment.$values.withValue([:]) {
-                try await Environment.withNetrc(SwifterPMNetrcConfiguration(path: netrcFile)) {
+                try await Environment.withNetrc(netrc) {
                     await RegistryAuthorization.header(
                         for: try #require(URL(string: "https://registry.example.com")),
                         registryConfig: config
@@ -146,16 +205,18 @@ struct NetrcTests {
     }
 
     @Test
-    func httpAuthorizationUsesTheConfiguredNetrcFileOverTheAmbientGitHubToken() async throws {
+    func httpAuthorizationUsesTheResolvedNetrcOverTheAmbientGitHubToken() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
                 "machine api.github.com login x-access-token password from-file",
                 to: netrcFile
             )
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(path: netrcFile), environment: [:])
 
             let header = try await Environment.$values.withValue(["GITHUB_TOKEN": "ambient"]) {
-                try await Environment.withNetrc(SwifterPMNetrcConfiguration(path: netrcFile)) {
+                try await Environment.withNetrc(netrc) {
                     await HTTPAuthorization.header(
                         for: try #require(
                             URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1"))

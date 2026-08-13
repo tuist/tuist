@@ -132,8 +132,7 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Netrc.validate(request.netrc)
-        return try await Environment.withNetrc(request.netrc) {
+        try await Environment.withNetrc(try await resolvedNetrc(request.netrc)) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
@@ -145,8 +144,7 @@ public struct SwifterPM: Sendable {
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Netrc.validate(request.netrc)
-        return try await Environment.withNetrc(request.netrc) {
+        try await Environment.withNetrc(try await resolvedNetrc(request.netrc)) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
@@ -156,14 +154,19 @@ public struct SwifterPM: Sendable {
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Netrc.validate(request.netrc)
-        try await Environment.withNetrc(request.netrc) {
+        try await Environment.withNetrc(try await resolvedNetrc(request.netrc)) {
             try await Environment.withCachedDirectoryMaterialization(
                 request.cachedDirectoryMaterialization
             ) {
                 try await runRestore(request)
             }
         }
+    }
+
+    private func resolvedNetrc(_ configuration: SwifterPMNetrcConfiguration) async throws
+        -> ResolvedNetrc
+    {
+        try await Netrc.resolve(configuration, environment: Environment.current)
     }
 
     private func runRestore(_ request: SwifterPMRestoreRequest) async throws {
