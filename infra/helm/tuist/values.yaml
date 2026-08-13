@@ -2045,9 +2045,17 @@ imageRegistry:
   image:
     # ECR Public rather than docker.io, for the same reason as
     # registryCache below: this must not depend on a registry that
-    # rate-limits us. distribution 3 for its S3 driver improvements.
+    # rate-limits us.
+    #
+    # Pinned to 2, not 3. Against this object store, 3.1.1 answers a
+    # HEAD for an absent blob with `s3aws: NoSuchBucket` rather than a
+    # not-found, so the driver reports it as an unknown error and the
+    # registry returns 500 where it should return "blob unknown". That
+    # breaks every push, because a client checks whether a layer is
+    # already present before uploading it. 2 runs the same bucket,
+    # endpoint, and path-style settings as registryCache without it.
     repository: public.ecr.aws/docker/library/registry
-    tag: "3"
+    tag: "2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
