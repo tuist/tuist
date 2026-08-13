@@ -14,13 +14,6 @@
 // ctx.clip().
 import { onThemeChange } from "../lib/theme.js";
 
-const FALLBACK_COLORS = {
-  withoutStroke: "#e5484d",
-  withoutFill: "#fdeeec",
-  withStroke: "#8253ff",
-  withFill: "#f4f4ff",
-};
-
 const TOP_MARGIN = 12;
 
 // Classic 8×8 ordered Bayer matrix, 2px cells — the site's unified dither.
@@ -293,10 +286,10 @@ export const CacheChart = {
     const s0 = getComputedStyle(this.canvasWithout);
     const s1 = getComputedStyle(this.canvasWith);
     this.colors = {
-      withoutFill: s0.borderTopColor || FALLBACK_COLORS.withoutFill,
-      withoutStroke: s0.borderBottomColor || FALLBACK_COLORS.withoutStroke,
-      withFill: s1.borderTopColor || FALLBACK_COLORS.withFill,
-      withStroke: s1.borderBottomColor || FALLBACK_COLORS.withStroke,
+      withoutFill: s0.borderTopColor,
+      withoutStroke: s0.borderBottomColor,
+      withFill: s1.borderTopColor,
+      withStroke: s1.borderBottomColor,
     };
   },
 
