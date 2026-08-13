@@ -9,6 +9,13 @@ SERVER_DIR="${MISE_PROJECT_ROOT}/server"
 # launch.json regen is cheap and writes outside _build, so always refresh it.
 "${SCRIPT_DIR}/regenerate-launch-json.sh"
 
+# Reap databases belonging to worktrees that have since been removed. Nothing
+# else drops them, and ClickHouse pays a per-table background cost for every one
+# that survives. This runs before the fingerprint check below because it has to
+# happen on every session, not only when deps change. It costs two queries when
+# there is nothing to drop, and must never fail a session start.
+"${SCRIPT_DIR}/prune-dev-instances.sh" || true
+
 # `mise run install` runs deps.get + asset installs + ecto migrate/seed, all of
 # which recompile the app and touch _build. The SessionStart hook fires this on
 # every startup AND resume, so resuming a session that's already set up would
