@@ -1,0 +1,49 @@
+name: OCI registry login
+description: >-
+  Authenticate the tooling that reads and writes Tart images and OCI
+  artifacts against the Tuist registry.
+
+# crane and oras both persist to ~/.docker/config.json, which Tart reads
+# through the Docker credential-helper protocol. That is the same
+# mechanism the GHCR steps use, and for the same reason: it sidesteps the
+# macOS keychain, whose "User interaction" prompt is not reachable from
+# the LaunchAgent these builders run under.
+#
+# The registry is reachable on the tailnet only. Builders join at
+# bootstrap, before kubelet, so a job that reaches this step is already on
+# it — but a login failure here is far more legible than the pull or push
+# that would otherwise fail later.
+
+inputs:
+  host:
+    description: Registry host, e.g. `oci.tuist.dev`
+    required: true
+  username:
+    description: Registry username
+    required: true
+  password:
+    description: Registry password
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Log in to the Tuist OCI registry
+      shell: bash
+      env:
+        REGISTRY_HOST: ${{ inputs.host }}
+        REGISTRY_USERNAME: ${{ inputs.username }}
+        REGISTRY_PASSWORD: ${{ inputs.password }}
+      run: |
+        set -euo pipefail
+        for v in REGISTRY_HOST REGISTRY_USERNAME REGISTRY_PASSWORD; do
+          if [ -z "${!v}" ]; then
+            echo "::error::${v} is empty; the registry credentials are not configured for this workflow"
+            exit 1
+          fi
+        done
+
+        printf '%s' "$REGISTRY_PASSWORD" | crane auth login --username "$REGISTRY_USERNAME" --password-stdin "$REGISTRY_HOST"
+        printf '%s' "$REGISTRY_PASSWORD" | oras login "$REGISTRY_HOST" --username "$REGISTRY_USERNAME" --password-stdin
+
+        echo "Authenticated against ${REGISTRY_HOST}"
