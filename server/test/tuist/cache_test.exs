@@ -99,7 +99,6 @@ defmodule Tuist.CacheTest do
   end
 
   describe "issue_cache_token/2" do
-
     # `?full_handle=` reaches here as an empty string when a shell variable is
     # unset. Filtering by it would mint a token granting nothing, which fails on
     # the cache node with nothing pointing back at the exchange.
@@ -124,6 +123,7 @@ defmodule Tuist.CacheTest do
 
       assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
     end
+
     test "carries the grants for the project the credential reaches" do
       # Given
       project = ProjectsFixtures.project_fixture(preload: [:account])
