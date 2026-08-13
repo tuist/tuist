@@ -59,6 +59,12 @@
         height: 130px;
       }
 
+      & > [data-part="soc-badge"] > svg {
+        display: block;
+        width: 130px;
+        height: 130px;
+      }
+
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-display-small);
