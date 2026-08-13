@@ -106,6 +106,20 @@ defmodule TuistWeb.RunnersLiveTest do
     refute table =~ "Cancelled"
   end
 
+  test "lists only succeeded and failed runs in the recent workflows card", %{conn: conn, account: account} do
+    complete_run(account, 70_007, 700_025, "success")
+    complete_run(account, 70_008, 700_026, "cancelled")
+    skip_run(account, 70_009, 700_027)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv, @render_async_timeout)
+    table = recent_workflows_table(html)
+
+    assert table =~ "Success"
+    refute table =~ "Skipped"
+    refute table =~ "Cancelled"
+  end
+
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv, @render_async_timeout)
@@ -205,10 +219,14 @@ defmodule TuistWeb.RunnersLiveTest do
       )
   end
 
-  defp recent_jobs_table(html) do
+  defp recent_jobs_table(html), do: table_text(html, "recent-jobs-table")
+
+  defp recent_workflows_table(html), do: table_text(html, "recent-workflows-table")
+
+  defp table_text(html, part) do
     html
     |> Floki.parse_document!()
-    |> Floki.find("[data-part='recent-jobs-table']")
+    |> Floki.find("[data-part='#{part}']")
     |> Floki.text()
   end
 

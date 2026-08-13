@@ -192,8 +192,11 @@ defmodule TuistWeb.RunnersLive do
   end
 
   defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+    # Same contract as the Recent jobs card above: a run rolls up to
+    # `cancelled` or `skipped` when none of its jobs ran, so it carries
+    # no duration for the table and nothing for the bars or legends.
     opts =
-      [limit: @chart_limit]
+      [conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -223,7 +226,6 @@ defmodule TuistWeb.RunnersLive do
   # just don't carry a navigate target.
   defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
     recent_workflow_runs
-    |> Enum.filter(&(&1.conclusion in @duration_conclusions))
     |> Enum.reverse()
     |> Enum.map(fn run ->
       %{
@@ -336,10 +338,11 @@ defmodule TuistWeb.RunnersLive do
   def platforms, do: @platforms
 
   @doc """
-  Conclusion label for the Recent workflow_runs table — the rollup
-  in `list_recent_workflow_runs_for_account/2` may return `success`,
-  `failure`, `cancelled`, or `skipped`. Anything outside that set
-  collapses to "Unknown" so a stray value renders cleanly.
+  Conclusion label for the Recent workflow_runs table. The card asks
+  `list_recent_workflow_runs_for_account/2` for `@duration_conclusions`
+  only, but the rollup can also return `cancelled` or `skipped`, so
+  those keep a label; anything outside the set collapses to "Unknown"
+  so a stray value renders cleanly.
   """
   def conclusion_label("success"), do: dgettext("dashboard_runners", "Success")
   def conclusion_label("failure"), do: dgettext("dashboard_runners", "Failure")

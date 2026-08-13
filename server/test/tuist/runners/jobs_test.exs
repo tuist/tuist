@@ -991,6 +991,43 @@ defmodule Tuist.Runners.JobsTest do
       assert run.duration_ms >= 0
     end
 
+    test "narrows to the given conclusions, applying the limit after the filter" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_001,
+          workflow_run_id: 7_401,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      # Both land after the succeeded run, so an unfiltered limit of 1
+      # would return one of these instead of it.
+      :ok =
+        completed_job_fixture(account, 64_002,
+          workflow_run_id: 7_402,
+          conclusion: "skipped",
+          completed_at: DateTime.add(base, 120, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_003,
+          workflow_run_id: 7_403,
+          conclusion: "cancelled",
+          completed_at: DateTime.add(base, 180, :second)
+        )
+
+      runs =
+        Jobs.list_recent_workflow_runs_for_account(account.id,
+          conclusion: ["success", "failure"],
+          limit: 1
+        )
+
+      assert Enum.map(runs, & &1.workflow_run_id) == [7_401]
+    end
+
     test "scopes results to the given account" do
       mine = account_fixture()
       other = account_fixture()
