@@ -84,6 +84,12 @@ type AutoscalerReconciler struct {
 	// to milliseconds to keep them fast.
 	PollInterval time.Duration
 
+	// NodeQuarantine is the breaker the RunnerPool reconciler trips when
+	// a node cannot start Pods. Read here so fleet capacity excludes
+	// nodes whose memory can never back a running sandbox, and so both
+	// reconcilers publish the same fleet-node gauges. Nil disables it.
+	NodeQuarantine *NodeQuarantine
+
 	// Now defaults to time.Now; overridable for deterministic
 	// cooldown tests.
 	Now func() time.Time
@@ -409,10 +415,14 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	}
 
 	var total int64
-	ready, filtered := summarizeFleetNodes(nodes.Items)
+	quarantined := r.NodeQuarantine.quarantinedSet(r.now())
+	ready, filtered := summarizeFleetNodes(nodes.Items, quarantined)
 	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
 	for i := range nodes.Items {
 		if nodeFilterReason(&nodes.Items[i]) != "" {
+			continue
+		}
+		if _, held := quarantined[nodes.Items[i].Name]; held {
 			continue
 		}
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
@@ -441,7 +451,7 @@ func (r *AutoscalerReconciler) fleetHostCount(ctx context.Context, fleetSelector
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
-	ready, filtered := summarizeFleetNodes(nodes.Items)
+	ready, filtered := summarizeFleetNodes(nodes.Items, r.NodeQuarantine.quarantinedSet(r.now()))
 	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
 	return int64(ready), nil
 }

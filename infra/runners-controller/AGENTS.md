@@ -156,6 +156,38 @@ independent workqueues:
   `poller_not_started` and `unschedulable`; a rising `unschedulable`
   rate is a capacity shortfall for that shape, not a boot fault.
 
+  Reaping alone is not enough when the cause is the *node*. The
+  replacement Pod is scheduled independently, and a node that cannot
+  start sandboxes is also the emptiest node in the fleet, so the
+  scheduler prefers it and the replacement lands right back on it. That
+  loop keeps the ceiling permanently saturated by Pods that can never
+  run. `NodeQuarantine` (`controllers/node_quarantine.go`) closes it:
+  `nodeQuarantineThreshold` (3) `poller_not_started` timeouts on one
+  node inside `nodeQuarantineWindow` (15m) hold that node out for
+  `nodeQuarantineDuration` (30m). New Pods get a required
+  `kubernetes.io/hostname NotIn <quarantined>` node affinity, and
+  `summarizeFleetNodes` stops counting the node as capacity — surfaced
+  as `tuist_runners_fleet_filtered_nodes{reason="quarantined"}`.
+
+  The breaker steers Pods rather than cordoning or tainting because the
+  controller holds read-only access to nodes; the exclusion rides the
+  Pod create it already performs. It is half-open: on expiry the node
+  takes a fresh batch and re-quarantines if still broken, so a repaired
+  host rejoins with no operator action. One instance is shared with the
+  Autoscaler reconciler, which must agree the node is not capacity —
+  both publish the same fleet-node gauges, so a split view would make
+  them fight over the same series.
+
+  This exists because of 2026-08-13: one Linux node hit cgroup
+  exhaustion after 85 days of uptime and failed every new sandbox with
+  `mkdir /sys/fs/cgroup/kubepods.slice/...: no space left on device`.
+  Kubelet reports that per Pod, so the node stayed `Ready` with no
+  pressure condition and `nodeFilterReason` saw nothing wrong. Four dead
+  Pods held the whole ceiling, the autoscaler asked for 160 replicas
+  against 5 running, and ~111 jobs queued over 5.5 hours. The fix for
+  the node itself is a reboot; the breaker is what keeps one such node
+  from taking the fleet's throughput to zero in the meantime.
+
   Claimed Pods and Pods whose poller has terminated are protected.
   Terminal cleanup and idle scale-down run before admission and are never
   blocked by the provisioning ceiling.

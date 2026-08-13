@@ -95,6 +95,11 @@ type RunnerPoolReconciler struct {
 
 	creationReservations creationReservationStore
 
+	// NodeQuarantine holds nodes that keep failing to start runner Pods
+	// out of the fleet. Shared with the Autoscaler reconciler so both
+	// agree on what counts as capacity. Nil disables the breaker.
+	NodeQuarantine *NodeQuarantine
+
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 }
@@ -235,6 +240,20 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault(), p.Spec.NodeName, nodeConditions)
 			}
 			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
+			if r.NodeQuarantine.recordStartFailure(p.Spec.NodeName, r.now()) {
+				logger.Info("quarantining node after repeated runner start timeouts",
+					"node", p.Spec.NodeName,
+					"threshold", nodeQuarantineThreshold,
+					"window", nodeQuarantineWindow.String(),
+					"duration", nodeQuarantineDuration.String(),
+					"nodeConditions", nodeConditions,
+				)
+				if r.Recorder != nil {
+					r.Recorder.Eventf(pool, corev1.EventTypeWarning, "RunnerNodeQuarantined",
+						"Node %s failed to start %d runner Pods within %s; holding it out of the fleet for %s",
+						p.Spec.NodeName, nodeQuarantineThreshold, nodeQuarantineWindow, nodeQuarantineDuration)
+				}
+			}
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -566,6 +585,9 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
+	// Placement, not templating: the breaker's state lives on the
+	// reconciler and changes between builds of the same pool.
+	applyNodeQuarantine(pod, r.NodeQuarantine.quarantined(r.now()))
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return "", fmt.Errorf("pod owner ref: %w", err)
 	}

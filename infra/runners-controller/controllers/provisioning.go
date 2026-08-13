@@ -185,7 +185,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	}); err != nil {
 		return provisioningAdmission{}, fmt.Errorf("list Linux fleet nodes: %w", err)
 	}
-	healthyNodes, filtered := summarizeFleetNodes(nodes.Items)
+	healthyNodes, filtered := summarizeFleetNodes(nodes.Items, r.NodeQuarantine.quarantinedSet(r.now()))
 	metrics.RecordFleetNodes(pool.Spec.FleetSelector, pool.Spec.OS, healthyNodes, filtered)
 	metrics.RecordPendingProvisioningPods(pool.Name, pendingForPool)
 

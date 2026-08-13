@@ -8,6 +8,7 @@ const (
 	nodeFilteredMemoryPressure = "memory_pressure"
 	nodeFilteredDiskPressure   = "disk_pressure"
 	nodeFilteredPIDPressure    = "pid_pressure"
+	nodeFilteredQuarantined    = "quarantined"
 )
 
 var nodeFilterReasons = []string{
@@ -16,6 +17,7 @@ var nodeFilterReasons = []string{
 	nodeFilteredMemoryPressure,
 	nodeFilteredDiskPressure,
 	nodeFilteredPIDPressure,
+	nodeFilteredQuarantined,
 }
 
 // corev1LocalRef is the obvious shorthand. We refer to the pool by
@@ -59,11 +61,20 @@ func nodeFilterReason(node *corev1.Node) string {
 	return ""
 }
 
-func summarizeFleetNodes(nodes []corev1.Node) (int, map[string]int) {
+// summarizeFleetNodes counts usable fleet capacity. Nodes in `quarantined`
+// are excluded even when every condition reads healthy: the breaker exists
+// precisely for failures kubelet reports per Pod instead of as a node
+// condition, so their absence here is not evidence the node works.
+func summarizeFleetNodes(nodes []corev1.Node, quarantined map[string]struct{}) (int, map[string]int) {
 	ready := 0
 	filtered := make(map[string]int, len(nodeFilterReasons))
 	for i := range nodes {
 		reason := nodeFilterReason(&nodes[i])
+		if reason == "" {
+			if _, held := quarantined[nodes[i].Name]; held {
+				reason = nodeFilteredQuarantined
+			}
+		}
 		if reason == "" {
 			ready++
 			continue

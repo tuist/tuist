@@ -467,6 +467,91 @@ that collector enabled or a per-host sink (a Node condition from tart-kubelet,
 which already has the DiskPressure probe pattern, or a node_exporter textfile
 gauge written by `tuist-pf-vmnat` itself).
 
+### Runner queue not draining
+
+Runner capacity can collapse without a single component reporting a
+fault. On 2026-08-13 one of the two Linux fleet nodes
+(`bm-tuist-runners-linux-pvv5b-249nj-bkzxh`) stopped being able to
+create pod cgroups — kubelet failed every new sandbox with
+`mkdir /sys/fs/cgroup/kubepods.slice/...: no space left on device`
+after 85 days of uptime. Kubelet reports that per Pod, not as a node
+condition, so the node stayed `Ready` with no Memory/Disk/PID pressure
+and, being the emptiest node in the fleet, the scheduler preferred it.
+Every Pod it accepted sat in `Init:0/4` holding a slot in the
+fleet-wide provisioning ceiling (`maxConcurrentPerFleetSelector: 4`)
+until the 5-minute start timeout reaped it, and the replacement landed
+on the same node. The ceiling stayed saturated by Pods that could never
+run, so every sibling shape was refused admission with
+`reason="fleet_cap"`. The autoscaler asked for 160 replicas and the
+fleet ran 5. Around 111 jobs queued over 5.5 hours. Nothing paged; it
+was noticed by a person looking at the queue.
+
+```promql
+max by (cluster, env, fleet) (
+  tuist_runners_queue_oldest_age_seconds
+) > 1800
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- `affected_service`: the runners component (customer-visible — a job
+  that never starts is indistinguishable from CI being down)
+- Summary: `Workflow jobs on {{ $labels.fleet }} have been queued for
+  over 30 minutes in {{ $labels.cluster }}: the fleet is not draining
+  its queue`
+
+Age, not depth, for the same reason the remote-processing rule uses it,
+and the reason is already written into the metric's definition in
+`Tuist.Runners.PromExPlugin`: a busy fleet serving arrivals promptly and
+a fleet that has stopped starting Pods entirely both sit at a non-zero
+depth. Only age separates them, and only age keeps climbing while
+nothing drains. During this incident depth oscillated between 0 and 111
+as bursts arrived and partially cleared, so a depth threshold would
+have flapped; the oldest-job age climbed monotonically.
+
+`max by` is required: PromEx polling gauges are reported once per server
+pod, so a bare `>` would fire on whichever replica polled first and the
+series would double-count.
+
+30 minutes is well clear of a normal wait — a queued job lands on a
+Pod within seconds when the fleet is healthy, and even a cold-start
+sandbox is minutes — while still catching the stall long before it
+reaches the hours this incident ran.
+
+This rule deliberately keys on the queue rather than on any particular
+cause. Cgroup exhaustion, an expired runner image pull secret, a
+saturated fleet, and a wedged provisioning ceiling all present as "jobs
+are queued and not starting", and only the queue itself is common to
+all of them.
+
+### Runner fleet node quarantined
+
+```promql
+max by (cluster, env, fleet_selector, operating_system) (
+  tuist_runners_fleet_filtered_nodes{reason="quarantined"}
+) > 0
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Summary: `A node in {{ $labels.fleet_selector }} was quarantined after
+  repeatedly failing to start runner Pods and needs operator attention`
+
+The runners controller quarantines a node that fails
+`nodeQuarantineThreshold` pod starts inside `nodeQuarantineWindow`
+(`infra/runners-controller/controllers/node_quarantine.go`) and steers
+new Pods away from it, which stops the churn loop above from consuming
+the fleet's provisioning ceiling. That containment is deliberately
+silent to the queue: it protects throughput on the remaining nodes, so
+the queue-age rule may never fire even though the fleet is down a node.
+
+Warning, not critical: the fleet is degraded, not stalled, and the
+breaker is half-open — it releases the node after
+`nodeQuarantineDuration` and re-quarantines it if it is still broken.
+A node that keeps reappearing here needs a human (in this incident, a
+reboot to clear the leaked cgroups). A quarantine that clears and does
+not return was a transient the breaker absorbed correctly.
+
 ### Tuist server replicas unavailable
 
 ```promql
