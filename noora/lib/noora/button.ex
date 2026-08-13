@@ -98,8 +98,6 @@ defmodule Noora.Button do
     """
   end
 
-  attr(:label, :string, default: nil, doc: "The label of the button")
-
   attr(:variant, :string,
     values: @button_variants,
     default: @default_variant,
@@ -116,7 +114,7 @@ defmodule Noora.Button do
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
 
-  slot(:inner_block, required: false, doc: "Inner block that renders HEEx content")
+  slot(:inner_block, required: true, doc: "Inner block that renders HEEx content")
 
   attr(:rest, :global, include: ~w(phx-click disabled target rel))
 
@@ -132,12 +130,10 @@ defmodule Noora.Button do
         data-size={@size}
         {@rest}
       >
-        <span :if={@label} data-part="label">{@label}</span>
         {render_slot(@inner_block)}
       </.link>
     <% else %>
       <button class="noora-neutral-button" data-variant={@variant} data-size={@size} {@rest}>
-        <span :if={@label} data-part="label">{@label}</span>
         {render_slot(@inner_block)}
       </button>
     <% end %>

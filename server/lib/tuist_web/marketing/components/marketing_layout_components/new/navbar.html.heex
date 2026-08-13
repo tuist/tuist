@@ -271,9 +271,9 @@ resources_items = [
         :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
         size="large"
         href={~p"/users/log_in"}
-        label={dgettext("marketing", "Log in")}
         data-part="log-in"
       >
+        {dgettext("marketing", "Log in")}
       </.neutral_button>
       <.button
         variant={
