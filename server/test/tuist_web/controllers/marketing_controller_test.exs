@@ -312,6 +312,47 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
     end
+
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, ~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_case_study -> true
+        _ -> false
+      end)
+
+      conn = get(conn, ~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+      # The redesign swaps the static OG photo for the generated artwork.
+      assert html =~ "/open-graph-images/"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_case_study, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get(~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
   end
 
   describe "GET /newsletter/verify" do

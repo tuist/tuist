@@ -848,27 +848,46 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         customers_path = Localization.localized_href("/customers", locale)
         case_study_path = Localization.localized_href(case_study.slug, locale)
+        new_design = Design.new?(conn, :case_study)
 
-        conn
-        |> assign(:head_title, case_study.title)
-        |> assign(:head_description, case_study.excerpt)
-        |> assign(
-          :head_image,
-          Tuist.Environment.app_url(path: case_study.og_image_path)
-        )
-        |> assign(:head_twitter_card, "summary_large_image")
-        |> assign_article_head_meta(published_at: case_study.date, author_url: case_study.url)
-        |> assign_structured_data(
-          get_breadcrumbs_structured_data([
-            {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-            {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
-            {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
-          ])
-        )
-        |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
-        |> assign(:case_study, case_study)
-        |> assign(:related_case_studies, related_case_studies)
-        |> render(:case_study, layout: false)
+        # The redesign swaps the static OG photos for the generated cover
+        # artwork; crawlers see it once the page's flag flips for anonymous
+        # traffic.
+        head_image_path =
+          if new_design and TuistWeb.Marketing.MarketingCustomerCovers.cover?(case_study) do
+            OpenGraph.image_path(:marketing_case_study, slug: Path.basename(case_study.slug))
+          else
+            case_study.og_image_path
+          end
+
+        conn =
+          conn
+          |> assign(:head_title, case_study.title)
+          |> assign(:head_description, case_study.excerpt)
+          |> assign(
+            :head_image,
+            Tuist.Environment.app_url(path: head_image_path)
+          )
+          |> assign(:head_twitter_card, "summary_large_image")
+          |> assign_article_head_meta(published_at: case_study.date, author_url: case_study.url)
+          |> assign_structured_data(
+            get_breadcrumbs_structured_data([
+              {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+              {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+              {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
+            ])
+          )
+          |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
+          |> assign(:case_study, case_study)
+          |> assign(:related_case_studies, related_case_studies)
+
+        if new_design do
+          conn
+          |> assign(:new_design, true)
+          |> render(:case_study_new, layout: false)
+        else
+          render(conn, :case_study, layout: false)
+        end
     end
   end
 
