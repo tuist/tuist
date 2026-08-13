@@ -888,15 +888,22 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    # Default shape: ~50% of P95 warm floor (the legacy pool's value),
-    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
-    # traffic lands here. The floor is a slot count, so it absorbs the
-    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    # Default shape: all `tuist-default` + `linux` default-profile
+    # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
+    # floor. Sized against RAM, not slots: request == limit == the
+    # advertised shape, so the floor reserves `floor * 8 GiB` on a
+    # ~504 GiB fleet whether or not those Pods ever touch it. At 30 it
+    # reserved 240 GiB and left no 16 GiB hole, so `4vcpu-16gb` could
+    # not place a single Pod while running well under a third of the
+    # fleet's real memory. 12 sits above observed concurrent demand and
+    # leaves the heavier shapes room to schedule. Revisit alongside
+    # decoupling the scheduler request from the shape limit, which is
+    # what would let the floor be a slot count again.
     - vcpus: 2
       memoryGb: 8
       default: true
       autoscaling:
-        minWarmPoolFloor: 30
+        minWarmPoolFloor: 12
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
