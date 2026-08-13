@@ -77,22 +77,28 @@ jobs:
       # pre-requirement to SSH into the builder.
       # If the .xip isn't in the mirror yet, the operator runs
       # the upload task locally and re-triggers this workflow.
+      # The .xip lives on the same registry as the images, so this needs
+      # a credential before the pull. The login is repeated before the
+      # push at the end of the job: `Build image` moves
+      # ~/.docker/config.json aside for Packer's anonymous clone of the
+      # public Cirrus base and restores it afterwards, and repeating the
+      # login costs nothing next to depending on that restore.
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+
       - name: Pull Xcode .xip from mirror
         id: xcode_xip
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
           REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
-          REGISTRY_USERNAME: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.OCI_REGISTRY_PASSWORD }}
         run: |
           set -euo pipefail
           XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
           mkdir -p "$XCODE_XIP_DIR"
-          # Explicit oras login here (not at workflow top) because
-          # oras' login persists to ~/.docker/config.json, which
-          # Packer's anonymous-pull dance later toggles back to
-          # anonymous for the public Cirrus base.
-          printf '%s' "$REGISTRY_PASSWORD" | oras login "$REGISTRY_HOST" --username "$REGISTRY_USERNAME" --password-stdin
           if ! oras pull "${REGISTRY_HOST}/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
             {
               echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
@@ -184,8 +190,8 @@ jobs:
         uses: ./.github/actions/oci-registry-login
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
-          username: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          password: ${{ secrets.OCI_REGISTRY_PASSWORD }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
 
       # 64 MB chunks, where GHCR was pinned at 3 because it rejects
       # anything from 4 up and rate-limited the resulting request
@@ -193,10 +199,6 @@ jobs:
       # instead of ~17,000, which is the reason for the move.
       - name: Push image to the Tuist OCI registry
         timeout-minutes: 90
-        env:
-          TART_REGISTRY_HOSTNAME: ${{ vars.OCI_REGISTRY_HOST }}
-          TART_REGISTRY_USERNAME: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          TART_REGISTRY_PASSWORD: ${{ secrets.OCI_REGISTRY_PASSWORD }}
         uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode

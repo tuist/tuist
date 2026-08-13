@@ -108,8 +108,8 @@ jobs:
         uses: ./.github/actions/oci-registry-login
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
-          username: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          password: ${{ secrets.OCI_REGISTRY_PASSWORD }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
 
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
@@ -141,10 +141,6 @@ jobs:
 
       - name: Push image to the Tuist OCI registry
         timeout-minutes: 90
-        env:
-          TART_REGISTRY_HOSTNAME: ${{ vars.OCI_REGISTRY_HOST }}
-          TART_REGISTRY_USERNAME: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          TART_REGISTRY_PASSWORD: ${{ secrets.OCI_REGISTRY_PASSWORD }}
         # The production workflow owns semantic-version and latest tags.
         # This on-demand workflow publishes only its commit tag.
         uses: ./.github/actions/tart-push

@@ -949,8 +949,8 @@ jobs:
         uses: ./.github/actions/oci-registry-login
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
-          username: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          password: ${{ secrets.OCI_REGISTRY_PASSWORD }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
@@ -981,10 +981,6 @@ jobs:
 
       - name: Push image to the Tuist OCI registry
         timeout-minutes: 90
-        env:
-          TART_REGISTRY_HOSTNAME: ${{ vars.OCI_REGISTRY_HOST }}
-          TART_REGISTRY_USERNAME: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          TART_REGISTRY_PASSWORD: ${{ secrets.OCI_REGISTRY_PASSWORD }}
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
@@ -1063,8 +1059,8 @@ jobs:
         uses: ./.github/actions/oci-registry-login
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
-          username: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          password: ${{ secrets.OCI_REGISTRY_PASSWORD }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Initialize Packer
         working-directory: infra/runner-image
@@ -1124,9 +1120,6 @@ jobs:
       - name: Push profile to the Tuist OCI registry
         timeout-minutes: 90
         env:
-          TART_REGISTRY_HOSTNAME: ${{ vars.OCI_REGISTRY_HOST }}
-          TART_REGISTRY_USERNAME: ${{ secrets.OCI_REGISTRY_USERNAME }}
-          TART_REGISTRY_PASSWORD: ${{ secrets.OCI_REGISTRY_PASSWORD }}
           # See runner-image.yml's matching step for the rationale —
           # tart's auto-prune races mid-push (cirruslabs/tart#860).
           TART_NO_AUTO_PRUNE: "1"
