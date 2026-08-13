@@ -157,11 +157,10 @@ enum NetrcParser {
                 }
                 continue
             }
-            if !inQuote, character == "#" {
-                if !token.isEmpty {
-                    tokens.append(token)
-                    token = ""
-                }
+            // Only a `#` that opens a token starts a comment. SwiftPM's netrc regex
+            // requires whitespace ahead of it and curl agrees, so `password se#cret`
+            // is a password rather than a truncated one followed by a comment.
+            if !inQuote, character == "#", token.isEmpty {
                 skippingComment = true
                 continue
             }

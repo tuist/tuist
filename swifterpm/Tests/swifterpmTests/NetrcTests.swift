@@ -40,6 +40,21 @@ struct NetrcTests {
     }
 
     @Test
+    func parserKeepsAHashInsideAValueAndStripsATrailingComment() {
+        // curl and SwiftPM both open a comment only where `#` starts a token, so a
+        // password containing one has to survive whole. Truncating it silently sends
+        // a wrong password, which reads as bad credentials rather than bad parsing.
+        let machines = NetrcParser.machines(
+            in: "machine registry.example.com login user password se#cret # trailing"
+        )
+
+        #expect(
+            machines == [
+                NetrcMachine(name: "registry.example.com", login: "user", password: "se#cret")
+            ])
+    }
+
+    @Test
     func parserSkipsEntriesWithoutBothCredentials() {
         let machines = NetrcParser.machines(
             in: """
