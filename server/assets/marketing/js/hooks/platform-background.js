@@ -1,6 +1,6 @@
 /*
- * Animates the blueprint "platform" decoration around the home hero
- * (ported from the tuist-demo prototype). The markup is server-rendered;
+ * Animates the blueprint "platform" decoration around the home hero.
+ * The markup is server-rendered;
  * this hook only mutates state:
  *
  *   cache-hit   — a step-line graph that scrolls continuously left, appending
