@@ -167,3 +167,72 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 		t.Fatalf("host/guest digest divergence:\n  host  = %q\n  guest = %q", host, guest)
 	}
 }
+
+// guestCASSpoolPendingScript mirrors the pending-record count in dispatch-poll.sh's
+// withhold_promote_if_cas_unpublished byte-for-byte, taking the image MOUNT root as
+// $1. Keep in sync with the script: this predicate decides whether an image may
+// promote at all, and it fails in both directions. Counting a leaked `.tags`
+// sidecar would withhold every future promote for that account forever; missing a
+// record claimed as `<base>.claim-<pid>` would ship an association whose objects
+// the remote has never seen to every host that converges to the master.
+const guestCASSpoolPendingScript = `
+set -u
+spool="$1/CompilationCache.noindex/tuist-spool"
+pending=0
+if [ -d "${spool}" ]; then
+  pending=$(find "${spool}" -type f ! -name "*.tags" 2>/dev/null | wc -l | tr -d '[:space:]')
+fi
+case "${pending}" in ''|*[!0-9]*) pending=0 ;; esac
+printf '%s' "${pending}"
+`
+
+func TestGuestCASSpoolCountsOnlyPendingRecords(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		// No CAS store at all (feature off, or a cold branch): nothing to withhold.
+		{name: "absent spool", want: "0"},
+		// The uploader drained cleanly and removed each record with its sidecar.
+		{name: "drained spool", files: []string{"tuist-spool/"}, want: "0"},
+		// A sidecar whose record was removed. Not a pending publication, and
+		// treating it as one would strand this account's promotes permanently.
+		{name: "leaked sidecar only", files: []string{"tuist-spool/1234-0.tags"}, want: "0"},
+		{name: "one unpublished record", files: []string{"tuist-spool/1234-0"}, want: "1"},
+		// A record mid-upload is renamed by the sweeper that claimed it; it is
+		// still unpublished, so it still counts.
+		{
+			name:  "record with sidecar plus a claimed record",
+			files: []string{"tuist-spool/1234-0", "tuist-spool/1234-0.tags", "tuist-spool/1234-1.claim-99"},
+			want:  "2",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, name := range tc.files {
+				path := filepath.Join(root, casStoreDir, name)
+				if strings.HasSuffix(name, "/") {
+					if err := os.MkdirAll(path, 0o755); err != nil {
+						t.Fatal(err)
+					}
+					continue
+				}
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte("record"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			out, err := exec.Command("bash", "-c", guestCASSpoolPendingScript, "cas_spool_pending", root).Output()
+			if err != nil {
+				t.Fatalf("guest spool count: %v", err)
+			}
+			if got := strings.TrimSpace(string(out)); got != tc.want {
+				t.Fatalf("pending records = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

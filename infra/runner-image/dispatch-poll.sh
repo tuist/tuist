@@ -186,6 +186,13 @@ STATUS_SHARE="/Volumes/My Shared Files/status"
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
+# The plugin's write-ahead publish spool, inside the CAS store and so inside the
+# image. A record is written before its upload and deleted only once the publish
+# lands on the remote, so a surviving record IS an unpublished association.
+# TAGS is the sidecar written beside a record; a record being uploaded is renamed
+# `<base>.claim-<pid>`, so it still counts as pending.
+CAS_SPOOL_DIR="tuist-spool"
+CAS_SPOOL_TAGS_SUFFIX=".tags"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -464,6 +471,38 @@ reclaim_cas_if_disabled() {
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS disabled; reclaimed stale store from image"
 }
 
+# withhold_promote_if_cas_unpublished refuses to promote an image whose CAS still
+# holds unpublished publish records, and reports the pending count for the host's
+# metric either way.
+#
+# A promoted image is adopted by every other host through HEAD convergence, and
+# THERE the only way to repair a CAS association whose objects were pruned is the
+# instance snapshot: the publishing host's in-memory instruction maps
+# (pending_objects, publish_cache) do not travel inside the image. So an
+# association whose objects never reached the remote arrives on the next host with
+# no repair path at all — and nothing can retract it, because the CAS ABI has no
+# delete and refuses a re-put with a different value. One unpublished record can
+# therefore poison a key for every host that converges to this master, and the
+# compiler fails the build on a missing object rather than recompiling.
+#
+# A spooled record is exactly that condition, so while any remain the image is not
+# safe to publish and the account keeps its existing master — costing it one job's
+# warmth instead of a poisoned key. Runs while the image is still MOUNTED (the
+# spool is inside it and unreadable after the detach).
+withhold_promote_if_cas_unpublished() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
+  local spool="${CACHE_MOUNT}/${CAS_STORE_DIR}/${CAS_SPOOL_DIR}"
+  local pending=0
+  if [ -d "${spool}" ]; then
+    pending=$(find "${spool}" -type f ! -name "*${CAS_SPOOL_TAGS_SUFFIX}" 2>/dev/null | wc -l | tr -d '[:space:]')
+  fi
+  case "${pending}" in ''|*[!0-9]*) pending=0 ;; esac
+  [ -d "${STATUS_SHARE}" ] && printf '%s' "${pending}" > "${STATUS_SHARE}/cas-spool-pending" 2>/dev/null || true
+  [ "${pending}" -gt 0 ] || return 0
+  mark_cache_not_promotable "${pending} CAS publication(s) never reached the remote"
+}
+
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
 # most a job's start can be delayed by the cache. The host materializes from its
 # LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
@@ -552,9 +591,14 @@ capture_cache_state() {
 # still promotes, which is acceptable — those artifacts are content-addressed
 # and signature-validated, so they warm rather than corrupt.) Mirrors the rc
 # gate in report_volume_head so local promote and HEAD publish agree.
-
+#
+# It also mirrors report_volume_head's CACHE_IMAGE_ACTIVE gate, so a withdrawal
+# made BEFORE the detach still holds: mark_cache_not_promotable clears that flag,
+# and without the same check here this function would recompute dirty from the
+# inventory and overwrite the withdrawal with "1".
 report_cache_dirty() {
   [ -d "${STATUS_SHARE}" ] || return 0
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   local rc="${1:-1}" dirty=0
   if [ "${rc}" = "0" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
     [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
@@ -914,6 +958,10 @@ HOOK
       # BEFORE snapshotting the post-job inventory, so the removal promotes a
       # cleaned master instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
+      # Also while mounted: withdraw the image from promotion if its CAS carries
+      # publications that never reached the remote, since converging hosts cannot
+      # repair what the remote has never seen.
+      withhold_promote_if_cas_unpublished
       capture_cache_state
       if detach_cache_image; then
         report_cache_dirty "${rc}"

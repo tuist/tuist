@@ -303,6 +303,31 @@ func readFillPercent(statusDir string) int {
 	return pct
 }
 
+// casSpoolPendingFile carries the number of CAS publish records still spooled
+// inside the image at teardown — associations the proxy never landed on the
+// remote. The guest withholds its own promote when this is non-zero, because a
+// converging host can only repair a pruned CAS object through the instance
+// snapshot, and the snapshot only knows what was published. This marker is how
+// often that gate fires, and how far behind the publisher was when it did.
+const casSpoolPendingFile = "cas-spool-pending"
+
+// readCASSpoolPending returns the guest-reported count of unpublished CAS spool
+// records, or -1 when absent (CAS off, or no cache image for this job).
+func readCASSpoolPending(statusDir string) int {
+	if statusDir == "" {
+		return -1
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, casSpoolPendingFile))
+	if err != nil {
+		return -1
+	}
+	pending, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || pending < 0 {
+		return -1
+	}
+	return pending
+}
+
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
 // staged by the host at materialize. The guest sends it as the fast-forward base
 // at promote so the server accepts the bump only if HEAD is still at it.
@@ -570,6 +595,13 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	// tuning the reserve/split from observation instead of from build failures.
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
+	}
+	// Record how far the CAS publisher was behind at teardown. Zero is the healthy
+	// bulk of the distribution; anything above it withheld this job's promote, so
+	// the tail is both lost warmth and the rate of the condition that would
+	// otherwise ship unrepairable associations to every converging host.
+	if pending := readCASSpoolPending(entry.VolumeStatusDir); pending >= 0 {
+		RecordVolumeCASSpoolPending(pending)
 	}
 
 	// Consumed: the branch has been renamed away (promote) or removed

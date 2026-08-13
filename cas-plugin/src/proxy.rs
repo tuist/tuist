@@ -416,6 +416,15 @@ pub struct PathState {
     // Objects served through OP_FETCH_OBJECT because a demand load outran the
     // background materializer (or a prune removed a node under a served Hit).
     pub stats_demand_fetched: AtomicU64,
+    // Demand fetches that answered not-found: every instruction source was
+    // exhausted, the instance could not be routed, or the blob/frame the
+    // instruction named could not be produced. Counted apart from a resolve miss,
+    // which is merely a cold key: THIS one is the compiler asking for an object it
+    // already holds an id for, and clang fails the build on a missing object
+    // rather than recompiling. It is the precursor to every poisoned key, so a
+    // non-zero rate here is the signal that an association outlived what any
+    // source can repair.
+    pub stats_fetch_unresolved: AtomicU64,
     pub stats_blobs_fetched: AtomicU64,
     // Blobs that arrived inlined in the GetActionResult response instead of
     // through a separate BatchReadBlobs round-trip (kura's
@@ -1291,6 +1300,7 @@ impl Proxy {
             stats_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
+            stats_fetch_unresolved: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
@@ -1749,12 +1759,43 @@ impl Proxy {
             .fetch(digest, |digests| remote.batch_read(digests))
     }
 
+    /// Counts every not-found answer on the way out of `fetch_object_inner`.
+    ///
+    /// Each `Ok(false)` in there reaches the compiler as a missing object for an
+    /// id it ALREADY holds — clang fails the build on that rather than
+    /// recompiling — so they are one outcome no matter which source ran out: no
+    /// instruction anywhere, an unroutable instance, or a blob the remote could
+    /// not produce. Counting at this boundary instead of at each `return` also
+    /// means a later early-exit cannot be added silently uncounted.
+    fn fetch_object(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+    ) -> Result<bool, String> {
+        let result = self.fetch_object_inner(state, cas_path, declared_instance, digest);
+        if matches!(result, Ok(false)) {
+            let count = state.stats_fetch_unresolved.fetch_add(1, Ordering::Relaxed) + 1;
+            // Loud on the first, sampled after: one unresolved object already
+            // fails the build, and the rest of a poisoned graph would bury it.
+            if count == 1 || count % 100 == 0 {
+                crate::log_line(&format!(
+                    "unresolved demand fetch #{count} for {}: no instruction source could produce it \
+                     — the association outlived every repair path",
+                    reapi::hex(digest)
+                ));
+            }
+        }
+        result
+    }
+
     /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
     /// local CAS. Present now (the materializer won the race) answers
     /// immediately; a registered pending fetch is executed inline (this runs
     /// on a compiler worker thread, never the build engine's serial path);
     /// anything else is a genuine not-found.
-    fn fetch_object(
+    fn fetch_object_inner(
         &self,
         state: &'static PathState,
         cas_path: &str,
@@ -2980,13 +3021,14 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} fetch_unresolved={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_snapshot_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
                 state.stats_demand_fetched.load(Ordering::Relaxed),
+                state.stats_fetch_unresolved.load(Ordering::Relaxed),
                 state.pending_objects.lock().unwrap().len(),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
@@ -4120,6 +4162,7 @@ mod tests {
             stats_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
+            stats_fetch_unresolved: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),

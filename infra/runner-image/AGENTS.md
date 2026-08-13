@@ -107,7 +107,21 @@ installs.
   the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
-  guard) covers it. A compile-only job still persists its CAS because the
+  guard) covers it. There IS one CAS-specific promote precondition, applied to the
+  same image and the same marker: `withhold_promote_if_cas_unpublished` runs at
+  teardown while the image is still mounted, and if the plugin's write-ahead spool
+  (`CompilationCache.noindex/tuist-spool`) still holds records — publications that
+  never landed on the remote — it calls `mark_cache_not_promotable`. A converging
+  host can only repair a pruned CAS object through the instance snapshot; the
+  publishing host's in-memory instruction maps do not travel inside the image, so
+  an association the remote never saw arrives elsewhere with no repair path and
+  nothing can retract it. Losing one job's warmth is the cheaper half of that
+  trade. The count is relayed as `cas-spool-pending` and recorded as
+  `tart_kubelet_cache_volume_cas_spool_pending` (0 is the healthy bulk; the
+  non-zero rate is what the gate costs in promotes). `report_cache_dirty` shares
+  `report_volume_head`'s `CACHE_IMAGE_ACTIVE` guard so a withdrawal made before
+  the detach is not overwritten by the post-detach dirty computation. A
+  compile-only job still persists its CAS because the
   inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
   content identity, computed identically host- and guest-side), so CAS growth
   flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)

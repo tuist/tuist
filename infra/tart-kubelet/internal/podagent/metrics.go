@@ -283,6 +283,21 @@ var cacheVolumeFillPercent = prometheus.NewHistogram(
 	},
 )
 
+// cacheVolumeCASSpoolPending is the number of CAS publish records still spooled
+// in the image when the job tore down. Zero is healthy and should be the bulk of
+// the distribution. Anything above it is associations the remote never saw, which
+// withholds the promote: an image carrying them would hand every converging host
+// keys it cannot repair, and the compiler fails the build on a missing object
+// rather than recompiling. The 0 bucket against the total is therefore the gate's
+// cost in lost promotes, and the tail is how far behind the publisher ran.
+var cacheVolumeCASSpoolPending = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_cas_spool_pending",
+		Help:    "CAS publish records still spooled at teardown; non-zero withholds the promote because converging hosts could not repair them.",
+		Buckets: []float64{0, 1, 5, 25, 100, 500, 2500, 10000},
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -302,6 +317,7 @@ func init() {
 		cacheVolumeAdmissionDeclinedTotal,
 		cacheVolumeUploadSeconds,
 		cacheVolumeFillPercent,
+		cacheVolumeCASSpoolPending,
 	)
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
@@ -329,6 +345,16 @@ func RecordVolumeFill(pct int) {
 		return
 	}
 	cacheVolumeFillPercent.Observe(float64(pct))
+}
+
+// RecordVolumeCASSpoolPending records the guest-reported count of CAS publish
+// records still spooled at teardown. Zero is recorded too — the healthy baseline
+// is what makes the non-zero rate readable.
+func RecordVolumeCASSpoolPending(pending int) {
+	if pending < 0 {
+		return
+	}
+	cacheVolumeCASSpoolPending.Observe(float64(pending))
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache
