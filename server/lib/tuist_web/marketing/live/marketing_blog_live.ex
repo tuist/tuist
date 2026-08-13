@@ -34,7 +34,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
     socket =
       socket
-      |> assign(:new_design, Design.new?(session, :blog))
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :blog))
       |> assign(:categories, Content.get_entry_categories())
       |> assign(:search_query, "")
       |> assign(:selected_category, nil)

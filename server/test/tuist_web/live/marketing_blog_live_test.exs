@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Content
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /blog" do
     test "renders the legacy design and stylesheet by default", %{conn: conn} do
@@ -26,41 +27,32 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
       refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "?design=new previews the new design", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/blog?design=new")
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
 
-      assert html =~ "/marketing/assets/bundle-new.css"
-    end
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
-    test "an override cookie set on an earlier request previews the new design", %{conn: conn} do
-      {:ok, _lv, html} =
-        conn
-        |> put_req_cookie("tuist_marketing_design", "new")
-        |> live(~p"/blog")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "?design=old forces the legacy design even when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog -> true
-        _ -> false
+        :new_marketing_blog, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
       end)
 
-      {:ok, _lv, html} = live(conn, ~p"/blog?design=old")
+      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/blog")
 
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
     end
 
     test "the new design keeps the most recent post in the grid", %{conn: conn} do
+      {:ok, _lv, legacy_html} = live(conn, ~p"/blog")
+
       stub(FunWithFlags, :enabled?, fn
         :new_marketing_blog -> true
         _ -> false
       end)
 
       {:ok, _lv, new_html} = live(conn, ~p"/blog")
-      {:ok, _lv, legacy_html} = live(conn, ~p"/blog?design=old")
 
       latest_post_title =
         "en" |> Content.get_entries() |> List.first() |> Content.get_entry_title()
