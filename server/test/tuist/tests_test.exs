@@ -2262,6 +2262,48 @@ defmodule Tuist.TestsTest do
       assert updated_test.id == interrupted_test.id
     end
 
+    # `shard_plan_id` is not in the sorting key, so this lookup reads every
+    # granule the project prefix leaves. Reading the whole row allocates a read
+    # buffer per column stream, which on its own exceeds the memory the lookup
+    # is capped at: the shard report then 500s and the run gets no test report
+    # at all. Asserting the shape is the only way to hold that here, since the
+    # test dataset is far too small to reproduce the limit.
+    test "reads only the id when looking a merged run up by shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _test} =
+            Tests.create_test(%{
+              id: UUIDv7.generate(),
+              project_id: project.id,
+              account_id: account.id,
+              duration: 500,
+              status: "success",
+              model_identifier: "Mac15,6",
+              macos_version: "14.0",
+              xcode_version: "15.0",
+              git_branch: "main",
+              git_commit_sha: "abc123",
+              ran_at: NaiveDateTime.utc_now(),
+              is_ci: true,
+              shard_plan_id: plan.id,
+              shard_index: 0
+            })
+        end)
+
+      shard_plan_lookups =
+        Enum.filter(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ "shard_plan_id"))
+
+      assert shard_plan_lookups != []
+
+      for query <- shard_plan_lookups do
+        assert query =~ ~r/SELECT\s+t0\."id"\s+FROM\s+"test_runs"/
+      end
+    end
+
     test "single shard plan sets status directly (not in_progress)" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -10432,6 +10474,34 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
 
       assert Tests.test_case_ids_with_successful_default_branch_run(project.id, [], "main") == []
+    end
+  end
+
+  defp capture_clickhouse_queries(fun) do
+    test_pid = self()
+    handler_id = "clickhouse-queries-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach_many(
+      handler_id,
+      [[:tuist, :click_house_repo, :query], [:tuist, :ingest_repo, :query]],
+      fn _event, _measurements, %{query: query}, _config -> send(test_pid, {:clickhouse_query, query}) end,
+      nil
+    )
+
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler_id)
+    end
+
+    drain_clickhouse_queries([])
+  end
+
+  defp drain_clickhouse_queries(acc) do
+    receive do
+      {:clickhouse_query, query} -> drain_clickhouse_queries([query | acc])
+    after
+      0 -> Enum.reverse(acc)
     end
   end
 end
