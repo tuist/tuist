@@ -252,7 +252,8 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 |------|-------------|---------------------|
 | `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
-| `get_test_run_artifacts` | Get temporary download URLs for a test run's result bundle (`.xcresult`) and session archive. | `test_run_id` |
+| `get_test_run_result_bundle` | Get a temporary download URL for a test run's result bundle (`.xcresult`). | `test_run_id` |
+| `get_test_run_session` | Get a temporary download URL for a test run's session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
