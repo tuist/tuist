@@ -220,6 +220,20 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
 
+# VM image registry. Reuses the staging object-storage bucket under an
+# `images` prefix, alongside the Docker mirror below. Reachable at
+# tuist-images-staging.<tailnet>.ts.net; nothing points at it yet, so it
+# is inert until the build workflows and fleet image pins move.
+imageRegistry:
+  enabled: true
+  s3:
+    bucket: tuist-stag-storage
+    rootDirectory: images
+  tailscale:
+    enabled: true
+    hostname: tuist-images-staging
+    tags: tag:tuist-k8s-staging
+
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.
 registryCache:

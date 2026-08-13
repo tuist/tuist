@@ -2030,6 +2030,58 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
 
+# Registry of record for the large Tart VM images the macOS fleet boots
+# from (Xcode base, runner, xcresult processor) plus the Xcode .xip
+# mirror. Backed by the same object store as `registryCache` under its
+# own prefix; see the template for why these artifacts don't belong on
+# GHCR. Disabled by default — only hosted Tuist publishes VM images.
+#
+# Standing this up is inert on its own: the build workflows keep pushing
+# to GHCR and the fleet keeps pulling from there until the image
+# references move, which is a separate, canaried change.
+imageRegistry:
+  enabled: false
+  replicaCount: 1
+  image:
+    # ECR Public rather than docker.io, for the same reason as
+    # registryCache below: this must not depend on a registry that
+    # rate-limits us. distribution 3 for its S3 driver improvements.
+    repository: public.ecr.aws/docker/library/registry
+    tag: "3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  logLevel: info
+  s3:
+    bucket: tuist-registry
+    rootDirectory: images
+    # Multipart part size in bytes for blob uploads. 64 MiB against Tart's
+    # 512 MiB layers is 8 parts per layer; the default 10 MiB would be 52.
+    chunkSize: 67108864
+  tailscale:
+    # Expose the Service on the tailnet instead of a public ingress. Every
+    # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
+    enabled: false
+    # Tailnet node name; the registry is reachable at
+    # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
+    hostname: ""
+    tags: ""
+  # Empty = registry auto-generates one per pod (fine at replicaCount 1).
+  # Set a shared value before scaling past one replica behind the Service.
+  httpSecret: ""
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      # Headroom over s3.chunkSize above: the S3 driver holds a multipart
+      # part in memory per in-flight upload, and a push runs several
+      # concurrently.
+      cpu: "2"
+      memory: 2Gi
+
 # Docker Hub pull-through cache for the Linux runner fleet. Disabled by
 # default; flip `enabled: true` per environment (staging first) once it's
 # validated. Pointing the runner dind sidecars at this mirror is a

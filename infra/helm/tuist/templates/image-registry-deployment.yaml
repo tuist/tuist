@@ -1,0 +1,95 @@
+{{- if .Values.imageRegistry.enabled }}
+# VM image registry (CNCF distribution, store of record — not a proxy).
+# Holds the large Tart images the macOS fleet boots from, which GHCR is
+# a poor fit for: pushing a ~50 GB image there means ~17,000 chunked
+# requests (GHCR rejects chunks of 4 MB and up), which trips its
+# secondary rate limit, while monolithic uploads time out mid-disk. See
+# the measurements in `.github/actions/tart-push/action.yml`. Backed by
+# the same object store as the Docker Hub mirror, under its own prefix.
+#
+# Blob GETs are answered with a redirect to a presigned object-store URL,
+# so image bytes go straight from the store to the puller and never
+# transit this pod. That is what keeps a single small replica viable in
+# front of terabytes of images.
+#
+# Reachable over the tailnet only (see the Service's tailscale
+# annotations): every puller is our own hardware, which joins the tailnet
+# at bootstrap before kubelet. Customers select a runner profile via
+# `runs-on:` labels and never pull these images.
+#
+# Runs on the elastic pool, NOT the bare-metal runner fleet, and pulls its
+# own image from a non-Hub registry — this registry serves the runner
+# image, so hosting it on hardware that needs the runner image to boot
+# would be a bootstrap deadlock.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: image-registry
+spec:
+  replicas: {{ .Values.imageRegistry.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
+      containers:
+        - name: image-registry
+          image: "{{ .Values.imageRegistry.image.repository }}:{{ .Values.imageRegistry.image.tag }}"
+          imagePullPolicy: {{ .Values.imageRegistry.image.pullPolicy }}
+          ports:
+            - name: registry
+              containerPort: 5000
+          env:
+            - name: REGISTRY_HTTP_ADDR
+              value: ":5000"
+            - name: REGISTRY_LOG_LEVEL
+              value: {{ .Values.imageRegistry.logLevel | quote }}
+            # Retiring an Xcode profile should be able to reclaim its
+            # blobs. Deletion only marks them unreferenced; an offline
+            # garbage-collect pass is what frees the object-store space.
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+            # Tart splits a VM disk into layers of at most 512 MiB. The S3
+            # driver buffers each multipart part in memory, so this trades
+            # pod memory against request count on a push; it must stay
+            # comfortably under the container memory limit below.
+            # int64 before quoting: Helm reads the value as a float and
+            # would otherwise render it in scientific notation, which the
+            # storage driver rejects at startup.
+            - name: REGISTRY_STORAGE_S3_CHUNKSIZE
+              value: {{ .Values.imageRegistry.s3.chunkSize | int64 | quote }}
+            {{- with .Values.imageRegistry.httpSecret }}
+            # Shared across replicas behind the Service so signed upload
+            # state validates regardless of which replica serves a request.
+            - name: REGISTRY_HTTP_SECRET
+              value: {{ . | quote }}
+            {{- end }}
+            {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.imageRegistry.s3) | nindent 12 }}
+            {{- with .Values.imageRegistry.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.imageRegistry.resources | nindent 12 }}
+{{- end }}

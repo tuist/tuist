@@ -1,0 +1,30 @@
+{{- if .Values.imageRegistry.enabled }}
+# `tailscale.com/expose` makes the operator front this Service with a
+# tailnet node, so builders and the Mac fleet reach the registry by its
+# tailnet name with no public ingress. The proxy is L4, which matters
+# here: an HTTP proxy in the path would impose a request-body limit that
+# 512 MiB layer uploads would run into.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: image-registry
+  {{- if .Values.imageRegistry.tailscale.enabled }}
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ required "imageRegistry.tailscale.hostname is required when imageRegistry.tailscale.enabled is true" .Values.imageRegistry.tailscale.hostname | quote }}
+    {{- with .Values.imageRegistry.tailscale.tags }}
+    tailscale.com/tags: {{ . | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.imageRegistry.service.type }}
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 4 }}
+  ports:
+    - name: registry
+      port: {{ .Values.imageRegistry.service.port }}
+      targetPort: registry
+{{- end }}
