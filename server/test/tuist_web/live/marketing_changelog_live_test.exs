@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Changelog
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /changelog" do
     test "renders the legacy design and stylesheet by default", %{conn: conn} do
@@ -26,22 +27,21 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
       refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "?design=new previews the new design", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/changelog?design=new")
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
 
-      assert html =~ "/marketing/assets/bundle-new.css"
-    end
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
-    test "?design=old forces the legacy design even when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_changelog -> true
-        _ -> false
+        :new_marketing_changelog, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
       end)
 
-      {:ok, _lv, html} = live(conn, ~p"/changelog?design=old")
+      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/changelog")
 
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
     end
   end
 
