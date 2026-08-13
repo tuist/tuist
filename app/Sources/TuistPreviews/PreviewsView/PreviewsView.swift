@@ -16,6 +16,7 @@ public struct PreviewsView: View {
     public init() {}
 
     public var body: some View {
+        @Bindable var viewModel = viewModel
         NavigationStack(path: $navigationPath) {
             Group {
                 if viewModel.isInitialLoading {
@@ -126,7 +127,7 @@ public struct PreviewsView: View {
                     }
                 }
             }
-            .searchable(text: Bindable(viewModel).searchText, prompt: "Name, branch, or commit")
+            .searchable(text: $viewModel.searchText, prompt: "Name, branch, or commit")
             .onAppear {
                 // When deleting an account, there's a bug when onAppear is called even when already logged out.
                 // This should never happen due to the check in TuistApp.swift, but it seems there's a race condition in the
