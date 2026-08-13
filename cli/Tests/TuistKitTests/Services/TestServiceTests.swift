@@ -6358,7 +6358,7 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_uses_non_overlapping_single_target_schemes_for_mixed_tests() async throws {
+    func run_uses_the_workspace_scheme_for_mixed_hosted_and_hostless_tests() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
@@ -6373,26 +6373,10 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "AppSnapshotTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(component: "result-AppSnapshotTests.xcresult"),
-                derivedDataPath: derivedDataPath
-            ),
-            CapturedTestRun(
-                scheme: "AppTests",
-                action: .test,
-                testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(component: "result-AppTests.xcresult"),
-                derivedDataPath: derivedDataPath
-            ),
-            CapturedTestRun(
-                scheme: "FeatureTests",
-                action: .test,
-                testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(
-                    component: "result-FeatureTests.xcresult"
-                ),
+                resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath
             ),
         ])
@@ -6441,7 +6425,7 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "AppTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [],
                 resultBundlePath: nil,
@@ -6469,7 +6453,7 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_with_explicit_test_target_only_runs_its_matching_single_target_scheme() async throws {
+    func run_with_explicit_test_target_filters_the_workspace_scheme() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let passthroughDerivedDataPath = temporaryDirectory.appending(component: "PassedDerivedData")
@@ -6485,37 +6469,11 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "FeatureTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [try TestIdentifier(target: "FeatureTests")],
                 resultBundlePath: nil,
                 derivedDataPath: nil
-            ),
-        ])
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_uses_the_workspace_scheme_when_single_target_scheme_coverage_is_incomplete() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let scenario = SchemePlanningScenario(
-            rootDirectory: temporaryDirectory,
-            includeHostlessTargetWithoutScheme: true
-        )
-        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
-        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
-
-        try await fixture.run(
-            path: temporaryDirectory,
-            derivedDataPath: derivedDataPath
-        )
-
-        #expect(fixture.testRuns == [
-            CapturedTestRun(
-                scheme: "Sample-Workspace",
-                action: .test,
-                testTargets: [],
-                resultBundlePath: nil,
-                derivedDataPath: derivedDataPath
             ),
         ])
     }
