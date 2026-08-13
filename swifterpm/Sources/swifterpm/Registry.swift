@@ -133,7 +133,7 @@ enum RegistryAuthorization {
         // authorization provider asks the netrc provider first: an entry the user
         // just wrote to the file they pointed us at must not lose to a stale
         // keychain item for the same host.
-        if let credential = Environment.resolvedNetrc.credential(for: url) {
+        if let credential = Environment.netrc.credential(for: url) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
 

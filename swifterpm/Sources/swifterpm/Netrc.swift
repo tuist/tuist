@@ -17,9 +17,9 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
 }
 
 /// The netrc credentials a resolution runs with, read and parsed once up front so
-/// every later lookup is a search over `machines` rather than another file read.
-struct ResolvedNetrc: Sendable {
-    static let none = ResolvedNetrc(sources: [])
+/// every later lookup is a search over `sources` rather than another file read.
+struct Netrc: Sendable {
+    static let empty = Netrc(sources: [])
 
     /// Parsed sources in priority order. `SWIFTPM_NETRC_DATA` and `~/.netrc` are
     /// both consulted, the environment first, because a host missing from one has
@@ -30,25 +30,11 @@ struct ResolvedNetrc: Sendable {
         self.sources = sources
     }
 
-    func credential(for url: URL) -> RegistryCredential? {
-        guard let host = url.host?.lowercased() else { return nil }
-        for machines in sources {
-            if let machine = machines.last(where: { $0.name == host })
-                ?? machines.first(where: \.isDefault)
-            {
-                return RegistryCredential(user: machine.login, password: machine.password)
-            }
-        }
-        return nil
-    }
-}
-
-enum Netrc {
     static func resolve(
         _ configuration: SwifterPMNetrcConfiguration,
         environment: [String: String]
-    ) async throws -> ResolvedNetrc {
-        guard configuration.isEnabled else { return .none }
+    ) async throws -> Netrc {
+        guard configuration.isEnabled else { return .empty }
 
         // An explicit `--netrc-file` is the only source when it is given, and it has
         // to be there. SwiftPM refuses to run on a missing one rather than downgrading
@@ -58,7 +44,7 @@ enum Netrc {
             guard try await fileSystem.exists(path.absolutePath, isDirectory: false) else {
                 throw ToolError.message("did not find netrc file at \(path.path)")
             }
-            return ResolvedNetrc(sources: [NetrcParser.machines(in: try await contents(of: path))])
+            return Netrc(sources: [NetrcParser.machines(in: try await contents(of: path))])
         }
 
         var sources: [[NetrcMachine]] = []
@@ -71,7 +57,19 @@ enum Netrc {
                 sources.append(NetrcParser.machines(in: content))
             }
         }
-        return ResolvedNetrc(sources: sources)
+        return Netrc(sources: sources)
+    }
+
+    func credential(for url: URL) -> RegistryCredential? {
+        guard let host = url.host?.lowercased() else { return nil }
+        for machines in sources {
+            if let machine = machines.last(where: { $0.name == host })
+                ?? machines.first(where: \.isDefault)
+            {
+                return RegistryCredential(user: machine.login, password: machine.password)
+            }
+        }
+        return nil
     }
 
     private static func contents(of path: URL) async throws -> String {

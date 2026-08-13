@@ -11,7 +11,7 @@ struct NetrcTests {
             default login fallback password fallback-secret
             """
         )
-        let netrc = ResolvedNetrc(sources: [machines])
+        let netrc = Netrc(sources: [machines])
 
         #expect(
             netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
@@ -176,7 +176,7 @@ struct NetrcTests {
     }
 
     @Test
-    func registryAuthorizationUsesTheResolvedNetrc() async throws {
+    func registryAuthorizationUsesTheLoadedNetrc() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
@@ -205,7 +205,7 @@ struct NetrcTests {
     }
 
     @Test
-    func httpAuthorizationUsesTheResolvedNetrcOverTheAmbientGitHubToken() async throws {
+    func httpAuthorizationUsesTheLoadedNetrcOverTheAmbientGitHubToken() async throws {
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
