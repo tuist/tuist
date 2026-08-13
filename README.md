@@ -261,6 +261,12 @@ Some companies support our community and open source efforts with contributions 
           <img src="assets/companies/bereke_business_logo.svg" alt="bereke_business_logo" height="75"/>
         </a>
       </td>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://business.forte.kz" target="_blank">
+          <img src="assets/companies/forte-business-logo.svg" alt="forte-business-logo" height="75"/>
+        </a>
+      </td>
       <td width="20%"></td>
     </tr>
   </tbody>
