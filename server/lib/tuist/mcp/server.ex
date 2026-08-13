@@ -25,7 +25,6 @@ defmodule Tuist.MCP.Server do
     Tools.AddOrganizationMember,
     Tools.ListXcodeBuilds,
     Tools.GetXcodeBuild,
-    Tools.GetXcodeBuildArchive,
     Tools.ListXcodeBuildTargets,
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildIssues,
@@ -43,8 +42,6 @@ defmodule Tuist.MCP.Server do
     Tools.GetTestCase,
     Tools.UpdateTestCase,
     Tools.GetTestRun,
-    Tools.GetTestRunResultBundle,
-    Tools.GetTestRunSession,
     Tools.GetTestCaseRun,
     Tools.ListTestCaseRunAttachments,
     Tools.ListBundles,
@@ -56,8 +53,7 @@ defmodule Tuist.MCP.Server do
     Tools.GetCacheRun,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
-    Tools.ListProjects,
-    Tools.GetPreviewAppBuild
+    Tools.ListProjects
   ]
 
   @prompts [
