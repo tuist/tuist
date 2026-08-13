@@ -16,10 +16,6 @@
      PlatformBackground hook on the home page; inert everywhere else. */
   &::after {
     position: absolute;
-    inset: 0;
-    border-bottom: 1px solid var(--marketing-edge-glow-color);
-    pointer-events: none;
-    content: "";
     -webkit-mask-image: radial-gradient(
       170px circle at var(--hx, -9999px) var(--hy, -9999px),
       var(--marketing-edge-glow-stops)
@@ -28,21 +24,25 @@
       170px circle at var(--hx, -9999px) var(--hy, -9999px),
       var(--marketing-edge-glow-stops)
     );
+    inset: 0;
+    border-bottom: 1px solid var(--marketing-edge-glow-color);
+    pointer-events: none;
+    content: "";
   }
 
   & > [data-part="bar"] {
     display: flex;
     position: relative;
-    box-sizing: border-box;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
     z-index: var(--noora-z-index-12);
+    box-sizing: border-box;
     margin-inline: auto;
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
     width: 100%;
     /* 1200px frame with 16px side / 20px vertical padding. */
     max-width: var(--marketing-page-width);
-    padding: var(--noora-spacing-7) var(--noora-spacing-4);
 
     & > [data-part="tuist"] {
       display: flex;
@@ -75,11 +75,11 @@
       display: none;
       flex-direction: row;
       align-items: center;
+      gap: var(--noora-spacing-4);
       /* Menus sit next to the logo (not centered): spacing-8 from the logo,
          spacing-4 between items; the actions cluster absorbs the slack via
          margin-left: auto. */
       margin-left: var(--noora-spacing-8);
-      gap: var(--noora-spacing-4);
 
       @media (min-width: 960px) {
         display: flex;
@@ -90,15 +90,15 @@
 
         & > [data-part="action"] {
           display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
           /* The dropdown triggers are real <button>s so keyboard users can
              reach and open them; strip the UA button chrome so they render
              exactly like the sibling link actions. */
           appearance: none;
-          margin: 0;
-          flex-direction: row;
-          align-items: center;
-          gap: var(--noora-spacing-3);
           cursor: pointer;
+          margin: 0;
           border: none;
           border-radius: var(--noora-radius-2);
           background: transparent;
@@ -179,7 +179,6 @@
             transform: rotate(180deg);
           }
         }
-
       }
     }
 
@@ -187,9 +186,9 @@
       display: flex;
       flex-direction: row;
       align-items: center;
+      gap: var(--noora-spacing-5);
       /* Push the actions to the right edge now that the menus hug the logo. */
       margin-left: auto;
-      gap: var(--noora-spacing-5);
 
       /* On mobile only Sign up remains; Log in lives in the sign-up flow.
          The extra inline padding matches the primary button next to it,
@@ -400,10 +399,10 @@
             color: var(--noora-button-neutral-label);
 
             & svg {
-              width: 20px;
-              height: 20px;
               transform: rotate(-90deg);
               transition: transform 0.2s ease;
+              width: 20px;
+              height: 20px;
             }
           }
 
@@ -829,15 +828,15 @@
 
   & > [data-part="panel"] > [data-part="content"] {
     position: absolute;
-    inset: 0;
     visibility: hidden;
     opacity: 0;
     animation-duration: 250ms;
     animation-timing-function: ease;
-    pointer-events: none;
     /* Stay visible while the exit animation plays, then hide. */
     transition: visibility 0s linear 250ms;
+    inset: 0;
     overflow-y: auto;
+    pointer-events: none;
 
     &[data-state="open"] {
       visibility: visible;
@@ -884,19 +883,19 @@
       gap: var(--noora-spacing-2);
 
       & svg {
-        width: 18px;
-        height: 18px;
-        opacity: 0;
         transform: translateX(-4px);
+        opacity: 0;
         transition:
           opacity 0.2s ease,
           transform 0.2s var(--ease-out-cubic);
+        width: 18px;
+        height: 18px;
       }
     }
 
     &:hover [data-part="title"] svg {
-      opacity: 1;
       transform: translateX(0);
+      opacity: 1;
     }
   }
 
@@ -908,8 +907,8 @@
     }
 
     & [data-part="chart-right-fill"] {
-      fill: transparent;
       transition: fill 0.2s ease;
+      fill: transparent;
     }
   }
 
@@ -926,34 +925,34 @@
   /* Compute illustration hover: a scatter of chips lights up purple. */
   & [data-illustration="compute"] {
     & [data-part="chip-highlight"] {
-      fill: transparent;
       transition:
         stroke 0.2s ease,
         fill 0.2s ease;
+      fill: transparent;
     }
   }
 
   & [data-part="feature"]:hover [data-illustration="compute"] {
     & [data-part="chip-highlight"] {
-      stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       fill: var(--marketing-tint-purple);
+      stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
     }
   }
 
   /* Tests illustration hover: a scatter of squares lights up purple. */
   & [data-illustration="tests"] {
     & [data-part="square-highlight"] {
-      fill: transparent;
       transition:
         stroke 0.2s ease,
         fill 0.2s ease;
+      fill: transparent;
     }
   }
 
   & [data-part="feature"]:hover [data-illustration="tests"] {
     & [data-part="square-highlight"] {
-      stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       fill: var(--marketing-tint-purple);
+      stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
     }
   }
 
@@ -970,8 +969,8 @@
 
     & > [data-part="feature"] {
       display: flex;
-      box-sizing: border-box;
       flex-direction: column;
+      box-sizing: border-box;
       padding: var(--noora-spacing-7);
       overflow: hidden;
       text-decoration: none;
@@ -1039,9 +1038,9 @@
 
       & > [data-part="link"] {
         display: flex;
-        box-sizing: border-box;
         flex-direction: column;
         gap: var(--noora-spacing-2);
+        box-sizing: border-box;
         padding: var(--noora-spacing-7);
         text-decoration: none;
 
@@ -1083,12 +1082,12 @@
       & > [data-part="header"] {
         display: flex;
         position: relative;
-        box-sizing: border-box;
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        height: 90px;
+        box-sizing: border-box;
         padding: 0 var(--noora-spacing-7);
+        height: 90px;
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-primary);
@@ -1106,12 +1105,12 @@
 
         & > [data-part="entry"] > a {
           display: flex;
-          box-sizing: border-box;
           flex-direction: row;
           align-items: center;
           gap: var(--noora-spacing-4);
-          height: 100%;
+          box-sizing: border-box;
           padding: 0 var(--noora-spacing-7);
+          height: 100%;
           text-decoration: none;
 
           & > [data-part="content"] {
@@ -1145,9 +1144,9 @@
 
     & > [data-part="resource"] {
       display: flex;
-      box-sizing: border-box;
       flex-direction: column;
       gap: var(--noora-spacing-2);
+      box-sizing: border-box;
       padding: var(--noora-spacing-7);
       text-decoration: none;
 

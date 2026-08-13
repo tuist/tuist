@@ -38,11 +38,11 @@
 .code-window > [data-part="bar"] > [data-part="copy"] {
   display: inline-grid;
   position: relative;
-  box-sizing: border-box;
   place-items: center;
+  box-sizing: border-box;
+  padding: 0;
   width: 32px;
   height: 32px;
-  padding: 0;
   /* Rapid clicks escalate to double/triple-click selection, which would
      otherwise spill onto the code's first line. */
   user-select: none;
@@ -68,10 +68,10 @@
   background: var(--noora-tooltip-background);
   padding: var(--noora-spacing-2) var(--noora-spacing-3);
   width: max-content;
-  color: var(--noora-tooltip-label-primary);
-  font: var(--noora-font-body-small);
   pointer-events: none;
   content: "Copied";
+  color: var(--noora-tooltip-label-primary);
+  font: var(--noora-font-body-small);
 }
 
 /* Copy → check swap: stacked-grid crossfade where the hidden icon sits at
@@ -80,26 +80,26 @@
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
   display: inline-flex;
   grid-area: 1 / 1;
-  opacity: 1;
   transform: scale(1);
+  opacity: 1;
   transition:
     opacity 200ms ease-in-out,
     transform 200ms ease-in-out;
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
-  opacity: 0;
   transform: scale(0.5);
+  opacity: 0;
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-icon"] {
-  opacity: 0;
   transform: scale(0.5);
+  opacity: 0;
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-check-icon"] {
-  opacity: 1;
   transform: scale(1);
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -109,10 +109,8 @@
   }
 }
 
-
 .code-window > [data-part="code"] {
   position: relative;
-  box-shadow: var(--noora-light-border-default);
   /* Figma's "clip content": on the sides and bottom this box sits flush with
      the shell, which already draws the outer hairline there — clip our ring
      so the two alpha shadows don't stack into a darker edge. The negative
@@ -121,18 +119,19 @@
      clip would let the ring's corner arcs survive and stack into a darker
      curve). */
   clip-path: inset(-8px 0 0 0 round 0 0 8px 8px);
+  box-shadow: var(--noora-light-border-default);
   /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);
   padding: 16px 12px;
   overflow-x: auto;
-  font: var(--noora-font-weight-regular) var(--noora-font-code-large);
   /* Scrollbar styled after Noora's table (see noora/css/table.css). Reset the
      inherited globals first: any non-auto `scrollbar-color` (the marketing
      root sets one) makes Chromium ignore the `::-webkit-scrollbar` rules
      below and fall back to a full-width bar flush against the bottom edge. */
   scrollbar-color: auto;
   scrollbar-width: auto;
+  font: var(--noora-font-weight-regular) var(--noora-font-code-large);
 
   /* Firefox has no `::-webkit-scrollbar`; give it the thin variant. Scoped so
      Chromium/Safari fall through to the detailed styling below. */
@@ -143,8 +142,8 @@
 }
 
 .code-window > [data-part="code"]::-webkit-scrollbar {
-  height: var(--noora-spacing-6);
   background: transparent;
+  height: var(--noora-spacing-6);
 }
 
 /* Keeps the thumb's travel clear of the rounded bottom corners. */
@@ -162,9 +161,10 @@
 .code-window > [data-part="code"]::-webkit-scrollbar-thumb {
   border: solid transparent;
   border-width: var(--noora-spacing-1) var(--noora-spacing-2) var(--noora-spacing-3);
-  border-radius: var(--noora-radius-4) / var(--noora-radius-3) var(--noora-radius-3) var(--noora-radius-5) var(--noora-radius-5);
-  background-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
+  border-radius: var(--noora-radius-4) / var(--noora-radius-3) var(--noora-radius-3) var(--noora-radius-5)
+    var(--noora-radius-5);
   background-clip: padding-box;
+  background-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
 }
 
 /* MDEx's html_inline formatter adds an inline background-color on <pre>,

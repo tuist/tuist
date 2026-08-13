@@ -120,8 +120,7 @@ export const CustomersDitherLine = {
       const dt = this.lastNow ? now - this.lastNow : 16;
       this.lastNow = now;
       const step = dt / HOVER_MS;
-      this.hover =
-        this.hoverTarget > this.hover ? Math.min(1, this.hover + step) : Math.max(0, this.hover - step);
+      this.hover = this.hoverTarget > this.hover ? Math.min(1, this.hover + step) : Math.max(0, this.hover - step);
       this.render(now);
     };
     this.raf = requestAnimationFrame(tick);

@@ -5,9 +5,9 @@
   /* Same 1200px bordered shell as the page sections, with the page-level
      spacing-1 gap to the divider above. */
   & > [data-part="content"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     margin: var(--noora-spacing-1) var(--noora-spacing-1) 0;
     /* Open at the bottom: the footer is the page's last box, so it runs off
        the viewport edge without closing its frame. */
@@ -175,5 +175,4 @@
       position: absolute;
     }
   }
-
 }
