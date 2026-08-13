@@ -76,8 +76,11 @@ defmodule Noora.Icon do
       |> assign_new(:active_state, fn -> "open" end)
 
     case resolve_transition(assigns.transition, assigns.name, active_name) do
-      :morph -> render_morph_icon(assigns)
-      kind when kind in [:crossfade, :crossfade_rotate] -> render_crossfade_icon(assign(assigns, :resolved_transition, kind))
+      :morph ->
+        render_morph_icon(assigns)
+
+      kind when kind in [:crossfade, :crossfade_rotate] ->
+        render_crossfade_icon(assign(assigns, :resolved_transition, kind))
     end
   end
 
