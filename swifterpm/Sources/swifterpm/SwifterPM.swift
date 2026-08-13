@@ -37,6 +37,7 @@ public struct SwifterPMResolutionRequest: Sendable {
     public var scratchDirectory: URL?
     public var registryConfigurationPath: URL?
     public var defaultRegistryURL: String?
+    public var netrc: SwifterPMNetrcConfiguration
     public var disableSandbox: Bool
     public var forceResolvedVersions: Bool
     public var skipUpdate: Bool
@@ -54,6 +55,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         scratchDirectory: URL? = nil,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
+        netrc: SwifterPMNetrcConfiguration = .default,
         disableSandbox: Bool = false,
         forceResolvedVersions: Bool = false,
         skipUpdate: Bool = false,
@@ -70,6 +72,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.scratchDirectory = scratchDirectory
         self.registryConfigurationPath = registryConfigurationPath
         self.defaultRegistryURL = defaultRegistryURL
+        self.netrc = netrc
         self.disableSandbox = disableSandbox
         self.forceResolvedVersions = forceResolvedVersions
         self.skipUpdate = skipUpdate
@@ -89,6 +92,7 @@ public struct SwifterPMRestoreRequest: Sendable {
     public var scratchDirectory: URL?
     public var registryConfigurationPath: URL?
     public var defaultRegistryURL: String?
+    public var netrc: SwifterPMNetrcConfiguration
     public var disableSandbox: Bool
     public var disablePackageInfoCache: Bool
     public var packageInfoCacheDirectory: URL?
@@ -101,6 +105,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         scratchDirectory: URL? = nil,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
+        netrc: SwifterPMNetrcConfiguration = .default,
         disableSandbox: Bool = false,
         disablePackageInfoCache: Bool = false,
         packageInfoCacheDirectory: URL? = nil,
@@ -112,6 +117,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         self.scratchDirectory = scratchDirectory
         self.registryConfigurationPath = registryConfigurationPath
         self.defaultRegistryURL = defaultRegistryURL
+        self.netrc = netrc
         self.disableSandbox = disableSandbox
         self.disablePackageInfoCache = disablePackageInfoCache
         self.packageInfoCacheDirectory = packageInfoCacheDirectory
@@ -126,28 +132,37 @@ public struct SwifterPM: Sendable {
     public func resolve(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runResolution(request: request, preferResolvedFile: true)
+        try await Netrc.validate(request.netrc)
+        return try await Environment.withNetrc(request.netrc) {
+            try await Environment.withCachedDirectoryMaterialization(
+                request.cachedDirectoryMaterialization
+            ) {
+                try await runResolution(request: request, preferResolvedFile: true)
+            }
         }
     }
 
     public func update(_ request: SwifterPMResolutionRequest) async throws
         -> SwifterPMResolutionResult
     {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runResolution(request: request, preferResolvedFile: false)
+        try await Netrc.validate(request.netrc)
+        return try await Environment.withNetrc(request.netrc) {
+            try await Environment.withCachedDirectoryMaterialization(
+                request.cachedDirectoryMaterialization
+            ) {
+                try await runResolution(request: request, preferResolvedFile: false)
+            }
         }
     }
 
     public func restore(_ request: SwifterPMRestoreRequest) async throws {
-        try await Environment.withCachedDirectoryMaterialization(
-            request.cachedDirectoryMaterialization
-        ) {
-            try await runRestore(request)
+        try await Netrc.validate(request.netrc)
+        try await Environment.withNetrc(request.netrc) {
+            try await Environment.withCachedDirectoryMaterialization(
+                request.cachedDirectoryMaterialization
+            ) {
+                try await runRestore(request)
+            }
         }
     }
 

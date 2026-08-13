@@ -7,8 +7,24 @@ enum Environment {
     @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
+    @TaskLocal
+    static var netrc: SwifterPMNetrcConfiguration?
+
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
+    }
+
+    static var netrcConfiguration: SwifterPMNetrcConfiguration {
+        netrc ?? .default
+    }
+
+    static func withNetrc<T>(
+        _ configuration: SwifterPMNetrcConfiguration,
+        operation: () async throws -> T
+    ) async throws -> T {
+        try await Environment.$netrc.withValue(configuration) {
+            try await operation()
+        }
     }
 
     static func cachedDirectoryMaterializationMode()
