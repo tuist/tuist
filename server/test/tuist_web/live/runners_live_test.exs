@@ -91,6 +91,19 @@ defmodule TuistWeb.RunnersLiveTest do
     end
   end
 
+  test "keeps skipped jobs out of the recent jobs card", %{conn: conn, account: account} do
+    complete_run(account, 70_004, 700_022, "success")
+    skip_run(account, 70_005, 700_023)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv, @render_async_timeout)
+    table = recent_jobs_table(html)
+
+    assert table =~ "Docker build"
+    refute table =~ "Gated job"
+    refute table =~ "Skipped"
+  end
+
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv, @render_async_timeout)
@@ -167,6 +180,34 @@ defmodule TuistWeb.RunnersLiveTest do
     :ok = Jobs.record_claimed(candidate, "pod-#{workflow_job_id}", DateTime.utc_now())
     :ok = Jobs.record_running(workflow_job_id, "runner-#{workflow_job_id}")
     {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
+  end
+
+  # A job gated out by an `if:` condition never reaches a runner, so
+  # GitHub delivers `completed`/`skipped` with no preceding `queued`.
+  defp skip_run(account, workflow_job_id, workflow_run_id) do
+    :ok =
+      Jobs.record_completed(
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "fleet-x",
+          repository: "tuist/tuist",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Gated job",
+          head_branch: "main",
+          head_sha: "abcdef#{workflow_job_id}"
+        },
+        "skipped"
+      )
+  end
+
+  defp recent_jobs_table(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("[data-part='recent-jobs-table']")
+    |> Floki.text()
   end
 
   defp chart_series_data(html, chart_id) do

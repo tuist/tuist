@@ -636,6 +636,8 @@ defmodule Tuist.Runners.Jobs do
     * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
     * `:conclusion` — restrict completed jobs to a conclusion
       (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
+    * `:exclude_conclusions` — list of conclusions to drop from the
+      result
     * `:repository` — substring match on `repository`
     * `:workflow_name` — substring match on `workflow_name`
     * `:job_name` — substring match on `job_name`
@@ -657,6 +659,7 @@ defmodule Tuist.Runners.Jobs do
     from(j in subquery(sub), select: j)
     |> maybe_filter_status(Keyword.get(opts, :status))
     |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+    |> maybe_exclude_conclusions(Keyword.get(opts, :exclude_conclusions))
     |> jobs_order_by(sort_by, sort_order)
     |> limit(^limit)
     |> offset(^offset)
@@ -729,6 +732,7 @@ defmodule Tuist.Runners.Jobs do
       from(j in subquery(sub), select: %{count: count(j.workflow_job_id)})
       |> maybe_filter_status(Keyword.get(opts, :status))
       |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+      |> maybe_exclude_conclusions(Keyword.get(opts, :exclude_conclusions))
       |> ClickHouseRepo.all()
       |> case do
         [] -> [%{count: 0}]
@@ -881,6 +885,13 @@ defmodule Tuist.Runners.Jobs do
 
   defp maybe_filter_conclusion(query, conclusion) when is_binary(conclusion) do
     where(query, [j], j.conclusion == ^conclusion)
+  end
+
+  defp maybe_exclude_conclusions(query, nil), do: query
+  defp maybe_exclude_conclusions(query, []), do: query
+
+  defp maybe_exclude_conclusions(query, conclusions) when is_list(conclusions) do
+    where(query, [j], j.conclusion not in ^conclusions)
   end
 
   defp maybe_filter_like(query, _field, nil), do: query

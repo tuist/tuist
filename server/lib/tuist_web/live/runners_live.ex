@@ -24,6 +24,11 @@ defmodule TuistWeb.RunnersLive do
   # zero-height bars that scatter the real ones, so they are kept out of
   # the chart trail (and are not counted by the success/failure legends).
   @chart_conclusions ["success", "failure"]
+  # A job gated out by an `if:` condition is reported as
+  # completed/skipped without a runner ever claiming it. It represents
+  # no work, so it stays out of the card entirely rather than filling
+  # the table with 0ms rows.
+  @excluded_recent_conclusions ["skipped"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -173,7 +178,7 @@ defmodule TuistWeb.RunnersLive do
     # `@chart_limit` so the bar trail conveys a trend, while the
     # table below shows only the freshest `@table_limit` rows.
     opts =
-      [status: "completed", limit: @chart_limit]
+      [status: "completed", exclude_conclusions: @excluded_recent_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 

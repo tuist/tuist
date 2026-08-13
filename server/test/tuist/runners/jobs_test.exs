@@ -782,6 +782,27 @@ defmodule Tuist.Runners.JobsTest do
       assert bottom.workflow_job_id == 8501
     end
 
+    test "drops the conclusions listed in :exclude_conclusions" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 8701,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 30, :second)
+        )
+
+      :ok = completed_job_fixture(account, 8702, conclusion: "skipped", completed_at: base)
+      :ok = completed_job_fixture(account, 8703, conclusion: "cancelled", completed_at: base)
+
+      jobs = Jobs.list_for_account(account.id, status: "completed", exclude_conclusions: ["skipped"])
+
+      assert jobs |> Enum.map(& &1.workflow_job_id) |> Enum.sort() == [8701, 8703]
+
+      assert Jobs.count_for_account(account.id, status: "completed", exclude_conclusions: ["skipped"]) == 2
+    end
+
     test "filters by :search via job_name ILIKE substring" do
       account = account_fixture()
 
