@@ -227,7 +227,13 @@ cache:
 imageRegistry:
   enabled: true
   s3:
-    bucket: tuist-stag-storage
+    # Not the default `tuist-stag-storage` bucket the Docker mirror uses:
+    # an object miss there resolves against a shadow-bucket configuration
+    # whose source no longer exists, so the store answers "NoSuchBucket"
+    # instead of a not-found. A registry turns that into a 500 on the
+    # "is this layer already present?" check every push starts with.
+    # Revisit once that bucket's shadow configuration is cleared.
+    bucket: tuist-xcode-cache-staging
     rootDirectory: images
   tailscale:
     enabled: true
