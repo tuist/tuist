@@ -902,22 +902,30 @@ xcresultProcessor:
   databaseUrlSecretKey: "processor-database-url"
   # Tailscale identity for each Tart VM. When enabled the VM image's
   # tailscale-up.sh runs at boot (before the BEAM) and joins the
-  # tailnet using the auth key sourced from this Secret. The chart's
+  # tailnet using the credential sourced from this Secret. The chart's
   # `xcresult-processor-database-url` rendering points at the
   # operator-managed pooler proxy hostname; the VM resolves it via
   # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # The join is on the critical path of every boot here, not just the
+  # first: the launchd chain refuses to `exec tuist start` without a
+  # tailnet identity, and each Pod roll creates a fresh VM. That is
+  # what makes the credential's own expiry an outage class of its own
+  # (2026-08-12) and why managed envs put an OAuth client secret here
+  # rather than a pre-auth key.
   #
   # Off by default — self-hosters without a tailnet, and any
   # deployment that hasn't shipped the tailscale-enabled VM image
   # yet, leaves this off and the chart skips the env injection.
   tailscale:
     enabled: false
-    # Name of the Secret holding the per-env Tailscale pre-auth key
-    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # Name of the Secret holding the per-env Tailscale credential
+    # (the same one the Mac mini host bootstrap reads via the CAPI
     # operator's --tailscale-auth-key-secret-name flag). Empty falls
     # back to the chart-default
     # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
-    # macOS-fleet ExternalSecret syncs from 1Password.
+    # macOS-fleet ExternalSecret syncs from 1Password. The tag the VM
+    # advertises comes from `macosFleet.tailscale.tags`.
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
@@ -1315,13 +1323,17 @@ macosFleet:
   # their per-env values.
   tailscale:
     enabled: false
-    # Per-env ACL tag every Mac mini advertises at `tailscale up`.
-    # Per-env values override (e.g. `tag:tuist-macmini-staging`);
-    # the chart-default empty list lets the auth key's own tag
-    # binding apply if it carries one, but production deployments
-    # should always set this explicitly so the env boundary is
-    # load-bearing rather than auth-key-shape-derived. See
-    # infra/tailscale/acls.json for the full taxonomy.
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`,
+    # and the tag the xcresult processor's Tart VMs join under too
+    # (they share this fleet's credential and ACL binding).
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`).
+    #
+    # Required whenever the credential below is an OAuth client
+    # secret: keys minted through an OAuth client are always tagged
+    # and carry no default to fall back on. The chart-default empty
+    # list only works with a legacy pre-auth key, which applies the
+    # tag baked into the key instead. See infra/tailscale/acls.json
+    # for the full taxonomy.
     tags: []
     # `tailscale up --accept-routes` on every Mac mini: installs the
     # subnet routes the env's cluster-side Connector advertises into
@@ -1336,8 +1348,10 @@ macosFleet:
     # one). Pair with `vmClusterEgress` below, or the VMs' packets
     # will route but the pf firewall will still drop them.
     acceptRoutes: false
-    # Name of the Secret with key `auth-key` holding the Tailscale
-    # pre-auth key. ESO populates it from 1Password by default; set
+    # Name of the Secret with key `auth-key` holding the fleet's
+    # Tailscale credential: an OAuth client secret on Tuist-managed
+    # envs (see the ExternalSecret template for why it isn't a
+    # pre-auth key). ESO populates it from 1Password by default; set
     # to a manually-created Secret name to opt out.
     secretName: ""
     externalSecrets:
@@ -1347,10 +1361,11 @@ macosFleet:
         kind: ClusterSecretStore
         name: onepassword
       # Same per-env convention as the Scaleway item: one TAILSCALE
-      # entry in each env's `tuist-k8s-<env>` vault with the
-      # pre-auth key for that env's tailnet. We don't share an auth
-      # key across envs so a leaked staging key can't add a node
-      # to the production tailnet.
+      # entry in each env's `tuist-k8s-<env>` vault holding that
+      # env's tailnet credential. We don't share it across envs so a
+      # leaked staging credential can't add a node to the production
+      # tailnet, which is also why each env gets its own OAuth
+      # client, scoped to that env's `tag:tuist-macmini-<env>`.
       item: TAILSCALE
       fields:
         authKey: auth-key

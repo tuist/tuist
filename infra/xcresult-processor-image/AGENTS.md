@@ -103,12 +103,65 @@ expects:
 | `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
 | `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — transaction-mode pooler compatibility |
 | `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
+| `TAILSCALE_AUTH_KEY` | k8s Secret (macOS-fleet ESO Secret) | Tailnet join credential: an OAuth client secret, see below |
+| `TAILSCALE_HOSTNAME` | Pod env (Downward API) | Pod name; the device name this VM registers under |
+| `TAILSCALE_TAGS` | Pod env (chart, from `macosFleet.tailscale.tags`) | ACL tag the join applies; required with an OAuth credential |
 
 `inject-env.sh` materialises that as `/etc/tuist.env` on first boot; the
 launchd unit sources it before exec'ing `tuist start`. This means the
 image itself ships **no environment-specific state** — staging, canary,
 and production all run the same image, distinguished only by the env the
 Pod spec injects.
+
+## Tailnet join is on the critical path of every boot
+
+The launchd unit chains `inject-env.sh && source /etc/tuist.env &&
+tailscale-up.sh && exec tuist start`. That `&&` is load-bearing: the
+release dials the Postgres pooler over the tailnet, so a VM that hasn't
+joined has nothing to start against. It also means **anything that
+breaks the join takes the `:process_xcresult` queue offline**, and does
+so invisibly, because tart-kubelet implements no container probes and marks the
+Pod `Ready` as soon as the VM has an IP, so a guest with no BEAM in it
+still reads `1/1 Running`.
+
+The distinction from the Mac mini hosts matters. A host joins once and
+keeps its tailnet identity; these VMs are ephemeral, so **every Pod roll
+performs a fresh join**. A credential that is merely stale is harmless
+for the fleet and fatal here.
+
+That is why `TAILSCALE_AUTH_KEY` holds an **OAuth client secret** rather
+than a pre-auth key. Tailscale caps pre-auth keys at 90 days and offers
+no way to extend one, so joining with a pre-auth key puts a scheduled
+outage on the calendar with nothing but a human remembering the date in
+the way. On 2026-08-12 that key lapsed and the queue had zero consumers
+for ~13h. OAuth clients don't expire; `tailscale up` accepts the client
+secret wherever an auth key goes and mints a fresh key per join.
+
+`tailscale-up.sh` pins two properties on the minted key, because
+inheriting either default would reintroduce the same silent wedge:
+
+- `preauthorized=true`, because the default is `false` and a device parked
+  awaiting manual approval fails the join exactly like an expired
+  credential.
+- `ephemeral=true`, because `TAILSCALE_HOSTNAME` is the Pod name, so every roll
+  registers a new device; non-ephemeral would leak one per roll.
+
+Keys minted through an OAuth client are always tagged and carry no
+default tag, so `TAILSCALE_TAGS` must name one (the chart sources it
+from the fleet's `macosFleet.tailscale.tags`). The script refuses to
+start when the credential is an OAuth secret and the tag is missing,
+rather than letting `tailscale up` fail 60s later with a message that
+reads like a network fault. A legacy pre-auth key is detected by prefix
+and passed through untouched, so the image boots against either
+credential while envs migrate.
+
+Two things this does **not** fix, worth knowing before diagnosing a
+stall: ESO reports `SecretSynced` / `Ready=True` whatever the value's
+validity, and `tailscale-up.sh` still reports a server-side credential
+rejection and an unreachable control plane through the same "did not
+reach Running within timeout" path. Detection for the whole failure
+class lives in `infra/helm/k8s-monitoring/alerts.md`, keyed on queue age
+rather than on any particular cause.
 
 ## Why a single image, not per-env
 
