@@ -1,5 +1,6 @@
 defmodule Tuist.AppBuildsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
@@ -120,6 +121,23 @@ defmodule Tuist.AppBuildsTest do
       assert first_preview.track == "beta"
       assert second_preview.track == "beta"
       assert length(Repo.all(Preview)) == 2
+    end
+
+    test "succeeds when the insert is replayed with an already-committed primary key" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, preview} = AppBuilds.create_preview(%{project_id: project.id})
+
+      expect(Repo, :insert, fn changeset, opts ->
+        Mimic.call_original(Repo, :insert, [put_change(changeset, :id, preview.id), opts])
+      end)
+
+      # When
+      {:ok, replayed_preview} = AppBuilds.create_preview(%{project_id: project.id})
+
+      # Then
+      assert replayed_preview.id == preview.id
+      assert length(Repo.all(Preview)) == 1
     end
   end
 
@@ -1587,6 +1605,30 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert {:error, changeset} = result
       assert Keyword.has_key?(changeset.errors, :binary_id)
+    end
+
+    test "succeeds when the insert is replayed with an already-committed primary key" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      attrs = %{
+        preview_id: preview.id,
+        type: :app_bundle,
+        supported_platforms: [:ios]
+      }
+
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
+
+      expect(Repo, :insert, fn changeset, opts ->
+        Mimic.call_original(Repo, :insert, [put_change(changeset, :id, app_build.id), opts])
+      end)
+
+      # When
+      {:ok, replayed_app_build} = AppBuilds.create_app_build(attrs)
+
+      # Then
+      assert replayed_app_build.id == app_build.id
     end
 
     test "allows creating app build with same binary_id but different build_version" do
