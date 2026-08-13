@@ -482,11 +482,36 @@ descendants) on both 85-day nodes versus 70 on a freshly rebooted one,
 growing ~2/min under load.
 
 `bare-metal.yaml` now sets `SystemdCgroup = true` on the kata handler,
-so **newly provisioned hosts are clean**. The config is written by the
-Hetzner `installimage` post-install script, so it does **not**
-retroactively reach a host already in the cluster. Any node provisioned
-before this change is still leaking and will wedge roughly monthly at
-observed runner churn.
+so **newly provisioned hosts are clean**. Existing hosts are a different
+story, and the reason is worth stating precisely, because "the manifest
+is applied automatically" is true and still does not help.
+
+`mgmt-cluster-apply.yml` applies `bare-metal*.yaml` on every push that
+touches `infra/k8s/clusters/**`, falling back to delete + apply because
+`HetznerBareMetalMachineTemplate.spec` is immutable, and then asserts no
+drift. So the template in the cluster does match Git. But the template
+is a blueprint consumed at Machine creation: `postInstallScript` runs
+once, inside Hetzner `installimage`, and is not a reconciliation loop
+over a live host's filesystem. CAPI propagates a template change by
+*replacing* Machines, not by mutating them.
+
+That replacement is currently wedged, and has been since 2026-06-17.
+`tuist-runners-linux-pvv5b` reports `UP-TO-DATE: 1` of 2 ready Machines
+and sits in `ScalingDown` with a third Machine stuck `Provisioning`,
+whose condition reads `no available host (all hosts are in use - found
+4 hosts)`. The MachineDeployment has no explicit `spec.strategy`, so it
+takes the CAPI default of `maxSurge: 1, maxUnavailable: 0` — create the
+replacement first, then delete the old Machine. On a bare-metal pool
+where every `HetznerBareMetalHost` is already claimed there is no host
+to surge onto, so the roll can never start.
+
+The consequence: a `bare-metal.yaml` change does not reach existing
+hosts, not because drift goes unnoticed but because the rollout that
+would deliver it cannot make progress. Options are to give the pool a
+spare host, or to set `maxSurge: 0` + `maxUnavailable: 1` so a Machine
+is deleted first and its freed host reprovisioned. The second costs one
+node of capacity per roll, which on a two-node fleet is the same
+exposure as the manual path below.
 
 Check a host without SSH — the count should be in the hundreds, not
 thousands:
