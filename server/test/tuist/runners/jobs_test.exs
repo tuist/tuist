@@ -1028,6 +1028,37 @@ defmodule Tuist.Runners.JobsTest do
       assert Enum.map(runs, & &1.workflow_run_id) == [7_401]
     end
 
+    test "drops a run whose jobs mostly succeeded but one was cancelled" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_101,
+          workflow_run_id: 7_501,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_102,
+          workflow_run_id: 7_501,
+          conclusion: "cancelled",
+          started_at: base,
+          completed_at: DateTime.add(base, 90, :second)
+        )
+
+      # The rollup ladder ranks cancelled above success, so this run
+      # reads `cancelled` even though most of it ran and it carries a
+      # real duration. The card asks for success/failure only, so it
+      # stays out — deliberate, and the Workflows page still lists it.
+      assert Jobs.list_recent_workflow_runs_for_account(account.id, conclusion: ["success", "failure"]) == []
+
+      assert account.id
+             |> Jobs.list_recent_workflow_runs_for_account()
+             |> Enum.map(& &1.conclusion) == ["cancelled"]
+    end
+
     test "scopes results to the given account" do
       mine = account_fixture()
       other = account_fixture()

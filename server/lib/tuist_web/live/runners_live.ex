@@ -22,10 +22,9 @@ defmodule TuistWeb.RunnersLive do
   # Only work that reached a success/failure conclusion carries a real
   # duration. Running, cancelled and skipped runs would draw as
   # zero-height bars that scatter the real ones, and count for nothing
-  # in the success/failure legends. The Recent jobs card narrows to
-  # these at the query so its table, bars and legends all describe the
-  # same set of jobs; the workflow-run chart drops the rest before
-  # plotting.
+  # in the success/failure legends. Both Recent cards narrow to these
+  # at the query, so each one's table, bars and legends describe the
+  # same set of rows.
   @duration_conclusions ["success", "failure"]
 
   @impl true
@@ -186,10 +185,27 @@ defmodule TuistWeb.RunnersLive do
 
     socket
     |> assign(:recent_jobs, recent_jobs_table)
+    |> assign(:recent_jobs_hidden, hidden_recent_jobs?(recent_jobs_chart, account_id, repository, platform))
     |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs_chart, socket.assigns.selected_account.name))
     |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "success")))
     |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "failure")))
   end
+
+  # An empty card no longer means "this account has never run a job" —
+  # it also happens when everything recent was skipped or cancelled.
+  # The distinction picks the empty state's copy and keeps `View more`
+  # live so those rows stay one click away on the Jobs page. Only worth
+  # a second query in the empty case, which is the only one that asks.
+  defp hidden_recent_jobs?([], account_id, repository, platform) do
+    opts =
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_jobs?(_rows, _account_id, _repository, _platform), do: false
 
   defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
     # Same contract as the Recent jobs card above: a run rolls up to
@@ -206,6 +222,10 @@ defmodule TuistWeb.RunnersLive do
     socket
     |> assign(:recent_workflow_runs, recent_workflow_runs_table)
     |> assign(
+      :recent_workflow_runs_hidden,
+      hidden_recent_workflow_runs?(recent_workflow_runs_chart, account_id, repository, platform)
+    )
+    |> assign(
       :recent_workflow_runs_chart_data,
       recent_workflow_runs_chart_data(recent_workflow_runs_chart, socket.assigns.selected_account.name)
     )
@@ -218,6 +238,17 @@ defmodule TuistWeb.RunnersLive do
       Enum.count(recent_workflow_runs_chart, &(&1.conclusion == "failure"))
     )
   end
+
+  defp hidden_recent_workflow_runs?([], account_id, repository, platform) do
+    opts =
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_recent_workflow_runs_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_workflow_runs?(_rows, _account_id, _repository, _platform), do: false
 
   # Workflow-run bars mirror the recent-jobs chart: one bar per
   # succeeded/failed run, height in seconds, colour from the run-level
@@ -240,6 +271,9 @@ defmodule TuistWeb.RunnersLive do
   defp run_duration_seconds(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: div(ms, 1000)
   defp run_duration_seconds(_), do: 0
 
+  # The card only ever plots `@duration_conclusions`; the rest are kept
+  # as defensive clauses so a colour is defined for every conclusion
+  # the rollup can produce.
   defp workflow_run_chart_color("success"), do: "var:noora-chart-primary"
   defp workflow_run_chart_color("failure"), do: "var:noora-chart-destructive"
   defp workflow_run_chart_color("cancelled"), do: "var:noora-chart-warning"
@@ -293,6 +327,8 @@ defmodule TuistWeb.RunnersLive do
 
   defp duration_seconds(_), do: 0
 
+  # As with `workflow_run_chart_color/1`, the card only ever plots
+  # `@duration_conclusions`; the other clauses stay defensive.
   defp chart_color_for(%{status: "completed", conclusion: "success"}), do: "var:noora-chart-primary"
   defp chart_color_for(%{status: "completed", conclusion: "failure"}), do: "var:noora-chart-destructive"
   defp chart_color_for(%{status: "completed", conclusion: "cancelled"}), do: "var:noora-chart-warning"

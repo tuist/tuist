@@ -128,6 +128,26 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Concurrency"
     assert html =~ "Recent jobs"
     assert html =~ "No jobs yet"
+    assert html =~ "Get started"
+    assert Enum.all?(view_more_buttons(html), &disabled?/1)
+  end
+
+  test "tells an account whose recent work was all filtered out from one with no jobs", %{
+    conn: conn,
+    account: account
+  } do
+    skip_run(account, 70_010, 700_028)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv, @render_async_timeout)
+
+    assert html =~ "Every recent job was skipped or cancelled"
+    assert html =~ "Every recent workflow run was skipped or cancelled"
+    refute html =~ "No jobs yet"
+    # The rows exist behind the Jobs and Workflows pages' own filters,
+    # so the way there must stay open and the onboarding link away.
+    refute html =~ "Get started"
+    assert Enum.all?(view_more_buttons(html), &(not disabled?(&1)))
   end
 
   test "shows only the selected concurrency platform", %{conn: conn, account: account} do
@@ -218,6 +238,23 @@ defmodule TuistWeb.RunnersLiveTest do
         "skipped"
       )
   end
+
+  # Noora renders an enabled button with a `navigate` as a link, and a
+  # disabled one as a plain `<button disabled>`. Both cards carry one,
+  # so anything other than two means the lookup, not the page, changed.
+  defp view_more_buttons(html) do
+    buttons =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("a, button")
+      |> Enum.filter(&(&1 |> Floki.text() |> String.contains?("View more")))
+
+    assert length(buttons) == 2
+    buttons
+  end
+
+  defp disabled?({"button", attrs, _}), do: Enum.any?(attrs, fn {name, _} -> name == "disabled" end)
+  defp disabled?({"a", _attrs, _}), do: false
 
   defp recent_jobs_table(html), do: table_text(html, "recent-jobs-table")
 
