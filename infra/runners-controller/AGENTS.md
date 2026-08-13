@@ -458,6 +458,53 @@ kubectl --kubeconfig "$STAGING_KUBECONFIG" -n tuist-staging \
   get pods -l app.kubernetes.io/name=kata-deploy
 ```
 
+### cgroup leak on kata nodes (fixed for new hosts; existing hosts need action)
+
+Until 2026-08-13 the `kata-qemu` containerd handler ran with
+`SystemdCgroup = false` while kubelet ran `cgroupDriver: systemd`. The
+`sed` in `bare-metal.yaml` that flips the runc handler to `true` only
+rewrites what `containerd config default` emitted, and the kata block is
+appended after it, so kata silently kept the default.
+
+Under that mismatch the kata shim writes the systemd slice name kubelet
+hands it as a literal directory at the cgroup root
+(`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
+instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
+never knew about them, the shim does not remove them, and they accumulate
+one per container start forever. Exhaustion makes every later cgroup
+`mkdir` return ENOSPC — the node keeps reporting `Ready` while failing
+every new Pod sandbox. Measured at ~65k leaked root cgroups (~130k total
+descendants) on both 85-day nodes versus 70 on a freshly rebooted one,
+growing ~2/min under load.
+
+`bare-metal.yaml` now sets `SystemdCgroup = true` on the kata handler,
+so **newly provisioned hosts are clean**. The config is written by the
+Hetzner `installimage` post-install script, so it does **not**
+retroactively reach a host already in the cluster. Any node provisioned
+before this change is still leaking and will wedge roughly monthly at
+observed runner churn.
+
+Check a host without SSH — the count should be in the hundreds, not
+thousands:
+
+```bash
+kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep node_cgroups_cgroups
+```
+
+Remediate an existing host by editing
+`/etc/containerd/config.toml` to add `SystemdCgroup = true` under
+`[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]`,
+then restarting containerd. Cordon and drain first: restarting containerd
+bounces every sandbox on the box, including Cilium. The reboot that
+clears the already-leaked cgroups is a separate step and needs a Hetzner
+Robot hardware reset (see "Emergency SSH access" below for why panel
+access, not SSH, is the reliable path). Do one host at a time — the
+Linux fleet is two nodes and a single node saturates at ~99% memory, so
+taking both out at once is a full outage rather than degraded capacity.
+
+`node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
+"Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.
+
 ### Emergency SSH access
 
 If a bare-metal host misbehaves and caph isn't responding, the

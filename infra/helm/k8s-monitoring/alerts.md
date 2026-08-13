@@ -524,6 +524,51 @@ saturated fleet, and a wedged provisioning ceiling all present as "jobs
 are queued and not starting", and only the queue itself is common to
 all of them.
 
+### Node leaking cgroups
+
+```promql
+max by (cluster, env, instance) (
+  node_cgroups_cgroups{subsys_name="memory"}
+) > 20000
+```
+
+- Pending period: 15 minutes
+- Severity: warning
+- Summary: `{{ $labels.instance }} holds {{ $value }} cgroups — something
+  is leaking them, and at exhaustion the node fails every new Pod sandbox`
+
+A node that runs out of cgroups fails every subsequent `mkdir` in
+cgroupfs with ENOSPC, which kubelet reports per Pod as
+`FailedCreatePodContainer: ... no space left on device`. None of that
+surfaces as a node condition: the node stays `Ready` with no
+Memory/Disk/PID pressure while being unable to start a single Pod, so
+the scheduler keeps feeding it. On 2026-08-13 a Linux runner node
+reached that state after 85 days of a kata cgroup-driver leak and took
+the fleet's throughput to near zero (see "Runner queue not draining").
+
+The threshold keys on the leak, not on the ceiling. The exact kernel
+limit was never pinned down during that incident — the memory controller
+was past 130k cgroups, so it is not the 16-bit `MEM_CGROUP_ID_MAX`
+figure that circulates — and it does not need to be, because the
+diagnostic property is that the count is unbounded rather than that it
+is near a specific number.
+
+20000 is chosen against normal, not against the limit: a healthy node
+sits in the hundreds, and the failing pair sat around 130k. Anything in
+five figures is already anomalous by two orders of magnitude while still
+leaving a large multiple of headroom before the observed failure point.
+
+Read it as a rate, not a level. A node flat at 20k has whatever it has;
+a node at 5k doubling weekly is the one about to fail. If this fires,
+check whether the count grows with container starts
+(`kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep
+node_cgroups_cgroups`) — that is the signature of a runtime not cleaning
+up, and the fix is the runtime config, not a bigger node.
+
+Requires the `cgroups` collector, enabled via `extraArgs` on the
+node-exporter DaemonSet in `values.yaml`; it is off in the upstream
+chart default.
+
 ### Runner fleet node quarantined
 
 ```promql

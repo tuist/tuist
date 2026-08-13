@@ -676,6 +676,22 @@ k8s-monitoring:
       # running (and reporting) exactly when a node is unhealthy, instead of
       # being the thing that gets reaped and wedges the whole pipeline.
       priorityClassName: system-node-critical
+      # Enable the `cgroups` collector (off by default upstream). It reads
+      # /proc/cgroups and exports `node_cgroups_cgroups{subsys_name}` — the
+      # live cgroup count per controller.
+      #
+      # This exists because a cgroup leak has no other signal. On 2026-08-13
+      # a kata-qemu cgroup-driver mismatch leaked one root-level cgroup per
+      # container start on the Linux runner nodes. After 85 days one node
+      # began failing every Pod sandbox with ENOSPC on cgroup mkdir while
+      # still reporting Ready with no pressure condition, and its sibling was
+      # measured at the same magnitude (~130k cgroups, growing ~2/min). The
+      # driver bug is fixed in `infra/k8s/clusters/bare-metal.yaml`, but the
+      # failure mode — a slow unbounded kernel-resource leak that no node
+      # condition reports — deserves a standing gauge rather than trusting
+      # that this was the only way to produce it.
+      extraArgs:
+        - --collector.cgroups
 
   # ───── Service integrations ─────
   #
