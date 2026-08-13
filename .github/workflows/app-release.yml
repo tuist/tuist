@@ -166,7 +166,12 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: tuist-macos
-    timeout-minutes: 30
+    # Matches release-app. `app:upload-ios` archives before it uploads,
+    # and `tuist generate` runs with --no-binary-cache, so a cold
+    # compilation cache (any runner image roll invalidates it) makes
+    # this a full build of the app. 30 minutes fit only while the
+    # cache was warm; it cancelled mid-`xcodebuild` on run 31618151811.
+    timeout-minutes: 50
     permissions:
       contents: write
       id-token: write

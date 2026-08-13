@@ -37,6 +37,18 @@ handed over explicitly. Two things are:
 When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
 
+A related class of gap is anything GitHub-hosted images pre-seed
+that ours do not. TCC is one: scripted Finder automation
+(`create-dmg`, and anything else driving an app through
+`osascript`) needs a standing `kTCCServiceAppleEvents` approval,
+or macOS raises a prompt no one can answer on a headless VM and
+the send fails as `AppleEvent timed out (-1712)`. That reads as
+flakiness and is not. When adding parity features, compare
+against `actions/runner-images` `images/macos/scripts/build/`,
+and pair each one with a check that asserts the behaviour rather
+than the ingredient — every gap so far was found by a release
+failing, not by the image build.
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the

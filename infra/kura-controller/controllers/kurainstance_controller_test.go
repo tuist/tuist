@@ -1809,7 +1809,7 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", ""),
+			Template:             podTemplate(legacyInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -1880,7 +1880,7 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", ""),
+			Template:             podTemplate(stsInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
 		},
 	}
@@ -2123,7 +2123,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", ""),
+			Template:             podTemplate(instance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2181,7 +2181,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "")
+	stsTemplate := podTemplate(instance, "", "production", "", false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
