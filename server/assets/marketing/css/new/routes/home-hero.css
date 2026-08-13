@@ -1,6 +1,6 @@
 /*
- * Home hero with the blueprint "platform" decoration (ported from the
- * tuist-demo prototype). The composition is a fixed 1497x496 stage: wireframe
+ * Home hero with the blueprint "platform" decoration.
+ * The composition is a fixed 1497x496 stage: wireframe
  * panels are absolutely positioned around a centered hero card. On narrower
  * viewports the stage is cropped symmetrically (never reflowed); below the
  * crop minimum the panels disappear and the hero reflows responsively.
