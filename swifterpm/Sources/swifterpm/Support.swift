@@ -41,18 +41,40 @@ enum ToolError: Error, CustomStringConvertible {
 /// dependency is always the trailing SSH candidate, masking whether the HTTPS fallback was
 /// even attempted and why it failed. Listing each attempt makes the actual cause diagnosable.
 enum GitFetchFailure {
-    static func error(location: String, attempts: [(candidate: String, error: any Error)])
+    static func error(location: String, attempts: [(attempt: GitFetchAttempt, error: any Error)])
         -> ToolError
     {
         guard !attempts.isEmpty else {
             return ToolError.message("no source-control locations available for \(location)")
         }
         let details = attempts
-            .map { "  - \($0.candidate): \($0.error)" }
+            .map { "  - \($0.attempt.location) (\($0.attempt.credential)): \($0.error)" }
             .joined(separator: "\n")
         return ToolError.message(
-            "could not fetch any candidate location for \(location):\n\(details)"
+            "could not fetch any candidate location for \(location):\n\(details)\(hint(for: attempts))"
         )
+    }
+
+    /// git reports a missing credential as `terminal prompts disabled`, which reads like a
+    /// configuration problem with swifterpm rather than what it is. Name the sources that
+    /// were consulted so the reader knows which one to populate.
+    private static func hint(for attempts: [(attempt: GitFetchAttempt, error: any Error)]) -> String {
+        let promptsDisabled = attempts.contains {
+            "\($0.error)".lowercased().contains("terminal prompts disabled")
+        }
+        guard promptsDisabled else { return "" }
+        var tried: [GitTransportCredential] = []
+        for credential in attempts.map(\.attempt.credential) where !tried.contains(credential) {
+            tried.append(credential)
+        }
+        let message = """
+        No credential could authenticate this repository. swifterpm tried \
+        \(tried.map(\.description).joined(separator: ", ")), and prompts are disabled because \
+        fetches run in parallel with their output captured. Configure a credential git can \
+        resolve — a ~/.netrc entry, a credential helper, an ssh-agent key for the SSH \
+        candidate — or set GITHUB_TOKEN/GH_TOKEN to a token that can read it.
+        """
+        return "\n\(message)"
     }
 }
 

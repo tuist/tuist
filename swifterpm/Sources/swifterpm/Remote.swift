@@ -54,17 +54,17 @@ enum RemoteMetadata {
     }
 
     private static func gitRemoteVersions(location: String) async throws -> [RemoteVersion] {
-        var attempts: [(candidate: String, error: any Error)] = []
-        for candidate in SourceControlLocations.fetchCandidates(location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", "--tags", candidate],
+                    "/usr/bin/git",
+                    attempt.configArguments + ["ls-remote", "--tags", attempt.location],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 return parseGitRemoteVersions(output)
             } catch {
-                attempts.append((candidate, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: location, attempts: attempts)
@@ -145,22 +145,22 @@ enum RemoteMetadata {
     }
 
     static func resolveNamedRef(location: String, name: String) async throws -> String {
-        var attempts: [(candidate: String, error: any Error)] = []
-        for candidate in SourceControlLocations.fetchCandidates(location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", candidate, name],
+                    "/usr/bin/git",
+                    attempt.configArguments + ["ls-remote", attempt.location, name],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 guard let line = output.split(separator: "\n").first,
                       let revision = line.split(whereSeparator: \.isWhitespace).first
                 else {
-                    throw ToolError.message("\(name) was not found in \(candidate)")
+                    throw ToolError.message("\(name) was not found in \(attempt.location)")
                 }
                 return String(revision)
             } catch {
-                attempts.append((candidate, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: location, attempts: attempts)

@@ -100,7 +100,79 @@ struct GitHubTests {
 
     @Test
     func gitTransportAuthAddsNoArgumentsForSSHLocations() async {
-        #expect(await GitTransportAuth.configArguments(for: "git@github.com:acme/private-lib.git") == [])
+        let attempts = await GitTransportAuth.attempts(for: "git@github.com:acme/private-lib.git")
+
+        #expect(attempts.map(\.credential) == [.gitConfigured])
+        #expect(attempts.map(\.configArguments) == [[]])
+    }
+
+    @Test
+    func gitTransportAuthTriesGitsOwnCredentialsBeforeAnAmbientToken() async throws {
+        // An `http.<base>.extraheader` overrides every credential git would resolve on its
+        // own and stops curl reading ~/.netrc, so a token that cannot read the repository
+        // used to fail the fetch outright on a machine where plain git succeeds.
+        let attempts = await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+            await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
+        }
+
+        #expect(attempts.map(\.credential) == [.gitConfigured, .gitHubToken])
+        #expect(attempts.first?.configArguments == [])
+        let encoded = Data("x-access-token:ghp_secret".utf8).base64EncodedString()
+        #expect(
+            attempts.last?.configArguments == [
+                "-c", "http.https://github.com/.extraheader=Authorization: Basic \(encoded)",
+            ]
+        )
+    }
+
+    @Test
+    func gitTransportAuthTriesANetrcSourceGitCannotSeeBeforeAnAmbientToken() async throws {
+        // `--netrc-file` and SWIFTPM_NETRC_DATA are invisible to git, so they need to be
+        // injected, but they are deliberate per-host credentials and outrank a generic token.
+        let netrc = Netrc(sources: [
+            NetrcSource(
+                origin: .environment,
+                machines: [NetrcMachine(name: "github.com", login: "machine-user", password: "s3cret")]
+            ),
+        ])
+        let attempts = await Environment.$netrc.withValue(netrc) {
+            await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+                await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
+            }
+        }
+
+        #expect(attempts.map(\.credential) == [.gitConfigured, .netrc, .gitHubToken])
+        let encoded = Data("machine-user:s3cret".utf8).base64EncodedString()
+        #expect(
+            attempts[1].configArguments == [
+                "-c", "http.https://github.com/.extraheader=Authorization: Basic \(encoded)",
+            ]
+        )
+    }
+
+    @Test
+    func gitTransportAuthAddsNoTokenAttemptWhenNoneIsAvailable() async {
+        let attempts = await Environment.$values.withValue([:]) {
+            await GitTransportAuth.attempts(for: "https://source.example.com/acme/private-lib.git")
+        }
+
+        #expect(attempts.map(\.credential) == [.gitConfigured])
+    }
+
+    @Test
+    func fetchAttemptsWalkEveryCandidateWithGitsOwnCredentialsFirst() async {
+        let attempts = await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+            await SourceControlLocations.fetchAttempts("git@github.com:acme/private-lib.git")
+        }
+
+        #expect(
+            attempts.map(\.location) == [
+                "git@github.com:acme/private-lib.git",
+                "https://github.com/acme/private-lib.git",
+                "https://github.com/acme/private-lib.git",
+            ]
+        )
+        #expect(attempts.map(\.credential) == [.gitConfigured, .gitConfigured, .gitHubToken])
     }
 
     @Test

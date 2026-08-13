@@ -848,18 +848,18 @@ enum WorkspaceRestorer {
         let revision = try pin.revision()
         let isLocalSourceControlPackage =
             try await PackageResolver.localSourceControlPackageLocation(pin.location) != nil
-        var attempts: [(candidate: String, error: any Error)] = []
-        for location in SourceControlLocations.fetchCandidates(pin.location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(pin.location) {
             do {
                 try await resetDirectory(destination)
                 try await SystemProcess.run("/usr/bin/git", ["init", destination.path])
                 try await SystemProcess.run(
-                    "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
+                    "/usr/bin/git",
+                    ["-C", destination.path, "remote", "add", "origin", attempt.location]
                 )
-                let authArguments = await GitTransportAuth.configArguments(for: location)
                 try await SystemProcess.run(
                     "/usr/bin/git",
-                    authArguments
+                    attempt.configArguments
                         + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
@@ -868,7 +868,7 @@ enum WorkspaceRestorer {
                 )
                 try await updateSubmodulesIfNeeded(
                     in: destination,
-                    gitConfigArguments: authArguments,
+                    gitConfigArguments: attempt.configArguments,
                     allowFileProtocol: isLocalSourceControlPackage
                 )
                 let gitDir = destination.appendingPathComponent(".git")
@@ -879,7 +879,7 @@ enum WorkspaceRestorer {
                 }
                 return
             } catch {
-                attempts.append((location, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: pin.location, attempts: attempts)
