@@ -331,9 +331,9 @@
     z-index: var(--noora-z-index-2);
     box-sizing: border-box;
     margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
     height: 120px;
     overflow: hidden;
-    border: 1px solid var(--marketing-stroke-default);
 
     @media (min-width: 1024px) {
       margin: 0;
@@ -354,9 +354,9 @@
   /* CTA box: exact replica of the home page CTA shell and text ramp. */
   & > [data-part="cta"] {
     display: flex;
-    box-sizing: border-box;
     flex-direction: column;
     align-items: center;
+    box-sizing: border-box;
     margin: 0 var(--noora-spacing-1);
     border: 1px solid var(--marketing-stroke-default);
     padding: var(--noora-spacing-14) var(--noora-spacing-4);
