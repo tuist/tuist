@@ -1715,16 +1715,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme.testAction?.testPlans?
                 .first(
                     where: { $0.name == testPlanConfiguration.testPlan }
-                )?.testTargets.enabled.map(\.target) ?? []
+                )?.testTargets.filter { !$0.isSkipped }.map(\.target) ?? []
         } else if action == .build, let testPlans = scheme.testAction?.testPlans {
             // If we are building a scheme that has testplans but none specified then we should return all test targets
-            testPlans.flatMap(\.testTargets).enabled.map(\.target)
+            testPlans.flatMap(\.testTargets).filter { !$0.isSkipped }.map(\.target)
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
             $0.isDefault
         }) {
-            defaultTestPlan.testTargets.enabled.map(\.target)
-        } else if let testActionTargets = scheme.testAction?.targets.enabled.map(\.target),
-                  !testActionTargets.isEmpty
+            defaultTestPlan.testTargets.filter { !$0.isSkipped }.map(\.target)
+        } else if let testActionTargets = scheme.testAction?.targets
+            .filter({ !$0.isSkipped }).map(\.target),
+            !testActionTargets.isEmpty
         {
             testActionTargets
         } else {

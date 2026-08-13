@@ -81,12 +81,3 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         }
     #endif
 }
-
-extension Sequence<TestableTarget> {
-    /// The testables the plan actually runs. A skipped testable is disabled in the test plan, so
-    /// `xcodebuild` never runs it — treating it as part of the run makes it look like work that is
-    /// pending forever, because it can never record a result.
-    public var enabled: [TestableTarget] {
-        filter { !$0.isSkipped }
-    }
-}
