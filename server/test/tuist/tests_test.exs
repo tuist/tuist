@@ -2209,39 +2209,29 @@ defmodule Tuist.TestsTest do
       refute updated_test.id == conflicting_test_id
     end
 
-    test "recovers the merged run of a plan whose shard-run row was never written" do
+    test "rebuilds the merged run under the mapped id when its run row is missing" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      mapped_id = UUIDv7.generate()
 
-      {:ok, interrupted_test} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          account_id: account.id,
-          status: "in_progress",
-          test_modules: []
-        )
-
-      interrupted_row =
-        interrupted_test
-        |> Map.from_struct()
-        |> Map.drop([
-          :__meta__,
-          :ran_by_account,
-          :build_run,
-          :gradle_build,
-          :test_case_runs,
-          :shard_plan,
-          :run_destinations
-        ])
-        |> Map.merge(%{
+      # A report that claimed the mapping and then died before its run row
+      # landed. The mapping is what later shards converge on, so the run has to
+      # be rebuilt under it rather than started again under a fresh id.
+      IngestRepo.insert_all(ShardRun, [
+        %{
           shard_plan_id: plan.id,
-          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), 1, :second)
-        })
+          project_id: project.id,
+          test_run_id: mapped_id,
+          shard_index: 0,
+          status: "processing",
+          duration: 0,
+          ran_at: NaiveDateTime.utc_now(),
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
 
-      IngestRepo.insert_all(Test, [interrupted_row])
-
-      {:ok, updated_test} =
+      {:ok, rebuilt_test} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -2259,16 +2249,10 @@ defmodule Tuist.TestsTest do
           shard_index: 1
         })
 
-      assert updated_test.id == interrupted_test.id
+      assert rebuilt_test.id == mapped_id
     end
 
-    # `shard_plan_id` is not in the sorting key, so this lookup reads every
-    # granule the project prefix leaves. Reading the whole row allocates a read
-    # buffer per column stream, which on its own exceeds the memory the lookup
-    # is capped at: the shard report then 500s and the run gets no test report
-    # at all. Asserting the shape is the only way to hold that here, since the
-    # test dataset is far too small to reproduce the limit.
-    test "reads only the id when looking a merged run up by shard plan" do
+    test "claims the shard mapping before writing the run row" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
@@ -2294,14 +2278,52 @@ defmodule Tuist.TestsTest do
             })
         end)
 
-      shard_plan_lookups =
-        Enum.filter(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ "shard_plan_id"))
+      # Anything written between the run row and its mapping is unrecoverable:
+      # later shards resolve the run through the mapping alone, so a run row
+      # without one splits the report in two.
+      mapping_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "shard_runs")))
+      run_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "test_runs")))
 
-      assert shard_plan_lookups != []
+      assert mapping_insert
+      assert run_insert
+      assert mapping_insert < run_insert
+    end
 
-      for query <- shard_plan_lookups do
-        assert query =~ ~r/SELECT\s+t0\."id"\s+FROM\s+"test_runs"/
+    test "never resolves a merged run by scanning test runs for a shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard = fn index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: index
+        }
       end
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _} = Tests.create_test(shard.(0))
+          {:ok, _} = Tests.create_test(shard.(1))
+        end)
+
+      # `shard_plan_id` is not in `test_runs`' sorting key, so this lookup reads
+      # every granule the project prefix leaves, and the read buffer it
+      # allocates per column stream is what blew the shard report's memory cap.
+      # The mapping in `shard_runs` is keyed for exactly this question.
+      refute Enum.any?(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ ~s|"shard_plan_id" = |))
     end
 
     test "single shard plan sets status directly (not in_progress)" do
