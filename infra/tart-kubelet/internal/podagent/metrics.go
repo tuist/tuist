@@ -198,6 +198,46 @@ var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	},
 )
 
+// Convergence outcomes. Convergence is the only way a host with no master for
+// an account can obtain one, because a cold job's promote (base generation 0) is
+// rejected whenever a HEAD already exists and its branch is then discarded. So a
+// converge that quietly does not happen is the difference between an account
+// recovering and its HEAD staying frozen, and every skip path used to be a
+// silent return.
+//
+// The reasons are deliberately separated by who would have to fix them:
+//   - head_absent: the guest never staged volume-head.json within the wait.
+//   - no_head: the account has published no HEAD yet; nothing to converge to.
+//   - no_download_url: a HEAD exists but came with no URL, which is what an
+//     untrusted (fork) dispatch looks like.
+//   - already_current: this host is at or past the HEAD; the healthy no-op.
+//   - download_failed / digest_mismatch: the object storage path.
+//   - superseded: a promote moved the master on mid-download.
+//   - install_failed / error: local disk or an unclassified early return.
+//
+// converged/(everything except already_current) is the rate at which hosts that
+// NEEDED a master actually got one.
+const (
+	convergeOutcomeConverged      = "converged"
+	convergeOutcomeHeadAbsent     = "head_absent"
+	convergeOutcomeNoHead         = "no_head"
+	convergeOutcomeNoDownloadURL  = "no_download_url"
+	convergeOutcomeAlreadyCurrent = "already_current"
+	convergeOutcomeDownloadFailed = "download_failed"
+	convergeOutcomeDigestMismatch = "digest_mismatch"
+	convergeOutcomeSuperseded     = "superseded"
+	convergeOutcomeInstallFailed  = "install_failed"
+	convergeOutcomeError          = "error"
+)
+
+var cacheVolumeConvergeOutcomeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_outcome_total",
+		Help: "Convergence attempts by outcome, including every skip reason.",
+	},
+	[]string{"outcome"},
+)
+
 // cacheVolumeResidentCount is the number of resident master images on this
 // host (all accounts, all volume names). Divided by the quota, it's the "how
 // many accounts does this host keep hot" signal.
@@ -295,6 +335,7 @@ func init() {
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
+		cacheVolumeConvergeOutcomeTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -375,6 +416,11 @@ func RecordVolumeConverged() {
 func RecordVolumeResident(count int, freeBytes uint64) {
 	cacheVolumeResidentCount.Set(float64(count))
 	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
+}
+
+// RecordVolumeConvergeOutcome records why a convergence attempt ended.
+func RecordVolumeConvergeOutcome(outcome string) {
+	cacheVolumeConvergeOutcomeTotal.WithLabelValues(outcome).Inc()
 }
 
 // RecordVolumeEnabled marks the cache-volume feature active on this host. Set

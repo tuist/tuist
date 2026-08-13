@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1307,5 +1308,109 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	}
 	if len(labels) != 1 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
+	}
+}
+
+// convergeOutcomeCount reads the outcome counter for one reason.
+func convergeOutcomeCount(t *testing.T, outcome string) float64 {
+	t.Helper()
+	return testutil.ToFloat64(cacheVolumeConvergeOutcomeTotal.WithLabelValues(outcome))
+}
+
+// stageVolumeHead writes the guest-staged HEAD the host converges against.
+func stageVolumeHead(t *testing.T, statusDir string, head volumeHead) {
+	t.Helper()
+	b, err := json.Marshal(head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(statusDir, volumeHeadFile), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Convergence is the only way a host holding no master can obtain one, so every
+// path that declines to converge has to say why. Before this, all of them were
+// silent returns and a fleet converging once a day looked identical to one
+// converging constantly.
+func TestConvergeMasterRecordsWhyItDeclined(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		head  *volumeHead
+		want  string
+		setup func(t *testing.T, m *VolumeManager)
+	}{
+		{
+			// The guest never staged the file within the wait. The fix would be
+			// the wait or the guest, not the server.
+			name: "guest never staged the HEAD",
+			head: nil,
+			want: convergeOutcomeHeadAbsent,
+		},
+		{
+			// No HEAD published for the account yet: nothing to converge toward.
+			name: "account has no HEAD yet",
+			head: &volumeHead{Generation: 0, DownloadURL: "https://example.invalid/x"},
+			want: convergeOutcomeNoHead,
+		},
+		{
+			// A HEAD exists but arrived without a URL, which is what an
+			// untrusted (fork) dispatch looks like: the server withholds it.
+			name: "HEAD arrived without a download URL",
+			head: &volumeHead{Generation: 7},
+			want: convergeOutcomeNoDownloadURL,
+		},
+		{
+			// The healthy no-op, and the one that must NOT be mistaken for a
+			// failure when reading the counter.
+			name: "host already at the HEAD generation",
+			head: &volumeHead{Generation: 3, DownloadURL: "https://example.invalid/x"},
+			want: convergeOutcomeAlreadyCurrent,
+			setup: func(t *testing.T, m *VolumeManager) {
+				seedMasterGen(t, m, "42", masterImageContent("42"), 3)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := newTestManager(t, 100)
+			if tc.setup != nil {
+				tc.setup(t, m)
+			}
+			statusDir := t.TempDir()
+			if tc.head != nil {
+				stageVolumeHead(t, statusDir, *tc.head)
+			}
+			r := &Reconciler{
+				Volumes:                  m,
+				ConvergeHeadWaitInterval: time.Millisecond,
+				ConvergeHeadWaitAttempts: 2,
+			}
+
+			before := convergeOutcomeCount(t, tc.want)
+			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			if got := convergeOutcomeCount(t, tc.want); got != before+1 {
+				t.Fatalf("%s counter = %v; want %v", tc.want, got, before+1)
+			}
+		})
+	}
+}
+
+// A HEAD the host cannot fetch is attributed to the download, not lumped in
+// with the skip reasons: it points at object storage rather than at the guest
+// or the server.
+func TestConvergeMasterRecordsDownloadFailure(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	statusDir := t.TempDir()
+	stageVolumeHead(t, statusDir, volumeHead{Generation: 9, DownloadURL: "http://127.0.0.1:1/missing"})
+	r := &Reconciler{
+		Volumes:                  m,
+		ConvergeHeadWaitInterval: time.Millisecond,
+		ConvergeHeadWaitAttempts: 2,
+	}
+
+	before := convergeOutcomeCount(t, convergeOutcomeDownloadFailed)
+	r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+	if got := convergeOutcomeCount(t, convergeOutcomeDownloadFailed); got != before+1 {
+		t.Fatalf("download_failed counter = %v; want %v", got, before+1)
 	}
 }
