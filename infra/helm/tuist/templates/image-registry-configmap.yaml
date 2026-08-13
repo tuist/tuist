@@ -1,0 +1,59 @@
+{{- if and .Values.imageRegistry.enabled .Values.imageRegistry.auth.enabled }}
+# Read/write split in front of the registry.
+#
+# `distribution`'s own htpasswd realm authenticates but does not
+# authorize: any account that can pull can also push. A pull credential
+# handed to the fleet would therefore also be a push credential on every
+# host, which is worse than no credential at all. Splitting on method
+# instead keeps pullers anonymous and gates only mutations, which maps
+# exactly onto the registry API — reads are GET/HEAD, writes are POST,
+# PATCH, PUT and DELETE.
+#
+# Putting HTTP in the path costs nothing on the hot path: a blob GET is
+# answered with a redirect to the object store, so image bytes never
+# reach this proxy. It only ever handles small control requests and the
+# upload stream.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry-proxy") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: image-registry
+data:
+  default.conf: |
+    server {
+      listen {{ .Values.imageRegistry.auth.proxy.port }};
+      server_name _;
+
+      # Layer blobs are large and the upload is a single streamed
+      # request. Unset the cap, and forward the body as it arrives
+      # rather than spooling the whole request to disk first.
+      client_max_body_size 0;
+      proxy_request_buffering off;
+      proxy_buffering off;
+      proxy_http_version 1.1;
+
+      # The registry builds absolute upload-session URLs from the
+      # inbound Host, so it has to survive the hop or clients get sent
+      # back to the loopback address.
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+
+      # An upload can sit while the registry flushes a part to the
+      # object store.
+      proxy_connect_timeout {{ .Values.imageRegistry.auth.proxy.timeoutSeconds }}s;
+      proxy_send_timeout {{ .Values.imageRegistry.auth.proxy.timeoutSeconds }}s;
+      proxy_read_timeout {{ .Values.imageRegistry.auth.proxy.timeoutSeconds }}s;
+
+      location / {
+        limit_except GET HEAD {
+          auth_basic "{{ .Values.imageRegistry.auth.realm }}";
+          auth_basic_user_file /etc/nginx/registry-auth/htpasswd;
+        }
+        proxy_pass http://127.0.0.1:5000;
+      }
+    }
+{{- end }}

@@ -26,5 +26,8 @@ spec:
   ports:
     - name: registry
       port: {{ .Values.imageRegistry.service.port }}
-      targetPort: registry
+      # With auth on, the only routable port is the proxy's; the
+      # registry itself stays on the Pod loopback so the read/write
+      # split cannot be bypassed by addressing it directly.
+      targetPort: {{ ternary "proxy" "registry" .Values.imageRegistry.auth.enabled }}
 {{- end }}

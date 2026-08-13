@@ -235,6 +235,8 @@ imageRegistry:
     # Revisit once that bucket's shadow configuration is cleared.
     bucket: tuist-xcode-cache-staging
     rootDirectory: images
+  auth:
+    enabled: true
   tailscale:
     enabled: true
     hostname: tuist-images-staging

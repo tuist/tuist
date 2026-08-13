@@ -2061,6 +2061,47 @@ imageRegistry:
     # Multipart part size in bytes for blob uploads. 64 MiB against Tart's
     # 512 MiB layers is 8 parts per layer; the default 10 MiB would be 52.
     chunkSize: 67108864
+  auth:
+    # Anonymous read, authenticated write, split on request method by a
+    # proxy in front of the registry. Off by default so a self-hoster
+    # who exposes this on a trusted network isn't forced into it.
+    #
+    # Do not substitute the registry's own htpasswd realm: it
+    # authenticates without authorizing, so any account that can pull
+    # can also push, and a pull credential on the fleet becomes a push
+    # credential on every host.
+    enabled: false
+    realm: "Tuist image registry"
+    # Where the htpasswd comes from: the chart's ExternalSecret, or an
+    # operator-managed Secret named here with an `htpasswd` key. With
+    # auth on and neither set, the chart fails to render.
+    existingSecret: ""
+    externalSecret:
+      enabled: true
+      refreshInterval: 1h
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      htpasswd:
+        item: IMAGE_REGISTRY_CREDENTIALS
+        # A full htpasswd line (`user:$2y$...`), not a bare password.
+        field: htpasswd
+    proxy:
+      image:
+        repository: public.ecr.aws/nginx/nginx
+        tag: "1.29"
+        pullPolicy: IfNotPresent
+      port: 8080
+      # Generous enough to cover a part being flushed to the object
+      # store mid-upload.
+      timeoutSeconds: 900
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: "1"
+          memory: 256Mi
   tailscale:
     # Expose the Service on the tailnet instead of a public ingress. Every
     # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.

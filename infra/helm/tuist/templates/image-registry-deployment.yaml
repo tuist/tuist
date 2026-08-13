@@ -92,4 +92,51 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.imageRegistry.resources | nindent 12 }}
+        {{- if .Values.imageRegistry.auth.enabled }}
+        # Read/write split; see the ConfigMap for why it lives here and
+        # not in the registry's own htpasswd realm. The registry's port
+        # is not in the Service, so this is the only way in.
+        - name: auth-proxy
+          image: "{{ .Values.imageRegistry.auth.proxy.image.repository }}:{{ .Values.imageRegistry.auth.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.imageRegistry.auth.proxy.image.pullPolicy }}
+          ports:
+            - name: proxy
+              containerPort: {{ .Values.imageRegistry.auth.proxy.port }}
+          volumeMounts:
+            - name: auth-proxy-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: registry-auth
+              mountPath: /etc/nginx/registry-auth
+              readOnly: true
+          readinessProbe:
+            # Through the proxy, so a broken config or a missing
+            # htpasswd takes the Pod out of the Service rather than
+            # serving 500s. GET stays anonymous, so no credential here.
+            httpGet:
+              path: /v2/
+              port: proxy
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.imageRegistry.auth.proxy.resources | nindent 12 }}
+        {{- end }}
+      {{- if .Values.imageRegistry.auth.enabled }}
+      volumes:
+        - name: auth-proxy-config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry-proxy") }}
+        - name: registry-auth
+          secret:
+            {{- if .Values.imageRegistry.auth.externalSecret.enabled }}
+            secretName: {{ include "tuist.componentName" (dict "root" . "component" "image-registry-auth") }}
+            {{- else if .Values.imageRegistry.auth.existingSecret }}
+            secretName: {{ .Values.imageRegistry.auth.existingSecret }}
+            {{- else }}
+            {{- fail "imageRegistry.auth.enabled requires imageRegistry.auth.externalSecret.enabled, or auth.existingSecret naming a Secret with an htpasswd key" }}
+            {{- end }}
+            items:
+              - key: htpasswd
+                path: htpasswd
+      {{- end }}
 {{- end }}
