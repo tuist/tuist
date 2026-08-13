@@ -169,11 +169,14 @@ func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
 // a fresh image sidesteps the question entirely: the new file's size is the live
 // content, whatever the old one had accumulated.
 //
-// BOTH top-level trees are carried over. The image holds the binary cache under
-// `tuist/` and the folded Xcode compilation cache under `CompilationCache.noindex`
-// beside it, and the repack keeps the master's generation — so dropping either
-// would leave the host serving a mutilated master that convergence never
-// repairs, because its generation still reads as current.
+// The WHOLE volume is carried over, not a list of trees the host expects to find.
+// The cap is a ceiling on the image; what lives inside it belongs to the guest.
+// Today that is the binary cache under `tuist/` plus the folded Xcode compilation
+// cache under `CompilationCache.noindex`, but an allowlist would silently drop
+// the next store folded in beside them, and would repack a user-declared volume
+// (spec #69) — which has neither of those trees — to empty. Since the repack
+// keeps the master's generation, anything dropped is unrecoverable: convergence
+// reads the generation as current and has nothing to adopt.
 //
 // `ditto` rather than `cp -R`: it preserves xattrs on symlinks, which is the
 // whole reason this cache lives in a disk image instead of on the virtio-fs
@@ -224,19 +227,21 @@ func (b darwinVolumeBackend) repackImage(src, dst string, sizeGiB int) (err erro
 		}
 	}()
 
-	for _, tree := range repackedTrees {
-		srcTree := filepath.Join(srcMnt, tree)
-		if _, statErr := os.Stat(srcTree); statErr != nil {
-			// A tree the master never grew (a CAS-less master, or a first job
-			// that only wrote one side) contributes nothing; the fresh image is
-			// already correct without it.
-			if os.IsNotExist(statErr) {
-				continue
-			}
-			return fmt.Errorf("stat %s in source image: %w", tree, statErr)
+	entries, err := os.ReadDir(srcMnt)
+	if err != nil {
+		return fmt.Errorf("read source image root: %w", err)
+	}
+	for _, entry := range entries {
+		// Dot-prefixed entries at the volume root are the filesystem's own
+		// (.fseventsd, .Spotlight-V100, .Trashes); the fresh image grows its own.
+		// This is the same "dotfiles are not cache content" rule inventoryDigest
+		// applies, so the repacked image digests identically to its source.
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
 		}
-		if _, err := runCmd(30*time.Minute, "ditto", srcTree, filepath.Join(dstMnt, tree)); err != nil {
-			return fmt.Errorf("ditto %s into repacked image: %w", tree, err)
+		if _, err := runCmd(30*time.Minute, "ditto",
+			filepath.Join(srcMnt, entry.Name()), filepath.Join(dstMnt, entry.Name())); err != nil {
+			return fmt.Errorf("ditto %s into repacked image: %w", entry.Name(), err)
 		}
 	}
 	return nil

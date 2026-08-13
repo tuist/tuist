@@ -100,15 +100,6 @@ const branchImageName = "cache.sparseimage"
 // store.
 const casStoreDir = "CompilationCache.noindex"
 
-// repackedTrees are the top-level trees inside a cache image that carry cache
-// content, and so the exact set a repack must reproduce in the fresh image.
-// Both, not just the binary cache: a repack keeps the master's generation, so a
-// dropped tree leaves the host serving a mutilated master that convergence never
-// repairs — its generation still reads as current, so there is nothing to adopt.
-// Everything else at the mount root (volume metadata, Spotlight stubs) is the
-// filesystem's own and is rebuilt with the new image.
-var repackedTrees = []string{cacheHomeSubdir, casStoreDir}
-
 // casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
 // file under the store contributes one `~cas/<relpath>\t<size>` line, so the
 // digest is a real content identity for the store, not a proxy. Two properties

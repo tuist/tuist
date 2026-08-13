@@ -168,14 +168,15 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 	}
 }
 
-// A repack must carry BOTH cache trees into the fresh image. The image holds the
-// binary cache under `tuist/` and the folded Xcode compilation cache under
-// `CompilationCache.noindex` beside it, and the repack keeps the master's
-// generation — so dropping either would leave the host serving a mutilated
-// master that convergence never repairs, because its generation still reads as
-// current. This drives the real hdiutil/ditto path rather than the fake, because
-// the trees only exist inside an attached image.
-func TestDarwinRepackImagePreservesBothCacheTrees(t *testing.T) {
+// A repack must reproduce the WHOLE volume, not the directories the host happens
+// to know about. The cap is a ceiling on the image; what is inside belongs to the
+// guest. Today that is the binary cache plus the folded CAS, but the third entry
+// here stands in for both a future store folded in beside them and a
+// user-declared volume (spec #69) whose layout the host cannot predict — an
+// allowlist would silently drop either, unrecoverably, because the repack keeps
+// the generation and convergence then has nothing to adopt. Drives the real
+// hdiutil/ditto path, since these trees only exist inside an attached image.
+func TestDarwinRepackImagePreservesEverythingInTheVolume(t *testing.T) {
 	be := darwinVolumeBackend{}
 	dir := t.TempDir()
 	src := filepath.Join(dir, "src.sparseimage")
@@ -204,6 +205,19 @@ func TestDarwinRepackImagePreservesBothCacheTrees(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(cas, "llvmcas.data"), []byte("cas-payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A top-level tree the host has no constant for.
+	unknown := filepath.Join(mnt, "SomeFutureStore")
+	if err := os.MkdirAll(unknown, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(unknown, "payload.bin"), []byte("unknown-store-payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Filesystem-owned metadata must NOT be carried: the fresh image grows its
+	// own, and copying it is at best noise.
+	if err := os.MkdirAll(filepath.Join(mnt, ".fseventsd"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// The digest over the populated source is the identity the repacked image
@@ -242,6 +256,7 @@ func TestDarwinRepackImagePreservesBothCacheTrees(t *testing.T) {
 	for path, want := range map[string]string{
 		filepath.Join(check, cacheHomeSubdir, "Binaries", "abc123", "lib.a"): "binary-cache-payload",
 		filepath.Join(check, casStoreDir, "v1.1", "records", "llvmcas.data"): "cas-payload",
+		filepath.Join(check, "SomeFutureStore", "payload.bin"):               "unknown-store-payload",
 	} {
 		b, err := os.ReadFile(path)
 		if err != nil {
