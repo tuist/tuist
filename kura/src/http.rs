@@ -1164,11 +1164,13 @@ async fn reject_overloaded_public_writes(
 
 /// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
 /// DELETE /_internal/replicate/namespace) when the pod is under Critical
-/// memory pressure. Without this guard the pod accepts the TCP connection
-/// but stalls while processing the body, and the source peer's read_timeout
-/// (30 s) fires — surfacing as a TimedOut that wedges the outbox for half
-/// a minute per attempt. Returning 503 lets the source retry immediately
-/// with its normal 2-second backoff. Reads (bootstrap, status) are unaffected.
+/// memory pressure. Without this guard the pod accepts the TCP connection but
+/// stalls while processing the body, so the source peer sees no progress and
+/// abandons the attempt only when its upload stall watchdog expires
+/// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
+/// receiver holding up a drain loop that is serial and node-wide. Returning
+/// 503 lets the source retry immediately with its normal 2-second backoff.
+/// Reads (bootstrap, status) are unaffected.
 async fn reject_overloaded_internal_writes(
     State(state): State<SharedState>,
     req: Request,

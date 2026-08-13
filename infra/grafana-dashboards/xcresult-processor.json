@@ -368,8 +368,47 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Age of the oldest job sitting in Oban's `available` state for this queue, polled every 5s from `oban_jobs` by every PromEx-enabled pod (max() dedupes across replicas). Read it against \"Queue Depth by State\": depth alone reads the same whether arrivals are being served promptly or nothing is consuming the queue at all, since both sit at a non-zero `available` count. This gauge is the one that keeps climbing while a queue has no consumer, and it backs the `Remote processing queue has no consumer` alert, which fires past 15m. It is emitted by the Linux web pods as well as the macOS fleet, so it survives the complete loss of the deployment that drains the queue: exactly the 13-hour outage on 2026-08-12, where the Pods read 1/1 Running with no BEAM inside them.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 900}
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 23},
+        "id": 13,
+        "options": {
+          "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (queue) (tuist_oban_queue_oldest_available_age_seconds{queue=\"process_xcresult\"})",
+            "legendFormat": "{{queue}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest Available Job Age",
+        "type": "timeseries"
+      },
+      {
         "collapsed": false,
-        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
         "id": 103,
         "panels": [],
         "title": "Retries",
@@ -389,7 +428,7 @@
             "unit": "short"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
         "id": 9,
         "options": {
           "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -435,7 +474,7 @@
             "unit": "short"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
         "id": 10,
         "options": {
           "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -455,7 +494,7 @@
       },
       {
         "collapsed": false,
-        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40},
         "id": 104,
         "panels": [],
         "title": "Host / VM Disk",
@@ -487,7 +526,7 @@
             "unit": "percent"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 41},
         "id": 11,
         "options": {
           "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -531,7 +570,7 @@
             "unit": "percent"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 41},
         "id": 12,
         "options": {
           "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},

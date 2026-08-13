@@ -1262,6 +1262,20 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			log.FromContext(ctx).Error(err, "sync VNC forwarder",
 				"pod", pod.Namespace+"/"+pod.Name)
 		}
+		// Ready means "the VM process is alive and has an IP", nothing
+		// more. tart-kubelet implements no container probes, so a
+		// readinessProbe in a PodSpec is silently ignored and a guest
+		// whose workload died after boot still reads 1/1 Running. Two
+		// xcresult-processor outages have taken that shape (2026-06-26
+		// host NAT, 2026-08-12 expired Tailscale pre-auth key), both
+		// with every Kubernetes-level signal green throughout. Until
+		// probes exist, that gap is covered outside the cluster by the
+		// scrape-target and queue-age rules in
+		// infra/helm/k8s-monitoring/alerts.md. Anything relying on
+		// readiness to mean "serving" needs to add probe support here
+		// first; note that doing so also makes a false negative able to
+		// stall rollouts and block drains fleet-wide, since customer
+		// runner Pods take this same path.
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}

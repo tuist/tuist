@@ -169,6 +169,122 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
   end
 
+  describe "Microsoft Entra ID SSO" do
+    test "disables save button when the tenant is empty", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      html = render_hook(lv, "select_provider", %{"value" => ["entra"]})
+
+      assert html =~ "disabled"
+      assert html =~ "Directory (tenant) ID"
+    end
+
+    test "derives the endpoints from the directory (tenant) ID", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["entra"]})
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "entra_tenant_id" => "11111111-2222-3333-4444-555555555555",
+          "sso_login_domain" => "example.com",
+          "oauth2_client_id" => "test_client_id",
+          "oauth2_client_secret" => "test_client_secret"
+        }
+      })
+      |> render_submit()
+
+      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+
+      assert updated_organization.sso_provider == :oauth2
+
+      assert updated_organization.sso_organization_id ==
+               "https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/v2.0"
+
+      assert updated_organization.oauth2_authorize_url ==
+               "https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/authorize"
+
+      assert updated_organization.oauth2_token_url ==
+               "https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/token"
+
+      assert updated_organization.oauth2_user_info_url == "https://graph.microsoft.com/oidc/userinfo"
+    end
+
+    test "reopens a saved configuration on the Entra form with its tenant", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["entra"]})
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "entra_tenant_id" => "contoso.onmicrosoft.com",
+          "oauth2_client_id" => "test_client_id",
+          "oauth2_client_secret" => "test_client_secret"
+        }
+      })
+      |> render_submit()
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      document = Floki.parse_fragment!(html)
+      assert Floki.attribute(document, "#sso_entra_tenant_id", "value") == ["contoso.onmicrosoft.com"]
+    end
+
+    test "keeps a hand-configured Entra organization on the generic OAuth2 form", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://sts.windows.net/11111111-2222-3333-4444-555555555555/",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url:
+            "https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/authorize",
+          oauth2_token_url: "https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/token",
+          oauth2_user_info_url: "https://graph.microsoft.com/oidc/userinfo"
+        })
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      document = Floki.parse_fragment!(html)
+
+      assert Floki.attribute(document, "#sso_oauth2_site", "value") == [
+               "https://sts.windows.net/11111111-2222-3333-4444-555555555555"
+             ]
+    end
+
+    test "rejects a tenant that is not a single path segment", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["entra"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "entra_tenant_id" => "https://login.microsoftonline.com/tenant/v2.0",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret"
+          }
+        })
+        |> render_change()
+
+      assert html =~ "disabled"
+    end
+  end
+
   describe "Custom OAuth2 SSO" do
     test "disables save button when required fields are empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")

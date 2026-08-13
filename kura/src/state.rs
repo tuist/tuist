@@ -53,6 +53,9 @@ pub struct AppState {
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
     pub client: ArcSwap<Client>,
+    /// Peer client for streaming request bodies (outbox artifact PUTs): no
+    /// read timeout, paired with the caller's byte-progress stall watchdog.
+    pub upload_client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
     // The inbound internal mTLS server config, retained so cert rotation can
     // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
@@ -147,6 +150,11 @@ impl AppState {
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
+    }
+
+    /// The current outbound peer upload client (picks up rotated certs).
+    pub fn upload_client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.upload_client.load()
     }
 
     /// The bootstrap fetch gate for an artifact. Striped by artifact id so

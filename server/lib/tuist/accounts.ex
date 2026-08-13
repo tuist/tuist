@@ -2212,6 +2212,10 @@ defmodule Tuist.Accounts do
   @okta_token_path "/oauth2/v1/token"
   @okta_userinfo_path "/oauth2/v1/userinfo"
 
+  @entra_authority "https://login.microsoftonline.com"
+  @entra_user_info_url "https://graph.microsoft.com/oidc/userinfo"
+  @entra_tenant_regex ~r/\A[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
+
   def oauth2_config_for_organization(%Organization{
         sso_provider: provider,
         sso_organization_id: sso_organization_id,
@@ -2245,6 +2249,55 @@ defmodule Tuist.Accounts do
   def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
   def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"
   def okta_userinfo_url(domain), do: "https://#{domain}#{@okta_userinfo_path}"
+
+  @doc """
+  Microsoft Entra ID is a standards-compliant OpenID Connect provider, so it is
+  stored as a `:oauth2` organization. These helpers derive the endpoints from
+  the directory (tenant) identifier so administrators enter one value instead
+  of three URLs. The site is the `iss` value Entra puts in its v2.0 tokens.
+  """
+  def entra_site_url(tenant), do: "#{@entra_authority}/#{tenant}/v2.0"
+  def entra_authorize_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/authorize"
+  def entra_token_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/token"
+  def entra_userinfo_url, do: @entra_user_info_url
+
+  def valid_entra_tenant?(tenant) when is_binary(tenant), do: Regex.match?(@entra_tenant_regex, tenant)
+  def valid_entra_tenant?(_tenant), do: false
+
+  @doc """
+  Returns the directory (tenant) identifier when the organization's stored
+  configuration is exactly what `entra_*_url/1` would generate, and `nil`
+  otherwise.
+
+  The match has to be exact. An organization that points at Entra through
+  hand-entered endpoints keeps the generic form, because rewriting its stored
+  URLs would change `sso_organization_id` — the issuer that linked identities
+  are keyed on — and strand every existing member.
+  """
+  def entra_tenant(%Organization{sso_provider: :oauth2} = organization) do
+    with tenant when is_binary(tenant) <- entra_tenant_from_site(organization.sso_organization_id),
+         true <- organization.oauth2_authorize_url == entra_authorize_url(tenant),
+         true <- organization.oauth2_token_url == entra_token_url(tenant),
+         true <- organization.oauth2_user_info_url == entra_userinfo_url() do
+      tenant
+    else
+      _ -> nil
+    end
+  end
+
+  def entra_tenant(_organization), do: nil
+
+  defp entra_tenant_from_site(site) when is_binary(site) do
+    case String.split(site, "/") do
+      ["https:", "", "login.microsoftonline.com", tenant, "v2.0"] ->
+        if valid_entra_tenant?(tenant), do: tenant
+
+      _ ->
+        nil
+    end
+  end
+
+  defp entra_tenant_from_site(_site), do: nil
 
   def sso_organization_for_user_email(email) do
     with {:ok, user} <- get_user_by_email(email),
