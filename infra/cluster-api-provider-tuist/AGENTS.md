@@ -178,10 +178,20 @@ infra/cluster-api-provider-tuist/
 ```
 
 CRDs live in [`infra/helm/tuist/crds/`](../helm/tuist/crds/) so Helm
-installs them automatically on first `helm install` (Helm 3 ignores
-the `crds/` directory on upgrades, which is what we want — CRD
-schema changes go through a deliberate `kubectl apply` rather than
-piggybacking on routine deploys).
+installs them on first `helm install`. Helm 3 skips that directory on
+upgrades, so the deploy workflow re-applies it every run
+(`kubectl apply -f "$HELM_CHART_PATH/crds/"` in
+[`server-deployment.yml`](../../.github/workflows/server-deployment.yml)) —
+schema changes ship with the deploy that carries them, no operator step.
+
+A schema change is therefore a live change to what the apiserver accepts,
+including for the CRs **CAPI clones on its own**. Adding a required field
+to a machine spec makes every MachineTemplate that predates it un-clonable,
+which surfaces as `InfrastructureTemplateCloningFailed` on the next
+MachineSet scale-up rather than at deploy time — and Helm does not backfill
+the field onto a live template (it patches these CRs manifest-to-manifest,
+so a field the live object never received is never added). Prefer an
+optional field with a controller-side default over a required one.
 
 ## Node extended resources
 

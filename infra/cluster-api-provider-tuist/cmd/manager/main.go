@@ -294,10 +294,10 @@ func main() {
 	flag.StringVar(&defaultAdoptPoolPrefix, "default-adopt-pool-prefix",
 		envOrDefault("CAPI_DEFAULT_ADOPT_POOL_PREFIX", ""),
 		"Pool prefix the controller falls back to when a CR's adoptPoolPrefix is "+
-			"empty (legacy CRs), used both to release such CRs on delete and as the "+
+			"empty, used to adopt and to release such CRs and as the "+
 			"orphan-reclaim sweep's pool prefix. Setting it enables the orphan-reclaim "+
 			"sweep (report-only until --orphan-reclaim-claim-name-prefix is also set). "+
-			"Empty disables both — bare legacy CRs skip release and no sweep runs.")
+			"Empty disables both — bare CRs refuse to adopt, skip release, and no sweep runs.")
 	flag.StringVar(&orphanReclaimClaimNamePrefix, "orphan-reclaim-claim-name-prefix",
 		envOrDefault("CAPI_ORPHAN_RECLAIM_CLAIM_NAME_PREFIX", ""),
 		"Claimed-name namespace this cluster owns within the Scaleway project (e.g. "+
