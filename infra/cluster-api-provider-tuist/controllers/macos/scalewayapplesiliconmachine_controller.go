@@ -154,6 +154,14 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	VMCachePNName string
 	VMCachePNCIDR string
 
+	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
+	// and loopback, allowed to reach :22 on each Mac mini. Flows into
+	// bootstrap.Config.SSHIngressAllowCIDRs, where a pf anchor drops
+	// everything else so internet scan traffic can't exhaust the ssh
+	// listen backlog. Rides the drift loop, so a policy change lands on
+	// existing minis with the next operator-image roll.
+	SSHIngressAllowCIDRs []string
+
 	// VPC find-or-creates the runner-cache Private Network the Mac
 	// fleet shares with the Elastic Metal cache node, resolving
 	// VMCachePNName to an ID. Same shared client as the EM reconciler,
@@ -221,12 +229,16 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// locking — bumping this only parallelizes across distinct CRs.
 	MaxConcurrentReconciles int
 
-	// DefaultAdoptPoolPrefix is the pool prefix reconcileDelete falls
-	// back to when a CR's Spec.AdoptPoolPrefix is empty. Spec now
-	// requires the field (MinLength=1), so this only covers legacy CRs
-	// created before that contract existed: without a fallback their
-	// delete skips the Scaleway release and strands the host. Empty
-	// preserves the skip behavior (no pool prefix to release into).
+	// DefaultAdoptPoolPrefix is the pool prefix every path falls back
+	// to when a CR's Spec.AdoptPoolPrefix is empty — adoption,
+	// bootstrap-exhaustion release, and delete alike. A CR reaches
+	// that shape either by predating the field or by being cloned
+	// from a MachineTemplate that drifted without it (helm patches
+	// these CRs manifest-to-manifest, so a field the live object
+	// never received is never backfilled). Empty means no prefix
+	// resolves at all: adoption refuses to scan (an unprefixed scan
+	// would claim an arbitrary server) and release skips, leaving the
+	// host running for the orphan-reclaim sweep.
 	DefaultAdoptPoolPrefix string
 
 	// Tailscale egress Service materialisation. When EgressProxyGroup
@@ -643,6 +655,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			VMKuraEgressCIDR:        r.VMKuraEgressCIDR,
 			VMClusterDNSIP:          r.VMClusterDNSIP,
 			VMCachePNCIDR:           r.VMCachePNCIDR,
+			SSHIngressAllowCIDRs:    r.SSHIngressAllowCIDRs,
 			VMCachePNVLAN:           vmCachePNVLAN,
 			NodeExporterBinary:      r.NodeExporterBinary,
 			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
@@ -668,7 +681,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts), nil
+			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts, r.adoptPoolPrefix(machine)), nil
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
@@ -817,6 +830,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
 			VMClusterDNSIP:        r.VMClusterDNSIP,
 			VMCachePNCIDR:         r.VMCachePNCIDR,
+			SSHIngressAllowCIDRs:  r.SSHIngressAllowCIDRs,
 			VMCachePNVLAN:         vmCachePNVLAN,
 			// node_exporter is re-installed on every drift-loop run,
 			// not just on first bootstrap, so a chart-driven binary
@@ -948,23 +962,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	// rename + reinstall — so the host stays alive for the next
 	// adopt. Skip if already released (mid-cleanup retry).
 	//
-	// Legacy CRs predating the required-AdoptPoolPrefix contract may
-	// still exist with the field unset (the older chart only
-	// rendered `adoptPoolPrefix` when the value was non-empty, so
-	// fleets that didn't set it produced bare CRs). For those, fall
-	// back to the controller-level DefaultAdoptPoolPrefix so the host
-	// still returns to the pool. Only when neither the CR nor the
+	// CRs with an unset AdoptPoolPrefix fall back to the
+	// controller-level DefaultAdoptPoolPrefix so the host still
+	// returns to the pool. Only when neither the CR nor the
 	// controller default carries a prefix do we skip the Scaleway
 	// release (the client rejects an empty prefix to avoid orphaning a
 	// host outside the pool namespace), leave the host running, and
 	// let the orphan-reclaim sweep or an operator clean it up. Without
-	// this fallthrough, deleting a bare legacy CR would loop forever on
+	// this fallthrough, deleting a bare CR would loop forever on
 	// a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
-		poolPrefix := machine.Spec.AdoptPoolPrefix
-		if poolPrefix == "" {
-			poolPrefix = r.DefaultAdoptPoolPrefix
-		}
+		poolPrefix := r.adoptPoolPrefix(machine)
 		switch {
 		case poolPrefix == "":
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
@@ -1379,6 +1387,7 @@ func handleBootstrapFailure(
 	logger logr.Logger,
 	rebootAfter int32,
 	maxAttempts int32,
+	poolPrefix string,
 ) ctrl.Result {
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
@@ -1388,10 +1397,10 @@ func handleBootstrapFailure(
 	recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
 		"%v (attempt %d, will retry)", err, attempts)
 
-	hostAdoptable := machine.Status.ServerID != "" && machine.Spec.AdoptPoolPrefix != ""
+	hostAdoptable := machine.Status.ServerID != "" && poolPrefix != ""
 	switch {
 	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
-		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); releaseErr != nil {
+		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix); releaseErr != nil {
 			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
 			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",
@@ -1447,6 +1456,20 @@ func handleBootstrapFailure(
 	return ctrl.Result{RequeueAfter: 60 * time.Second}
 }
 
+// adoptPoolPrefix resolves the pool prefix for a CR: its own spec
+// first, the operator-global default when the spec is empty. Every
+// caller goes through this rather than reading Spec.AdoptPoolPrefix
+// directly, so a CR cloned from a MachineTemplate that never received
+// the field still adopts into, and releases back to, the right pool.
+func (r *ScalewayAppleSiliconMachineReconciler) adoptPoolPrefix(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) string {
+	if machine.Spec.AdoptPoolPrefix != "" {
+		return machine.Spec.AdoptPoolPrefix
+	}
+	return r.DefaultAdoptPoolPrefix
+}
+
 // acquireServer claims a pre-ordered host from the pool. Returns
 // (nil, requeue, nil) on `ErrNoAvailableHost` — that's a transient
 // "wait for operator pre-order" state, not a failure; surfaces a
@@ -1457,27 +1480,41 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (*scaleway.Server, time.Duration, error) {
+	poolPrefix := r.adoptPoolPrefix(machine)
+	// An unprefixed scan would match every server in the project,
+	// including hosts already claimed by other fleets, so refuse
+	// rather than adopt something arbitrary. Requeue: the operator
+	// fixes this by setting `--default-adopt-pool-prefix` or the
+	// field on the template, and neither needs the CR recreated.
+	if poolPrefix == "" {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptPoolPrefix",
+			clusterv1.ConditionSeverityError,
+			"no adoptPoolPrefix on the CR and no operator default; cannot scan the pool")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAdoptPoolPrefix",
+			"No adoptPoolPrefix on the CR and no --default-adopt-pool-prefix on the operator; refusing to scan for an unprefixed host")
+		return nil, 5 * time.Minute, nil
+	}
 	machine.Status.Phase = "Adopting"
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
 		"Searching pool %q for an unclaimed %s Mac mini in zone %s",
-		machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+		poolPrefix, machine.Spec.Type, machine.Spec.Zone)
 	srv, err := r.ScalewayClient.AdoptFromPool(
 		ctx,
 		machine.Name,
 		machine.Spec.Zone,
 		machine.Spec.Type,
 		machine.Spec.OS,
-		machine.Spec.AdoptPoolPrefix,
+		poolPrefix,
 	)
 	if errors.Is(err, scaleway.ErrNoAvailableHost) {
 		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost",
 			clusterv1.ConditionSeverityWarning,
 			"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+			poolPrefix, machine.Spec.Type, machine.Spec.OS,
 			"ready", machine.Spec.Zone)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
 			"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+			poolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
 		return nil, 60 * time.Second, nil
 	}
 	if err != nil {
@@ -1489,7 +1526,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	}
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
 		"Claimed Mac mini %s from pool %q (renamed to %s)",
-		srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
+		srv.ID, poolPrefix, machine.Name)
 	return srv, 0, nil
 }
 

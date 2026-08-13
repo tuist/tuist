@@ -1,9 +1,15 @@
 package controllers
 
 import (
+	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -15,7 +21,7 @@ import (
 // change that equalises them would either shrink the burst headroom or exhaust
 // a box's schedulable memory.
 func TestDefaultResourcesMemoryLimitExceedsRequest(t *testing.T) {
-	r := defaultResources(&kurav1alpha1.KuraInstance{})
+	r := defaultResources(&kurav1alpha1.KuraInstance{}, false)
 
 	request, ok := r.Requests[corev1.ResourceMemory]
 	if !ok {
@@ -42,7 +48,7 @@ func TestDefaultResourcesMemoryLimitExceedsRequest(t *testing.T) {
 func TestDefaultResourcesHonoursMemoryProfile(t *testing.T) {
 	r := defaultResources(&kurav1alpha1.KuraInstance{
 		Spec: kurav1alpha1.KuraInstanceSpec{MemoryFloorMib: 512, MemoryCeilingMib: 1536},
-	})
+	}, false)
 
 	if got := r.Requests.Memory().String(); got != "512Mi" {
 		t.Fatalf("memory request = %q, want 512Mi", got)
@@ -60,7 +66,7 @@ func TestDefaultResourcesBinPacksCeilingWhenSet(t *testing.T) {
 		Spec: kurav1alpha1.KuraInstanceSpec{
 			MemoryFloorMib: 512, MemoryCeilingMib: 1536, MemoryCeilingBinPacked: true,
 		},
-	})
+	}, true)
 
 	req, ok := r.Requests[memoryCeilingResource]
 	if !ok {
@@ -82,7 +88,7 @@ func TestDefaultResourcesBinPacksCeilingWhenSet(t *testing.T) {
 func TestDefaultResourcesSizesCeilingWithoutBinPacking(t *testing.T) {
 	r := defaultResources(&kurav1alpha1.KuraInstance{
 		Spec: kurav1alpha1.KuraInstanceSpec{MemoryFloorMib: 512, MemoryCeilingMib: 1536},
-	})
+	}, false)
 
 	if got := r.Limits.Memory().String(); got != "1536Mi" {
 		t.Fatalf("memory limit = %q, want the region's 1536Mi ceiling", got)
@@ -102,12 +108,67 @@ func TestDefaultResourcesClampsCeilingBelowFloor(t *testing.T) {
 		Spec: kurav1alpha1.KuraInstanceSpec{
 			MemoryFloorMib: 2048, MemoryCeilingMib: 512, MemoryCeilingBinPacked: true,
 		},
-	})
+	}, true)
 
 	if got := r.Limits.Memory().String(); got != "2Gi" {
 		t.Fatalf("memory limit = %q, want it clamped up to the 2Gi floor", got)
 	}
 	if lim := r.Limits[memoryCeilingResource]; lim.Value() != 2048 {
 		t.Fatalf("ceiling resource = %d, want the clamped 2048", lim.Value())
+	}
+}
+
+// The server flips memory_ceiling_bin_packed on its own deploy cadence, while
+// the CAPI provider that advertises tuist.dev/memory-ceiling-mib rolls to the
+// management cluster on another. A pod requesting an extended resource no node
+// advertises stays Pending forever, so the controller resolves the spec flag
+// against live node state instead of trusting it, and recovers on its own in
+// both directions.
+func TestCeilingBudgetAdvertisedGatesOnLiveNodeCapacity(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	selector := map[string]string{"node.cluster.x-k8s.io/pool": "kura-us-east"}
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-acme", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			NodeSelector: selector, MemoryCeilingBinPacked: true,
+		},
+	}
+
+	node := func(name string, labels map[string]string, advertise bool) *corev1.Node {
+		n := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}}
+		n.Status.Allocatable = corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("32Gi")}
+		if advertise {
+			n.Status.Allocatable[memoryCeilingResource] = *resource.NewQuantity(56116, resource.DecimalSI)
+		}
+		return n
+	}
+	advertised := func(objs ...client.Object) bool {
+		r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()}
+		got, err := r.ceilingBudgetAdvertised(context.Background(), instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	if advertised(node("bare", selector, false)) {
+		t.Fatal("a node without the budget must not gate the request open; the pod would stay Pending")
+	}
+	if !advertised(node("ready", selector, true)) {
+		t.Fatal("a node advertising the budget must let the request through")
+	}
+	// Another pool's node advertising it says nothing about where this instance lands.
+	if advertised(node("bare", selector, false), node("elsewhere", map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}, true)) {
+		t.Fatal("the budget must be looked for behind the instance's own nodeSelector")
+	}
+
+	// The spec flag off short-circuits, so an ungoverned region never pays for a List.
+	off := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{NodeSelector: selector}}
+	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(node("ready", selector, true)).Build()}
+	if got, err := r.ceilingBudgetAdvertised(context.Background(), off); err != nil || got {
+		t.Fatalf("spec flag off must stay off regardless of node state, got %v (err %v)", got, err)
 	}
 }

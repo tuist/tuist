@@ -178,9 +178,24 @@ rules:
 #     delete can only recreate a worker host, never a control-plane node.
 #     machinesets/machinedeployments are untouched — scaling or tearing down a
 #     fleet stays a break-glass action.
+#   * machines/status update/patch — the owning CAPI Machine keeps its own
+#     terminal failureReason/failureMessage, and clearing the infra machine's
+#     status does not clear the parent's. Without this the Machine reports
+#     Failed for a host that has been healthy and Running for weeks, which
+#     makes `get machines` useless for spotting the next real failure. Granted
+#     on the status subresource only: the spec stays immutable, so this cannot
+#     retarget a Machine, only correct what it reports.
 #   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
 #     failure so the drift loop retries. No delete: the CAPI Machine delete
 #     cascades to the infra machine on its own.
+#   * scalewayapplesiliconmachinetemplates update/patch — heal spec drift on the
+#     template a MachineSet clones. Helm patches these CRs manifest-to-manifest,
+#     so a field the live object never received is never backfilled, and an
+#     invalid clone fails every scale-up. Without this verb the `machines` delete
+#     above is a one-way trapdoor: the operator can retire a host but the
+#     MachineSet cannot recreate it, and repairing the template needs
+#     break-glass. Update/patch only — create/delete would change which template
+#     a fleet renders from, which is fleet management.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -194,8 +209,14 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: ["machines"]
     verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machines/status"]
+    verbs: ["update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachines", "scalewayapplesiliconmachines/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
