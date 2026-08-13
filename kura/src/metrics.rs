@@ -167,6 +167,8 @@ pub struct Metrics {
     memory_pressure_state: Gauge,
     memory_soft_limit_bytes: Gauge,
     memory_hard_limit_bytes: Gauge,
+    memory_protection_min_bytes: Gauge,
+    memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
@@ -384,6 +386,8 @@ impl Metrics {
         let memory_pressure_state = Gauge::default();
         let memory_soft_limit_bytes = Gauge::default();
         let memory_hard_limit_bytes = Gauge::default();
+        let memory_protection_min_bytes = Gauge::default();
+        let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
@@ -1077,6 +1081,16 @@ impl Metrics {
             memory_hard_limit_bytes.clone(),
         );
         registry.register(
+            "kura_memory_protection_min_bytes",
+            "Control-group memory.min: memory the kernel will not reclaim from this node. Zero when the orchestrator grants no protection",
+            memory_protection_min_bytes.clone(),
+        );
+        registry.register(
+            "kura_memory_protection_low_bytes",
+            "Control-group memory.low: memory reclaimed from this node only once unprotected memory is exhausted. Zero when the orchestrator grants no protection",
+            memory_protection_low_bytes.clone(),
+        );
+        registry.register(
             "kura_memory_transient_reserved_bytes",
             "Predicted transient bytes reserved by admitted concurrent work",
             memory_transient_reserved_bytes.clone(),
@@ -1382,6 +1396,8 @@ impl Metrics {
             memory_pressure_state,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_protection_min_bytes,
+            memory_protection_low_bytes,
             memory_transient_reserved_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
@@ -2362,6 +2378,14 @@ impl Metrics {
         self.memory_hard_limit_bytes.set(hard_limit_bytes as i64);
     }
 
+    /// Publishes the reclaim protection the orchestrator granted this
+    /// container. Both zero means the node's memory request is a scheduling
+    /// promise only and nothing stops reclaim taking its floor away.
+    pub fn update_memory_protection(&self, min_bytes: u64, low_bytes: u64) {
+        self.memory_protection_min_bytes.set(min_bytes as i64);
+        self.memory_protection_low_bytes.set(low_bytes as i64);
+    }
+
     pub fn record_memory_pressure_transition(&self, from: &str, to: &str) {
         self.memory_pressure_transitions
             .get_or_create(&MemoryPressureTransitionLabels {
@@ -2938,6 +2962,7 @@ mod tests {
         metrics.update_jemalloc_stats(700, 900, 200);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
+        metrics.update_memory_protection(2_048, 1_024);
         metrics.update_memory_pressure_state(1);
         metrics.update_response_stream_pool_capacity(16 * 1024 * 1024, 10 * 1024 * 1024, 32);
         metrics.add_response_stream_reservation("http", 1024 * 1024);
@@ -3082,6 +3107,11 @@ mod tests {
         assert!(rendered.contains("kura_memory_pressure_state"));
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
         assert!(rendered.contains("kura_memory_transient_reserved_bytes"));
+        // Whether the memory floor is kernel-enforced or a scheduling promise
+        // only is otherwise unobservable, and it changes silently: a kubelet
+        // that stops applying protection surfaces no error anywhere else.
+        assert!(rendered.contains("kura_memory_protection_min_bytes 2048"));
+        assert!(rendered.contains("kura_memory_protection_low_bytes 1024"));
         assert!(rendered.contains("kura_foreground_memory_waiters"));
         assert!(rendered.contains("kura_response_stream_pool_capacity_bytes"));
         assert!(rendered.contains("kura_response_stream_foreground_pool_capacity_bytes"));

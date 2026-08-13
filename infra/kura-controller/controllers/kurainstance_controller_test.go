@@ -377,6 +377,31 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
 		t.Fatalf("expected default CPU request, got %q", got)
 	}
+	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
+		t.Fatalf("expected default memory request, got %q", got)
+	}
+	if got := container.Resources.Limits.Memory().String(); got != "4Gi" {
+		t.Fatalf("expected default memory limit, got %q", got)
+	}
+	// Kura sizes its anonymous-memory admission budget from the floor, so the
+	// floor has to reach the container: requests.memory is not otherwise visible
+	// inside a pod. A resourceFieldRef naming a container the pod does not have
+	// fails admission, and a divisor other than 1 would silently round the value,
+	// so both are pinned.
+	var memoryFloor *corev1.EnvVar
+	for i := range container.Env {
+		if container.Env[i].Name == "KURA_MEMORY_FLOOR_BYTES" {
+			memoryFloor = &container.Env[i]
+		}
+	}
+	if memoryFloor == nil || memoryFloor.ValueFrom == nil || memoryFloor.ValueFrom.ResourceFieldRef == nil {
+		t.Fatal("expected KURA_MEMORY_FLOOR_BYTES from a resourceFieldRef; without it Kura sizes its anon budget from the ceiling")
+	}
+	if ref := memoryFloor.ValueFrom.ResourceFieldRef; ref.ContainerName != kuraContainerName ||
+		ref.Resource != "requests.memory" || ref.Divisor.String() != "1" {
+		t.Fatalf("expected requests.memory of %q with divisor 1, got %q/%q divisor %q",
+			kuraContainerName, ref.ContainerName, ref.Resource, ref.Divisor.String())
+	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
 	}
@@ -1784,7 +1809,7 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", ""),
+			Template:             podTemplate(legacyInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -1855,7 +1880,7 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", ""),
+			Template:             podTemplate(stsInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
 		},
 	}
@@ -2098,7 +2123,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", ""),
+			Template:             podTemplate(instance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2156,7 +2181,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "")
+	stsTemplate := podTemplate(instance, "", "production", "", false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}

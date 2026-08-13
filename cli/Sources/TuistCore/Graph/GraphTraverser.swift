@@ -318,6 +318,24 @@ public class GraphTraverser: GraphTraversing {
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
+        let rootDependency = GraphDependency.target(name: name, path: path)
+        return Set(
+            resourceBundleGraphDependencies(path: path, name: name)
+                .compactMap { dependencyReference(to: $0, from: rootDependency) }
+        )
+    }
+
+    public func resourceBundleTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let rootDependency = GraphDependency.target(name: name, path: path)
+        return Set(resourceBundleGraphDependencies(path: path, name: name).compactMap { dependency in
+            guard let graphTarget = target(from: dependency),
+                  case let .condition(condition) = combinedCondition(to: dependency, from: rootDependency)
+            else { return nil }
+            return GraphTargetReference(target: graphTarget, condition: condition)
+        })
+    }
+
+    private func resourceBundleGraphDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependency> {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
 
         func canHostResources(target: Target) -> Bool {
@@ -354,10 +372,7 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedBundles
         )
 
-        return Set(
-            bundles.union(externalBundles)
-                .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
-        )
+        return bundles.union(externalBundles)
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {

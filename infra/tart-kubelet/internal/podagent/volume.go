@@ -1022,6 +1022,67 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 	return len(masters), free, nil
 }
 
+// cacheMasterNodeLabelPrefix advertises one resident per-account cache master
+// per Node label, mirroring how golden base VMs are advertised. The suffix is
+// the account id, which is exactly what the master directories are named after
+// (the server stamps `tuist.dev/runner-account` with the account id and
+// Materialize uses that as the directory), so the server can read the label set
+// as account ids with no translation.
+const cacheMasterNodeLabelPrefix = "tuist.dev/cache-master-"
+
+// CacheMasterNodeLabels returns the Node labels advertising which accounts'
+// cache masters are resident on this host, for the node maintainer to publish.
+//
+// The server prefers handing a polling node a queued job whose account's master
+// is already here, so the job materializes warm instead of cold. It cannot see
+// this host's disk, and the alternative was for it to model residency from its
+// own dispatch history plus the admission arithmetic. That model could not see
+// an admission decline under disk pressure, a background watermark eviction, or
+// a reprovisioned host, and it had to assume how many masters survive rather
+// than know. This reports what is actually on disk.
+//
+// Driven off the same directory scan as eviction, so the labels self-heal
+// across kubelet restarts with no shared in-memory state, and the maintainer's
+// prune of unowned `tuist.dev/*` labels retires an evicted master's label on the
+// next heartbeat for free.
+func (m *VolumeManager) CacheMasterNodeLabels() (map[string]string, error) {
+	labels := map[string]string{}
+	if !m.Enabled() {
+		return labels, nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, master := range masters {
+		// A directory name that is not an account id cannot have come from
+		// Materialize. Skip it rather than emit a label that might be invalid:
+		// one bad key fails the whole Node update, which would take the
+		// advertisement for every other account down with it.
+		if !isAccountID(master.account) {
+			continue
+		}
+		labels[cacheMasterNodeLabelPrefix+master.account] = "true"
+	}
+	return labels, nil
+}
+
+func isAccountID(name string) bool {
+	if name == "" || len(name) > 19 {
+		return false
+	}
+	for _, r := range name {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // EvictToWatermark drops whole masters LRU until free space is back above the
 // low watermark. Called on the reconcile tick.
 func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {

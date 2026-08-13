@@ -17,6 +17,34 @@ The Cirrus base image's pre-existing `admin` user is kept around
 as the Packer SSH provisioning identity but is not used at
 runtime — no service, sudo entry, or auto-login targets it.
 
+Because the base images provision as `admin` and jobs run as
+`runner`, anything the base installs under `admin` has to be
+handed over explicitly. Two things are:
+
+- `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
+  install` from a workflow step failed its writability audit
+  while `brew` itself resolved fine on `PATH`. GitHub-hosted
+  images build and run under one account, so the job user owns
+  the prefix — this image chowns it to `runner` to match.
+- `~/.zprofile`. The cirruslabs base writes it for `admin` and
+  symlinks `/Users/runner` at `/Users/admin`; this image replaces
+  that symlink with a real `runner` account whose home comes from
+  macOS's user template and has no `.zprofile`, so the file is
+  copied over. Without it the login shell the LaunchAgent (and
+  every step shell under it) runs resolves no brew shellenv, no
+  rbenv, no node.
+
+When adding tooling to the base, check ownership and login-shell
+reachability from `runner`, not just presence under `admin`.
+
+The sanity checks at the end of the Packer template run as `sudo
+-u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
+leaves them pointed at `/Users/admin` and they assert against the
+provisioning account's environment instead of the runtime one —
+which is how a reachability check stayed green through months of
+broken `brew install`s, and how the `brew install hello` check
+added to catch that failed on `admin`'s unwritable cache instead.
+
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
   by `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).

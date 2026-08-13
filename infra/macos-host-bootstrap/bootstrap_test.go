@@ -6,6 +6,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -454,13 +457,174 @@ func TestRenderVMNATScript_AssertsDefaultRouteNATLeg(t *testing.T) {
 	if !strings.Contains(out, "route -n get default") {
 		t.Fatalf("expected default-route interface discovery\n%s", out)
 	}
-	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)") {
+	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to $DEFDST -> ($DEFIF)") {
 		t.Fatalf("expected general-internet NAT leg on the default route\n%s", out)
+	}
+	// ...but the PN must be carved out of its destination, so cache traffic is
+	// never masqueraded to the host's public address while the PN route is
+	// briefly absent (that source is outside the kura NetworkPolicy's
+	// 172.16.0.0/22 ipBlock and gets dropped at ingress with no RST).
+	if !strings.Contains(out, `DEFDST="any"`) ||
+		!strings.Contains(out, `[ -n "$PNCIDR" ] && DEFDST="! $PNCIDR"`) {
+		t.Fatalf("expected the general-internet leg to exclude the PN CIDR\n%s", out)
 	}
 	// The idempotency short-circuit must re-converge after an external
 	// anchor flush: skipping the reload purely on a snapshot match would
 	// leave a flushed anchor empty forever (the snapshot still matches).
 	if !strings.Contains(out, `pfctl -a "com.apple/tuist.vmnat" -s nat`) {
 		t.Fatalf("expected short-circuit to verify the live anchor still holds rules\n%s", out)
+	}
+}
+
+// renderSSHIngressGuardScript must drop inbound :22 from everything except the
+// tailnet, loopback and the configured allow list. The flood that wedges a
+// runner arrives on the public interface from scanner ranges, and because
+// launchd binds the ssh socket to *:22 an exhausted backlog takes the tailnet
+// path down with it, so filtering the SYNs is what keeps the operator's
+// management channel alive.
+func TestRenderSSHIngressGuardScript(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		// The tailnet is the unconditional escape hatch: a wrong allow list must
+		// still leave the drift loop a way back in over the fallback path.
+		"100.64.0.0/10",
+		"203.0.113.7/32",
+		// The reachability watchdog probes 127.0.0.1:22 every minute; blocking
+		// loopback would read to it as a permanent wedge.
+		"pass in quick on lo0 proto tcp to any port 22",
+		"block drop in quick proto tcp to any port 22",
+		// Must load under com.apple/, which the stock pf.conf already attaches
+		// to the live ruleset. See the no-pf.conf assertion below.
+		`pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard`,
+		// Re-arm on boot and on an interval, so the rules survive a reboot or
+		// an external ruleset flush without another SSH round trip.
+		"dev.tuist.pfctl-sshguard",
+		"<key>RunAtLoad</key>",
+		"<key>StartInterval</key>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// The guard MUST NOT rely on a top-level anchor appended to /etc/pf.conf.
+	// That file is only read on a full ruleset load, which happens at boot, so
+	// on a live host `pfctl -a` would populate an anchor nothing evaluates
+	// while the drift update stamped HostConfigHash as converged: the guard
+	// would report shipped and silently filter nothing until a reboot.
+	if strings.Contains(s, "/etc/pf.conf") {
+		t.Error("guard touches /etc/pf.conf; a top-level anchor is not live until the next full load, so the rules would be inert on a running host")
+	}
+	// pf is first-match-wins across `quick` rules, so a block that renders above
+	// the passes would drop every management connection including our own.
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") <
+		strings.Index(s, "pass in quick proto tcp from <ssh_allowed> to any port 22") {
+		t.Error("block rule renders before the pass rules; pf is first-match-wins on quick")
+	}
+}
+
+// A malformed allow CIDR must fail closed rather than render a creative
+// ruleset onto a host we can only reach through the port it governs.
+func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
+	for _, bad := range []string{"not-a-cidr", "203.0.113.7", "2001:db8::/32"} {
+		if _, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{bad}}); err == nil {
+			t.Errorf("renderSSHIngressGuardScript accepted %q; must fail closed", bad)
+		}
+	}
+}
+
+// The guard needs a second path to be safe: without a tailnet, an allow list
+// that turns out to be wrong strands the host behind VNC with no way back.
+func TestInstallSSHIngressGuard_SkipsWithoutTailnet(t *testing.T) {
+	if err := installSSHIngressGuard(context.Background(), nil, Config{}); err != nil {
+		t.Fatalf("expected a no-op without a tailscale auth key, got %v", err)
+	}
+}
+
+// The allow list is fleet config, not per-host state, so a policy change has to
+// move the hash or it would never roll to already-bootstrapped minis.
+func TestHostConfigHash_ChangesWithSSHIngressAllowCIDRs(t *testing.T) {
+	base := Config{}
+	changed := Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when the ssh ingress allow list changes")
+	}
+}
+
+// The PN NAT leg must be emitted as soon as the VLAN device exists, not only
+// once DHCP has given it an address. Gating on the address left a window in
+// which the ruleset carried no PN leg at all; a VM booting into that window ran
+// its whole job un-NAT'd and every cache request hung, because once the address
+// (and route) arrived its packets reached the kura node with a 192.168.64.x
+// source that the per-instance NetworkPolicy denies at ingress.
+func TestRenderVMNATScript_PNLegKeysOnDeviceExistenceNotAddress(t *testing.T) {
+	out := renderVMNATScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+
+	// An addressed VLAN still wins when several exist, so a leftover device
+	// from a re-attachment cannot shadow the live one...
+	if !strings.Contains(out, `if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then`) {
+		t.Fatalf("expected an addressed vlan to be preferred\n%s", out)
+	}
+	// ...but an unaddressed one is still recorded rather than skipped.
+	if !strings.Contains(out, `[ -n "$PNIF" ] || PNIF="$IFACE"`) {
+		t.Fatalf("expected an unaddressed vlan to be used as a fallback\n%s", out)
+	}
+	// pf re-resolves a parenthesised interface, so the rule is correct even
+	// when emitted before the address lands.
+	if !strings.Contains(out, "nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)") {
+		t.Fatalf("expected a dynamic-interface PN NAT leg\n%s", out)
+	}
+	// A host with no PN VLAN at all cannot translate cache traffic; that must
+	// reach the daemon log instead of degrading silently.
+	if !strings.Contains(out, "no vlan* interface for PN") {
+		t.Fatalf("expected a missing PN interface to be logged\n%s", out)
+	}
+}
+
+// The helper the LaunchDaemon runs every 60s is written as a heredoc, so a
+// syntax error in it is invisible until pf silently holds no rules on a live
+// host — which reads exactly like the outage this leg exists to prevent.
+func TestRenderVMNATScript_HelperIsValidSh(t *testing.T) {
+	out := renderVMNATScript(Config{
+		VMKuraEgressCIDR: "10.96.0.0/12",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	const open = "<<'VMNAT'\n"
+	start := strings.Index(out, open)
+	if start < 0 {
+		t.Fatalf("no VMNAT heredoc in rendered script\n%s", out)
+	}
+	body := out[start+len(open):]
+	end := strings.Index(body, "\nVMNAT\n")
+	if end < 0 {
+		t.Fatalf("unterminated VMNAT heredoc\n%s", out)
+	}
+	body = body[:end]
+
+	script := filepath.Join(t.TempDir(), "tuist-pf-vmnat")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write helper: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("helper is not valid sh: %v\n%s\n---\n%s", err, combined, body)
+	}
+}
+
+// The guard is delivered as nested heredocs, so a syntax error in it is
+// invisible until pf holds no rules on a live host, which reads exactly like
+// the wedge the guard exists to prevent.
+func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	script := filepath.Join(t.TempDir(), "tuist-ssh-ingress-guard")
+	if err := os.WriteFile(script, []byte(s), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("guard script is not valid sh: %v\n%s", err, combined)
 	}
 }

@@ -1811,6 +1811,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        parallelizable_modules:
+          description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         reference:
           description: A unique shard plan reference, typically derived from CI environment.
           type: string
@@ -16426,6 +16435,15 @@ paths:
                   x-validate:
                 modules:
                   description: Test module names (for module-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parallelizable_modules:
+                  description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                   items:
                     type: string
                     x-struct:
