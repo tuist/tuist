@@ -1,0 +1,135 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-customers" phx-hook="ScrollToTop" data-scroll-target='[data-part="cases"]'>
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Customers")}</h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Tuist bridges the gaps in developer tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges, so you can deliver exceptional apps at speed."
+        )}
+      </p>
+    </header>
+
+    <section data-part="cases">
+      <.link
+        :for={case_study <- @filtered_cases}
+        data-part="case"
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            Tuist.Marketing.Customers.case_study_href(case_study)
+          )
+        }
+        target={if Tuist.Marketing.Customers.external_case_study?(case_study), do: "_blank"}
+        rel={
+          if Tuist.Marketing.Customers.external_case_study?(case_study),
+            do: "noopener noreferrer"
+        }
+      >
+        <div data-part="cover">
+          <%= if TuistWeb.Marketing.MarketingCustomerCovers.cover?(case_study) do %>
+            <TuistWeb.Marketing.MarketingCustomerCovers.cover case_study={case_study} />
+          <% else %>
+            <img
+              data-part="image"
+              src={TuistWeb.Marketing.MarketingHTML.static_asset_path(case_study.og_image_path)}
+              alt={dgettext("marketing", "%{company} case study", company: case_study.company)}
+              loading="lazy"
+              decoding="async"
+            />
+          <% end %>
+        </div>
+        <div data-part="content">
+          <h3 data-part="title">{case_study.title}</h3>
+        </div>
+        <%!-- Styled as Noora's link button but rendered as a span: the whole
+        card is already the anchor, and nesting a real <.link_button> would
+        produce invalid nested <a> tags. The class scopes the component's
+        label tokens. --%>
+        <span class="noora-link-button" data-part="read-story" data-size="large">
+          <span>{dgettext("marketing", "Read story")}</span>
+          <.chevron_right />
+        </span>
+      </.link>
+      <%!-- Blank cells keep the grid's hairlines closed when the last page
+      doesn't fill its row (they collapse on the single-column layout). --%>
+      <span :for={_ <- 1..@row_fillers//1} data-part="filler" aria-hidden="true"></span>
+    </section>
+
+    <section data-part="pagination-control">
+      <.pagination_group
+        page_patch={
+          fn page ->
+            params = []
+
+            params =
+              if @search_query != "",
+                do: ["search=#{URI.encode_www_form(@search_query)}" | params],
+                else: params
+
+            params = ["page=#{page}" | params]
+            "?#{Enum.join(params, "&")}"
+          end
+        }
+        current_page={@current_page}
+        number_of_pages={@total_pages}
+      />
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="customers-cta-divider-top-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">
+        {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}
+      </span>
+      <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="customers-cta-divider-bottom-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

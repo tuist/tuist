@@ -9,6 +9,7 @@ defmodule Tuist.OpenGraphImageTemplates do
 
   alias Tuist.Docs.OgImage, as: DocsImage
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogImage
+  alias Tuist.Marketing.Customers.CoverArtwork
   alias Tuist.Marketing.OgImages, as: MarketingImages
   alias Tuist.Marketing.OpenGraph
   alias Tuist.OpenGraphImageRenderer
@@ -114,6 +115,23 @@ defmodule Tuist.OpenGraphImageTemplates do
       end)
     else
       _ -> :error
+    end
+  end
+
+  def spec(%{"template" => "marketing_case_study", "slug" => slug} = params) do
+    if allowed_keys?(params, ["template", "slug"], []) and CoverArtwork.available?(slug) do
+      # The SVG is the render's whole input, so hashing it into the key
+      # busts the cache whenever the logo file or the artwork generator
+      # changes; the module digest covers the HTML wrapper around it.
+      svg = CoverArtwork.svg(slug, :og)
+      asset_hash = OpenGraphImages.key([case_study_asset_hash(), svg])
+
+      build_spec(params, asset_hash, fn ->
+        html = MarketingImages.render_case_study_html(svg: svg)
+        OpenGraphImageRenderer.render(html, slug)
+      end)
+    else
+      :error
     end
   end
 
@@ -227,6 +245,13 @@ defmodule Tuist.OpenGraphImageTemplates do
       {:module, ChangelogImage},
       {:dir, Path.join(priv_dir, "static/fonts")},
       {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+    ])
+  end
+
+  defp case_study_asset_hash do
+    OpenGraphImages.cached_key(:marketing_case_study_open_graph_template_assets, [
+      {:module, MarketingImages},
+      {:module, CoverArtwork}
     ])
   end
 

@@ -41,6 +41,27 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
            }) == :error
   end
 
+  test "builds deterministic case study specs from the cover artwork" do
+    params = %{"template" => "marketing_case_study", "slug" => "monzo"}
+
+    assert {:ok, first_spec} = OpenGraphImageTemplates.spec(params)
+    assert {:ok, second_spec} = OpenGraphImageTemplates.spec(params)
+    assert first_spec.key == second_spec.key
+
+    assert {:ok, other_spec} =
+             OpenGraphImageTemplates.spec(%{"template" => "marketing_case_study", "slug" => "trendyol"})
+
+    refute first_spec.key == other_spec.key
+  end
+
+  test "rejects case studies without cover artwork and unsafe slugs" do
+    assert OpenGraphImageTemplates.spec(%{"template" => "marketing_case_study", "slug" => "unknown-company"}) ==
+             :error
+
+    assert OpenGraphImageTemplates.spec(%{"template" => "marketing_case_study", "slug" => "../secrets"}) ==
+             :error
+  end
+
   test "renders text-only images as JPEG data" do
     assert {:ok, spec} =
              OpenGraphImageTemplates.spec(%{
