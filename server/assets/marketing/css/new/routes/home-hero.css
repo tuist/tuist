@@ -33,27 +33,27 @@
   [data-part="layout"] {
     display: grid;
     position: relative;
-    grid-template-columns: 1fr min(1136px, calc(100% - 32px)) 1fr;
     /* 96px top strip + hero row. The hero row is a minimum, not fixed: with
        the card's uniform 64px padding its bottom edge lines up with the
        panels' bottom (y=520) while longer content (e.g. wordier locales)
        can still grow past it instead of clipping. */
     grid-template-rows: 96px minmax(400px, auto);
+    grid-template-columns: 1fr min(1136px, calc(100% - 32px)) 1fr;
 
     /* Panels hidden: the hero card runs edge to edge with a 2px inset on
        every side — 2px side tracks here, and a 2px top strip as the seam
        below the navbar hairline. */
     @media (max-width: 1032px) {
-      grid-template-columns: var(--noora-spacing-1) 1fr var(--noora-spacing-1);
       grid-template-rows: var(--noora-spacing-1) auto;
+      grid-template-columns: var(--noora-spacing-1) 1fr var(--noora-spacing-1);
     }
   }
 
   [data-part="hero-row"] {
     display: grid;
-    grid-column: 2;
-    grid-row: 2;
     grid-template-columns: 1fr min(1000px, 100%) 1fr;
+    grid-row: 2;
+    grid-column: 2;
     align-items: stretch;
     min-width: 0;
 
@@ -90,9 +90,9 @@
     /* Inside-border via ::before so the card never reflows on state changes. */
     &::before {
       position: absolute;
-      inset: 0;
       opacity: 0;
       animation: marketing-hero-border-fade-in 0.45s cubic-bezier(0.23, 1, 0.32, 1) 0.1s forwards;
+      inset: 0;
       border: 1px solid var(--marketing-stroke-default);
       pointer-events: none;
       content: "";
@@ -101,9 +101,6 @@
     /* Cursor-proximity recolor of the card border (fed --hx/--hy by JS). */
     & > [data-part="edge-glow"] {
       position: absolute;
-      inset: 0;
-      border: 1px solid var(--marketing-edge-glow-color);
-      pointer-events: none;
       -webkit-mask-image: radial-gradient(
         170px circle at var(--hx, -9999px) var(--hy, -9999px),
         var(--marketing-edge-glow-stops)
@@ -112,6 +109,9 @@
         170px circle at var(--hx, -9999px) var(--hy, -9999px),
         var(--marketing-edge-glow-stops)
       );
+      inset: 0;
+      border: 1px solid var(--marketing-edge-glow-color);
+      pointer-events: none;
     }
 
     & [data-part="title"] {
@@ -141,9 +141,9 @@
 
     & > [data-part="actions"] {
       display: flex;
+      flex-wrap: wrap;
       justify-content: center;
       gap: var(--noora-spacing-4);
-      flex-wrap: wrap;
     }
   }
 
@@ -161,17 +161,14 @@
 
   [data-part="panel"] {
     position: absolute;
-    box-sizing: border-box;
     left: var(--panel-x);
-    width: var(--panel-w);
+    box-sizing: border-box;
     border: 1px solid var(--marketing-stroke-default);
+    width: var(--panel-w);
 
     /* Cursor-proximity recolor drawn exactly over the panel's own border. */
     &::after {
       position: absolute;
-      inset: -1px;
-      border: 1px solid var(--marketing-edge-glow-color);
-      content: "";
       -webkit-mask-image: radial-gradient(
         170px circle at var(--hx, -9999px) var(--hy, -9999px),
         var(--marketing-edge-glow-stops)
@@ -180,6 +177,9 @@
         170px circle at var(--hx, -9999px) var(--hy, -9999px),
         var(--marketing-edge-glow-stops)
       );
+      inset: -1px;
+      border: 1px solid var(--marketing-edge-glow-color);
+      content: "";
     }
   }
 
@@ -204,11 +204,11 @@
     }
 
     & [data-part="line"] {
-      stroke: var(--marketing-illustration-neutral-2);
-      stroke-width: 1;
-      stroke-linejoin: miter;
       /* viewBox is stretched to the panel, so keep the stroke a crisp 1px. */
       vector-effect: non-scaling-stroke;
+      stroke: var(--marketing-illustration-neutral-2);
+      stroke-linejoin: miter;
+      stroke-width: 1;
     }
 
     & > [data-part="label"] {
@@ -273,8 +273,8 @@
   [data-widget="auth"] {
     display: flex;
     align-items: center;
-    inset: auto 8px 6px auto;
     gap: 6px;
+    inset: auto 8px 6px auto;
 
     & > [data-part="label"] {
       font-size: 11px;
@@ -386,8 +386,8 @@
   #marketing-home > [data-part="platform-hero"] {
     & [data-part="hero"] {
       &::before {
-        animation: none;
         opacity: 1;
+        animation: none;
       }
     }
 

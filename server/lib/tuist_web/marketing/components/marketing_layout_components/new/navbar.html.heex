@@ -22,8 +22,7 @@ features_items = [
   %{
     icon: :progress_x,
     title: dgettext("marketing", "Tests"),
-    subtitle:
-      dgettext("marketing", "Test only what changed and catch flaky tests automatically"),
+    subtitle: dgettext("marketing", "Test only what changed and catch flaky tests automatically"),
     href: TuistWeb.Marketing.MarketingHTML.localized_href("/selective-testing"),
     illustration: "tests"
   },
@@ -331,37 +330,99 @@ resources_items = [
   >
     <div data-part="panel">
       <div data-part="content" data-dropdown="features" data-state="closed">
-      <.link
-        :for={item <- features_items}
-        href={item.href}
-        target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
-        rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
-        data-part="feature"
-      >
-        <h3 data-part="title">
-          {item.title} <.arrow_right />
-        </h3>
-        <p data-part="subtitle">
-          {item.subtitle}
-        </p>
-        <div
-          :if={Map.has_key?(item, :illustration)}
-          data-part="illustration"
-          data-illustration={item.illustration}
-          aria-hidden="true"
-        >
-          <TuistWeb.Marketing.MarketingIllustrations.illustration name={item.illustration} />
-        </div>
-      </.link>
-    </div>
-    <div data-part="content" data-dropdown="developers" data-state="closed">
-      <nav data-part="links">
         <.link
-          :for={item <- developers_items}
+          :for={item <- features_items}
           href={item.href}
           target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
           rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
-          data-part="link"
+          data-part="feature"
+        >
+          <h3 data-part="title">
+            {item.title} <.arrow_right />
+          </h3>
+          <p data-part="subtitle">
+            {item.subtitle}
+          </p>
+          <div
+            :if={Map.has_key?(item, :illustration)}
+            data-part="illustration"
+            data-illustration={item.illustration}
+            aria-hidden="true"
+          >
+            <TuistWeb.Marketing.MarketingIllustrations.illustration name={item.illustration} />
+          </div>
+        </.link>
+      </div>
+      <div data-part="content" data-dropdown="developers" data-state="closed">
+        <nav data-part="links">
+          <.link
+            :for={item <- developers_items}
+            href={item.href}
+            target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+            rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+            data-part="link"
+          >
+            <h3 data-part="title">
+              {item.title} <.arrow_right />
+            </h3>
+            <p data-part="subtitle">
+              {item.subtitle}
+            </p>
+          </.link>
+        </nav>
+        <aside data-part="changelog">
+          <canvas
+            data-part="dither"
+            id="marketing-navbar-changelog-dither"
+            phx-hook="DitherTexture"
+            data-pitch="2"
+            data-dot="2"
+            data-top="0"
+            data-bottom="0.95"
+            data-wave="0.335"
+            data-wave-scale="2.5"
+            data-levels="0"
+            data-speed="1"
+            data-dither="on"
+            data-opacity="0.3"
+            aria-hidden="true"
+          >
+          </canvas>
+          <header data-part="header">
+            <h3 data-part="title">{dgettext("marketing", "Changelog")}</h3>
+            <.link_button
+              label={dgettext("marketing", "View all")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+              variant="secondary"
+            />
+          </header>
+          <ul data-part="list">
+            <li
+              :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+              data-part="entry"
+            >
+              <.link href={
+                TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+              }>
+                <div data-part="content">
+                  <p data-part="title">{entry.title}</p>
+                  <time data-part="date">
+                    {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+                  </time>
+                </div>
+                <.tag label={entry.category} />
+              </.link>
+            </li>
+          </ul>
+        </aside>
+      </div>
+      <div data-part="content" data-dropdown="resources" data-state="closed">
+        <.link
+          :for={item <- resources_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="resource"
         >
           <h3 data-part="title">
             {item.title} <.arrow_right />
@@ -370,70 +431,8 @@ resources_items = [
             {item.subtitle}
           </p>
         </.link>
-      </nav>
-      <aside data-part="changelog">
-        <canvas
-          data-part="dither"
-          id="marketing-navbar-changelog-dither"
-          phx-hook="DitherTexture"
-          data-pitch="2"
-          data-dot="2"
-          data-top="0"
-          data-bottom="0.95"
-          data-wave="0.335"
-          data-wave-scale="2.5"
-          data-levels="0"
-          data-speed="1"
-          data-dither="on"
-          data-opacity="0.3"
-          aria-hidden="true"
-        >
-        </canvas>
-        <header data-part="header">
-          <h3 data-part="title">{dgettext("marketing", "Changelog")}</h3>
-          <.link_button
-            label={dgettext("marketing", "View all")}
-            href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
-            variant="secondary"
-          />
-        </header>
-        <ul data-part="list">
-          <li
-            :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
-            data-part="entry"
-          >
-            <.link href={
-              TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
-            }>
-              <div data-part="content">
-                <p data-part="title">{entry.title}</p>
-                <time data-part="date">
-                  {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
-                </time>
-              </div>
-              <.tag label={entry.category} />
-            </.link>
-          </li>
-        </ul>
-      </aside>
-    </div>
-    <div data-part="content" data-dropdown="resources" data-state="closed">
-      <.link
-        :for={item <- resources_items}
-        href={item.href}
-        target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
-        rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
-        data-part="resource"
-      >
-        <h3 data-part="title">
-          {item.title} <.arrow_right />
-        </h3>
-        <p data-part="subtitle">
-          {item.subtitle}
-        </p>
-      </.link>
-      <div data-part="spacer" aria-hidden="true"></div>
-    </div>
+        <div data-part="spacer" aria-hidden="true"></div>
+      </div>
     </div>
   </div>
   <nav data-part="mobile-menus" aria-label="Mobile navigation">
@@ -529,7 +528,12 @@ resources_items = [
       with "marketing-": pages.css lays out [id^="marketing-"] containers as
       flex columns, which would stack the button group vertically. --%>
       <.button_group size="small" id="mobile-menu-theme-switcher" phx-hook="ThemeSwitcher">
-        <.button_group_item icon_only data-theme-option="system" data-selected aria-label="System theme">
+        <.button_group_item
+          icon_only
+          data-theme-option="system"
+          data-selected
+          aria-label="System theme"
+        >
           <Noora.Icon.icon name="device_desktop" />
         </.button_group_item>
         <.button_group_item icon_only data-theme-option="light" aria-label="Light theme">

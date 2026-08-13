@@ -337,77 +337,78 @@
             <% list_h = row_h * visible_rows %>
             <% list_top = (h - list_h) / 2 %>
             <div data-part="scene">
-            <svg
-              data-part="wires"
-              viewBox={"0 0 #{total} #{h}"}
-              width={total}
-              height={h}
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path data-part="wire-lead" d={"M 0 #{cy} L #{lead} #{cy}"} />
+              <svg
+                data-part="wires"
+                viewBox={"0 0 #{total} #{h}"}
+                width={total}
+                height={h}
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path data-part="wire-lead" d={"M 0 #{cy} L #{lead} #{cy}"} />
 
-              <%!-- Fan (logo → grid): connector.svg mirrored horizontally. --%>
-              <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
-                <path
-                  data-part="wire-fan"
-                  d={"M #{logo_r} #{cy} C #{fanx.(c1x)} #{mapy.(c1y)}, #{fanx.(c2x)} #{mapy.(c2y)}, #{grid_x} #{row_cy.(r)}"}
-                />
-              <% end %>
+                <%!-- Fan (logo → grid): connector.svg mirrored horizontally. --%>
+                <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
+                  <path
+                    data-part="wire-fan"
+                    d={"M #{logo_r} #{cy} C #{fanx.(c1x)} #{mapy.(c1y)}, #{fanx.(c2x)} #{mapy.(c2y)}, #{grid_x} #{row_cy.(r)}"}
+                  />
+                <% end %>
 
-              <%!-- Flow (grid → hub): connector.svg, drawn grid→hub (so the C2/C1
+                <%!-- Flow (grid → hub): connector.svg, drawn grid→hub (so the C2/C1
                   order is reversed from the SVG's hub→grid path). --%>
-              <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
-                <path
-                  data-part="wire-flow"
-                  d={"M #{grid_r} #{row_cy.(r)} C #{flowx.(c2x)} #{mapy.(c2y)}, #{flowx.(c1x)} #{mapy.(c1y)}, #{task_x} #{cy}"}
-                />
-              <% end %>
-
-            </svg>
-            <canvas
-              data-part="runners"
-              id="compute-runners"
-              phx-hook="RunnerGrid"
-              data-grid-x={grid_x}
-              data-grid-top={grid_top}
-              data-cell={cell}
-              data-gap={gap}
-              aria-hidden="true"
-            >
-            </canvas>
-            <canvas
-              data-part="spark"
-              id="compute-spark"
-              phx-hook="ComputeSpark"
-              data-lead={lead}
-              data-logo-size={logo}
-              data-cy={cy}
-              aria-hidden="true"
-            >
-            </canvas>
-            <div
-              data-part="tasks"
-              id="compute-tasks"
-              phx-hook="TaskFeed"
-              data-tasks={Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))}
-              data-row-h="32"
-              data-panel-h={list_h}
-              style={"left: #{task_x}px; top: #{list_top}px; width: #{task_w}px; height: #{list_h}px;"}
-            >
-              <ul data-part="task-list"></ul>
-            </div>
-            <div
-              data-part="hub"
-              style={"left: #{lead}px; top: #{cy - logo / 2}px; width: #{logo}px; height: #{logo}px;"}
-            >
-              <svg viewBox="0 0 45 45" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  data-part="logo-mark"
-                  d="M22.5 10.7129C22.8942 10.7129 23.2848 10.7297 23.6709 10.7637L23.9268 10.7861L23.9336 11.043L24.2949 25.8711C24.6508 25.0079 24.9808 24.1247 25.2871 23.2305L25.6641 22.0889C26.5194 19.4127 27.2096 16.6624 27.7793 13.8877L27.8525 13.5303L28.1826 13.6855C28.9283 14.0358 29.6329 14.4538 30.2891 14.9287L30.4316 15.0322L30.4043 15.2061C29.8414 18.7454 29.1233 22.2892 28.0254 25.7412C29.6589 23.8021 31.0223 21.629 32.209 19.3828L32.4121 18.999L32.6865 19.3359C33.2385 20.014 33.7442 20.7603 34.1465 21.5479L34.2119 21.6758L34.1494 21.8037C33.0757 24.03 31.7114 26.4128 30.0439 28.5264C30.945 28.0439 31.8145 27.4905 32.6445 26.8779L32.875 26.708L33.0459 26.9375C33.5103 27.5607 33.9175 28.2264 34.2588 28.9297L34.3447 29.1074L34.21 29.251C27.9404 35.9665 17.0583 35.9652 10.79 29.251L10.6553 29.1074L10.7412 28.9297C11.0822 28.2262 11.4897 27.5607 11.9541 26.9375L12.125 26.708L12.3555 26.8779C13.1913 27.4951 14.0666 28.0531 14.9746 28.5381C13.9243 27.201 13.0057 25.7794 12.1963 24.4004L12.1943 24.3955C11.7132 23.5434 11.2663 22.6806 10.8486 21.8066L10.7871 21.6777L10.8525 21.5518C11.2549 20.7637 11.7609 20.0156 12.3145 19.3359L12.5889 19L12.791 19.3838C13.9776 21.6298 15.3406 23.8032 16.9736 25.7422C15.8758 22.2903 15.1595 18.7462 14.5967 15.207L14.5684 15.0322L14.7119 14.9287C15.3679 14.454 16.0719 14.0367 16.8174 13.6865L17.1484 13.5312L17.2217 13.8887C17.8726 17.0585 18.6796 20.1965 19.7119 23.2295H19.7129C20.0242 24.1217 20.3498 25.0065 20.7051 25.874L21.0674 11.043L21.0742 10.7861L21.3291 10.7637C21.7156 10.7292 22.1061 10.7129 22.5 10.7129Z"
-                />
+                <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
+                  <path
+                    data-part="wire-flow"
+                    d={"M #{grid_r} #{row_cy.(r)} C #{flowx.(c2x)} #{mapy.(c2y)}, #{flowx.(c1x)} #{mapy.(c1y)}, #{task_x} #{cy}"}
+                  />
+                <% end %>
               </svg>
-            </div>
+              <canvas
+                data-part="runners"
+                id="compute-runners"
+                phx-hook="RunnerGrid"
+                data-grid-x={grid_x}
+                data-grid-top={grid_top}
+                data-cell={cell}
+                data-gap={gap}
+                aria-hidden="true"
+              >
+              </canvas>
+              <canvas
+                data-part="spark"
+                id="compute-spark"
+                phx-hook="ComputeSpark"
+                data-lead={lead}
+                data-logo-size={logo}
+                data-cy={cy}
+                aria-hidden="true"
+              >
+              </canvas>
+              <div
+                data-part="tasks"
+                id="compute-tasks"
+                phx-hook="TaskFeed"
+                data-tasks={
+                  Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))
+                }
+                data-row-h="32"
+                data-panel-h={list_h}
+                style={"left: #{task_x}px; top: #{list_top}px; width: #{task_w}px; height: #{list_h}px;"}
+              >
+                <ul data-part="task-list"></ul>
+              </div>
+              <div
+                data-part="hub"
+                style={"left: #{lead}px; top: #{cy - logo / 2}px; width: #{logo}px; height: #{logo}px;"}
+              >
+                <svg viewBox="0 0 45 45" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    data-part="logo-mark"
+                    d="M22.5 10.7129C22.8942 10.7129 23.2848 10.7297 23.6709 10.7637L23.9268 10.7861L23.9336 11.043L24.2949 25.8711C24.6508 25.0079 24.9808 24.1247 25.2871 23.2305L25.6641 22.0889C26.5194 19.4127 27.2096 16.6624 27.7793 13.8877L27.8525 13.5303L28.1826 13.6855C28.9283 14.0358 29.6329 14.4538 30.2891 14.9287L30.4316 15.0322L30.4043 15.2061C29.8414 18.7454 29.1233 22.2892 28.0254 25.7412C29.6589 23.8021 31.0223 21.629 32.209 19.3828L32.4121 18.999L32.6865 19.3359C33.2385 20.014 33.7442 20.7603 34.1465 21.5479L34.2119 21.6758L34.1494 21.8037C33.0757 24.03 31.7114 26.4128 30.0439 28.5264C30.945 28.0439 31.8145 27.4905 32.6445 26.8779L32.875 26.708L33.0459 26.9375C33.5103 27.5607 33.9175 28.2264 34.2588 28.9297L34.3447 29.1074L34.21 29.251C27.9404 35.9665 17.0583 35.9652 10.79 29.251L10.6553 29.1074L10.7412 28.9297C11.0822 28.2262 11.4897 27.5607 11.9541 26.9375L12.125 26.708L12.3555 26.8779C13.1913 27.4951 14.0666 28.0531 14.9746 28.5381C13.9243 27.201 13.0057 25.7794 12.1963 24.4004L12.1943 24.3955C11.7132 23.5434 11.2663 22.6806 10.8486 21.8066L10.7871 21.6777L10.8525 21.5518C11.2549 20.7637 11.7609 20.0156 12.3145 19.3359L12.5889 19L12.791 19.3838C13.9776 21.6298 15.3406 23.8032 16.9736 25.7422C15.8758 22.2903 15.1595 18.7462 14.5967 15.207L14.5684 15.0322L14.7119 14.9287C15.3679 14.454 16.0719 14.0367 16.8174 13.6865L17.1484 13.5312L17.2217 13.8887C17.8726 17.0585 18.6796 20.1965 19.7119 23.2295H19.7129C20.0242 24.1217 20.3498 25.0065 20.7051 25.874L21.0674 11.043L21.0742 10.7861L21.3291 10.7637C21.7156 10.7292 22.1061 10.7129 22.5 10.7129Z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -460,9 +461,15 @@
               {88.7016, 128.179, 6.73149, 76.8734},
               {88.7016, 128.179, 59.2315, 76.8734}
             ] %>
-            <% v_mapx = fn sx -> v_col_cx.(0) + (sx - 0.151733) / v_con_w * (v_col_cx.(3) - v_col_cx.(0)) end %>
-            <% v_mapy_fan = fn sy -> v_grid_top - (sy - 0.198738) / v_con_h * (v_grid_top - v_logo_end) end %>
-            <% v_mapy_flow = fn sy -> v_grid_bottom + (sy - 0.198738) / v_con_h * (v_tasks_top - v_grid_bottom) end %>
+            <% v_mapx = fn sx ->
+              v_col_cx.(0) + (sx - 0.151733) / v_con_w * (v_col_cx.(3) - v_col_cx.(0))
+            end %>
+            <% v_mapy_fan = fn sy ->
+              v_grid_top - (sy - 0.198738) / v_con_h * (v_grid_top - v_logo_end)
+            end %>
+            <% v_mapy_flow = fn sy ->
+              v_grid_bottom + (sy - 0.198738) / v_con_h * (v_tasks_top - v_grid_bottom)
+            end %>
             <div data-part="scene">
               <svg
                 data-part="wires"
@@ -514,7 +521,9 @@
                 data-part="tasks"
                 id="compute-tasks-v"
                 phx-hook="TaskFeed"
-                data-tasks={Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))}
+                data-tasks={
+                  Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))
+                }
                 data-row-h="32"
                 data-panel-h={v_list_h}
                 style={"left: #{v_task_x}px; top: #{v_tasks_top}px; width: #{v_task_w}px; height: #{v_list_h}px;"}
@@ -606,7 +615,10 @@
           >
             <h3 data-part="card-title">{dgettext("marketing", "Previews")} <.arrow_right /></h3>
             <p data-part="card-description">
-              {dgettext("marketing", "Share your app instantly via URL. No delays, just click and run on any device.")}
+              {dgettext(
+                "marketing",
+                "Share your app instantly via URL. No delays, just click and run on any device."
+              )}
             </p>
           </.link>
           <.link
@@ -616,9 +628,14 @@
             draggable="false"
             data-part="card"
           >
-            <h3 data-part="card-title">{dgettext("marketing", "Generated Projects")} <.arrow_right /></h3>
+            <h3 data-part="card-title">
+              {dgettext("marketing", "Generated Projects")} <.arrow_right />
+            </h3>
             <p data-part="card-description">
-              {dgettext("marketing", "Simplify modular Xcode projects to make them easier to maintain and scale.")}
+              {dgettext(
+                "marketing",
+                "Simplify modular Xcode projects to make them easier to maintain and scale."
+              )}
             </p>
           </.link>
           <.link
@@ -630,7 +647,10 @@
           >
             <h3 data-part="card-title">{dgettext("marketing", "Registry")} <.arrow_right /></h3>
             <p data-part="card-description">
-              {dgettext("marketing", "Download only what you need — faster, lighter builds locally and on CI.")}
+              {dgettext(
+                "marketing",
+                "Download only what you need — faster, lighter builds locally and on CI."
+              )}
             </p>
           </.link>
         </div>
@@ -796,7 +816,9 @@
             </canvas>
             <svg width="0" height="0" aria-hidden="true">
               <defs>
-                <g id="security-soc-ping-shape"><path d="M139.668 24.375C114.874 25.5096 90.612 16.9465 72.0226 0.5C53.4333 16.9465 29.1712 25.5096 4.37681 24.375C0.766975 36.6548 -0.337567 49.535 1.12882 62.2501C2.59521 74.9653 6.60261 87.2559 12.9129 98.3917C19.2232 109.527 27.7075 119.281 37.8619 127.073C48.0162 134.865 59.6332 140.536 72.0226 143.75C84.4121 140.536 96.0291 134.865 106.183 127.073C116.338 119.281 124.822 109.527 131.132 98.3917C137.443 87.2559 141.45 74.9653 142.916 62.2501C144.383 49.535 143.278 36.6548 139.668 24.375Z" /></g>
+                <g id="security-soc-ping-shape">
+                  <path d="M139.668 24.375C114.874 25.5096 90.612 16.9465 72.0226 0.5C53.4333 16.9465 29.1712 25.5096 4.37681 24.375C0.766975 36.6548 -0.337567 49.535 1.12882 62.2501C2.59521 74.9653 6.60261 87.2559 12.9129 98.3917C19.2232 109.527 27.7075 119.281 37.8619 127.073C48.0162 134.865 59.6332 140.536 72.0226 143.75C84.4121 140.536 96.0291 134.865 106.183 127.073C116.338 119.281 124.822 109.527 131.132 98.3917C137.443 87.2559 141.45 74.9653 142.916 62.2501C144.383 49.535 143.278 36.6548 139.668 24.375Z" />
+                </g>
               </defs>
             </svg>
             <span data-part="soc-badge">
@@ -817,8 +839,12 @@
         <article data-part="card" data-card="infrastructure">
           <div data-part="illustration">
             <span data-part="faces" aria-hidden="true">
-              <span data-part="faces-desktop"><.illustration name="transparency-stacked-faces" /></span>
-              <span data-part="faces-wide"><.illustration name="transparency-stacked-faces-wide" /></span>
+              <span data-part="faces-desktop">
+                <.illustration name="transparency-stacked-faces" />
+              </span>
+              <span data-part="faces-wide">
+                <.illustration name="transparency-stacked-faces-wide" />
+              </span>
             </span>
           </div>
           <div data-part="info">
@@ -887,8 +913,6 @@
       </div>
     </section>
 
-
-
     <div data-part="features-divider" aria-hidden="true">
       <canvas
         data-part="dither"
@@ -913,7 +937,9 @@
       <div data-part="customers" aria-labelledby="customers-title">
         <div data-part="text">
           <span data-part="eyebrow">{dgettext("marketing", "Customers")}</span>
-          <h2 id="customers-title">{dgettext("marketing", "See what our customers are saying")}</h2>
+          <h2 id="customers-title">
+            {dgettext("marketing", "See what our customers are saying")}
+          </h2>
           <p>
             {dgettext(
               "marketing",
@@ -1049,6 +1075,5 @@
       >
       </canvas>
     </div>
-
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

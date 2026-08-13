@@ -2,21 +2,36 @@
   %{
     title: dgettext("marketing", "Features"),
     links: [
-      %{label: dgettext("marketing", "Cache"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/cache")},
-      %{label: dgettext("marketing", "Compute"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/compute")},
+      %{
+        label: dgettext("marketing", "Cache"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/cache")
+      },
+      %{
+        label: dgettext("marketing", "Compute"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/compute")
+      },
       %{
         label: dgettext("marketing", "Tests"),
         href: TuistWeb.Marketing.MarketingHTML.localized_href("/selective-testing")
       },
-      %{label: dgettext("marketing", "Previews"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/previews")},
+      %{
+        label: dgettext("marketing", "Previews"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/previews")
+      },
       %{
         label: dgettext("marketing", "Generated projects"),
-        href: TuistWeb.Marketing.MarketingHTML.localized_href("https://tuist.dev/en/docs/guides/features/projects"),
+        href:
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/projects"
+          ),
         external: true
       },
       %{
         label: dgettext("marketing", "Registry"),
-        href: TuistWeb.Marketing.MarketingHTML.localized_href("https://tuist.dev/en/docs/guides/features/registry"),
+        href:
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            "https://tuist.dev/en/docs/guides/features/registry"
+          ),
         external: true
       }
     ]
@@ -24,8 +39,14 @@
   %{
     title: dgettext("marketing", "Product"),
     links: [
-      %{label: dgettext("marketing", "Pricing"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")},
-      %{label: dgettext("marketing", "Changelog"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")},
+      %{
+        label: dgettext("marketing", "Pricing"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")
+      },
+      %{
+        label: dgettext("marketing", "Changelog"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")
+      },
       %{
         label: dgettext("marketing", "Documentation"),
         href: TuistWeb.Marketing.MarketingHTML.localized_href("https://tuist.dev/en/docs/"),
@@ -38,23 +59,46 @@
     title: dgettext("marketing", "Community"),
     links: [
       %{label: dgettext("marketing", "Slack"), href: "https://slack.tuist.dev", external: true},
-      %{label: dgettext("marketing", "Discourse"), href: "https://community.tuist.dev", external: true},
+      %{
+        label: dgettext("marketing", "Discourse"),
+        href: "https://community.tuist.dev",
+        external: true
+      },
       %{
         label: dgettext("marketing", "Newsletter"),
         href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
       },
-      %{label: dgettext("marketing", "Issues"), href: "https://github.com/tuist/tuist/issues", external: true}
+      %{
+        label: dgettext("marketing", "Issues"),
+        href: "https://github.com/tuist/tuist/issues",
+        external: true
+      }
     ]
   },
   %{
     title: dgettext("marketing", "Company"),
     links: [
-      %{label: dgettext("marketing", "About"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")},
-      %{label: dgettext("marketing", "Blog"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/blog")},
+      %{
+        label: dgettext("marketing", "About"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")
+      },
+      %{
+        label: dgettext("marketing", "Blog"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/blog")
+      },
       %{label: dgettext("marketing", "Contact"), href: "mailto:contact@tuist.dev"},
-      %{label: dgettext("marketing", "Openness"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/openness")},
-      %{label: dgettext("marketing", "Longevity"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/longevity")},
-      %{label: dgettext("marketing", "Security"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/security")},
+      %{
+        label: dgettext("marketing", "Openness"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/openness")
+      },
+      %{
+        label: dgettext("marketing", "Longevity"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/longevity")
+      },
+      %{
+        label: dgettext("marketing", "Security"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/security")
+      },
       %{
         label: dgettext("marketing", "Brand assets"),
         href: "https://github.com/tuist/tuist/tree/main/assets",
@@ -65,11 +109,23 @@
   %{
     title: dgettext("marketing", "Socials"),
     links: [
-      %{label: dgettext("marketing", "Mastodon"), href: "https://fosstodon.org/@tuist", external: true},
+      %{
+        label: dgettext("marketing", "Mastodon"),
+        href: "https://fosstodon.org/@tuist",
+        external: true
+      },
       %{label: dgettext("marketing", "GitHub"), href: "https://github.com/tuist", external: true},
-      %{label: dgettext("marketing", "Bluesky"), href: "https://bsky.app/profile/tuist.dev", external: true},
+      %{
+        label: dgettext("marketing", "Bluesky"),
+        href: "https://bsky.app/profile/tuist.dev",
+        external: true
+      },
       %{label: "X", href: "https://x.com/tuistdev", external: true},
-      %{label: dgettext("marketing", "LinkedIn"), href: "https://www.linkedin.com/company/tuistio/", external: true},
+      %{
+        label: dgettext("marketing", "LinkedIn"),
+        href: "https://www.linkedin.com/company/tuistio/",
+        external: true
+      },
       %{label: dgettext("marketing", "Videos"), href: "https://videos.tuist.dev", external: true}
     ]
   },
@@ -80,9 +136,18 @@
         label: dgettext("marketing", "Terms of service"),
         href: TuistWeb.Marketing.MarketingHTML.localized_href("/terms")
       },
-      %{label: dgettext("marketing", "Privacy policy"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/privacy")},
-      %{label: dgettext("marketing", "Cookie policy"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/cookies")},
-      %{label: dgettext("marketing", "Imprint"), href: TuistWeb.Marketing.MarketingHTML.localized_href("/imprint")}
+      %{
+        label: dgettext("marketing", "Privacy policy"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/privacy")
+      },
+      %{
+        label: dgettext("marketing", "Cookie policy"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/cookies")
+      },
+      %{
+        label: dgettext("marketing", "Imprint"),
+        href: TuistWeb.Marketing.MarketingHTML.localized_href("/imprint")
+      }
     ]
   }
 ] %>
@@ -156,7 +221,12 @@
         pages.css lays out [id^="marketing-"] containers as flex columns,
         which would stack the button group vertically. --%>
         <.button_group size="small" id="footer-theme-switcher" phx-hook="ThemeSwitcher">
-          <.button_group_item icon_only data-theme-option="system" data-selected aria-label="System theme">
+          <.button_group_item
+            icon_only
+            data-theme-option="system"
+            data-selected
+            aria-label="System theme"
+          >
             <Noora.Icon.icon name="device_desktop" />
           </.button_group_item>
           <.button_group_item icon_only data-theme-option="light" aria-label="Light theme">

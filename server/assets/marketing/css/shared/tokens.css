@@ -59,10 +59,7 @@
   );
   /* Red reads hotter than purple at the same strength, so it gets its own
      dark alpha instead of --marketing-tint-alpha. */
-  --marketing-tint-red: light-dark(
-    var(--noora-red-50),
-    color-mix(in oklch, var(--noora-red-500) 20%, transparent)
-  );
+  --marketing-tint-red: light-dark(var(--noora-red-50), color-mix(in oklch, var(--noora-red-500) 20%, transparent));
 
   --marketing-illustration-neutral-1: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
   --marketing-illustration-neutral-2: light-dark(var(--noora-neutral-light-300), var(--noora-neutral-dark-900));
