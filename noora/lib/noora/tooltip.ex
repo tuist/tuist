@@ -30,7 +30,7 @@ defmodule Noora.Tooltip do
 
   attr(:placement, :string,
     default: "bottom-start",
-    doc: "Positioning placement of the tooltip (e.g. \"bottom\", \"bottom-start\", \"top\")"
+    doc: ~s{Positioning placement of the tooltip (e.g. "bottom", "bottom-start", "top")}
   )
 
   attr(:size, :string, values: ~w(small large), default: "small", doc: "Size of the tooltip")
