@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Changelog
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
     %{entry: List.first(Changelog.get_entries())}
@@ -30,10 +31,21 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
       refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "?design=new previews the new design", %{conn: conn, entry: entry} do
-      {:ok, _lv, html} = live(conn, ~p"/changelog/#{entry.id}?design=new")
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn, entry: entry} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_changelog_entry, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/changelog/#{entry.id}")
 
       assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
     end
   end
 
