@@ -91,8 +91,9 @@ defmodule TuistWeb.RunnersLiveTest do
     end
   end
 
-  test "keeps skipped jobs out of the recent jobs card", %{conn: conn, account: account} do
+  test "lists only succeeded and failed jobs in the recent jobs card", %{conn: conn, account: account} do
     complete_run(account, 70_004, 700_022, "success")
+    complete_run(account, 70_006, 700_024, "cancelled")
     skip_run(account, 70_005, 700_023)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
@@ -102,6 +103,7 @@ defmodule TuistWeb.RunnersLiveTest do
     assert table =~ "Docker build"
     refute table =~ "Gated job"
     refute table =~ "Skipped"
+    refute table =~ "Cancelled"
   end
 
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do

@@ -19,16 +19,14 @@ defmodule TuistWeb.RunnersLive do
 
   @table_limit 5
   @chart_limit 30
-  # Only runs that reached a success/failure conclusion carry a real
+  # Only work that reached a success/failure conclusion carries a real
   # duration. Running, cancelled and skipped runs would draw as
-  # zero-height bars that scatter the real ones, so they are kept out of
-  # the chart trail (and are not counted by the success/failure legends).
-  @chart_conclusions ["success", "failure"]
-  # A job gated out by an `if:` condition is reported as
-  # completed/skipped without a runner ever claiming it. It represents
-  # no work, so it stays out of the card entirely rather than filling
-  # the table with 0ms rows.
-  @excluded_recent_conclusions ["skipped"]
+  # zero-height bars that scatter the real ones, and count for nothing
+  # in the success/failure legends. The Recent jobs card narrows to
+  # these at the query so its table, bars and legends all describe the
+  # same set of jobs; the workflow-run chart drops the rest before
+  # plotting.
+  @duration_conclusions ["success", "failure"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -171,14 +169,15 @@ defmodule TuistWeb.RunnersLive do
 
   defp assign_recent_jobs(socket, account_id, repository, platform) do
     # The Recent jobs card mirrors the Recent Test Runs card on the
-    # Tests page — it's a chronicle of finished work, not a live
-    # status board. Filter to completed runs only so the bars carry
-    # a real duration and the success/failure legends count
-    # something other than zero. The chart spans up to
-    # `@chart_limit` so the bar trail conveys a trend, while the
-    # table below shows only the freshest `@table_limit` rows.
+    # Tests page — it's a chronicle of work that ran, not a live
+    # status board. Filter to jobs that completed with a
+    # `@duration_conclusions` conclusion so the bars carry a real
+    # duration and the success/failure legends count something other
+    # than zero. The chart spans up to `@chart_limit` so the bar trail
+    # conveys a trend, while the table below shows only the freshest
+    # `@table_limit` rows.
     opts =
-      [status: "completed", exclude_conclusions: @excluded_recent_conclusions, limit: @chart_limit]
+      [status: "completed", conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -224,7 +223,7 @@ defmodule TuistWeb.RunnersLive do
   # just don't carry a navigate target.
   defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
     recent_workflow_runs
-    |> Enum.filter(&(&1.conclusion in @chart_conclusions))
+    |> Enum.filter(&(&1.conclusion in @duration_conclusions))
     |> Enum.reverse()
     |> Enum.map(fn run ->
       %{
@@ -257,12 +256,12 @@ defmodule TuistWeb.RunnersLive do
 
   defp workflow_run_detail_url(_account_name, _row), do: nil
 
-  # Bars represent each succeeded/failed job. Y is the duration in
-  # seconds, the bar colour mirrors the row's status badge so the chart
-  # reads at the same glance as the table.
+  # One bar per job, all of them succeeded or failed since the query
+  # narrows to `@duration_conclusions`. Y is the duration in seconds,
+  # the bar colour mirrors the row's status badge so the chart reads at
+  # the same glance as the table.
   defp recent_jobs_chart_data(recent_jobs, account_name) do
     recent_jobs
-    |> Enum.filter(&(&1.conclusion in @chart_conclusions))
     |> Enum.reverse()
     |> Enum.map(fn job ->
       seconds = duration_seconds(job)

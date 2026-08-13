@@ -782,7 +782,7 @@ defmodule Tuist.Runners.JobsTest do
       assert bottom.workflow_job_id == 8501
     end
 
-    test "drops the conclusions listed in :exclude_conclusions" do
+    test "narrows to any of the conclusions when :conclusion is a list" do
       account = account_fixture()
       base = ~U[2026-05-01 10:00:00.000000Z]
 
@@ -793,14 +793,16 @@ defmodule Tuist.Runners.JobsTest do
           completed_at: DateTime.add(base, 30, :second)
         )
 
-      :ok = completed_job_fixture(account, 8702, conclusion: "skipped", completed_at: base)
-      :ok = completed_job_fixture(account, 8703, conclusion: "cancelled", completed_at: base)
+      :ok = completed_job_fixture(account, 8702, conclusion: "failure", completed_at: base)
+      :ok = completed_job_fixture(account, 8703, conclusion: "skipped", completed_at: base)
+      :ok = completed_job_fixture(account, 8704, conclusion: "cancelled", completed_at: base)
 
-      jobs = Jobs.list_for_account(account.id, status: "completed", exclude_conclusions: ["skipped"])
+      opts = [status: "completed", conclusion: ["success", "failure"]]
 
-      assert jobs |> Enum.map(& &1.workflow_job_id) |> Enum.sort() == [8701, 8703]
+      assert account.id |> Jobs.list_for_account(opts) |> Enum.map(& &1.workflow_job_id) |> Enum.sort() ==
+               [8701, 8702]
 
-      assert Jobs.count_for_account(account.id, status: "completed", exclude_conclusions: ["skipped"]) == 2
+      assert Jobs.count_for_account(account.id, opts) == 2
     end
 
     test "filters by :search via job_name ILIKE substring" do
