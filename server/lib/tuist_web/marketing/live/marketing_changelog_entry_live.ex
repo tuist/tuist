@@ -10,6 +10,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Design
 
+  on_mount {TuistWeb.Authentication, :mount_current_user}
+
   embed_templates "marketing_changelog_entry_live/*"
   # The redesigned template lives in new/; the suffix keeps its function name
   # (changelog_entry_new/1) distinct from the legacy changelog_entry/1.
@@ -18,8 +20,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   def render(%{new_design: true} = assigns), do: changelog_entry_new(assigns)
   def render(assigns), do: changelog_entry(assigns)
 
-  def mount(_params, session, socket) do
-    {:ok, assign(socket, :new_design, Design.new?(session, :changelog_entry))}
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :changelog_entry))}
   end
 
   def handle_params(%{"id" => id}, _url, socket) do
