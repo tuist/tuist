@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Blog
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /blog/:year/:month/:day/:slug" do
     test "renders a blog post without errors", %{conn: conn} do
@@ -33,14 +34,30 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       assert html =~ "Build Smart Before You Build Fast"
     end
 
-    test "?design=new previews the new design", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast?design=new")
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_blog_post, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/blog/2025/11/17/smart-before-fast")
 
       assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
     end
 
     test "the new design closes with the three most recent other posts", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast?design=new")
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_blog_post -> true
+        _ -> false
+      end)
+
+      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
 
       expected_titles =
         Blog.get_posts()
