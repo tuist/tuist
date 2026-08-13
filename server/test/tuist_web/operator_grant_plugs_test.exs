@@ -451,7 +451,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
         |> OperatorGrant.accept_operator_grant_header([])
 
       refute conn.halted
-      grant = conn.assigns.current_user.operator_grant
+      grant = conn.assigns.operator_grant_user.operator_grant
       assert grant.tier == :read
       assert grant.account_id == project.account.id
       assert grant.sub == operator.email
@@ -470,7 +470,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
         |> put_req_header("x-tuist-operator-grant", token)
         |> OperatorGrant.accept_operator_grant_header([])
 
-      granted = conn.assigns.current_user
+      granted = conn.assigns.operator_grant_user
 
       assert Tuist.Authorization.authorize(:run_read, granted, project) == :ok
       refute Tuist.Authorization.authorize(:run_read, granted, other_project) == :ok
@@ -485,7 +485,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
         |> OperatorGrant.accept_operator_grant_header([])
 
       refute conn.halted
-      assert is_nil(conn.assigns.current_user.operator_grant)
+      refute Map.has_key?(conn.assigns, :operator_grant_user)
     end
 
     # The grant is a bearer token, so a leaked one must not become usable just

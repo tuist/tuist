@@ -25,20 +25,28 @@ defmodule Tuist.MCP.AuthorizationTest do
     {:ok, project: project, operator: operator}
   end
 
+  # The assigns an OAuth-token request actually carries: the token authenticates
+  # as its account in `current_subject`, `current_user` is never set, and the
+  # grant arrives under `:operator_grant_user` because that is where
+  # `TuistWeb.OperatorGrant` puts the human it resolved. That the plug really
+  # produces this shape from a real token is covered by
+  # `TuistWeb.MCPOperatorGrantTest`.
   defp oauth_conn(operator, grant) do
     subject = %AuthenticatedAccount{
       account: operator.account,
       scopes: ["mcp"],
       all_projects: false,
-      project_ids: []
+      project_ids: [],
+      issued_by: operator
     }
 
-    %Plug.Conn{
-      assigns: %{
-        current_subject: subject,
-        current_user: %{operator | operator_grant: grant}
-      }
-    }
+    assigns =
+      case grant do
+        nil -> %{current_subject: subject}
+        grant -> %{current_subject: subject, operator_grant_user: %{operator | operator_grant: grant}}
+      end
+
+    %Plug.Conn{assigns: assigns}
   end
 
   defp grant_for(account, tier \\ :read) do

@@ -46,6 +46,7 @@ defmodule TuistWeb.OperatorGrant do
   import Plug.Conn
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Projects.Project
@@ -350,11 +351,11 @@ defmodule TuistWeb.OperatorGrant do
 
   defp attach_header_grant(conn, token) do
     with {:ok, claims} <- verify(token),
-         %User{} = user <- conn.assigns[:current_user],
+         %User{} = user <- operator_from_conn(conn),
          :ok <- check_header_subject_is_operator(user, claims),
          %{id: account_id} <- Accounts.get_account_by_handle(claims.account_handle) do
       log_grant_context(claims)
-      assign(conn, :current_user, %{user | operator_grant: session_grant(claims, account_id)})
+      assign(conn, :operator_grant_user, %{user | operator_grant: session_grant(claims, account_id)})
     else
       _ ->
         conn
@@ -364,17 +365,32 @@ defmodule TuistWeb.OperatorGrant do
     end
   end
 
+  # An OAuth access token authenticates as the account it was issued for, so the
+  # human is on `current_subject.issued_by` and `current_user` is never assigned
+  # — the shape every Atlas request and every direct OAuth client arrives in.
+  # `current_user` is only populated for a browser session or a claimed agent
+  # credential, so both are consulted.
+  defp operator_from_conn(conn) do
+    case conn.assigns do
+      %{current_user: %User{} = user} -> user
+      %{current_subject: %AuthenticatedAccount{issued_by: %User{} = user}} -> user
+      _ -> nil
+    end
+  end
+
   # Same bearer-token reasoning as the browser handoff: honour the grant only
   # for the confirmed operator named in `sub`.
   #
   # The browser also requires that the session authenticated through Google
-  # (`auth_method == :google`). An access token carries no such signal, so the
-  # equivalent here is a *recorded* Google authentication that is still recent —
-  # otherwise a stolen grant could be combined with a password-authenticated
-  # operator token, which is exactly what the browser check prevents. The window
-  # is the grant's own TTL ceiling: minting a grant at ops.tuist.dev already
-  # requires a Google-authenticated session, so an operator who just justified
-  # access has one by construction.
+  # (`auth_method == :google`). An access token carries no such signal, and this
+  # check does not recover it: it asks whether the *operator* proved Google
+  # recently, not whether *this credential* was obtained that way. A token minted
+  # through another path still passes while its owner has a Google login inside
+  # the window. What it does buy is that an operator who never uses Google SSO
+  # cannot present a grant at all. Establishing the browser's invariant needs the
+  # authentication method bound to the token itself. The window is the grant's own
+  # TTL ceiling, since minting one at ops.tuist.dev already requires a
+  # Google-authenticated session.
   defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
     cond do
       not (Accounts.tuist_operator?(user) and emails_match?(email, sub)) ->

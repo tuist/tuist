@@ -24,8 +24,12 @@ defmodule Tuist.MCP.Authorization do
       operator_grant_authorizes_read?(assigns, action, resource, category)
   end
 
+  # `:operator_grant_user` is where `TuistWeb.OperatorGrant` puts the human it
+  # resolved and verified the grant for — the token's own subject stays whatever
+  # authenticated. `:current_user` covers the browser and claimed-agent sessions
+  # that carry the grant on the user directly.
   defp operator_grant_authorizes_read?(assigns, :read, resource, category) do
-    case assigns[:current_user] do
+    case assigns[:operator_grant_user] || assigns[:current_user] do
       %User{operator_grant: grant} = user when is_map(grant) ->
         authorize(user, :read, resource, category)
 
