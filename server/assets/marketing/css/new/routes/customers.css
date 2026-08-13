@@ -1,0 +1,245 @@
+/*
+ * Same page skeleton as the new blog index: blocks are 1200px bordered boxes
+ * separated by 2px seams. The header box holds the title and subtitle, and
+ * the case grid is a single bordered box whose cells are divided by 1px
+ * hairlines instead of card shadows (the legacy design in routes/customers.css).
+ */
+#marketing-customers {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* The header[data-part] selector matches the specificity of pages.css's
+     `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
+     ID), whose margins and 1296px max-width must lose to the page frame. */
+  & > header[data-part="header"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the header. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(header[data-part="header"], [data-part="cases"], [data-part="pagination-control"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  /* Title + subtitle share one box whose insets are the page's 64px gutter
+     on desktop. */
+  & > header[data-part="header"] {
+    padding: var(--noora-spacing-10) var(--noora-spacing-8);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13);
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+    }
+
+    & > [data-part="subtitle"] {
+      margin-top: var(--noora-spacing-9);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
+    }
+  }
+
+  & > [data-part="cases"] {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Interior hairlines only: a cell draws the line above it (skipped in the
+       first row) and to its left (skipped in the first column), so the box's
+       own border is the only line on all four outer edges — nothing doubles
+       up against it. The blank filler cells stretch to the row height, which
+       keeps the column lines running through a last row that isn't full. */
+    & > [data-part="case"],
+    & > [data-part="filler"] {
+      border-top: 1px solid var(--marketing-stroke-default);
+
+      &:first-child {
+        border-top: none;
+      }
+
+      /* Two-up on tablets. The filler cells are display:none below 1024px, so
+         they sit outside this layout — they're always the last children, which
+         leaves the cases' nth-child positions untouched. */
+      @media (min-width: 768px) and (max-width: 1023px) {
+        &:nth-child(-n + 2) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(2n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+
+      @media (min-width: 1024px) {
+        &:nth-child(-n + 3) {
+          border-top: none;
+        }
+
+        &:not(:nth-child(3n + 1)) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+    }
+
+    & > [data-part="filler"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: block;
+      }
+    }
+
+    & > [data-part="case"] {
+      display: flex;
+      flex-direction: column;
+      padding: var(--noora-spacing-8);
+      color: inherit;
+      text-decoration: none;
+
+      & > [data-part="cover"] {
+        background: var(--noora-surface-background-tertiary);
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+
+        & > [data-part="image"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        /* The SVG artwork shares the cover's 16:9 box; currentColor carries
+           the logos' neutral parts across themes. */
+        & > [data-part="artwork"] {
+          display: block;
+          width: 100%;
+          height: 100%;
+          color: var(--noora-surface-label-primary);
+        }
+      }
+
+      & > [data-part="content"] {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        margin-top: var(--noora-spacing-6);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          text-wrap: pretty;
+        }
+      }
+
+      /* Pinned below the title (content's flex: 1 keeps it at the bottom of
+         the cell). Quiet by default; hovering or keyboard-focusing the card
+         raises it to the link button's own secondary label. */
+      & > [data-part="read-story"] {
+        align-self: flex-start;
+        margin-top: var(--noora-spacing-6);
+        color: var(--noora-surface-label-secondary);
+        text-decoration: none;
+      }
+
+      &:hover > [data-part="read-story"],
+      &:focus-visible > [data-part="read-story"] {
+        color: var(--noora-link-button-secondary-label);
+      }
+    }
+  }
+
+  /* Its own box on the page frame, a 2px seam below the grid — the grid's
+     cells draw that seam's top edge, so this one keeps all four borders. */
+  & > [data-part="pagination-control"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--noora-spacing-9) var(--noora-spacing-8);
+    /* 32px above/below the group, in a 96px-tall box per the comp (a min, so
+       it grows instead of clipping if the group ever wraps). */
+    min-height: var(--noora-spacing-16);
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home and about pages' section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
