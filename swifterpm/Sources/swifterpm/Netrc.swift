@@ -16,17 +16,30 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
     public static let `default` = SwifterPMNetrcConfiguration()
 }
 
+/// Where a set of parsed netrc entries came from. SwiftPM interleaves the keychain
+/// between the two for registry requests, so the distinction has to survive parsing.
+enum NetrcOrigin: Equatable, Sendable {
+    /// `SWIFTPM_NETRC_DATA`.
+    case environment
+    /// `--netrc-file`, or `~/.netrc` when no file was given.
+    case file
+}
+
+struct NetrcSource: Sendable {
+    let origin: NetrcOrigin
+    let machines: [NetrcMachine]
+}
+
 /// The netrc credentials a resolution runs with, read and parsed once up front so
 /// every later lookup is a search over `sources` rather than another file read.
 struct Netrc: Sendable {
     static let empty = Netrc(sources: [])
 
-    /// Parsed sources in priority order. `SWIFTPM_NETRC_DATA` and `~/.netrc` are
-    /// both consulted, the environment first, because a host missing from one has
-    /// always fallen through to the other.
-    private let sources: [[NetrcMachine]]
+    /// Parsed sources in priority order, the environment ahead of any file, matching
+    /// the order SwiftPM appends its netrc providers in.
+    private let sources: [NetrcSource]
 
-    init(sources: [[NetrcMachine]]) {
+    init(sources: [NetrcSource]) {
         self.sources = sources
     }
 
@@ -36,37 +49,45 @@ struct Netrc: Sendable {
     ) async throws -> Netrc {
         guard configuration.isEnabled else { return .empty }
 
-        // An explicit `--netrc-file` is the only source when it is given, and it has
-        // to be there. SwiftPM refuses to run on a missing one rather than downgrading
-        // to unauthenticated requests, which would surface much later as an opaque 401
+        var sources: [NetrcSource] = []
+        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty {
+            sources.append(NetrcSource(origin: .environment, machines: NetrcParser.machines(in: data)))
+        }
+
+        // An explicit `--netrc-file` replaces `~/.netrc`, and it has to be there.
+        // SwiftPM refuses to run on a missing one rather than downgrading to
+        // unauthenticated requests, which would surface much later as an opaque 401
         // or 404 from a private registry.
         if let path = configuration.path {
             guard try await fileSystem.exists(path.absolutePath, isDirectory: false) else {
                 throw ToolError.message("did not find netrc file at \(path.path)")
             }
-            return Netrc(sources: [NetrcParser.machines(in: try await contents(of: path))])
-        }
-
-        var sources: [[NetrcMachine]] = []
-        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty {
-            sources.append(NetrcParser.machines(in: data))
-        }
-        if let home = environment["HOME"] {
+            sources.append(
+                NetrcSource(origin: .file, machines: NetrcParser.machines(in: try await contents(of: path))))
+        } else if let home = environment["HOME"] {
             let path = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
             if let content = try? await contents(of: path) {
-                sources.append(NetrcParser.machines(in: content))
+                sources.append(NetrcSource(origin: .file, machines: NetrcParser.machines(in: content)))
             }
         }
         return Netrc(sources: sources)
     }
 
     func credential(for url: URL) -> RegistryCredential? {
+        credential(for: url, in: sources)
+    }
+
+    func credential(for url: URL, from origin: NetrcOrigin) -> RegistryCredential? {
+        credential(for: url, in: sources.filter { $0.origin == origin })
+    }
+
+    private func credential(for url: URL, in sources: [NetrcSource]) -> RegistryCredential? {
         guard let host = url.host?.lowercased() else { return nil }
-        for machines in sources {
+        for source in sources {
             // First match rather than last: SwiftPM and curl both resolve a duplicated
             // host to the entry that appears first.
-            if let machine = machines.first(where: { $0.name == host })
-                ?? machines.first(where: \.isDefault)
+            if let machine = source.machines.first(where: { $0.name == host })
+                ?? source.machines.first(where: \.isDefault)
             {
                 return RegistryCredential(user: machine.login, password: machine.password)
             }

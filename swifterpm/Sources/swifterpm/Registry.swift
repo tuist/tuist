@@ -129,15 +129,19 @@ enum RegistryAuthorization {
             )
         }
 
-        // Netrc is resolved ahead of the keychain to match SwiftPM, whose composite
-        // authorization provider asks the netrc provider first: an entry the user
-        // just wrote to the file they pointed us at must not lose to a stale
-        // keychain item for the same host.
-        if let credential = Environment.netrc.credential(for: url) {
+        // Inline netrc data, then the keychain, then any netrc file. SwiftPM's
+        // registry provider reads SWIFTPM_NETRC_DATA before anything else and then
+        // orders the rest "OS-specific AuthorizationProvider has higher precedence",
+        // which is the opposite of how it orders its download provider.
+        if let credential = Environment.netrc.credential(for: url, from: .environment) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
 
         if let credential = await RegistryKeychain.credential(for: url) {
+            return header(for: credential, url: url, registryConfig: registryConfig)
+        }
+
+        if let credential = Environment.netrc.credential(for: url, from: .file) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
 

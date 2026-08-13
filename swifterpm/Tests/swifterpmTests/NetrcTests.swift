@@ -11,7 +11,7 @@ struct NetrcTests {
             default login fallback password fallback-secret
             """
         )
-        let netrc = Netrc(sources: [machines])
+        let netrc = Netrc(sources: [NetrcSource(origin: .file, machines: machines)])
 
         #expect(
             netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
@@ -32,7 +32,7 @@ struct NetrcTests {
             machine registry.example.com login second password two
             """
         )
-        let netrc = Netrc(sources: [machines])
+        let netrc = Netrc(sources: [NetrcSource(origin: .file, machines: machines)])
 
         #expect(
             netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
@@ -86,15 +86,20 @@ struct NetrcTests {
     }
 
     @Test
-    func configuredNetrcFileIsTheOnlySource() async throws {
+    func configuredNetrcFileReplacesHomeButNotEnvironmentData() async throws {
+        // SwiftPM reads SWIFTPM_NETRC_DATA before it switches on which file to use, so
+        // an explicit `--netrc-file` displaces `~/.netrc` and nothing else.
         try await withTemporaryDirectory { root in
             let netrcFile = root.appendingPathComponent("netrc")
             try await fileSystem.atomicWrite(
-                "machine registry.example.com login example password from-file",
+                """
+                machine registry.example.com login example password from-file
+                machine other.example.com login example password file-only
+                """,
                 to: netrcFile
             )
             try await fileSystem.atomicWrite(
-                "machine other.example.com login example password from-home",
+                "machine home.example.com login example password from-home",
                 to: root.appendingPathComponent(".netrc")
             )
 
@@ -109,9 +114,12 @@ struct NetrcTests {
 
             #expect(
                 netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
-                    .password == "from-file")
+                    .password == "from-environment")
             #expect(
-                netrc.credential(for: try #require(URL(string: "https://other.example.com"))) == nil)
+                netrc.credential(for: try #require(URL(string: "https://other.example.com")))?
+                    .password == "file-only")
+            #expect(
+                netrc.credential(for: try #require(URL(string: "https://home.example.com"))) == nil)
         }
     }
 
@@ -141,6 +149,34 @@ struct NetrcTests {
             #expect(
                 netrc.credential(for: try #require(URL(string: "https://other.example.com")))?
                     .password == "home-only")
+        }
+    }
+
+    @Test
+    func credentialFromAnOriginIgnoresTheOtherSources() async throws {
+        // The registry path asks for each origin separately so it can consult the
+        // keychain between them, the way SwiftPM's registry provider does.
+        try await withTemporaryDirectory { root in
+            try await fileSystem.atomicWrite(
+                "machine registry.example.com login example password from-home",
+                to: root.appendingPathComponent(".netrc")
+            )
+
+            let netrc = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(),
+                environment: [
+                    "HOME": root.path,
+                    "SWIFTPM_NETRC_DATA":
+                        "machine other.example.com login example password from-environment",
+                ]
+            )
+            let registry = try #require(URL(string: "https://registry.example.com"))
+            let other = try #require(URL(string: "https://other.example.com"))
+
+            #expect(netrc.credential(for: registry, from: .environment) == nil)
+            #expect(netrc.credential(for: registry, from: .file)?.password == "from-home")
+            #expect(netrc.credential(for: other, from: .environment)?.password == "from-environment")
+            #expect(netrc.credential(for: other, from: .file) == nil)
         }
     }
 
