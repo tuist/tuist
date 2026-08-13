@@ -17,7 +17,6 @@
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
 @import "css/shared/pages.css";
-@import "css/routes/shared/page.css";
 @import "css/new/routes/home.css";
 @import "css/new/routes/about.css";
 @import "css/new/routes/home-hero.css";
@@ -25,6 +24,7 @@
 @import "css/new/routes/blog-post.css";
 @import "css/new/routes/changelog.css";
 @import "css/new/routes/changelog-entry.css";
+@import "css/new/routes/page.css";
 @import "css/new/layouts/components/navbar.css";
 @import "css/new/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";

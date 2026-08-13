@@ -242,6 +242,60 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /terms (new design rollout)" do
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, "/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_page -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_page, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get("/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+      conn = conn |> log_in_user(user) |> get("/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+  end
+
   describe "GET /customers/:slug" do
     test "renders the localized Hyperconnect case study", %{conn: conn} do
       conn = get(conn, ~p"/ko/customers/hyperconnect")
