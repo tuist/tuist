@@ -24,3 +24,7 @@ func (unsupportedVolumeBackend) imageInventoryDigest(string) (string, error) {
 }
 
 func (unsupportedVolumeBackend) repackImage(string, string, int) error { return errUnsupported }
+
+func (unsupportedVolumeBackend) imageTreeBytes(string) (map[string]uint64, error) {
+	return nil, errUnsupported
+}

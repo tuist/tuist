@@ -100,6 +100,83 @@ const branchImageName = "cache.sparseimage"
 // store.
 const casStoreDir = "CompilationCache.noindex"
 
+// Live-bytes buckets for a cache image's contents. Bounded and fixed so the
+// gauge's label cardinality cannot follow user-declared volume layouts: anything
+// that is not one of the two known stores lands in `other`, which is itself the
+// signal that something new was folded in.
+const (
+	liveBytesBinaryCache = "binary_cache"
+	liveBytesCAS         = "cas"
+	liveBytesOther       = "other"
+)
+
+// treeLiveBytes sums the LIVE bytes under each top-level tree of a mounted cache
+// image, bucketed. mountRoot is the image's mount point.
+//
+// This is the number the volume's sizing was assumed to be and never checked
+// against: a master's backing file is its allocation high-water mark, while this
+// is what the caches actually hold right now. Their difference is the reclaimable
+// slack, and which of the two dominates decides whether the fix for "one master
+// per host" is compaction or a different budget.
+//
+// Dot-prefixed entries are the filesystem's own, matching inventoryDigest and the
+// repack.
+func treeLiveBytes(mountRoot string) (map[string]uint64, error) {
+	buckets := map[string]uint64{liveBytesBinaryCache: 0, liveBytesCAS: 0, liveBytesOther: 0}
+	entries, err := os.ReadDir(mountRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		bucket := liveBytesOther
+		switch entry.Name() {
+		case cacheHomeSubdir:
+			bucket = liveBytesBinaryCache
+		case casStoreDir:
+			bucket = liveBytesCAS
+		}
+		size, err := dirBytes(filepath.Join(mountRoot, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		buckets[bucket] += size
+	}
+	return buckets, nil
+}
+
+// dirBytes sums the apparent size of every regular file under root. Apparent
+// rather than allocated: this measures what the cache holds, and the gap to the
+// image's own allocation is exactly what the caller is trying to see.
+func dirBytes(root string) (uint64, error) {
+	var total uint64
+	err := filepath.WalkDir(root, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			// A file the cache removed mid-walk contributes nothing; it is
+			// exactly the churn this measurement exists to characterize.
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		total += uint64(info.Size())
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 // casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
 // file under the store contributes one `~cas/<relpath>\t<size>` line, so the
 // digest is a real content identity for the store, not a proxy. Two properties
@@ -156,6 +233,9 @@ type volumeBackend interface {
 	// inventory digest of the cache home inside it. Used to verify a downloaded
 	// HEAD image matches its advertised digest before adopting it.
 	imageInventoryDigest(path string) (string, error)
+	// imageTreeBytes attaches the image read-only and sums the LIVE bytes under
+	// each of its top-level trees, bucketed by treeLiveBytes.
+	imageTreeBytes(path string) (map[string]uint64, error)
 	// repackImage rebuilds src's live cache into a fresh sparse image at dst,
 	// capped at sizeGiB. This is how a master's backing file is reclaimed: a
 	// sparse image only ever grows to its high-water mark, so a long-lived
@@ -973,6 +1053,14 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 		if largest, err := m.LargestMasterBytes(); err == nil {
 			RecordVolumeLargestMaster(largest)
 		}
+		// Paired with the gauge above: physical minus live is the slack a repack
+		// can return, and which side dominates decides whether compaction or the
+		// budgets are the thing to change.
+		if live, err := m.SampleLargestMasterLiveBytes(); err != nil {
+			logger.Error(err, "sample largest master live bytes")
+		} else if live != nil {
+			RecordVolumeMasterLiveBytes(live)
+		}
 	}
 	tick()
 	t := time.NewTicker(interval)
@@ -1244,6 +1332,49 @@ func (m *VolumeManager) LargestMasterBytes() (uint64, error) {
 		}
 	}
 	return largest, nil
+}
+
+// SampleLargestMasterLiveBytes measures what the largest master actually HOLDS,
+// bucketed by tree, alongside its backing-file size.
+//
+// One master per tick, and the largest one, because the measurement costs a
+// read-only attach and the largest master is where the physical-vs-live gap
+// matters most. Read against `largest_master_bytes`, the difference is the
+// reclaimable slack: if it dominates, a master is mostly allocation history and
+// compaction is the lever; if the live bytes dominate, the caches genuinely hold
+// that much and the budgets (`masterCapGib`, `casGib`) are the lever instead.
+// The volume's sizing arithmetic assumed the former and nothing ever checked.
+func (m *VolumeManager) SampleLargestMasterLiveBytes() (map[string]uint64, error) {
+	if !m.Enabled() {
+		return nil, nil
+	}
+
+	m.mu.Lock()
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	var largest masterEntry
+	var largestSize uint64
+	var found bool
+	for _, candidate := range masters {
+		info, statErr := os.Stat(m.masterImage(candidate.account, candidate.volume))
+		if statErr != nil {
+			continue
+		}
+		if size := uint64(info.Size()); size > largestSize || !found {
+			largest, largestSize, found = candidate, size, true
+		}
+	}
+	m.mu.Unlock()
+	if !found {
+		return nil, nil
+	}
+
+	// Measured off the lock: an attach is seconds, and the read-only mount can
+	// safely run beside a clone. A master evicted meanwhile just errors here.
+	return m.backend.imageTreeBytes(m.masterImage(largest.account, largest.volume))
 }
 
 // mostBloatedMasterLocked returns the master with the largest backing file past

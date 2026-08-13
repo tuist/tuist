@@ -158,6 +158,31 @@ func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
 	return availKB * 1024, nil
 }
 
+// imageTreeBytes attaches the image read-only and sums the live bytes under each
+// of its top-level trees. Read-only so it is safe beside a concurrent clone and
+// cannot mutate what it measures, and the detach is deferred and its failure
+// propagated: a leaked attach pins the image file against LRU eviction.
+func (darwinVolumeBackend) imageTreeBytes(path string) (buckets map[string]uint64, err error) {
+	mnt, err := os.MkdirTemp("", "tuist-cache-measure-")
+	if err != nil {
+		return nil, fmt.Errorf("mkdir measure mountpoint: %w", err)
+	}
+	defer os.RemoveAll(mnt)
+
+	if _, err := runCmd(2*time.Minute, "hdiutil", "attach", path,
+		"-readonly", "-owners", "off", "-nobrowse", "-noverify", "-quiet",
+		"-mountpoint", mnt); err != nil {
+		return nil, fmt.Errorf("attach image read-only: %w", err)
+	}
+	defer func() {
+		if _, derr := runCmd(1*time.Minute, "hdiutil", "detach", mnt, "-force", "-quiet"); derr != nil && err == nil {
+			err = fmt.Errorf("detach measured image: %w", derr)
+		}
+	}()
+
+	return treeLiveBytes(mnt)
+}
+
 // repackImage rebuilds src's live cache into a brand-new sparse image at dst,
 // which is how a bloated master is reclaimed.
 //

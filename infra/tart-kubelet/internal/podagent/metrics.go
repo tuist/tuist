@@ -220,6 +220,23 @@ var cacheVolumeCompactedBytesTotal = prometheus.NewCounter(
 	},
 )
 
+// cacheVolumeMasterLiveBytes is what the largest master actually HOLDS, split by
+// tree: the Tuist binary cache, the folded Xcode CAS, and anything else found at
+// the volume root. Subtract the sum from cacheVolumeLargestMasterBytes and the
+// remainder is allocation history a repack can return.
+//
+// This is the number the runner-cache volume's sizing was reasoned from and never
+// measured. It decides which lever matters: slack dominating means compaction,
+// live bytes dominating means the per-master and CAS budgets are simply too large
+// for the number of accounts a host has to keep warm.
+var cacheVolumeMasterLiveBytes = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_master_live_bytes",
+		Help: "Live bytes held by the largest per-account cache master, by tree.",
+	},
+	[]string{"tree"},
+)
+
 // cacheVolumeLargestMasterBytes is the biggest master backing file on this
 // host. Read against the configured cap: a master approaching its ceiling is
 // bloat, not cache, because the CLI bounds the cache inside it by its own LRU.
@@ -323,6 +340,7 @@ func init() {
 		cacheVolumeRootFreeBytes,
 		cacheVolumeCompactedBytesTotal,
 		cacheVolumeLargestMasterBytes,
+		cacheVolumeMasterLiveBytes,
 		cacheVolumeEnabled,
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
@@ -406,6 +424,14 @@ func RecordVolumeResident(count int, freeBytes uint64) {
 // RecordVolumeCompacted records bytes reclaimed by repacking a bloated master.
 func RecordVolumeCompacted(reclaimedBytes uint64) {
 	cacheVolumeCompactedBytesTotal.Add(float64(reclaimedBytes))
+}
+
+// RecordVolumeMasterLiveBytes publishes what the largest master actually holds,
+// per tree.
+func RecordVolumeMasterLiveBytes(buckets map[string]uint64) {
+	for tree, bytes := range buckets {
+		cacheVolumeMasterLiveBytes.WithLabelValues(tree).Set(float64(bytes))
+	}
 }
 
 // RecordVolumeLargestMaster publishes the biggest master backing file on this

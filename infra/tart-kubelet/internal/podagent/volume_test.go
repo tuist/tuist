@@ -47,9 +47,19 @@ type fakeBackend struct {
 	// repacks counts repackImage calls so a test can assert compaction did not
 	// run at all, not merely that it reclaimed nothing.
 	repacks int
+	// treeBytes, when set, is returned from imageTreeBytes. The fake models an
+	// image as an opaque file, so the trees inside it can only be canned here.
+	treeBytes map[string]uint64
 	// onRepack, when set, runs during repackImage — the injection point for
 	// modelling a promote or converge that lands while a repack is in flight.
 	onRepack func()
+}
+
+func (f *fakeBackend) imageTreeBytes(string) (map[string]uint64, error) {
+	if f.treeBytes == nil {
+		return map[string]uint64{}, nil
+	}
+	return f.treeBytes, nil
 }
 
 // repackImage models the real repack: the live cache is rewritten into a fresh
@@ -1562,5 +1572,66 @@ func TestCompactBloatedMasterKeepsAMaterializeDuringRepack(t *testing.T) {
 	}
 	if got := info.ModTime().Truncate(time.Second); !got.Equal(used) {
 		t.Fatalf("mtime = %s; want the mid-repack use at %s, not the pre-copy %s", got, used, stale)
+	}
+}
+
+// The live-bytes buckets are what decide whether a bloated master is mostly
+// allocation history (compaction is the lever) or genuinely full (the budgets
+// are). Bucketing is fixed and bounded: an unrecognised tree lands in `other`
+// rather than minting a label, since user-declared volumes can name their
+// contents anything.
+func TestTreeLiveBytesBuckets(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel string, size int) {
+		t.Helper()
+		full := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, make([]byte, size), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(cacheHomeSubdir, "Binaries", "a", "lib.a"), 1000)
+	write(filepath.Join(cacheHomeSubdir, "Manifests", "m.json"), 500)
+	write(filepath.Join(casStoreDir, "v1.1", "records", "llvmcas.data"), 4000)
+	write(filepath.Join("SomeFutureStore", "payload.bin"), 70)
+	// Filesystem metadata is not cache content, matching inventoryDigest.
+	write(filepath.Join(".fseventsd", "0000"), 9999)
+
+	got, err := treeLiveBytes(root)
+	if err != nil {
+		t.Fatalf("treeLiveBytes: %v", err)
+	}
+	want := map[string]uint64{liveBytesBinaryCache: 1500, liveBytesCAS: 4000, liveBytesOther: 70}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("treeLiveBytes = %v; want %v", got, want)
+	}
+}
+
+// The sample follows the largest master, since that is where the gap between
+// what a master costs and what it holds matters most.
+func TestSampleLargestMasterLiveBytes(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	fake.treeBytes = map[string]uint64{liveBytesBinaryCache: 2, liveBytesCAS: 3, liveBytesOther: 0}
+
+	got, err := m.SampleLargestMasterLiveBytes()
+	if err != nil {
+		t.Fatalf("SampleLargestMasterLiveBytes: %v", err)
+	}
+	if !reflect.DeepEqual(got, fake.treeBytes) {
+		t.Fatalf("live bytes = %v; want %v", got, fake.treeBytes)
+	}
+}
+
+// No masters means nothing to measure, and no attach is attempted.
+func TestSampleLargestMasterLiveBytesWithNoMasters(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	fake.treeBytes = map[string]uint64{liveBytesCAS: 99}
+
+	got, err := m.SampleLargestMasterLiveBytes()
+	if err != nil || got != nil {
+		t.Fatalf("SampleLargestMasterLiveBytes = %v, %v; want nil, nil", got, err)
 	}
 }
