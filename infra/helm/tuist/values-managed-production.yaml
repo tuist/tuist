@@ -697,6 +697,12 @@ macosFleet:
     # If the tail ever does starve job VMs, lower gib rather than raising cap:
     # masters fill to roughly gib - cap, so a smaller cap yields MORE total
     # master bytes. gib is the footprint lever, cap is the master-count lever.
+    #
+    # Retuning either value changes how many accounts a host keeps hot, and
+    # therefore how often dispatch can place a job warm. Nothing needs to be
+    # kept in sync for that: the host advertises the masters it actually holds
+    # as Node labels and the server reads them, so this arithmetic bounds the
+    # fleet's behaviour without also being a number the server has to be told.
     masterCapGib: 20
     casGib: 11
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
