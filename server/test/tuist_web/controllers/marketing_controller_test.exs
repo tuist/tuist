@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Tuist.Atlas.Email
+  alias Tuist.Loops
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -40,59 +42,50 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "?design=new previews the new design and persists the override in a cookie", %{
-      conn: conn
-    } do
-      conn = get(conn, "/?design=new")
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_home, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get("/")
 
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle-new.css"
-      assert conn.resp_cookies["tuist_marketing_design"].value == "new"
-
-      conn = conn |> recycle() |> get("/")
-
-      assert html_response(conn, 200) =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "?design=old forces the legacy design even when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing_home -> true
-        _ -> false
-      end)
+    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
 
-      conn = get(conn, "/?design=old")
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+      conn = conn |> log_in_user(user) |> get("/")
 
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle.css"
       refute html =~ "/marketing/assets/bundle-new.css"
     end
 
-    test "?design=default clears the override cookie", %{conn: conn} do
-      conn = get(conn, "/?design=new")
-      assert conn.resp_cookies["tuist_marketing_design"].value == "new"
-
-      conn = conn |> recycle() |> get("/?design=default")
-
-      assert html_response(conn, 200) =~ "/marketing/assets/bundle.css"
-      assert conn.resp_cookies["tuist_marketing_design"].max_age == 0
-    end
-
-    test "responses without an override stay publicly cacheable", %{conn: conn} do
+    test "anonymous responses stay publicly cacheable", %{conn: conn} do
       conn = get(conn, "/")
 
       assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
     end
 
-    test "override-driven responses are not cacheable by shared caches", %{conn: conn} do
-      conn = get(conn, "/?design=new")
-      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    test "authenticated responses are not cacheable by shared caches", %{conn: conn} do
+      # An authenticated user can be actor-gated onto a redesigned page, so
+      # a shared cache must never store their variant at the ordinary URL.
+      user = AccountsFixtures.user_fixture()
 
-      # The steady state: cookie and session agree, no Set-Cookie is emitted,
-      # so only the cache-control header keeps the variant out of shared caches.
-      conn = conn |> recycle() |> get("/")
-      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+      conn = conn |> log_in_user(user) |> get("/")
 
-      conn = conn |> recycle() |> get("/?design=default")
       assert get_resp_header(conn, "cache-control") == ["private, no-store"]
     end
   end
