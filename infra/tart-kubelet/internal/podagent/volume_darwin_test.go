@@ -167,3 +167,88 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 		t.Fatalf("host/guest digest divergence:\n  host  = %q\n  guest = %q", host, guest)
 	}
 }
+
+// A repack must carry BOTH cache trees into the fresh image. The image holds the
+// binary cache under `tuist/` and the folded Xcode compilation cache under
+// `CompilationCache.noindex` beside it, and the repack keeps the master's
+// generation — so dropping either would leave the host serving a mutilated
+// master that convergence never repairs, because its generation still reads as
+// current. This drives the real hdiutil/ditto path rather than the fake, because
+// the trees only exist inside an attached image.
+func TestDarwinRepackImagePreservesBothCacheTrees(t *testing.T) {
+	be := darwinVolumeBackend{}
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.sparseimage")
+	dst := filepath.Join(dir, "dst.sparseimage")
+
+	if err := be.createImage(src, 1); err != nil {
+		t.Fatalf("createImage: %v", err)
+	}
+
+	// Populate the source image the way a job would: binary cache entries under
+	// the inventory subtrees, and CAS records beside them.
+	mnt := t.TempDir()
+	if out, err := runCmd(attachTimeout, "hdiutil", "attach", src,
+		"-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
+		t.Skipf("cannot attach a sparse image on this host (%v): %s", err, out)
+	}
+	binary := filepath.Join(mnt, cacheHomeSubdir, "Binaries", "abc123")
+	if err := os.MkdirAll(binary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binary, "lib.a"), []byte("binary-cache-payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cas := filepath.Join(mnt, casStoreDir, "v1.1", "records")
+	if err := os.MkdirAll(cas, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cas, "llvmcas.data"), []byte("cas-payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The digest over the populated source is the identity the repacked image
+	// has to reproduce; capture it before detaching.
+	wantDigest, err := inventoryDigest(mnt)
+	if err != nil {
+		t.Fatalf("inventoryDigest(source): %v", err)
+	}
+	if _, err := runCmd(attachTimeout, "hdiutil", "detach", mnt, "-force", "-quiet"); err != nil {
+		t.Fatalf("detach source: %v", err)
+	}
+
+	if err := be.repackImage(src, dst, 1); err != nil {
+		t.Fatalf("repackImage: %v", err)
+	}
+
+	// Same inventory digest means both trees survived with their content: a
+	// dropped CAS store changes it, and so does a dropped binary subtree.
+	gotDigest, err := be.imageInventoryDigest(dst)
+	if err != nil {
+		t.Fatalf("imageInventoryDigest(repacked): %v", err)
+	}
+	if gotDigest != wantDigest {
+		t.Fatalf("repacked digest = %s; want %s (a tree was dropped or altered)", gotDigest, wantDigest)
+	}
+
+	// Digest equality covers names and CAS sizes; read the payloads back to
+	// prove file CONTENT crossed too, not just the shape of the tree.
+	check := t.TempDir()
+	if _, err := runCmd(attachTimeout, "hdiutil", "attach", dst,
+		"-readonly", "-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", check); err != nil {
+		t.Fatalf("attach repacked: %v", err)
+	}
+	defer func() { _, _ = runCmd(attachTimeout, "hdiutil", "detach", check, "-force", "-quiet") }()
+
+	for path, want := range map[string]string{
+		filepath.Join(check, cacheHomeSubdir, "Binaries", "abc123", "lib.a"): "binary-cache-payload",
+		filepath.Join(check, casStoreDir, "v1.1", "records", "llvmcas.data"): "cas-payload",
+	} {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s from repacked image: %v", path, err)
+		}
+		if string(b) != want {
+			t.Fatalf("%s = %q; want %q", path, b, want)
+		}
+	}
+}

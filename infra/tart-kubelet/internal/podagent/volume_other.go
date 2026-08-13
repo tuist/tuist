@@ -22,3 +22,5 @@ func (unsupportedVolumeBackend) createImage(string, int) error    { return errUn
 func (unsupportedVolumeBackend) imageInventoryDigest(string) (string, error) {
 	return "", errUnsupported
 }
+
+func (unsupportedVolumeBackend) repackImage(string, string, int) error { return errUnsupported }

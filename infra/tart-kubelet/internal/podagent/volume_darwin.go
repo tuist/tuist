@@ -165,15 +165,26 @@ func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
 // reclaim 4 MB of ~400 MB on a partially-churned image: APFS inside an image
 // issues no TRIM to the virtual block device, so compact only ever reclaims an
 // image that has been emptied outright. A churned master — which is every hot
-// master — is exactly the case it cannot help with. Copying the live tree into
-// a fresh image sidesteps the question entirely: the new file's size is the
-// live content, whatever the old one had accumulated.
+// master — is exactly the case it cannot help with. Copying the live trees into
+// a fresh image sidesteps the question entirely: the new file's size is the live
+// content, whatever the old one had accumulated.
+//
+// BOTH top-level trees are carried over. The image holds the binary cache under
+// `tuist/` and the folded Xcode compilation cache under `CompilationCache.noindex`
+// beside it, and the repack keeps the master's generation — so dropping either
+// would leave the host serving a mutilated master that convergence never
+// repairs, because its generation still reads as current.
 //
 // `ditto` rather than `cp -R`: it preserves xattrs on symlinks, which is the
 // whole reason this cache lives in a disk image instead of on the virtio-fs
 // share (versioned framework bundles and the CLI's artifact signatures both
 // depend on them).
-func (b darwinVolumeBackend) repackImage(src, dst string, sizeGiB int) error {
+//
+// Detach failures are propagated, not swallowed. A source image left attached
+// pins the blocks the repack was meant to reclaim, so the caller would swap in a
+// new image and report a reclamation that did not happen; a target left attached
+// would be renamed into place while still mounted.
+func (b darwinVolumeBackend) repackImage(src, dst string, sizeGiB int) (err error) {
 	if err := b.createImage(dst, sizeGiB); err != nil {
 		return fmt.Errorf("create repack target image: %w", err)
 	}
@@ -196,27 +207,37 @@ func (b darwinVolumeBackend) repackImage(src, dst string, sizeGiB int) error {
 		"-mountpoint", srcMnt); err != nil {
 		return fmt.Errorf("attach source image read-only: %w", err)
 	}
-	defer func() { _, _ = runCmd(1*time.Minute, "hdiutil", "detach", srcMnt, "-force", "-quiet") }()
+	defer func() {
+		if _, derr := runCmd(1*time.Minute, "hdiutil", "detach", srcMnt, "-force", "-quiet"); derr != nil && err == nil {
+			err = fmt.Errorf("detach repack source image: %w", derr)
+		}
+	}()
 
 	if _, err := runCmd(2*time.Minute, "hdiutil", "attach", dst,
 		"-owners", "off", "-nobrowse", "-noverify", "-quiet",
 		"-mountpoint", dstMnt); err != nil {
 		return fmt.Errorf("attach target image: %w", err)
 	}
-	defer func() { _, _ = runCmd(1*time.Minute, "hdiutil", "detach", dstMnt, "-force", "-quiet") }()
-
-	// An image with no cache home yet has nothing to carry over; the fresh
-	// empty image is already the correct result.
-	srcCache := filepath.Join(srcMnt, cacheHomeSubdir)
-	if _, err := os.Stat(srcCache); err != nil {
-		if os.IsNotExist(err) {
-			return nil
+	defer func() {
+		if _, derr := runCmd(1*time.Minute, "hdiutil", "detach", dstMnt, "-force", "-quiet"); derr != nil && err == nil {
+			err = fmt.Errorf("detach repacked image: %w", derr)
 		}
-		return fmt.Errorf("stat source cache home: %w", err)
-	}
+	}()
 
-	if _, err := runCmd(10*time.Minute, "ditto", srcCache, filepath.Join(dstMnt, cacheHomeSubdir)); err != nil {
-		return fmt.Errorf("ditto cache home into repacked image: %w", err)
+	for _, tree := range repackedTrees {
+		srcTree := filepath.Join(srcMnt, tree)
+		if _, statErr := os.Stat(srcTree); statErr != nil {
+			// A tree the master never grew (a CAS-less master, or a first job
+			// that only wrote one side) contributes nothing; the fresh image is
+			// already correct without it.
+			if os.IsNotExist(statErr) {
+				continue
+			}
+			return fmt.Errorf("stat %s in source image: %w", tree, statErr)
+		}
+		if _, err := runCmd(30*time.Minute, "ditto", srcTree, filepath.Join(dstMnt, tree)); err != nil {
+			return fmt.Errorf("ditto %s into repacked image: %w", tree, err)
+		}
 	}
 	return nil
 }

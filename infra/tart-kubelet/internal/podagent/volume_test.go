@@ -1478,3 +1478,89 @@ func TestLargestMasterBytes(t *testing.T) {
 		t.Fatalf("largest = %d; want the bloated master, bigger than %d", largest, small.Size())
 	}
 }
+
+// The repacked image can grow to a full cap like any branch, so admission has to
+// count it. Without the reservation the repack spends bytes AllocateBranch
+// already promised to a live branch, and the guest holding that branch hits
+// ENOSPC mid-job.
+func TestCompactBloatedMasterDeclinesWhenSpaceIsPromisedToABranch(t *testing.T) {
+	// 2 GiB total, 1 GiB cap. The resident master takes 1 GiB, leaving 1 GiB,
+	// which admission then promises to the live branch — nothing is left to book
+	// a repack against.
+	m, _ := newTestManager(t, 2)
+	seedMaster(t, m, "42")
+	bloatMaster(t, m, "42", 4096)
+	m.CompactAboveBytes = 1024
+
+	if att := mustAllocate(t, m, "vm1"); !att.Attached {
+		t.Fatal("branch should attach")
+	}
+
+	reclaimed, err := m.CompactBloatedMaster()
+	if err != nil {
+		t.Fatalf("CompactBloatedMaster: %v", err)
+	}
+	if reclaimed != 0 {
+		t.Fatalf("reclaimed = %d; want 0 — a repack must not spend a live branch's reservation", reclaimed)
+	}
+}
+
+// While a repack is in flight its worst-case allocation is booked, so admission
+// runs out one branch sooner than it would with the volume to itself. Compared
+// against an identical volume with no repack running, on a root with no masters
+// so eviction cannot quietly make room and mask the difference.
+func TestAllocateBranchAccountsForAnInFlightRepack(t *testing.T) {
+	admitCount := func(repacksInFlight int) int {
+		// 2 GiB total, 1 GiB cap, no masters: free stays 2 GiB and there is
+		// nothing for ensureFreeLocked to evict.
+		m, _ := newTestManager(t, 2)
+		m.repacksInFlight = repacksInFlight
+		admitted := 0
+		for _, vm := range []string{"vm1", "vm2", "vm3"} {
+			att, err := m.AllocateBranch(ReservedTuistCacheVolume, vm)
+			if err != nil {
+				t.Fatalf("AllocateBranch(%s): %v", vm, err)
+			}
+			if att.Attached {
+				admitted++
+			}
+		}
+		return admitted
+	}
+
+	idle, repacking := admitCount(0), admitCount(1)
+	if repacking >= idle {
+		t.Fatalf("admitted %d branches with a repack in flight vs %d without; the repack's reservation was ignored", repacking, idle)
+	}
+}
+
+// A Materialize during the repack legitimately marks the master used. The swap
+// must keep THAT timestamp: restoring the one captured before the copy erases
+// the access and lets LRU evict a master jobs are actively cloning.
+func TestCompactBloatedMasterKeepsAMaterializeDuringRepack(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 2)
+	bloatMaster(t, m, "42", 4096)
+	m.CompactAboveBytes = 1024
+
+	stale := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	setMtime(t, m.masterImage("42", ReservedTuistCacheVolume), stale)
+
+	used := time.Now().Add(-1 * time.Minute).Truncate(time.Second)
+	fake.onRepack = func() {
+		// Stands in for Materialize touching the master to record the use.
+		setMtime(t, m.masterImage("42", ReservedTuistCacheVolume), used)
+	}
+
+	if _, err := m.CompactBloatedMaster(); err != nil {
+		t.Fatalf("CompactBloatedMaster: %v", err)
+	}
+
+	info, err := os.Stat(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := info.ModTime().Truncate(time.Second); !got.Equal(used) {
+		t.Fatalf("mtime = %s; want the mid-repack use at %s, not the pre-copy %s", got, used, stale)
+	}
+}

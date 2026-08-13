@@ -100,6 +100,15 @@ const branchImageName = "cache.sparseimage"
 // store.
 const casStoreDir = "CompilationCache.noindex"
 
+// repackedTrees are the top-level trees inside a cache image that carry cache
+// content, and so the exact set a repack must reproduce in the fresh image.
+// Both, not just the binary cache: a repack keeps the master's generation, so a
+// dropped tree leaves the host serving a mutilated master that convergence never
+// repairs — its generation still reads as current, so there is nothing to adopt.
+// Everything else at the mount root (volume metadata, Spotlight stubs) is the
+// filesystem's own and is rebuilt with the new image.
+var repackedTrees = []string{cacheHomeSubdir, casStoreDir}
+
 // casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
 // file under the store contributes one `~cas/<relpath>\t<size>` line, so the
 // digest is a real content identity for the store, not a proxy. Two properties
@@ -255,6 +264,12 @@ type VolumeManager struct {
 	// sparse clones cannot collectively overrun the quota volume.
 	liveBranches int
 
+	// repacksInFlight counts compactions currently writing a repacked image.
+	// That image can grow to CapGiB like any branch, so admission has to count
+	// it: without this the repack spends space AllocateBranch already promised
+	// to a live branch, and the guest holding that branch hits ENOSPC.
+	repacksInFlight int
+
 	// retained is the set of branch dirs (keyed by VM name) that belong to
 	// VMs still running after a kubelet restart. ReattachBranch adds to it
 	// during state recovery; the startup SweepBranches keeps exactly these
@@ -388,7 +403,7 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	// enough headroom that all of them reaching full cap cannot ENOSPC the
 	// volume. If it doesn't fit, evict LRU masters; if it still doesn't,
 	// decline (cold path).
-	want := m.capBytes() * uint64(m.liveBranches+1)
+	want := m.capBytes() * uint64(m.liveBranches+m.repacksInFlight+1)
 	free, err := m.ensureFreeLocked(want)
 	if err != nil {
 		if errors.Is(err, errNoRoom) {
@@ -1128,10 +1143,11 @@ func (m *VolumeManager) CompactBloatedMaster() (reclaimed uint64, err error) {
 		return 0, nil
 	}
 
-	candidate, before, generation, ok, err := m.mostBloatedMaster()
+	candidate, before, generation, ok, err := m.reserveRepack()
 	if err != nil || !ok {
 		return 0, err
 	}
+	defer m.releaseRepack()
 
 	staging := filepath.Join(m.Root, convergeDirName, "repack")
 	if err := os.MkdirAll(staging, 0o755); err != nil {
@@ -1157,23 +1173,58 @@ func (m *VolumeManager) CompactBloatedMaster() (reclaimed uint64, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	current, err := m.masterGenerationLocked(candidate.account, candidate.volume)
-	if err != nil || current != generation {
+	currentGeneration, err := m.masterGenerationLocked(candidate.account, candidate.volume)
+	if err != nil || currentGeneration != generation {
 		return 0, err
 	}
 	master := m.masterImage(candidate.account, candidate.volume)
-	if cur, statErr := os.Stat(master); statErr != nil || uint64(cur.Size()) != before {
+	currentMaster, statErr := os.Stat(master)
+	if statErr != nil || uint64(currentMaster.Size()) != before {
 		// The master moved underneath us (promote, converge, or eviction).
 		return 0, nil
 	}
+	// Take the mtime from THIS stat, not the one captured before the copy: a
+	// Materialize during the repack legitimately touches it to mark the master
+	// used, and restoring the pre-copy value would erase that access and make
+	// LRU evict a master jobs are actively cloning. LRU orders by this mtime, so
+	// it must be preserved rather than refreshed — a repack is not a use.
+	used := currentMaster.ModTime()
 	if err := os.Rename(repacked, master); err != nil {
 		return 0, fmt.Errorf("swap repacked master: %w", err)
 	}
-	// LRU orders by the master image's mtime, so a repack must not look like a
-	// fresh use — that would let compaction protect a cold master from eviction
-	// ahead of one jobs are actually cloning.
-	_ = os.Chtimes(master, candidate.modTime, candidate.modTime)
+	_ = os.Chtimes(master, used, used)
 	return before - uint64(info.Size()), nil
+}
+
+// reserveRepack picks the master to repack and books the worst-case space its
+// repacked image can take, so a concurrent AllocateBranch cannot hand the same
+// bytes to a guest. Declines when the volume has no room for both, since a
+// repack that pushes a live branch into ENOSPC costs a running job.
+func (m *VolumeManager) reserveRepack() (entry masterEntry, size uint64, generation int, ok bool, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entry, size, generation, ok, err = m.mostBloatedMasterLocked()
+	if err != nil || !ok {
+		return masterEntry{}, 0, 0, false, err
+	}
+	free, err := m.backend.freeBytes(m.Root)
+	if err != nil {
+		return masterEntry{}, 0, 0, false, err
+	}
+	if free < m.capBytes()*uint64(m.liveBranches+m.repacksInFlight+1) {
+		return masterEntry{}, 0, 0, false, nil
+	}
+	m.repacksInFlight++
+	return entry, size, generation, true, nil
+}
+
+func (m *VolumeManager) releaseRepack() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.repacksInFlight > 0 {
+		m.repacksInFlight--
+	}
 }
 
 // LargestMasterBytes is the biggest master backing file on this host. Published
@@ -1204,13 +1255,10 @@ func (m *VolumeManager) LargestMasterBytes() (uint64, error) {
 	return largest, nil
 }
 
-// mostBloatedMaster returns the master with the largest backing file past the
-// compaction threshold, plus that size and its generation for the post-repack
-// re-check.
-func (m *VolumeManager) mostBloatedMaster() (entry masterEntry, size uint64, generation int, ok bool, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+// mostBloatedMasterLocked returns the master with the largest backing file past
+// the compaction threshold, plus that size and its generation for the
+// post-repack re-check. Caller holds mu.
+func (m *VolumeManager) mostBloatedMasterLocked() (entry masterEntry, size uint64, generation int, ok bool, err error) {
 	masters, err := m.allMastersLocked()
 	if err != nil {
 		return masterEntry{}, 0, 0, false, err
