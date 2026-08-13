@@ -3810,6 +3810,184 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    /// Builds a scheme whose test action contains `TargetA` (enabled) and `TargetB` (disabled),
+    /// both carrying a selective-testing hash. `makeTestAction` decides how the two testables are
+    /// attached so each test can pin a different branch of `testActionTargetReferences`.
+    private func givenSchemeWithSkippedTestable(
+        makeTestAction: (TestableTarget, TestableTarget) -> TestAction
+    ) throws -> AbsolutePath {
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let targetA = TestableTarget.test(
+            target: TargetReference(projectPath: projectPath, name: "TargetA")
+        )
+        let targetB = TestableTarget.test(
+            target: TargetReference(projectPath: projectPath, name: "TargetB"),
+            skipped: true
+        )
+        let scheme = Scheme.test(name: "TestScheme", testAction: makeTestAction(targetA, targetB))
+
+        let graph: Graph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
+                        .test(name: "TargetB", bundleId: "dev.tuist.TargetB"),
+                    ],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, environment) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        return projectPath
+    }
+
+    /// The disabled testable must be absent entirely — only `TargetA` may be reported, and it must
+    /// be reported as a miss rather than silently dropped along with the skipped one.
+    private func assertOnlyEnabledTargetReported(
+        projectPath: AbsolutePath,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss
+                    ),
+                ],
+            ],
+            file: file,
+            line: line
+        )
+    }
+
+    func test_run_test_plan_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: naming the plan exercises the named-plan branch.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testPlanConfiguration: TestPlanConfiguration(testPlan: "TestPlan")
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_run_default_test_plan_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: testing without naming a plan falls through to the default-plan branch, which is
+        // what plain `tuist test MyScheme` hits.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_build_scheme_with_test_plans_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/TestPlan")
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(
+                targets: [],
+                testPlans: [.init(path: testPlanPath, testTargets: [targetA, targetB], isDefault: true)]
+            )
+        }
+
+        // When: building without naming a plan exercises the branch that flattens every plan.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            action: .build
+        )
+
+        // Then: the scheme must still be built — dropping the skipped target must not drop the
+        // whole scheme, which is the failure mode this filter is meant to avoid.
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
+    func test_run_scheme_without_test_plans_does_not_report_skipped_targets_as_selective_testing_misses() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithSkippedTestable { targetA, targetB in
+            .test(targets: [targetA, targetB], testPlans: nil)
+        }
+
+        // When: a scheme with no test plans falls through to the test-action targets branch.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        await assertOnlyEnabledTargetReported(projectPath: projectPath)
+    }
+
     func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
         // Given
         givenGenerator()
@@ -6358,7 +6536,7 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_uses_non_overlapping_single_target_schemes_for_mixed_tests() async throws {
+    func run_uses_the_workspace_scheme_for_mixed_hosted_and_hostless_tests() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
@@ -6373,26 +6551,43 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "AppSnapshotTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(component: "result-AppSnapshotTests.xcresult"),
+                resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath
             ),
+        ])
+    }
+
+    /// A testable disabled in the workspace scheme drops out of scheme planning entirely. Here the
+    /// only hostless test target is the skipped one, so what remains is uniformly hosted, the
+    /// scheme no longer counts as mixed, and it is run whole instead of being split per target —
+    /// one invocation rather than two. Splitting on account of a target xcodebuild will not run
+    /// would only cost an extra invocation and result bundle.
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_ignores_skipped_testables_when_splitting_mixed_schemes() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scenario = SchemePlanningScenario(
+            rootDirectory: temporaryDirectory,
+            skipFeatureTestsInWorkspaceScheme: true
+        )
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+        let resultBundlePath = temporaryDirectory.appending(component: "result.xcresult")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath
+        )
+
+        #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "AppTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(component: "result-AppTests.xcresult"),
-                derivedDataPath: derivedDataPath
-            ),
-            CapturedTestRun(
-                scheme: "FeatureTests",
-                action: .test,
-                testTargets: [],
-                resultBundlePath: temporaryDirectory.appending(
-                    component: "result-FeatureTests.xcresult"
-                ),
+                resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath
             ),
         ])
@@ -6441,7 +6636,7 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "AppTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [],
                 resultBundlePath: nil,
@@ -6469,7 +6664,7 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_with_explicit_test_target_only_runs_its_matching_single_target_scheme() async throws {
+    func run_with_explicit_test_target_filters_the_workspace_scheme() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let passthroughDerivedDataPath = temporaryDirectory.appending(component: "PassedDerivedData")
@@ -6485,37 +6680,11 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "FeatureTests",
+                scheme: "Sample-Workspace",
                 action: .test,
                 testTargets: [try TestIdentifier(target: "FeatureTests")],
                 resultBundlePath: nil,
                 derivedDataPath: nil
-            ),
-        ])
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_uses_the_workspace_scheme_when_single_target_scheme_coverage_is_incomplete() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let scenario = SchemePlanningScenario(
-            rootDirectory: temporaryDirectory,
-            includeHostlessTargetWithoutScheme: true
-        )
-        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
-        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
-
-        try await fixture.run(
-            path: temporaryDirectory,
-            derivedDataPath: derivedDataPath
-        )
-
-        #expect(fixture.testRuns == [
-            CapturedTestRun(
-                scheme: "Sample-Workspace",
-                action: .test,
-                testTargets: [],
-                resultBundlePath: nil,
-                derivedDataPath: derivedDataPath
             ),
         ])
     }
@@ -6530,7 +6699,8 @@ private struct SchemePlanningScenario {
 
     init(
         rootDirectory: AbsolutePath,
-        includeHostlessTargetWithoutScheme: Bool = false
+        includeHostlessTargetWithoutScheme: Bool = false,
+        skipFeatureTestsInWorkspaceScheme: Bool = false
     ) {
         self.rootDirectory = rootDirectory
         let appProjectPath = rootDirectory.appending(component: "App")
@@ -6597,7 +6767,7 @@ private struct SchemePlanningScenario {
         var workspaceTestTargets: [TestableTarget] = [
             .test(target: appTestsReference),
             .test(target: appSnapshotTestsReference),
-            .test(target: featureTestsReference),
+            .test(target: featureTestsReference, skipped: skipFeatureTestsInWorkspaceScheme),
         ]
         if includeHostlessTargetWithoutScheme {
             workspaceTestTargets.append(.test(target: orphanTestsReference))
