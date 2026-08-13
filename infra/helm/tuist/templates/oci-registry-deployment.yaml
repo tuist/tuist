@@ -117,14 +117,16 @@ spec:
           # the registry answering to itself.
           readinessProbe:
             httpGet:
-              path: /v2/
+              path: {{ ternary "/healthz" "/v2/" .Values.ociRegistry.auth.enabled }}
               port: {{ ternary (int .Values.ociRegistry.auth.proxy.port) 5000 .Values.ociRegistry.auth.enabled }}
+              scheme: {{ ternary "HTTPS" "HTTP" (and .Values.ociRegistry.auth.enabled .Values.ociRegistry.tls.enabled) }}
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /v2/
+              path: {{ ternary "/healthz" "/v2/" .Values.ociRegistry.auth.enabled }}
               port: {{ ternary (int .Values.ociRegistry.auth.proxy.port) 5000 .Values.ociRegistry.auth.enabled }}
+              scheme: {{ ternary "HTTPS" "HTTP" (and .Values.ociRegistry.auth.enabled .Values.ociRegistry.tls.enabled) }}
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
@@ -146,13 +148,20 @@ spec:
             - name: registry-auth
               mountPath: /etc/nginx/registry-auth
               readOnly: true
+            {{- if .Values.ociRegistry.tls.enabled }}
+            - name: registry-tls
+              mountPath: /etc/nginx/registry-tls
+              readOnly: true
+            {{- end }}
           readinessProbe:
-            # Through the proxy, so a broken config or a missing
-            # htpasswd takes the Pod out of the Service rather than
-            # serving 500s. GET stays anonymous, so no credential here.
+            # The unauthenticated health path, since every registry path
+            # now needs a credential a probe cannot carry. It still
+            # proxies through to the registry, so a broken config or a
+            # dead backend takes the Pod out of the Service.
             httpGet:
-              path: /v2/
+              path: /healthz
               port: proxy
+              scheme: {{ ternary "HTTPS" "HTTP" .Values.ociRegistry.tls.enabled }}
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -170,10 +179,17 @@ spec:
             {{- else if .Values.ociRegistry.auth.existingSecret }}
             secretName: {{ .Values.ociRegistry.auth.existingSecret }}
             {{- else }}
-            {{- fail "ociRegistry.auth.enabled requires ociRegistry.externalSecret.enabled, or auth.existingSecret naming a Secret with an htpasswd key" }}
+            {{- fail "ociRegistry.auth.enabled requires ociRegistry.externalSecret.enabled, or auth.existingSecret naming a Secret with htpasswdReaders and htpasswdWriters keys" }}
             {{- end }}
             items:
-              - key: htpasswd
-                path: htpasswd
+              - key: htpasswdReaders
+                path: readers
+              - key: htpasswdWriters
+                path: writers
+        {{- if .Values.ociRegistry.tls.enabled }}
+        - name: registry-tls
+          secret:
+            secretName: {{ .Values.ociRegistry.tls.existingSecret | default (include "tuist.componentName" (dict "root" . "component" "oci-registry-tls")) }}
+        {{- end }}
       {{- end }}
 {{- end }}

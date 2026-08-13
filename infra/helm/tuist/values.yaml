@@ -2075,9 +2075,9 @@ ociRegistry:
     # credential on every host.
     enabled: false
     realm: "Tuist OCI registry"
-    # Operator-managed Secret with an `htpasswd` key, used when
-    # `externalSecret` below is off. With auth on and neither set, the
-    # chart fails to render.
+    # Operator-managed Secret with `htpasswdReaders` and `htpasswdWriters`
+    # keys, used when `externalSecret` below is off. With auth on and
+    # neither set, the chart fails to render.
     existingSecret: ""
     proxy:
       image:
@@ -2098,11 +2098,38 @@ ociRegistry:
   tailscale:
     # Expose the Service on the tailnet instead of a public ingress. Every
     # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
+    # Stays an L4 proxy: an HTTP one would impose a request-body limit
+    # that 512 MiB layer uploads would run into, and TLS terminates in
+    # the Pod rather than at the proxy anyway.
     enabled: false
     # Tailnet node name; the registry is reachable at
     # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
     hostname: ""
     tags: ""
+  tls:
+    # Serve HTTPS from the proxy. Off by default so a self-hoster on a
+    # trusted network isn't forced into certificate plumbing; on, clients
+    # no longer need `--insecure`, and credentials stop crossing the
+    # cluster network in the clear.
+    enabled: false
+    # The name clients connect to and the certificate is issued for. Must
+    # be a name we control — no public CA issues for `.ts.net`.
+    host: ""
+    certificate:
+      # Emit a cert-manager Certificate. Turn off to supply your own.
+      enabled: true
+      issuerRef:
+        name: letsencrypt-cloudflare
+        kind: ClusterIssuer
+    # Secret holding tls.crt/tls.key when `certificate.enabled` is false.
+    existingSecret: ""
+    dns:
+      # Publish `tls.host` as a CNAME onto the MagicDNS name via
+      # external-dns, so the record follows the node rather than pinning
+      # a tailnet address that changes when it is recreated.
+      enabled: false
+      # Tailnet domain, e.g. `example-tailnet.ts.net`.
+      tailnet: ""
   # Runtime secrets, from one 1P item via ESO. Carries `httpSecret`
   # always, and `htpasswd` when auth is on.
   externalSecret:
@@ -2115,8 +2142,10 @@ ociRegistry:
     fields:
       # Signs upload state; any stable random string.
       httpSecret: http_secret
-      # A full htpasswd line (`user:$2y$...`), not a bare password.
-      htpasswd: htpasswd
+      # Full htpasswd files (`user:$2y$...` lines), not bare passwords.
+      # Readers lists every account, writers only those allowed to push.
+      htpasswdReaders: htpasswd_readers
+      htpasswdWriters: htpasswd_writers
   # Used when `externalSecret` is off. Required either way: leaving the
   # registry to generate one per process breaks in-flight chunked uploads
   # across a restart, and across a rolling update even at one replica.

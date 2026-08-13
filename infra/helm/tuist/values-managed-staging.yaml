@@ -243,6 +243,17 @@ ociRegistry:
     enabled: true
     hostname: tuist-oci-staging
     tags: tag:tuist-k8s-staging
+  # 443 so image references carry no port: `oci-staging.tuist.dev/<repo>`.
+  # The reference is embedded in every pushed tag and chart pin, so the
+  # port is expensive to change later.
+  service:
+    port: 443
+  tls:
+    enabled: true
+    host: oci-staging.tuist.dev
+    dns:
+      enabled: true
+      tailnet: taild6d7bb.ts.net
 
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.

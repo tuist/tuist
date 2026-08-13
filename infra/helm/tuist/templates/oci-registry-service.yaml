@@ -18,6 +18,14 @@ metadata:
     {{- with .Values.ociRegistry.tailscale.tags }}
     tailscale.com/tags: {{ . | quote }}
     {{- end }}
+    {{- if and .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.dns.enabled }}
+    # A CNAME onto the MagicDNS name, not an A record: the tailnet
+    # address is reassigned when the node is recreated, and the name is
+    # not. It only resolves for tailnet members, so publishing it costs
+    # nothing and the certificate can be issued for a name we own.
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.ociRegistry.tls.host | quote }}
+    external-dns.alpha.kubernetes.io/target: {{ printf "%s.%s" .Values.ociRegistry.tailscale.hostname (required "ociRegistry.tls.dns.tailnet is required to build the CNAME target" .Values.ociRegistry.tls.dns.tailnet) | quote }}
+    {{- end }}
   {{- end }}
 spec:
   type: {{ .Values.ociRegistry.service.type }}
