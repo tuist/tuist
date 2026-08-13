@@ -161,7 +161,7 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | OpenTelemetry deployment environment. | Yes | No default | `config.telemetry.deploymentEnvironment` |
 | `KURA_SENTRY_DSN` | Sentry DSN for panic and error reporting. | No | Disabled | `extraEnv` or `extraEnvFrom` |
 | `KURA_GEOIP_REFRESH_INTERVAL_SECS` | Interval for refreshing the vendored GeoIP database. Set `0` to disable refreshes. | No | `86400` | `config.geoip.refreshIntervalSecs` |
-| `KURA_AUTH_ENABLED` | Requires callers to present a valid Tuist token. | No | Disabled | `auth.enabled` |
+| `KURA_AUTH_ENABLED` | Requires callers to present a valid Tuist token. Setting `KURA_AUTH_TUIST_URL` enables authorization on its own, and setting this to `false` does not turn it back off — unset the URL to run a node without authorization. | No | Disabled | `auth.enabled` |
 | `KURA_AUTH_TUIST_URL` | Tuist server the node authorizes against. Enables authorization on its own. | Required when authorization is enabled | No default | `auth.tuistUrl` |
 | `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | Connect timeout for calls to that server. | No | `500` | `extraEnv` |
 | `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` | Request timeout for calls to that server. | No | `1500` | `extraEnv` |

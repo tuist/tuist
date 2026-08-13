@@ -569,7 +569,10 @@ project being asked for — the node asks the server.
 Core env vars:
 
 - `KURA_AUTH_ENABLED=true`
-- `KURA_AUTH_TUIST_URL=https://tuist.dev`
+- `KURA_AUTH_TUIST_URL=https://tuist.dev` — setting this enables authorization on
+  its own, and `KURA_AUTH_ENABLED=false` does not override it; a node that knows
+  which server to authorize against does not stay open. Unset the URL to run
+  without authorization.
 - `KURA_AUTH_JWT_SECRET`, with optional `KURA_AUTH_JWT_ALGORITHM` (default
   `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which

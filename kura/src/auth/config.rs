@@ -7,6 +7,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use tracing::warn;
+
 use super::tuist::{IntrospectionCredentials, JwtVerifier};
 
 // Each setting is read from its current name first and its previous name
@@ -70,8 +72,22 @@ pub struct AuthConfig {
 
 impl AuthConfig {
     pub fn from_env() -> Result<Option<Self>, String> {
-        let enabled = env_truthy(ENABLED).unwrap_or(false) || env_value(TUIST_URL).is_some();
-        if !enabled {
+        // Being told which server to authorize against is itself the decision to
+        // authorize: a node that has one and stays open would serve the cache to
+        // anyone who can reach it. An explicit `false` does not override that,
+        // but it is not ignored quietly either — the managed chart always sets
+        // the URL, so an operator turning this off there would otherwise get
+        // authorization with nothing saying why.
+        let asked_to_disable = env_truthy(ENABLED) == Some(false);
+        let has_url = env_value(TUIST_URL).is_some();
+        if asked_to_disable && has_url {
+            warn!(
+                "{} is set false but {} is set; authorization stays on. Unset {} to run without it.",
+                ENABLED[0], TUIST_URL[0], TUIST_URL[0]
+            );
+        }
+
+        if !(env_truthy(ENABLED).unwrap_or(false) || has_url) {
             return Ok(None);
         }
 

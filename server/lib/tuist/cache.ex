@@ -86,7 +86,18 @@ defmodule Tuist.Cache do
   # for a claim in the thousands of bytes. This bounds both regardless.
   defp scope_grants(grants, nil), do: grants
 
-  defp scope_grants(grants, scope) do
+  # A blank scope is no scope. `?full_handle=` — an unset shell variable
+  # interpolated into a URL — would otherwise reach the clause below and filter
+  # every handle away, minting a well-formed token that grants nothing and
+  # failing on the cache node instead of here.
+  defp scope_grants(grants, scope) when is_binary(scope) do
+    case String.trim(scope) do
+      "" -> grants
+      trimmed -> scope_grants_to_project(grants, trimmed)
+    end
+  end
+
+  defp scope_grants_to_project(grants, scope) do
     project = String.downcase(scope)
 
     # The account buckets go empty rather than being filtered to the project's
