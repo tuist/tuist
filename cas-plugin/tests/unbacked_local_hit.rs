@@ -148,6 +148,95 @@ fn a_remote_hit_whose_blobs_are_gone_is_served_and_fails_at_load() {
     );
 }
 
+/// The write-through used to be an author of unbacked associations in its own
+/// right, with no prune involved: a resolve replies BEFORE materialisation
+/// finishes, so recording `key -> value` there named a graph that might never
+/// arrive -- and nothing can retract it. Reproduced on a real build over an EMPTY
+/// store, which ended it holding 9 dangling roots.
+///
+/// So the association is recorded only once the root is actually present.
+#[test]
+fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
+    let Some(env) = Fixture::new("write-through-ordering") else { return };
+    let key = env.cas.key_digest(b"write-through-ordering");
+    let never_materialized = env.absent_value_digest();
+    env.proxy.answer_resolve_with_hit(&never_materialized);
+
+    let (first, _) = env.cas.actioncache_get(&key);
+    assert_eq!(
+        first,
+        LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the resolved value is still served -- a remote hit arrives with fetch \
+         instructions for its whole graph, so the load path can produce it"
+    );
+    assert_eq!(env.proxy.resolves_for(&key), 1, "the first get reaches the remote");
+
+    // This proxy materialises nothing, so the graph never arrived.
+    let value_id = env.cas.objectid_for(&never_materialized);
+    assert_eq!(
+        env.cas.contains(value_id),
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "the value graph never materialised"
+    );
+
+    // Nothing was written for it. Probed by making the root present and asking
+    // again with the remote answering MISS: an association from the first get
+    // would answer SUCCESS with no further resolve. A second resolve is the proof
+    // that the store holds no record of this key.
+    let restored = env.cas.store_object(ABSENT_VALUE_CONTENT);
+    assert_eq!(
+        env.cas.digest_of(restored),
+        never_materialized,
+        "content addressing must reproduce the same digest for the same bytes"
+    );
+    env.proxy.answer_resolve_with_miss();
+
+    let (second, _) = env.cas.actioncache_get(&key);
+    assert_eq!(
+        second,
+        LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "no association was written, so the key falls through to the remote"
+    );
+    assert_eq!(
+        env.proxy.resolves_for(&key),
+        2,
+        "and it resolves again rather than answering from a record naming nothing"
+    );
+}
+
+/// The other half: the deferral must not stop associations being recorded at all,
+/// or every build would re-resolve every key. When the graph IS present at resolve
+/// time -- the warm snapshot path, where materialisation ran ahead of the build --
+/// the association is recorded and answers later gets with no round trip.
+#[test]
+fn a_resolve_hit_whose_graph_is_present_is_recorded() {
+    let Some(env) = Fixture::new("write-through-present") else { return };
+    let key = env.cas.key_digest(b"write-through-present");
+    // Already materialised locally, which is what the probe checks for.
+    let materialized = env.cas.digest_of(env.cas.store_object(b"a graph that landed"));
+    env.proxy.answer_resolve_with_hit(&materialized);
+
+    let (first, _) = env.cas.actioncache_get(&key);
+    assert_eq!(first, LLCAS_LOOKUP_RESULT_SUCCESS, "the remote hit is served");
+    assert_eq!(env.proxy.resolves_for(&key), 1);
+
+    env.proxy.answer_resolve_with_miss();
+    let (second, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        second,
+        LLCAS_LOOKUP_RESULT_SUCCESS,
+        "the association recorded during the first get answers this one"
+    );
+    assert_eq!(
+        env.proxy.resolves_for(&key),
+        1,
+        "and it costs no second resolve -- the local record is what makes warm \
+         builds cheap, so the deferral must not cost it when the graph is there"
+    );
+    assert_eq!(env.cas.digest_of(served), materialized);
+}
+
 /// The async entry point has its own upstream short-circuit that never reaches
 /// `actioncache_get_impl`, so guarding only the sync path would leave the lane
 /// the build system actually drives still broken.
@@ -392,6 +481,11 @@ fn probe_cost() {
 
 // --- Fixture -------------------------------------------------------------------
 
+/// The bytes behind `absent_value_digest`, named so a test can make that exact
+/// object present later: content addressing means storing them in any store of the
+/// same schema yields the same digest.
+const ABSENT_VALUE_CONTENT: &[u8] = b"a value that exists only somewhere else";
+
 /// A plugin CAS over a fresh store, wired to a scripted proxy, plus the
 /// throwaway store used to mint digests for objects the real store never holds.
 struct Fixture {
@@ -452,7 +546,7 @@ impl Fixture {
     fn absent_value_digest(&self) -> Vec<u8> {
         let elsewhere = TempDir::new("elsewhere");
         let other = PluginCas::open(elsewhere.path());
-        let id = other.store_object(b"a value that exists only somewhere else");
+        let id = other.store_object(ABSENT_VALUE_CONTENT);
         other.digest_of(id)
     }
 

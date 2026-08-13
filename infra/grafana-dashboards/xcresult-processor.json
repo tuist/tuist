@@ -37,7 +37,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "xcresult processors whose guest PromEx endpoint is answering, scraped over the tailnet as job `tuist-macos-pod-metrics` (one target per Mac mini in the macos fleet, created by the CAPI provider alongside the machine). This is the closest thing to a readiness signal the fleet has: tart-kubelet implements no container probes and reports PodReady as soon as the VM has an IP, so a guest whose release never started still reads 1/1 Running while this panel drops. Mac mini fleet is sized for one Pod per host (Apple's 2-VM SLA + per-Pod resource budget); production runs 2 hosts and so this should sit at 2 in steady state. Backs the `xcresult processor guest metrics unavailable` alerts.",
+        "description": "xcresult-processor Pods that are currently being scraped. These are only reachable through the `tuist-macos-pod-metrics` scrape job (tart-kubelet's host-side forwarder on :9091); the in-cluster Linux `tuist` job is the web fleet, which enqueues into :process_xcresult but never consumes it. Mac mini fleet is sized for one Pod per host (Apple's 2-VM SLA + per-Pod resource budget); production runs 2 hosts and so this should sit at 2 in steady state. Minis in the fleet without a Pod scheduled keep a target that stays down, so this counts up == 1 rather than the target list.",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "thresholds"},
@@ -68,7 +68,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "count(up{job=\"tuist-macos-pod-metrics\"} == 1)",
+            "expr": "count(up{job=~\"$job\"} == 1)",
             "instant": true,
             "refId": "A"
           }
@@ -78,7 +78,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Pending work in the :process_xcresult queue — sum of available + scheduled + retryable. Climbing under steady consumer count means a backlog.",
+        "description": "Pending work in the :process_xcresult queue — sum of available + scheduled + retryable. Climbing under steady consumer count means a backlog. Every PromEx-enabled pod polls the same oban_jobs table, so each state is deduped with max() before the states are summed; summing the raw series instead multiplies the backlog by the replica count.",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "thresholds"},
@@ -109,7 +109,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max(sum by (instance) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))",
+            "expr": "sum(max by (state) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))",
             "instant": false,
             "refId": "A"
           }
@@ -611,6 +611,31 @@
           "regex": "",
           "skipUrlSync": false,
           "type": "datasource"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "tuist-macos-pod-metrics",
+            "value": "tuist-macos-pod-metrics"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(up{job=~\".*macos-pod-metrics\"}, job)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "Job",
+          "multi": false,
+          "name": "job",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up{job=~\".*macos-pod-metrics\"}, job)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
         }
       ]
     },

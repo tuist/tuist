@@ -285,6 +285,11 @@ struct CasState {
     // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
+    // Resolve hits whose association was NOT recorded because the graph had not
+    // materialized yet. Not a degradation: the key resolves again next build and
+    // is recorded then. A count that stays high across builds means graphs are
+    // not landing at all, which is a materialization problem, not a cache one.
+    stats_deferred_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
     // above the local-replay floor due to fetching, as opposed to overheads.
@@ -549,6 +554,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_remote_misses: AtomicU64::new(0),
         stats_unbacked_local_hits: AtomicU64::new(0),
         stats_poisoned_puts: AtomicU64::new(0),
+        stats_deferred_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
         stats_client_store: OpStats::default(),
         stats_client_store_bytes: AtomicU64::new(0),
@@ -605,6 +611,15 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
             log_line(&format!(
                 "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
             ));
+        }
+        // Deliberately NOT part of `degraded:`. A deferral is the expected
+        // outcome whenever a resolve outruns its materialization, so a cold build
+        // defers routinely and reporting that as degradation would train the
+        // reader to ignore the line that does mean something. What matters is the
+        // trend across builds, not its presence in one.
+        let deferred = state.stats_deferred_puts.load(Ordering::Relaxed);
+        if deferred > 0 {
+            log_line(&format!("deferred_puts={deferred}"));
         }
         // Ingestion counters, logged whether or not this build reached the
         // proxy, so a floor build produces the same accounting as a warm one.
@@ -1061,24 +1076,36 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // The local association outlives the value graph (the build
-            // system prunes the store several times per build), so a later
-            // get can hit it locally with the objects gone. That is safe
-            // ONLY because the load path self-heals: a local load miss
-            // consults the proxy (FETCH_OBJECT), whose fetch instructions
-            // are retained after materialization and also cover locally
-            // published nodes — clang fails the build outright on a
-            // missing object, it does not recompile.
-            let mut put_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                // Reachable BECAUSE of the verification: a stale association sends
-                // its key here and the remote may answer a different digest, which
-                // the store then refuses to cache. The resolve itself succeeded, so
-                // failing would trade `missing object` for `cache poisoned`.
-                let message = take_upstream_error(state.up, put_error);
-                if adopt_put_failure(state, &message, error) {
-                    return LLCAS_LOOKUP_RESULT_ERROR;
+            // Record the association ONLY once the graph it names is actually
+            // here. A resolve replies before materialization finishes (protocol
+            // v2 is non-blocking on purpose — this runs on the serial task-setup
+            // path), so putting unconditionally writes `key -> value` for a graph
+            // that may never arrive, and NOTHING can retract it: the ABI has no
+            // delete and a re-put with a different value is refused. That made
+            // this function an author of the very state `verified_local_get`
+            // exists to catch, with no prune involved — measured on a real build
+            // over an EMPTY store, which ended it holding 9 dangling roots.
+            //
+            // Skipping costs one extra resolve for this key, ONCE: the
+            // materialized root persists on disk, so the next build's resolve
+            // finds it present and records the association then. On the warm
+            // snapshot path the graph is already materialized, the probe passes,
+            // and nothing changes. The same ROOT-only probe as the read guard —
+            // an interior node still needs the load path's FETCH_OBJECT.
+            if value_graph_is_available(state, value_id) {
+                let mut put_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                    // Reachable BECAUSE of the verification: a stale association sends
+                    // its key here and the remote may answer a different digest, which
+                    // the store then refuses to cache. The resolve itself succeeded, so
+                    // failing would trade `missing object` for `cache poisoned`.
+                    let message = take_upstream_error(state.up, put_error);
+                    if adopt_put_failure(state, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
                 }
+            } else {
+                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
             }
             if !p_value.is_null() {
                 *p_value = value_id;
@@ -1117,11 +1144,15 @@ unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) ->
 /// The upstream local lookup, with a hit verified before it is served.
 ///
 /// A local association does NOT imply its value graph is present — a prune can
-/// strand it, and our own write-through records it before the graph materializes —
-/// and nothing can retract it once it dangles (the ABI has no delete; a re-put with
-/// a different value is refused). Serving one hands the compiler an id that names
-/// nothing, permanently, because the local hit is what shadows the remote on every
-/// later get. Full account in AGENTS.md; tuist/tuist#12245.
+/// strand it — and nothing can retract it once it dangles (the ABI has no delete;
+/// a re-put with a different value is refused). Serving one hands the compiler an
+/// id that names nothing, permanently, because the local hit is what shadows the
+/// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
+///
+/// The write-side invariants keep this guard from being the only defense: an
+/// association is recorded only once its root is present, and materialization
+/// publishes a root only over a complete closure. This still runs, because a
+/// prune remains an author no writer controls.
 ///
 /// So an unverifiable hit is reported as NOTFOUND and the caller's remote path
 /// takes over, which is also what repairs it.
