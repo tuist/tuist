@@ -99,6 +99,31 @@ defmodule Tuist.CacheTest do
   end
 
   describe "issue_cache_token/2" do
+    # `?full_handle=` reaches here as an empty string when a shell variable is
+    # unset. Filtering by it would mint a token granting nothing, which fails on
+    # the cache node with nothing pointing back at the exchange.
+    test "treats a blank scope as no scope" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "blank-scope-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, _token, claims} = Cache.issue_cache_token(user, scope: "")
+
+      assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
+    end
+
+    test "treats a whitespace-only scope as no scope" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "ws-scope-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, _token, claims} = Cache.issue_cache_token(user, scope: "   ")
+
+      assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
+    end
+
     test "carries the grants for the project the credential reaches" do
       # Given
       project = ProjectsFixtures.project_fixture(preload: [:account])
