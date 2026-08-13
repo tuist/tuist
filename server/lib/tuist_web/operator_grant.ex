@@ -22,6 +22,11 @@ defmodule TuistWeb.OperatorGrant do
     * `load_operator_grant/2` + `on_mount(:load, …)` — attach the
       session grant for the current `account_handle` onto
       `current_user.operator_grant` (controller and LiveView paths).
+    * `accept_operator_grant_header/2` — the same handoff for surfaces
+      with no cookie session: a plug in `:mcp` that takes the grant from
+      the `x-tuist-operator-grant` header, verifies it, pins the account,
+      and attaches it for this request only. Nothing is stored, so the
+      caller presents the grant on every call.
     * `redirect_to_ops_if_operator/2` — a plug that bounces a
       non-member operator with no grant to the reason form instead of
       404ing them.
@@ -37,7 +42,7 @@ defmodule TuistWeb.OperatorGrant do
   call.
   """
 
-  import Phoenix.Controller, only: [redirect: 2, current_url: 1]
+  import Phoenix.Controller, only: [redirect: 2, current_url: 1, json: 2]
   import Plug.Conn
 
   alias Tuist.Accounts
@@ -57,6 +62,7 @@ defmodule TuistWeb.OperatorGrant do
   # validation). Reject anything else so a `%`/`_` in the grant can't be
   # resolved as a SQL LIKE wildcard by `get_account_by_handle/1`.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
+  @grant_header "x-tuist-operator-grant"
 
   # --- verification ------------------------------------------------------
 
@@ -315,6 +321,66 @@ defmodule TuistWeb.OperatorGrant do
       |> URI.encode_query()
 
     if query == "", do: conn.request_path, else: conn.request_path <> "?" <> query
+  end
+
+  # --- handoff plug (runs in :mcp) ---------------------------------------
+
+  @doc """
+  Honour a grant presented in the `#{@grant_header}` header, for surfaces
+  authenticated by a token rather than a cookie.
+
+  The browser handoff stores the grant in the session because a person clicks
+  through many pages after justifying access once. A token-authenticated caller
+  has nowhere to keep it, so the grant is attached for this request only and
+  presented again on the next one — which also means it cannot outlive its `exp`
+  in a cookie.
+
+  A header that is present but not honoured fails the request rather than
+  falling through unauthenticated. The browser flow strips the token and carries
+  on because a person will see the page they landed on and can retry; an agent
+  would instead see a bare "you do not have access" and have no way to tell a
+  rejected grant from a missing one.
+  """
+  def accept_operator_grant_header(conn, _opts) do
+    case get_req_header(conn, @grant_header) do
+      [token | _] when is_binary(token) and token != "" -> attach_header_grant(conn, token)
+      _ -> conn
+    end
+  end
+
+  defp attach_header_grant(conn, token) do
+    with {:ok, claims} <- verify(token),
+         %User{} = user <- conn.assigns[:current_user],
+         :ok <- check_header_subject_is_operator(user, claims),
+         %{id: account_id} <- Accounts.get_account_by_handle(claims.account_handle) do
+      log_grant_context(claims)
+      assign(conn, :current_user, %{user | operator_grant: session_grant(claims, account_id)})
+    else
+      _ ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "operator_grant_rejected"})
+        |> halt()
+    end
+  end
+
+  # Same bearer-token reasoning as the browser handoff: honour the grant only
+  # for the confirmed operator named in `sub`.
+  #
+  # The browser additionally requires that this session authenticated through
+  # Google (`auth_method == :google`), a signal that has no equivalent without a
+  # session. What it protects is *how the session was established*, not who the
+  # person is: `tuist_operator?/1` independently verifies Google Workspace
+  # membership on tuist-hosted, so a grant still cannot be carried by anyone
+  # outside the workspace. An access token minted for a workspace member through
+  # a non-Google login is the case this cannot distinguish.
+  defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
+    if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
+      :ok
+    else
+      Logger.warning("operator grant rejected: subject does not match the authenticated user")
+      {:error, :subject_mismatch}
+    end
   end
 
   # --- grant loading (controller + LiveView) -----------------------------

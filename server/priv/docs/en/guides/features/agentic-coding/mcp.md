@@ -30,6 +30,8 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
+Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's project are not members of it, so they additionally present an operator grant minted at `ops.tuist.dev` in an `x-tuist-operator-grant` header. The grant is verified on every request, honoured only for the operator it was minted for, and scoped to the single account it names — nothing is stored between requests, so it is sent with each call and cannot outlive its expiry. A header carrying a grant that is not honoured fails the request with `operator_grant_rejected` rather than falling back to unprivileged access.
+
 <details>
 <summary>Claude Code</summary>
 
