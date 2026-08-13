@@ -536,7 +536,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       # Signed rather than checked for existence, so the caller pays no storage
       # round trip for metrics they may only want the numbers from.
       stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
-        assert Keyword.fetch!(opts, :expires_in) == 3600
+        assert Keyword.fetch!(opts, :expires_in) == 900
         "https://storage.test/#{object_key}"
       end)
 

@@ -117,7 +117,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       # Signed rather than checked for existence, so the caller pays no storage
       # round trip for build details they may only want the metadata from.
       stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
-        assert Keyword.fetch!(opts, :expires_in) == 3600
+        assert Keyword.fetch!(opts, :expires_in) == 900
         "https://storage.test/#{object_key}"
       end)
 

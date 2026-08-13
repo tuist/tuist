@@ -62,13 +62,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
 
-  # Matches the window `list_test_case_run_attachments` hands out.
-  @artifact_url_expires_in 3600
+  # Shorter than the hour `list_test_case_run_attachments` hands out: these URLs
+  # ride along with metadata the caller may only have wanted the numbers from,
+  # so they land in transcripts unasked-for and should stop working sooner.
+  @artifact_url_expires_in 900
 
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed metrics for a specific test run, including temporary download URLs (valid for 1 hour) for its " <>
+      "Get detailed metrics for a specific test run, including temporary download URLs (valid for 15 minutes) for its " <>
         "result bundle — the .xcresult holding the failure details, attachments and timings Xcode recorded — and " <>
         "its session archive. Those URLs are presigned and not checked for existence: a run whose artifacts were " <>
         "never uploaded, or have since been pruned, answers 404 on download."

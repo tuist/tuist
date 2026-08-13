@@ -66,13 +66,15 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Storage
 
-  # Matches the window `list_test_case_run_attachments` hands out.
-  @archive_url_expires_in 3600
+  # Shorter than the hour `list_test_case_run_attachments` hands out: this URL
+  # rides along with build details the caller may only have wanted the metadata
+  # from, so it lands in transcripts unasked-for and should stop working sooner.
+  @archive_url_expires_in 900
 
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific build run, including a temporary download URL (valid for 1 hour) " <>
+      "Get detailed information about a specific build run, including a temporary download URL (valid for 15 minutes) " <>
         "for the archive it was processed from — a zip holding the raw .xcactivitylog, CAS metadata and machine " <>
         "metrics — for when the processed targets, files and issues are not enough. That URL is presigned and not " <>
         "checked for existence: a build whose archive was never uploaded, or has since been pruned, answers 404 on " <>
