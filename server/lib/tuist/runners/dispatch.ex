@@ -372,9 +372,15 @@ defmodule Tuist.Runners.Dispatch do
                 conclusion
               )
 
-            ignored ->
-              ignored
+            other ->
+              other
           end
+
+        # Any other failure of the completion write (a rolled-back
+        # transaction, an ordering lock we could not take) is transient, so
+        # the reason goes back to the worker for a retry.
+        {:error, reason} ->
+          {:error, reason}
       end
     end)
   end
@@ -417,6 +423,9 @@ defmodule Tuist.Runners.Dispatch do
     else
       {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
         {:ignored, reason}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

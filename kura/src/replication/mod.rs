@@ -254,24 +254,19 @@ async fn outbox_task_loop(state: SharedState) {
         let notified = state.notify.notified();
         tokio::pin!(notified);
 
-        // Replication delivery runs at every pressure tier, and regardless of
-        // the container hard-limit arm. It is not sheddable background work:
-        // the outbox is depth-capped (`KURA_OUTBOX_MAX_DEPTH`) and
-        // `reserve_outbox_slots` fails a cache write once that cap is reached,
-        // so a paused drain does not defer work — it strands the queue and
-        // ends up rejecting writes.
-        //
-        // The state that actually walks into the cap is
-        // `container_at_hard_limit() && pressure() != Critical`, which
-        // `container_at_hard_limit`'s own comment describes as routine for a
-        // warm serving node: writes keep being admitted while the old gate
-        // held the drain, because both write gates test only
-        // `pressure() == Critical` and test it *before* outbox depth
-        // (`http::reject_overloaded_public_writes`,
-        // `reapi::admission::reject_overloaded_grpc_writes`). At Critical
-        // those gates already refuse writes at the door, so the outbox is
-        // frozen rather than growing — pausing there stranded whatever was
-        // queued and bought nothing.
+        // Replication delivery runs at every pressure tier. It is not
+        // sheddable background work: the outbox is depth-capped
+        // (`KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
+        // write once that cap is reached, so a paused drain does not defer
+        // work — it strands the queue and ends up rejecting writes. Both
+        // write gates test only `pressure() == Critical` and test it *before*
+        // outbox depth (`http::reject_overloaded_public_writes`,
+        // `reapi::admission::reject_overloaded_grpc_writes`), so any pause
+        // below Critical would hold the drain while writes keep arriving,
+        // walking the queue straight into the cap; at Critical those gates
+        // already refuse writes at the door, so the outbox is frozen rather
+        // than growing — pausing there would strand whatever was queued and
+        // buy nothing.
         //
         // The memory a pause could reclaim does not justify either case. The
         // loop is serial and node-wide, so exactly one delivery is in flight
@@ -1027,32 +1022,39 @@ pub(crate) async fn stream_response_to_temp(
                 .write_all(&chunk)
                 .await
                 .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
-            if total.saturating_sub(advised_through) >= BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES
-                && !state.memory.allow_background_admission()
-            {
-                let file = destination
-                    .take()
-                    .expect("bootstrap destination remains open while streaming");
-                destination = match state
-                    .io
-                    .sync_drop_cache_and_reopen_append(
-                        file,
-                        path,
-                        advised_through,
-                        total - advised_through,
-                    )
-                    .await
-                {
-                    Ok(file) => Some(file),
-                    Err(error) => {
-                        state
-                            .metrics
-                            .record_memory_action("bootstrap_file_cache_drop_failed");
-                        warn!("failed to release bootstrap file cache: {error}");
-                        return Err(error);
-                    }
-                };
-                advised_through = total;
+            if total.saturating_sub(advised_through) >= BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES {
+                // Drop-behind follows the cache-reclaim serving mode (raw
+                // charge / working set), while the park follows admission
+                // (the pressure tier). They were one predicate when both
+                // keyed on the raw charge; keeping them fused would stop
+                // dropping staged page cache on exactly the charge-full warm
+                // nodes the mode exists for, now that admission no longer
+                // closes there.
+                if state.memory.should_reclaim_file_cache() {
+                    let file = destination
+                        .take()
+                        .expect("bootstrap destination remains open while streaming");
+                    destination = match state
+                        .io
+                        .sync_drop_cache_and_reopen_append(
+                            file,
+                            path,
+                            advised_through,
+                            total - advised_through,
+                        )
+                        .await
+                    {
+                        Ok(file) => Some(file),
+                        Err(error) => {
+                            state
+                                .metrics
+                                .record_memory_action("bootstrap_file_cache_drop_failed");
+                            warn!("failed to release bootstrap file cache: {error}");
+                            return Err(error);
+                        }
+                    };
+                    advised_through = total;
+                }
                 state.memory.wait_for_background_headroom().await;
             }
         }

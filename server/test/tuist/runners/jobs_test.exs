@@ -80,6 +80,29 @@ defmodule Tuist.Runners.JobsTest do
     :ok
   end
 
+  describe "with_workflow_job_ordering_lock/2" do
+    test "aborts the caller's transaction instead of handing the failure back as a value" do
+      test_pid = self()
+
+      result =
+        Repo.transaction(fn ->
+          Jobs.with_workflow_job_ordering_lock(8_100_001, fn -> Repo.rollback(:lock_failed) end)
+          send(test_pid, :ran_after_lock)
+          :done
+        end)
+
+      assert result == {:error, :lock_failed}
+      refute_received :ran_after_lock
+    end
+
+    test "returns the function's value when called inside an existing transaction" do
+      assert {:ok, :from_fun} =
+               Repo.transaction(fn ->
+                 Jobs.with_workflow_job_ordering_lock(8_100_002, fn -> :from_fun end)
+               end)
+    end
+  end
+
   describe "enqueue/1" do
     test "inserts a queued row" do
       account = account_fixture()

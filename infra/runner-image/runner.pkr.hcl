@@ -59,14 +59,25 @@ packer {
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
-# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
-# with a `/Users/runner` symlink to `/Users/admin` plus a configured
-# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
-# a real `runner` user that *also* points at `/Users/runner` —
-# sysadminctl can't overwrite the existing path, so it assigns a
-# fresh UID against the symlinked home. Both users end up sharing
-# `.zprofile`, which is how the runner's login shell sees the
-# brew-installed tools from the base.
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
+# user and a `/Users/runner` placeholder. Our flow wipes that
+# placeholder and creates a real `runner` user with a home of its
+# own (see the addUser provisioner below), so `admin` and `runner`
+# are distinct accounts with distinct homes — the account that
+# builds the image is not the account that runs jobs.
+#
+# That split is the thing to keep in mind when changing this file.
+# Anything the base set up under `admin` is not automatically
+# usable by `runner`: the Homebrew prefix has to be handed over
+# explicitly, `~/.zprofile` has to be copied into the new home
+# (see the two provisioners below), and the sanity checks at the
+# end assert against `runner`, never `admin`.
+#
+# Those checks run as `sudo -u runner -H`. The `-H` is load-
+# bearing: macOS sudoers carries `env_keep += "HOME"`, so a plain
+# `sudo -u runner` leaves `HOME=/Users/admin` and the checks
+# silently exercise `admin`'s login shell and `admin`'s caches
+# while appearing to test the runtime account.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -187,6 +198,57 @@ build {
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  # Hand the Homebrew prefix to `runner`. The base images install
+  # brew and its formulae as `admin`, so the prefix ends up owned
+  # by an account that never runs jobs — `brew install <formula>`
+  # from a workflow step then fails the writability audit with
+  # "/opt/homebrew is not writable" across ~16 directories.
+  #
+  # GitHub-hosted macOS images build and run under a single
+  # account, so the job user owns the prefix and unprivileged
+  # `brew install` just works. Customer workflows assume that.
+  # Reachability was never the problem (the login shell resolves
+  # `brew` fine, and the sanity check below has always covered
+  # it) — ownership was.
+  #
+  # This belongs here and not in macos-xcode-image: that base is
+  # shared with xcresult-processor, which keeps running as `admin`
+  # and drives brew-installed binaries itself (`sudo
+  # /opt/homebrew/bin/tailscaled install-system-daemon`). Chowning
+  # in the shared layer would fix this image and break that one.
+  #
+  # `runner:admin` matches Homebrew's own default ownership on
+  # macOS rather than inventing a scheme.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S chown -R runner:admin /opt/homebrew"
+    ]
+  }
+
+  # Hand the login-shell environment to `runner`. The cirruslabs
+  # base builds `~/.zprofile` for `admin` (Homebrew shellenv,
+  # rbenv init, LANG=en_US.UTF-8, node@24 on PATH) and symlinks
+  # `/Users/runner` at `/Users/admin`, so its runner user reads
+  # the same file. Wiping that symlink above gives `runner` a home
+  # created from macOS's user template, which carries no
+  # `.zprofile` at all — every login shell on this image (the
+  # LaunchAgent entrypoint, and therefore every workflow step
+  # shell that inherits its environment) would resolve none of the
+  # base's tooling.
+  #
+  # Copy rather than symlink back into admin's home: the accounts
+  # are separate here (see the header), and a job appending to its
+  # own `~/.zprofile` must not rewrite the provisioning user's.
+  # The file's contents are $HOME-independent, so the copy behaves
+  # identically under the new owner.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S install -m 0644 -o runner -g staff /Users/admin/.zprofile /Users/runner/.zprofile"
     ]
   }
 
@@ -389,9 +451,11 @@ build {
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
-  # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
-  # PATH additions for the macos-tahoe-xcode base's pre-installed
-  # tools). A future base-image bump that moves Homebrew's prefix
+  # the ~/.zprofile copied into the runner's home above is sourced
+  # (Homebrew shellenv, rbenv init, PATH additions for the
+  # macos-tahoe-xcode base's pre-installed tools) — which is why
+  # these run with `-H` and not against `admin`'s copy of the same
+  # file. A future base-image bump that moves Homebrew's prefix
   # or drops a formula would silently make tools unreachable from
   # step shells; resolve each tool against the same login-shell
   # environment so image-build CI fails loudly instead of customer
@@ -404,8 +468,31 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
-      "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+    ]
+  }
+
+  # Sanity check: `brew` being on PATH says nothing about whether a
+  # workflow step can install with it. The check above passed for
+  # months while every `brew install` on this image failed on prefix
+  # ownership, so assert the operation rather than the binary.
+  # `hello` is Homebrew's own smoke-test formula: no dependencies,
+  # installs in seconds, and uninstalling leaves the image clean.
+  #
+  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
+  # critical path — it would otherwise re-fetch every tap and make
+  # image builds fail on transient GitHub blips. The chown is
+  # recursive, so tap writability moves with the prefix; what's
+  # actually at risk of regressing, and what this exercises, is
+  # writing into Cellar and the lock/var dirs. `brew` also writes
+  # its download and bootsnap caches under `$HOME`, which is the
+  # other half of why these run with `-H`.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
     ]
   }
 }

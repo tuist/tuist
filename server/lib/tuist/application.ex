@@ -399,11 +399,12 @@ defmodule Tuist.Application do
     )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
-    # may not exist) and dev (noisy debug logs every 5 s).
+    # may not exist) and dev (noisy debug logs every 5 s), and outside web
+    # mode — see `RuntimeChildren.marketing_stats/1`.
     |> Kernel.++(
       if Environment.test?() or Environment.dev?(),
         do: [],
-        else: [Tuist.Marketing.Stats]
+        else: RuntimeChildren.marketing_stats(Environment.mode())
     )
   end
 
@@ -422,14 +423,12 @@ defmodule Tuist.Application do
   # Runtime Open Graph image rendering (headless-browser pool + its task
   # supervisor) backs the marketing/docs site, which only the hosted service
   # serves. The pool eagerly warms Chrome instances that each hold a temporary
-  # user-data directory, so it is started only when hosted; everywhere else
+  # user-data directory, so it is started only when hosted, and only in web
+  # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
   # render/2 falls back to libvips.
   defp open_graph_image_children do
     if Environment.tuist_hosted?() do
-      [
-        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
-        Tuist.OpenGraphImageRenderer
-      ]
+      RuntimeChildren.open_graph_image_renderer(Environment.mode())
     else
       []
     end

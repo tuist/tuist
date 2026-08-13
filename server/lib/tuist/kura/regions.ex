@@ -65,6 +65,49 @@ defmodule Tuist.Kura.Regions do
   # ceiling does the real sharing. Bump as real per-tenant usage data lands. The
   # default bursty tenant reserves nothing (best-effort under the burst ceiling).
   @enterprise_egress_floor_mbps 25
+  # Memory profile for a cache instance, as (floor, ceiling) in MiB. The floor
+  # is the pod's requests.memory: a standing reservation the scheduler bin-packs
+  # against node allocatable, and the pod's unreclaimable cgroup memory.min once
+  # the kubelet runs with MemoryQoS. The ceiling is the pod's limits.memory,
+  # which is what Kura sizes every admission pool from at startup, so it sets
+  # how large a client burst the instance absorbs before it sheds.
+  #
+  # Ceilings exceed floors on purpose: the pools are semaphores rather than
+  # allocations, so headroom is only consumed under load, and cache instances
+  # are idle most of the time. That makes the sum of ceilings on a box exceed
+  # its memory, which the tuist.dev/memory-ceiling-mib bin-pack bounds.
+  #
+  # The standard floor is sized from the measured idle footprint of a
+  # non-enterprise instance with margin, not from its peak — over-reserving here
+  # is what exhausts a box's schedulable memory and caps how many tenants fit.
+  #
+  # Both tiers sit well above a 2x ceiling-to-floor ratio, which is the point
+  # where the tuist.dev/memory-ceiling-mib bin-pack overtakes the native
+  # requests.memory pack and becomes the constraint that decides how many
+  # instances fit on a box. Floors below that ratio buy reclaimable headroom and
+  # kernel protection sized to real use, not extra tenants.
+  #
+  # Floors are standing reservations, not burst sizes, so they are set from the
+  # 14-day peak working set of the instances on each plan rather than from what
+  # those instances might one day want. An instance that runs hot spends its time
+  # above its floor, which is the intended shape — memory above the floor is
+  # best-effort and reclaimed from whoever is furthest above their own.
+  #
+  # Ceilings are what Kura sizes its admission pools from, so they set how large
+  # a burst an instance absorbs before it sheds. Each is kept clear of the
+  # measured peak by more than the pressure machine's 0.9x recovery hysteresis,
+  # or one burst that trips shedding stays shedding for its whole duration.
+  #
+  # Measured peaks: enterprise instances run at whatever ceiling they are given
+  # (1900-2025 MiB against the current 2Gi), the busiest pro instance reaches
+  # ~1220 MiB, and air instances sit at ~150 MiB.
+  @enterprise_memory_floor_mib 1024
+  @enterprise_memory_ceiling_mib 4096
+  @pro_memory_floor_mib 512
+  @pro_memory_ceiling_mib 3072
+  # Air, and the fallback for any plan without its own profile.
+  @standard_memory_floor_mib 256
+  @standard_memory_ceiling_mib 768
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -286,6 +329,47 @@ defmodule Tuist.Kura.Regions do
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
 
+  @doc """
+  The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
+
+  Every plan gets a profile, so this is a sizing decision rather than a feature
+  grant. `:enterprise` and `:pro` have their own; every other plan, `:air`
+  included, takes the smallest. Unknown plans fall there too, which is the safe
+  side on a shared box.
+  """
+  def memory_profile(:enterprise),
+    do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @enterprise_memory_ceiling_mib}
+
+  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
+
+  def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+
+  @doc """
+  True iff the region sizes its instances per tier rather than taking the
+  controller's default memory profile.
+
+  The shared bare-metal boxes do, because packing density is what constrains
+  them. Elsewhere the default applies and no plan has to be resolved to render a
+  manifest.
+  """
+  def memory_governed?(%__MODULE__{provisioner_config: config}), do: config[:memory_governed] == true
+
+  def memory_governed?(_), do: false
+
+  @doc """
+  True iff the region's nodes advertise a `tuist.dev/memory-ceiling-mib` budget,
+  so its instances can bin-pack their memory ceilings against it.
+
+  Deliberately separate from `memory_governed?/1`: the profile is a property of
+  the account, while the budget is a property of the node pool, and only the
+  pools the CAPI provider patches have one. Requesting the extended resource
+  before a pool advertises it leaves every cache pod Pending, so this stays off
+  until the provider that supplies the capacity has rolled.
+  """
+  def memory_ceiling_bin_packed?(%__MODULE__{provisioner_config: config}), do: config[:memory_ceiling_bin_packed] == true
+
+  def memory_ceiling_bin_packed?(_), do: false
+
   @doc "True iff the region remains in the catalog only to clean up stored resources."
   def retired?(%__MODULE__{retired: retired}), do: retired
   def retired?(_), do: false
@@ -430,6 +514,17 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        # Packing density is what constrains the shared bare-metal boxes, so
+        # their instances are sized per tier rather than taking the controller
+        # default, and their ceilings are bin-packed against the node budget the
+        # CAPI provider advertises. Per-tier sizing rides with the kubelet's
+        # MemoryQoS gate rather than landing ahead of it: a tiered floor sits
+        # far below its ceiling, so it is only a scheduling promise until the
+        # kernel enforces it as memory.min. The private runner-cache pool runs
+        # on Elastic Metal, which the provider does not patch, so it takes the
+        # controller default and stays off the bin-pack.
+        memory_governed: true,
+        memory_ceiling_bin_packed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true

@@ -74,12 +74,17 @@ pdcAgent:
     # per-env vault the ClusterSecretStore is bound to.
     item: PDC_AGENT
     tokenField: password
-  # Mirrors upstream's manifest: the agent is a single tunnel process, not a
-  # throughput-scaled workload.
+  # The agent is a single ssh tunnel process, not a throughput-scaled
+  # workload: measured steady state is ~10Mi and ~1m across every env.
+  # Upstream's manifest requests 1 CPU + 1Gi, which the scheduler reserves
+  # in full — on the two-worker canary pool that is a seventh of the node's
+  # memory and a quarter of its CPU held for an idle tunnel, and it is what
+  # left rolling updates without the headroom to place a surge Pod. Requests
+  # track the measured working set; the 1Gi limit stays as the burst ceiling.
   resources:
     requests:
-      cpu: "1"
-      memory: 1Gi
+      cpu: 50m
+      memory: 64Mi
     limits:
       memory: 1Gi
 
@@ -1407,6 +1412,16 @@ macosFleet:
   vmCachePrivateNetwork:
     name: ""
     cidr: ""
+  # Extra IPv4 CIDRs allowed to reach :22 on each Mac mini. The tailnet
+  # and loopback are always allowed; everything else is dropped by a pf
+  # anchor, keeping internet SSH scan traffic from exhausting launchd's
+  # ssh listen backlog (which blocks the public and tailnet paths at
+  # once, since that socket binds *:22). Set this to the operator's SSH
+  # egress address to keep the public-IP dial path working, the only one
+  # that can update Tailscale itself; without it the drift loop still
+  # converges over the tailnet fallback. Ignored when Tailscale isn't
+  # wired, since the guard needs a second path to be safe.
+  sshIngressAllowCIDRs: []
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the

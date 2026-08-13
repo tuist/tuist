@@ -213,6 +213,12 @@ jobs:
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
@@ -223,9 +229,13 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "--locked java gradle 1password-cli"
+          install_args: "--locked java gradle 1password-cli tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Authenticate with Tuist
+        working-directory: android
+        run: tuist auth login
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4

@@ -502,10 +502,14 @@ defmodule Tuist.CommandEvents do
   end
 
   # Multiple rows may share the same build_run_id because the ID is derived
-  # from the `.xcactivitylog`. In a split test run, the test execution event
+  # from the `.xcactivitylog`. In a split test run, every test execution event
   # intentionally reuses the build phase's ID to link its test report to the
   # build. Prefer the event without a test run so build details retain the
-  # command that produced the build.
+  # command that produced the build, then fall back to the earliest event:
+  # whichever command produced the activity log necessarily ran before anything
+  # that reuses its ID. The fallback carries the decision on its own whenever
+  # `test_run_id` is absent, which is the case for a test execution whose
+  # xcresult upload never completed.
   #
   # Pass `project_id:` when known so the lookup hits the
   # `(project_id, name, ran_at)` primary key instead of relying solely on
@@ -516,7 +520,7 @@ defmodule Tuist.CommandEvents do
     Event
     |> scope_to_project(project_id)
     |> where([e], e.build_run_id == ^build_run_id)
-    |> order_by([e], desc: is_nil(e.test_run_id), desc: e.ran_at, desc: e.created_at)
+    |> order_by([e], desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at)
     |> limit(1)
     |> ClickHouseRepo.one()
     |> case do
