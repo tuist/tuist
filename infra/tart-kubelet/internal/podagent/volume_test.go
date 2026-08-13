@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,31 @@ type fakeBackend struct {
 	notMounted bool
 	// mountErr, when set, is returned from isMounted to model a stat failure.
 	mountErr error
+	// repacks counts repackImage calls so a test can assert compaction did not
+	// run at all, not merely that it reclaimed nothing.
+	repacks int
+	// onRepack, when set, runs during repackImage — the injection point for
+	// modelling a promote or converge that lands while a repack is in flight.
+	onRepack func()
+}
+
+// repackImage models the real repack: the live cache is rewritten into a fresh
+// image, so whatever slack the old backing file had accumulated is gone. Tests
+// bloat a master by appending NUL padding (see bloatMaster); stripping it here
+// stands in for the live tree re-landing in a smaller file.
+func (f *fakeBackend) repackImage(src, dst string, sizeGiB int) error {
+	f.repacks++
+	if sizeGiB <= 0 {
+		return errors.New("cache image size must be positive")
+	}
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if f.onRepack != nil {
+		f.onRepack()
+	}
+	return os.WriteFile(dst, []byte(strings.TrimRight(string(b), "\x00")), 0o644)
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -1307,5 +1333,148 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	}
 	if len(labels) != 1 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
+	}
+}
+
+// bloatMaster grows a master's backing file without changing its live cache,
+// which is what a churned sparse image looks like on disk: freed blocks are
+// never reused within a mounted session and nothing returns them on detach, so
+// the file creeps toward the cap while the cache inside stays bounded.
+func bloatMaster(t *testing.T, m *VolumeManager, account string, padBytes int) {
+	t.Helper()
+	path := m.masterImage(account, ReservedTuistCacheVolume)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read master: %v", err)
+	}
+	if err := os.WriteFile(path, append(b, make([]byte, padBytes)...), 0o644); err != nil {
+		t.Fatalf("bloat master: %v", err)
+	}
+}
+
+func TestCompactBloatedMasterReclaimsSlack(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 7)
+	bloatMaster(t, m, "42", 4096)
+	m.CompactAboveBytes = 1024
+
+	reclaimed, err := m.CompactBloatedMaster()
+	if err != nil {
+		t.Fatalf("CompactBloatedMaster: %v", err)
+	}
+	if reclaimed != 4096 {
+		t.Fatalf("reclaimed = %d; want 4096", reclaimed)
+	}
+	if fake.repacks != 1 {
+		t.Fatalf("repacks = %d; want 1", fake.repacks)
+	}
+
+	// The live cache must survive verbatim — a repack that loses cache content
+	// would turn every warm clone off this master into a silent miss.
+	b, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("read compacted master: %v", err)
+	}
+	if string(b) != masterImageContent("42") {
+		t.Fatalf("compacted master content = %q; want %q", b, masterImageContent("42"))
+	}
+	// The generation must be untouched: compaction changes the file, not the
+	// lineage, and a lost generation would make the host re-converge needlessly
+	// or, worse, look newer than it is.
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 7 {
+		t.Fatalf("generation after compaction = %d; want 7", got)
+	}
+}
+
+// Compaction must not look like a fresh use. LRU eviction orders by the master
+// image's mtime, so bumping it would let a cold master that happened to be
+// bloated outlive a master jobs are actively cloning.
+func TestCompactBloatedMasterPreservesEvictionOrder(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	bloatMaster(t, m, "42", 4096)
+	m.CompactAboveBytes = 1024
+
+	old := time.Now().Add(-90 * time.Minute).Truncate(time.Second)
+	setMtime(t, m.masterImage("42", ReservedTuistCacheVolume), old)
+
+	if _, err := m.CompactBloatedMaster(); err != nil {
+		t.Fatalf("CompactBloatedMaster: %v", err)
+	}
+
+	info, err := os.Stat(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("stat compacted master: %v", err)
+	}
+	if !info.ModTime().Truncate(time.Second).Equal(old) {
+		t.Fatalf("mtime after compaction = %s; want it left at %s", info.ModTime(), old)
+	}
+}
+
+// A master that is not carrying slack is left alone: repacking costs seconds of
+// I/O against the same volume everything else contends for.
+func TestCompactBloatedMasterSkipsLeanMasters(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	m.CompactAboveBytes = 1 << 20
+
+	reclaimed, err := m.CompactBloatedMaster()
+	if err != nil || reclaimed != 0 {
+		t.Fatalf("CompactBloatedMaster = %d, %v; want 0, nil", reclaimed, err)
+	}
+	if fake.repacks != 0 {
+		t.Fatalf("a lean master must not be repacked; repacks = %d", fake.repacks)
+	}
+}
+
+// The repack runs off the lock, so a promote or converge can land while it is in
+// flight. The swap must then be abandoned: installing the repacked image would
+// roll the master back to the generation the repack started from, losing the
+// newer cache the fleet just agreed on.
+func TestCompactBloatedMasterAbandonsSwapWhenMasterAdvances(t *testing.T) {
+	m, fake := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 3)
+	bloatMaster(t, m, "42", 4096)
+	m.CompactAboveBytes = 1024
+
+	fake.onRepack = func() {
+		// A promote lands mid-repack: newer content at a newer generation.
+		seedMasterGen(t, m, "42", "newer-image-of-42", 4)
+	}
+
+	reclaimed, err := m.CompactBloatedMaster()
+	if err != nil {
+		t.Fatalf("CompactBloatedMaster: %v", err)
+	}
+	if reclaimed != 0 {
+		t.Fatalf("reclaimed = %d; want 0 — the swap must be abandoned", reclaimed)
+	}
+	b, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if string(b) != "newer-image-of-42" {
+		t.Fatalf("master content = %q; want the newer promote to survive", b)
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 4 {
+		t.Fatalf("generation = %d; want 4 (the newer promote)", got)
+	}
+}
+
+// The largest-master gauge is what makes the volume's sizing arithmetic
+// checkable: it is read against the cap to tell bloat from cache.
+func TestLargestMasterBytes(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	seedMaster(t, m, "7")
+	bloatMaster(t, m, "7", 8192)
+
+	largest, err := m.LargestMasterBytes()
+	if err != nil {
+		t.Fatalf("LargestMasterBytes: %v", err)
+	}
+	small, err := os.Stat(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if largest <= uint64(small.Size()) {
+		t.Fatalf("largest = %d; want the bloated master, bigger than %d", largest, small.Size())
 	}
 }

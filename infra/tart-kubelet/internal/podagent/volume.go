@@ -156,6 +156,11 @@ type volumeBackend interface {
 	// inventory digest of the cache home inside it. Used to verify a downloaded
 	// HEAD image matches its advertised digest before adopting it.
 	imageInventoryDigest(path string) (string, error)
+	// repackImage rebuilds src's live cache into a fresh sparse image at dst,
+	// capped at sizeGiB. This is how a master's backing file is reclaimed: a
+	// sparse image only ever grows to its high-water mark, so a long-lived
+	// master creeps toward its cap even though the cache inside it is bounded.
+	repackImage(src, dst string, sizeGiB int) error
 }
 
 // VolumeOutcome is the terminal disposition of a branch, for observability.
@@ -226,6 +231,17 @@ type VolumeManager struct {
 	// keeps the quota volume above by dropping whole masters LRU.
 	LowWatermarkFraction float64
 
+	// CompactAboveBytes is the backing-file size past which the reconcile tick
+	// repacks a master. Defaults to half of CapGiB.
+	//
+	// A sparse image never shrinks: freed blocks are not reused within a mounted
+	// session and nothing returns them on detach, so a hot master's file creeps
+	// toward its cap while the cache inside it stays bounded by the CLI's own
+	// LRU. Left alone, each master costs its whole ceiling, admission's
+	// per-branch reservation then leaves room for about one of them, and the
+	// fleet holds far fewer warm accounts than the quota implies.
+	CompactAboveBytes uint64
+
 	backend volumeBackend
 
 	// mu serializes disk-mutating operations and the live-branch reservation
@@ -275,6 +291,7 @@ func NewVolumeManager(root string, capGiB int, backend volumeBackend) *VolumeMan
 		Root:                 root,
 		CapGiB:               capGiB,
 		LowWatermarkFraction: 0.20,
+		CompactAboveBytes:    uint64(capGiB) * 1024 * 1024 * 1024 / 2,
 		backend:              backend,
 		now:                  time.Now,
 	}
@@ -935,8 +952,20 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 		} else if evicted > 0 {
 			logger.Info("evicted cache masters under watermark", "count", evicted)
 		}
+		// After eviction: compaction returns space to the same pool eviction is
+		// fighting over, so a master reclaimed here is one the next tick may not
+		// have to drop.
+		if reclaimed, err := m.CompactBloatedMaster(); err != nil {
+			logger.Error(err, "compact bloated master")
+		} else if reclaimed > 0 {
+			RecordVolumeCompacted(reclaimed)
+			logger.Info("repacked a bloated cache master", "reclaimed_bytes", reclaimed)
+		}
 		if count, free, err := m.Stats(); err == nil {
 			RecordVolumeResident(count, free)
+		}
+		if largest, err := m.LargestMasterBytes(); err == nil {
+			RecordVolumeLargestMaster(largest)
 		}
 	}
 	tick()
@@ -1083,6 +1112,131 @@ func isAccountID(name string) bool {
 	return true
 }
 
+// CompactBloatedMaster repacks the most bloated master whose backing file has
+// grown past CompactAboveBytes, returning the bytes reclaimed (0 when nothing
+// qualified). One per call: a repack copies the live cache, so it is seconds of
+// I/O rather than the metadata-only work everything else here does, and the
+// reconcile tick should not spend an unbounded stretch of it.
+//
+// The expensive part runs OUTSIDE the lock, against a read-only attach of the
+// master. Only the swap takes the lock, and it re-checks that the master is
+// still the same file at the same generation before committing — a promote or
+// converge that landed mid-repack wins, and the repacked image is dropped. That
+// costs one wasted repack and never a rolled-back master.
+func (m *VolumeManager) CompactBloatedMaster() (reclaimed uint64, err error) {
+	if !m.Enabled() {
+		return 0, nil
+	}
+
+	candidate, before, generation, ok, err := m.mostBloatedMaster()
+	if err != nil || !ok {
+		return 0, err
+	}
+
+	staging := filepath.Join(m.Root, convergeDirName, "repack")
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		return 0, fmt.Errorf("mkdir repack staging: %w", err)
+	}
+	defer os.RemoveAll(staging)
+	repacked := filepath.Join(staging, masterImageName)
+	_ = os.Remove(repacked)
+
+	if err := m.backend.repackImage(m.masterImage(candidate.account, candidate.volume), repacked, m.CapGiB); err != nil {
+		return 0, fmt.Errorf("repack master: %w", err)
+	}
+	info, err := os.Stat(repacked)
+	if err != nil {
+		return 0, fmt.Errorf("stat repacked master: %w", err)
+	}
+	// A repack that did not shrink anything is not worth the swap: keep the
+	// master that jobs are already cloning rather than churn it for nothing.
+	if uint64(info.Size()) >= before {
+		return 0, nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	current, err := m.masterGenerationLocked(candidate.account, candidate.volume)
+	if err != nil || current != generation {
+		return 0, err
+	}
+	master := m.masterImage(candidate.account, candidate.volume)
+	if cur, statErr := os.Stat(master); statErr != nil || uint64(cur.Size()) != before {
+		// The master moved underneath us (promote, converge, or eviction).
+		return 0, nil
+	}
+	if err := os.Rename(repacked, master); err != nil {
+		return 0, fmt.Errorf("swap repacked master: %w", err)
+	}
+	// LRU orders by the master image's mtime, so a repack must not look like a
+	// fresh use — that would let compaction protect a cold master from eviction
+	// ahead of one jobs are actually cloning.
+	_ = os.Chtimes(master, candidate.modTime, candidate.modTime)
+	return before - uint64(info.Size()), nil
+}
+
+// LargestMasterBytes is the biggest master backing file on this host. Published
+// so the gap between a master's physical size and the cache inside it is
+// observable: the sizing arithmetic for the runner-cache volume assumes a master
+// costs far less than its cap, and nothing measured whether that held.
+func (m *VolumeManager) LargestMasterBytes() (uint64, error) {
+	if !m.Enabled() {
+		return 0, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		return 0, err
+	}
+	var largest uint64
+	for _, master := range masters {
+		info, statErr := os.Stat(m.masterImage(master.account, master.volume))
+		if statErr != nil {
+			continue
+		}
+		if size := uint64(info.Size()); size > largest {
+			largest = size
+		}
+	}
+	return largest, nil
+}
+
+// mostBloatedMaster returns the master with the largest backing file past the
+// compaction threshold, plus that size and its generation for the post-repack
+// re-check.
+func (m *VolumeManager) mostBloatedMaster() (entry masterEntry, size uint64, generation int, ok bool, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		return masterEntry{}, 0, 0, false, err
+	}
+	threshold := m.CompactAboveBytes
+	if threshold == 0 {
+		threshold = m.capBytes() / 2
+	}
+	for _, candidate := range masters {
+		info, statErr := os.Stat(m.masterImage(candidate.account, candidate.volume))
+		if statErr != nil {
+			continue
+		}
+		candidateSize := uint64(info.Size())
+		if candidateSize <= threshold || candidateSize <= size {
+			continue
+		}
+		gen, genErr := m.masterGenerationLocked(candidate.account, candidate.volume)
+		if genErr != nil {
+			continue
+		}
+		entry, size, generation, ok = candidate, candidateSize, gen, true
+	}
+	return entry, size, generation, ok, nil
+}
+
 // EvictToWatermark drops whole masters LRU until free space is back above the
 // low watermark. Called on the reconcile tick.
 func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
@@ -1170,6 +1324,10 @@ func (m *VolumeManager) ensureFreeLocked(want uint64) (uint64, error) {
 
 type masterEntry struct {
 	account string
+	// volume is the volume name the master belongs to. Masters are keyed by
+	// (account, volume) on disk, so anything that acts on one specific master
+	// — rather than just counting or deleting whole directories — needs it.
+	volume  string
 	path    string
 	modTime time.Time
 }
@@ -1219,6 +1377,7 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 			}
 			out = append(out, masterEntry{
 				account: acct.Name(),
+				volume:  vol.Name(),
 				path:    m.volumeDir(acct.Name(), vol.Name()),
 				modTime: info.ModTime(),
 			})

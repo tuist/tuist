@@ -208,6 +208,30 @@ var cacheVolumeResidentCount = prometheus.NewGauge(
 	},
 )
 
+// cacheVolumeCompactedBytesTotal counts bytes reclaimed by repacking bloated
+// masters. A sparse image never shrinks on its own, so without this a hot
+// master creeps toward its cap and admission's per-branch reservation then
+// leaves room for barely one master per host. Rising alongside a falling
+// largest-master gauge is the signal that reclamation is keeping up.
+var cacheVolumeCompactedBytesTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_compacted_bytes_total",
+		Help: "Bytes reclaimed by repacking bloated per-account cache masters.",
+	},
+)
+
+// cacheVolumeLargestMasterBytes is the biggest master backing file on this
+// host. Read against the configured cap: a master approaching its ceiling is
+// bloat, not cache, because the CLI bounds the cache inside it by its own LRU.
+// This is what makes the volume's sizing arithmetic checkable instead of
+// assumed.
+var cacheVolumeLargestMasterBytes = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_largest_master_bytes",
+		Help: "Largest per-account cache master backing file on this host.",
+	},
+)
+
 // cacheVolumeRootFreeBytes is statfs free space on the quota-bounded
 // runner-cache volume — the ground truth behind admission and watermark
 // eviction. A sustained decline toward the low watermark is the eviction-
@@ -297,6 +321,8 @@ func init() {
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
+		cacheVolumeCompactedBytesTotal,
+		cacheVolumeLargestMasterBytes,
 		cacheVolumeEnabled,
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
@@ -375,6 +401,17 @@ func RecordVolumeConverged() {
 func RecordVolumeResident(count int, freeBytes uint64) {
 	cacheVolumeResidentCount.Set(float64(count))
 	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
+}
+
+// RecordVolumeCompacted records bytes reclaimed by repacking a bloated master.
+func RecordVolumeCompacted(reclaimedBytes uint64) {
+	cacheVolumeCompactedBytesTotal.Add(float64(reclaimedBytes))
+}
+
+// RecordVolumeLargestMaster publishes the biggest master backing file on this
+// host.
+func RecordVolumeLargestMaster(bytes uint64) {
+	cacheVolumeLargestMasterBytes.Set(float64(bytes))
 }
 
 // RecordVolumeEnabled marks the cache-volume feature active on this host. Set
