@@ -796,6 +796,8 @@ defmodule TuistWeb.Router do
     post "/atlas/clickhouse/query", AtlasClickHouseController, :query
     get "/atlas/clickhouse/tables", AtlasClickHouseController, :tables
     get "/atlas/clickhouse/tables/:database/:name", AtlasClickHouseController, :describe
+
+    get "/atlas/artifacts/:kind/:id", AtlasArtifactsController, :show
   end
 
   scope "/_internal", TuistWeb.Internal do
