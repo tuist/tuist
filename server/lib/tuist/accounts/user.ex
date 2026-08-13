@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.User do
     field :encrypted_password, :string, default: ""
     field :confirmed_at, :naive_datetime
     field :last_sign_in_at, :naive_datetime
+    field :last_google_authenticated_at, :naive_datetime
     field :preferred_locale, :string
     field :active, :boolean, default: true
     # Operator access grant claims (verified, from ops.tuist.dev),

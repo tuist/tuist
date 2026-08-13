@@ -367,19 +367,26 @@ defmodule TuistWeb.OperatorGrant do
   # Same bearer-token reasoning as the browser handoff: honour the grant only
   # for the confirmed operator named in `sub`.
   #
-  # The browser additionally requires that this session authenticated through
-  # Google (`auth_method == :google`), a signal that has no equivalent without a
-  # session. What it protects is *how the session was established*, not who the
-  # person is: `tuist_operator?/1` independently verifies Google Workspace
-  # membership on tuist-hosted, so a grant still cannot be carried by anyone
-  # outside the workspace. An access token minted for a workspace member through
-  # a non-Google login is the case this cannot distinguish.
+  # The browser also requires that the session authenticated through Google
+  # (`auth_method == :google`). An access token carries no such signal, so the
+  # equivalent here is a *recorded* Google authentication that is still recent —
+  # otherwise a stolen grant could be combined with a password-authenticated
+  # operator token, which is exactly what the browser check prevents. The window
+  # is the grant's own TTL ceiling: minting a grant at ops.tuist.dev already
+  # requires a Google-authenticated session, so an operator who just justified
+  # access has one by construction.
   defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
-    if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
-      :ok
-    else
-      Logger.warning("operator grant rejected: subject does not match the authenticated user")
-      {:error, :subject_mismatch}
+    cond do
+      not (Accounts.tuist_operator?(user) and emails_match?(email, sub)) ->
+        Logger.warning("operator grant rejected: subject does not match the authenticated user")
+        {:error, :subject_mismatch}
+
+      not Accounts.google_authenticated_within?(user, Environment.operator_grant_max_ttl_seconds()) ->
+        Logger.warning("operator grant rejected: no recent Google authentication for the operator")
+        {:error, :stale_google_authentication}
+
+      true ->
+        :ok
     end
   end
 
