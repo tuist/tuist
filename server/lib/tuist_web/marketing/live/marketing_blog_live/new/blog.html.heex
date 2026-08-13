@@ -77,10 +77,22 @@
           >
             <.search />
           </.button>
-          <.button variant="secondary" icon_only={true} size="large" href={~p"/blog/rss.xml"}>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/blog/rss.xml"}
+            aria-label={dgettext("marketing", "RSS feed")}
+          >
             <.rss />
           </.button>
-          <.button variant="secondary" icon_only={true} size="large" href={~p"/blog/atom.xml"}>
+          <.button
+            variant="secondary"
+            icon_only={true}
+            size="large"
+            href={~p"/blog/atom.xml"}
+            aria-label={dgettext("marketing", "Atom feed")}
+          >
             <.atom />
           </.button>
 
@@ -125,9 +137,7 @@
         <div data-part="cover">
           <img
             data-part="image"
-            src={
-              TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))
-            }
+            src={TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))}
             alt=""
             loading="lazy"
             decoding="async"
