@@ -950,7 +950,7 @@ jobs:
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
           vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
@@ -1060,7 +1060,7 @@ jobs:
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
           vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Initialize Packer
         working-directory: infra/runner-image

@@ -109,7 +109,7 @@ jobs:
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
           vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer

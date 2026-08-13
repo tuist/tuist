@@ -88,7 +88,7 @@ jobs:
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
           vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Pull Xcode .xip from mirror
         id: xcode_xip
@@ -191,7 +191,7 @@ jobs:
         with:
           host: ${{ vars.OCI_REGISTRY_HOST }}
           vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.OCI_REGISTRY_OP_SERVICE_ACCOUNT_TOKEN }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       # 64 MB chunks, where GHCR was pinned at 3 because it rejects
       # anything from 4 up and rate-limited the resulting request

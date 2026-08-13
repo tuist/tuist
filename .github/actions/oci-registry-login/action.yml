@@ -8,13 +8,18 @@ description: >-
 # single `op item edit`. Same shape as `notify-deploy-success.yml`, which
 # reads `op://cache/...` with a vault-scoped service-account token.
 #
-# Scope the service account to a vault that holds CI credentials and
-# nothing else. A token pointed at an environment vault would hand every
-# image build read access to that environment's master key, database
-# passwords and object-storage credentials, to fetch one registry login.
+# Reads from the `cache` vault, which is where CI and ops credentials
+# already live (`GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN`,
+# `KAMAL_REGISTRY_PASSWORD`, and the rest), via the service-account token
+# that already exists for it. Deliberately not an environment vault: a
+# token pointed at one would hand every image build read access to that
+# environment's master key, database passwords and object-storage
+# credentials in order to fetch one registry login.
+#
 # The cluster's half of these credentials — the htpasswd files and the
-# HTTP secret — stays in the environment vault, where ESO reads it; the
-# two consumers need different fields and neither needs the other's.
+# HTTP secret — stays in the environment vault, where ESO reads it. The
+# two consumers need different fields, so neither vault holds the
+# other's.
 #
 # Credentials are exported to the job environment rather than returned as
 # outputs, so the push steps that follow need no credential wiring of
