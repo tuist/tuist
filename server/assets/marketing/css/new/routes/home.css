@@ -80,9 +80,9 @@
     /* Match the features box width so it reads as a divider between the two
        sections, not a full-bleed background band. */
     margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
     height: 120px;
     overflow: hidden;
-    border: 1px solid var(--marketing-stroke-default);
 
     @media (min-width: 1024px) {
       margin: 0;
@@ -162,20 +162,20 @@
 
           &:nth-child(3) {
             top: calc(100% + var(--noora-spacing-1));
-            width: 75%;
             opacity: 0.6;
+            width: 75%;
           }
 
           &:nth-child(4) {
             top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            width: 55%;
             opacity: 0.4;
+            width: 55%;
           }
 
           &:nth-child(5) {
             top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            width: 35%;
             opacity: 0.2;
+            width: 35%;
           }
 
           /* Inner partners completing each cascade row up to the logos-side
@@ -187,20 +187,20 @@
 
           &[data-fill]:nth-child(6) {
             top: calc(100% + var(--noora-spacing-1));
-            width: calc(25% - var(--noora-spacing-1));
             opacity: 0.6;
+            width: calc(25% - var(--noora-spacing-1));
           }
 
           &[data-fill]:nth-child(7) {
             top: calc(100% + 88px + 2 * var(--noora-spacing-1));
-            width: calc(45% - var(--noora-spacing-1));
             opacity: 0.4;
+            width: calc(45% - var(--noora-spacing-1));
           }
 
           &[data-fill]:nth-child(8) {
             top: calc(100% + 176px + 3 * var(--noora-spacing-1));
-            width: calc(65% - var(--noora-spacing-1));
             opacity: 0.2;
+            width: calc(65% - var(--noora-spacing-1));
           }
         }
       }
@@ -222,8 +222,8 @@
 
     & > [data-part="logos"] {
       display: flex;
-      flex-direction: row;
       flex: 1 1 auto;
+      flex-direction: row;
       justify-content: center;
       align-items: center;
       /* Figma draws the stroke inside the 1200x88 frame; border-box keeps
@@ -265,12 +265,12 @@
         @media (min-width: 1024px) {
           display: flex;
           position: absolute;
-          /* Absolute positioning ignores the box's padding, so the 12px
-             vertical inset is restated here. */
-          inset: var(--noora-spacing-5) 0;
           flex-direction: row;
           justify-content: space-between;
           align-items: center;
+          /* Absolute positioning ignores the box's padding, so the 12px
+             vertical inset is restated here. */
+          inset: var(--noora-spacing-5) 0;
 
           /* The groups are stacked; until the LogoTransition hook mounts and
              assigns data-states, only the first may show — otherwise every
@@ -333,10 +333,10 @@
      gaps differ per pair (eyebrow → h2 → p → button); padding is reserved
      for insets of painted/bordered boxes. */
   & > [data-part="features"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-16);
+    box-sizing: border-box;
     margin: 0 var(--noora-spacing-1);
     border: 1px solid var(--marketing-stroke-default);
     padding-top: var(--noora-spacing-14);
@@ -399,9 +399,9 @@
         }
 
         & > [data-part="panel"] {
-          box-sizing: border-box;
           display: flex;
           flex-direction: column;
+          box-sizing: border-box;
           min-width: 0;
 
           @media (min-width: 1024px) {
@@ -473,10 +473,10 @@
               position: absolute;
               top: var(--noora-spacing-2);
               left: var(--noora-spacing-2);
+              pointer-events: none;
               color: var(--noora-surface-label-tertiary);
               font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
               white-space: nowrap;
-              pointer-events: none;
             }
 
             & > canvas {
@@ -503,8 +503,8 @@
              chart (its panel is the right half); top-left when stacked. */
           &[data-variant="with-cache"] > [data-part="chart"] > [data-part="chart-label"] {
             @media (min-width: 1024px) {
-              left: auto;
               right: var(--noora-spacing-2);
+              left: auto;
             }
           }
         }
@@ -572,8 +572,8 @@
            swapped in below 1024px. */
         &[data-orientation="vertical"] {
           display: none;
-          height: auto;
           align-items: center;
+          height: auto;
 
           /* Stats span the full width; only the scene below is the 340 column. */
           & > [data-part="stats"] {
@@ -582,9 +582,9 @@
 
           & > [data-part="stage"] {
             flex: none;
+            justify-content: center;
             width: 340px;
             height: 921px;
-            justify-content: center;
           }
 
           & > [data-part="stage"] > [data-part="scene"] {
@@ -609,8 +609,8 @@
         & > [data-part="stats"] {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          box-sizing: border-box;
           flex-shrink: 0;
+          box-sizing: border-box;
           border-top: 1px solid var(--marketing-stroke-default);
           border-bottom: 1px solid var(--marketing-stroke-default);
           height: 36px;
@@ -644,8 +644,8 @@
            SVG (fixed px, cropped left-to-right on narrower viewports). */
         & > [data-part="stage"] {
           display: flex;
-          align-items: center;
           flex: 1;
+          align-items: center;
           min-height: 0;
           overflow: hidden;
 
@@ -662,14 +662,14 @@
              light/border/default shadow token; positioned to line up with the
              SVG's logo coordinates (inline left/top/size). */
           [data-part="hub"] {
-            position: absolute;
-            box-sizing: border-box;
             display: flex;
-            align-items: center;
+            position: absolute;
             justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            box-shadow: var(--noora-border-light-default);
             border-radius: 8px;
             background: var(--noora-surface-background-primary);
-            box-shadow: var(--noora-border-light-default);
 
             & > svg {
               width: 45px;
@@ -690,10 +690,10 @@
              transmit packets live outside the box, so nothing else overlaps. */
           [data-part="spark"] {
             position: absolute;
+            z-index: 1;
             inset: 0;
             width: 100%;
             height: 100%;
-            z-index: 1;
             pointer-events: none;
           }
 
@@ -726,12 +726,10 @@
 
             [data-part="wire-fan"] {
               stroke: var(--marketing-illustration-neutral-4);
-              stroke-width: 0.5;
               stroke-dasharray: 5 5;
               stroke-linecap: round;
+              stroke-width: 0.5;
             }
-
-
           }
 
           /* Task panel — HTML (not SVG) so it can use the tabler circle-check
@@ -741,9 +739,9 @@
           [data-part="tasks"] {
             position: absolute;
             box-sizing: border-box;
+            border-right: 1px solid var(--marketing-stroke-default);
             /* No top/bottom border — the fade below covers where they'd be. */
             border-left: 1px solid var(--marketing-stroke-default);
-            border-right: 1px solid var(--marketing-stroke-default);
             background: var(--noora-surface-background-primary);
             overflow: hidden;
             /* Fade the whole panel — rows AND the left/right border rails — into
@@ -756,27 +754,27 @@
 
             & > [data-part="task-list"] {
               position: relative; /* rows are absolutely positioned + scrolled */
-              height: 100%;
               /* Reset the <ul> defaults (list bullets + 40px inline padding). */
               margin: 0;
               padding: 0;
+              height: 100%;
               list-style: none;
             }
 
             /* Feed rows — absolutely positioned + translated up by the hook. */
             [data-part="task-row"] {
+              display: flex;
               position: absolute;
               top: 0;
-              left: 0;
               right: 0;
-              height: 32px;
-              box-sizing: border-box;
-              display: flex;
+              left: 0;
               align-items: center;
               gap: var(--noora-spacing-3);
-              padding: 0 var(--noora-spacing-4);
-              border-bottom: 1px solid var(--marketing-stroke-default);
               will-change: transform;
+              box-sizing: border-box;
+              border-bottom: 1px solid var(--marketing-stroke-default);
+              padding: 0 var(--noora-spacing-4);
+              height: 32px;
             }
 
             [data-part="task-icon"] {
@@ -803,28 +801,28 @@
 
             [data-part="task-row"][data-state="processing"] [data-part="icon-processing"] {
               display: block;
-              color: var(--marketing-illustration-neutral-4);
               transform-box: fill-box;
               transform-origin: center;
               animation: compute-task-spin 1.4s linear infinite;
+              color: var(--marketing-illustration-neutral-4);
             }
 
             [data-part="task-label"] {
               flex: 1;
               min-width: 0;
-              color: var(--noora-surface-label-primary);
-              font-family: var(--noora-font-code);
-              font-size: 11px;
-              white-space: nowrap;
               overflow: hidden;
+              color: var(--noora-surface-label-primary);
+              font-size: 11px;
+              font-family: var(--noora-font-code);
               text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             [data-part="task-dur"] {
               flex-shrink: 0;
               color: var(--noora-surface-label-primary);
-              font-family: var(--noora-font-body);
               font-size: 11px;
+              font-family: var(--noora-font-body);
               font-variant-numeric: tabular-nums;
             }
 
@@ -837,12 +835,12 @@
               color: var(--noora-surface-label-tertiary);
 
               & > i {
-                width: 3px;
-                height: 3px;
-                border-radius: 50%;
-                background: currentColor;
                 opacity: 0.25;
                 animation: compute-task-dots 1.2s infinite;
+                border-radius: 50%;
+                background: currentColor;
+                width: 3px;
+                height: 3px;
               }
 
               & > i:nth-child(2) {
@@ -930,8 +928,8 @@
         & > [data-part="stats"] {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          box-sizing: border-box;
           flex-shrink: 0;
+          box-sizing: border-box;
           border-top: 1px solid var(--marketing-stroke-default);
           border-bottom: 1px solid var(--marketing-stroke-default);
           height: 36px;
@@ -951,14 +949,14 @@
             }
 
             & > strong {
+              display: inline-block;
+              min-width: 3ch;
               color: var(--noora-surface-label-primary);
               font-weight: var(--noora-font-weight-medium);
               /* Tabular figures keep digit widths equal, and the reserved
                  min-width stops the label from shifting as the count grows from
                  one to three digits while animating. */
               font-variant-numeric: tabular-nums;
-              display: inline-block;
-              min-width: 3ch;
               text-align: left;
             }
           }
@@ -987,9 +985,9 @@
 
           & > [data-part="stats"] {
             grid-template-columns: repeat(2, 1fr);
+            grid-auto-rows: 36px;
             /* Two rows, each the same 36px as the other sections' stat bars. */
             height: auto;
-            grid-auto-rows: 36px;
 
             & > [data-part="stat"] {
               &:not(:last-child) {
@@ -1068,8 +1066,8 @@
           flex: 1;
           flex-direction: column;
           gap: var(--noora-spacing-4);
-          padding: var(--noora-spacing-11) var(--noora-spacing-8);
           border-bottom: 1px solid var(--marketing-stroke-default);
+          padding: var(--noora-spacing-11) var(--noora-spacing-8);
           text-decoration: none;
 
           @media (min-width: 1024px) {
@@ -1092,19 +1090,19 @@
             font-family: var(--noora-font-heading);
 
             & svg {
-              width: 18px;
-              height: 18px;
-              opacity: 0;
               transform: translateX(-4px);
+              opacity: 0;
               transition:
                 opacity 0.2s ease,
                 transform 0.2s var(--ease-out-cubic);
+              width: 18px;
+              height: 18px;
             }
           }
 
           &:hover > [data-part="card-title"] svg {
-            opacity: 1;
             transform: translateX(0);
+            opacity: 1;
           }
 
           & > [data-part="card-description"] {
@@ -1117,10 +1115,10 @@
     }
 
     & > [data-part="quote-feature"] {
-      box-sizing: border-box;
       display: flex;
       position: relative;
       flex-direction: column;
+      box-sizing: border-box;
       border-top: 1px solid var(--marketing-stroke-default);
       border-bottom: 1px solid var(--marketing-stroke-default);
       /* The background logo layer is wider than mobile viewports; crop it. */
@@ -1151,16 +1149,16 @@
       }
 
       & > [data-part="text"] {
-        box-sizing: border-box;
         display: flex;
         position: relative;
         flex-direction: column;
         align-items: flex-start;
         /* 24px between the quote and the author. */
         gap: var(--noora-spacing-8);
-        width: 100%;
+        box-sizing: border-box;
         /* 32px top/bottom, 8px sides. */
         padding: var(--noora-spacing-9) var(--noora-spacing-4);
+        width: 100%;
 
         & > [data-part="quote"] {
           /* align-items: flex-start sizes children to content width, so the
@@ -1177,8 +1175,8 @@
 
         & > [data-part="author"] {
           display: flex;
-          align-self: flex-start;
           align-items: center;
+          align-self: flex-start;
           gap: var(--noora-spacing-4);
 
           @media (min-width: 1024px) {
@@ -1216,9 +1214,9 @@
 
   /* ── Frameworks ("Built for every stack") ── */
   & > [data-part="frameworks"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     /* The dither bands above/below provide the section spacing; the page
        gap is the only separation, like the features box. */
     margin: 0 var(--noora-spacing-1);
@@ -1260,7 +1258,6 @@
 
     & > [data-part="grid"] {
       display: grid;
-      flex-shrink: 0;
       /* The framework logos follow the illustration ramp's own light-dark
          pairs, so they flip with the theme like the rest of the artwork. */
       /* Cells stay at or under 128px: auto-fill adds columns as the
@@ -1268,11 +1265,12 @@
          letting three columns grow huge. */
       /* Mobile: 4 columns so the 12 cells fill three even rows. */
       grid-template-columns: repeat(4, 1fr);
-      border-top: 1px solid var(--marketing-stroke-default);
+      flex-shrink: 0;
       /* Cells draw right/bottom hairlines; the -1px margins overlap the
          outer ones with the section border so the edges don't double up. */
       margin-right: -1px;
       margin-bottom: -1px;
+      border-top: 1px solid var(--marketing-stroke-default);
 
       /* Tablet: cap at 6 columns so the 12 cells split into two even rows
          instead of a near-full first row with a lone straggler below. */
@@ -1307,9 +1305,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            cursor: default;
             width: 100%;
             height: 100%;
-            cursor: default;
           }
 
           /* With the trigger spanning the tile, floating-ui would drop the
@@ -1336,16 +1334,15 @@
         & [data-part="framework-logo"] > svg {
           display: block;
         }
-
       }
     }
   }
 
   /* ── Transparency ("Built in the open, secured for scale") ── */
   & > [data-part="transparency"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     /* Purple dither ramp shared by the section's dither effects (OSS logo,
        SOC slider): bright lavenders in light mode, deep solid purples in
        dark mode. */
@@ -1428,11 +1425,11 @@
         }
 
         & > [data-part="illustration"] {
-          box-sizing: border-box;
           display: flex;
           position: relative;
           justify-content: center;
           align-items: center;
+          box-sizing: border-box;
           border-bottom: 1px solid var(--marketing-stroke-default);
           height: 200px;
           overflow: hidden;
@@ -1465,13 +1462,13 @@
                to the logo shape; revealed while the card is hovered. */
             & > [data-part="oss-dither"] {
               position: absolute;
-              inset: 0;
-              transition: opacity 0.4s ease;
               opacity: 0;
+              clip-path: url(#transparency-oss-clip);
+              transition: opacity 0.4s ease;
+              inset: 0;
               width: 100%;
               height: 100%;
               pointer-events: none;
-              clip-path: url(#transparency-oss-clip);
             }
           }
 
@@ -1546,33 +1543,33 @@
             }
 
             & svg rect {
-              stroke-width: 1;
               /* The faces are skewed via a matrix transform, which would
                  distort the stroke; render it as a true screen-space 1px.
                  translate composes on top of that matrix, so the hover
                  rise keeps the lean. */
               vector-effect: non-scaling-stroke;
               transition: translate 0.4s ease;
+              stroke-width: 1;
             }
 
             /* Dither twins of the highlighted faces: hidden at rest, and
                only allowed to disappear after their dots have dissolved
                out (the delayed 0s opacity hop). */
             & svg [data-part="face-dither"] {
+              vector-effect: non-scaling-stroke;
+              opacity: 0;
               transition:
                 translate 0.4s ease,
                 opacity 0s linear 0.5s;
-              opacity: 0;
               stroke-width: 1;
-              vector-effect: non-scaling-stroke;
               pointer-events: none;
             }
 
             /* The pattern's dots dissolve in six staggered waves; the rest
                delays run top-first so the exit mirrors the entry. */
             & svg pattern [data-stage] {
-              transition: opacity 0.14s ease;
               opacity: 0;
+              transition: opacity 0.14s ease;
             }
 
             & svg pattern [data-stage="0"] {
@@ -1606,8 +1603,6 @@
               stroke: var(--noora-purple-400);
             }
           }
-
-
         }
 
         &:hover > [data-part="illustration"] [data-part="oss-logo"] > [data-part="oss-dither"] {
@@ -1623,11 +1618,11 @@
         }
 
         &:hover > [data-part="illustration"] [data-part="faces"] svg [data-part="face-dither"] {
+          translate: 0 -20px;
+          opacity: 1;
           transition:
             translate 0.4s ease,
             opacity 0s linear;
-          translate: 0 -20px;
-          opacity: 1;
         }
 
         &:hover > [data-part="illustration"] [data-part="faces"] svg pattern [data-stage] {
@@ -1723,13 +1718,10 @@
         position: relative;
         /* Mobile: separator between the stacked text half and the grid. */
         border-top: 1px solid var(--marketing-stroke-default);
-        min-height: 320px;
-        overflow: hidden;
 
         /* 4×4 hairline grid over the square: only the three interior lines
            per axis, so the box borders aren't doubled at the edges. */
-        background-image:
-          linear-gradient(
+        background-image: linear-gradient(
             90deg,
             transparent calc(25% - 1px),
             var(--marketing-stroke-default) calc(25% - 1px) 25%,
@@ -1749,6 +1741,8 @@
             var(--marketing-stroke-default) calc(75% - 1px) 75%,
             transparent 75%
           );
+        min-height: 320px;
+        overflow: hidden;
 
         @media (min-width: 1024px) {
           /* Desktop: the community row's own hairline covers the top. */
@@ -2689,13 +2683,13 @@
       }
 
       & > [data-part="story"] {
-        box-sizing: border-box;
         display: flex;
         position: relative;
         flex: 1;
         flex-direction: column;
         justify-content: flex-start;
         align-items: center;
+        box-sizing: border-box;
         /* Figma: 300-tall cell with the logo + caption stack anchored
            23px from the top (centered horizontally), above the dot field
            along the bottom. */
@@ -2806,9 +2800,9 @@
   }
 
   & > [data-part="testimonials"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     /* Same shell as the transparency box. */
     margin: 0 var(--noora-spacing-1);
     border: 1px solid var(--marketing-stroke-default);
@@ -2887,11 +2881,11 @@
 
         & > [data-part="track"] {
           display: flex;
-          width: max-content;
           /* One loop covers one group's width (card count × card width), so
              scaling the period by the row's card count keeps every row —
              desktop and mobile — drifting at the same speed. */
           animation: marketing-testimonials-marquee calc(var(--marquee-card-count, 4) * 12s) linear infinite;
+          width: max-content;
 
           @media (prefers-reduced-motion: reduce) {
             animation: none;
@@ -2905,10 +2899,10 @@
       }
 
       [data-part="card"] {
-        box-sizing: border-box;
         display: flex;
         flex: none;
         flex-direction: column;
+        box-sizing: border-box;
         border-right: 1px solid var(--marketing-stroke-default);
         width: min(400px, 85vw);
 
@@ -2955,10 +2949,10 @@
   }
 
   & > [data-part="cta"] {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
+    box-sizing: border-box;
     /* Same shell as the transparency/testimonials boxes. */
     margin: 0 var(--noora-spacing-1);
     border: 1px solid var(--marketing-stroke-default);
@@ -2990,5 +2984,4 @@
       margin-top: var(--noora-spacing-9);
     }
   }
-
 }

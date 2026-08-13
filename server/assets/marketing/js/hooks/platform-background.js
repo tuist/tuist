@@ -95,8 +95,7 @@ export const PlatformBackground = {
     const path = widget.querySelector('[data-part="line"]');
     if (!path) return;
 
-    const yFor = (n) =>
-      METER_Y_BOT - (n / (METER_LEVELS - 1)) * (METER_Y_BOT - METER_Y_TOP);
+    const yFor = (n) => METER_Y_BOT - (n / (METER_LEVELS - 1)) * (METER_Y_BOT - METER_Y_TOP);
     // Never repeat a level back-to-back, so every step has a visible riser.
     const nextLevel = (prev) => {
       let n;
@@ -160,7 +159,7 @@ export const PlatformBackground = {
           const i = (Math.random() * nodes.length) | 0;
           nodes[i].dataset.lit = String(Math.random() < KURA_LIT_CHANCE);
         }
-      }, 1300)
+      }, 1300),
     );
   },
 };
