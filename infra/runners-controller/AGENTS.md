@@ -520,16 +520,57 @@ thousands:
 kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep node_cgroups_cgroups
 ```
 
-Remediate an existing host by editing
-`/etc/containerd/config.toml` to add `SystemdCgroup = true` under
+Remediation splits into two independent halves: **stop the leak**
+(config) and **reclaim what already leaked** (sweep). Only the first
+needs a containerd restart.
+
+**Stop the leak.** Edit `/etc/containerd/config.toml` to add
+`SystemdCgroup = true` under
 `[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]`,
-then restarting containerd. Cordon and drain first: restarting containerd
-bounces every sandbox on the box, including Cilium. The reboot that
-clears the already-leaked cgroups is a separate step and needs a Hetzner
-Robot hardware reset (see "Emergency SSH access" below for why panel
-access, not SSH, is the reliable path). Do one host at a time — the
-Linux fleet is two nodes and a single node saturates at ~99% memory, so
-taking both out at once is a full outage rather than degraded capacity.
+then restart containerd. Cordon and drain first: restarting containerd
+bounces every sandbox on the box, including Cilium. Do one host at a
+time — the Linux fleet is two nodes and a single node saturates at ~99%
+memory, so taking both out at once is a full outage rather than degraded
+capacity.
+
+**Reclaim the leaked cgroups — in place, no reboot.** The leaked
+directories are flat leaves: no child cgroups, no processes, owned by
+nothing. `rmdir` removes them and the kernel reclaims the underlying
+cgroup objects roughly 1:1, asynchronously (`/proc/cgroups` trails the
+directory count by a few seconds, so re-read it after a pause rather
+than concluding the removal did nothing).
+
+The sweep is safe by construction and needs no drain. The path pattern
+is itself the guard: a correctly-nested cgroup lives under
+`kubepods.slice`, so anything matching `kubepods-*.slice:cri-containerd:*`
+at the cgroup *root* is by definition leaked. Skipping any entry with a
+non-empty `cgroup.procs` leaves the live kata containers (which the same
+bug also parks at the root) untouched, and an in-use cgroup would fail
+`EBUSY` anyway.
+
+Reachable without SSH via a debug Pod, which is also how to run it when
+the 1Password SSH key path is unavailable:
+
+```bash
+kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- \
+  sh -c 'cd /host/sys/fs/cgroup
+         for d in $(ls -d kubepods-*.slice:cri-containerd:* 2>/dev/null); do
+           [ -s "$d/cgroup.procs" ] && continue
+           rmdir "$d" 2>/dev/null
+         done'
+```
+
+Measured on `bm-tuist-staging-runners-linux-v5bcr-gwn8x-7mhgg`
+(2026-08-13, 85-day host, never rebooted): 3359 leaked directories of
+3398 total root entries. Full sweep removed all 3359 with zero
+failures and zero busy skips, took the cgroup root back to 39 entries,
+and dropped kernel cgroups from 8338 to 4981. The node stayed `Ready`
+with no pressure condition throughout and its running Pods were
+unaffected.
+
+So a wedged host does **not** need a Hetzner Robot hardware reset. The
+reboot only ever mattered as a blunt way to clear the cgroup root, and
+the sweep does that directly while the node keeps serving.
 
 `node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
 "Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.
