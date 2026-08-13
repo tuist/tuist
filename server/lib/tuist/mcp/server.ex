@@ -25,6 +25,7 @@ defmodule Tuist.MCP.Server do
     Tools.AddOrganizationMember,
     Tools.ListXcodeBuilds,
     Tools.GetXcodeBuild,
+    Tools.GetXcodeBuildArchive,
     Tools.ListXcodeBuildTargets,
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildIssues,
@@ -42,6 +43,7 @@ defmodule Tuist.MCP.Server do
     Tools.GetTestCase,
     Tools.UpdateTestCase,
     Tools.GetTestRun,
+    Tools.GetTestRunArtifacts,
     Tools.GetTestCaseRun,
     Tools.ListTestCaseRunAttachments,
     Tools.ListBundles,
@@ -53,7 +55,8 @@ defmodule Tuist.MCP.Server do
     Tools.GetCacheRun,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
-    Tools.ListProjects
+    Tools.ListProjects,
+    Tools.GetPreviewAppBuild
   ]
 
   @prompts [
@@ -84,7 +87,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.14.1",
+      version: "1.15.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
