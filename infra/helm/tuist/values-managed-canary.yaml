@@ -17,6 +17,18 @@ registry:
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
+  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
+  # while every other Deployment in the release is surging too, so the extra
+  # Pods queue behind each other on FailedScheduling and whichever waits past
+  # progressDeadlineSeconds fails the whole release. One replica means a surge
+  # buys no availability here anyway: the Service has a single endpoint either
+  # way, and canary registry traffic tolerates the restart gap.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
 
 server:
   replicaCount: 1
@@ -302,6 +314,14 @@ processor:
 swiftRegistrySync:
   enabled: true
   syncAllowlist: alamofire/alamofire
+  # Terminate-then-replace, for the same reason as `registry.strategy` above.
+  # This is a pure Oban consumer, so the gap only defers queue work: the jobs
+  # stay in Postgres and the replacement Pod picks them up.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can

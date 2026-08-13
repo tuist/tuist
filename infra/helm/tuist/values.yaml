@@ -74,12 +74,17 @@ pdcAgent:
     # per-env vault the ClusterSecretStore is bound to.
     item: PDC_AGENT
     tokenField: password
-  # Mirrors upstream's manifest: the agent is a single tunnel process, not a
-  # throughput-scaled workload.
+  # The agent is a single ssh tunnel process, not a throughput-scaled
+  # workload: measured steady state is ~10Mi and ~1m across every env.
+  # Upstream's manifest requests 1 CPU + 1Gi, which the scheduler reserves
+  # in full — on the two-worker canary pool that is a seventh of the node's
+  # memory and a quarter of its CPU held for an idle tunnel, and it is what
+  # left rolling updates without the headroom to place a surge Pod. Requests
+  # track the measured working set; the 1Gi limit stays as the burst ceiling.
   resources:
     requests:
-      cpu: "1"
-      memory: 1Gi
+      cpu: 50m
+      memory: 64Mi
     limits:
       memory: 1Gi
 
