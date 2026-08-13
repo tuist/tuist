@@ -173,7 +173,18 @@ independent workqueues:
   controller holds read-only access to nodes; the exclusion rides the
   Pod create it already performs. It is half-open: on expiry the node
   takes a fresh batch and re-quarantines if still broken, so a repaired
-  host rejoins with no operator action. One instance is shared with the
+  host rejoins with no operator action.
+
+  `effectiveQuarantine` bounds enforcement to a minority of the fleet.
+  Holding out every usable node would block admission on
+  `no_healthy_node` *and* leave any Pod that is created unschedulable —
+  a total stall, strictly worse than the churn this breaker replaces.
+  That matters because the Linux fleet is two nodes and because false
+  positives are plausible: `startTimedOut` measures from bind, so it
+  counts image-pull time, and three slow pulls inside the window look
+  identical to a broken node. When the set would empty the fleet it is
+  released entirely; the store still records the failures, so the
+  quarantine alert fires and an operator is told either way. One instance is shared with the
   Autoscaler reconciler, which must agree the node is not capacity —
   both publish the same fleet-node gauges, so a split view would make
   them fight over the same series.

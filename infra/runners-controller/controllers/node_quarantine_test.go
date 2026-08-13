@@ -332,3 +332,123 @@ func TestReconcileKeepsNodeAfterSingleStartTimeout(t *testing.T) {
 		t.Fatal("node-a quarantined on a single start timeout")
 	}
 }
+
+// The breaker must only ever contain a minority of the fleet. Removing
+// the last usable node converts a partial fault into a total stall:
+// admission blocks on no_healthy_node AND the required affinity leaves
+// every Pod unschedulable. Degrading to the un-quarantined behaviour
+// (churn on a bad node, which is survivable and alerts) is strictly
+// better than a fleet that creates nothing.
+func TestEffectiveQuarantineKeepsFleetFromEmptying(t *testing.T) {
+	nodes := []corev1.Node{
+		*readyLinuxRunnerNode("node-a", "runners-linux"),
+		*readyLinuxRunnerNode("node-b", "runners-linux"),
+	}
+	all := map[string]struct{}{"node-a": {}, "node-b": {}}
+
+	got := effectiveQuarantine(nodes, all)
+
+	if len(got) != 0 {
+		t.Fatalf("effectiveQuarantine = %v, want empty when it would empty the fleet", got)
+	}
+}
+
+func TestEffectiveQuarantineHoldsMinority(t *testing.T) {
+	nodes := []corev1.Node{
+		*readyLinuxRunnerNode("node-a", "runners-linux"),
+		*readyLinuxRunnerNode("node-b", "runners-linux"),
+	}
+
+	got := effectiveQuarantine(nodes, map[string]struct{}{"node-a": {}})
+
+	if len(got) != 1 {
+		t.Fatalf("effectiveQuarantine = %v, want node-a held", got)
+	}
+	if _, ok := got["node-a"]; !ok {
+		t.Fatalf("effectiveQuarantine = %v, want node-a", got)
+	}
+}
+
+// A node already unusable for another reason is not a survivor, so
+// quarantining the only Ready node still empties the fleet.
+func TestEffectiveQuarantineIgnoresAlreadyUnusableNodes(t *testing.T) {
+	notReady := readyLinuxRunnerNode("node-down", "runners-linux")
+	notReady.Status.Conditions[0].Status = corev1.ConditionFalse
+	nodes := []corev1.Node{
+		*readyLinuxRunnerNode("node-a", "runners-linux"),
+		*notReady,
+	}
+
+	got := effectiveQuarantine(nodes, map[string]struct{}{"node-a": {}})
+
+	if len(got) != 0 {
+		t.Fatalf("effectiveQuarantine = %v, want empty: node-a is the only usable node", got)
+	}
+}
+
+// End-to-end floor: on a single-node fleet the breaker still records the
+// failures, but must not steer Pods away from the only node it has. The
+// store trips; the applied set does not.
+func TestReconcileDoesNotQuarantineSingleNodeFleet(t *testing.T) {
+	scheme := mustScheme(t)
+	now := time.Unix(100000, 0)
+	pool := newLinuxKataPool("linux-a", 4, 4)
+	node := readyLinuxRunnerNode("node-only", pool.Spec.FleetSelector)
+
+	scheduledAt := now.Add(-10 * time.Minute)
+	objects := []client.Object{pool, node}
+	for _, name := range []string{"linux-a-runner-1", "linux-a-runner-2", "linux-a-runner-3"} {
+		objects = append(objects, boundProvisioningPod(name, pool.Name, node.Name, scheduledAt))
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(objects...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).Build()
+	quarantine := NewNodeQuarantine()
+	r := &RunnerPoolReconciler{
+		Client:         c,
+		Scheme:         scheme,
+		DispatchURL:    "http://dispatch",
+		NodeQuarantine: quarantine,
+		Now:            func() time.Time { return now },
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	// The breaker still tripped: the node is genuinely failing, and the
+	// operator alert keys on that. It is only the enforcement that is held back.
+	if !quarantine.isQuarantined(node.Name, now) {
+		t.Fatal("single-node fleet: failures should still trip the breaker")
+	}
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.healthyNodes != 1 {
+		t.Fatalf("healthyNodes = %d, want 1: the only node must stay capacity", admission.healthyNodes)
+	}
+	if len(admission.quarantined) != 0 {
+		t.Fatalf("admission.quarantined = %v, want empty on a single-node fleet", admission.quarantined)
+	}
+
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods, client.InNamespace(pool.Namespace)); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName != "" {
+			continue
+		}
+		if pod.Spec.Affinity != nil &&
+			pod.Spec.Affinity.NodeAffinity != nil &&
+			pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+			t.Fatalf("replacement %s excludes the only node in the fleet", pod.Name)
+		}
+	}
+}

@@ -133,6 +133,21 @@ func (s *NodeQuarantine) quarantined(now time.Time) []string {
 	return nodes
 }
 
+// sortedKeys renders a quarantine set as the deterministic slice Pod
+// specs are built from, so the affinity stays byte-stable across
+// reconciles.
+func sortedKeys(set map[string]struct{}) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // quarantinedSet is the membership view summarizeFleetNodes wants.
 func (s *NodeQuarantine) quarantinedSet(now time.Time) map[string]struct{} {
 	nodes := s.quarantined(now)
@@ -141,6 +156,41 @@ func (s *NodeQuarantine) quarantinedSet(now time.Time) map[string]struct{} {
 		set[node] = struct{}{}
 	}
 	return set
+}
+
+// effectiveQuarantine bounds the breaker to a minority of the fleet.
+//
+// Holding out every usable node converts a partial fault into a total
+// stall: provisioningAdmission blocks on no_healthy_node and the required
+// affinity leaves any Pod that is created unschedulable, so the pool
+// creates nothing at all for the quarantine's duration. That is strictly
+// worse than the behaviour this breaker replaces, where a bad node at
+// least churned while its siblings kept working.
+//
+// The floor matters most on a small fleet, which is exactly where this
+// runs: the Linux fleet is two nodes, so a false positive on both would
+// take everything down. False positives are plausible because
+// startTimedOut measures from bind, so it counts image-pull time — three
+// slow pulls inside the window look identical to a broken node.
+//
+// Releasing every quarantine (rather than keeping an arbitrary one) is
+// the honest degradation: if no node can start Pods, containment has
+// nothing left to protect, and the operator is told either way by the
+// quarantine alert.
+func effectiveQuarantine(nodes []corev1.Node, quarantined map[string]struct{}) map[string]struct{} {
+	if len(quarantined) == 0 {
+		return quarantined
+	}
+
+	for i := range nodes {
+		if nodeFilterReason(&nodes[i]) != "" {
+			continue
+		}
+		if _, held := quarantined[nodes[i].Name]; !held {
+			return quarantined
+		}
+	}
+	return map[string]struct{}{}
 }
 
 // applyNodeQuarantine keeps a Pod off quarantined nodes. The requirement is
