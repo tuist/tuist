@@ -147,8 +147,8 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
   end
 
   # Blueprint-style decoration panels drawn around the home hero. The
-  # geometry was authored in the tuist-demo prototype's grid editor against
-  # a fixed 1497x496 stage. Panels with `h: :fill` pin to the stage bottom
+  # geometry is absolute coordinates on a fixed 1497x496 stage.
+  # Panels with `h: :fill` pin to the stage bottom
   # instead of a fixed height, so the canvas' bottom edge always tracks the
   # hero card's actual height (uniform 64px padding, locale-dependent copy). On wider viewports the stage grows to the full
   # viewport width: panels tagged edge: :left/:right (the ones that touch the
