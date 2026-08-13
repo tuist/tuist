@@ -30,16 +30,16 @@ struct PeerIdentity {
     ca_pem: Vec<u8>,
 }
 
-/// Builds outbound peer HTTP clients with the current peer mTLS identity. The
-/// identity is held behind an atomic swap so a renewal task can rotate the
-/// certificate in place: clients built afterwards (and `state.client` once it is
-/// rebuilt) pick up the new identity without a restart.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PeerClientTimeouts {
     Download,
     Upload,
 }
 
+/// Builds outbound peer HTTP clients with the current peer mTLS identity. The
+/// identity is held behind an atomic swap so a renewal task can rotate the
+/// certificate in place: clients built afterwards (and `state.client` once it is
+/// rebuilt) pick up the new identity without a restart.
 #[derive(Clone)]
 pub struct PeerClientFactory {
     identity: Arc<ArcSwapOption<PeerIdentity>>,
@@ -362,6 +362,29 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, pem).expect("write PEM");
         path
+    }
+
+    // A read timeout on the upload client is a hard ceiling on total upload
+    // time, because the response side stays silent until the receiver has
+    // consumed the whole body: it strands every artifact that streams for
+    // longer than the timeout, permanently. Proving that functionally would
+    // cost a >30s transfer per run, so this asserts the property directly.
+    // reqwest's Debug prints `read_timeout` only when one is configured.
+    #[test]
+    fn upload_client_has_no_read_timeout_and_download_client_keeps_one() {
+        let factory = PeerClientFactory::plain();
+
+        let upload = format!("{:?}", factory.build_upload().expect("build upload client"));
+        assert!(
+            !upload.contains("read_timeout"),
+            "the upload client must carry no read timeout; got {upload}"
+        );
+
+        let download = format!("{:?}", factory.build().expect("build download client"));
+        assert!(
+            download.contains("read_timeout"),
+            "the download client's read timeout is load-bearing for bootstrap; got {download}"
+        );
     }
 
     // End-to-end proof that the internal mTLS listener surfaces the verified
