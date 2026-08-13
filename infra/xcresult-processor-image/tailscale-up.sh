@@ -64,9 +64,16 @@ else
   #
   # `preauthorized=true` because the minted key defaults to false, and a
   # device parked in manual-approval limbo wedges this chain exactly
-  # like an expired key. `ephemeral=true` because TAILSCALE_HOSTNAME is
-  # the Pod name, so every roll registers a new device and non-ephemeral
-  # would leak one per roll. Neither can be left to its default.
+  # like an expired key. Not a property to leave to its default.
+  #
+  # `ephemeral=true` is narrower than it looks. TAILSCALE_HOSTNAME is the
+  # Pod name, so every roll registers a new device, but Tailscale
+  # converts any device that stays online four hours into a standard
+  # tagged one. Pods normally outlive that between image releases, so
+  # this only reaps the short-lived ones (crash loops, quick rollbacks)
+  # and the rest accumulate regardless. Note those stale peers stay
+  # pinned in every VM's /etc/hosts, which the block below rewrites from
+  # `tailscale status` on each boot. A reaper is the tracked follow-up.
   #
   # An OAuth-minted key is always tagged and carries no default tag, so
   # the join can't work without TAILSCALE_TAGS; refuse here rather than

@@ -144,7 +144,13 @@ inheriting either default would reintroduce the same silent wedge:
   awaiting manual approval fails the join exactly like an expired
   credential.
 - `ephemeral=true`, because `TAILSCALE_HOSTNAME` is the Pod name, so every roll
-  registers a new device; non-ephemeral would leak one per roll.
+  registers a new device. Narrower than it looks: Tailscale converts any device
+  online for four hours into a standard tagged one, and Pods normally outlive
+  that between image releases, so this only reaps short-lived ones and the rest
+  accumulate. Those stale peers stay pinned in every VM's `/etc/hosts`, which
+  `tailscale-up.sh` rewrites from `tailscale status` on each boot. Nothing
+  deletes a device today, on this path or the Mac mini one; a reaper is the
+  tracked follow-up.
 
 Keys minted through an OAuth client are always tagged and carry no
 default tag, so `TAILSCALE_TAGS` must name one (the chart sources it

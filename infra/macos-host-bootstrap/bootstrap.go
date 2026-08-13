@@ -1979,9 +1979,17 @@ fi
 #
 # preauthorized=true because the implicitly minted key defaults to
 # false, and a host parked in manual-approval limbo fails this join
-# exactly the way an expired credential would. ephemeral=true matches
-# the fleet model: machines come and go under CAPI, and a replaced
-# mini shouldn't leave a tailnet device record behind.
+# exactly the way an expired credential would.
+#
+# ephemeral=true carries its weight only for the first four hours of a
+# host's life: Tailscale converts a device that stays online that long
+# into a standard tagged one, so a mini that ran for weeks is no longer
+# ephemeral by the time CAPI replaces it and its record outlives the
+# machine either way. It is set to preserve the behaviour the fleet
+# already had, NOT because it cleans up after the fleet. Nothing deletes
+# a mini's tailnet device today (reconcileDelete revokes the kubelet
+# identity and stops there); a reaper is the tracked follow-up, and
+# ephemeral should go once one exists.
 #
 # The prefix test leaves a legacy pre-auth key working untouched:
 # appending these parameters to one would corrupt it, and bootstrap
