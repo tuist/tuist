@@ -22,6 +22,24 @@ struct NetrcTests {
     }
 
     @Test
+    func credentialUsesTheFirstEntryForADuplicatedHost() throws {
+        // SwiftPM's own netrc resolves duplicates with `machines.firstIndex(where:)`,
+        // and curl sends the first entry too, so a file that both tools read one way
+        // must not authenticate differently here.
+        let machines = NetrcParser.machines(
+            in: """
+            machine registry.example.com login first password one
+            machine registry.example.com login second password two
+            """
+        )
+        let netrc = Netrc(sources: [machines])
+
+        #expect(
+            netrc.credential(for: try #require(URL(string: "https://registry.example.com")))?
+                .password == "one")
+    }
+
+    @Test
     func parserSkipsEntriesWithoutBothCredentials() {
         let machines = NetrcParser.machines(
             in: """

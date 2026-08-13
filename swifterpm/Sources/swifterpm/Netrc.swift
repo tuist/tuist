@@ -63,7 +63,9 @@ struct Netrc: Sendable {
     func credential(for url: URL) -> RegistryCredential? {
         guard let host = url.host?.lowercased() else { return nil }
         for machines in sources {
-            if let machine = machines.last(where: { $0.name == host })
+            // First match rather than last: SwiftPM and curl both resolve a duplicated
+            // host to the entry that appears first.
+            if let machine = machines.first(where: { $0.name == host })
                 ?? machines.first(where: \.isDefault)
             {
                 return RegistryCredential(user: machine.login, password: machine.password)
