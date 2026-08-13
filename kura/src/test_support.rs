@@ -86,6 +86,7 @@ where
         outbox_max_depth: 100_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
+        replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         multipart_max_active_uploads: 128,
@@ -147,10 +148,19 @@ where
             .expect("failed to build test analytics");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
+    let peer_client_factory = PeerClientFactory::plain();
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
+    // Production builds this without any total timeout — the stall watchdog is
+    // the deadline there. Tests keep the same 5s cap as `client` so a test
+    // driving the upload path against a server that never answers fails at 5s
+    // instead of hanging for the whole watchdog window.
+    let upload_client = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect("failed to build test upload client");
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -179,7 +189,8 @@ where
         usage,
         geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
-        peer_client_factory: PeerClientFactory::plain(),
+        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
+        peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
