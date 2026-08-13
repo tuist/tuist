@@ -174,11 +174,11 @@
       column-gap: var(--changelog-rail-gap);
       /* 96px between one changelog entry and the next. */
       row-gap: var(--noora-spacing-16);
-      align-items: start;
       /* The columns add up to less than the box's inner width, so center
          the group instead of leaving all the slack on the right. The rail
          and dots are drawn relative to the columns, so they follow. */
       justify-content: center;
+      align-items: start;
       padding: var(--noora-spacing-13);
     }
 
@@ -236,13 +236,13 @@
         @media (min-width: 1024px) {
           position: sticky;
           top: var(--changelog-sticky-top);
-          gap: var(--noora-spacing-5);
           /* Right-aligned so every date ends next to its dot. */
           align-items: flex-end;
+          gap: var(--noora-spacing-5);
+          z-index: var(--noora-z-index-1);
           /* Nudged so the date's line centers on the dot and the title's
              first line, rather than hanging from the same box top. */
           padding-top: 7px;
-          z-index: var(--noora-z-index-1);
 
           /* The dot, centered on the date's text line (which at rest is
              also the title's first line) and on the rail's hairline. */
