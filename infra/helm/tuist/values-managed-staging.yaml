@@ -237,6 +237,8 @@ ociRegistry:
     rootDirectory: oci
   auth:
     enabled: true
+  externalSecret:
+    enabled: true
   tailscale:
     enabled: true
     hostname: tuist-oci-staging

@@ -26,8 +26,9 @@ spec:
   ports:
     - name: registry
       port: {{ .Values.ociRegistry.service.port }}
-      # With auth on, the only routable port is the proxy's; the
-      # registry itself stays on the Pod loopback so the read/write
-      # split cannot be bypassed by addressing it directly.
+      # With auth on this points at the proxy. That alone would not stop
+      # anything in the cluster reaching the registry on the Pod IP, so
+      # what actually closes the bypass is the registry binding the
+      # loopback — see REGISTRY_HTTP_ADDR in the Deployment.
       targetPort: {{ ternary "proxy" "registry" .Values.ociRegistry.auth.enabled }}
 {{- end }}

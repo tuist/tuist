@@ -2074,21 +2074,11 @@ ociRegistry:
     # can also push, and a pull credential on the fleet becomes a push
     # credential on every host.
     enabled: false
-    realm: "Tuist image registry"
-    # Where the htpasswd comes from: the chart's ExternalSecret, or an
-    # operator-managed Secret named here with an `htpasswd` key. With
-    # auth on and neither set, the chart fails to render.
+    realm: "Tuist OCI registry"
+    # Operator-managed Secret with an `htpasswd` key, used when
+    # `externalSecret` below is off. With auth on and neither set, the
+    # chart fails to render.
     existingSecret: ""
-    externalSecret:
-      enabled: true
-      refreshInterval: 1h
-      storeRef:
-        name: onepassword
-        kind: ClusterSecretStore
-      htpasswd:
-        item: OCI_REGISTRY_CREDENTIALS
-        # A full htpasswd line (`user:$2y$...`), not a bare password.
-        field: htpasswd
     proxy:
       image:
         repository: public.ecr.aws/nginx/nginx
@@ -2113,8 +2103,23 @@ ociRegistry:
     # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
     hostname: ""
     tags: ""
-  # Empty = registry auto-generates one per pod (fine at replicaCount 1).
-  # Set a shared value before scaling past one replica behind the Service.
+  # Runtime secrets, from one 1P item via ESO. Carries `httpSecret`
+  # always, and `htpasswd` when auth is on.
+  externalSecret:
+    enabled: false
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    item: OCI_REGISTRY_CREDENTIALS
+    fields:
+      # Signs upload state; any stable random string.
+      httpSecret: http_secret
+      # A full htpasswd line (`user:$2y$...`), not a bare password.
+      htpasswd: htpasswd
+  # Used when `externalSecret` is off. Required either way: leaving the
+  # registry to generate one per process breaks in-flight chunked uploads
+  # across a restart, and across a rolling update even at one replica.
   httpSecret: ""
   extraEnv: []
   resources:
