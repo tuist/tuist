@@ -83,6 +83,7 @@ func main() {
 		vmClusterDNSIP               string
 		vmCachePNName                string
 		vmCachePNCIDR                string
+		sshIngressAllowRaw           string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -203,6 +204,17 @@ func main() {
 			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
 			"range only. Flows from the chart's "+
 			"macosFleet.vmCachePrivateNetwork.cidr.")
+	flag.StringVar(&sshIngressAllowRaw, "ssh-ingress-allow-cidrs",
+		envOrDefault("CAPI_SSH_INGRESS_ALLOW_CIDRS", ""),
+		"Comma-separated IPv4 CIDRs, beyond the tailnet and loopback, allowed to "+
+			"reach :22 on each Mac mini. Everything else is dropped by a pf anchor so "+
+			"internet SSH scan traffic can't exhaust launchd's ssh listen backlog and "+
+			"lock the operator out on the public and tailnet paths at once. Put this "+
+			"operator's SSH egress address here to keep the public-IP dial path (the "+
+			"only one that can update Tailscale itself) working; without it the drift "+
+			"loop still converges over the tailnet fallback. The guard is skipped "+
+			"entirely when Tailscale isn't wired. Flows from the chart's "+
+			"macosFleet.sshIngressAllowCIDRs.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
 			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
@@ -391,6 +403,7 @@ func main() {
 		VMKuraEgressCIDR:        vmKuraEgressCIDR,
 		VMClusterDNSIP:          vmClusterDNSIP,
 		VMCachePNCIDR:           vmCachePNCIDR,
+		SSHIngressAllowCIDRs:    parseCommaList(sshIngressAllowRaw),
 		HostCPU:                 tartKubeletHostCPU,
 		HostMemoryMB:            tartKubeletHostMemory,
 		MaxPods:                 tartKubeletMaxPods,
@@ -509,6 +522,7 @@ func main() {
 		VMClusterDNSIP:                vmClusterDNSIP,
 		VMCachePNName:                 vmCachePNName,
 		VMCachePNCIDR:                 vmCachePNCIDR,
+		SSHIngressAllowCIDRs:          parseCommaList(sshIngressAllowRaw),
 		VPC:                           vpcClient,
 		TartKubeletHostCPU:            tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:       tartKubeletHostMemory,

@@ -122,6 +122,48 @@ it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
+### SSH ingress guard
+
+Both dial paths land on the same listener, so both fail together. A Scaleway
+Mac mini's public interface is internet-facing and its `:22` absorbs continuous
+SSH brute-force traffic; several hundred half-open connections from scanner
+ranges sit in `SYN_RCVD`, past `SOMAXCONN`, and the kernel drops every new SYN.
+launchd (not sshd) owns that socket and binds it to `*:22`, so an exhausted
+backlog blocks the tailnet fallback exactly as hard as the public path. That is
+how a host stops accepting config pushes on every path at once and drifts on a
+stale tart-kubelet until someone consoles in over VNC.
+
+`installSSHIngressGuard` (bootstrap + drift, right after `installTailscale`)
+drops inbound `:22` at the pf edge from everything except the tailnet
+(`100.64.0.0/10`), loopback, `--ssh-ingress-allow-cidrs`, and the live session's
+own source address. Notes:
+
+- It runs *after* Tailscale so it never narrows `:22` before the fallback path
+  exists, and it no-ops entirely when Tailscale isn't wired: without a second
+  path, a wrong allow list strands the host behind VNC.
+- The rules live in the `com.apple/tuist.sshguard` sub-anchor, the same trick
+  `renderVMNATScript` uses. A top-level `anchor` appended to `/etc/pf.conf` is
+  only read on a full ruleset load (i.e. at boot), so on a running host
+  `pfctl -a` would populate an anchor nothing evaluates while the drift update
+  stamped `HostConfigHash` as converged: the guard would report shipped and
+  filter nothing until a reboot. The stock pf.conf already carries
+  `anchor "com.apple/*"`, so a sub-anchor under it is live the moment it is
+  written. Nothing here edits `/etc/pf.conf`, and a test asserts that.
+  `dev.tuist.pfctl-sshguard` re-loads the anchor file at boot and every 60s, so
+  the rules survive a reboot or an external flush with no SSH round trip.
+- Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
+  probe reads as a permanent wedge and reloads ssh every minute.
+- Folding the live session's source into the table makes the guard
+  self-correcting: if the operator's egress address changes and the configured
+  list goes stale, the public dial is dropped, the drift loop falls back to the
+  tailnet, and that push rewrites the table with the new address.
+- Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
+  public path usable, since a tailnet-transported roll can't update Tailscale
+  itself (`SkipTailscaleInstall`, above).
+- The host-side backlog drain alone can't fix this. It clears a queue the flood
+  refills within seconds, which is why hosts stayed wedged for weeks with the
+  watchdog installed and firing.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
