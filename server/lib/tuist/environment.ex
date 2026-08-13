@@ -836,8 +836,12 @@ defmodule Tuist.Environment do
     end
   end
 
-  def loops_api_key(secrets \\ secrets()) do
-    get([:loops, :api_key], secrets)
+  def atlas_email_api_url(secrets \\ secrets()) do
+    get([:atlas, :email_api_url], secrets)
+  end
+
+  def atlas_email_api_key(secrets \\ secrets()) do
+    get([:atlas, :email_api_key], secrets)
   end
 
   def github_token_update_package_releases(secrets \\ secrets()) do
