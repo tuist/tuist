@@ -9,7 +9,6 @@ public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
     @State var viewModel = PreviewsViewModel()
-    @State private var searchText = ""
     @State private var navigationPath = NavigationPath()
     @State private var pressedPreviewId: String?
     private let imagePrefetcher = ImagePrefetcher()
@@ -76,8 +75,12 @@ public struct PreviewsView: View {
                                     try await viewModel.refreshPreviews()
                                 }
                             }
+                        } else if viewModel.filteredPreviews.isEmpty {
+                            ContentUnavailableView.search(text: viewModel.searchText)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
                         } else {
-                            ForEach(viewModel.previews) { preview in
+                            ForEach(viewModel.filteredPreviews) { preview in
                                 PreviewRowView(
                                     preview: preview,
                                     navigationPath: $navigationPath,
@@ -93,7 +96,7 @@ public struct PreviewsView: View {
                                     )
                                 )
                                 .onAppear {
-                                    if preview.id == viewModel.previews.last?.id {
+                                    if preview.id == viewModel.filteredPreviews.last?.id {
                                         errorHandling.fireAndHandleError {
                                             try await viewModel.loadMorePreviews()
                                         }
@@ -123,6 +126,7 @@ public struct PreviewsView: View {
                     }
                 }
             }
+            .searchable(text: Bindable(viewModel).searchText, prompt: "Name, branch, or commit")
             .onAppear {
                 // When deleting an account, there's a bug when onAppear is called even when already logged out.
                 // This should never happen due to the check in TuistApp.swift, but it seems there's a race condition in the
@@ -165,14 +169,15 @@ public struct PreviewsView: View {
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {
-        guard let currentIndex = viewModel.previews.firstIndex(where: { $0.id == currentPreview.id }) else { return }
+        let previews = viewModel.filteredPreviews
+        guard let currentIndex = previews.firstIndex(where: { $0.id == currentPreview.id }) else { return }
 
         let preloadRange = 5
         let startIndex = currentIndex + 1
-        let endIndex = min(startIndex + preloadRange, viewModel.previews.count)
+        let endIndex = min(startIndex + preloadRange, previews.count)
 
         imagePrefetcher.startPrefetching(
-            with: viewModel.previews[startIndex ..< endIndex].map(\.iconURL)
+            with: previews[startIndex ..< endIndex].map(\.iconURL)
         )
     }
 }

@@ -18,6 +18,7 @@ final class PreviewsViewModel: Sendable {
     private(set) var projects: [ServerProject] = []
     private(set) var previews: [ServerPreview] = []
     private(set) var selectedProject: ServerProject?
+    var searchText = ""
 
     private var currentPage = 1
     private(set) var isLoadingMore = false
@@ -25,6 +26,24 @@ final class PreviewsViewModel: Sendable {
     private(set) var isRefreshingPreviews = false
     private(set) var isRefreshingProjects = false
     private(set) var isInitialLoading = true
+
+    var filteredPreviews: [ServerPreview] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return previews }
+
+        return previews.filter { preview in
+            if let displayName = preview.displayName, displayName.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            if let branch = preview.gitBranch, branch.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            if let commitSHA = preview.gitCommitSHA, commitSHA.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            return false
+        }
+    }
 
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
@@ -50,6 +69,7 @@ final class PreviewsViewModel: Sendable {
 
     func selectProject(_ project: ServerProject) async throws {
         selectedProject = project
+        searchText = ""
         try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
         try await loadPreviews(for: project)
     }
