@@ -272,7 +272,7 @@ defmodule Tuist.MCP.Tool do
   end
 
   defp authorize_project(assigns, project, action, category, message \\ "You do not have access to this resource.") do
-    if Authorization.authorize(authenticated_subject(assigns), action, project, category) do
+    if Authorization.authorize_request(assigns, action, project, category) do
       :ok
     else
       {:error, message}
