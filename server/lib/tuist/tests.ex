@@ -697,17 +697,7 @@ defmodule Tuist.Tests do
         )
       )
 
-    test =
-      if test_run_id do
-        ClickHouseRepo.one(
-          from(test in Test,
-            where: test.project_id == ^project_id,
-            where: test.id == ^test_run_id,
-            order_by: [desc: test.inserted_at],
-            limit: 1
-          )
-        )
-      end
+    test = test_run_id && sharded_test_by_id(project_id, test_run_id)
 
     case test do
       %Test{} = test ->
@@ -719,16 +709,40 @@ defmodule Tuist.Tests do
         # its shard-run row. It avoids FINAL because ordering the physical rows
         # by version returns the same latest test without an in-memory merge.
         # Every later shard takes the prefix-keyed lookup above.
-        ClickHouseRepo.one(
-          from(test in Test,
-            where: test.shard_plan_id == ^shard_plan_id,
-            where: test.project_id == ^project_id,
-            order_by: [desc: test.inserted_at],
-            limit: 1
-          ),
-          settings: @sharded_test_lookup_settings
-        )
+        case sharded_test_id_by_plan(project_id, shard_plan_id) do
+          nil -> nil
+          id -> sharded_test_by_id(project_id, id)
+        end
     end
+  end
+
+  defp sharded_test_by_id(project_id, test_run_id) do
+    ClickHouseRepo.one(
+      from(test in Test,
+        where: test.project_id == ^project_id,
+        where: test.id == ^test_run_id,
+        order_by: [desc: test.inserted_at],
+        limit: 1
+      )
+    )
+  end
+
+  # `shard_plan_id` is not part of the sorting key, so this reads every granule
+  # the project's key prefix leaves. Selecting the id alone keeps that read to a
+  # handful of column streams: with `SELECT *` the per-column read buffers of a
+  # 20+ column table blow past `max_memory_usage` and the whole shard report
+  # 500s, which drops the run's test report entirely.
+  defp sharded_test_id_by_plan(project_id, shard_plan_id) do
+    ClickHouseRepo.one(
+      from(test in Test,
+        where: test.shard_plan_id == ^shard_plan_id,
+        where: test.project_id == ^project_id,
+        order_by: [desc: test.inserted_at],
+        limit: 1,
+        select: test.id
+      ),
+      settings: @sharded_test_lookup_settings
+    )
   end
 
   # Carry forward metadata fields when a later shard report has them and

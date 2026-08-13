@@ -2209,6 +2209,59 @@ defmodule Tuist.TestsTest do
       refute updated_test.id == conflicting_test_id
     end
 
+    test "recovers the merged run of a plan whose shard-run row was never written" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, interrupted_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          status: "in_progress",
+          test_modules: []
+        )
+
+      interrupted_row =
+        interrupted_test
+        |> Map.from_struct()
+        |> Map.drop([
+          :__meta__,
+          :ran_by_account,
+          :build_run,
+          :gradle_build,
+          :test_case_runs,
+          :shard_plan,
+          :run_destinations
+        ])
+        |> Map.merge(%{
+          shard_plan_id: plan.id,
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), 1, :second)
+        })
+
+      IngestRepo.insert_all(Test, [interrupted_row])
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.id == interrupted_test.id
+    end
+
     test "single shard plan sets status directly (not in_progress)" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
