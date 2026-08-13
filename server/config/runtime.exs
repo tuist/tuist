@@ -841,7 +841,6 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
-
 if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,

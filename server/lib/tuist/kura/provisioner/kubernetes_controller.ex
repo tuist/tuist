@@ -52,10 +52,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp do_rollout(
-         name,
-         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region}
-       ) do
+  defp do_rollout(name, %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region}) do
     entitlements = manifest_entitlements(account, region)
     external_peers = self_hosted_peers(account, region, entitlements)
 
