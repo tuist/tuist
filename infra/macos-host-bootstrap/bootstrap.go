@@ -1819,9 +1819,8 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 //
 // A key minted through an OAuth client is always tagged, and the tag has to be
 // named at join time, because the credential carries no default to fall back
-// on. A
-// legacy pre-auth key carries its own tag binding, so it stays valid untagged
-// while envs migrate.
+// on. A legacy pre-auth key carries its own tag binding, so it stays valid
+// untagged while envs migrate.
 //
 // Checked here rather than on the host so the error reaches
 // Machine.status.failureMessage instead of surfacing 60s later as a join
