@@ -1,4 +1,4 @@
-{{- if .Values.imageRegistry.enabled }}
+{{- if .Values.ociRegistry.enabled }}
 # VM image registry (CNCF distribution, store of record — not a proxy).
 # Holds the large Tart images the macOS fleet boots from, which GHCR is
 # a poor fit for: pushing a ~50 GB image there means ~17,000 chunked
@@ -24,28 +24,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry") }}
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry") }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: image-registry
+    app.kubernetes.io/component: oci-registry
 spec:
-  replicas: {{ .Values.imageRegistry.replicaCount }}
+  replicas: {{ .Values.ociRegistry.replicaCount }}
   selector:
     matchLabels:
-      {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 6 }}
+      {{- include "tuist.componentLabels" (dict "root" . "component" "oci-registry") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 8 }}
+        {{- include "tuist.componentLabels" (dict "root" . "component" "oci-registry") | nindent 8 }}
         {{- with .Values.global.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
-        - name: image-registry
-          image: "{{ .Values.imageRegistry.image.repository }}:{{ .Values.imageRegistry.image.tag }}"
-          imagePullPolicy: {{ .Values.imageRegistry.image.pullPolicy }}
+        - name: oci-registry
+          image: "{{ .Values.ociRegistry.image.repository }}:{{ .Values.ociRegistry.image.tag }}"
+          imagePullPolicy: {{ .Values.ociRegistry.image.pullPolicy }}
           ports:
             - name: registry
               containerPort: 5000
@@ -53,7 +53,7 @@ spec:
             - name: REGISTRY_HTTP_ADDR
               value: ":5000"
             - name: REGISTRY_LOG_LEVEL
-              value: {{ .Values.imageRegistry.logLevel | quote }}
+              value: {{ .Values.ociRegistry.logLevel | quote }}
             # Retiring an Xcode profile should be able to reclaim its
             # blobs. Deletion only marks them unreferenced; an offline
             # garbage-collect pass is what frees the object-store space.
@@ -67,15 +67,15 @@ spec:
             # would otherwise render it in scientific notation, which the
             # storage driver rejects at startup.
             - name: REGISTRY_STORAGE_S3_CHUNKSIZE
-              value: {{ .Values.imageRegistry.s3.chunkSize | int64 | quote }}
-            {{- with .Values.imageRegistry.httpSecret }}
+              value: {{ .Values.ociRegistry.s3.chunkSize | int64 | quote }}
+            {{- with .Values.ociRegistry.httpSecret }}
             # Shared across replicas behind the Service so signed upload
             # state validates regardless of which replica serves a request.
             - name: REGISTRY_HTTP_SECRET
               value: {{ . | quote }}
             {{- end }}
-            {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.imageRegistry.s3) | nindent 12 }}
-            {{- with .Values.imageRegistry.extraEnv }}
+            {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.ociRegistry.s3) | nindent 12 }}
+            {{- with .Values.ociRegistry.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           readinessProbe:
@@ -91,17 +91,17 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
-            {{- toYaml .Values.imageRegistry.resources | nindent 12 }}
-        {{- if .Values.imageRegistry.auth.enabled }}
+            {{- toYaml .Values.ociRegistry.resources | nindent 12 }}
+        {{- if .Values.ociRegistry.auth.enabled }}
         # Read/write split; see the ConfigMap for why it lives here and
         # not in the registry's own htpasswd realm. The registry's port
         # is not in the Service, so this is the only way in.
         - name: auth-proxy
-          image: "{{ .Values.imageRegistry.auth.proxy.image.repository }}:{{ .Values.imageRegistry.auth.proxy.image.tag }}"
-          imagePullPolicy: {{ .Values.imageRegistry.auth.proxy.image.pullPolicy }}
+          image: "{{ .Values.ociRegistry.auth.proxy.image.repository }}:{{ .Values.ociRegistry.auth.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.ociRegistry.auth.proxy.image.pullPolicy }}
           ports:
             - name: proxy
-              containerPort: {{ .Values.imageRegistry.auth.proxy.port }}
+              containerPort: {{ .Values.ociRegistry.auth.proxy.port }}
           volumeMounts:
             - name: auth-proxy-config
               mountPath: /etc/nginx/conf.d
@@ -119,21 +119,21 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
-            {{- toYaml .Values.imageRegistry.auth.proxy.resources | nindent 12 }}
+            {{- toYaml .Values.ociRegistry.auth.proxy.resources | nindent 12 }}
         {{- end }}
-      {{- if .Values.imageRegistry.auth.enabled }}
+      {{- if .Values.ociRegistry.auth.enabled }}
       volumes:
         - name: auth-proxy-config
           configMap:
-            name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry-proxy") }}
+            name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-proxy") }}
         - name: registry-auth
           secret:
-            {{- if .Values.imageRegistry.auth.externalSecret.enabled }}
-            secretName: {{ include "tuist.componentName" (dict "root" . "component" "image-registry-auth") }}
-            {{- else if .Values.imageRegistry.auth.existingSecret }}
-            secretName: {{ .Values.imageRegistry.auth.existingSecret }}
+            {{- if .Values.ociRegistry.auth.externalSecret.enabled }}
+            secretName: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-auth") }}
+            {{- else if .Values.ociRegistry.auth.existingSecret }}
+            secretName: {{ .Values.ociRegistry.auth.existingSecret }}
             {{- else }}
-            {{- fail "imageRegistry.auth.enabled requires imageRegistry.auth.externalSecret.enabled, or auth.existingSecret naming a Secret with an htpasswd key" }}
+            {{- fail "ociRegistry.auth.enabled requires ociRegistry.auth.externalSecret.enabled, or auth.existingSecret naming a Secret with an htpasswd key" }}
             {{- end }}
             items:
               - key: htpasswd

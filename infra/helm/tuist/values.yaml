@@ -2030,16 +2030,19 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
 
-# Registry of record for the large Tart VM images the macOS fleet boots
-# from (Xcode base, runner, xcresult processor) plus the Xcode .xip
-# mirror. Backed by the same object store as `registryCache` under its
-# own prefix; see the template for why these artifacts don't belong on
-# GHCR. Disabled by default — only hosted Tuist publishes VM images.
+# OCI registry of record. Holds the large Tart VM images the macOS fleet
+# boots from (Xcode base, runner, xcresult processor) and the Xcode .xip
+# mirror, which is an OCI artifact rather than an image — hence the name
+# tracking the protocol rather than the payload. Distinct from `registry`
+# (the Swift package registry) and `registryCache` (the Docker Hub
+# mirror), and backed by the same object store as the latter under its
+# own prefix; see the template for why these don't belong on GHCR.
+# Disabled by default — only hosted Tuist publishes these.
 #
 # Standing this up is inert on its own: the build workflows keep pushing
 # to GHCR and the fleet keeps pulling from there until the image
 # references move, which is a separate, canaried change.
-imageRegistry:
+ociRegistry:
   enabled: false
   replicaCount: 1
   image:
@@ -2057,7 +2060,7 @@ imageRegistry:
   logLevel: info
   s3:
     bucket: tuist-registry
-    rootDirectory: images
+    rootDirectory: oci
     # Multipart part size in bytes for blob uploads. 64 MiB against Tart's
     # 512 MiB layers is 8 parts per layer; the default 10 MiB would be 52.
     chunkSize: 67108864
@@ -2083,7 +2086,7 @@ imageRegistry:
         name: onepassword
         kind: ClusterSecretStore
       htpasswd:
-        item: IMAGE_REGISTRY_CREDENTIALS
+        item: OCI_REGISTRY_CREDENTIALS
         # A full htpasswd line (`user:$2y$...`), not a bare password.
         field: htpasswd
     proxy:

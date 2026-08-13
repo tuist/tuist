@@ -1,4 +1,4 @@
-{{- if .Values.imageRegistry.enabled }}
+{{- if .Values.ociRegistry.enabled }}
 # `tailscale.com/expose` makes the operator front this Service with a
 # tailnet node, so builders and the Mac fleet reach the registry by its
 # tailnet name with no public ingress. The proxy is L4, which matters
@@ -7,27 +7,27 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "image-registry") }}
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry") }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: image-registry
-  {{- if .Values.imageRegistry.tailscale.enabled }}
+    app.kubernetes.io/component: oci-registry
+  {{- if .Values.ociRegistry.tailscale.enabled }}
   annotations:
     tailscale.com/expose: "true"
-    tailscale.com/hostname: {{ required "imageRegistry.tailscale.hostname is required when imageRegistry.tailscale.enabled is true" .Values.imageRegistry.tailscale.hostname | quote }}
-    {{- with .Values.imageRegistry.tailscale.tags }}
+    tailscale.com/hostname: {{ required "ociRegistry.tailscale.hostname is required when ociRegistry.tailscale.enabled is true" .Values.ociRegistry.tailscale.hostname | quote }}
+    {{- with .Values.ociRegistry.tailscale.tags }}
     tailscale.com/tags: {{ . | quote }}
     {{- end }}
   {{- end }}
 spec:
-  type: {{ .Values.imageRegistry.service.type }}
+  type: {{ .Values.ociRegistry.service.type }}
   selector:
-    {{- include "tuist.componentLabels" (dict "root" . "component" "image-registry") | nindent 4 }}
+    {{- include "tuist.componentLabels" (dict "root" . "component" "oci-registry") | nindent 4 }}
   ports:
     - name: registry
-      port: {{ .Values.imageRegistry.service.port }}
+      port: {{ .Values.ociRegistry.service.port }}
       # With auth on, the only routable port is the proxy's; the
       # registry itself stays on the Pod loopback so the read/write
       # split cannot be bypassed by addressing it directly.
-      targetPort: {{ ternary "proxy" "registry" .Values.imageRegistry.auth.enabled }}
+      targetPort: {{ ternary "proxy" "registry" .Values.ociRegistry.auth.enabled }}
 {{- end }}

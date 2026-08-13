@@ -170,13 +170,13 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{/*
 S3 storage driver env for a CNCF `distribution` registry, shared by the
 Docker Hub pull-through cache (registryCache) and the VM image registry
-(imageRegistry). Both speak to the same object store and differ only in
+(ociRegistry). Both speak to the same object store and differ only in
 bucket + prefix, so the credential branching lives here rather than being
 duplicated per component.
 
 Call with the component's `s3` values:
 
-  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.imageRegistry.s3) | nindent 12 }}
+  {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.ociRegistry.s3) | nindent 12 }}
 */}}
 {{- define "tuist.registryStorageEnv" -}}
 {{- $root := .root -}}
