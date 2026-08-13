@@ -30,7 +30,8 @@
   opacity: 0;
 }
 
-.noora-icon-transition[data-transition="crossfade_rotate"] > [data-part="icon-to"] {
+.noora-icon-transition[data-transition="crossfade_rotate"]
+  > [data-part="icon-to"] {
   transform: rotate(-90deg);
 }
 
@@ -38,7 +39,8 @@
   opacity: 0;
 }
 
-.noora-icon-transition[data-transition="crossfade_rotate"][data-active] > [data-part="icon-from"] {
+.noora-icon-transition[data-transition="crossfade_rotate"][data-active]
+  > [data-part="icon-from"] {
   transform: rotate(90deg);
 }
 
@@ -46,7 +48,8 @@
   opacity: 1;
 }
 
-.noora-icon-transition[data-transition="crossfade_rotate"][data-active] > [data-part="icon-to"] {
+.noora-icon-transition[data-transition="crossfade_rotate"][data-active]
+  > [data-part="icon-to"] {
   transform: rotate(0);
 }
 
