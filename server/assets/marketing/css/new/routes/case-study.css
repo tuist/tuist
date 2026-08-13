@@ -1,0 +1,337 @@
+/*
+ * Same page skeleton as the new blog post: 1200px bordered boxes separated
+ * by 2px seams. The article is one box (breadcrumb + title + hero + company
+ * facts + prose, with the prose on the site-wide 650px column and 780px
+ * media overhang), "Read next" is a second box reusing the customers index
+ * grid's card anatomy, and the page closes with the home CTA framed by its
+ * dithered divider bands.
+ */
+#marketing-case-study {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Matches the specificity of pages.css's section margins so the page frame
+     wins (see blog.css for the full story). */
+  & > article[data-part="article"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the article. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(article[data-part="article"], [data-part="read-next"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  & > article[data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--noora-spacing-10) var(--noora-spacing-6) var(--noora-spacing-12);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-15);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* The title column: comfortably wider than the prose so multi-line
+         titles keep a balanced shape, but never the hero image's width. */
+      max-width: 780px;
+
+      & > [data-part="breadcrumb"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > a {
+          color: inherit;
+          text-decoration: none;
+
+          &:hover {
+            color: var(--noora-surface-label-primary);
+            text-decoration: underline;
+          }
+        }
+
+        & > svg {
+          margin: 0 var(--noora-spacing-2);
+          color: var(--noora-surface-label-tertiary);
+        }
+      }
+
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        letter-spacing: -0.02em;
+        text-align: center;
+        text-wrap: balance;
+      }
+
+      & > [data-part="metadata"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="image"] {
+      margin-top: var(--noora-spacing-10);
+      /* Same hairline treatment as the prose images below (prose.css). */
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--marketing-illustration-neutral-2);
+      width: 100%;
+      max-width: 780px;
+      height: auto;
+    }
+
+    /* The generated cover artwork as the hero: no card chrome or tertiary
+       ground here — the dots and logo float on the article's background. */
+    & > [data-part="artwork"] {
+      margin-top: var(--noora-spacing-10);
+      aspect-ratio: 16 / 9;
+      width: 100%;
+      max-width: 780px;
+      height: auto;
+      color: var(--noora-surface-label-primary);
+    }
+
+    /* Company facts under the hero: label over value, entries side by side. */
+    & > [data-part="facts"] {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: var(--noora-spacing-8) var(--noora-spacing-12);
+      margin-top: var(--noora-spacing-10);
+
+      & > [data-part="entry"] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="value"] {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--noora-spacing-1);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+          & svg {
+            width: var(--noora-icon-size-small);
+            height: var(--noora-icon-size-small);
+          }
+        }
+
+        & > a[data-part="value"] {
+          color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
+
+          &:hover {
+            text-decoration-style: dotted;
+          }
+        }
+      }
+    }
+
+    & > [data-part="content"] {
+      box-sizing: border-box;
+      margin-top: var(--noora-spacing-11);
+      width: 100%;
+
+      /* Every image on the page rounds at 8px, like the hero above —
+         prose.css's site-wide 12px loses here. */
+      & img,
+      & video {
+        border-radius: var(--noora-radius-4);
+      }
+
+      @media (min-width: 1024px) {
+        max-width: 650px;
+
+        /* Media hangs past the 650px text column to the hero's 780px. */
+        & img,
+        & video {
+          margin-left: calc((650px - 780px) / 2);
+          width: 780px;
+          max-width: 780px;
+        }
+      }
+    }
+  }
+
+  & > [data-part="read-next"] {
+    & > [data-part="title"] {
+      border-bottom: 1px solid var(--marketing-stroke-default);
+      /* 24px vertical, 16px horizontal — an 80px row with the 32px line. */
+      padding: var(--noora-spacing-8) var(--noora-spacing-6);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+    }
+
+    /* The cards are the customers index grid's, one row of three (see
+       customers.css): hairlines between cells, no hover treatment. */
+    & > [data-part="cases"] {
+      display: grid;
+      grid-template-columns: 1fr;
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      & > [data-part="case"] {
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-8);
+        color: inherit;
+        text-decoration: none;
+
+        &:first-child {
+          border-top: none;
+        }
+
+        @media (min-width: 1024px) {
+          border-top: none;
+
+          &:not(:first-child) {
+            border-left: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        & > [data-part="cover"] {
+          background: var(--noora-surface-background-tertiary);
+          aspect-ratio: 16 / 9;
+          overflow: hidden;
+
+          & > [data-part="image"] {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          /* The SVG artwork shares the cover's 16:9 box; currentColor
+             carries the logos' neutral parts across themes. */
+          & > [data-part="artwork"] {
+            display: block;
+            width: 100%;
+            height: 100%;
+            color: var(--noora-surface-label-primary);
+          }
+        }
+
+        & > [data-part="content"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          margin-top: var(--noora-spacing-6);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+            text-wrap: pretty;
+          }
+        }
+
+        /* Same treatment as the customers index cards: quiet by default,
+           raised to the link button's own secondary label on hover/focus. */
+        & > [data-part="read-story"] {
+          align-self: flex-start;
+          margin-top: var(--noora-spacing-6);
+          color: var(--noora-surface-label-secondary);
+          text-decoration: none;
+        }
+
+        &:hover > [data-part="read-story"],
+        &:focus-visible > [data-part="read-story"] {
+          color: var(--noora-link-button-secondary-label);
+        }
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
