@@ -524,6 +524,30 @@ saturated fleet, and a wedged provisioning ceiling all present as "jobs
 are queued and not starting", and only the queue itself is common to
 all of them.
 
+There is no automated containment behind this alert, by choice: a
+per-node circuit breaker was built and dropped because on a two-node
+fleet it could quarantine both nodes and stall everything outright (see
+`infra/runners-controller/AGENTS.md`). This alert is the detection, and
+the response is manual.
+
+When it fires, the first question is whether one node is eating the
+fleet's provisioning ceiling:
+
+```bash
+kubectl get pods -n tuist-runners -o wide | grep -v Running
+```
+
+Runner Pods stuck in `Init` and concentrated on a single node is the
+signature. `kubectl describe pod` on one of them names the cause, and
+`kubectl cordon <node>` restores throughput on the remaining nodes
+immediately. Cordoning does not evict the already-bound Pods, so delete
+them too or the ceiling stays occupied until the start timeout reaps
+them:
+
+```bash
+kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
+```
+
 ### Node leaking cgroups
 
 ```promql
@@ -568,34 +592,6 @@ up, and the fix is the runtime config, not a bigger node.
 Requires the `cgroups` collector, enabled via `extraArgs` on the
 node-exporter DaemonSet in `values.yaml`; it is off in the upstream
 chart default.
-
-### Runner fleet node quarantined
-
-```promql
-max by (cluster, env, fleet_selector, operating_system) (
-  tuist_runners_fleet_filtered_nodes{reason="quarantined"}
-) > 0
-```
-
-- Pending period: 5 minutes
-- Severity: warning
-- Summary: `A node in {{ $labels.fleet_selector }} was quarantined after
-  repeatedly failing to start runner Pods and needs operator attention`
-
-The runners controller quarantines a node that fails
-`nodeQuarantineThreshold` pod starts inside `nodeQuarantineWindow`
-(`infra/runners-controller/controllers/node_quarantine.go`) and steers
-new Pods away from it, which stops the churn loop above from consuming
-the fleet's provisioning ceiling. That containment is deliberately
-silent to the queue: it protects throughput on the remaining nodes, so
-the queue-age rule may never fire even though the fleet is down a node.
-
-Warning, not critical: the fleet is degraded, not stalled, and the
-breaker is half-open — it releases the node after
-`nodeQuarantineDuration` and re-quarantines it if it is still broken.
-A node that keeps reappearing here needs a human (in this incident, a
-reboot to clear the leaked cgroups). A quarantine that clears and does
-not return was a transient the breaker absorbed correctly.
 
 ### Tuist server replicas unavailable
 

@@ -105,11 +105,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// One breaker, shared: the RunnerPool reconciler trips it from the
-	// pod-start timeouts it observes, and the Autoscaler reads it so
-	// fleet capacity and the fleet-node gauges agree with it.
-	nodeQuarantine := controllers.NewNodeQuarantine()
-
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
 		Scheme:              mgr.GetScheme(),
@@ -120,7 +115,6 @@ func main() {
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,
 		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),
-		NodeQuarantine:      nodeQuarantine,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
@@ -137,10 +131,9 @@ func main() {
 		// collapses an N-shape fleet's N² requests down to ~N per cycle.
 		signalsClient.CacheTTL = 4 * time.Second
 		if err := (&controllers.AutoscalerReconciler{
-			Client:         mgr.GetClient(),
-			Scheme:         mgr.GetScheme(),
-			SignalsClient:  signalsClient,
-			NodeQuarantine: nodeQuarantine,
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			SignalsClient: signalsClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)

@@ -95,11 +95,6 @@ type RunnerPoolReconciler struct {
 
 	creationReservations creationReservationStore
 
-	// NodeQuarantine holds nodes that keep failing to start runner Pods
-	// out of the fleet. Shared with the Autoscaler reconciler so both
-	// agree on what counts as capacity. Nil disables the breaker.
-	NodeQuarantine *NodeQuarantine
-
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 }
@@ -240,20 +235,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault(), p.Spec.NodeName, nodeConditions)
 			}
 			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
-			if r.NodeQuarantine.recordStartFailure(p.Spec.NodeName, r.now()) {
-				logger.Info("quarantining node after repeated runner start timeouts",
-					"node", p.Spec.NodeName,
-					"threshold", nodeQuarantineThreshold,
-					"window", nodeQuarantineWindow.String(),
-					"duration", nodeQuarantineDuration.String(),
-					"nodeConditions", nodeConditions,
-				)
-				if r.Recorder != nil {
-					r.Recorder.Eventf(pool, corev1.EventTypeWarning, "RunnerNodeQuarantined",
-						"Node %s failed to start %d runner Pods within %s; holding it out of the fleet for %s",
-						p.Spec.NodeName, nodeQuarantineThreshold, nodeQuarantineWindow, nodeQuarantineDuration)
-				}
-			}
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -415,7 +396,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	createLimit := gap
 	admissionBlocked := false
 	pendingProvisioningForPool := 0
-	var quarantinedNodes []string
 	if isLinuxKataPool(pool) {
 		admission, err := r.provisioningAdmission(ctx, pool)
 		if err != nil {
@@ -448,12 +428,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		} else {
 			pendingProvisioningForPool = admission.pendingForPool
 		}
-		quarantinedNodes = admission.quarantined
 	}
 
 	created := 0
 	for i := 0; i < createLimit; i++ {
-		name, err := r.createRunner(ctx, pool, quarantinedNodes)
+		name, err := r.createRunner(ctx, pool)
 		if err != nil {
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -568,7 +547,7 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 // both owned by the RunnerPool. Pod and SA share the same name so
 // the dispatch endpoint can look up "which Pod is this SA mounted
 // on" from the validated SA name alone.
-func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool, quarantinedNodes []string) (string, error) {
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) (string, error) {
 	suffix, err := randHex(4)
 	if err != nil {
 		return "", fmt.Errorf("generate suffix: %w", err)
@@ -587,11 +566,6 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
-	// Placement, not templating: the breaker's state lives on the
-	// reconciler and changes between builds of the same pool. The set
-	// comes from provisioningAdmission so it is the one already bounded
-	// by effectiveQuarantine, not the raw store.
-	applyNodeQuarantine(pod, quarantinedNodes)
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return "", fmt.Errorf("pod owner ref: %w", err)
 	}

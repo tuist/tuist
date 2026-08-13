@@ -156,48 +156,41 @@ independent workqueues:
   `poller_not_started` and `unschedulable`; a rising `unschedulable`
   rate is a capacity shortfall for that shape, not a boot fault.
 
-  Reaping alone is not enough when the cause is the *node*. The
-  replacement Pod is scheduled independently, and a node that cannot
+  **Known limitation: reaping does not help when the cause is the node.**
+  The replacement Pod is scheduled independently, and a node that cannot
   start sandboxes is also the emptiest node in the fleet, so the
-  scheduler prefers it and the replacement lands right back on it. That
-  loop keeps the ceiling permanently saturated by Pods that can never
-  run. `NodeQuarantine` (`controllers/node_quarantine.go`) closes it:
-  `nodeQuarantineThreshold` (3) `poller_not_started` timeouts on one
-  node inside `nodeQuarantineWindow` (15m) hold that node out for
-  `nodeQuarantineDuration` (30m). New Pods get a required
-  `kubernetes.io/hostname NotIn <quarantined>` node affinity, and
-  `summarizeFleetNodes` stops counting the node as capacity — surfaced
-  as `tuist_runners_fleet_filtered_nodes{reason="quarantined"}`.
+  scheduler prefers it and the replacement lands right back on it. The
+  ceiling then stays saturated by Pods that can never run, and every
+  sibling shape sharing the `FleetSelector` is refused admission with
+  `reason="fleet_cap"` for as long as the node stays broken.
 
-  The breaker steers Pods rather than cordoning or tainting because the
-  controller holds read-only access to nodes; the exclusion rides the
-  Pod create it already performs. It is half-open: on expiry the node
-  takes a fresh batch and re-quarantines if still broken, so a repaired
-  host rejoins with no operator action.
-
-  `effectiveQuarantine` bounds enforcement to a minority of the fleet.
-  Holding out every usable node would block admission on
-  `no_healthy_node` *and* leave any Pod that is created unschedulable —
-  a total stall, strictly worse than the churn this breaker replaces.
-  That matters because the Linux fleet is two nodes and because false
-  positives are plausible: `startTimedOut` measures from bind, so it
-  counts image-pull time, and three slow pulls inside the window look
-  identical to a broken node. When the set would empty the fleet it is
-  released entirely; the store still records the failures, so the
-  quarantine alert fires and an operator is told either way. One instance is shared with the
-  Autoscaler reconciler, which must agree the node is not capacity —
-  both publish the same fleet-node gauges, so a split view would make
-  them fight over the same series.
-
-  This exists because of 2026-08-13: one Linux node hit cgroup
+  This is what happened on 2026-08-13: one Linux node hit cgroup
   exhaustion after 85 days of uptime and failed every new sandbox with
   `mkdir /sys/fs/cgroup/kubepods.slice/...: no space left on device`.
   Kubelet reports that per Pod, so the node stayed `Ready` with no
   pressure condition and `nodeFilterReason` saw nothing wrong. Four dead
   Pods held the whole ceiling, the autoscaler asked for 160 replicas
-  against 5 running, and ~111 jobs queued over 5.5 hours. The fix for
-  the node itself is a reboot; the breaker is what keeps one such node
-  from taking the fleet's throughput to zero in the meantime.
+  against 5 running, and ~111 jobs queued over 5.5 hours until an
+  operator cordoned the node. The leak itself is fixed (see the cgroup
+  section below), but the amplification is a property of the ceiling, not
+  of that particular fault — any node that accepts Pods it cannot start
+  reproduces it.
+
+  A per-node circuit breaker was built and then deliberately dropped:
+  counting `poller_not_started` timeouts per node and steering new Pods
+  away with a required `kubernetes.io/hostname NotIn` affinity. It works,
+  but on a two-node fleet the failure mode is worse than the problem.
+  Quarantining both nodes blocks admission on `no_healthy_node` *and*
+  leaves every created Pod unschedulable, and false positives are
+  plausible because `startTimedOut` measures from bind and so counts
+  image-pull time — three slow pulls inside the window are
+  indistinguishable from a broken node. Bounding it to a minority of the
+  fleet makes it safe but also makes it a no-op on two nodes, which is
+  the fleet we have. Detection was kept instead: the queue-age alert in
+  `infra/helm/k8s-monitoring/alerts.md` catches this shape within
+  ~30 minutes regardless of cause, and the remedy is a manual cordon.
+  Revisit the breaker if the fleet grows past a handful of nodes, where
+  quarantining one is cheap and the manual cordon does not scale.
 
   Claimed Pods and Pods whose poller has terminated are protected.
   Terminal cleanup and idle scale-down run before admission and are never

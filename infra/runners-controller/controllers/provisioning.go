@@ -84,11 +84,6 @@ type provisioningAdmission struct {
 	cap             int
 	healthyNodes    int
 	blockedReason   string
-	// quarantined is the breaker's view after effectiveQuarantine has
-	// bounded it to a minority of the fleet. Pod creation must steer by
-	// this and not by the raw store, or the two disagree and Pods get an
-	// affinity excluding nodes that admission still counts as capacity.
-	quarantined []string
 }
 
 func isLinuxKataPool(pool *tuistv1.RunnerPool) bool {
@@ -190,8 +185,7 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 	}); err != nil {
 		return provisioningAdmission{}, fmt.Errorf("list Linux fleet nodes: %w", err)
 	}
-	quarantined := effectiveQuarantine(nodes.Items, r.NodeQuarantine.quarantinedSet(r.now()))
-	healthyNodes, filtered := summarizeFleetNodes(nodes.Items, quarantined)
+	healthyNodes, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(pool.Spec.FleetSelector, pool.Spec.OS, healthyNodes, filtered)
 	metrics.RecordPendingProvisioningPods(pool.Name, pendingForPool)
 
@@ -200,7 +194,6 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		pendingForFleet: pendingForFleet,
 		cap:             capN,
 		healthyNodes:    healthyNodes,
-		quarantined:     sortedKeys(quarantined),
 	}
 	if healthyNodes == 0 {
 		admission.blockedReason = "no_healthy_node"
