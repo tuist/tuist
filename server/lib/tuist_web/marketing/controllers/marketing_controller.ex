@@ -959,8 +959,17 @@ defmodule TuistWeb.Marketing.MarketingController do
     put_resp_header(conn, "link", AgentDiscovery.homepage_link_header_value())
   end
 
+  # Only anonymous responses may be stored by shared caches: authenticated
+  # users can be actor-gated onto a page's redesign before its global flag
+  # flips (see TuistWeb.Marketing.Design), and nothing else would stop a
+  # shared cache from storing a previewer's variant at the ordinary URL and
+  # serving it to every visitor.
   defp put_resp_header_cache_control(conn, _opts) do
-    put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
+    if conn.assigns[:current_user] do
+      put_resp_header(conn, "cache-control", "private, no-store")
+    else
+      put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
+    end
   end
 
   defp put_resp_header_server(conn, _opts) do
