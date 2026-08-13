@@ -1,0 +1,19 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-page">
+    <article data-part="article">
+      <header data-part="header">
+        <img :if={@page.logo} src={@page.logo} alt="" data-part="logo" decoding="async" />
+        <h1 data-part="title">{@page.title}</h1>
+        <p :if={@page.last_updated} data-part="last-updated">
+          {dgettext("marketing", "Last updated %{date}",
+            date: Timex.format!(@page.last_updated, "{Mfull} {D}, {YYYY}")
+          )}
+        </p>
+      </header>
+
+      <section data-part="content" data-prose>
+        {raw(content_html(@page.body))}
+      </section>
+    </article>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>
