@@ -125,7 +125,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   guard) covers it. There IS one CAS-specific promote precondition, applied to the
   same image and the same marker: `withhold_promote_if_cas_unpublished` runs at
   teardown while the image is still mounted, and if the plugin's write-ahead spool
-  (`CompilationCache.noindex/tuist-spool`) still holds records — publications that
+  (a `tuist-spool` directory it LOCATES under the store, since the build system
+  opens the llcas store in a per-mode subdirectory — `plugin` for this lane — and
+  the spool sits inside that, never at the store root) still holds records, publications that
   never landed on the remote — it calls `mark_cache_not_promotable`. A converging
   host can only repair a pruned CAS object through the instance snapshot; the
   publishing host's in-memory instruction maps do not travel inside the image, so

@@ -186,11 +186,13 @@ STATUS_SHARE="/Volumes/My Shared Files/status"
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
-# The plugin's write-ahead publish spool, inside the CAS store and so inside the
-# image. A record is written before its upload and deleted only once the publish
-# lands on the remote, so a surviving record IS an unpublished association.
-# TAGS is the sidecar written beside a record; a record being uploaded is renamed
-# `<base>.claim-<pid>`, so it still counts as pending.
+# NAME of the plugin's write-ahead publish spool, which lives inside whichever
+# llcas store directory the build system opened (a per-mode subdirectory of the
+# store root, `plugin` for this lane), so it is located at teardown rather than
+# assumed to sit at the root. A record is written before its upload and deleted
+# only once the publish lands on the remote, so a surviving record IS an
+# unpublished association. TAGS is the sidecar written beside a record; a record
+# being uploaded is renamed `<base>.claim-<pid>`, so it still counts as pending.
 CAS_SPOOL_DIR="tuist-spool"
 CAS_SPOOL_TAGS_SUFFIX=".tags"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
@@ -492,12 +494,46 @@ reclaim_cas_if_disabled() {
 withhold_promote_if_cas_unpublished() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
-  local spool="${CACHE_MOUNT}/${CAS_STORE_DIR}/${CAS_SPOOL_DIR}"
-  local pending=0
-  if [ -d "${spool}" ]; then
-    pending=$(find "${spool}" -type f ! -name "*${CAS_SPOOL_TAGS_SUFFIX}" 2>/dev/null | wc -l | tr -d '[:space:]')
+  local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  [ -d "${store}" ] || return 0
+
+  # The spool is LOCATED, not assumed. The xcconfig points
+  # COMPILATION_CACHE_CAS_PATH at the store root, but the build system opens the
+  # llcas store in a per-mode subdirectory under it (`plugin` for this lane,
+  # `builtin` for Xcode's own), and the plugin appends the spool inside whichever
+  # directory it was handed. Hardcoding the root missed it entirely and made this
+  # gate a silent no-op. Depth 2 covers the mode subdirectory and a store root
+  # passed straight through; matching directories only keeps this to two shallow
+  # readdirs instead of a walk over a multi-GB store.
+  local spools status
+  spools=$(find "${store}" -maxdepth 2 -type d -name "${CAS_SPOOL_DIR}" 2>/dev/null)
+  status=$?
+  if [ "${status}" -ne 0 ]; then
+    mark_cache_not_promotable "CAS spool enumeration failed (find rc=${status})"
+    return 0
   fi
-  case "${pending}" in ''|*[!0-9]*) pending=0 ;; esac
+
+  # Enumeration failure withholds rather than reporting zero. An unreadable or
+  # damaged spool is indistinguishable from an empty one by count alone, and for
+  # a safety gate the two must not share an outcome: reading a broken store as
+  # "nothing pending" is exactly the promote this exists to prevent.
+  local pending=0 spool records found
+  while IFS= read -r spool; do
+    [ -n "${spool}" ] || continue
+    records=$(find "${spool}" -type f ! -name "*${CAS_SPOOL_TAGS_SUFFIX}" 2>/dev/null)
+    status=$?
+    if [ "${status}" -ne 0 ]; then
+      mark_cache_not_promotable "CAS spool enumeration failed under ${spool} (find rc=${status})"
+      return 0
+    fi
+    found=0
+    if [ -n "${records}" ]; then
+      found=$(printf '%s\n' "${records}" | wc -l | tr -d '[:space:]')
+    fi
+    case "${found}" in ''|*[!0-9]*) found=0 ;; esac
+    pending=$((pending + found))
+  done <<< "${spools}"
+
   [ -d "${STATUS_SHARE}" ] && printf '%s' "${pending}" > "${STATUS_SHARE}/cas-spool-pending" 2>/dev/null || true
   [ "${pending}" -gt 0 ] || return 0
   mark_cache_not_promotable "${pending} CAS publication(s) never reached the remote"

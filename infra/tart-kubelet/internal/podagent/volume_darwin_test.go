@@ -175,14 +175,28 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 // sidecar would withhold every future promote for that account forever; missing a
 // record claimed as `<base>.claim-<pid>` would ship an association whose objects
 // the remote has never seen to every host that converges to the master.
+// It prints the count, or "WITHHELD" when enumeration fails, because those two
+// must not share an outcome.
 const guestCASSpoolPendingScript = `
-set -u
-spool="$1/CompilationCache.noindex/tuist-spool"
+set -uo pipefail
+store="$1/CompilationCache.noindex"
+[ -d "${store}" ] || { printf '0'; exit 0; }
+spools=$(find "${store}" -maxdepth 2 -type d -name "tuist-spool" 2>/dev/null)
+status=$?
+if [ "${status}" -ne 0 ]; then printf 'WITHHELD'; exit 0; fi
 pending=0
-if [ -d "${spool}" ]; then
-  pending=$(find "${spool}" -type f ! -name "*.tags" 2>/dev/null | wc -l | tr -d '[:space:]')
-fi
-case "${pending}" in ''|*[!0-9]*) pending=0 ;; esac
+while IFS= read -r spool; do
+  [ -n "${spool}" ] || continue
+  records=$(find "${spool}" -type f ! -name "*.tags" 2>/dev/null)
+  status=$?
+  if [ "${status}" -ne 0 ]; then printf 'WITHHELD'; exit 0; fi
+  found=0
+  if [ -n "${records}" ]; then
+    found=$(printf '%s\n' "${records}" | wc -l | tr -d '[:space:]')
+  fi
+  case "${found}" in ''|*[!0-9]*) found=0 ;; esac
+  pending=$((pending + found))
+done <<< "${spools}"
 printf '%s' "${pending}"
 `
 
@@ -193,19 +207,42 @@ func TestGuestCASSpoolCountsOnlyPendingRecords(t *testing.T) {
 		want  string
 	}{
 		// No CAS store at all (feature off, or a cold branch): nothing to withhold.
-		{name: "absent spool", want: "0"},
+		{name: "absent store", want: "0"},
+		// THE PRODUCTION LAYOUT. The xcconfig points COMPILATION_CACHE_CAS_PATH at
+		// the store root, and the build system opens the plugin lane's llcas store
+		// one level down, so the spool is never at the root. A version of this gate
+		// that looked only at the root found nothing here and never withheld.
+		{name: "record under the plugin lane", files: []string{"plugin/tuist-spool/1234-0"}, want: "1"},
+		// Same store root, Xcode's own lane. Both are found without naming either.
+		{
+			name:  "records under both lanes",
+			files: []string{"plugin/tuist-spool/1234-0", "builtin/tuist-spool/5678-0"},
+			want:  "2",
+		},
+		// A store root handed through without a mode subdirectory.
+		{name: "record at the store root", files: []string{"tuist-spool/1234-0"}, want: "1"},
 		// The uploader drained cleanly and removed each record with its sidecar.
-		{name: "drained spool", files: []string{"tuist-spool/"}, want: "0"},
+		{name: "drained spool", files: []string{"plugin/tuist-spool/"}, want: "0"},
 		// A sidecar whose record was removed. Not a pending publication, and
 		// treating it as one would strand this account's promotes permanently.
-		{name: "leaked sidecar only", files: []string{"tuist-spool/1234-0.tags"}, want: "0"},
-		{name: "one unpublished record", files: []string{"tuist-spool/1234-0"}, want: "1"},
+		{name: "leaked sidecar only", files: []string{"plugin/tuist-spool/1234-0.tags"}, want: "0"},
 		// A record mid-upload is renamed by the sweeper that claimed it; it is
 		// still unpublished, so it still counts.
 		{
-			name:  "record with sidecar plus a claimed record",
-			files: []string{"tuist-spool/1234-0", "tuist-spool/1234-0.tags", "tuist-spool/1234-1.claim-99"},
-			want:  "2",
+			name: "record with sidecar plus a claimed record",
+			files: []string{
+				"plugin/tuist-spool/1234-0",
+				"plugin/tuist-spool/1234-0.tags",
+				"plugin/tuist-spool/1234-1.claim-99",
+			},
+			want: "2",
+		},
+		// Store contents next to the spool must not be counted, and must not be
+		// walked: the real store is multi-GB.
+		{
+			name:  "store records beside the spool",
+			files: []string{"plugin/v1/records", "plugin/v1.1.data", "plugin/tuist-spool/1234-0"},
+			want:  "1",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -234,5 +271,35 @@ func TestGuestCASSpoolCountsOnlyPendingRecords(t *testing.T) {
 				t.Fatalf("pending records = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// An unreadable spool must withhold, not report zero. A count cannot tell a
+// damaged store from a drained one, and for a safety gate reading the former as
+// the latter is exactly the promote it exists to prevent.
+func TestGuestCASSpoolWithholdsWhenEnumerationFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: permissions do not stop find")
+	}
+	root := t.TempDir()
+	spool := filepath.Join(root, casStoreDir, "plugin", "tuist-spool")
+	if err := os.MkdirAll(spool, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(spool, "1234-0"), []byte("record"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(spool, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	// Restore before TempDir's cleanup, which cannot remove an unreadable dir.
+	t.Cleanup(func() { _ = os.Chmod(spool, 0o755) })
+
+	out, err := exec.Command("bash", "-c", guestCASSpoolPendingScript, "cas_spool_pending", root).Output()
+	if err != nil {
+		t.Fatalf("guest spool count: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "WITHHELD" {
+		t.Fatalf("unreadable spool = %q, want %q", got, "WITHHELD")
 	}
 }

@@ -1867,9 +1867,14 @@ impl Proxy {
     /// Each `Ok(false)` in there reaches the compiler as a missing object for an
     /// id it ALREADY holds — clang fails the build on that rather than
     /// recompiling — so they are one outcome no matter which source ran out: no
-    /// instruction anywhere, an unroutable instance, or a blob the remote could
-    /// not produce. Counting at this boundary instead of at each `return` also
-    /// means a later early-exit cannot be added silently uncounted.
+    /// instruction anywhere, an instance that stopped resolving, or a blob the
+    /// remote could not produce. Counting at this boundary instead of at each
+    /// `return` also means a later early-exit cannot be added silently uncounted.
+    ///
+    /// It covers requests that reached a bound path, which is every request the
+    /// proxy can act on. A demand fetch for a path it does not track and cannot
+    /// route never gets here at all; the caller answers that one directly and
+    /// counts it as unprimed.
     fn fetch_object(
         &self,
         state: &'static PathState,
@@ -3252,7 +3257,15 @@ impl Proxy {
                         &request.instance,
                         &request.payload,
                     ),
-                    None => Ok(false),
+                    // No bound path and nothing to bind one with, so
+                    // `fetch_object` never runs and `stats_fetch_unresolved`
+                    // cannot see this miss. Counted here instead, as what it
+                    // actually is: a request that could not be routed to an
+                    // instance.
+                    None => {
+                        self.note_unprimed(&request.cas_path);
+                        Ok(false)
+                    }
                 });
                 match outcome {
                     Ok(true) => write_response(&mut stream, STATUS_HIT, &[]),
