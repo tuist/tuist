@@ -48,6 +48,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodClaimReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
+    {"* * * * *", Tuist.Runners.Workers.OrphanedSessionsWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}

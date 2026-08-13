@@ -1133,6 +1133,63 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "terminal_completions/1" do
+    test "returns completed_at only for jobs that reached a terminal state" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 8601, fleet: "fleet-tc")
+      {:ok, done} = Jobs.pick_queued("fleet-tc", [])
+      :ok = Jobs.record_claimed(done, "pod-done", DateTime.utc_now())
+      :ok = Jobs.record_running(8601, "runner-done")
+      {:ok, %{completed_at: completed_at}} = Jobs.complete(8601, "success")
+
+      :ok = enqueue_fixture(account, 8602, fleet: "fleet-tc")
+      {:ok, running} = Jobs.pick_queued("fleet-tc", [])
+      :ok = Jobs.record_claimed(running, "pod-running", DateTime.utc_now())
+      :ok = Jobs.record_running(8602, "runner-running")
+
+      completions = Jobs.terminal_completions([8601, 8602, 8603])
+
+      assert Map.keys(completions) == [8601]
+      assert DateTime.compare(Map.fetch!(completions, 8601), completed_at) == :eq
+    end
+
+    test "returns an empty map for an empty id list without hitting ClickHouse" do
+      assert Jobs.terminal_completions([]) == %{}
+      assert Jobs.terminal_completions([nil]) == %{}
+    end
+
+    test "excludes a row that carries a completed_at but whose latest state is not terminal" do
+      # `not is_nil(completed_at)` alone is not the contract. Today's
+      # writers nil the timestamp when they move a job off `completed`,
+      # so this row is only reachable by writing it directly — but the
+      # predicate is what stops a stale completion from closing a
+      # session that belongs to a live re-claim.
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 8611, fleet: "fleet-tc-stale")
+      {:ok, candidate} = Jobs.pick_queued("fleet-tc-stale", [])
+      :ok = Jobs.record_claimed(candidate, "pod-stale", DateTime.utc_now())
+      :ok = Jobs.record_running(8611, "runner-stale")
+      {:ok, completed} = Jobs.complete(8611, "success")
+
+      assert Map.has_key?(Jobs.terminal_completions([8611]), 8611)
+
+      IngestRepo.insert_all(Job, [
+        completed
+        |> Map.from_struct()
+        |> Map.delete(:__meta__)
+        |> Map.merge(%{
+          status: "running",
+          conclusion: "",
+          updated_at: DateTime.add(completed.updated_at, 1, :second)
+        })
+      ])
+
+      assert Jobs.terminal_completions([8611]) == %{}
+    end
+  end
+
   describe "list_stale_queued/2" do
     test "returns queued rows enqueued inside the window" do
       account = account_fixture()

@@ -1324,6 +1324,37 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Resolves the terminal completion time of each id in
+  `workflow_job_ids`, as `%{workflow_job_id => completed_at}`.
+
+  Only jobs whose latest state is `completed` *and* which carry a
+  non-NULL `completed_at` appear in the result. A job still in
+  flight, or one whose terminal INSERT landed without a timestamp,
+  is absent — callers must treat absence as "no answer yet", never
+  as "finished now".
+
+  `OrphanedSessionsWorker` uses this to close billing sessions the
+  runners-controller never reported stopped: GitHub's terminal
+  timestamp is the closest available proxy for when the Pod stopped
+  doing customer work.
+  """
+  def terminal_completions(workflow_job_ids) when is_list(workflow_job_ids) do
+    case Enum.reject(workflow_job_ids, &is_nil/1) do
+      [] ->
+        %{}
+
+      ids ->
+        Job
+        |> from(hints: ["FINAL"])
+        |> where([j], j.workflow_job_id in ^ids)
+        |> where([j], j.status == "completed" and not is_nil(j.completed_at))
+        |> select([j], {j.workflow_job_id, j.completed_at})
+        |> ClickHouseRepo.all()
+        |> Map.new()
+    end
+  end
+
+  @doc """
   Lists `runner_jobs` rows whose latest state is `queued` and whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
