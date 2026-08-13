@@ -832,7 +832,10 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  ets_flush_interval: 20_000,
+  # `PromEx.ETSCronFlusher` renders the whole metric set and discards it on
+  # this interval. `Tuist.PromEx.StripedPeep` frees nothing on read, so the
+  # only thing a short interval buys is CPU spent on exports nobody reads.
+  ets_flush_interval: to_timeout(minute: 30),
   metrics_server: [
     port: 9091,
     auth_strategy: :none

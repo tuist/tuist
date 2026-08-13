@@ -5166,6 +5166,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
             public var modules: [Swift.String]?
+            /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/parallelizable_modules`.
+            public var parallelizable_modules: [Swift.String]?
             /// A unique shard plan reference, typically derived from CI environment.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
@@ -5197,6 +5201,7 @@ public enum Components {
             ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
+            ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
@@ -5208,6 +5213,7 @@ public enum Components {
                 gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
                 modules: [Swift.String]? = nil,
+                parallelizable_modules: [Swift.String]? = nil,
                 reference: Swift.String,
                 shard_max: Swift.Int? = nil,
                 shard_max_duration: Swift.Int? = nil,
@@ -5219,6 +5225,7 @@ public enum Components {
                 self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
                 self.modules = modules
+                self.parallelizable_modules = parallelizable_modules
                 self.reference = reference
                 self.shard_max = shard_max
                 self.shard_max_duration = shard_max_duration
@@ -5231,6 +5238,7 @@ public enum Components {
                 case gradle_build_id
                 case granularity
                 case modules
+                case parallelizable_modules
                 case reference
                 case shard_max
                 case shard_max_duration
@@ -42788,6 +42796,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
+                    /// Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/parallelizable_modules`.
+                    public var parallelizable_modules: [Swift.String]?
                     /// A unique shard plan reference, typically derived from CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
@@ -42819,6 +42831,7 @@ public enum Operations {
                     ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
+                    ///   - parallelizable_modules: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
                     ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
@@ -42830,6 +42843,7 @@ public enum Operations {
                         gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
                         modules: [Swift.String]? = nil,
+                        parallelizable_modules: [Swift.String]? = nil,
                         reference: Swift.String,
                         shard_max: Swift.Int? = nil,
                         shard_max_duration: Swift.Int? = nil,
@@ -42841,6 +42855,7 @@ public enum Operations {
                         self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
                         self.modules = modules
+                        self.parallelizable_modules = parallelizable_modules
                         self.reference = reference
                         self.shard_max = shard_max
                         self.shard_max_duration = shard_max_duration
@@ -42853,6 +42868,7 @@ public enum Operations {
                         case gradle_build_id
                         case granularity
                         case modules
+                        case parallelizable_modules
                         case reference
                         case shard_max
                         case shard_max_duration

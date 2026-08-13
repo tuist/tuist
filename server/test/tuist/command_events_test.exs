@@ -1505,6 +1505,38 @@ defmodule Tuist.CommandEventsTest do
       assert {:ok, event} = got
       assert event.id == build_event.id
     end
+
+    test "prefers the build event when the sharded test events carry no test run id" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      build_event =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only", "--shard-granularity", "suite"],
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      for shard_index <- 0..3 do
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: [
+            "test",
+            "--without-building",
+            "--shard-index",
+            to_string(shard_index)
+          ],
+          ran_at: ~U[2024-01-01 10:05:00Z]
+        )
+      end
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == build_event.id
+    end
   end
 
   describe "cache_hit_rate_period_percentile/4" do

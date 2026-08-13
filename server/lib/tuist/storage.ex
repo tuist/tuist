@@ -284,6 +284,7 @@ defmodule Tuist.Storage do
         bucket_name
         |> ExAws.S3.download_file(object_key, file_path)
         |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> normalize_download_error()
     end
   catch
     # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
@@ -291,6 +292,19 @@ defmodule Tuist.Storage do
     # and would crash the calling job. Surface it as a retryable error instead.
     :exit, reason -> {:error, reason}
   end
+
+  # `ExAws.S3.Download` sizes the object with `head_object` through
+  # `ExAws.request!` and rescues the raised `ExAws.Error` itself, so a missing
+  # object reaches callers as an opaque struct whose only trace of the status
+  # code is the inspected message. Callers need to tell "not there (yet)" apart
+  # from a transport failure, so collapse it into a named reason here.
+  defp normalize_download_error({:error, %ExAws.Error{message: message}} = error) when is_binary(message) do
+    if String.contains?(message, "{:http_error, 404,"), do: {:error, :object_not_found}, else: error
+  end
+
+  defp normalize_download_error({:error, {:http_error, 404, _response}}), do: {:error, :object_not_found}
+
+  defp normalize_download_error(result), do: result
 
   def get_object_as_string(object_key, actor) do
     {time, result} =

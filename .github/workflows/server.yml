@@ -59,6 +59,25 @@ jobs:
           key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+  # XCResultParser is not server-only: the CLI compiles these sources into its
+  # binary, so this job guards both.
+  swift-test-xcresult:
+    name: Swift Tests (XCResultParser)
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: server/native/xcresult_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcresult_nif/.build
+          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project

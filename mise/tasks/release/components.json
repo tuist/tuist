@@ -10,6 +10,7 @@
         "cli/**/*",
         "swifterpm/**/*",
         "cas-plugin/**/*",
+        "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",

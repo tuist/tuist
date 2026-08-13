@@ -11,6 +11,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @behaviour Tuist.Kura.Provisioner
 
+  alias Tuist.Billing
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.FeatureFlags
@@ -278,6 +279,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
           "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
+          "memoryFloorMib" => entitlements.memory && entitlements.memory.floor_mib,
+          "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
+          "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -337,6 +341,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp manifest_entitlements(account, %Regions{} = region) do
     configured_egress_mbps = configured_egress_guaranteed_mbps(region)
 
+    # Only a region that sizes instances per tier needs a plan resolved;
+    # everywhere else the controller's default profile applies and the manifest
+    # renders without a subscription lookup.
+    memory_governed? = Regions.memory_governed?(region)
+
     features =
       []
       |> maybe_request_entitlement(mesh_enabled?(region), :self_hosted_cache)
@@ -350,11 +359,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
       end
 
+    memory = if memory_governed?, do: Regions.memory_profile(memory_plan(account))
+
     %{
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
+      memory: memory,
       backfill: FeatureFlags.kura_backfill_enabled?(account)
     }
+  end
+
+  # A self-hosted deployment has no subscriptions, so `effective_plan/1` would
+  # resolve every account to `:air`. Its Enterprise license is the entitlement,
+  # matching how `Entitlements.allowed_features/2` grants everything off the
+  # hosted server.
+  defp memory_plan(account) do
+    if Environment.tuist_hosted?(), do: Billing.effective_plan(account), else: :enterprise
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
@@ -383,7 +403,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
       mesh_peers_sync_revision_suffix(region, entitlements) <>
-      backfill_revision_suffix(entitlements)
+      backfill_revision_suffix(entitlements) <>
+      memory_revision_suffix(region, entitlements)
+  end
+
+  # Folded in so an account whose plan changes re-applies onto the other profile. Without it the instance would keep the
+  # profile it was created with until some unrelated field happened to change.
+  #
+  # The bin-pack marker is separate from the profile because the flag is region
+  # config, not a property of the account: flipping it alone leaves the floor and
+  # ceiling identical, so without its own marker the rendered spec would gain or
+  # lose the tuist.dev/memory-ceiling-mib request under an unchanged revision and
+  # live instances would never re-apply. That matters most turning it off, which
+  # is the remedy when pods go Pending because a node stopped advertising the
+  # budget.
+  defp memory_revision_suffix(%Regions{} = region, entitlements) do
+    profile =
+      case entitlements do
+        %{memory: %{floor_mib: floor_mib, ceiling_mib: ceiling_mib}} -> "+mem#{floor_mib}-#{ceiling_mib}"
+        _ -> ""
+      end
+
+    if Regions.memory_ceiling_bin_packed?(region), do: profile <> "+binpack", else: profile
   end
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted

@@ -86,6 +86,46 @@ type KuraInstanceSpec struct {
 	// burst ceiling. Zero on cloud regions whose NIC isn't shared.
 	EgressGuaranteedMbps int32 `json:"egressGuaranteedMbps,omitempty"`
 
+	// MemoryFloorMib is the memory, in MiB, this instance reserves as its
+	// `requests.memory`. It is the standing reservation the scheduler bin-packs
+	// against node allocatable, and — once the kubelet runs with MemoryQoS — the
+	// value it writes to the container's cgroup `memory.min`, making the floor
+	// unreclaimable rather than advisory. Size it from the instance's idle
+	// footprint, not its peak: over-reserving here is what exhausts a box's
+	// schedulable memory. Zero falls back to defaultMemoryFloorMib.
+	MemoryFloorMib int32 `json:"memoryFloorMib,omitempty"`
+
+	// MemoryCeilingMib is the memory, in MiB, this instance may reach at peak.
+	// It becomes `limits.memory`, which is the number that matters most to the
+	// runtime: Kura derives every admission pool from its cgroup limit at
+	// startup, so this sets how large a client burst the instance absorbs before
+	// it sheds with 503. Those pools are semaphores rather than allocations, so
+	// headroom here is only consumed under load.
+	//
+	// The ceiling is deliberately allowed to exceed the floor, which means the
+	// ceilings on a shared box oversubscribe its memory. Floors are guaranteed
+	// by the sum(requests) <= allocatable invariant; everything above a floor is
+	// best-effort, arbitrated by kernel reclaim. MemoryCeilingBinPacked is what
+	// bounds that oversubscription.
+	//
+	// Zero falls back to defaultMemoryCeilingMib. Values below the floor are
+	// clamped up to it, since a limit under the request is rejected by the API.
+	MemoryCeilingMib int32 `json:"memoryCeilingMib,omitempty"`
+
+	// MemoryCeilingBinPacked makes the pod additionally request its ceiling as
+	// the `tuist.dev/memory-ceiling-mib` extended resource (request == limit;
+	// extended resources are integer and non-overcommittable), so the scheduler
+	// packs ceilings against a node budget the CAPI provider advertises as a
+	// bounded multiple of allocatable. Without it the sum of ceilings on a box
+	// is unbounded and a dense enough node hands the kernel more to reclaim than
+	// it can, turning a burst into an OOM kill.
+	//
+	// It is separate from MemoryCeilingMib because a pod that requests an
+	// extended resource its node does not advertise never schedules: only the
+	// node pools the CAPI provider patches can turn this on, while every region
+	// still wants a right-sized ceiling.
+	MemoryCeilingBinPacked bool `json:"memoryCeilingBinPacked,omitempty"`
+
 	// Mesh enables controller-managed cross-region peering for this
 	// instance. The controller maintains a per-account CA
 	// (`kura-<account>-peer-ca`) and signs a leaf for the instance whose
