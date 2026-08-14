@@ -567,14 +567,17 @@
         <div data-part="illustration">
           <div data-part="stats">
             <div data-part="stat">
+              <span data-part="marker" data-state="skipped" aria-hidden="true"></span>
               <span>{dgettext("marketing", "Tests skipped:")}</span>
               <strong data-stat="skipped">50</strong>
             </div>
             <div data-part="stat">
+              <span data-part="marker" data-state="ran" aria-hidden="true"></span>
               <span>{dgettext("marketing", "Tests ran:")}</span>
               <strong data-stat="ran">50</strong>
             </div>
             <div data-part="stat">
+              <span data-part="marker" data-state="flaky" aria-hidden="true"></span>
               <span>{dgettext("marketing", "Flaky tests detected:")}</span>
               <strong data-stat="flaky">10</strong>
             </div>

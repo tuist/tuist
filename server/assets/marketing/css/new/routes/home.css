@@ -459,7 +459,7 @@
               gap: var(--noora-spacing-2);
               padding: 0 var(--noora-spacing-4);
               color: var(--noora-surface-label-secondary);
-              font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-large);
               white-space: nowrap;
 
               &:not(:last-child) {
@@ -651,7 +651,7 @@
             gap: var(--noora-spacing-2);
             padding: 0 var(--noora-spacing-4);
             color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+            font: var(--noora-font-weight-regular) var(--noora-font-code-large);
             white-space: nowrap;
 
             &:not(:last-child) {
@@ -970,11 +970,39 @@
             gap: var(--noora-spacing-2);
             padding: 0 var(--noora-spacing-4);
             color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
+            font: var(--noora-font-weight-regular) var(--noora-font-code-large);
             white-space: nowrap;
 
             &:not(:last-child) {
               border-right: 1px solid var(--marketing-stroke-default);
+            }
+
+            /* Legend swatches mirroring the grid cells' three states so the
+               stats double as a key for the illustration below. */
+            & > [data-part="marker"] {
+              flex-shrink: 0;
+              box-sizing: border-box;
+              width: 10px;
+              height: 10px;
+              /* 6px between the swatch and its label; the row's spacing-2 flex
+                 gap already contributes, so add only the difference. */
+              margin-right: calc(6px - var(--noora-spacing-2));
+              border: 1px solid var(--marketing-illustration-neutral-3);
+              border-radius: 1px;
+
+              &[data-state="ran"] {
+                border-color: var(--noora-purple-500);
+                background: var(--marketing-tint-purple);
+              }
+
+              /* Flaky cells are a yellow outline with an inset filled square;
+                 padding + content-box clip reproduce the gap between them. */
+              &[data-state="flaky"] {
+                padding: 2px;
+                border-color: var(--noora-yellow-600);
+                background: var(--noora-yellow-500);
+                background-clip: content-box;
+              }
             }
 
             & > strong {
