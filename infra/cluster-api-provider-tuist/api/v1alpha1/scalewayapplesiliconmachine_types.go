@@ -37,13 +37,22 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`
 
-	// OS is the Scaleway-provided macOS image name. Adoption matches it
-	// exactly against a pool host's current image, and release reinstalls
-	// back onto it, so it must name an image Scaleway still publishes —
-	// `scw apple-silicon os list` is the source of truth. Scaleway retires
-	// point releases without notice, and a pin left on a retired image
-	// strands the fleet: no pool host can ever match it again.
-	// +kubebuilder:default=macos-tahoe-26.6.1
+	// OS is the macOS release family the fleet runs — "Tahoe",
+	// "Sequoia", "Sonoma". Adoption accepts any pool host in the family
+	// and release reinstalls onto the family's newest published image,
+	// so the fleet tracks Scaleway's point releases instead of chasing
+	// them.
+	//
+	// Deliberately not a point release. Scaleway retires point releases
+	// without notice and reimages released hosts onto the server type's
+	// current default, so an exact pin drifts out from under the fleet
+	// and no pool host can satisfy it again — that is how staging lost
+	// its whole runner pool in Aug 2026 while sitting on
+	// macos-tahoe-26.3.
+	//
+	// Legacy exact-image values still work: they normalize to their
+	// family, so a CR carrying macos-tahoe-26.3 behaves as "Tahoe".
+	// +kubebuilder:default=Tahoe
 	OS string `json:"os,omitempty"`
 
 	// FleetName groups Machines that share an SSH key. Set by the

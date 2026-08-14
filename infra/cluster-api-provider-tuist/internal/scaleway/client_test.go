@@ -824,28 +824,69 @@ func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
 // a release reinstalls onto decides whether the fleet can ever adopt
 // the host back. These cover the contract that keeps the two in sync.
 
-func TestReleaseToPool_ReinstallsOntoPinnedOS(t *testing.T) {
+func TestReleaseToPool_ReinstallsOntoNewestImageInPinnedFamily(t *testing.T) {
+	// Newest-in-family, not the exact string pinned: it keeps the pool
+	// converging on one image instead of accumulating a spread of
+	// point releases, and every one of them is adoptable by the fleet.
 	api := &fakeAppleSiliconAPI{
 		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
 		osCatalog: []*applesilicon.OS{
-			{ID: "os-2661", Name: "macos-tahoe-26.6.1"},
-			{ID: "os-265", Name: "macos-tahoe-26.5"},
+			{ID: "os-265", Name: "macos-tahoe-26.5", Family: "Tahoe", Version: "26.5"},
+			{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+			{ID: "os-2660", Name: "macos-tahoe-26.6.0", Family: "Tahoe", Version: "26.6.0"},
+			{ID: "os-seq", Name: "macos-sequoia-15.6", Family: "Sequoia", Version: "15.6.1"},
 		},
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.5"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "Tahoe"); err != nil {
 		t.Fatalf("ReleaseToPool: %v", err)
 	}
-	if len(api.reinstalledOsIDs) != 1 {
-		t.Fatalf("expected exactly one reinstall, got %d", len(api.reinstalledOsIDs))
+	got := api.reinstalledOsIDs[0]
+	if got == nil || *got != "os-2661" {
+		t.Fatalf("expected the newest Tahoe image (os-2661), got %v", got)
+	}
+}
+
+func TestReleaseToPool_LegacyExactPinResolvesToItsFamily(t *testing.T) {
+	// The staging outage, as a regression test. A fleet still carrying
+	// `macos-tahoe-26.3` — retired by Scaleway — must resolve to the
+	// current Tahoe image rather than strand, with no CR migration.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+		osCatalog: []*applesilicon.OS{
+			{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.3"); err != nil {
+		t.Fatalf("a retired point release must still resolve via its family, got %v", err)
 	}
 	got := api.reinstalledOsIDs[0]
-	if got == nil {
-		t.Fatal("expected the pinned OS to be passed to ReinstallServer; got the server type default (nil os_id)")
+	if got == nil || *got != "os-2661" {
+		t.Fatalf("expected the current Tahoe image, got %v", got)
 	}
-	if *got != "os-265" {
-		t.Fatalf("reinstalled onto %q, want the pinned macos-tahoe-26.5 (os-265)", *got)
+}
+
+func TestReleaseToPool_UnpublishedFamilyFailsBeforeParkingHost(t *testing.T) {
+	// A family with nothing published is a genuine misconfiguration.
+	// Surface it with the host still claimed rather than parking it in
+	// the pool under an image its fleet cannot match.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+		osCatalog: []*applesilicon.OS{
+			{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+		},
+	}
+	c := newTestClient(api)
+
+	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-bigsur-11.0")
+	if !errors.Is(err, ErrOSNotPublished) {
+		t.Fatalf("expected ErrOSNotPublished for an unpublished family, got %v", err)
+	}
+	if api.updateCalls != 0 || api.reinstallCalls != 0 {
+		t.Fatalf("host must stay claimed; got %d rename(s), %d reinstall(s)", api.updateCalls, api.reinstallCalls)
 	}
 }
 
@@ -866,34 +907,6 @@ func TestReleaseToPool_EmptyPinKeepsServerTypeDefault(t *testing.T) {
 	}
 	if api.osListCalls != 0 {
 		t.Fatalf("expected no ListOS call for an unpinned release, got %d", api.osListCalls)
-	}
-}
-
-func TestReleaseToPool_RetiredPinFailsBeforeParkingHost(t *testing.T) {
-	// The staging outage in Aug 2026: the fleet pinned macos-tahoe-26.3
-	// after Scaleway retired it. Releasing must not park the host in the
-	// pool under an image its own fleet can no longer match — that loses
-	// the host permanently. Fail with the host still claimed instead.
-	api := &fakeAppleSiliconAPI{
-		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
-		osCatalog: []*applesilicon.OS{
-			{ID: "os-2661", Name: "macos-tahoe-26.6.1"},
-		},
-	}
-	c := newTestClient(api)
-
-	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.3")
-	if err == nil {
-		t.Fatal("expected a retired os pin to fail the release")
-	}
-	if !strings.Contains(err.Error(), "macos-tahoe-26.3") || !strings.Contains(err.Error(), "macos-tahoe-26.6.1") {
-		t.Fatalf("error should name the bad pin and the available images, got %v", err)
-	}
-	if api.updateCalls != 0 {
-		t.Fatalf("host must stay claimed when the pin cannot resolve; got %d rename(s)", api.updateCalls)
-	}
-	if api.reinstallCalls != 0 {
-		t.Fatalf("host must not be wiped when the pin cannot resolve; got %d reinstall(s)", api.reinstallCalls)
 	}
 }
 
@@ -937,17 +950,71 @@ func TestReleaseToPool_DoesNotCacheUnresolvedPin(t *testing.T) {
 	}
 }
 
-func TestResolveOSID_RejectsPrefixMatch(t *testing.T) {
-	// Scaleway's own Name filter is a prefix match — "26.6" matches
-	// "26.6.1". Resolving a pin that way would silently substitute a
-	// neighbouring point release for the one the fleet adopts on.
-	api := &fakeAppleSiliconAPI{
-		osCatalog: []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}},
+func TestOSFamilyKey(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"Tahoe", "tahoe"},
+		{"tahoe", "tahoe"},
+		{"macos-tahoe-26.6.1", "tahoe"},
+		{"macos-tahoe-26.3", "tahoe"},
+		{"macos-sequoia-15.6", "sequoia"},
+		{"Golden Gate", "goldengate"},
+		{"macos-golden-gate-27.0", "goldengate"},
+		{"DevOS", "devos"},
 	}
+	for _, tc := range cases {
+		if got := osFamilyKey(tc.in); got != tc.want {
+			t.Errorf("osFamilyKey(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestAdoptFromPool_MatchesAnyPointReleaseInFamily(t *testing.T) {
+	// The outage in one assertion: a fleet still pinned at the retired
+	// macos-tahoe-26.3 must adopt a pool host running current Tahoe.
+	// Under exact-name matching this returned ErrNoAvailableHost while
+	// the host sat there ready.
+	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{{
+		ID: "srv-1", Name: "tuist-pool-abc", Status: applesilicon.ServerStatusReady,
+		Delivered: true, Type: "M2-L",
+		Os: &applesilicon.OS{Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+	}}}
 	c := newTestClient(api)
 
-	if _, err := c.resolveOSID(context.Background(), "fr-par-1", "macos-tahoe-26.6"); err == nil {
-		t.Fatal("expected an exact-match miss for a prefix of a published image")
+	got, err := c.AdoptFromPool(context.Background(),
+		"tuist-tuist-runners-fleet-0", "fr-par-1", "M2-L", "macos-tahoe-26.3", "tuist-pool-")
+	if err != nil {
+		t.Fatalf("expected a current Tahoe host to satisfy a Tahoe fleet, got %v", err)
+	}
+	if got.ID != "srv-1" {
+		t.Fatalf("adopted %q, want srv-1", got.ID)
+	}
+}
+
+func TestAdoptFromPool_DoesNotCrossFamilies(t *testing.T) {
+	// Family matching must stay inside the family. DevOS images carry
+	// "tahoe" in their name but report Family "DevOS", and a Sequoia
+	// host is a different macOS generation — neither may satisfy a
+	// Tahoe fleet.
+	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{
+		{
+			ID: "srv-devos", Name: "tuist-pool-a", Status: applesilicon.ServerStatusReady,
+			Delivered: true, Type: "M2-L",
+			Os: &applesilicon.OS{Name: "devos-tahoe-2026.06.30", Family: "DevOS", Version: "20260630-26"},
+		},
+		{
+			ID: "srv-seq", Name: "tuist-pool-b", Status: applesilicon.ServerStatusReady,
+			Delivered: true, Type: "M2-L",
+			Os: &applesilicon.OS{Name: "macos-sequoia-15.6", Family: "Sequoia", Version: "15.6.1"},
+		},
+	}}
+	c := newTestClient(api)
+
+	if _, err := c.AdoptFromPool(context.Background(),
+		"tuist-tuist-runners-fleet-0", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-"); !errors.Is(err, ErrNoAvailableHost) {
+		t.Fatalf("expected ErrNoAvailableHost, got %v", err)
+	}
+	if api.updateCalls != 0 {
+		t.Fatalf("no candidate should have been claimed; got %d rename(s)", api.updateCalls)
 	}
 }
 
