@@ -139,7 +139,11 @@ let project = Project(
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
-                .external(name: "ArgumentParser", condition: .when([.ios])),
+                // Imported directly only by the iOS sources, but reached on
+                // every platform through TuistSupport -> SwifterPMCore. An
+                // iOS condition here overrides that transitive requirement
+                // and leaves the macOS build unable to resolve the module.
+                .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
             ],
             settings: .settings(

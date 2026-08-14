@@ -159,6 +159,11 @@ enum PackageResolver {
         if disableSandbox {
             arguments.append("--disable-sandbox")
         }
+        // The child solves the graph, which means it fetches availability and
+        // manifests from the same registries this process authenticates against. Its
+        // environment is inherited, so `SWIFTPM_NETRC_DATA` already reaches it, but
+        // the flags are ours alone until they are forwarded.
+        arguments.append(contentsOf: Environment.netrc.swiftPackageArguments)
         switch scmToRegistryTransformation {
         case .disabled:
             arguments.append("--disable-scm-to-registry-transformation")
