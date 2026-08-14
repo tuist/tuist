@@ -836,10 +836,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def atlas_email_api_url(secrets \\ secrets()) do
-    get([:atlas, :email_api_url], secrets)
-  end
-
   def atlas_email_api_key(secrets \\ secrets()) do
     get([:atlas, :email_api_key], secrets)
   end

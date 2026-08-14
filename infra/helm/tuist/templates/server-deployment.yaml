@@ -308,7 +308,6 @@ spec:
             {{- include "tuist.googleEnv" . | nindent 12 }}
             {{- include "tuist.stripePricesEnv" . | nindent 12 }}
             {{- include "tuist.mailingEnv" . | nindent 12 }}
-            {{- include "tuist.atlasEmailEnv" . | nindent 12 }}
             {{- if .Values.server.cluster.enabled }}
             - name: TUIST_CLUSTER_DNS_SERVICE
               value: {{ include "tuist.serverHeadlessServiceName" . | quote }}

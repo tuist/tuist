@@ -397,6 +397,11 @@ server:
     # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
     posthog:
       enabled: true
+    # Newsletter signups go to Atlas, which is our own deployment. Only the
+    # environment that owns the production audience should write to it, so
+    # this stays off everywhere else and the client then has no key to use.
+    atlasEmail:
+      enabled: false
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -418,11 +423,6 @@ server:
     domain: ""
     fromAddress: ""
     replyToAddress: ""
-  # Base URL of the Atlas email API. Unset means the newsletter signup does
-  # not reach Atlas, which is what every environment other than production
-  # wants: they would otherwise write contacts into the production audience.
-  atlasEmail:
-    apiUrl: ""
   license:
     key: ""
     certificateBase64: ""

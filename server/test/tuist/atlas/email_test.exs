@@ -6,7 +6,7 @@ defmodule Tuist.Atlas.EmailTest do
   alias Tuist.Environment
 
   defp stub_atlas_config do
-    stub(Environment, :atlas_email_api_url, fn -> "https://atlas.tuist.dev" end)
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub(Environment, :atlas_email_api_key, fn -> "test-api-key" end)
   end
 
@@ -216,10 +216,10 @@ defmodule Tuist.Atlas.EmailTest do
   end
 
   describe "configuration" do
-    test "returns an error instead of posting when the Atlas email API is not configured" do
+    test "returns an error instead of posting when the API key is not configured" do
       # Given
-      stub(Environment, :atlas_email_api_url, fn -> nil end)
-      stub(Environment, :atlas_email_api_key, fn -> "test-api-key" end)
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_email_api_key, fn -> nil end)
 
       reject(&Req.post/2)
 
@@ -228,6 +228,22 @@ defmodule Tuist.Atlas.EmailTest do
 
       # Then
       assert result == {:error, :not_configured}
+    end
+
+    test "does not reach out at all from a self-hosted instance" do
+      # Given
+      # Atlas is our own deployment, so a self-hosted instance has nothing to
+      # talk to even if a key were somehow present.
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_email_api_key, fn -> "test-api-key" end)
+
+      reject(&Req.post/2)
+
+      # When
+      result = Email.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
+
+      # Then
+      assert result == {:error, :not_tuist_hosted}
     end
   end
 end

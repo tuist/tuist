@@ -706,19 +706,6 @@ values-managed-common.yaml). The Mailgun API key itself stays in the secret
 store. Each var is emitted only when set, so an unset value leaves the accessor
 nil (mail simply degrades) rather than overriding with "".
 */}}
-{{- /*
-The Atlas email API base URL is not a secret, so it lives in values rather
-than in 1Password. Leaving it unset in an environment is how that
-environment opts out: the client returns {:error, :not_configured} instead
-of writing newsletter contacts into Atlas production.
-*/ -}}
-{{- define "tuist.atlasEmailEnv" -}}
-{{- with .Values.server.atlasEmail.apiUrl }}
-- name: TUIST_ATLAS_EMAIL_API_URL
-  value: {{ . | quote }}
-{{- end }}
-{{- end -}}
-
 {{- define "tuist.mailingEnv" -}}
 {{- with .Values.server.mailing.domain }}
 - name: TUIST_MAILING_DOMAIN

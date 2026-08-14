@@ -4,8 +4,12 @@ defmodule Tuist.Atlas.Email do
   transactional email Tuist sends.
 
   Atlas exposes the same request and response shapes Loops did, so the payloads
-  here are unchanged from the Loops client this replaces. Only the base URL and
-  the API key differ, both configured through `Tuist.Environment`.
+  here are unchanged from the Loops client this replaces.
+
+  This only applies to Tuist-hosted instances. Atlas is our own deployment, so
+  a self-hosted instance has nothing to talk to and is never asked to configure
+  one; the marketing site it belongs to is redirected to the dashboard there
+  anyway.
 
   The verification token and the confirmation pages stay in this app. Atlas only
   renders and delivers the email, and receives the contact once the address is
@@ -14,6 +18,7 @@ defmodule Tuist.Atlas.Email do
 
   alias Tuist.Environment
 
+  @base_url "https://atlas.tuist.dev"
   @transactional_path "/api/email/transactional"
   @contacts_path "/api/email/contacts/update"
 
@@ -75,9 +80,9 @@ defmodule Tuist.Atlas.Email do
   end
 
   defp post(path, body) do
-    with {:ok, base_url} <- fetch_config(Environment.atlas_email_api_url()),
-         {:ok, api_key} <- fetch_config(Environment.atlas_email_api_key()) do
-      base_url
+    with :ok <- ensure_tuist_hosted(),
+         {:ok, api_key} <- fetch_api_key() do
+      @base_url
       |> URI.merge(path)
       |> URI.to_string()
       |> Req.post(json: body, headers: [{"Authorization", "Bearer #{api_key}"}])
@@ -89,6 +94,14 @@ defmodule Tuist.Atlas.Email do
     end
   end
 
-  defp fetch_config(value) when is_binary(value) and value != "", do: {:ok, value}
-  defp fetch_config(_value), do: {:error, :not_configured}
+  defp ensure_tuist_hosted do
+    if Environment.tuist_hosted?(), do: :ok, else: {:error, :not_tuist_hosted}
+  end
+
+  defp fetch_api_key do
+    case Environment.atlas_email_api_key() do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      _missing -> {:error, :not_configured}
+    end
+  end
 end

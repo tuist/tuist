@@ -34,11 +34,9 @@ server:
 
   appUrl: https://tuist.dev
 
-  # Newsletter signups and confirmations go through Atlas, which owns the
-  # audience. Production only: other environments leave this unset so they
-  # cannot write into the production audience.
-  atlasEmail:
-    apiUrl: https://atlas.tuist.dev
+  config:
+    atlasEmail:
+      enabled: true
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
