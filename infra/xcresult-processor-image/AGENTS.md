@@ -103,6 +103,9 @@ expects:
 | `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
 | `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — transaction-mode pooler compatibility |
 | `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
+| `TAILSCALE_AUTH_KEY` | k8s Secret (macOS-fleet ESO Secret) | Tailnet join credential: an OAuth client secret, see below |
+| `TAILSCALE_HOSTNAME` | Pod env (Downward API) | Pod name; the device name this VM registers under |
+| `TAILSCALE_TAGS` | Pod env (chart, from `macosFleet.tailscale.tags`) | ACL tag the join applies; required with an OAuth credential |
 
 `inject-env.sh` materialises that as `/etc/tuist.env` on first boot; the
 launchd unit sources it before exec'ing `tuist start`. This means the
@@ -156,17 +159,51 @@ shape:
   up, and roughly 4,000 test runs sat at `status='processing'` across
   every account using remote processing. It was reported by a customer.
 
-The pre-auth key deserves specific attention. `tailscale up` runs on
+The credential deserves specific attention. `tailscale up` runs on
 **every VM boot**, and a VM is created fresh on every Pod roll, so
 unlike the Mac mini hosts (which join once and keep their tailnet
-identity across rotations) the processor puts the key on the critical
-path continuously. Tailscale caps pre-auth keys at 90 days, so this
-failure recurs by construction unless the key is rotated ahead of
-expiry. Rotating it means updating the 1Password item that
-`infra/helm/tuist/templates/macos-fleet-tailscale-external-secrets.yaml`
-syncs; ExternalSecrets reports `SecretSynced` / `Ready=True` for an
-expired key exactly as it does for a valid one, so its status is not a
-signal.
+identity across rotations) the processor puts it on the critical path
+continuously.
+
+That is why `TAILSCALE_AUTH_KEY` now holds an **OAuth client secret**
+rather than a pre-auth key. Tailscale caps pre-auth keys at 90 days and
+offers no way to extend one, so the 2026-08-12 failure recurred by
+construction unless someone rotated ahead of expiry, which is a control
+that fails eventually. OAuth clients don't expire, and `tailscale up`
+accepts the client secret wherever an auth key goes and mints a fresh
+key per join, so there is no longer a date to miss. ExternalSecrets was
+never the safety net here either: it reports `SecretSynced` /
+`Ready=True` for an expired value exactly as for a valid one, so its
+status is not a signal.
+
+`tailscale-up.sh` pins two properties on the minted key rather than
+inheriting their defaults:
+
+- `preauthorized=true`, because the default is `false` and a device
+  parked awaiting manual approval fails the join exactly like an
+  expired credential, with the same invisible outcome.
+- `ephemeral=true`, which is narrower than it looks. `TAILSCALE_HOSTNAME`
+  is the Pod name, so every roll registers a new device, but Tailscale
+  converts any device online for four hours into a standard tagged one
+  and Pods normally outlive that between image releases. It reaps only
+  short-lived ones; the rest accumulate, and those stale peers stay
+  pinned in every VM's `/etc/hosts`, which `tailscale-up.sh` rewrites
+  from `tailscale status` on each boot. Nothing deletes a device today,
+  on this path or the Mac mini one; a reaper is the tracked follow-up.
+
+Keys minted through an OAuth client are always tagged and carry no
+default tag, so `TAILSCALE_TAGS` must name one (the chart sources it
+from the fleet's `macosFleet.tailscale.tags`). The script refuses to
+start when the credential is an OAuth secret and the tag is missing,
+rather than letting `tailscale up` fail 60s later with a message that
+reads like a network fault. A legacy pre-auth key is detected by prefix
+and passed through untouched, so the image boots against either
+credential while envs migrate.
+
+One diagnostic gap this does not close: `tailscale-up.sh` still reports
+a server-side credential rejection and an unreachable control plane
+through the same "did not reach Running within timeout" path, which is
+what made the two incidents above look alike from the outside.
 
 **Detection.** Since neither the Pod, the Deployment, nor ExternalSecrets
 can see this class of failure, it is caught in the metrics pipeline
