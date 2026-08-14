@@ -744,25 +744,34 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
-  # Host logs, wired but not yet on — staging proves the push path first
-  # (macosFleet.hostLogs in values-managed-staging.yaml), then canary, then
-  # here. The receiver's tailnet hostname already exists in this env
+  # Host logs. The receiver's tailnet hostname already existed in this env
   # (infra/helm/k8s-monitoring/values-production.yaml exposed it for the
-  # xcresult processor's Tart guests), so flipping this to true is the whole
-  # change.
+  # xcresult processor's Tart guests), so enabling this was the whole change.
   #
-  # Volume before flipping it: tart-kubelet logs on events, not on a tick —
+  # Turned on without a staging soak: staging had no reachable mini to prove
+  # the on-host half against. What is proven is the cluster half, measured in
+  # staging — a push to the receiver's tailnet endpoint needs no credential,
+  # Alloy forwards it to Grafana Cloud, and job/instance/env/level survive the
+  # hop. The unproven step is the agent itself tailing a file on a real host.
+  # It fails safe: installLogShipper runs last in UpdateTartKubelet, so a
+  # failure cannot stop a tart-kubelet roll from landing, and an agent that
+  # cannot reach the receiver stops advancing its offset and logs once rather
+  # than failing the host.
+  #
+  # Volume is still an estimate, not a measurement — no env has produced a day
+  # of real data, so this fleet is the first. Watch it: tart-kubelet logs on
+  # events, not on a tick —
   # pod create/status/exit, GC reclaims, cache-volume materialize/converge —
   # so the fleet's rate tracks job throughput, not uptime. At the observed
   # ~286 materializes/day across 9 hosts and a few tens of lines per job, the
   # fleet lands in single-digit MB/day. Re-check with
   #   sum(bytes_over_time({job="tuist-macos-tart-kubelet"}[24h]))
-  # once staging has a day of data, and if it ever gets chatty the `level`
+  # after a day of fleet data, and if it ever gets chatty the `level`
   # stream label is the lever: drop `debug`/`info` at the alloy-receiver's
   # loki.source.api rather than filtering on the host, so the host stays a
   # dumb pipe.
   hostLogs:
-    enabled: false
+    enabled: true
     url: http://tuist-alloy-receiver-production:3100/loki/api/v1/push
     env: production
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
