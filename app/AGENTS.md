@@ -35,7 +35,7 @@ The app depends on several CLI modules:
 ## Releasing
 `.github/workflows/app-release.yml` runs on pushes to `main` that touch `app/**`, `mise/tasks/app/**`, or the `cli/Sources/*` modules the app links. Changes to the workflow itself, or to the runner image the release runs on, do not trigger it, so a fix to either one stays unproven until an app path changes.
 
-- Bundling the macOS app shells out to `create-dmg`, which styles the DMG window by driving Finder from AppleScript. macOS gates that behind a `kTCCServiceAppleEvents` approval for Finder, seeded into the runner image in `infra/runner-image/runner.pkr.hcl` and present from `runner-image@0.13.3`. On an image without it the send waits on an authorization prompt no headless VM can answer and gives up with `Finder got an error: AppleEvent timed out. (-1712)`; retrying only multiplies the wait.
+- Bundling the macOS app builds the DMG with `dmgbuild`, which writes the window layout into the image's `.DS_Store`. Layout lives in `app/dmg-settings.py`. Nothing in the release drives Finder, and it must stay that way: the fleet's VMs have no Finder that answers, so the previous tool, `create-dmg`, waited out a 120 second AppleEvent timeout on every attempt and no release could produce a DMG. That is an unreachable Finder rather than an unapproved one, so seeding TCC does not help; the approval seeded in `infra/runner-image/runner.pkr.hcl` was an attempt at this and did not fix it.
 - The macOS and iOS jobs allow 50 minutes because `tuist generate` runs with `--no-binary-cache`, making each release a full archive whenever the compilation cache is cold. Any runner image roll leaves it cold, so the first release after one runs far longer than a warm release.
 
 ## Environment Configuration
