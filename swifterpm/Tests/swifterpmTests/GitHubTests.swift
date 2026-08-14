@@ -271,6 +271,15 @@ struct GitHubTests {
     }
 
     @Test
+    func packageIdentityCollapsesTheHTTPSAndSSHFormsOfOneRepository() {
+        let identity = SourceControlLocations.packageIdentity("https://github.com/Acme/Private-Lib.git")
+
+        #expect(SourceControlLocations.packageIdentity("git@github.com:Acme/Private-Lib.git") == identity)
+        #expect(SourceControlLocations.packageIdentity("https://github.com/Acme/Private-Lib") == identity)
+        #expect(SourceControlLocations.packageIdentity("https://github.com/Acme/Other-Lib") != identity)
+    }
+
+    @Test
     func canonicalResolvedFileLocationsStabilizeProviderLocations() {
         #expect(
             SourceControlLocations.canonicalResolvedFileLocation(
