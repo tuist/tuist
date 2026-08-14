@@ -2060,6 +2060,89 @@ defmodule Tuist.TestsTest do
       assert updated_test.duration == 800
     end
 
+    test "keeps run errors reported by a shard other than the first" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_attrs = fn shard_index, extra ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id,
+            shard_index: shard_index
+          },
+          extra
+        )
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0, %{}))
+
+      {:ok, updated_test} =
+        Tests.create_test(
+          shard_attrs.(1, %{
+            run_errors: [
+              %{target: "ChatTests", message: "Issue recorded without an associated test: ChatTests.swift:107: failed"}
+            ]
+          })
+        )
+
+      assert updated_test.id == first_test.id
+
+      # Unattributed issues leave the shard's status alone, so this is the only
+      # surviving trace of them.
+      assert updated_test.status == "success"
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "ChatTests"
+      assert error.message =~ "ChatTests.swift:107"
+    end
+
+    test "collapses a run error reported by every shard into one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      run_errors = [%{target: "AboutUserTests", message: "Failed to create a bundle instance."}]
+
+      shard_attrs = fn shard_index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "failure",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: shard_index,
+          run_errors: run_errors
+        }
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0))
+      {:ok, _} = Tests.create_test(shard_attrs.(1))
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "AboutUserTests"
+    end
+
     test "uses the shard-run mapping instead of scanning test runs for later shards" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -2124,6 +2207,123 @@ defmodule Tuist.TestsTest do
 
       assert updated_test.id == first_test.id
       refute updated_test.id == conflicting_test_id
+    end
+
+    test "rebuilds the merged run under the mapped id when its run row is missing" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      mapped_id = UUIDv7.generate()
+
+      # A report that claimed the mapping and then died before its run row
+      # landed. The mapping is what later shards converge on, so the run has to
+      # be rebuilt under it rather than started again under a fresh id.
+      IngestRepo.insert_all(ShardRun, [
+        %{
+          shard_plan_id: plan.id,
+          project_id: project.id,
+          test_run_id: mapped_id,
+          shard_index: 0,
+          status: "processing",
+          duration: 0,
+          ran_at: NaiveDateTime.utc_now(),
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      {:ok, rebuilt_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert rebuilt_test.id == mapped_id
+    end
+
+    test "claims the shard mapping before writing the run row" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _test} =
+            Tests.create_test(%{
+              id: UUIDv7.generate(),
+              project_id: project.id,
+              account_id: account.id,
+              duration: 500,
+              status: "success",
+              model_identifier: "Mac15,6",
+              macos_version: "14.0",
+              xcode_version: "15.0",
+              git_branch: "main",
+              git_commit_sha: "abc123",
+              ran_at: NaiveDateTime.utc_now(),
+              is_ci: true,
+              shard_plan_id: plan.id,
+              shard_index: 0
+            })
+        end)
+
+      # Anything written between the run row and its mapping is unrecoverable:
+      # later shards resolve the run through the mapping alone, so a run row
+      # without one splits the report in two.
+      mapping_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "shard_runs")))
+      run_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "test_runs")))
+
+      assert mapping_insert
+      assert run_insert
+      assert mapping_insert < run_insert
+    end
+
+    test "never resolves a merged run by scanning test runs for a shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard = fn index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: index
+        }
+      end
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _} = Tests.create_test(shard.(0))
+          {:ok, _} = Tests.create_test(shard.(1))
+        end)
+
+      # `shard_plan_id` is not in `test_runs`' sorting key, so this lookup reads
+      # every granule the project prefix leaves, and the read buffer it
+      # allocates per column stream is what blew the shard report's memory cap.
+      # The mapping in `shard_runs` is keyed for exactly this question.
+      refute Enum.any?(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ ~s|"shard_plan_id" = |))
     end
 
     test "single shard plan sets status directly (not in_progress)" do
@@ -10296,6 +10496,34 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
 
       assert Tests.test_case_ids_with_successful_default_branch_run(project.id, [], "main") == []
+    end
+  end
+
+  defp capture_clickhouse_queries(fun) do
+    test_pid = self()
+    handler_id = "clickhouse-queries-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach_many(
+      handler_id,
+      [[:tuist, :click_house_repo, :query], [:tuist, :ingest_repo, :query]],
+      fn _event, _measurements, %{query: query}, _config -> send(test_pid, {:clickhouse_query, query}) end,
+      nil
+    )
+
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler_id)
+    end
+
+    drain_clickhouse_queries([])
+  end
+
+  defp drain_clickhouse_queries(acc) do
+    receive do
+      {:clickhouse_query, query} -> drain_clickhouse_queries([query | acc])
+    after
+      0 -> Enum.reverse(acc)
     end
   end
 end

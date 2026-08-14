@@ -9,9 +9,9 @@ use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     bandwidth::BandwidthLimiter,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
-    extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -31,12 +31,12 @@ pub(crate) async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
-    test_context_with_extension(override_config, None).await
+    test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_extension<F>(
+pub(crate) async fn test_context_with_auth<F>(
     override_config: F,
-    extension: Option<SharedExtension>,
+    auth: Option<SharedAuth>,
 ) -> TestContext
 where
     F: FnOnce(&mut Config),
@@ -73,6 +73,7 @@ where
         memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
+        memory_floor_bytes: None,
         snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,
@@ -85,12 +86,17 @@ where
         outbox_max_depth: 100_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
+        replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         multipart_max_active_uploads: 128,
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
+        backfill_enabled: false,
+        backfill_margin_percent: 40,
+        backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
+        backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
@@ -142,10 +148,19 @@ where
             .expect("failed to build test analytics");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
+    let peer_client_factory = PeerClientFactory::plain();
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
+    // Production builds this without any total timeout — the stall watchdog is
+    // the deadline there. Tests keep the same 5s cap as `client` so a test
+    // driving the upload path against a server that never answers fails at 5s
+    // instead of hanging for the whole watchdog window.
+    let upload_client = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect("failed to build test upload client");
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -169,12 +184,13 @@ where
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
         usage,
         geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
-        peer_client_factory: PeerClientFactory::plain(),
+        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
+        peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
@@ -191,6 +207,8 @@ where
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
     });
     state.sync_runtime_metrics().await;
 

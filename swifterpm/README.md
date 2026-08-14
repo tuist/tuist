@@ -56,6 +56,8 @@ mise x github:tuist/swifterpm@latest -- swifterpm --package-path . --force-resol
 
 Useful SwiftPM-shaped flags are supported, including `--package-path`, `--cache-path`, `--scratch-path`, `--build-path`, `--config-path`, `--default-registry-url`, `--skip-update`, `--force-resolved-versions`, `--disable-automatic-resolution`, and `--only-use-versions-from-resolved-file`.
 
+Credentials for registries and binary artifact downloads are read from `~/.netrc`, from the `SWIFTPM_NETRC_DATA` environment variable, or from the file given by `--netrc-file`. Pass `--disable-netrc` to skip all of them. A `--netrc-file` that does not exist is an error rather than a silent fallback to unauthenticated requests.
+
 By default, `swifterpm` copies cached directories into the project scratch directory on CI and symlinks them elsewhere. Pass `--cached-directory-materialization symlink` to preserve global-cache symlinks on CI. The accepted values are `automatic`, `copy`, and `symlink`.
 
 > [!NOTE]

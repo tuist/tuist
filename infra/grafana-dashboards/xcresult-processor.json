@@ -37,7 +37,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "xcresult-processor Pods that are currently being scraped. Mac mini fleet is sized for one Pod per host (Apple's 2-VM SLA + per-Pod resource budget); production runs 2 hosts and so this should sit at 2 in steady state.",
+        "description": "xcresult-processor Pods that are currently being scraped. These are only reachable through the `tuist-macos-pod-metrics` scrape job (tart-kubelet's host-side forwarder on :9091); the in-cluster Linux `tuist` job is the web fleet, which enqueues into :process_xcresult but never consumes it. Mac mini fleet is sized for one Pod per host (Apple's 2-VM SLA + per-Pod resource budget); production runs 2 hosts and so this should sit at 2 in steady state. Minis in the fleet without a Pod scheduled keep a target that stays down, so this counts up == 1 rather than the target list.",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "thresholds"},
@@ -78,7 +78,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Pending work in the :process_xcresult queue — sum of available + scheduled + retryable. Climbing under steady consumer count means a backlog.",
+        "description": "Pending work in the :process_xcresult queue — sum of available + scheduled + retryable. Climbing under steady consumer count means a backlog. Every PromEx-enabled pod polls the same oban_jobs table, so each state is deduped with max() before the states are summed; summing the raw series instead multiplies the backlog by the replica count.",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "thresholds"},
@@ -109,7 +109,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max(sum by (instance) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))",
+            "expr": "sum(max by (state) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))",
             "instant": false,
             "refId": "A"
           }
@@ -368,8 +368,47 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Age of the oldest job sitting in Oban's `available` state for this queue, polled every 5s from `oban_jobs` by every PromEx-enabled pod (max() dedupes across replicas). Read it against \"Queue Depth by State\": depth alone reads the same whether arrivals are being served promptly or nothing is consuming the queue at all, since both sit at a non-zero `available` count. This gauge is the one that keeps climbing while a queue has no consumer, and it backs the `Remote processing queue has no consumer` alert, which fires past 15m. It is emitted by the Linux web pods as well as the macOS fleet, so it survives the complete loss of the deployment that drains the queue: exactly the 13-hour outage on 2026-08-12, where the Pods read 1/1 Running with no BEAM inside them.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 900}
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 23},
+        "id": 13,
+        "options": {
+          "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (queue) (tuist_oban_queue_oldest_available_age_seconds{queue=\"process_xcresult\"})",
+            "legendFormat": "{{queue}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest Available Job Age",
+        "type": "timeseries"
+      },
+      {
         "collapsed": false,
-        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
         "id": 103,
         "panels": [],
         "title": "Retries",
@@ -389,7 +428,7 @@
             "unit": "short"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
         "id": 9,
         "options": {
           "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -435,7 +474,7 @@
             "unit": "short"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
         "id": 10,
         "options": {
           "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -455,7 +494,7 @@
       },
       {
         "collapsed": false,
-        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40},
         "id": 104,
         "panels": [],
         "title": "Host / VM Disk",
@@ -487,7 +526,7 @@
             "unit": "percent"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 41},
         "id": 11,
         "options": {
           "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -531,7 +570,7 @@
             "unit": "percent"
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 41},
         "id": 12,
         "options": {
           "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
@@ -576,11 +615,11 @@
         {
           "current": {
             "selected": false,
-            "text": "xcresult-processor",
-            "value": "xcresult-processor"
+            "text": "tuist-macos-pod-metrics",
+            "value": "tuist-macos-pod-metrics"
           },
           "datasource": "$datasource",
-          "definition": "label_values(tuist_oban_queue_length_count{queue=\"process_xcresult\"}, job)",
+          "definition": "label_values(up{job=~\".*macos-pod-metrics\"}, job)",
           "hide": 0,
           "includeAll": false,
           "label": "Job",
@@ -589,7 +628,7 @@
           "options": [],
           "query": {
             "qryType": 1,
-            "query": "label_values(tuist_oban_queue_length_count{queue=\"process_xcresult\"}, job)",
+            "query": "label_values(up{job=~\".*macos-pod-metrics\"}, job)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,

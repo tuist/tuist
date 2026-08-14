@@ -80,6 +80,29 @@ defmodule Tuist.Runners.JobsTest do
     :ok
   end
 
+  describe "with_workflow_job_ordering_lock/2" do
+    test "aborts the caller's transaction instead of handing the failure back as a value" do
+      test_pid = self()
+
+      result =
+        Repo.transaction(fn ->
+          Jobs.with_workflow_job_ordering_lock(8_100_001, fn -> Repo.rollback(:lock_failed) end)
+          send(test_pid, :ran_after_lock)
+          :done
+        end)
+
+      assert result == {:error, :lock_failed}
+      refute_received :ran_after_lock
+    end
+
+    test "returns the function's value when called inside an existing transaction" do
+      assert {:ok, :from_fun} =
+               Repo.transaction(fn ->
+                 Jobs.with_workflow_job_ordering_lock(8_100_002, fn -> :from_fun end)
+               end)
+    end
+  end
+
   describe "enqueue/1" do
     test "inserts a queued row" do
       account = account_fixture()
@@ -759,6 +782,29 @@ defmodule Tuist.Runners.JobsTest do
       assert bottom.workflow_job_id == 8501
     end
 
+    test "narrows to any of the conclusions when :conclusion is a list" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 8701,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 30, :second)
+        )
+
+      :ok = completed_job_fixture(account, 8702, conclusion: "failure", completed_at: base)
+      :ok = completed_job_fixture(account, 8703, conclusion: "skipped", completed_at: base)
+      :ok = completed_job_fixture(account, 8704, conclusion: "cancelled", completed_at: base)
+
+      opts = [status: "completed", conclusion: ["success", "failure"]]
+
+      assert account.id |> Jobs.list_for_account(opts) |> Enum.map(& &1.workflow_job_id) |> Enum.sort() ==
+               [8701, 8702]
+
+      assert Jobs.count_for_account(account.id, opts) == 2
+    end
+
     test "filters by :search via job_name ILIKE substring" do
       account = account_fixture()
 
@@ -943,6 +989,74 @@ defmodule Tuist.Runners.JobsTest do
       one_day_ms = 24 * 60 * 60 * 1_000
       assert run.duration_ms < one_day_ms
       assert run.duration_ms >= 0
+    end
+
+    test "narrows to the given conclusions, applying the limit after the filter" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_001,
+          workflow_run_id: 7_401,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      # Both land after the succeeded run, so an unfiltered limit of 1
+      # would return one of these instead of it.
+      :ok =
+        completed_job_fixture(account, 64_002,
+          workflow_run_id: 7_402,
+          conclusion: "skipped",
+          completed_at: DateTime.add(base, 120, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_003,
+          workflow_run_id: 7_403,
+          conclusion: "cancelled",
+          completed_at: DateTime.add(base, 180, :second)
+        )
+
+      runs =
+        Jobs.list_recent_workflow_runs_for_account(account.id,
+          conclusion: ["success", "failure"],
+          limit: 1
+        )
+
+      assert Enum.map(runs, & &1.workflow_run_id) == [7_401]
+    end
+
+    test "drops a run whose jobs mostly succeeded but one was cancelled" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_101,
+          workflow_run_id: 7_501,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_102,
+          workflow_run_id: 7_501,
+          conclusion: "cancelled",
+          started_at: base,
+          completed_at: DateTime.add(base, 90, :second)
+        )
+
+      # The rollup ladder ranks cancelled above success, so this run
+      # reads `cancelled` even though most of it ran and it carries a
+      # real duration. The card asks for success/failure only, so it
+      # stays out — deliberate, and the Workflows page still lists it.
+      assert Jobs.list_recent_workflow_runs_for_account(account.id, conclusion: ["success", "failure"]) == []
+
+      assert account.id
+             |> Jobs.list_recent_workflow_runs_for_account()
+             |> Enum.map(& &1.conclusion) == ["cancelled"]
     end
 
     test "scopes results to the given account" do

@@ -88,16 +88,30 @@ defmodule Tuist.Runners.Jobs do
   ClickHouse is still the lifecycle history store, but queued/completed
   webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
   observe "missing", race a concurrent completion, and write a newer queued row.
+
+  Re-entrant: inside an existing `Repo` transaction the lock is taken inline
+  rather than through a nested `Repo.transaction/1`. `pg_advisory_xact_lock`
+  is re-entrant within a transaction and released on its commit, so the
+  serialization is identical. A nested transaction is not: it carries no
+  savepoint, and on an aborted connection it skips `fun` entirely and hands
+  back `{:error, :rollback}` as an ordinary value, which callers cannot
+  distinguish from a domain result. Inline, that failure unwinds the caller's
+  transaction instead of being pattern-matched by it.
   """
   def with_workflow_job_ordering_lock(workflow_job_id, fun) when is_integer(workflow_job_id) and is_function(fun, 0) do
-    fn ->
+    if Repo.in_transaction?() do
       acquire_workflow_job_ordering_lock(workflow_job_id)
       fun.()
-    end
-    |> Repo.transaction()
-    |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+    else
+      fn ->
+        acquire_workflow_job_ordering_lock(workflow_job_id)
+        fun.()
+      end
+      |> Repo.transaction()
+      |> case do
+        {:ok, result} -> result
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -621,7 +635,8 @@ defmodule Tuist.Runners.Jobs do
     * `:offset` — number of rows to skip (page-based pagination)
     * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
     * `:conclusion` — restrict completed jobs to a conclusion
-      (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
+      (e.g. `"success" | "failure" | "cancelled" | "skipped"`), or to
+      a list of them
     * `:repository` — substring match on `repository`
     * `:workflow_name` — substring match on `workflow_name`
     * `:job_name` — substring match on `job_name`
@@ -867,6 +882,12 @@ defmodule Tuist.Runners.Jobs do
 
   defp maybe_filter_conclusion(query, conclusion) when is_binary(conclusion) do
     where(query, [j], j.conclusion == ^conclusion)
+  end
+
+  defp maybe_filter_conclusion(query, []), do: query
+
+  defp maybe_filter_conclusion(query, conclusions) when is_list(conclusions) do
+    where(query, [j], j.conclusion in ^conclusions)
   end
 
   defp maybe_filter_like(query, _field, nil), do: query
@@ -1131,6 +1152,9 @@ defmodule Tuist.Runners.Jobs do
     * `:limit` — page size, default 5
     * `:repository` — exact match on `repository`
     * `:workflow_name` — exact match on `workflow_name`
+    * `:conclusion` — restrict to a rollup conclusion, or to a list of
+      them. Applied after the rollup, so the limit counts only the
+      runs that survive it.
   """
   def list_recent_workflow_runs_for_account(account_id, opts \\ []) when is_integer(account_id) do
     limit = Keyword.get(opts, :limit, 5)
@@ -1164,7 +1188,7 @@ defmodule Tuist.Runners.Jobs do
         updated_at: max(j.updated_at)
       })
 
-    ClickHouseRepo.all(
+    rollup =
       from(j in subquery(inner),
         group_by: j.workflow_run_id,
         having: fragment("countIf(? != 'completed')", j.status) == 0,
@@ -1190,11 +1214,17 @@ defmodule Tuist.Runners.Jobs do
               j.conclusion
             ),
           updated_at: max(j.updated_at)
-        },
-        order_by: [desc: max(j.updated_at)],
-        limit: ^limit
+        }
       )
-    )
+
+    # The conclusion filter has to sit outside the rollup: it reads the
+    # column the rollup computes, and running it here rather than as a
+    # `having` keeps the limit counting surviving runs only.
+    from(run in subquery(rollup), select: run)
+    |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+    |> order_by([run], desc: run.updated_at)
+    |> limit(^limit)
+    |> ClickHouseRepo.all()
   end
 
   defp maybe_eq_workflow(query, nil, nil), do: query

@@ -153,6 +153,15 @@ defmodule Cache.Config do
 
   def server_url, do: Application.get_env(:cache, :server_url)
 
+  @doc """
+  Gates the Xcode key-value database (`Cache.KeyValueRepo`) and the S3 transfer
+  enqueues for Xcode CAS artifacts.
+
+  It must never gate `Cache.CacheArtifacts.track_artifact_access/1`:
+  `Cache.DiskEvictionWorker` evicts only keys that have a `cache_artifacts` row,
+  so artifacts written while tracking is off are invisible to eviction and the
+  storage volume fills up (only the rate-limited orphan scan can reclaim them).
+  """
   def xcode_database_interactions_enabled? do
     Application.get_env(:cache, :xcode_database_interactions_enabled, true)
   end
