@@ -1,0 +1,282 @@
+/* Brand page (/brand): hero card (same shell as the about header) followed
+   by the wordmark and logo showcase sections on the 1200px page frame with
+   2px seams. */
+#marketing-brand {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Hero card: 1200px shell, stroke border, primary surface — the same
+     recipe (and pages.css margin override) as #marketing-about's header. */
+  & > header[data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    align-self: center;
+    gap: var(--noora-spacing-9);
+    box-sizing: border-box;
+    margin: 0;
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-10);
+    width: 100%;
+    max-width: 1200px;
+    text-align: center;
+
+    @media (max-width: 1032px) {
+      width: calc(100% - 2 * var(--noora-spacing-1));
+    }
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-10);
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-align: center;
+      text-wrap: pretty;
+    }
+  }
+
+  /* Showcase sections: bordered 1200px frames sitting on the page's 2px
+     seams. Intro text carries the section padding (Figma: 72px above the
+     eyebrow, 8px sides) so the asset grid can run edge to edge. */
+  & > [data-part="section"] {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    /* Same spacing convention as the home sections: the parent's flex gap
+       spaces siblings (96px between the wordmark and logo subsections,
+       48px between a text block and its grid), margins carry the
+       eyebrow → h2 → p ramp, padding is reserved for insets. */
+    gap: var(--noora-spacing-16);
+    padding-top: var(--noora-spacing-14);
+
+    & > [data-part="wordmark"],
+    & > [data-part="logo"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-11);
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        /* Figma: 20px below the eyebrow, 8px between title and
+           description — 20 + 20 + 56 + 8 + 48 = the text frame's 152px. */
+        & > [data-part="title"] {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > [data-part="description"] {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+      }
+    }
+
+    /* 2x2 asset grid. Cell surfaces are intentionally theme-fixed (absolute
+       ramp values, no light-dark()): each cell demonstrates the asset on a
+       light or dark background regardless of the visitor's theme. */
+    & [data-part="grid"] {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+
+      & > [data-part="cell"] {
+        display: flex;
+        position: relative;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
+        padding: var(--noora-spacing-12);
+        text-decoration: none;
+
+        /* Both halves of --noora-surface-background-tertiary, pinned
+           absolutely since the cells don't follow the site theme. */
+        &[data-surface="light"] {
+          background: var(--noora-neutral-light-100);
+        }
+
+        &[data-surface="dark"] {
+          background: var(--noora-neutral-dark-1100);
+        }
+
+        /* Hairline above each row (the grid's top edge to the intro, and
+           the seam between the rows). The cells are theme-fixed, so each
+           surface takes its own half of --marketing-stroke-default
+           absolutely (mirroring the Figma light/dark stroke styles) —
+           a theme-aware token would paint a white line across the dark
+           column in light mode and vice versa. */
+        &[data-surface="light"] {
+          border-top: 1px solid var(--noora-neutral-light-200);
+        }
+
+        &[data-surface="dark"] {
+          border-top: 1px solid var(--noora-neutral-dark-1000);
+        }
+
+        & > img {
+          display: block;
+          width: auto;
+        }
+
+        /* Hover affordance: a Noora neutral button in the cell's corner.
+           The cells are theme-fixed while the button's tokens are
+           theme-aware, so each surface pins the button variables to its
+           own ramp. */
+        & > [data-part="download"] {
+          position: absolute;
+          /* Figma: 6px inset from the cell corner. */
+          right: var(--noora-spacing-3);
+          bottom: var(--noora-spacing-3);
+          gap: var(--noora-spacing-2);
+          /* Linear-style reveal: rises from below while fading in. The
+             resting transform also neutralizes the component's own
+             active-state transform transition. */
+          transform: translateY(6px);
+          opacity: 0;
+          transition:
+            opacity 0.2s var(--ease-out-cubic),
+            transform 0.2s var(--ease-out-cubic),
+            background 0.2s var(--ease-out-cubic);
+
+          & svg {
+            width: 16px;
+            height: 16px;
+          }
+        }
+
+        /* The cells are theme-fixed while the neutral button tokens are
+           light-dark(); pin each surface to the corresponding half of the
+           component's own token values so the button renders exactly as it
+           would on a page in that theme. */
+        &[data-surface="light"] > [data-part="download"] {
+          --noora-button-neutral-label: var(--noora-neutral-light-1200);
+          --noora-button-neutral-background-hover: var(--noora-neutral-light-200);
+          --noora-button-neutral-background-active: var(--noora-neutral-light-300);
+        }
+
+        &[data-surface="dark"] > [data-part="download"] {
+          --noora-button-neutral-label: var(--noora-neutral-light-50);
+          --noora-button-neutral-background-hover: var(--noora-neutral-dark-1000);
+          --noora-button-neutral-background-active: var(--noora-neutral-dark-900);
+        }
+
+        &:hover > [data-part="download"],
+        &:focus-within > [data-part="download"] {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+    }
+
+    /* A grid followed by another subsection (the wordmark grid) closes with
+       its own per-surface bottom hairline — that hairline IS the seam
+       between the two subsections of the shared frame. */
+    & > div:not(:last-child) [data-part="cell"]:nth-child(n + 3) {
+      &[data-surface="light"] {
+        border-bottom: 1px solid var(--noora-neutral-light-200);
+      }
+
+      &[data-surface="dark"] {
+        border-bottom: 1px solid var(--noora-neutral-dark-1000);
+      }
+    }
+
+    /* Preview sizes per subsection (Figma: 600x177 wordmark cells with 56px
+       padding; the mark cells share the padding with a taller glyph). */
+    & > [data-part="wordmark"] [data-part="cell"] > img {
+      height: 64px;
+
+      @media (max-width: 720px) {
+        height: 40px;
+      }
+    }
+
+    & > [data-part="logo"] [data-part="cell"] > img {
+      height: 88px;
+
+      @media (max-width: 720px) {
+        height: 56px;
+      }
+    }
+  }
+
+  /* Usage note: its own bordered frame on the page's 2px seam, same 1200px
+     shell as the sections. */
+  & > [data-part="note"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-10) var(--noora-spacing-4) var(--noora-spacing-7);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+    }
+
+    & > p {
+      margin: 0;
+
+      & > a {
+        color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
+        text-decoration: none;
+
+        &:hover {
+          color: light-dark(var(--noora-purple-600), var(--noora-purple-200));
+        }
+      }
+    }
+  }
+}
