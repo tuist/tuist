@@ -61,6 +61,100 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
+    test "scopes the summary widgets to the last 30 days by default", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - one run today, one three days ago, and one outside the default window
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the run from 40 days ago is excluded
+      assert widget_value(lv, "widget-test-case-runs") =~ "2"
+    end
+
+    test "scopes the summary widgets to the selected period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-24-hours"
+        )
+
+      render_async(lv)
+
+      # Then - only the run from today falls inside the period
+      assert widget_value(lv, "widget-test-case-runs") =~ "1"
+    end
+
+    test "renders the reliability widget as empty when no runs fall in the period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2020-01-01T00:00:00Z",
+          "analytics-end-date" => "2020-01-31T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then
+      assert has_element?(lv, "#widget-test-reliability[data-empty='true']")
+    end
+
+    test "changing the period patches the date range into the query", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # When
+      render_hook(lv, "analytics_period_changed", %{
+        "value" => %{"start" => "2024-04-01", "end" => "2024-04-30"},
+        "preset" => "last-7-days"
+      })
+
+      render_async(lv)
+
+      # Then
+      assert_patched(
+        lv,
+        ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-7-days"
+      )
+
+      assert widget_value(lv, "widget-test-case-runs") =~ "2"
+    end
+
     test "muting a test case via set-state", %{
       conn: conn,
       account: account,
@@ -198,5 +292,25 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert history_html =~ "test-history-event-#{event.id}-time-tooltip"
       assert history_html =~ "Mon 15 Jan 2024 at 09:30"
     end
+  end
+
+  defp seed_runs_across_time(project) do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+    test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+    [test_case_run | _] = test_run.test_case_runs
+
+    for days_ago <- [3, 40] do
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_run.test_case_id,
+        inserted_at: DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+      )
+    end
+
+    test_case_run.test_case_id
+  end
+
+  defp widget_value(lv, widget_id) do
+    lv |> element("##{widget_id} [data-part='value']") |> render()
   end
 end
