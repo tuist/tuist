@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use axum::{
@@ -116,10 +117,11 @@ fn introspection_credentials() -> IntrospectionCredentials {
 }
 
 fn engine(config: AuthConfig) -> SharedAuth {
-    Arc::new(
-        AuthEngine::new(config, Metrics::new("test".into(), "tenant".into()))
-            .expect("build the authorization engine"),
-    )
+    engine_with_metrics(config, Metrics::new("test".into(), "tenant".into()))
+}
+
+fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
+    Arc::new(AuthEngine::new(config, metrics).expect("build the authorization engine"))
 }
 
 fn ctx() -> RequestContext {
@@ -890,6 +892,93 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
     let deny = expect_deny(engine.evaluate_access(&context).await);
     assert_eq!(deny.status, 403);
     assert!(deny.message.contains("server for"));
+}
+
+// The fallback covers an unreachable backend, not a backend that answered. A
+// token the server has since rejected stops working immediately.
+#[tokio::test]
+async fn a_reachable_backend_revoking_a_token_is_not_masked_by_the_last_known_principal() {
+    let active = Arc::new(AtomicBool::new(true));
+    let active_for_handler = active.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if active_for_handler.load(Ordering::SeqCst) {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                )
+            } else {
+                (StatusCode::OK, json!({ "active": false }))
+            }
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+
+    active.store(false, Ordering::SeqCst);
+    engine.clear_caches().await;
+
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 401);
+}
+
+// Nothing to fall back to means the node still fails closed.
+#[tokio::test]
+async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_yet() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let metrics = Metrics::new("test".into(), "tenant".into());
+    let engine = engine_with_metrics(
+        AuthConfig {
+            base_url: base.clone(),
+            connect_timeout: Duration::from_millis(500),
+            request_timeout: Duration::from_millis(4000),
+            verifier: Some(JwtVerifier {
+                algorithm: Algorithm::HS512,
+                secret: GUARDIAN_SECRET.into(),
+                issuer: Some("tuist".into()),
+                audiences: Vec::new(),
+            }),
+            introspection: Some(introspection_credentials()),
+            cache_max_entries: 1000,
+        },
+        metrics.clone(),
+    );
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 503);
+
+    let rendered = metrics.render();
+    assert!(
+        rendered
+            .lines()
+            .any(|line| line.starts_with("kura_auth_decisions_total")
+                && line.contains("stage=\"authenticate\"")
+                && line.contains("result=\"unavailable\"")),
+        "expected an unavailable authenticate decision, got:\n{rendered}"
+    );
 }
 
 fn expect_deny(decision: AccessDecision) -> DenyDecision {

@@ -8,6 +8,7 @@
 use std::time::Duration;
 
 use serde_json::{Value, json};
+use tracing::warn;
 
 use super::grants::CacheGrants;
 use super::target::{Action, RequestTarget, Scope, request_action, request_target};
@@ -24,6 +25,11 @@ const DENY_TTL: Duration = Duration::from_secs(3);
 pub enum Authentication {
     Principal(Principal),
     Deny(DenyDecision),
+    /// The backend could not be reached or could not answer, so this is not a
+    /// verdict on the token. Kept apart from `Deny` because the engine may
+    /// answer it from the last principal it confirmed, which it must never do
+    /// for a backend that did answer.
+    Unavailable(DenyDecision),
 }
 
 impl Authentication {
@@ -34,10 +40,18 @@ impl Authentication {
         })
     }
 
+    fn unavailable(reason: &str) -> Self {
+        warn!("authentication backend unavailable: {reason}");
+        Self::Unavailable(DenyDecision {
+            status: 503,
+            message: "Authentication backend unavailable".into(),
+        })
+    }
+
     pub fn ttl(&self) -> Duration {
         match self {
             Self::Principal(_) => ALLOW_TTL,
-            Self::Deny(_) => DENY_TTL,
+            Self::Deny(_) | Self::Unavailable(_) => DENY_TTL,
         }
     }
 }
@@ -163,7 +177,12 @@ pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authe
         return authenticate_via_cache_access(backend, authorization).await;
     }
 
-    Authentication::deny(503, "Authentication backend unavailable")
+    // Not an outage: this node was never given the credentials that would let
+    // it ask about an account-scoped request, so retrying cannot help.
+    Authentication::deny(
+        503,
+        "Authentication backend is not configured for account-scoped requests",
+    )
 }
 
 /// What a verified token alone can settle. `None` means the token was readable
@@ -208,12 +227,16 @@ async fn authenticate_via_introspection(
     target: &RequestTarget,
     action: &Action,
 ) -> Authentication {
-    let Ok(response) = backend.introspect(token).await else {
-        return Authentication::deny(503, "Authentication backend unavailable");
+    let response = match backend.introspect(token).await {
+        Ok(response) => response,
+        Err(error) => return Authentication::unavailable(&error),
     };
 
     if response.status != 200 {
-        return Authentication::deny(503, "Authentication backend unavailable");
+        return Authentication::unavailable(&format!(
+            "introspection returned status {}",
+            response.status
+        ));
     }
 
     if response.body.get("active") == Some(&Value::Bool(true)) {
@@ -243,8 +266,9 @@ async fn authenticate_via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
 ) -> Authentication {
-    let Ok(response) = backend.cache_access(authorization).await else {
-        return Authentication::deny(503, "Authentication backend unavailable");
+    let response = match backend.cache_access(authorization).await {
+        Ok(response) => response,
+        Err(error) => return Authentication::unavailable(&error),
     };
 
     match response.status {
@@ -255,7 +279,7 @@ async fn authenticate_via_cache_access(
             project_handles(&response.body),
         )),
         401 => Authentication::deny(401, "Invalid or expired token"),
-        _ => Authentication::deny(503, "Authentication backend unavailable"),
+        status => Authentication::unavailable(&format!("cache access returned status {status}")),
     }
 }
 

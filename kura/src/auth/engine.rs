@@ -48,10 +48,20 @@ impl<K, V: Decision> Expiry<K, V> for DecisionExpiry {
     }
 }
 
+/// How long a confirmed principal stays usable as an answer for a backend that
+/// has stopped answering. It bounds the blast radius of the fallback: a token
+/// the server would now reject keeps working for at most this long, and only
+/// while the server cannot be reached to say so.
+const LAST_CONFIRMED_TTL: Duration = Duration::from_secs(15 * 60);
+
 pub struct AuthEngine {
     backend: TuistBackend,
     principals: Cache<String, Authentication>,
     decisions: Cache<String, Authorization>,
+    /// The most recent principal the backend actually confirmed, per
+    /// credentials. Written only from a fresh backend answer, never from its
+    /// own reuse, so an outage cannot keep extending the window.
+    last_confirmed: Cache<String, Principal>,
     metrics: Metrics,
 }
 
@@ -87,6 +97,10 @@ impl AuthEngine {
             backend,
             principals: decision_cache(config.cache_max_entries),
             decisions: decision_cache(config.cache_max_entries),
+            last_confirmed: Cache::builder()
+                .max_capacity(config.cache_max_entries as u64)
+                .time_to_live(LAST_CONFIRMED_TTL)
+                .build(),
             metrics,
         })
     }
@@ -94,7 +108,9 @@ impl AuthEngine {
     pub async fn evaluate_access(&self, ctx: &RequestContext) -> AccessDecision {
         let principal = match self.resolve_authentication(ctx).await {
             Authentication::Principal(principal) => principal,
-            Authentication::Deny(deny) => return AccessDecision::Deny(deny),
+            Authentication::Deny(deny) | Authentication::Unavailable(deny) => {
+                return AccessDecision::Deny(deny);
+            }
         };
 
         match self.resolve_authorization(ctx, &principal).await {
@@ -109,6 +125,11 @@ impl AuthEngine {
         let held = self.principals.entry_count() + self.decisions.entry_count();
         self.principals.invalidate_all();
         self.decisions.invalidate_all();
+        // Dropped with the rest: this runs as the critical memory-pressure
+        // reclaim, and a node that close to being killed cannot justify holding
+        // the fallback. Losing it only costs the node its cover for a backend
+        // outage, which is the safe direction.
+        self.last_confirmed.invalidate_all();
         held as usize
     }
 
@@ -120,7 +141,7 @@ impl AuthEngine {
 
         let entry = self
             .principals
-            .entry(key)
+            .entry(key.clone())
             .or_insert_with(async {
                 let start = Instant::now();
                 let result = policy::authenticate(&self.backend, ctx).await;
@@ -130,7 +151,7 @@ impl AuthEngine {
                     start.elapsed(),
                 );
                 self.metrics.record_auth_cache("authenticate", "miss");
-                result
+                self.settle(key.clone(), result).await
             })
             .await;
 
@@ -140,6 +161,31 @@ impl AuthEngine {
             self.metrics.record_auth_cache("authenticate", "hit");
         }
         entry.into_value()
+    }
+
+    /// Records what the backend confirmed, and answers what it could not.
+    ///
+    /// A node that cannot reach the backend knows nothing new about the token,
+    /// so falling back to the last principal the backend did confirm keeps a
+    /// control-plane blip off the serving path. The fallback is deliberately
+    /// narrow: a backend that answered — including one that rejected the token —
+    /// is always taken at its word, and a node holding nothing confirmed still
+    /// fails closed.
+    async fn settle(&self, key: String, result: Authentication) -> Authentication {
+        match result {
+            Authentication::Principal(principal) => {
+                self.last_confirmed.insert(key, principal.clone()).await;
+                Authentication::Principal(principal)
+            }
+            Authentication::Unavailable(deny) => match self.last_confirmed.get(&key).await {
+                Some(principal) => {
+                    self.metrics.record_auth_cache("authenticate", "stale");
+                    Authentication::Principal(principal)
+                }
+                None => Authentication::Unavailable(deny),
+            },
+            deny => deny,
+        }
     }
 
     async fn resolve_authorization(
@@ -189,6 +235,7 @@ fn result_label(result: &Authentication) -> &'static str {
     match result {
         Authentication::Principal(_) => "principal",
         Authentication::Deny(_) => "deny",
+        Authentication::Unavailable(_) => "unavailable",
     }
 }
 
@@ -222,6 +269,102 @@ mod tests {
             status: 403,
             message: message.into(),
         })
+    }
+
+    fn engine() -> AuthEngine {
+        AuthEngine::new(
+            AuthConfig {
+                // Never dialled: `settle` decides from what the policy already
+                // returned.
+                base_url: "http://127.0.0.1:1".into(),
+                connect_timeout: Duration::from_millis(1),
+                request_timeout: Duration::from_millis(1),
+                verifier: None,
+                introspection: None,
+                cache_max_entries: 16,
+            },
+            Metrics::new("test".into(), "tenant".into()),
+        )
+        .expect("build the authorization engine")
+    }
+
+    fn principal(id: &str) -> Principal {
+        Principal {
+            id: id.into(),
+            kind: "account".into(),
+            attributes: serde_json::json!({}),
+        }
+    }
+
+    fn unavailable() -> Authentication {
+        Authentication::Unavailable(DenyDecision {
+            status: 503,
+            message: "Authentication backend unavailable".into(),
+        })
+    }
+
+    // A control-plane blip must not become a cache outage. Without the
+    // fallback the deny is cached for DENY_TTL and re-derived every 3 seconds
+    // for as long as the backend stays unreachable, so every client sharing the
+    // token 5xxes for the whole window.
+    #[tokio::test]
+    async fn answers_an_unreachable_backend_from_the_last_principal_it_confirmed() {
+        let engine = engine();
+
+        engine
+            .settle("token".into(), Authentication::Principal(principal("a")))
+            .await;
+
+        assert!(matches!(
+            engine.settle("token".into(), unavailable()).await,
+            Authentication::Principal(found) if found.id == "a"
+        ));
+    }
+
+    // Nothing confirmed means nothing to fall back to, and the node stays shut.
+    #[tokio::test]
+    async fn fails_closed_when_the_backend_is_unreachable_and_nothing_was_confirmed() {
+        let engine = engine();
+
+        assert!(matches!(
+            engine.settle("token".into(), unavailable()).await,
+            Authentication::Unavailable(_)
+        ));
+    }
+
+    // The fallback covers a backend that did not answer. One that did — even to
+    // reject the token — is taken at its word.
+    #[tokio::test]
+    async fn never_answers_over_a_backend_that_rejected_the_token() {
+        let engine = engine();
+        let rejected = Authentication::Deny(DenyDecision {
+            status: 401,
+            message: "Invalid or expired token".into(),
+        });
+
+        engine
+            .settle("token".into(), Authentication::Principal(principal("a")))
+            .await;
+
+        assert!(matches!(
+            engine.settle("token".into(), rejected).await,
+            Authentication::Deny(deny) if deny.status == 401
+        ));
+    }
+
+    #[tokio::test]
+    async fn releasing_the_caches_releases_the_fallback_too() {
+        let engine = engine();
+
+        engine
+            .settle("token".into(), Authentication::Principal(principal("a")))
+            .await;
+        engine.clear_caches().await;
+
+        assert!(matches!(
+            engine.settle("token".into(), unavailable()).await,
+            Authentication::Unavailable(_)
+        ));
     }
 
     #[test]

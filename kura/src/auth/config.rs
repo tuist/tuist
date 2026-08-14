@@ -59,6 +59,15 @@ const CLIENT_SECRET: &[&str] = &[
 ];
 
 const DEFAULT_CACHE_MAX_ENTRIES: usize = 100_000;
+// What the managed provisioner renders. A node that is not rendered by it —
+// self-hosted, or a manifest that predates those variables — used to fall back
+// to 500/1500, where one dropped SYN (first retransmit at ~1s) fails the
+// connect outright.
+const DEFAULT_CONNECT_TIMEOUT_MS: u64 = 3000;
+const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 4000;
+// reqwest's request timeout spans the connect, so a connect budget at or above
+// it can never be reached and the node gives up on the handshake early.
+const _: () = assert!(DEFAULT_CONNECT_TIMEOUT_MS < DEFAULT_REQUEST_TIMEOUT_MS);
 
 #[derive(Clone, Debug)]
 pub struct AuthConfig {
@@ -105,10 +114,10 @@ impl AuthConfig {
         Ok(Some(Self {
             base_url,
             connect_timeout: Duration::from_millis(
-                optional_parse(CONNECT_TIMEOUT_MS)?.unwrap_or(500),
+                optional_parse(CONNECT_TIMEOUT_MS)?.unwrap_or(DEFAULT_CONNECT_TIMEOUT_MS),
             ),
             request_timeout: Duration::from_millis(
-                optional_parse(REQUEST_TIMEOUT_MS)?.unwrap_or(1500),
+                optional_parse(REQUEST_TIMEOUT_MS)?.unwrap_or(DEFAULT_REQUEST_TIMEOUT_MS),
             ),
             verifier: jwt_verifier_from_env()?,
             introspection: introspection_from_env(),

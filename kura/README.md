@@ -578,9 +578,26 @@ Core env vars:
   `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which
   let a node introspect tokens it cannot verify itself
+- `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` (default `3000`) and
+  `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` (default `4000`) bound the calls to the
+  server. The request budget spans the connect, so keep it the larger of the
+  two; a connect budget under about a second fails on a single dropped SYN,
+  because TCP does not retransmit one until then.
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+When the server cannot be reached or cannot answer, the node falls back to the
+last principal that server confirmed for the same credentials, for up to 15
+minutes since that confirmation. This keeps a control-plane blip off the serving
+path: without it the 503 is cached per credentials and re-derived every few
+seconds for the length of the outage, so every client sharing a token fails for
+the whole window. The fallback is narrow by design — a server that answers is
+always taken at its word, including when it rejects the token, and a node
+holding nothing confirmed still fails closed. Reaching for it is counted as
+`kura_auth_cache_total{cache="authenticate",result="stale"}`; an outage the node
+could not cover is `kura_auth_decisions_total{stage="authenticate",result="unavailable"}`
+and is logged with the underlying transport or status error.
 
 Requests carry their target as `tenant_id` and `namespace_id`, also read from
 `account_handle` and `project_handle` in the query. A request naming no project
