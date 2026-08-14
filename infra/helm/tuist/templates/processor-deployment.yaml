@@ -38,9 +38,6 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
         prometheus.io/port-name: metrics
-        {{- if and .Values.server.serviceAccount.create .Values.server.migrationJob.asHook }}
-        tuist.dev/server-service-account-revision: {{ .Release.Revision | quote }}
-        {{- end }}
         {{- with .Values.processor.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -84,6 +81,11 @@ spec:
           # priv/secrets exactly in sync with what enqueued the job.
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          # Preserve the last container output in the pod's termination
+          # message whenever the processor exits unsuccessfully. This gives
+          # `kubectl describe pod` and Kubernetes event consumers the failure
+          # context even when the BEAM cannot write its own crash report.
+          terminationMessagePolicy: FallbackToLogsOnError
           command:
             - /app/bin/tuist
             - start

@@ -2,6 +2,7 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Storage
@@ -352,7 +353,13 @@ defmodule Tuist.CommandEventsTest do
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "cache",
-          ran_at: ~U[2024-03-04 01:00:00Z]
+          ran_at: ~U[2024-03-04 01:00:00Z],
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"],
+          test_targets: ["AppTests"],
+          local_test_target_hits: ["AppTests"],
+          remote_test_target_hits: ["AppTests"]
         )
 
       # A non-matching command interleaved in time must be excluded even though
@@ -384,6 +391,142 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert Enum.map(events, & &1.id) == [cache_event_new.id, cache_event_old.id]
+
+      hydrated_old = List.last(events)
+      assert hydrated_old.cacheable_targets == ["App", "Framework"]
+      assert hydrated_old.local_cache_target_hits == ["App"]
+      assert hydrated_old.remote_cache_target_hits == ["Framework"]
+      assert hydrated_old.test_targets == ["AppTests"]
+      assert hydrated_old.local_test_target_hits == ["AppTests"]
+      assert hydrated_old.remote_test_target_hits == ["AppTests"]
+    end
+
+    test "returns fully hydrated events ordered by duration" do
+      project = ProjectsFixtures.project_fixture()
+
+      slow_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 3000,
+          cacheable_targets: ["SlowApp"]
+        )
+
+      fast_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_targets: ["FastApp"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [slow_event.id, fast_event.id]
+      assert Enum.map(events, & &1.cacheable_targets) == [["SlowApp"], ["FastApp"]]
+    end
+
+    test "returns fully hydrated events ordered by hit rate" do
+      project = ProjectsFixtures.project_fixture()
+
+      half_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"]
+        )
+
+      full_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [full_hit_event.id, half_hit_event.id]
+
+      assert Enum.map(events, &{&1.cacheable_targets, &1.local_cache_target_hits, &1.remote_cache_target_hits}) ==
+               [
+                 {["App", "Framework"], ["App"], ["Framework"]},
+                 {["App", "Framework"], ["App"], []}
+               ]
+    end
+
+    test "hydrates optimized rows within the selected project when identifiers collide" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      shared_id = UUIDv7.generate()
+
+      selected_event =
+        CommandEventsFixtures.command_event_fixture(
+          id: shared_id,
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["SelectedApp"]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        id: shared_id,
+        project_id: other_project.id,
+        name: "cache",
+        cacheable_targets: ["OtherApp"]
+      )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
+      assert project_id == project.id
+      assert hd(events).id == selected_event.id
+    end
+
+    test "uses a sequentially consistent read when hydrating optimized rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+      parent = self()
+
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        send(parent, {:clickhouse_read_options, opts})
+        Mimic.call_original(ClickHouseRepo, :all, [query, opts])
+      end)
+
+      CommandEvents.list_command_events(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :==, value: "generate"}
+        ],
+        order_by: [:ran_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      assert_received {:clickhouse_read_options, [settings: [select_sequential_consistency: 1]]}
     end
   end
 
@@ -1336,19 +1479,22 @@ defmodule Tuist.CommandEventsTest do
       assert got == {:error, :not_found}
     end
 
-    test "returns the most recent event when multiple events share the same build_run_id" do
+    test "prefers the build event when a later test event shares its build run id" do
       # Given
       build_run_id = UUIDv7.generate()
 
-      _older =
+      build_event =
         CommandEventsFixtures.command_event_fixture(
           build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only"],
           ran_at: ~U[2024-01-01 10:00:00Z]
         )
 
-      newer =
+      _test_event =
         CommandEventsFixtures.command_event_fixture(
           build_run_id: build_run_id,
+          command_arguments: ["test", "--without-building", "--shard-index", "0"],
+          test_run_id: UUIDv7.generate(),
           ran_at: ~U[2024-01-02 10:00:00Z]
         )
 
@@ -1357,7 +1503,39 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert {:ok, event} = got
-      assert event.id == newer.id
+      assert event.id == build_event.id
+    end
+
+    test "prefers the build event when the sharded test events carry no test run id" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      build_event =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only", "--shard-granularity", "suite"],
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      for shard_index <- 0..3 do
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: [
+            "test",
+            "--without-building",
+            "--shard-index",
+            to_string(shard_index)
+          ],
+          ran_at: ~U[2024-01-01 10:05:00Z]
+        )
+      end
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == build_event.id
     end
   end
 

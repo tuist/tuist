@@ -1,0 +1,42 @@
+name: SwifterPM
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "swifterpm/**"
+      - ".github/workflows/swifterpm.yml"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "swifterpm/**"
+      - ".github/workflows/swifterpm.yml"
+
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.5.15"
+
+concurrency:
+  group: swifterpm-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "bazel"
+          working_directory: swifterpm
+          cache: "false"
+          github_token: ${{ github.token }}
+      - name: Test
+        working-directory: swifterpm
+        run: mise run test:unit

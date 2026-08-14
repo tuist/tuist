@@ -24,6 +24,10 @@ on:
       # cli-build-publish and shipped inside the CLI release, so its changes must
       # cut a canary just like cli/** does.
       - cas-plugin/**
+      # XCResultParser lives with the server's xcresult NIF but is compiled into
+      # the CLI binary from those sources, so its changes must cut a canary just
+      # like cli/** does.
+      - server/native/xcresult_nif/Sources/XCResultParser/**
       - mise/tasks/cli/**
       - mise/tasks/release/components.json
       - .github/workflows/cli-release.yml

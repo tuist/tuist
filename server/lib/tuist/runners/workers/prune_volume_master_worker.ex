@@ -7,7 +7,7 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
   (`runner-volume-masters/<account>/tuist-cache/<digest>.image`), so a promote no
   longer overwrites the previous object — without this it would accumulate one
   multi-GB object per distinct inventory forever, cleaned only on account
-  deletion. `Runners.report_volume_head/3` enqueues this with a delay equal to the
+  deletion. `Runners.report_volume_head/4` enqueues this with a delay equal to the
   presigned-URL TTL when a new digest supersedes an old one, so the object
   survives as long as any in-flight convergence could still fetch it.
 

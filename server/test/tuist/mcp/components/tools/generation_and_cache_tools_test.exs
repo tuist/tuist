@@ -261,6 +261,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
                project_settings_hash: "",
                target_settings_hash: "",
                buildable_folders_hash: "",
+               additional_hashing_inputs_hash: "additional-inputs-hash",
                destinations: ["iphone"],
                additional_strings: []
              }
@@ -289,6 +290,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       assert target["cache_hash"] == "hash-abc"
       assert target["subhashes"]["sources"] == "src-hash"
       assert target["subhashes"]["dependencies"] == "dep-hash"
+      assert target["subhashes"]["additional_hashing_inputs"] == "additional-inputs-hash"
       refute Map.has_key?(target["subhashes"], "headers")
     end
   end

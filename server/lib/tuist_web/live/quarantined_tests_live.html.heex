@@ -274,6 +274,7 @@
           label={
             case @quarantined_tests_sort_by do
               "name" -> dgettext("dashboard_tests", "Test Case")
+              "quarantined_at" -> dgettext("dashboard_tests", "Quarantined at")
               _ -> dgettext("dashboard_tests", "Last run")
             end
           }
@@ -292,6 +293,14 @@
             label={dgettext("dashboard_tests", "Test Case")}
             patch={sort_by_patch(@uri, "name")}
             data-selected={@quarantined_tests_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="quarantined_at"
+            label={dgettext("dashboard_tests", "Quarantined at")}
+            patch={sort_by_patch(@uri, "quarantined_at")}
+            data-selected={@quarantined_tests_sort_by == "quarantined_at"}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -376,6 +385,23 @@
                 size="large"
               />
             <% end %>
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Quarantined at")}
+            patch={
+              @quarantined_tests_sort_by == "quarantined_at" &&
+                column_sort_patch(assigns, "quarantined_at")
+            }
+            sort_order={
+              @quarantined_tests_sort_by == "quarantined_at" && @quarantined_tests_sort_order
+            }
+          >
+            <.text_cell
+              :if={test_case.quarantined_at}
+              sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.quarantined_at)}
+            />
+            <span :if={is_nil(test_case.quarantined_at)}>—</span>
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
             <.status_badge_cell

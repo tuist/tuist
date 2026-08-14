@@ -25,6 +25,8 @@ defmodule Tuist.Shards do
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
   @timing_quantile 0.90
+  @min_parallelism_factor 0.5
+  @max_parallelism_factor 16.0
 
   def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
@@ -32,7 +34,11 @@ defmodule Tuist.Shards do
 
     units = resolve_units(project, params, granularity)
     timing_data = fetch_timing_data(project, granularity, units)
-    units_with_durations = assign_durations(units, timing_data, granularity)
+
+    units_with_durations =
+      units
+      |> assign_durations(timing_data, granularity)
+      |> scale_by_module_parallelism(project, params, granularity)
 
     shard_count =
       BinPacker.determine_shard_count(
@@ -122,27 +128,17 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        case fetch_shard_data(plan, shard_index, opts) do
-          nil ->
-            {:error, :invalid_shard_index}
+        get_shard_for_plan(project, account, plan, shard_index, opts)
+    end
+  end
 
-          %{modules: modules, suites: suites, skip: skip} = shard_data ->
-            # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
-            # still run every un-skipped target, so it downloads the plan's whole module inventory
-            # rather than only its selection modules.
-            download_modules = Map.get(shard_data, :download_modules, modules)
-            {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
+  def get_shard_for_plan_id(%Project{} = project, %Account{} = account, plan_id, shard_index, opts \\ []) do
+    case get_plan_by_id(project.id, plan_id) do
+      nil ->
+        {:error, :not_found}
 
-            {:ok,
-             %{
-               shard_plan_id: plan.id,
-               modules: modules,
-               suites: suites,
-               skip: skip,
-               download_url: download_url,
-               download_urls: download_urls
-             }}
-        end
+      plan ->
+        get_shard_for_plan(project, account, plan, shard_index, opts)
     end
   end
 
@@ -388,6 +384,40 @@ defmodule Tuist.Shards do
     )
   end
 
+  defp get_plan_by_id(project_id, plan_id) do
+    ClickHouseRepo.one(
+      from(s in ShardPlan,
+        where: s.project_id == ^project_id,
+        where: s.id == ^plan_id,
+        limit: 1
+      )
+    )
+  end
+
+  defp get_shard_for_plan(project, account, plan, shard_index, opts) do
+    case fetch_shard_data(plan, shard_index, opts) do
+      nil ->
+        {:error, :invalid_shard_index}
+
+      %{modules: modules, suites: suites, skip: skip} = shard_data ->
+        # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
+        # still run every un-skipped target, so it downloads the plan's whole module inventory
+        # rather than only its selection modules.
+        download_modules = Map.get(shard_data, :download_modules, modules)
+        {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
+
+        {:ok,
+         %{
+           shard_plan_id: plan.id,
+           modules: modules,
+           suites: suites,
+           skip: skip,
+           download_url: download_url,
+           download_urls: download_urls
+         }}
+    end
+  end
+
   defp resolve_units(_project, params, "module"), do: params_modules(params)
 
   defp resolve_units(project, params, "suite") do
@@ -614,6 +644,116 @@ defmodule Tuist.Shards do
 
   defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
   defp round_timing_duration(duration), do: round(duration)
+
+  # A suite plan prices a shard as the sum of its suites' durations, which equals the shard's wall
+  # clock only when a module runs its suites one after another. Xcode runs a parallelizable module's
+  # suites concurrently, so summing them overstates such a module by as much as an order of
+  # magnitude, and the bin packer hands a whole shard to work that finishes in a fraction of the
+  # budget. Dividing each suite by its module's measured concurrency puts every unit back on the same
+  # wall-clock scale before packing.
+  #
+  # Which modules those are is not inferable from run records: it is a property of the test plan and
+  # the `xcodebuild` invocation, and history lags a change to either by the whole lookback window. A
+  # module that just stopped running in parallel would keep being divided for a month. So the client
+  # declares the set, read from `ParallelizationEnabled` in the `.xctestrun` it is about to run, and
+  # history is left to answer only how much concurrency those modules actually achieve. A client that
+  # declares nothing gets no scaling.
+  defp scale_by_module_parallelism(units_with_durations, _project, _params, "module"), do: units_with_durations
+
+  defp scale_by_module_parallelism(units_with_durations, project, params, "suite") do
+    parallelizable = params |> Map.get(:parallelizable_modules) |> List.wrap() |> MapSet.new()
+
+    units_by_module =
+      units_with_durations
+      |> Enum.group_by(fn {name, _duration} -> suite_module(name) end)
+      |> Map.filter(fn {module, _units} -> MapSet.member?(parallelizable, module) end)
+
+    factors =
+      units_by_module
+      |> Map.keys()
+      |> then(&fetch_module_parallelism(project, &1))
+      |> Map.new(fn {module, factor} -> {module, cap_factor(factor, Map.fetch!(units_by_module, module))} end)
+
+    Enum.map(units_with_durations, fn {name, duration} ->
+      case Map.get(factors, suite_module(name)) do
+        nil -> {name, duration}
+        factor -> {name, max(round(duration / factor), 1)}
+      end
+    end)
+  end
+
+  # Concurrency is measured over a module's whole suite set, but a plan can hold only part of it,
+  # and the suites that are missing are no longer there to overlap with. One suite of a four-way
+  # parallel module still takes that suite in full, so a shard's cost for a module can never fall
+  # below its longest planned suite. Capping the divisor at the planned set's own spread enforces
+  # that bound while leaving a complete inventory on the measured factor.
+  defp cap_factor(factor, units) do
+    durations = Enum.map(units, fn {_name, duration} -> duration end)
+    longest = Enum.max(durations)
+
+    if longest > 0 do
+      min(factor, Enum.sum(durations) / longest)
+    else
+      factor
+    end
+  end
+
+  # Concurrency is measured per module run as its suites' total duration over its own wall clock,
+  # then taken as the median across runs so a single anomalous run cannot move it. A run with one
+  # suite carries no concurrency signal, and the ratio is clamped because a module row whose duration
+  # was recorded inconsistently with its suites' would otherwise scale that module to near zero.
+  #
+  # Both tables are `ReplacingMergeTree(inserted_at)` keyed on the row id, so a rewritten row (the
+  # `is_flaky` update path) leaves a second physical copy behind until the parts merge. Summing and
+  # counting physical rows would inflate a module's suite total, and a duplicate on the module side
+  # multiplies through the join into every one of its suites. The innermost grouping folds each row
+  # id back to one row first, so neither aggregate can see a duplicate.
+  defp fetch_module_parallelism(_project, []), do: %{}
+
+  defp fetch_module_parallelism(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    deduplicated =
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        group_by: [mr.name, mr.id, sr.id],
+        select: %{
+          module_name: mr.name,
+          module_run_id: mr.id,
+          module_duration: fragment("argMax(?, ?)", mr.duration, mr.inserted_at),
+          suite_duration: fragment("argMax(?, ?)", sr.duration, sr.inserted_at)
+        }
+      )
+
+    per_module_run =
+      from(d in subquery(deduplicated),
+        group_by: [d.module_name, d.module_run_id],
+        having: fragment("any(?)", d.module_duration) > 0,
+        having: count(d.module_run_id) > 1,
+        select: %{
+          module_name: d.module_name,
+          module_duration: fragment("any(?)", d.module_duration),
+          suite_sum: sum(d.suite_duration)
+        }
+      )
+
+    from(r in subquery(per_module_run),
+      group_by: r.module_name,
+      select: {r.module_name, fragment("toFloat64(median(? / ?))", r.suite_sum, r.module_duration)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {name, factor} ->
+      {name, factor |> max(@min_parallelism_factor) |> min(@max_parallelism_factor)}
+    end)
+  end
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)

@@ -151,7 +151,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -276,7 +276,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -380,7 +380,7 @@
                 "showHeader": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -484,7 +484,7 @@
                 "showHeader": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -609,7 +609,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -736,7 +736,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -861,7 +861,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -947,7 +947,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1096,7 +1096,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1221,7 +1221,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1346,7 +1346,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1432,7 +1432,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1581,7 +1581,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1647,7 +1647,7 @@
                 "wrapLogMessage": false
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1721,7 +1721,109 @@
                 "showHeader": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
+          }
+        }
+      },
+      "panel-29": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "exemplar": false,
+                        "expr": "100 * max(tuist_github_rate_limit_used{env=\"$environment\"}) / max(tuist_github_rate_limit_limit{env=\"$environment\"})",
+                        "instant": false,
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 29,
+          "links": [],
+          "title": "Used Limit",
+          "vizConfig": {
+            "group": "gauge",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "percentage",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "#EAB839",
+                        "value": 60
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              },
+              "options": {
+                "barShape": "flat",
+                "barWidthFactor": 0.54,
+                "effects": {
+                  "barGlow": false,
+                  "centerGlow": false,
+                  "gradient": false
+                },
+                "endpointMarker": "point",
+                "minVizHeight": 75,
+                "minVizWidth": 75,
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "segmentCount": 63,
+                "segmentSpacing": 0.3,
+                "shape": "gauge",
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true,
+                "sizing": "auto",
+                "sparkline": true,
+                "textMode": "auto"
+              }
+            },
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1804,7 +1906,145 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
+          }
+        }
+      },
+      "panel-30": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "exemplar": false,
+                        "expr": "max(tuist_github_rate_limit_used{env=\"$environment\"})",
+                        "instant": false,
+                        "legendFormat": "used",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "max(tuist_github_rate_limit_limit{env=\"$environment\"})",
+                        "instant": false,
+                        "legendFormat": "limit",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 30,
+          "links": [],
+          "title": "Used Limit",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1897,7 +2137,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -1988,7 +2228,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -2069,7 +2309,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -2150,7 +2390,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -2275,7 +2515,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       },
@@ -2400,7 +2640,7 @@
                 }
               }
             },
-            "version": "13.2.0-28926505616"
+            "version": "13.2.0-30402795349"
           }
         }
       }
@@ -2730,6 +2970,41 @@
             "spec": {
               "collapse": false,
               "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "columnWidthMode": "standard",
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-29"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-30"
+                        }
+                      }
+                    }
+                  ],
+                  "maxColumnCount": 3,
+                  "rowHeightMode": "standard"
+                }
+              },
+              "title": "GitHub"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "layout": {
                 "kind": "GridLayout",
                 "spec": {
                   "items": [
@@ -2769,18 +3044,6 @@
       }
     },
     "links": [
-      {
-        "asDropdown": false,
-        "icon": "external link",
-        "includeVars": false,
-        "keepTime": false,
-        "tags": [],
-        "targetBlank": true,
-        "title": "Source (GitHub)",
-        "tooltip": "View source file in repository",
-        "type": "link",
-        "url": "https://github.com/tuist/tuist/blob/main/infra/grafana-dashboards/registry-service.json"
-      },
       {
         "asDropdown": false,
         "icon": "external link",

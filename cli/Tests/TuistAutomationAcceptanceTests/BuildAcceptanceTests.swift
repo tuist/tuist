@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -438,7 +439,9 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
             directory: prebuiltsDirectory,
             include: ["**/*-MacroSupport/**/*-apple-macos.*"]
         ).collect()
-        guard !extractedPrebuiltModules.isEmpty else { return }
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable because the signed manifest could not be validated.")
+        }
 
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
 
@@ -543,28 +546,50 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
 }
 
 struct BuildAcceptanceTestMultiplatformAppWithSDK {
-    @Test(.disabled(), .withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
-    func test() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--platform",
-                "macos",
-                "--path",
-                fixtureDirectory.pathString,
-                "--derived-data-path",
-                derivedDataPath.pathString,
-            ]
-        )
-        try await TuistTest.run(
-            BuildCommand.self,
-            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
-        )
+    @Test(.withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
+    func build_and_test_documentation() async throws {
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+
+        let workspace = fixturePath.appending(component: "App.xcworkspace").pathString
+        let codeSigningArgs: [String] = [
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ]
+
+        // iOS — docbuild exercises ExtractAPI, which is the path that needs MODULEMAP_PATH.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        // macOS — ensures the multiplatform scheme still builds on macOS.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=macOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
     }
 }
 
@@ -835,6 +860,41 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
                 "generic/platform=iOS",
                 "-archivePath",
                 temporaryDirectory.pathString + "/App.xcarchive",
+            ]
+        )
+    }
+}
+
+struct XcodeBuildArchiveStaticXCFrameworkAcceptanceTests {
+    /// Archiving a dynamic framework that links a static xcframework is the only action that tells
+    /// `TARGET_BUILD_DIR` and `BUILT_PRODUCTS_DIR` apart: `SKIP_INSTALL=YES` moves the framework's
+    /// `TARGET_BUILD_DIR` to `UninstalledProducts/` while `ProcessXCFramework` leaves the extracted
+    /// slice in `BUILT_PRODUCTS_DIR`. Any generated setting pointing at the slice with the wrong
+    /// one fails the archive with "Build input file cannot be found" while `build` still passes,
+    /// so this has to archive to catch a regression.
+    @Test(
+        .withFixture("generated_ios_app_with_xcframeworks"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func xcodebuild_archive_dynamic_framework_linking_static_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        try await TuistTest.run(
+            XcodeBuildArchiveCommand.self,
+            [
+                "archive",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS",
+                "-archivePath",
+                temporaryDirectory.pathString + "/App.xcarchive",
+                "CODE_SIGNING_ALLOWED=NO",
             ]
         )
     }

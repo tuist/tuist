@@ -3,8 +3,9 @@
 This area owns request rate limiting helpers.
 
 ## Responsibilities
-- Apply auth rate limits with in-memory or Redis-backed token buckets.
-- Compute rate limit keys using client IP.
+- Apply all request rate limits through Valkey with a matching in-memory fallback.
+- Preserve fixed-window and token-bucket policies across both backends.
+- Compute rate limit keys using client addresses and authenticated subjects.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

@@ -19,6 +19,13 @@ defmodule TuistWeb.RunnersLive do
 
   @table_limit 5
   @chart_limit 30
+  # Only work that reached a success/failure conclusion carries a real
+  # duration. Running, cancelled and skipped runs would draw as
+  # zero-height bars that scatter the real ones, and count for nothing
+  # in the success/failure legends. Both Recent cards narrow to these
+  # at the query, so each one's table, bars and legends describe the
+  # same set of rows.
+  @duration_conclusions ["success", "failure"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -161,14 +168,15 @@ defmodule TuistWeb.RunnersLive do
 
   defp assign_recent_jobs(socket, account_id, repository, platform) do
     # The Recent jobs card mirrors the Recent Test Runs card on the
-    # Tests page — it's a chronicle of finished work, not a live
-    # status board. Filter to completed runs only so the bars carry
-    # a real duration and the success/failure legends count
-    # something other than zero. The chart spans up to
-    # `@chart_limit` so the bar trail conveys a trend, while the
-    # table below shows only the freshest `@table_limit` rows.
+    # Tests page — it's a chronicle of work that ran, not a live
+    # status board. Filter to jobs that completed with a
+    # `@duration_conclusions` conclusion so the bars carry a real
+    # duration and the success/failure legends count something other
+    # than zero. The chart spans up to `@chart_limit` so the bar trail
+    # conveys a trend, while the table below shows only the freshest
+    # `@table_limit` rows.
     opts =
-      [status: "completed", limit: @chart_limit]
+      [status: "completed", conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -177,14 +185,34 @@ defmodule TuistWeb.RunnersLive do
 
     socket
     |> assign(:recent_jobs, recent_jobs_table)
+    |> assign(:recent_jobs_hidden, hidden_recent_jobs?(recent_jobs_chart, account_id, repository, platform))
     |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs_chart, socket.assigns.selected_account.name))
     |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "success")))
     |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "failure")))
   end
 
-  defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+  # An empty card no longer means "this account has never run a job" —
+  # it also happens when everything recent was skipped or cancelled.
+  # The distinction picks the empty state's copy and keeps `View more`
+  # live so those rows stay one click away on the Jobs page. Only worth
+  # a second query in the empty case, which is the only one that asks.
+  defp hidden_recent_jobs?([], account_id, repository, platform) do
     opts =
-      [limit: @chart_limit]
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_jobs?(_rows, _account_id, _repository, _platform), do: false
+
+  defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+    # Same contract as the Recent jobs card above: a run rolls up to
+    # `cancelled` or `skipped` when none of its jobs ran, so it carries
+    # no duration for the table and nothing for the bars or legends.
+    opts =
+      [conclusion: @duration_conclusions, limit: @chart_limit]
       |> maybe_repository(repository)
       |> maybe_platform(platform)
 
@@ -193,6 +221,10 @@ defmodule TuistWeb.RunnersLive do
 
     socket
     |> assign(:recent_workflow_runs, recent_workflow_runs_table)
+    |> assign(
+      :recent_workflow_runs_hidden,
+      hidden_recent_workflow_runs?(recent_workflow_runs_chart, account_id, repository, platform)
+    )
     |> assign(
       :recent_workflow_runs_chart_data,
       recent_workflow_runs_chart_data(recent_workflow_runs_chart, socket.assigns.selected_account.name)
@@ -207,11 +239,22 @@ defmodule TuistWeb.RunnersLive do
     )
   end
 
-  # Workflow-run bars mirror the recent-jobs chart: one bar per run,
-  # height in seconds, colour from the run-level conclusion. We URL
-  # the bar to the workflow detail page when the slug fully resolves
-  # so clicking drills down naturally; partial-info rows just don't
-  # carry a navigate target.
+  defp hidden_recent_workflow_runs?([], account_id, repository, platform) do
+    opts =
+      [limit: 1]
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+
+    Jobs.list_recent_workflow_runs_for_account(account_id, opts) != []
+  end
+
+  defp hidden_recent_workflow_runs?(_rows, _account_id, _repository, _platform), do: false
+
+  # Workflow-run bars mirror the recent-jobs chart: one bar per
+  # succeeded/failed run, height in seconds, colour from the run-level
+  # conclusion. We URL the bar to the workflow detail page when the slug
+  # fully resolves so clicking drills down naturally; partial-info rows
+  # just don't carry a navigate target.
   defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
     recent_workflow_runs
     |> Enum.reverse()
@@ -228,6 +271,9 @@ defmodule TuistWeb.RunnersLive do
   defp run_duration_seconds(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: div(ms, 1000)
   defp run_duration_seconds(_), do: 0
 
+  # The card only ever plots `@duration_conclusions`; the rest are kept
+  # as defensive clauses so a colour is defined for every conclusion
+  # the rollup can produce.
   defp workflow_run_chart_color("success"), do: "var:noora-chart-primary"
   defp workflow_run_chart_color("failure"), do: "var:noora-chart-destructive"
   defp workflow_run_chart_color("cancelled"), do: "var:noora-chart-warning"
@@ -246,9 +292,10 @@ defmodule TuistWeb.RunnersLive do
 
   defp workflow_run_detail_url(_account_name, _row), do: nil
 
-  # Bars represent each recent job. Y is the duration in seconds (or
-  # zero for not-yet-started states), the bar colour mirrors the row's
-  # status badge so the chart reads at the same glance as the table.
+  # One bar per job, all of them succeeded or failed since the query
+  # narrows to `@duration_conclusions`. Y is the duration in seconds,
+  # the bar colour mirrors the row's status badge so the chart reads at
+  # the same glance as the table.
   defp recent_jobs_chart_data(recent_jobs, account_name) do
     recent_jobs
     |> Enum.reverse()
@@ -280,6 +327,8 @@ defmodule TuistWeb.RunnersLive do
 
   defp duration_seconds(_), do: 0
 
+  # As with `workflow_run_chart_color/1`, the card only ever plots
+  # `@duration_conclusions`; the other clauses stay defensive.
   defp chart_color_for(%{status: "completed", conclusion: "success"}), do: "var:noora-chart-primary"
   defp chart_color_for(%{status: "completed", conclusion: "failure"}), do: "var:noora-chart-destructive"
   defp chart_color_for(%{status: "completed", conclusion: "cancelled"}), do: "var:noora-chart-warning"
@@ -325,10 +374,11 @@ defmodule TuistWeb.RunnersLive do
   def platforms, do: @platforms
 
   @doc """
-  Conclusion label for the Recent workflow_runs table — the rollup
-  in `list_recent_workflow_runs_for_account/2` may return `success`,
-  `failure`, `cancelled`, or `skipped`. Anything outside that set
-  collapses to "Unknown" so a stray value renders cleanly.
+  Conclusion label for the Recent workflow_runs table. The card asks
+  `list_recent_workflow_runs_for_account/2` for `@duration_conclusions`
+  only, but the rollup can also return `cancelled` or `skipped`, so
+  those keep a label; anything outside the set collapses to "Unknown"
+  so a stray value renders cleanly.
   """
   def conclusion_label("success"), do: dgettext("dashboard_runners", "Success")
   def conclusion_label("failure"), do: dgettext("dashboard_runners", "Failure")

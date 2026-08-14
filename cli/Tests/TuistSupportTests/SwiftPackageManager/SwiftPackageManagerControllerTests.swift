@@ -255,6 +255,28 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         }
     }
 
+    func test_resolve_when_swifterpm_is_enabled_and_deprecatedSwiftPackageManagerArgument_is_passed_succeeds() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--disable-prefetching", "--force-resolved-versions"],
+            printOutput: false
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertTrue(request.forceResolvedVersions)
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_transformArgumentsConflict_fails() async throws {
         // Given
         let path = try temporaryPath()

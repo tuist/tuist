@@ -50,7 +50,10 @@
         "test-without-building",
     ]
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
+    // swiftlint:disable:next type_body_length
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
+        RunReportingCommand
+    {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -156,6 +159,13 @@
             envKey: .testResultBundlePath
         )
         var resultBundlePath: String?
+
+        @Option(
+            help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+            completion: .file(),
+            envKey: .runReportPath
+        )
+        public var runReportPath: String?
 
         @Option(
             help:
@@ -300,6 +310,13 @@
         )
         var shardReference: String?
 
+        @Option(
+            name: .long,
+            help: "Exact shard plan identifier emitted by the build-only job.",
+            envKey: .testShardPlanId
+        )
+        var shardPlanId: String?
+
         @Flag(
             name: .long,
             help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
@@ -431,6 +448,7 @@
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

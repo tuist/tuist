@@ -134,6 +134,26 @@ extension Flag where Value == Bool {
             )
         }
     }
+
+    public init(
+        wrappedValue: Bool,
+        name: NameSpecification = .long,
+        inversion: FlagInversion,
+        exclusivity: FlagExclusivity = .chooseLast,
+        help: ArgumentHelp? = nil,
+        envKey: EnvKey,
+        envValueInverted: Bool = false
+    ) {
+        let envValue: Value? = envKey.envValue()
+        let value = envValue.map { envValueInverted ? !$0 : $0 } ?? wrappedValue
+        self.init(
+            wrappedValue: value,
+            name: name,
+            inversion: inversion,
+            exclusivity: exclusivity,
+            help: help?.withEnvKey(envKey)
+        )
+    }
 }
 
 extension Flag where Value == Bool? {

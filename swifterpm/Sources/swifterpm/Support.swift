@@ -159,6 +159,22 @@ enum SystemProcess {
 }
 
 enum HTTPClient {
+    // URLSession.shared uses the default configuration, whose 7-day
+    // timeoutIntervalForResource lets a stalled transfer (a dead-but-open
+    // connection with no reset) hang for hours. This dedicated session bounds
+    // the idle gap between received bytes and the total transfer, so a stall
+    // surfaces as an error that `withRetry` recovers on a fresh connection.
+    private static let idleTimeout: TimeInterval = 60
+    private static let resourceTimeout: TimeInterval = 600
+    private static let maxAttempts = 3
+
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = idleTimeout
+        configuration.timeoutIntervalForResource = resourceTimeout
+        return URLSession(configuration: configuration)
+    }()
+
     static func defaultHeaders(for url: URL) async -> [String: String] {
         var headers = ["User-Agent": "swifterpm/0.1"]
         if let authorization = await HTTPAuthorization.header(for: url) {
@@ -176,30 +192,31 @@ enum HTTPClient {
     }
 
     static func data(url: URL, headers: [String: String] = [:]) async throws -> Data {
-        var request = URLRequest(url: url)
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
+        try await withRetry {
+            var request = URLRequest(url: url)
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+            let (data, response) = try await session.data(for: request)
+            try ensureSuccessfulStatus(response, url: url)
+            return data
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200 ..< 300).contains(httpResponse.statusCode)
-        {
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
-        }
-        return data
     }
 
     static func download(url: URL, destination: URL, headers: [String: String] = [:]) async throws {
-        var request = URLRequest(url: url)
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        let (downloaded, response) = try await URLSession.shared.download(for: request)
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200 ..< 300).contains(httpResponse.statusCode)
-        {
-            try? await fileSystem.remove(downloaded.absolutePath)
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+        let downloaded = try await withRetry { () -> URL in
+            var request = URLRequest(url: url)
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+            let (downloaded, response) = try await session.download(for: request)
+            do {
+                try ensureSuccessfulStatus(response, url: url)
+            } catch {
+                try? await fileSystem.remove(downloaded.absolutePath)
+                throw error
+            }
+            return downloaded
         }
 
         let destinationPath = try destination.absolutePath
@@ -208,22 +225,58 @@ enum HTTPClient {
         )
         try await fileSystem.replace(destinationPath, with: downloaded.absolutePath)
     }
+
+    private static func ensureSuccessfulStatus(_ response: URLResponse, url: URL) throws {
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200 ..< 300).contains(httpResponse.statusCode)
+        {
+            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+        }
+    }
+
+    // Retries transient transport failures (timeouts, dropped or half-open
+    // connections) on a fresh connection with linear backoff. HTTP status
+    // failures are not retried: a non-2xx response is deterministic for an
+    // artifact URL, so a retry would only delay the surfaced error.
+    private static func withRetry<T>(
+        _ operation: @Sendable () async throws -> T
+    ) async throws -> T {
+        var attempt = 1
+        while true {
+            do {
+                return try await operation()
+            } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
+                try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                attempt += 1
+            }
+        }
+    }
+
+    private static func isRetryable(_ error: URLError) -> Bool {
+        switch error.code {
+        case .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed,
+             .cannotFindHost, .secureConnectionFailed:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
-        let environment = ProcessInfo.processInfo.environment
+        let environment = Environment.current
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
-        // `machine api.github.com` entry in ~/.netrc (or SWIFTPM_NETRC_DATA) is a
-        // deliberate per-host credential, so it must beat a generic GITHUB_TOKEN /
+        // `machine api.github.com` entry in a netrc file is a deliberate per-host
+        // credential, so it must beat a generic GITHUB_TOKEN /
         // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
         if let header = prioritizedHeader(
             isGitHub: isGitHub(url),
-            netrcCredential: await netrcCredential(for: url, environment: environment),
+            netrcCredential: Environment.netrc.credential(for: url),
             gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
         ) {
             return header
@@ -247,29 +300,6 @@ enum HTTPAuthorization {
         if isGitHub, let token = nonEmpty(gitHubEnvToken) {
             return bearerHeader(token)
         }
-        return nil
-    }
-
-    private static func netrcCredential(
-        for url: URL,
-        environment: [String: String]
-    ) async -> RegistryCredential? {
-        if let netrcData = nonEmpty(environment["SWIFTPM_NETRC_DATA"]),
-           let credential = RegistryNetrc(content: netrcData).credential(for: url)
-        {
-            return credential
-        }
-
-        if let home = environment["HOME"] {
-            let netrcPath = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
-            if let data = try? await fileSystem.readFile(at: netrcPath.absolutePath),
-               let content = String(data: data, encoding: .utf8),
-               let credential = RegistryNetrc(content: content).credential(for: url)
-            {
-                return credential
-            }
-        }
-
         return nil
     }
 

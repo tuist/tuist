@@ -70,6 +70,53 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
+    test "sizes the managed regions per tier" do
+      # Safe here and not before: a tiered floor sits far below its ceiling, so
+      # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
+      # it the pod's cgroup memory.min. That gate ships in this same change.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_governed?(Regions.get(id))
+      end
+
+      refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
+    end
+
+    test "bin-packs memory ceilings only where a node budget is advertised" do
+      # Every managed region runs on a bare-metal pool the CAPI provider patches
+      # with a tuist.dev/memory-ceiling-mib budget.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
+      end
+
+      # The private runner-cache pool runs on Elastic Metal, which the provider
+      # does not patch; requesting the extended resource there would leave every
+      # cache pod Pending.
+      refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
+    end
+
+    test "keeps every memory ceiling above its floor" do
+      # A limit below its request is rejected by the API, and a ceiling equal to
+      # the floor would leave no burst headroom for Kura's admission pools.
+      for plan <- [:enterprise, :pro, :air, :open_source] do
+        %{floor_mib: floor_mib, ceiling_mib: ceiling_mib} = Regions.memory_profile(plan)
+        assert ceiling_mib > floor_mib
+      end
+
+      # Floors are what decide how many tenants fit on a box, so the ladder has
+      # to actually descend to be worth tiering at all.
+      floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
+      assert floors == Enum.sort(floors, :desc)
+      assert Enum.uniq(floors) == floors
+
+      # Each ceiling has to clear its plan's measured peak by more than the
+      # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
+      # shedding. Peaks: ~1220 MiB for the busiest pro instance, ~150 MiB for air.
+      for {plan, peak_mib} <- [pro: 1220, air: 150] do
+        soft = Regions.memory_profile(plan).ceiling_mib * 0.6
+        assert soft * 0.9 > peak_mib, "#{plan} recovers at #{soft * 0.9} MiB, under its #{peak_mib} MiB peak"
+      end
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 
@@ -235,6 +282,17 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Enum.map(Regions.available(), & &1.id) == ["eu-central"]
     end
+
+    test "never makes a retired cleanup region available" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["hetzner-staging-runners"]
+      end)
+
+      assert Regions.available() == []
+    end
   end
 
   describe "private runner-cache regions" do
@@ -244,19 +302,24 @@ defmodule Tuist.Kura.RegionsTest do
       assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
 
-      # The cache budget rides disk_envelope_size, and the claim stays put:
-      # scw-local-nvme is not expandable, and the controller patches live PVCs up
-      # to spec.storageSize on every reconcile, so raising the claim would wedge
-      # every runner-cache instance that already exists.
+      # No disk_envelope_size override: the ring derives from storage_size like
+      # every managed region, so a per-account node here sizes its CAS ring the
+      # same as its cross-region mesh peers and can stay caught up.
       assert scw_config.storage_size == "50Gi"
-      assert scw_config.disk_envelope_size == "150Gi"
+      assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      # The only private region. Linux runners have no cache region of their
-      # own: the Hetzner-backed staging one was removed with its node pool.
-      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == ["scw-fr-par-runners"]
+      # The retired Hetzner entry remains fetchable only so old resources can
+      # be deleted. It is not an available serving region.
+      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
+               "scw-fr-par-runners",
+               "hetzner-staging-runners"
+             ]
+
+      assert Regions.retired?(Regions.get("hetzner-staging-runners"))
+      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
     end
   end
 

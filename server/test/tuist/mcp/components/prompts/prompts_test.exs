@@ -149,6 +149,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Generations"
       assert text =~ "gen-head-id"
       assert text =~ "list_xcode_module_cache_targets"
+      assert text =~ "additional_hashing_inputs"
       assert text =~ "git_branch=develop"
     end
   end
@@ -173,6 +174,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Cache Runs"
       assert text =~ "cr-base-id"
       assert text =~ "cr-head-id"
+      assert text =~ "additional_hashing_inputs"
     end
   end
 
@@ -188,12 +190,15 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert %{messages: messages} = result
       assert length(messages) == 1
       text = hd(messages).content.text
-      assert text =~ "Integrate Tuist Gradle Project"
+      assert text =~ "Optimize an existing Gradle project with Tuist"
       assert text =~ "`acme/android`"
       assert text =~ "create_project"
+      assert text =~ "list_accounts"
+      assert text =~ "tuist auth whoami"
+      assert text =~ ~s{id("dev.tuist") version "0.10.0"}
       assert text =~ "org.gradle.caching=true"
-      assert text =~ "running a Gradle build first"
-      assert text =~ "tuistPrepareTestShards"
+      assert text =~ "CI=1 ./gradlew clean TASK"
+      assert text =~ "list_gradle_build_tasks"
       assert text =~ "remote_cache,test_sharding"
     end
   end

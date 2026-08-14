@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Content
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
@@ -103,7 +104,10 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(
         :head_image,
         Tuist.Environment.app_url(
-          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/blog.jpg")
+          path:
+            OpenGraph.image_path(:marketing_blog,
+              title: dgettext("marketing", "Blog")
+            )
         )
       )
       |> assign(:head_title, "The Tuist Blog")
@@ -154,6 +158,18 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     query_string = "?#{Enum.join(params, "&")}"
 
     {:noreply, push_patch(socket, to: "#{blog_path()}#{query_string}")}
+  end
+
+  defp entry_image_url(entry) do
+    Content.get_entry_image_url(entry, &post_image_url/1)
+  end
+
+  defp post_image_url(post) do
+    path =
+      post.og_image_path ||
+        OpenGraph.image_path(:marketing_text, title: post.title)
+
+    Tuist.Environment.app_url(path: path, marketing: true)
   end
 
   defp blog_path do

@@ -195,6 +195,35 @@ defmodule Tuist.Runners.PromExPlugin do
             reporter_options: [buckets: @dispatch_duration_buckets],
             tags: [:fleet, :outcome],
             unit: {:native, :millisecond}
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :affinity, :count],
+            event_name: Telemetry.event_name_dispatch_affinity(),
+            measurement: :count,
+            description:
+              "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
+                "One sample per COMMITTED dispatch, so it shares a denominator with the hosts' " <>
+                "materialize counter. `resident` (a likely-resident account's job was preferred) " <>
+                "and `head_resident` are the warm placements; `no_resident_candidate` means " <>
+                "nothing queued matched the node's masters, `head_overdue` means the starvation " <>
+                "bound took precedence, `no_residency` means the node has no recorded masters " <>
+                "yet, and `untrusted` means a fork job the host runs cold by design. A resident " <>
+                "share that tracks the hosts' warm materialize share means the model matches " <>
+                "reality.",
+            tags: [:fleet, :outcome]
+          )
+        ]
+      ),
+      Event.build(
+        :tuist_runners_session_event_metrics,
+        [
+          last_value(
+            @metric_prefix ++ [:session, :clamped, :count],
+            event_name: Telemetry.event_name_session_clamp(),
+            description:
+              "Open runner sessions per fleet past the six-hour session safety bound; a live claim can still prove current occupancy.",
+            measurement: :count,
+            tags: [:fleet]
           )
         ]
       ),
@@ -250,6 +279,20 @@ defmodule Tuist.Runners.PromExPlugin do
             event_name: Telemetry.event_name_queue_length(),
             description: "Age of the oldest still-queued workflow job per fleet, in seconds (0 when the queue is empty).",
             measurement: :oldest_age_seconds,
+            tags: [:fleet]
+          ),
+          # Emitted from the autoscaler's signal path, not this poll: it
+          # is the gap between raw queue depth and what dispatch would
+          # actually hand out. Depth alone reads the same whether a
+          # queue is deep with claimable work or deep because one
+          # account is parked at its concurrency cap, and only the
+          # second means "do not grow the fleet for this".
+          last_value(
+            @metric_prefix ++ [:queue, :withheld],
+            event_name: Telemetry.event_name_queue_withheld(),
+            description:
+              "Queued workflow jobs per fleet excluded from the autoscaler's demand signal because their account is at its concurrency limit.",
+            measurement: :count,
             tags: [:fleet]
           )
         ]

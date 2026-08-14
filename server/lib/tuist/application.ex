@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -47,7 +48,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    EMCP.SessionStore.ETS.init()
+    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -93,6 +94,7 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -166,6 +168,17 @@ defmodule Tuist.Application do
     end
   end
 
+  # Mirrors the Kubernetes Deployment names so a Loki stream lines up with
+  # the workload an operator is already looking at.
+  defp loki_service_name do
+    case Environment.mode() do
+      :web -> "tuist-server"
+      :processor -> "tuist-processor"
+      :xcresult_processor -> "tuist-xcresult-processor"
+      :swift_registry_sync -> "tuist-swift-registry-sync"
+    end
+  end
+
   @loki_attach_max_attempts 10
   @loki_attach_base_backoff_ms 1_000
   @loki_attach_max_backoff_ms 30_000
@@ -197,9 +210,16 @@ defmodule Tuist.Application do
     handler_config = %{
       loki_url: loki_url,
       storage: :memory,
+      # Identify the pod role rather than hardcoding "tuist-server". The
+      # same release boots as the web tier, the build processor and the
+      # xcresult processor, and filing all three under one service name
+      # makes the logs unusable for exactly the pods that need them most:
+      # the macOS xcresult processors, whose output is unreachable by every
+      # other route (Alloy cannot tail a Tart guest, and `kubectl logs`
+      # cannot resolve the Tailscale-only kubelet hostnames).
       labels: %{
-        app: {:static, "tuist-server"},
-        service_name: {:static, "tuist-server"},
+        app: {:static, loki_service_name()},
+        service_name: {:static, loki_service_name()},
         service_namespace: {:static, "tuist"},
         env: {:static, to_string(Environment.env())},
         level: :level
@@ -215,6 +235,7 @@ defmodule Tuist.Application do
         :method,
         :route,
         :request_path,
+        :status,
         :reason,
         :error,
         :kind,
@@ -276,6 +297,12 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
+    # Oban starts after the endpoint (and, because a :one_for_one supervisor
+    # stops children in reverse order, drains before it). Workers building
+    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
+    # only exists while the endpoint runs; starting Oban first raised
+    # "could not find persistent term for endpoint" on boot/shutdown during
+    # rollouts (Sentry TUIST-3R9).
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -308,16 +335,23 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Queued jobs can run as soon as Oban starts, so their connection pool must already be available.
+        # Oban starts last (after the endpoint, see below), so every dependency
+        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
+        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
+        TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
-      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
+      ] ++
+        ops_clickhouse_children() ++
+        open_graph_image_children() ++
+        RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
+        dev_content_children() ++
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
 
     children
     |> Kernel.++(
@@ -358,18 +392,46 @@ defmodule Tuist.Application do
       if Environment.redis_url(),
         do: [
           {Redix, redis_opts()},
+          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
           {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
         ],
         else: []
     )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
-    # may not exist) and dev (noisy debug logs every 5 s).
+    # may not exist) and dev (noisy debug logs every 5 s), and outside web
+    # mode — see `RuntimeChildren.marketing_stats/1`.
     |> Kernel.++(
       if Environment.test?() or Environment.dev?(),
         do: [],
-        else: [Tuist.Marketing.Stats]
+        else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  defp ops_clickhouse_children do
+    config = Application.get_env(:tuist, Tuist.OpsClickHouseRepo, [])
+
+    if Environment.web?() and (config[:url] || config[:hostname]) do
+      [
+        {Tuist.OpsClickHouseRepo, connection_listeners: {[TelemetryListener], :ops_clickhouse_read}}
+      ]
+    else
+      []
+    end
+  end
+
+  # Runtime Open Graph image rendering (headless-browser pool + its task
+  # supervisor) backs the marketing/docs site, which only the hosted service
+  # serves. The pool eagerly warms Chrome instances that each hold a temporary
+  # user-data directory, so it is started only when hosted, and only in web
+  # mode. See `RuntimeChildren.open_graph_image_renderer/1`. Everywhere else
+  # render/2 falls back to libvips.
+  defp open_graph_image_children do
+    if Environment.tuist_hosted?() do
+      RuntimeChildren.open_graph_image_renderer(Environment.mode())
+    else
+      []
+    end
   end
 
   defp dev_content_children do
@@ -437,7 +499,10 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
-          :default => [size: 10, start_pool_metrics?: true],
+          :default => [
+            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            start_pool_metrics?: true
+          ],
           "https://api.github.com" => [
             conn_opts: [
               log: true,
@@ -494,6 +559,21 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
+    end
+  end
+
+  defp active_download_queue_concurrencies do
+    :tuist
+    |> Application.fetch_env!(Oban)
+    |> Keyword.get(:queues, [])
+    |> case do
+      queues when is_list(queues) ->
+        queues
+        |> Keyword.take([:process_build, :process_xcresult])
+        |> Keyword.values()
+
+      _ ->
+        []
     end
   end
 

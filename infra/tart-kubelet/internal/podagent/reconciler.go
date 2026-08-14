@@ -409,6 +409,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			_ = r.Tart.Delete(ctx, base)
 			return fmt.Errorf("tart clone from golden: %w", err)
 		}
+		// `tart clone` copies the golden's ECID, so give each clone a fresh
+		// one. Same-identity clones collide at Apple's MobileAsset
+		// personalization under concurrency: the signed asset catalog fails to
+		// verify (mobileassetd CSSMERR_CSP_VERIFY_FAILED) and downloads like
+		// `xcodebuild -downloadComponent MetalToolchain` fail. Best-effort — on
+		// error the VM boots on the shared identity rather than failing the job.
+		if err := r.Tart.RegenerateIdentity(ctx, vmName); err != nil && r.Recorder != nil {
+			r.Recorder.Event(pod, corev1.EventTypeWarning, "IdentityRegenSkipped", fmt.Sprintf("regenerate VM identity: %v", err))
+		}
 		// Split the on-host provisioning segment (golden probe +
 		// pull/clone + runner clone) out from podProvisionDelaySeconds,
 		// which also folds in scheduling/queue wait. `path` separates a
@@ -501,7 +510,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			// Stage the per-branch byte budget for the guest's cache LRU prune
 			// before the VM boots (the whole shared quota volume's free space
 			// would be the wrong, far-too-large budget over a virtio-fs share).
-			writeCacheBudget(statusDir, r.Volumes.CapGiB)
+			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.CASGiB)
 		} else {
 			statusDir = ""
 		}
@@ -1253,6 +1262,20 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			log.FromContext(ctx).Error(err, "sync VNC forwarder",
 				"pod", pod.Namespace+"/"+pod.Name)
 		}
+		// Ready means "the VM process is alive and has an IP", nothing
+		// more. tart-kubelet implements no container probes, so a
+		// readinessProbe in a PodSpec is silently ignored and a guest
+		// whose workload died after boot still reads 1/1 Running. Two
+		// xcresult-processor outages have taken that shape (2026-06-26
+		// host NAT, 2026-08-12 expired Tailscale pre-auth key), both
+		// with every Kubernetes-level signal green throughout. Until
+		// probes exist, that gap is covered outside the cluster by the
+		// scrape-target and queue-age rules in
+		// infra/helm/k8s-monitoring/alerts.md. Anything relying on
+		// readiness to mean "serving" needs to add probe support here
+		// first; note that doing so also makes a false negative able to
+		// stall rollouts and block drains fleet-wide, since customer
+		// runner Pods take this same path.
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}

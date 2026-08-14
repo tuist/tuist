@@ -18,32 +18,51 @@ use axum::{
 };
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
-use serde::Deserialize;
+use http_body::{Body as HttpBody, Frame, SizeHint};
+use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    auth::{AccessDecision, RequestContext},
     bandwidth::BandwidthLimiter,
     constants::{
-        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, BOOTSTRAP_DIGEST_MAX_PREFIX_LEN, MAX_GRADLE_BYTES,
-        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        BACKFILL_BODIES_BATCH_BYTES, BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
+        MAX_BACKFILL_BODIES_ENTRIES, MAX_BACKFILL_BODIES_REQUEST_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
+        MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES,
+        MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
-    extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
-    memory::MemoryPressure,
+    memory::{
+        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
+        ResponseTransportGuard,
+    },
     metrics::Metrics,
     multipart::error::MultipartError,
+    peer_tls::InternalPeerIdentity,
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::{ManifestDigest, is_disk_full_error},
+    store::{
+        BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, ManifestDigest, StagedArtifactPath,
+        backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
+        is_outbox_full_error, manifest_version_ms,
+    },
     telemetry::{attach_parent_context, record_trace_context},
-    utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
+    utils::{
+        BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyStaging,
+        TempFileCleanup, TmpReservation, action_cache_key, blob_key, module_key,
+        read_request_to_temp, temp_file_path,
+    },
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
-const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
+#[cfg(test)]
+const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * 4;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -65,11 +84,16 @@ const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST: &str = "/_internal/bootstrap/di
 const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
     "/_internal/bootstrap/namespace_tombstones";
 const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
+const ROUTE_INTERNAL_BACKFILL_ENTRIES: &str = "/_internal/backfill/entries";
+const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
+// Re-homed alias of ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: the oversized-entry
+// path of the backfill protocol. The old route survives until Release C.
+const ROUTE_INTERNAL_BACKFILL_ARTIFACT: &str = "/_internal/backfill/artifacts/{artifact_id}";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 17] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -83,11 +107,13 @@ const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
     ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
+    ROUTE_INTERNAL_BACKFILL_ENTRIES,
+    ROUTE_INTERNAL_BACKFILL_BODIES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
 ];
 
-const DYNAMIC_ROUTE_TEMPLATES: [&str; 7] = [
+const DYNAMIC_ROUTE_TEMPLATES: [&str; 8] = [
     ROUTE_V1_CACHE,
     ROUTE_API_METRO_CACHE,
     ROUTE_API_CACHE_KEYVALUE_ID,
@@ -95,13 +121,14 @@ const DYNAMIC_ROUTE_TEMPLATES: [&str; 7] = [
     ROUTE_API_CACHE_MODULE,
     ROUTE_API_CACHE_GRADLE,
     ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
+    ROUTE_INTERNAL_BACKFILL_ARTIFACT,
 ];
 
 pub fn public_router(state: SharedState) -> Router {
     public_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -115,6 +142,7 @@ pub fn public_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -122,8 +150,13 @@ pub fn internal_router(state: SharedState) -> Router {
     internal_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            reject_overloaded_internal_writes,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -133,13 +166,87 @@ pub fn combined_router(state: SharedState) -> Router {
         .merge(internal_routes())
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
+}
+
+pub(crate) async fn guard_response_stream_transport(mut response: Response) -> Response {
+    let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
+        return response;
+    };
+    let body = std::mem::take(response.body_mut());
+    *response.body_mut() = Body::new(ResponseStreamTransportBody { body, guard });
+    response
+}
+
+struct ResponseStreamTransportBody {
+    body: Body,
+    guard: ResponseTransportGuard,
+}
+
+impl HttpBody for ResponseStreamTransportBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        match Pin::new(&mut self.body).poll_frame(cx) {
+            Poll::Ready(Some(Ok(frame))) => {
+                let guard = self.guard.clone();
+                Poll::Ready(Some(Ok(frame.map_data(|bytes| {
+                    Bytes::from_owner(ResponseStreamTransportBytes {
+                        bytes,
+                        _guard: guard,
+                    })
+                }))))
+            }
+            other => other,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.body.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.body.size_hint()
+    }
+}
+
+struct ResponseStreamTransportBytes {
+    bytes: Bytes,
+    _guard: ResponseTransportGuard,
+}
+
+impl AsRef<[u8]> for ResponseStreamTransportBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+}
+
+fn attach_response_stream_permit(response: &mut Response, permit: ResponseStreamMemoryPermit) {
+    response
+        .extensions_mut()
+        .insert(permit.into_transport_guard());
+}
+
+fn attach_materialized_response_permit(
+    response: &mut Response,
+    permit: crate::memory::MemoryPermit,
+) {
+    response
+        .extensions_mut()
+        .insert(ResponseTransportGuard::from_materialization_permits(vec![
+            permit,
+        ]));
 }
 
 #[cfg(test)]
@@ -187,6 +294,18 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
             get(internal_bootstrap_artifact),
+        )
+        .route(
+            ROUTE_INTERNAL_BACKFILL_ENTRIES,
+            get(internal_backfill_entries),
+        )
+        .route(
+            ROUTE_INTERNAL_BACKFILL_BODIES,
+            post(internal_backfill_bodies),
+        )
+        .route(
+            ROUTE_INTERNAL_BACKFILL_ARTIFACT,
+            get(internal_backfill_artifact),
         )
         .route(
             ROUTE_INTERNAL_REPLICATE_ARTIFACT,
@@ -333,6 +452,12 @@ struct ReplicateArtifactQuery {
     key: String,
     content_type: String,
     version_ms: u64,
+    /// The origin's branch tag and the publishing build's trunk. Both optional:
+    /// a peer that predates them (or any untagged publish) omits them and the
+    /// entry applies untagged, which is what this node did for every replicated
+    /// entry before.
+    branch: Option<String>,
+    trunk: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -380,6 +505,11 @@ impl PageQuery {
         if limit == 0 {
             return Err("Invalid limit: must be greater than 0".to_string());
         }
+        if limit > MAX_BOOTSTRAP_PAGE_ITEMS {
+            return Err(format!(
+                "Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}"
+            ));
+        }
 
         Ok(Self {
             after: params
@@ -393,6 +523,410 @@ impl PageQuery {
             limit,
         })
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BackfillEntriesQuery {
+    after: Option<Vec<u8>>,
+    limit: usize,
+}
+
+impl BackfillEntriesQuery {
+    fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+        let after = params
+            .get("after")
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                let key = hex::decode(value).map_err(|error| format!("Invalid after: {error}"))?;
+                if !key.starts_with(BACKFILL_IDX_PREFIX.as_bytes()) {
+                    return Err("Invalid after: not a backfill index cursor".to_owned());
+                }
+                Ok(key)
+            })
+            .transpose()?;
+        let limit = params
+            .get("limit")
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|error| format!("Invalid limit: {error}"))
+            })
+            .transpose()?
+            .unwrap_or(256);
+        if limit == 0 {
+            return Err("Invalid limit: must be greater than 0".to_owned());
+        }
+        // Clamped rather than rejected: the ceiling bounds one response's
+        // work, and a requester asking for more just pages more often.
+        Ok(Self {
+            after,
+            limit: limit.min(MAX_BOOTSTRAP_PAGE_ITEMS),
+        })
+    }
+}
+
+/// Wire page of the backfill listing endpoint (the `ManifestPage` shape).
+/// `next_after` is the hex-encoded raw index key of the last returned row,
+/// opaque to requesters and fed back as the next request's `after`; `None`
+/// means the index is exhausted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillEntriesPage {
+    pub entries: Vec<BackfillEntry>,
+    pub next_after: Option<String>,
+}
+
+/// One backfill index tuple on the wire. `record_kind` is a
+/// [`crate::utils::BackfillRecordKind::as_str`] name; `size` is absent for
+/// namespace tombstones (no body to fetch).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillEntry {
+    pub record_kind: String,
+    pub record_id: String,
+    pub version_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
+impl From<BackfillIndexPage> for BackfillEntriesPage {
+    fn from(page: BackfillIndexPage) -> Self {
+        Self {
+            entries: page
+                .entries
+                .into_iter()
+                .map(|row| BackfillEntry {
+                    record_kind: row.kind.as_str().to_owned(),
+                    record_id: row.record_id,
+                    version_ms: row.version_ms,
+                    size: row.size,
+                })
+                .collect(),
+            next_after: page.next_after.map(hex::encode),
+        }
+    }
+}
+
+/// The `error` discriminant of [`BackfillUnavailable`] while the per-entry
+/// index build has not yet covered the pre-existing dataset.
+pub const BACKFILL_ERROR_INDEX_BUILDING: &str = "index_building";
+
+/// Typed 503 body of the backfill listing endpoint. Requesters match `error`
+/// against [`BACKFILL_ERROR_INDEX_BUILDING`] to treat the peer as not yet
+/// capable (retry later) rather than failing, distinct from the generic
+/// `{"message": ...}` error shape.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillUnavailable {
+    pub error: String,
+    pub message: String,
+}
+
+/// The [`BackfillUnavailable`] discriminant for a bodies request rejected by
+/// the serving-side per-peer-identity concurrency cap: another request from
+/// the same client-certificate identity is still in flight.
+pub const BACKFILL_ERROR_PEER_BUSY: &str = "peer_busy";
+
+/// The [`BackfillUnavailable`] discriminant for a bodies request shed because
+/// the serving node's shared tmp spool budget has no room. Backpressure, not
+/// failure: requesters retry with backoff without charging their failure
+/// budget.
+pub const BACKFILL_ERROR_TMP_BUDGET_EXHAUSTED: &str = "tmp_budget_exhausted";
+
+/// Request body of `POST /_internal/backfill/bodies`: the explicit tuples to
+/// fetch, composed byte-bounded by the requester from listed sizes against
+/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`]. Entries reuse the
+/// listing tuple shape; a listed `size` is accepted and ignored (the serving
+/// side re-resolves sizes from current manifests). Tombstone kinds are
+/// rejected — tombstones are metadata-only and never fetched here.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillBodiesRequest {
+    pub entries: Vec<BackfillEntry>,
+}
+
+/// How a requested tuple resolved in a bodies response frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackfillBodyDisposition {
+    /// The record's current body follows the header.
+    Present,
+    /// The record has no current body (deleted/evicted since listing, or the
+    /// requested row was dangling). Never an error: the requester marks the
+    /// tuple and moves on.
+    Absent,
+    /// The record's current body exceeds the batch byte ceiling; fetch it via
+    /// `GET /_internal/backfill/artifacts/{id}`. A defensive backstop — the
+    /// requester already routes oversized entries there using listed sizes,
+    /// so this only fires when an entry grew past the ceiling (or past the
+    /// batch's remaining room) between listing and fetch.
+    FetchIndividually,
+}
+
+impl BackfillBodyDisposition {
+    pub fn as_byte(self) -> u8 {
+        match self {
+            Self::Present => 0,
+            Self::Absent => 1,
+            Self::FetchIndividually => 2,
+        }
+    }
+
+    // Decode-side half of the frame codec.
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            0 => Some(Self::Present),
+            1 => Some(Self::Absent),
+            2 => Some(Self::FetchIndividually),
+            _ => None,
+        }
+    }
+}
+
+/// Fixed header length of one bodies-stream frame; see
+/// [`encode_backfill_body_frame_header`] for the layout.
+pub const BACKFILL_BODY_FRAME_HEADER_BYTES: usize = 1 + 1 + 2 + 8 + 2 + 8;
+
+/// Manifest identity of a `Present` frame's body, resolved from the CURRENT
+/// manifest together with the body (the same read that stamps the frame's
+/// `version_ms`). The live apply paths key artifacts by
+/// (producer, namespace, key) — `artifact_id` is an irreversible hash of them
+/// — so the requester cannot apply a body without this block.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackfillBodyManifestMeta {
+    pub producer: String,
+    pub namespace_id: String,
+    pub key: String,
+    pub content_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+impl BackfillBodyManifestMeta {
+    pub fn from_manifest(manifest: &ArtifactManifest) -> Self {
+        Self {
+            producer: manifest.producer.as_str().to_owned(),
+            namespace_id: manifest.namespace_id.clone(),
+            key: manifest.key.clone(),
+            content_type: manifest.content_type.clone(),
+            branch: manifest.branch.clone(),
+        }
+    }
+
+    pub fn to_wire_bytes(&self) -> Result<Vec<u8>, String> {
+        serde_json::to_vec(self)
+            .map_err(|error| format!("failed to encode backfill manifest meta: {error}"))
+    }
+}
+
+/// Encodes one frame header of the bodies response stream. This function and
+/// [`read_backfill_body_frame_prelude`] are the single definition of the wire
+/// layout — the requester decodes with the same code, so the two can never
+/// skew.
+///
+/// Frame layout (integers big-endian):
+///
+/// | field        | width          | contents                                   |
+/// |--------------|----------------|--------------------------------------------|
+/// | `kind`       | 1 byte         | [`BackfillRecordKind::as_byte`]            |
+/// | `disposition`| 1 byte         | [`BackfillBodyDisposition::as_byte`]       |
+/// | `id_len`     | 2 bytes        | length of `record_id`                      |
+/// | `version_ms` | 8 bytes        | see below                                  |
+/// | `meta_len`   | 2 bytes        | manifest meta bytes; 0 unless `Present`    |
+/// | `body_len`   | 8 bytes        | body bytes following; 0 unless `Present`   |
+/// | `record_id`  | `id_len` bytes | UTF-8 record id                            |
+/// | meta         | `meta_len`     | [`BackfillBodyManifestMeta`] JSON          |
+/// | body         | `body_len`     | raw body bytes (`Present` frames only)     |
+///
+/// `version_ms` (and meta) semantics are load-bearing:
+/// - `Present`: the effective version of the CURRENT manifest at body-read
+///   time, resolved together with the body — NEVER echoed from the request.
+///   Echoing would let a mid-flight LWW overwrite persist v2 bytes under a v1
+///   stamp on the requester, whose presence check would then suppress the
+///   correcting re-fetch. `kind` and the manifest meta likewise describe the
+///   current manifest (a record can flip inline<->segment across versions).
+/// - `Absent` / `FetchIndividually`: the REQUESTED tuple's version and kind,
+///   echoed to identify which tuple resolved that way (one batch can carry
+///   the same record id under two listed versions when a dangling row
+///   coexists with the live one). No meta: there is no body to apply.
+pub fn encode_backfill_body_frame_header(
+    kind: BackfillRecordKind,
+    disposition: BackfillBodyDisposition,
+    version_ms: u64,
+    record_id: &str,
+    meta: &[u8],
+    body_len: u64,
+) -> Result<Vec<u8>, String> {
+    let id_len = u16::try_from(record_id.len()).map_err(|_| {
+        format!(
+            "record id length {} exceeds the frame limit",
+            record_id.len()
+        )
+    })?;
+    let meta_len = u16::try_from(meta.len()).map_err(|_| {
+        format!(
+            "manifest meta length {} exceeds the frame limit",
+            meta.len()
+        )
+    })?;
+    let mut header =
+        Vec::with_capacity(BACKFILL_BODY_FRAME_HEADER_BYTES + record_id.len() + meta.len());
+    header.push(kind.as_byte());
+    header.push(disposition.as_byte());
+    header.extend_from_slice(&id_len.to_be_bytes());
+    header.extend_from_slice(&version_ms.to_be_bytes());
+    header.extend_from_slice(&meta_len.to_be_bytes());
+    header.extend_from_slice(&body_len.to_be_bytes());
+    header.extend_from_slice(record_id.as_bytes());
+    header.extend_from_slice(meta);
+    Ok(header)
+}
+
+/// One decoded frame of the bodies response stream.
+// The pass driver decodes preludes and streams bodies; the whole-frame
+// decode exists for codec and endpoint tests.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillBodyFrame {
+    pub kind: BackfillRecordKind,
+    pub disposition: BackfillBodyDisposition,
+    pub record_id: String,
+    pub version_ms: u64,
+    pub meta: Option<BackfillBodyManifestMeta>,
+    pub body: Vec<u8>,
+}
+
+/// Everything of one frame except the body bytes, which follow on the reader
+/// (`body_len` of them). Lets the requester stream large `Present` bodies to
+/// disk instead of buffering them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillBodyFramePrelude {
+    pub kind: BackfillRecordKind,
+    pub disposition: BackfillBodyDisposition,
+    pub record_id: String,
+    pub version_ms: u64,
+    pub meta: Option<BackfillBodyManifestMeta>,
+    pub body_len: u64,
+}
+
+/// Reads one frame's prelude off a bodies (or per-artifact) response stream;
+/// `Ok(None)` on clean end of stream. The caller must consume exactly
+/// `body_len` following bytes before reading the next frame.
+/// `max_body_bytes` bounds a declared body so a mismatched peer cannot make
+/// the receiver stage more than the caller accounted:
+/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`] for batch streams,
+/// [`crate::constants::MAX_REPLICATION_BODY_BYTES`] for individual fetches.
+pub async fn read_backfill_body_frame_prelude<R>(
+    reader: &mut R,
+    max_body_bytes: u64,
+) -> Result<Option<BackfillBodyFramePrelude>, String>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    use tokio::io::AsyncReadExt;
+
+    let mut header = [0u8; BACKFILL_BODY_FRAME_HEADER_BYTES];
+    let mut filled = 0;
+    while filled < header.len() {
+        let read = reader
+            .read(&mut header[filled..])
+            .await
+            .map_err(|error| format!("failed to read backfill body frame header: {error}"))?;
+        if read == 0 {
+            if filled == 0 {
+                return Ok(None);
+            }
+            return Err("truncated backfill body frame header".to_owned());
+        }
+        filled += read;
+    }
+
+    let kind = BackfillRecordKind::from_byte(header[0])
+        .ok_or_else(|| format!("unknown backfill record kind byte {}", header[0]))?;
+    let disposition = BackfillBodyDisposition::from_byte(header[1])
+        .ok_or_else(|| format!("unknown backfill body disposition byte {}", header[1]))?;
+    let id_len = u16::from_be_bytes(header[2..4].try_into().expect("fixed slice"));
+    let version_ms = u64::from_be_bytes(header[4..12].try_into().expect("fixed slice"));
+    let meta_len = u16::from_be_bytes(header[12..14].try_into().expect("fixed slice"));
+    let body_len = u64::from_be_bytes(header[14..22].try_into().expect("fixed slice"));
+    if id_len == 0 {
+        return Err("backfill body frame carries an empty record id".to_owned());
+    }
+    if disposition != BackfillBodyDisposition::Present && (body_len != 0 || meta_len != 0) {
+        return Err(format!(
+            "backfill body frame with disposition byte {} carries a body or manifest meta",
+            header[1]
+        ));
+    }
+    if disposition == BackfillBodyDisposition::Present && meta_len == 0 {
+        return Err("backfill present frame is missing its manifest meta".to_owned());
+    }
+    if body_len > max_body_bytes {
+        return Err(format!(
+            "backfill body frame length {body_len} exceeds the ceiling {max_body_bytes}"
+        ));
+    }
+
+    let mut record_id = vec![0u8; id_len as usize];
+    reader
+        .read_exact(&mut record_id)
+        .await
+        .map_err(|error| format!("failed to read backfill body frame record id: {error}"))?;
+    let record_id = String::from_utf8(record_id)
+        .map_err(|error| format!("invalid backfill body frame record id: {error}"))?;
+    let meta = if meta_len > 0 {
+        let mut meta = vec![0u8; meta_len as usize];
+        reader
+            .read_exact(&mut meta)
+            .await
+            .map_err(|error| format!("failed to read backfill body frame meta: {error}"))?;
+        Some(
+            serde_json::from_slice::<BackfillBodyManifestMeta>(&meta)
+                .map_err(|error| format!("invalid backfill body frame meta: {error}"))?,
+        )
+    } else {
+        None
+    };
+
+    Ok(Some(BackfillBodyFramePrelude {
+        kind,
+        disposition,
+        record_id,
+        version_ms,
+        meta,
+        body_len,
+    }))
+}
+
+/// Reads one whole frame — body buffered in memory — off a bodies response
+/// stream; `Ok(None)` on clean end of stream. Enforces the same
+/// [`crate::constants::BACKFILL_BODIES_BATCH_BYTES`] ceiling the sender
+/// spools under, so a mismatched peer cannot make the receiver buffer more
+/// than the shared bound.
+// See BackfillBodyFrame: kept for codec and endpoint tests.
+#[allow(dead_code)]
+pub async fn read_backfill_body_frame<R>(
+    reader: &mut R,
+) -> Result<Option<BackfillBodyFrame>, String>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    use tokio::io::AsyncReadExt;
+
+    let Some(prelude) =
+        read_backfill_body_frame_prelude(reader, BACKFILL_BODIES_BATCH_BYTES).await?
+    else {
+        return Ok(None);
+    };
+    let mut body = vec![0u8; prelude.body_len as usize];
+    reader
+        .read_exact(&mut body)
+        .await
+        .map_err(|error| format!("failed to read backfill body frame body: {error}"))?;
+
+    Ok(Some(BackfillBodyFrame {
+        kind: prelude.kind,
+        disposition: prelude.disposition,
+        record_id: prelude.record_id,
+        version_ms: prelude.version_ms,
+        meta: prelude.meta,
+        body,
+    }))
 }
 
 impl ReplicateArtifactQuery {
@@ -412,6 +946,8 @@ impl ReplicateArtifactQuery {
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
+            branch: param_value(params, "branch").cloned(),
+            trunk: param_value(params, "trunk").cloned(),
         })
     }
 }
@@ -617,10 +1153,34 @@ async fn reject_overloaded_public_writes(
                 .record_memory_action("write_rejected_critical");
             return overloaded_response("server is shedding writes due to memory pressure");
         }
-        if state.runtime.outbox_depth() >= state.config.outbox_max_depth {
+        if state.store.outbox_depth() >= state.config.outbox_max_depth {
             state.metrics.record_memory_action("write_rejected_outbox");
             return overloaded_response("server is shedding writes while replication catches up");
         }
+    }
+
+    next.run(req).await
+}
+
+/// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
+/// DELETE /_internal/replicate/namespace) when the pod is under Critical
+/// memory pressure. Without this guard the pod accepts the TCP connection but
+/// stalls while processing the body, so the source peer sees no progress and
+/// abandons the attempt only when its upload stall watchdog expires
+/// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
+/// receiver holding up a drain loop that is serial and node-wide. Returning
+/// 503 lets the source retry immediately with its normal 2-second backoff.
+/// Reads (bootstrap, status) are unaffected.
+async fn reject_overloaded_internal_writes(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if is_write_method(req.method()) && state.memory.pressure() == MemoryPressure::Critical {
+        state
+            .metrics
+            .record_memory_action("internal_write_rejected_critical");
+        return overloaded_response("server is shedding replication writes due to memory pressure");
     }
 
     next.run(req).await
@@ -645,15 +1205,15 @@ fn overloaded_response(message: &str) -> Response {
     response
 }
 
-async fn apply_extensions(State(state): State<SharedState>, req: Request, next: Next) -> Response {
-    let Some(extension) = state.extension.as_ref() else {
+async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+    let Some(auth) = state.auth.as_ref() else {
         return next.run(req).await;
     };
 
     let mut req = req;
     let route = request_route(&req);
     let path = req.uri().path().to_owned();
-    if should_skip_extension_route(&route) {
+    if skips_authorization(&route) {
         return next.run(req).await;
     }
 
@@ -681,9 +1241,9 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         }
     }
 
-    let context = extension_context_from_http(
+    let context = request_context_from_http(
         &state,
-        HttpExtensionRequest {
+        HttpRequestFacts {
             route: &route,
             method: &method,
             path: &path,
@@ -695,44 +1255,14 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
     )
     .await;
 
-    let principal = match extension.evaluate_access(&context).await {
-        AccessDecision::Allow(principal) => principal,
-        AccessDecision::Deny(deny) => {
-            return error_response(status_from_u16(deny.status), deny.message);
-        }
-    };
-
-    let mut response = next.run(req).await;
-
-    let response_context = extension_context_from_http(
-        &state,
-        HttpExtensionRequest {
-            route: &route,
-            method: &method,
-            path: &path,
-            query: &query,
-            headers: &request_headers,
-            body: request_body.as_deref(),
-            status_code: Some(response.status().as_u16()),
-        },
-    )
-    .await;
-    let headers = extension
-        .response_headers(&response_context, principal.as_ref())
-        .await;
-    for (name, value) in headers.headers {
-        if let (Ok(name), Ok(value)) = (
-            axum::http::header::HeaderName::try_from(name),
-            HeaderValue::from_str(&value),
-        ) {
-            response.headers_mut().insert(name, value);
-        }
+    if let AccessDecision::Deny(deny) = auth.evaluate_access(&context).await {
+        return error_response(status_from_u16(deny.status), deny.message);
     }
 
-    response
+    next.run(req).await
 }
 
-fn should_skip_extension_route(route: &str) -> bool {
+fn skips_authorization(route: &str) -> bool {
     is_probe_route(route) || route.starts_with("/_internal/")
 }
 
@@ -747,11 +1277,11 @@ fn is_http1(version: Version) -> bool {
     matches!(version, Version::HTTP_10 | Version::HTTP_11)
 }
 
-async fn extension_context_from_http(
+async fn request_context_from_http(
     state: &SharedState,
-    request: HttpExtensionRequest<'_>,
-) -> ExtensionContext {
-    let metadata = http_extension_metadata(
+    request: HttpRequestFacts<'_>,
+) -> RequestContext {
+    let metadata = http_request_metadata(
         state,
         request.route,
         request.method,
@@ -760,7 +1290,7 @@ async fn extension_context_from_http(
         request.body,
     )
     .await;
-    ExtensionContext {
+    RequestContext {
         transport: "http".into(),
         route: request.route.to_owned(),
         method: request.method.to_owned(),
@@ -781,7 +1311,7 @@ async fn extension_context_from_http(
     }
 }
 
-struct HttpExtensionRequest<'a> {
+struct HttpRequestFacts<'a> {
     route: &'a str,
     method: &'a str,
     path: &'a str,
@@ -791,7 +1321,7 @@ struct HttpExtensionRequest<'a> {
     status_code: Option<u16>,
 }
 
-struct HttpExtensionMetadata {
+struct HttpRequestMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
@@ -800,20 +1330,20 @@ struct HttpExtensionMetadata {
     artifact_hash: Option<String>,
 }
 
-async fn http_extension_metadata(
+async fn http_request_metadata(
     state: &SharedState,
     route: &str,
     method: &str,
     path: &str,
     query: &HashMap<String, String>,
     request_body: Option<&[u8]>,
-) -> HttpExtensionMetadata {
+) -> HttpRequestMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
     let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
-        ROUTE_API_CACHE_KEYVALUE_ID => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
@@ -821,7 +1351,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_KEYVALUE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE => HttpRequestMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
@@ -834,7 +1364,7 @@ async fn http_extension_metadata(
                 .map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_CAS => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CAS => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -847,7 +1377,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_GRADLE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_GRADLE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -860,7 +1390,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_MODULE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_MODULE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("HEAD") || method.eq_ignore_ascii_case("GET")
             {
                 "artifact.read"
@@ -900,7 +1430,7 @@ async fn http_extension_metadata(
                 .cloned()
                 .or_else(|| multipart_upload.map(|u| u.hash));
 
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
@@ -909,7 +1439,7 @@ async fn http_extension_metadata(
                 artifact_hash,
             }
         }
-        ROUTE_API_CACHE_CLEAN => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CLEAN => HttpRequestMetadata {
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
@@ -919,7 +1449,7 @@ async fn http_extension_metadata(
         },
         ROUTE_V1_CACHE => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -935,7 +1465,7 @@ async fn http_extension_metadata(
         }
         ROUTE_API_METRO_CACHE => {
             namespace_id = Some(METRO_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -949,7 +1479,7 @@ async fn http_extension_metadata(
                 artifact_hash: last_path_segment,
             }
         }
-        _ => HttpExtensionMetadata {
+        _ => HttpRequestMetadata {
             operation: "request".into(),
             tenant_id,
             namespace_id,
@@ -1060,7 +1590,7 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
 
 async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     let status = state.rollout_status_report().await;
-    Json(serde_json::json!({
+    let mut body = serde_json::json!({
         "generation": status.generation,
         "ready": status.ready,
         "state": status.state.as_str(),
@@ -1075,7 +1605,36 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
-    }))
+    });
+    // The backfill field family appears only under KURA_BACKFILL_ENABLED, so
+    // a flag-off node's report is byte-compatible with pre-backfill releases
+    // and field presence is how mode-aware consumers (gate.sh, the
+    // kura-controller) tell the walkers apart. `backfill_initial_cycle` is
+    // the promotion-gate contract: pending | complete | degraded.
+    if let Some(backfill) = &status.backfill {
+        let object = body.as_object_mut().expect("rollout status is an object");
+        object.insert(
+            "backfill_initial_cycle".into(),
+            backfill.initial_cycle.as_str().into(),
+        );
+        object.insert(
+            "backfill_backfilling_peers".into(),
+            backfill.backfilling_peers.into(),
+        );
+        object.insert(
+            "backfill_budget_exhausted_real_peers".into(),
+            backfill.budget_exhausted_real.into(),
+        );
+        object.insert(
+            "backfill_budget_exhausted_capability_peers".into(),
+            backfill.budget_exhausted_capability.into(),
+        );
+        object.insert(
+            "backfill_ring_fullness_percent".into(),
+            backfill.ring_fullness_percent.into(),
+        );
+    }
+    Json(body)
 }
 
 async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
@@ -1106,6 +1665,18 @@ async fn get_keyvalue(
         &key,
     ) {
         Ok(Some(bytes)) => {
+            let permit = match state
+                .memory
+                .try_acquire_response_materialization(bytes.len())
+            {
+                Ok(permit) => permit,
+                Err(()) => {
+                    state
+                        .metrics
+                        .record_memory_action("keyvalue_response_materialization_rejected");
+                    return response_stream_unavailable();
+                }
+            };
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
@@ -1116,14 +1687,18 @@ async fn get_keyvalue(
                 Some(&usage),
                 bytes.len() as u64,
             );
-            (
+            let mut response = (
                 [(
                     axum::http::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/json"),
                 )],
                 bytes,
             )
-                .into_response()
+                .into_response();
+            if let Some(permit) = permit {
+                attach_materialized_response_permit(&mut response, permit);
+            }
+            response
         }
         Ok(None) => {
             state
@@ -1295,6 +1870,8 @@ async fn put_keyvalue(
             "application/json",
             &payload_bytes,
             &targets,
+            None,
+            None,
         )
         .await
     {
@@ -1516,6 +2093,9 @@ async fn start_module_upload(
             &query.name,
         ) {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
+            Err(error) if is_multipart_capacity_error(&error) => {
+                overloaded_response("server is limiting active multipart uploads")
+            }
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -1538,14 +2118,16 @@ async fn upload_module_part(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -1559,6 +2141,9 @@ async fn upload_module_part(
                 format!("Temporary storage budget exhausted: {error}"),
             );
         }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
+        }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
@@ -1567,7 +2152,7 @@ async fn upload_module_part(
         }
     };
 
-    match state
+    let response = match state
         .store
         .add_multipart_part(&query.upload_id, query.part_number, &temp.path, temp.size)
         .await
@@ -1577,20 +2162,21 @@ async fn upload_module_part(
             StatusCode::NO_CONTENT.into_response()
         }
         Err(MultipartError::NotFound) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("not_found");
             error_response(StatusCode::NOT_FOUND, "Upload not found")
         }
         Err(MultipartError::TotalSizeExceeded) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("too_large");
             error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Total upload size exceeds 2GB limit",
             )
         }
+        Err(MultipartError::CapacityExceeded) => {
+            state.metrics.record_multipart_part("capacity_exceeded");
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
         Err(MultipartError::Other(error)) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("error");
             error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -1598,11 +2184,15 @@ async fn upload_module_part(
             )
         }
         Err(MultipartError::PartsMismatch) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
-    }
+        Err(MultipartError::MemoryPressure) => {
+            overloaded_response("server is applying upload memory backpressure")
+        }
+    };
+    temp.remove_and_disarm(&state.io).await;
+    response
 }
 
 async fn complete_module_upload(
@@ -1652,6 +2242,15 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
+        Err(MultipartError::CapacityExceeded) => {
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
+        Err(MultipartError::MemoryPressure) => {
+            overloaded_response("server is applying upload memory backpressure")
+        }
+        Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
+        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1677,6 +2276,9 @@ async fn clean_namespace(
         Ok(_version_ms) => {
             state.notify.notify_one();
             StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
         }
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1764,15 +2366,11 @@ async fn internal_bootstrap_manifests_digest(
 ) -> Response {
     let prefix_len = match params.get("prefix_len") {
         Some(value) => match value.parse::<usize>() {
-            Ok(prefix_len) if prefix_len > 0 && prefix_len <= BOOTSTRAP_DIGEST_MAX_PREFIX_LEN => {
-                prefix_len
-            }
+            Ok(prefix_len) if prefix_len == BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN => prefix_len,
             _ => {
                 return error_response(
                     StatusCode::BAD_REQUEST,
-                    format!(
-                        "Invalid prefix_len: must be between 1 and {BOOTSTRAP_DIGEST_MAX_PREFIX_LEN}"
-                    ),
+                    format!("Invalid prefix_len: must equal {BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN}"),
                 );
             }
         },
@@ -1828,7 +2426,7 @@ async fn internal_bootstrap_artifact(
                 StatusCode::OK,
                 &manifest,
                 state.replication_bandwidth_limiter.clone(),
-                false,
+                ResponseStreamClass::Bootstrap,
             )
             .await
         }
@@ -1838,6 +2436,503 @@ async fn internal_bootstrap_artifact(
             format!("Failed to load bootstrap artifact: {error}"),
         ),
     }
+}
+
+/// The re-homed per-artifact backfill endpoint (R11's oversized path). Unlike
+/// the legacy raw-body `internal_bootstrap_artifact`, the response is a single
+/// bodies-stream frame: the requester needs the manifest meta to apply, and
+/// framing it with the same codec keeps one wire definition and the same
+/// resolved-with-the-body guarantee as the batch endpoint. A record that no
+/// longer resolves is a 404 (the requester's absent case).
+async fn internal_backfill_artifact(
+    AxumPath(artifact_id): AxumPath<String>,
+    State(state): State<SharedState>,
+) -> Response {
+    let manifest = match state
+        .store
+        .fetch_artifact_by_id_for_serving(&artifact_id)
+        .await
+    {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to load backfill artifact: {error}"),
+            );
+        }
+    };
+
+    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    let requested_bytes = stream_chunk_bytes.saturating_mul(4);
+    let permit = match state
+        .memory
+        .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
+    {
+        Ok(permit) => permit,
+        Err(_) => return response_stream_unavailable(),
+    };
+
+    match state
+        .store
+        .open_artifact_reader_range_tolerating_promotion(&manifest, 0, None)
+        .await
+    {
+        Ok(Some((manifest, reader))) => {
+            // Frame identity comes from the manifest the bytes were opened
+            // from, exactly like the batch endpoint.
+            let header = BackfillBodyManifestMeta::from_manifest(&manifest)
+                .to_wire_bytes()
+                .and_then(|meta| {
+                    encode_backfill_body_frame_header(
+                        backfill_record_kind(&manifest),
+                        BackfillBodyDisposition::Present,
+                        manifest_version_ms(&manifest),
+                        &manifest.artifact_id,
+                        &meta,
+                        manifest.size,
+                    )
+                });
+            let header = match header {
+                Ok(header) => header,
+                Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+            };
+            let content_length = (header.len() as u64).saturating_add(manifest.size);
+            let stream = futures_util::stream::once(async move {
+                Ok::<Bytes, std::io::Error>(Bytes::from(header))
+            })
+            .chain(ReaderStream::with_capacity(reader, stream_chunk_bytes));
+            let stream = throttle_body_stream(stream, state.replication_bandwidth_limiter.clone());
+            let mut response = Response::new(Body::from_stream(stream));
+            response.headers_mut().insert(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            );
+            if let Ok(value) = HeaderValue::from_str(&content_length.to_string()) {
+                response
+                    .headers_mut()
+                    .insert(axum::http::header::CONTENT_LENGTH, value);
+            }
+            attach_response_stream_permit(&mut response, permit);
+            response
+        }
+        // Bytes gone between manifest read and open (eviction or reclaim
+        // race): the requester resolves 404 as absent.
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => error_response(
+            StatusCode::NOT_FOUND,
+            format!("Artifact bytes are missing from local storage: {error}"),
+        ),
+    }
+}
+
+async fn internal_backfill_entries(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let query = match BackfillEntriesQuery::from_params(&params) {
+        Ok(query) => query,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+
+    if !state.store.backfill_index_built() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(BackfillUnavailable {
+                error: BACKFILL_ERROR_INDEX_BUILDING.to_owned(),
+                message: "backfill index is building; retry later".to_owned(),
+            }),
+        )
+            .into_response();
+    }
+
+    match state
+        .store
+        .backfill_index_page(query.after.as_deref(), query.limit)
+    {
+        Ok(page) => Json(BackfillEntriesPage::from(page)).into_response(),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to list backfill entries: {error}"),
+        ),
+    }
+}
+
+/// Metric label for bodies requests arriving without a client-certificate
+/// identity (the plain-HTTP internal listener inside the trusted cluster
+/// network). Such requests are not concurrency-capped: the cap exists to
+/// contain certificate-holding self-hosted peers on customer infrastructure,
+/// and the plain listener is unreachable from outside the cluster.
+const BACKFILL_BODIES_PEER_UNIDENTIFIED: &str = "unidentified";
+
+fn backfill_unavailable_response(error: &str, message: &str) -> Response {
+    let mut response = (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(BackfillUnavailable {
+            error: error.to_owned(),
+            message: message.to_owned(),
+        }),
+    )
+        .into_response();
+    // Retry-After marks the response as retryable backpressure to the peer
+    // client's existing classifier (is_retryable_bootstrap_backpressure).
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
+}
+
+async fn internal_backfill_bodies(State(state): State<SharedState>, request: Request) -> Response {
+    let identity = request.extensions().get::<InternalPeerIdentity>().cloned();
+    let peer_label = identity
+        .as_ref()
+        .map(|identity| identity.0.to_string())
+        .unwrap_or_else(|| BACKFILL_BODIES_PEER_UNIDENTIFIED.to_owned());
+
+    let body = match to_bytes(
+        request.into_body(),
+        MAX_BACKFILL_BODIES_REQUEST_BYTES as usize,
+    )
+    .await
+    {
+        Ok(body) => body,
+        Err(error) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "invalid");
+            return error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!("Failed to read backfill bodies request: {error}"),
+            );
+        }
+    };
+    let request_body: BackfillBodiesRequest = match serde_json::from_slice(&body) {
+        Ok(request_body) => request_body,
+        Err(error) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "invalid");
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid backfill bodies request: {error}"),
+            );
+        }
+    };
+    let tuples = match validate_backfill_bodies_entries(&request_body.entries) {
+        Ok(tuples) => tuples,
+        Err(message) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "invalid");
+            return error_response(StatusCode::BAD_REQUEST, message);
+        }
+    };
+
+    let slot = match &identity {
+        Some(identity) => {
+            match state
+                .backfill_bodies_peer_slots
+                .try_acquire(identity.0.clone())
+            {
+                Some(slot) => Some(slot),
+                None => {
+                    state
+                        .metrics
+                        .record_backfill_bodies_peer_request(&peer_label, "rejected_busy");
+                    return backfill_unavailable_response(
+                        BACKFILL_ERROR_PEER_BUSY,
+                        "another bodies request from this peer identity is in flight; retry shortly",
+                    );
+                }
+            }
+        }
+        None => None,
+    };
+
+    let spool = match spool_backfill_bodies(&state, &tuples).await {
+        Ok(spool) => spool,
+        Err(BackfillSpoolError::TmpBudget(message)) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "backpressure");
+            return backfill_unavailable_response(BACKFILL_ERROR_TMP_BUDGET_EXHAUSTED, &message);
+        }
+        Err(BackfillSpoolError::Internal(message)) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "error");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, message);
+        }
+    };
+
+    // Stream the spooled file under the same background admission and
+    // bandwidth shaping as legacy bootstrap serving.
+    let requested_bytes = response_stream_chunk_bytes(spool.file_len).saturating_mul(4);
+    let permit = match state
+        .memory
+        .try_acquire_background_response_stream_memory(requested_bytes, "backfill")
+    {
+        Ok(permit) => permit,
+        Err(_) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "backpressure");
+            return response_stream_unavailable();
+        }
+    };
+    let file = match state.io.open_file(&spool.path).await {
+        Ok(file) => file,
+        Err(error) => {
+            state
+                .metrics
+                .record_backfill_bodies_peer_request(&peer_label, "error");
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to open backfill bodies spool: {error}"),
+            );
+        }
+    };
+    let file_len = spool.file_len;
+    let stream = ReaderStream::with_capacity(file, response_stream_chunk_bytes(file_len));
+    let stream = throttle_body_stream(stream, state.replication_bandwidth_limiter.clone());
+    // The spool guards (file cleanup + tmp reservations) and the per-peer slot
+    // must live for the whole transfer, so the stream closure owns them.
+    let guards = Arc::new((spool, slot));
+    let stream = stream.map(move |item| {
+        let _guards = &guards;
+        item
+    });
+    state
+        .metrics
+        .record_backfill_bodies_peer_request(&peer_label, "ok");
+    let mut response = Response::new(Body::from_stream(stream));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    if let Ok(value) = HeaderValue::from_str(&file_len.to_string()) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_LENGTH, value);
+    }
+    attach_response_stream_permit(&mut response, permit);
+    response
+}
+
+fn validate_backfill_bodies_entries(
+    entries: &[BackfillEntry],
+) -> Result<Vec<(BackfillRecordKind, String, u64)>, String> {
+    if entries.len() > MAX_BACKFILL_BODIES_ENTRIES {
+        return Err(format!(
+            "Backfill bodies request carries {} entries; at most {MAX_BACKFILL_BODIES_ENTRIES} are allowed",
+            entries.len()
+        ));
+    }
+    entries
+        .iter()
+        .map(|entry| {
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or_else(|| format!("Unknown record kind: {}", entry.record_kind))?;
+            if kind == BackfillRecordKind::NamespaceTombstone {
+                return Err(
+                    "Tombstones are metadata-only and cannot be fetched as bodies".to_owned(),
+                );
+            }
+            if entry.record_id.is_empty() {
+                return Err("Backfill bodies entry carries an empty record id".to_owned());
+            }
+            Ok((kind, entry.record_id.clone(), entry.version_ms))
+        })
+        .collect()
+}
+
+enum BackfillSpoolError {
+    TmpBudget(String),
+    Internal(String),
+}
+
+struct BackfillBodiesSpool {
+    path: std::path::PathBuf,
+    file_len: u64,
+    // Queues the spool file's unlink on drop; the reservations release
+    // alongside it. Boot-time clearing of tmp/backfill sweeps anything a
+    // crash leaves behind.
+    _cleanup: TempFileCleanup,
+    _reservations: Vec<TmpReservation>,
+}
+
+/// Spools the whole bodies response to a temp file before any byte is sent:
+/// resolution work (manifest reads, retirement writes, body copies) happens
+/// off the wire, and the response itself is a plain bounded file stream.
+///
+/// Stale index rows the resolution discovers are retired batched — flushed
+/// every [`BACKFILL_STALE_RETIRE_BATCH`] rows and once when spooling finishes
+/// (on every path) — so a request full of dangling rows costs a handful of
+/// WAL fsyncs, not one per row.
+async fn spool_backfill_bodies(
+    state: &SharedState,
+    tuples: &[(BackfillRecordKind, String, u64)],
+) -> Result<BackfillBodiesSpool, BackfillSpoolError> {
+    let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+    let result = spool_backfill_bodies_inner(state, tuples, &mut stale_rows).await;
+    if let Err(error) = state.store.retire_backfill_index_rows(&mut stale_rows) {
+        tracing::warn!(error, "failed to retire stale backfill index rows");
+    }
+    result
+}
+
+async fn spool_backfill_bodies_inner(
+    state: &SharedState,
+    tuples: &[(BackfillRecordKind, String, u64)],
+    stale_rows: &mut Vec<Vec<u8>>,
+) -> Result<BackfillBodiesSpool, BackfillSpoolError> {
+    let directory = state.config.tmp_dir.join("backfill");
+    state
+        .io
+        .create_dir_all(&directory)
+        .await
+        .map_err(BackfillSpoolError::Internal)?;
+    let path = temp_file_path(&directory, "bodies");
+    let cleanup = TempFileCleanup::new_unreserved(path.clone());
+    let mut file = state
+        .io
+        .create_file(&path)
+        .await
+        .map_err(BackfillSpoolError::Internal)?;
+
+    let mut reservations = Vec::new();
+    let mut file_len = 0_u64;
+    let mut body_bytes = 0_u64;
+    for (requested_kind, record_id, requested_version_ms) in tuples {
+        // Resolves against the CURRENT manifest and collects index rows that
+        // no longer match it for batched retirement (the read-side half of
+        // the eventually-exact index).
+        let record = state
+            .store
+            .resolve_backfill_body(
+                *requested_kind,
+                record_id,
+                *requested_version_ms,
+                stale_rows,
+            )
+            .map_err(BackfillSpoolError::Internal)?;
+        if stale_rows.len() >= BACKFILL_STALE_RETIRE_BATCH {
+            state
+                .store
+                .retire_backfill_index_rows(stale_rows)
+                .map_err(BackfillSpoolError::Internal)?;
+        }
+        let absent_header = || {
+            encode_backfill_body_frame_header(
+                *requested_kind,
+                BackfillBodyDisposition::Absent,
+                *requested_version_ms,
+                record_id,
+                &[],
+                0,
+            )
+        };
+        let (header, body) = match record {
+            None => (absent_header(), None),
+            Some(current) => {
+                match state
+                    .store
+                    .open_artifact_reader_range_tolerating_promotion(&current, 0, None)
+                    .await
+                {
+                    Ok(Some((manifest, reader))) => {
+                        let size = manifest.size;
+                        if size > BACKFILL_BODIES_BATCH_BYTES
+                            || body_bytes.saturating_add(size) > BACKFILL_BODIES_BATCH_BYTES
+                        {
+                            (
+                                encode_backfill_body_frame_header(
+                                    *requested_kind,
+                                    BackfillBodyDisposition::FetchIndividually,
+                                    *requested_version_ms,
+                                    record_id,
+                                    &[],
+                                    0,
+                                ),
+                                None,
+                            )
+                        } else {
+                            // Version, kind, and manifest meta come from the
+                            // manifest the bytes were actually opened from —
+                            // current at body-read time, never the requested
+                            // tuple.
+                            (
+                                BackfillBodyManifestMeta::from_manifest(&manifest)
+                                    .to_wire_bytes()
+                                    .and_then(|meta| {
+                                        encode_backfill_body_frame_header(
+                                            backfill_record_kind(&manifest),
+                                            BackfillBodyDisposition::Present,
+                                            manifest_version_ms(&manifest),
+                                            record_id,
+                                            &meta,
+                                            size,
+                                        )
+                                    }),
+                                Some((size, reader)),
+                            )
+                        }
+                    }
+                    // Bytes gone between manifest read and open (eviction or
+                    // reclaim race): framed absent, never an error (R13).
+                    Ok(None) => (absent_header(), None),
+                    Err(error) => {
+                        tracing::warn!(
+                            record_id,
+                            error,
+                            "backfill body open failed; framing entry absent"
+                        );
+                        (absent_header(), None)
+                    }
+                }
+            }
+        };
+        let header = header.map_err(BackfillSpoolError::Internal)?;
+
+        let frame_len =
+            (header.len() as u64).saturating_add(body.as_ref().map_or(0, |(size, _)| *size));
+        reservations.push(
+            state
+                .bootstrap_staging_budget
+                .try_reserve(frame_len)
+                .map_err(BackfillSpoolError::TmpBudget)?,
+        );
+        file.write_all(&header).await.map_err(|error| {
+            BackfillSpoolError::Internal(format!("failed to write backfill spool: {error}"))
+        })?;
+        file_len += header.len() as u64;
+        if let Some((size, mut reader)) = body {
+            let copied = tokio::io::copy(&mut reader, &mut file)
+                .await
+                .map_err(|error| {
+                    BackfillSpoolError::Internal(format!("failed to spool backfill body: {error}"))
+                })?;
+            if copied != size {
+                return Err(BackfillSpoolError::Internal(format!(
+                    "backfill body for {record_id} yielded {copied} bytes, expected {size}"
+                )));
+            }
+            file_len += size;
+            body_bytes += size;
+        }
+    }
+
+    file.flush().await.map_err(|error| {
+        BackfillSpoolError::Internal(format!("failed to flush backfill spool: {error}"))
+    })?;
+
+    Ok(BackfillBodiesSpool {
+        path,
+        file_len,
+        _cleanup: cleanup,
+        _reservations: reservations,
+    })
 }
 
 async fn internal_replicate_artifact(
@@ -1880,7 +2975,18 @@ async fn internal_replicate_artifact(
     }
 
     if query.inline {
-        let bytes = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
+        // Bound the inline body by the same ceiling the sender and the
+        // bootstrap-pull path use (MAX_INLINE_REPLICATION_BODY_BYTES), not by
+        // the client-facing key-value limit. The latter defaults to 1 MiB
+        // while inline artifacts (notably large REAPI action results) may be
+        // up to 4 MiB, so keying off it here rejected every 1–4 MiB entry with
+        // a 413 and left it replicating forever from a poison outbox message.
+        let bytes = match to_bytes(
+            request.into_body(),
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        {
             Ok(bytes) => bytes,
             Err(error) => {
                 state
@@ -1905,6 +3011,8 @@ async fn internal_replicate_artifact(
                 &query.content_type,
                 &bytes,
                 query.version_ms,
+                query.branch.as_deref(),
+                query.trunk.as_deref(),
             )
             .await
         {
@@ -1926,14 +3034,16 @@ async fn internal_replicate_artifact(
         };
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        state.replication_bandwidth_limiter.clone(),
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: state.replication_bandwidth_limiter.as_deref(),
+        },
     )
     .await
     {
@@ -1956,6 +3066,12 @@ async fn internal_replicate_artifact(
                 format!("Temporary storage budget exhausted: {error}"),
             );
         }
+        Err(BodyReadError::MemoryPressure) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return overloaded_response("server is applying upload memory backpressure");
+        }
         Err(BodyReadError::Io(error)) => {
             state
                 .metrics
@@ -1974,11 +3090,11 @@ async fn internal_replicate_artifact(
             &query.namespace_id,
             &query.key,
             &query.content_type,
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             query.version_ms,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
+    temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(outcome) => {
             state
@@ -2108,14 +3224,16 @@ async fn put_blob_artifact(
         }
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -2131,6 +3249,9 @@ async fn put_blob_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
             );
+        }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -2148,11 +3269,11 @@ async fn put_blob_artifact(
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             &targets,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
+    temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(persisted) => {
             state.notify.notify_one();
@@ -2275,22 +3396,53 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
+            state.metrics.record_artifact_serving_path("mmap");
+            let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
+            let permit = match state
+                .memory
+                .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
+            {
+                Some(permit) => permit,
+                // mmap serving is an optimization; hand a budget-constrained
+                // read straight to the streaming path, which can use the
+                // smaller degraded pool. Waiting here first would only delay
+                // that fallback by a full admission timeout.
+                None => {
+                    return serve_file_reader(
+                        state,
+                        status,
+                        manifest,
+                        None,
+                        ResponseStreamClass::Public,
+                    )
+                    .await;
+                }
+            };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
+        Ok(None) => {
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
+        }
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None, true).await
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum ResponseStreamClass {
+    Public,
+    Bootstrap,
 }
 
 async fn serve_file_reader(
@@ -2298,8 +3450,58 @@ async fn serve_file_reader(
     status: StatusCode,
     manifest: &ArtifactManifest,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    hold_public_inflight: bool,
+    class: ResponseStreamClass,
 ) -> Response {
+    state.metrics.record_artifact_serving_path("streaming");
+    let inline_bytes = if manifest.inline { manifest.size } else { 0 };
+    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    let requested_bytes = usize::try_from(
+        u64::try_from(stream_chunk_bytes.saturating_mul(4))
+            .unwrap_or(u64::MAX)
+            .saturating_add(inline_bytes),
+    )
+    .unwrap_or(usize::MAX);
+    let (permit, stream_chunk_bytes) = match class {
+        // A public read first degrades to the minimum chunk. If even that
+        // bounded path has no slot or live headroom, shed it with a retryable
+        // response rather than opening an unaccounted stream.
+        ResponseStreamClass::Public => match state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => {
+                let degraded_bytes = usize::try_from(
+                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                        .unwrap_or(u64::MAX)
+                        .saturating_add(inline_bytes),
+                )
+                .unwrap_or(usize::MAX);
+                match state
+                    .memory
+                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                    .await
+                {
+                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                    Err(_) => return response_stream_unavailable(),
+                }
+            }
+        },
+        // Bootstrap is internal peer traffic that retries on its own schedule,
+        // so shedding it keeps the background bound intact.
+        ResponseStreamClass::Bootstrap => match state
+            .memory
+            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap")
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => return response_stream_unavailable(),
+        },
+    };
     // Tolerates a concurrent background promotion relocating the artifact
     // between the caller's manifest fetch and this open (see
     // `Store::open_artifact_reader_range_tolerating_promotion`); response
@@ -2311,12 +3513,18 @@ async fn serve_file_reader(
         .await
     {
         Ok(Some((manifest, reader))) => {
-            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
             let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(state, &manifest, stream, hold_public_inflight);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                matches!(class, ResponseStreamClass::Public),
+            );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, &manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
         Ok(None) => error_response(
@@ -2328,6 +3536,18 @@ async fn serve_file_reader(
             format!("Artifact bytes are missing from local storage: {error}"),
         ),
     }
+}
+
+fn response_stream_unavailable() -> Response {
+    let mut response = error_response(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
 }
 
 fn instrument_artifact_stream<S>(
@@ -2513,7 +3733,10 @@ fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        convert::Infallible,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{Router, body::Body, extract::Request, response::IntoResponse, routing::post};
     use http_body_util::BodyExt;
@@ -2526,7 +3749,7 @@ mod tests {
         artifact::producer::ArtifactProducer,
         config::{AnalyticsConfig, UsageConfig},
         test_support::{response_text, test_context},
-        utils::blob_key,
+        utils::{artifact_storage_id, blob_key},
     };
 
     fn test_usage_config() -> UsageConfig {
@@ -2541,6 +3764,22 @@ mod tests {
             max_buckets: 100,
             outbox_max_depth: 100,
         }
+    }
+
+    #[test]
+    fn bootstrap_page_query_rejects_unbounded_limits() {
+        let maximum = HashMap::from([("limit".to_owned(), MAX_BOOTSTRAP_PAGE_ITEMS.to_string())]);
+        assert_eq!(
+            PageQuery::from_params(&maximum)
+                .expect("maximum bootstrap page should be accepted")
+                .limit,
+            MAX_BOOTSTRAP_PAGE_ITEMS
+        );
+        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
+        assert_eq!(
+            PageQuery::from_params(&oversized).expect_err("oversized page must be rejected"),
+            format!("Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}")
+        );
     }
 
     async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
@@ -2664,6 +3903,10 @@ mod tests {
             ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT
         );
         assert_eq!(
+            route_template_for_path("/_internal/backfill/artifacts/artifact-one"),
+            ROUTE_INTERNAL_BACKFILL_ARTIFACT
+        );
+        assert_eq!(
             route_template_for_path("/api/cache/cas/artifact-one/extra"),
             UNMATCHED_ROUTE
         );
@@ -2705,6 +3948,138 @@ mod tests {
         assert!(!metrics.contains("artifact-one"));
         assert!(!metrics.contains("artifact-two"));
         assert!(!metrics.contains("route=\"/api/cache/cas/artifact-"));
+    }
+
+    // Regression test: inline artifact replication used to bound the body by
+    // the client-facing key-value limit (1 MiB), which 413'd every 1–4 MiB
+    // action result the sender pushed inline. The receive limit must track the
+    // inline replication ceiling instead, so a body in that range applies.
+    #[tokio::test]
+    async fn inline_artifact_replication_accepts_bodies_above_the_keyvalue_limit() {
+        let context = test_context(|_| {}).await;
+        let body_len = MAX_INLINE_REPLICATION_BODY_BYTES as usize / 2;
+        assert!(
+            body_len > context.state.config.max_keyvalue_bytes,
+            "fixture must exceed the key-value limit to exercise the regression"
+        );
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key=action_cache%2Fdeadbeef%2F65\
+                         &content_type=application%2Fx-protobuf&version_ms=1000",
+                    )
+                    .body(Body::from(vec![0u8; body_len]))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let stored = context
+            .state
+            .store
+            .fetch_inline_artifact_bytes(
+                ArtifactProducer::Reapi,
+                "tuist",
+                "action_cache/deadbeef/65",
+            )
+            .expect("inline fetch should succeed")
+            .expect("replicated artifact should be persisted");
+        assert_eq!(stored.len(), body_len);
+    }
+
+    // Pins the exact inline replication ceiling so a future limit or comparison
+    // tweak can't silently reintroduce an off-by-one strand: a body of exactly
+    // MAX_INLINE_REPLICATION_BODY_BYTES applies, one byte more is rejected.
+    #[tokio::test]
+    async fn inline_artifact_replication_enforces_the_inline_ceiling_boundary() {
+        let context = test_context(|_| {}).await;
+
+        let put = |key: &'static str, len: usize| {
+            internal_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key={key}\
+                         &content_type=application%2Fx-protobuf&version_ms=1000"
+                    ))
+                    .body(Body::from(vec![0u8; len]))
+                    .expect("failed to build request"),
+            )
+        };
+
+        let at_limit = put(
+            "action_cache%2Faaaa%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(at_limit.status(), StatusCode::NO_CONTENT);
+
+        let over_limit = put(
+            "action_cache%2Fbbbb%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(over_limit.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn internal_replicate_artifact_fast_fails_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key=action_cache%2Fdeadbeef%2F65\
+                         &content_type=application%2Fx-protobuf&version_ms=1000",
+                    )
+                    .body(Body::from(vec![0u8; 1024]))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+    }
+
+    #[tokio::test]
+    async fn internal_reads_are_not_rejected_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_ne!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test]
@@ -2928,6 +4303,216 @@ mod tests {
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
+        // Flag-off reports carry exactly the legacy field family.
+        assert!(body.get("backfill_initial_cycle").is_none());
+        assert!(body.get("backfill_backfilling_peers").is_none());
+    }
+
+    fn backfill_tick<'a>(
+        discovered: &'a [String],
+        lost: &'a [String],
+    ) -> crate::backfill::lifecycle::MembershipTick<'a> {
+        crate::backfill::lifecycle::MembershipTick {
+            discovered,
+            lost,
+            view_settled: true,
+            control_plane_peers: &[],
+            admission: true,
+        }
+    }
+
+    /// Settles the initial backfill cycle over one peer: first pass plus the
+    /// seam follow-up, driven through the machine without pass tasks.
+    fn settle_backfill_cycle_over(state: &SharedState, peer: &str, now: tokio::time::Instant) {
+        use crate::backfill::lifecycle::PassResolution;
+        let discovered = vec![peer.to_string()];
+        state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        state
+            .backfill
+            .test_finish_pass(peer, PassResolution::Completed, now);
+        let seam = now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        state.backfill.test_evaluate(&backfill_tick(&[], &[]), seam);
+        state
+            .backfill
+            .test_finish_pass(peer, PassResolution::Completed, seam);
+    }
+
+    async fn get_ready_status(state: &SharedState) -> (StatusCode, Value) {
+        let response = public_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let status = response.status();
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        (status, body)
+    }
+
+    #[tokio::test]
+    async fn ready_latches_under_backfill_and_survives_peer_flap_and_recovery_reenrollment() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
+        context.state.expire_readiness_settle_window().await;
+
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["state"], "serving");
+
+        // The 2026-07-24 class: the peer flaps out and back (its re-join
+        // backfill makes the node "backfilling" again) while a recovery
+        // re-enrollment resets bootstrap progress. Readiness must not
+        // regress.
+        let flapped = vec![peer.clone()];
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &flapped), tokio::time::Instant::now());
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&flapped, &[]), tokio::time::Instant::now());
+        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
+        context.state.reset_bootstrap_progress().await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK, "readiness never regresses");
+        assert_eq!(body["state"], "serving");
+        assert_eq!(body["ready"], true);
+    }
+
+    #[tokio::test]
+    async fn ready_reports_draining_after_the_backfill_latch() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+                true,
+            )
+            .await;
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), tokio::time::Instant::now());
+        context.state.expire_readiness_settle_window().await;
+        let (status, _) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::OK);
+
+        // The orthogonal /ready inputs survive the latch: draining still
+        // takes the node out of rotation.
+        context.state.enter_draining();
+        let (status, body) = get_ready_status(&context.state).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["ready"], false);
+        assert!(body["reasons"].to_string().contains("draining"));
+    }
+
+    #[tokio::test]
+    async fn rollout_status_reports_backfill_fields_with_terminal_compatible_legacy_values() {
+        let context = test_context(|config| config.backfill_enabled = true).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        // Mid-cycle: the mode is pending and the legacy in-flight counter
+        // mirrors the gating peer count.
+        let discovered = vec![peer.clone()];
+        let now = tokio::time::Instant::now();
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["backfill_initial_cycle"], "pending");
+        assert_eq!(body["backfill_backfilling_peers"], 1);
+        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
+        assert_eq!(body["backfill_ring_fullness_percent"], 0);
+        assert_eq!(body["bootstrap_known_peers"], 1);
+        assert_eq!(body["bootstrap_inflight_peers"], 1);
+        assert_eq!(body["bootstrap_completed_peers"], 0);
+
+        // Settled: the mode is complete and the legacy counters read
+        // terminal (in-flight 0), which is what gate.sh's legacy check and
+        // the fleet-rollout flow act on.
+        {
+            use crate::backfill::lifecycle::PassResolution;
+            context
+                .state
+                .backfill
+                .test_finish_pass(&peer, PassResolution::Completed, now);
+            let seam =
+                now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+            context
+                .state
+                .backfill
+                .test_evaluate(&backfill_tick(&[], &[]), seam);
+            context
+                .state
+                .backfill
+                .test_finish_pass(&peer, PassResolution::Completed, seam);
+        }
+        context.state.expire_readiness_settle_window().await;
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["backfill_initial_cycle"], "complete");
+        assert_eq!(body["backfill_backfilling_peers"], 0);
+        assert_eq!(body["bootstrap_inflight_peers"], 0);
+        assert_eq!(body["bootstrap_completed_peers"], 1);
+        assert_eq!(body["ready"], true, "the settled node latched serving");
+        assert_eq!(body["state"], "serving");
     }
 
     #[tokio::test]
@@ -2978,6 +4563,1127 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn put_backfill_inline(
+        state: &SharedState,
+        namespace_id: &str,
+        key: &str,
+        version_ms: u64,
+    ) {
+        state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                namespace_id,
+                key,
+                "application/octet-stream",
+                b"payload",
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("inline artifact should apply");
+    }
+
+    async fn backfill_entries_response(state: &SharedState, uri: &str) -> Response {
+        internal_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed")
+    }
+
+    async fn backfill_entries_page(
+        state: &SharedState,
+        after: Option<&str>,
+        limit: usize,
+    ) -> BackfillEntriesPage {
+        let mut uri = format!("/_internal/backfill/entries?limit={limit}");
+        if let Some(after) = after {
+            uri.push_str(&format!("&after={after}"));
+        }
+        let response = backfill_entries_response(state, &uri).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode backfill entries page")
+    }
+
+    /// Walks the listing to exhaustion through the real router, bounded so a
+    /// cursor regression can never hang the test.
+    async fn walk_backfill_entries(state: &SharedState, limit: usize) -> Vec<BackfillEntry> {
+        let mut entries = Vec::new();
+        let mut after: Option<String> = None;
+        for _ in 0..32 {
+            let page = backfill_entries_page(state, after.as_deref(), limit).await;
+            entries.extend(page.entries);
+            match page.next_after {
+                Some(cursor) => after = Some(cursor),
+                None => return entries,
+            }
+        }
+        panic!("backfill entries pagination did not terminate");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_list_tuples_newest_first_with_kinds_and_sizes() {
+        let context = test_context(|_| {}).await;
+        let store = &context.state.store;
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                b"segmented-body",
+                600,
+            )
+            .await
+            .expect("segmented artifact should apply");
+        put_backfill_inline(&context.state, "ios", "inline", 500).await;
+        store
+            .apply_replicated_namespace_delete("android", 250)
+            .await
+            .expect("tombstone should apply");
+        store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let response =
+            backfill_entries_response(&context.state, "/_internal/backfill/entries").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode backfill entries response");
+
+        assert_eq!(
+            body["entries"],
+            serde_json::json!([
+                {
+                    "record_kind": "segment_artifact",
+                    "record_id":
+                        artifact_storage_id(ArtifactProducer::Gradle, "test-tenant", "ios", "segmented"),
+                    "version_ms": 600,
+                    "size": 14,
+                },
+                {
+                    "record_kind": "inline_artifact",
+                    "record_id":
+                        artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "inline"),
+                    "version_ms": 500,
+                    "size": 7,
+                },
+                {
+                    "record_kind": "namespace_tombstone",
+                    "record_id": "android",
+                    "version_ms": 250,
+                },
+            ]),
+            "tuples list newest-first; tombstones carry no size field"
+        );
+        assert_eq!(body["next_after"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_paginate_to_exhaustion_with_stable_cursors() {
+        let context = test_context(|_| {}).await;
+        for version_ms in [100_u64, 200, 300, 400, 500] {
+            put_backfill_inline(&context.state, "ios", &format!("k{version_ms}"), version_ms).await;
+        }
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let first = backfill_entries_page(&context.state, None, 2).await;
+        assert_eq!(
+            first
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![500, 400]
+        );
+        let cursor = first.next_after.clone().expect("more pages should remain");
+
+        // Writes between pages must not disturb an already-issued cursor.
+        put_backfill_inline(&context.state, "ios", "k250", 250).await;
+
+        let entries = walk_backfill_entries(&context.state, 2).await;
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![500, 400, 300, 250, 200, 100]
+        );
+
+        // The pre-write cursor resumes exactly where it left off and sees the
+        // interleaved row.
+        let resumed = backfill_entries_page(&context.state, Some(&cursor), 100).await;
+        assert_eq!(
+            resumed
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![300, 250, 200, 100]
+        );
+        assert_eq!(resumed.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_cursor_never_repeats_or_skips_across_deletions() {
+        let context = test_context(|_| {}).await;
+        for version_ms in [100_u64, 200, 300, 400, 500, 600] {
+            put_backfill_inline(&context.state, "ios", &format!("k{version_ms}"), version_ms).await;
+        }
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let first = backfill_entries_page(&context.state, None, 2).await;
+        assert_eq!(
+            first
+                .entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![600, 500]
+        );
+        let mut after = first.next_after.clone();
+
+        // Between pages: two upcoming rows are LWW-overwritten (their index
+        // rows move ahead of the cursor) and a brand-new row lands behind it.
+        put_backfill_inline(&context.state, "ios", "k300", 700).await;
+        put_backfill_inline(&context.state, "ios", "k400", 800).await;
+        put_backfill_inline(&context.state, "ios", "k450", 450).await;
+
+        let mut entries = first.entries;
+        for _ in 0..32 {
+            let Some(cursor) = after else { break };
+            let page = backfill_entries_page(&context.state, Some(&cursor), 2).await;
+            entries.extend(page.entries);
+            after = page.next_after;
+        }
+        assert!(after.is_none(), "pagination did not terminate");
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.version_ms)
+                .collect::<Vec<_>>(),
+            vec![600, 500, 450, 200, 100],
+            "surviving rows appear exactly once; moved rows are neither repeated nor resurrected"
+        );
+        let mut record_ids: Vec<_> = entries.iter().map(|entry| &entry.record_id).collect();
+        record_ids.sort();
+        record_ids.dedup();
+        assert_eq!(record_ids.len(), entries.len(), "no record listed twice");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_empty_index_returns_empty_page_without_cursor() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let page = backfill_entries_page(&context.state, None, 10).await;
+        assert_eq!(page.entries, vec![]);
+        assert_eq!(page.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_reject_malformed_cursors() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        for after in ["not-hex".to_owned(), hex::encode("some/other/key")] {
+            let response = backfill_entries_response(
+                &context.state,
+                &format!("/_internal/backfill/entries?after={after}"),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let body: Value = serde_json::from_str(&response_text(response).await)
+                .expect("failed to decode error response");
+            assert!(
+                body["message"]
+                    .as_str()
+                    .expect("message should be a string")
+                    .starts_with("Invalid after"),
+                "unexpected message: {}",
+                body["message"]
+            );
+        }
+    }
+
+    #[test]
+    fn backfill_entries_query_clamps_oversized_limits() {
+        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
+        assert_eq!(
+            BackfillEntriesQuery::from_params(&oversized)
+                .expect("oversized limit should be clamped")
+                .limit,
+            MAX_BOOTSTRAP_PAGE_ITEMS
+        );
+        assert_eq!(
+            BackfillEntriesQuery::from_params(&HashMap::new())
+                .expect("defaults should be accepted"),
+            BackfillEntriesQuery {
+                after: None,
+                limit: 256
+            }
+        );
+        BackfillEntriesQuery::from_params(&HashMap::from([("limit".to_owned(), "0".to_owned())]))
+            .expect_err("zero limit must be rejected");
+        BackfillEntriesQuery::from_params(&HashMap::from([("limit".to_owned(), "abc".to_owned())]))
+            .expect_err("non-numeric limit must be rejected");
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_clamp_oversized_limits_through_the_router() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline(&context.state, "ios", "artifact", 100).await;
+        context
+            .state
+            .store
+            .run_backfill_index_build()
+            .expect("index build should succeed");
+
+        let page = backfill_entries_page(&context.state, None, usize::MAX).await;
+        assert_eq!(page.entries.len(), 1);
+        assert_eq!(page.next_after, None);
+    }
+
+    #[tokio::test]
+    async fn backfill_entries_report_index_building_with_a_typed_retryable_body() {
+        let context = test_context(|_| {}).await;
+        assert!(!context.state.store.backfill_index_built());
+
+        let response =
+            backfill_entries_response(&context.state, "/_internal/backfill/entries").await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: BackfillUnavailable = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode index-building response");
+        assert_eq!(body.error, BACKFILL_ERROR_INDEX_BUILDING);
+
+        // The internal route is counted and timed under its route label even
+        // while the node answers "index building".
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_http_requests_total")
+                && line.contains("route=\"/_internal/backfill/entries\"")
+                && line.contains("status=\"503\"")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_internal_backfill_http_request_duration_seconds_count")
+                && line.contains("route=\"/_internal/backfill/entries\"")
+        }));
+    }
+
+    #[tokio::test]
+    async fn public_router_does_not_serve_backfill_entries() {
+        let context = test_context(|_| {}).await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/backfill/entries")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn put_backfill_inline_body(
+        state: &SharedState,
+        namespace_id: &str,
+        key: &str,
+        body: &[u8],
+        version_ms: u64,
+    ) {
+        state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                namespace_id,
+                key,
+                "application/octet-stream",
+                body,
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("inline artifact should apply");
+    }
+
+    fn bodies_entry(record_kind: &str, record_id: &str, version_ms: u64) -> BackfillEntry {
+        BackfillEntry {
+            record_kind: record_kind.to_owned(),
+            record_id: record_id.to_owned(),
+            version_ms,
+            size: None,
+        }
+    }
+
+    async fn post_backfill_bodies(
+        state: &SharedState,
+        entries: &[BackfillEntry],
+        identity: Option<&str>,
+    ) -> Response {
+        let body = serde_json::to_vec(&BackfillBodiesRequest {
+            entries: entries.to_vec(),
+        })
+        .expect("encode bodies request");
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/_internal/backfill/bodies")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("failed to build request");
+        if let Some(identity) = identity {
+            request
+                .extensions_mut()
+                .insert(InternalPeerIdentity(identity.into()));
+        }
+        internal_router(state.clone())
+            .oneshot(request)
+            .await
+            .expect("request failed")
+    }
+
+    async fn response_bytes(response: Response) -> Vec<u8> {
+        response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect response body")
+            .to_bytes()
+            .to_vec()
+    }
+
+    async fn decode_backfill_frames(bytes: &[u8]) -> Vec<BackfillBodyFrame> {
+        let mut reader = bytes;
+        let mut frames = Vec::new();
+        while let Some(frame) = read_backfill_body_frame(&mut reader)
+            .await
+            .expect("decode backfill body frame")
+        {
+            frames.push(frame);
+        }
+        frames
+    }
+
+    fn backfill_index_versions_for(state: &SharedState, record_id: &str) -> Vec<u64> {
+        state
+            .store
+            .backfill_index_page(None, MAX_BOOTSTRAP_PAGE_ITEMS)
+            .expect("scan backfill index")
+            .entries
+            .into_iter()
+            .filter(|row| row.record_id == record_id)
+            .map(|row| row.version_ms)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_round_trip_mixed_segmented_and_inline_batches() {
+        let context = test_context(|_| {}).await;
+        let segmented_body = vec![7u8; 100_000];
+        context
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "segmented",
+                "application/octet-stream",
+                &segmented_body,
+                600,
+            )
+            .await
+            .expect("segmented artifact should apply");
+        put_backfill_inline_body(&context.state, "ios", "inline", b"inline-body", 500).await;
+        let segmented_id =
+            artifact_storage_id(ArtifactProducer::Gradle, "test-tenant", "ios", "segmented");
+        let inline_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "inline");
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[
+                bodies_entry("segment_artifact", &segmented_id, 600),
+                bodies_entry("inline_artifact", &inline_id, 500),
+            ],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let declared_len = response
+            .headers()
+            .get(axum::http::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<usize>().ok())
+            .expect("bodies response should declare its length");
+        let bytes = response_bytes(response).await;
+        assert_eq!(bytes.len(), declared_len);
+
+        let frames = decode_backfill_frames(&bytes).await;
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].kind, BackfillRecordKind::SegmentArtifact);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[0].record_id, segmented_id);
+        assert_eq!(frames[0].version_ms, 600);
+        assert_eq!(frames[0].body, segmented_body);
+        assert_eq!(frames[1].kind, BackfillRecordKind::InlineArtifact);
+        assert_eq!(frames[1].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[1].record_id, inline_id);
+        assert_eq!(frames[1].version_ms, 500);
+        assert_eq!(frames[1].body, b"inline-body");
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_reject_tombstone_kinds() {
+        let context = test_context(|_| {}).await;
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[bodies_entry("namespace_tombstone", "android", 250)],
+            None,
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = response_text(response).await;
+        assert!(body.contains("metadata-only"), "unexpected body: {body}");
+
+        let unknown = post_backfill_bodies(
+            &context.state,
+            &[bodies_entry("mystery_kind", "whatever", 1)],
+            None,
+        )
+        .await;
+        assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_frame_deleted_entries_absent_without_failing_the_batch() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "doomed", b"doomed-body", 500).await;
+        put_backfill_inline_body(&context.state, "android", "survivor", b"survivor-body", 400)
+            .await;
+        let doomed_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "doomed");
+        let survivor_id = artifact_storage_id(
+            ArtifactProducer::Xcode,
+            "test-tenant",
+            "android",
+            "survivor",
+        );
+
+        // Deletes every "ios" manifest between listing and fetch.
+        context
+            .state
+            .store
+            .apply_replicated_namespace_delete("ios", 900)
+            .await
+            .expect("tombstone should apply");
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[
+                bodies_entry("inline_artifact", &doomed_id, 500),
+                bodies_entry("inline_artifact", &survivor_id, 400),
+            ],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(frames[0].record_id, doomed_id);
+        // Absent frames echo the requested tuple to identify it.
+        assert_eq!(frames[0].version_ms, 500);
+        assert!(frames[0].body.is_empty());
+        assert_eq!(frames[1].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[1].body, b"survivor-body");
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_serve_current_version_and_body_after_lww_overwrite() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "k", b"body-v1", 500).await;
+        let record_id = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "k");
+        // Overwrite between listing and fetch; the writer replaces the v500
+        // index row with the v800 one.
+        put_backfill_inline_body(&context.state, "ios", "k", b"body-v2-longer", 800).await;
+        // Plant the stale v500 row back, as a build/live race would leave it.
+        context
+            .state
+            .store
+            .insert_backfill_index_row_for_testing(
+                500,
+                BackfillRecordKind::InlineArtifact,
+                &record_id,
+                Some(7),
+            )
+            .expect("plant stale row");
+        assert_eq!(
+            backfill_index_versions_for(&context.state, &record_id),
+            vec![800, 500]
+        );
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[bodies_entry("inline_artifact", &record_id, 500)],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 1);
+        // Current version and current body — never v2 bytes under a v1 stamp.
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[0].version_ms, 800);
+        assert_eq!(frames[0].body, b"body-v2-longer");
+        // The mismatched requested row was retired during serve.
+        assert_eq!(
+            backfill_index_versions_for(&context.state, &record_id),
+            vec![800]
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_retire_dangling_rows_and_frame_them_absent() {
+        let context = test_context(|_| {}).await;
+        // Two dangling rows in one request: retirement is collected across
+        // the request and flushed as one batched write, so both must be gone
+        // after the response.
+        let first_record_id = "0000000000000000000000000000000000000000000000000000000000000000";
+        let second_record_id = "1111111111111111111111111111111111111111111111111111111111111111";
+        for (record_id, version_ms) in [(first_record_id, 700), (second_record_id, 800)] {
+            context
+                .state
+                .store
+                .insert_backfill_index_row_for_testing(
+                    version_ms,
+                    BackfillRecordKind::InlineArtifact,
+                    record_id,
+                    Some(9),
+                )
+                .expect("plant dangling row");
+        }
+        assert_eq!(
+            backfill_index_versions_for(&context.state, first_record_id),
+            vec![700]
+        );
+        assert_eq!(
+            backfill_index_versions_for(&context.state, second_record_id),
+            vec![800]
+        );
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[
+                bodies_entry("inline_artifact", first_record_id, 700),
+                bodies_entry("inline_artifact", second_record_id, 800),
+            ],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(frames[0].version_ms, 700);
+        assert_eq!(frames[1].disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(frames[1].version_ms, 800);
+        assert!(
+            backfill_index_versions_for(&context.state, first_record_id).is_empty()
+                && backfill_index_versions_for(&context.state, second_record_id).is_empty(),
+            "dangling rows must be retired during serve"
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_boundary_at_the_shared_byte_ceiling() {
+        let context = test_context(|_| {}).await;
+        let exact_body = vec![1u8; BACKFILL_BODIES_BATCH_BYTES as usize];
+        let over_body = vec![2u8; BACKFILL_BODIES_BATCH_BYTES as usize + 1];
+        for (key, body, version_ms) in [
+            ("exact", &exact_body, 600_u64),
+            ("over", &over_body, 700_u64),
+        ] {
+            context
+                .state
+                .store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    body,
+                    version_ms,
+                )
+                .await
+                .expect("segmented artifact should apply");
+        }
+        put_backfill_inline_body(&context.state, "ios", "small", b"small-body", 800).await;
+        let exact_id = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "exact");
+        let over_id = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "over");
+        let small_id = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "small");
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[
+                bodies_entry("segment_artifact", &exact_id, 600),
+                bodies_entry("segment_artifact", &over_id, 700),
+                bodies_entry("inline_artifact", &small_id, 800),
+            ],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 3);
+        // A batch whose bodies sum to exactly the ceiling passes.
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[0].body, exact_body);
+        // One byte over the per-entry cutoff routes to the per-artifact
+        // endpoint.
+        assert_eq!(
+            frames[1].disposition,
+            BackfillBodyDisposition::FetchIndividually
+        );
+        assert_eq!(frames[1].version_ms, 700);
+        assert!(frames[1].body.is_empty());
+        // The batch is already at the ceiling, so a within-bounds entry with
+        // no remaining room also defers to the per-artifact endpoint rather
+        // than overflowing the shared bound.
+        assert_eq!(
+            frames[2].disposition,
+            BackfillBodyDisposition::FetchIndividually
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_report_tmp_budget_exhaustion_as_retryable_backpressure() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        let capacity = context
+            .state
+            .config
+            .tmp_dir_max_bytes
+            .min(context.state.memory.bootstrap_staging_budget_bytes());
+        let hold = context
+            .state
+            .bootstrap_staging_budget
+            .try_reserve(capacity)
+            .expect("reserve the whole staging budget");
+
+        let response = post_backfill_bodies(&context.state, &entries, None).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            response
+                .headers()
+                .contains_key(axum::http::header::RETRY_AFTER),
+            "backpressure must be marked retryable"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(response).await).expect("typed backpressure body");
+        assert_eq!(unavailable.error, BACKFILL_ERROR_TMP_BUDGET_EXHAUSTED);
+
+        drop(hold);
+        let retried = post_backfill_bodies(&context.state, &entries, None).await;
+        assert_eq!(retried.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(retried).await).await;
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_cap_concurrent_requests_per_peer_identity() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        // First request from peer-a: admitted; its slot is held while the
+        // response body (and the guards it owns) is alive.
+        let in_flight = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(in_flight.status(), StatusCode::OK);
+
+        // Second concurrent request from the same identity is rejected with a
+        // retryable typed response.
+        let busy = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            busy.headers().contains_key(axum::http::header::RETRY_AFTER),
+            "cap rejection must be marked retryable"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(busy).await).expect("typed busy body");
+        assert_eq!(unavailable.error, BACKFILL_ERROR_PEER_BUSY);
+
+        // A different identity proceeds while peer-a's slot is held.
+        let other = post_backfill_bodies(&context.state, &entries, Some("peer-b")).await;
+        assert_eq!(other.status(), StatusCode::OK);
+        drop(other);
+
+        // Releasing the first response frees the slot.
+        drop(in_flight);
+        let after_release = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(after_release.status(), StatusCode::OK);
+
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-a\"")
+                && line.contains("outcome=\"rejected_busy\"")
+        }));
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-b\"")
+                && line.contains("outcome=\"ok\"")
+        }));
+    }
+
+    #[tokio::test]
+    async fn backfill_bodies_reclaim_spool_files_after_the_response_completes() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let spool_dir = context.state.config.tmp_dir.join("backfill");
+        let spool_files = |directory: &std::path::Path| {
+            std::fs::read_dir(directory)
+                .map(|entries| entries.count())
+                .unwrap_or(0)
+        };
+
+        let response = post_backfill_bodies(
+            &context.state,
+            &[bodies_entry("inline_artifact", &record_id, 500)],
+            None,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            spool_files(&spool_dir) > 0,
+            "the spool file must exist while the response is in flight"
+        );
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 1);
+
+        // The unlink is queued on drop; wait for it rather than racing it.
+        for _ in 0..200 {
+            if spool_files(&spool_dir) == 0 {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        panic!("spool files were not reclaimed after response completion");
+    }
+
+    #[tokio::test]
+    async fn backfill_artifact_endpoint_frames_the_body_and_legacy_route_stays_raw() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+
+        // The re-homed backfill route answers with a single frame carrying
+        // the manifest meta the requester's apply path needs.
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/backfill/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        let frames = decode_backfill_frames(&response_bytes(response).await).await;
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].disposition, BackfillBodyDisposition::Present);
+        assert_eq!(frames[0].kind, BackfillRecordKind::InlineArtifact);
+        assert_eq!(frames[0].record_id, record_id);
+        assert_eq!(frames[0].version_ms, 500);
+        assert_eq!(frames[0].body, b"artifact-body");
+        let meta = frames[0].meta.as_ref().expect("present frame carries meta");
+        assert_eq!(meta.producer, "xcode");
+        assert_eq!(meta.namespace_id, "ios");
+        assert_eq!(meta.key, "artifact");
+
+        // A missing record is a 404 (the requester's absent case).
+        let missing = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/backfill/artifacts/does-not-exist")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        // The legacy bootstrap route keeps serving the raw body for old peers.
+        let legacy = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/bootstrap/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        assert_eq!(legacy.status(), StatusCode::OK);
+        assert_eq!(response_bytes(legacy).await, b"artifact-body");
+    }
+
+    #[tokio::test]
+    async fn public_router_does_not_serve_backfill_bodies_or_artifact_alias() {
+        let context = test_context(|_| {}).await;
+
+        for (method, uri) in [
+            ("POST", "/_internal/backfill/bodies"),
+            ("GET", "/_internal/backfill/artifacts/some-artifact"),
+        ] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {uri}");
+        }
+    }
+
+    #[tokio::test]
+    async fn internal_backfill_artifact_sheds_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        // Critical pressure fails the background response-stream admission
+        // the handler takes before streaming (internal reads pass the write
+        // middleware, so this exercises the handler's own shed path).
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/_internal/backfill/artifacts/{record_id}"))
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+    }
+
+    #[tokio::test]
+    async fn internal_backfill_bodies_shed_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        let record_id = "0000000000000000000000000000000000000000000000000000000000000000";
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        // The combined test router carries no internal write-shed middleware,
+        // so the POST reaches the handler and fails its own background
+        // response-stream admission after spooling — the shed path under
+        // test (behind the real internal router the middleware sheds the
+        // write earlier with the same retryable 503).
+        let body = serde_json::to_vec(&BackfillBodiesRequest {
+            entries: vec![bodies_entry("inline_artifact", record_id, 700)],
+        })
+        .expect("encode bodies request");
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/_internal/backfill/bodies")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("outcome=\"backpressure\"")
+        }));
+    }
+
+    #[tokio::test]
+    async fn backfill_body_frame_codec_round_trips_and_rejects_malformed_streams() {
+        let record_id = "abc123";
+        let meta = BackfillBodyManifestMeta {
+            producer: "xcode".to_owned(),
+            namespace_id: "ios".to_owned(),
+            key: "artifact".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            branch: Some("feature".to_owned()),
+        };
+        let meta_bytes = meta.to_wire_bytes().expect("encode meta");
+        let mut stream = encode_backfill_body_frame_header(
+            BackfillRecordKind::SegmentArtifact,
+            BackfillBodyDisposition::Present,
+            1_234,
+            record_id,
+            &meta_bytes,
+            5,
+        )
+        .expect("encode present header");
+        stream.extend_from_slice(b"hello");
+        stream.extend_from_slice(
+            &encode_backfill_body_frame_header(
+                BackfillRecordKind::InlineArtifact,
+                BackfillBodyDisposition::Absent,
+                777,
+                record_id,
+                &[],
+                0,
+            )
+            .expect("encode absent header"),
+        );
+
+        let mut reader = stream.as_slice();
+        let first = read_backfill_body_frame(&mut reader)
+            .await
+            .expect("decode first frame")
+            .expect("first frame present");
+        assert_eq!(first.kind, BackfillRecordKind::SegmentArtifact);
+        assert_eq!(first.disposition, BackfillBodyDisposition::Present);
+        assert_eq!(first.record_id, record_id);
+        assert_eq!(first.version_ms, 1_234);
+        assert_eq!(first.meta, Some(meta));
+        assert_eq!(first.body, b"hello");
+        let second = read_backfill_body_frame(&mut reader)
+            .await
+            .expect("decode second frame")
+            .expect("second frame present");
+        assert_eq!(second.disposition, BackfillBodyDisposition::Absent);
+        assert_eq!(second.meta, None);
+        assert!(second.body.is_empty());
+        assert!(
+            read_backfill_body_frame(&mut reader)
+                .await
+                .expect("clean end of stream")
+                .is_none()
+        );
+
+        // Truncated header: some bytes, then EOF.
+        let mut truncated = &stream[..BACKFILL_BODY_FRAME_HEADER_BYTES / 2];
+        assert!(read_backfill_body_frame(&mut truncated).await.is_err());
+
+        // A frame declaring a body beyond the shared ceiling is rejected by
+        // the decoder — the receiver enforces the same constant the sender
+        // spools under.
+        let oversized = encode_backfill_body_frame_header(
+            BackfillRecordKind::SegmentArtifact,
+            BackfillBodyDisposition::Present,
+            1,
+            record_id,
+            &meta_bytes,
+            BACKFILL_BODIES_BATCH_BYTES + 1,
+        )
+        .expect("encode oversized header");
+        let mut reader = oversized.as_slice();
+        let error = read_backfill_body_frame(&mut reader)
+            .await
+            .expect_err("over-ceiling body length must be rejected");
+        assert!(error.contains("ceiling"), "unexpected error: {error}");
+
+        // The per-artifact fetch path decodes the same frame under its own
+        // larger ceiling.
+        let mut reader = oversized.as_slice();
+        let prelude = read_backfill_body_frame_prelude(&mut reader, MAX_REPLICATION_BODY_BYTES)
+            .await
+            .expect("decode oversized prelude")
+            .expect("oversized prelude present");
+        assert_eq!(prelude.body_len, BACKFILL_BODIES_BATCH_BYTES + 1);
+        assert_eq!(
+            prelude.meta.as_ref().map(|meta| meta.key.as_str()),
+            Some("artifact")
+        );
+
+        // Non-present frames must not carry bodies.
+        let mut absent_with_body = encode_backfill_body_frame_header(
+            BackfillRecordKind::InlineArtifact,
+            BackfillBodyDisposition::Absent,
+            1,
+            record_id,
+            &[],
+            3,
+        )
+        .expect("encode malformed header");
+        absent_with_body.extend_from_slice(b"abc");
+        let mut reader = absent_with_body.as_slice();
+        assert!(read_backfill_body_frame(&mut reader).await.is_err());
+
+        // Present frames must carry the manifest meta the apply path needs.
+        let missing_meta = encode_backfill_body_frame_header(
+            BackfillRecordKind::InlineArtifact,
+            BackfillBodyDisposition::Present,
+            1,
+            record_id,
+            &[],
+            0,
+        )
+        .expect("encode meta-less present header");
+        let mut reader = missing_meta.as_slice();
+        let error = read_backfill_body_frame(&mut reader)
+            .await
+            .expect_err("a present frame without meta must be rejected");
+        assert!(error.contains("manifest meta"), "unexpected error: {error}");
     }
 
     #[tokio::test]
@@ -3102,6 +5808,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_response_holds_materialization_memory_until_transport_drops() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(context.state.memory.transient_reserved_bytes() > 0);
+
+        drop(response);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn keyvalue_misses_return_json_not_found_errors() {
         let context = test_context(|_| {}).await;
 
@@ -3216,6 +5959,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn response_stream_reservation_follows_bytes_into_the_transport() {
+        let context = test_context(|_| {}).await;
+        let requested_bytes = HTTP_RESPONSE_STREAM_RESERVATION_BYTES;
+        let permit = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+            .expect("response stream should be admitted");
+        let mut response = Response::new(Body::from("payload"));
+        attach_response_stream_permit(&mut response, permit);
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            requested_bytes as u64,
+            "transport-owned bytes must keep the complete bounded reservation"
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn materialized_response_reservation_follows_encoded_transport_bytes() {
+        let context = test_context(|_| {}).await;
+        let content_bytes = 64 * 1024;
+        let permit = context
+            .state
+            .memory
+            .try_acquire_response_materialization(content_bytes)
+            .expect("materialized response should be admitted")
+            .expect("non-empty response should return a permit");
+        let mut response = Response::new(Body::from(vec![0_u8; content_bytes]));
+        response.extensions_mut().insert(
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+        );
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            (content_bytes * 2) as u64
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn bytes_chunks_reassembles_multi_chunk_payloads() {
         use futures_util::StreamExt;
 
@@ -3282,9 +6093,16 @@ mod tests {
             .to_bytes();
         assert_eq!(mmap_body.as_ref(), payload.as_slice());
 
-        // Force memory pressure so mmap serving is skipped and the streaming
-        // reader path serves the same artifact; the bytes must be identical.
-        context.state.memory.observe(u64::MAX);
+        // Force constrained memory pressure so mmap serving is skipped while
+        // leaving exactly one bounded streaming reservation available; the
+        // reader fallback must serve identical bytes.
+        context.state.memory.observe(
+            context
+                .state
+                .memory
+                .hard_limit_bytes()
+                .saturating_sub(HTTP_RESPONSE_STREAM_RESERVATION_BYTES as u64),
+        );
 
         let reader_response = app
             .oneshot(get_request())
@@ -3304,6 +6122,179 @@ mod tests {
         assert!(metrics.contains("producer=\"xcode\""));
         assert!(metrics.contains("result=\"ok\""));
         assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn a_public_read_sheds_when_no_bounded_stream_reservation_remains() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        // Leave no transient headroom at all, so both the weighted pool and the
+        // ledger refuse the full four-buffer reservation.
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded_memory_unavailable\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_public_read_uses_the_bounded_degraded_pool_when_full_size_admission_is_exhausted() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let _fixed = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the full-size response pool should start available");
+        let _elastic = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .elastic_foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the elastic response pool should start available");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect degraded body")
+            .to_bytes();
+        assert_eq!(body.as_ref(), payload.as_slice());
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn bounded_staging_preserves_every_streamed_request_byte() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload = Bytes::from(vec![0xA5; 17 * 1024 * 1024]);
+        let chunks = payload
+            .chunks(256 * 1024)
+            .map(|chunk| Ok::<_, Infallible>(Bytes::copy_from_slice(chunk)))
+            .collect::<Vec<_>>();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .header(axum::http::header::CONTENT_LENGTH, payload.len())
+                    .body(Body::from_stream(tokio_stream::iter(chunks)))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let stored = get_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect stored artifact")
+            .to_bytes();
+        assert_eq!(stored, payload);
     }
 
     #[tokio::test]
@@ -3866,7 +6857,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_resolves_namespace_from_multipart_upload() {
+    async fn request_context_resolves_namespace_from_multipart_upload() {
         let context = test_context(|_| {}).await;
         let upload_id = context
             .state
@@ -3876,9 +6867,9 @@ mod tests {
         let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
         let headers = BTreeMap::new();
 
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_MODULE_PART,
                 method: "POST",
                 path: ROUTE_API_CACHE_MODULE_PART,
@@ -3890,22 +6881,22 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
-        assert_eq!(extension_context.artifact_hash.as_deref(), Some("hash-1"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.artifact_hash.as_deref(), Some("hash-1"));
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("builds/hash-1/Module.framework")
         );
     }
 
     #[tokio::test]
-    async fn extension_context_uses_handle_aliases() {
+    async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/artifact-1",
@@ -3917,17 +6908,17 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
     }
 
     #[tokio::test]
-    async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
+    async fn request_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/account-artifact",
@@ -3939,18 +6930,18 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id, None);
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id, None);
     }
 
     #[tokio::test]
-    async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
+    async fn request_context_uses_keyvalue_cas_id_from_request_body() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
         let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_KEYVALUE,
                 method: "PUT",
                 path: ROUTE_API_CACHE_KEYVALUE,
@@ -3963,7 +6954,7 @@ mod tests {
         .await;
 
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("action_cache/cas-1")
         );
     }
@@ -4092,6 +7083,17 @@ mod tests {
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
         drop(instrumented);
         assert_eq!(context.state.runtime.public_http_inflight(), 0);
+    }
+
+    #[test]
+    fn response_stream_admission_failure_is_retryable() {
+        let response = response_stream_unavailable();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
     }
 
     #[derive(Clone, Debug)]

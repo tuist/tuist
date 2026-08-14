@@ -211,6 +211,24 @@ public struct GitController: GitControlling {
         "BUILD_SOURCEBRANCHNAME",
     ]
 
+    /// GitHub's branch, for the events `GITHUB_HEAD_REF` does not cover.
+    ///
+    /// That variable is defined for pull requests and nothing else, so a push, or
+    /// a workflow that checks out an explicit SHA, falls through to git. A
+    /// detached checkout leaves git unable to name the branch either, and the
+    /// build then reports no branch at all.
+    ///
+    /// `GITHUB_REF_NAME` is set on every event, but on a tag push it names the
+    /// tag, and a tag is not a branch: recording one would attribute the build to
+    /// a ref no trunk can ever match. `GITHUB_REF_TYPE` is what separates them.
+    private static func githubBranch(environment: [String: String]) -> String? {
+        guard environment["GITHUB_REF_TYPE"] == "branch",
+              let name = environment["GITHUB_REF_NAME"],
+              !name.isEmpty
+        else { return nil }
+        return name
+    }
+
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
         let environment = environment.variables
 
@@ -239,6 +257,7 @@ public struct GitController: GitControlling {
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
+            ?? Self.githubBranch(environment: environment)
 
         let branchName: String?
         if let ciBranch {

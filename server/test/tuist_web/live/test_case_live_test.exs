@@ -41,6 +41,26 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
+    test "scopes test case runs to the selected project", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      expect(Tuist.Tests, :list_test_case_runs, 2, fn attrs ->
+        assert %{field: :project_id, op: :==, value: project.id} in attrs.filters
+        assert %{field: :test_case_id, op: :==, value: test_case_run.test_case_id} in attrs.filters
+
+        Mimic.call_original(Tuist.Tests, :list_test_case_runs, [attrs])
+      end)
+
+      {:ok, _lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+    end
+
     test "muting a test case via set-state", %{
       conn: conn,
       account: account,

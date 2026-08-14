@@ -181,7 +181,7 @@
                 .test(
                     fullHandle: "tuist/tuist",
                     url: "https://test.tuist.io",
-                    network: .network(proxy: false)
+                    network: .network(proxy: false, caCertificate: "/etc/ssl/certs/ca.pem")
                 ),
                 at: configPath.parentDirectory
             )
@@ -204,7 +204,7 @@
                 fullHandle: "tuist/tuist",
                 inspectOptions: .test(),
                 url: expectedURL,
-                network: .init(proxy: false)
+                network: .init(proxy: false, caCertificate: "/etc/ssl/certs/ca.pem")
             ))
         }
 

@@ -115,12 +115,34 @@ spec:
               value: {{ printf "%d" (int .Values.config.acceleratedFileServing.maxConcurrent) | quote }}
             - name: KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES
               value: {{ printf "%d" (int64 .Values.config.acceleratedFileServing.chunkBytes) | quote }}
+            - name: KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED
+              value: {{ ternary "true" "false" (dig "actionCache" "evictionCascadeEnabled" true .Values.config) | quote }}
+            - name: KURA_BACKFILL_ENABLED
+              value: {{ ternary "true" "false" (dig "backfill" "enabled" false .Values.config) | quote }}
+            - name: KURA_BACKFILL_MARGIN_PERCENT
+              value: {{ printf "%d" (int (dig "backfill" "marginPercent" 40 .Values.config)) | quote }}
+            {{- with (dig "backfill" "readyRingPercent" "" .Values.config) }}
+            - name: KURA_BACKFILL_READY_RING_PERCENT
+              value: {{ printf "%d" (int .) | quote }}
+            {{- end }}
+            - name: KURA_BACKFILL_BATCH_BYTES
+              value: {{ printf "%d" (int64 (dig "backfill" "batchBytes" 33554432 .Values.config)) | quote }}
+            {{- with .Values.config.memory.softLimitBytes }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
-              value: {{ printf "%d" (int64 .Values.config.memory.softLimitBytes) | quote }}
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with .Values.config.memory.hardLimitBytes }}
             - name: KURA_MEMORY_HARD_LIMIT_BYTES
-              value: {{ printf "%d" (int64 .Values.config.memory.hardLimitBytes) | quote }}
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with .Values.config.memory.snapshotCacheMaxBytes }}
+            - name: KURA_SNAPSHOT_CACHE_MAX_BYTES
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with .Values.config.memory.manifestCacheMaxBytes }}
             - name: KURA_MANIFEST_CACHE_MAX_BYTES
-              value: {{ printf "%d" (int64 .Values.config.memory.manifestCacheMaxBytes) | quote }}
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
             - name: KURA_MAX_KEYVALUE_BYTES
               value: {{ printf "%d" (int64 .Values.config.memory.maxKeyvalueBytes) | quote }}
             - name: KURA_METADATA_STORE_MAX_OPEN_FILES
@@ -131,6 +153,8 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.replication.bandwidthLimitBytesPerSecond) | quote }}
             - name: KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS
               value: {{ printf "%d" (int64 .Values.config.replication.publicLatencyTargetMs) | quote }}
+            - name: KURA_REPLICATION_UPLOAD_STALL_MS
+              value: {{ printf "%d" (int64 .Values.config.replication.uploadStallMs) | quote }}
             {{- if .Values.config.telemetry.otlpTracesEndpoint }}
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
@@ -141,11 +165,11 @@ spec:
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
               value: {{ .Values.config.telemetry.deploymentEnvironment | quote }}
-            {{- if .Values.extension.enabled }}
-            - name: KURA_EXTENSION_ENABLED
+            {{- if .Values.auth.enabled }}
+            - name: KURA_AUTH_ENABLED
               value: "true"
-            - name: KURA_EXTENSION_SCRIPT_PATH
-              value: {{ printf "%s/%s" .Values.extension.mountDir .Values.extension.scriptFileName | quote }}
+            - name: KURA_AUTH_TUIST_URL
+              value: {{ .Values.auth.tuistUrl | quote }}
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -160,11 +184,6 @@ spec:
             {{- if .Values.peerTls.enabled }}
             - name: peer-tls
               mountPath: /etc/kura/peer-tls
-              readOnly: true
-            {{- end }}
-            {{- if .Values.extension.enabled }}
-            - name: extension-script
-              mountPath: {{ .Values.extension.mountDir }}
               readOnly: true
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
@@ -206,16 +225,11 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.extension.enabled .Values.peerTls.enabled .Values.extraVolumes }}
+      {{- if or (not .Values.persistence.enabled) .Values.peerTls.enabled .Values.extraVolumes }}
       volumes:
         {{- if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
-        {{- end }}
-        {{- if .Values.extension.enabled }}
-        - name: extension-script
-          configMap:
-            name: {{ include "kura.extensionConfigMapName" . }}
         {{- end }}
         {{- if .Values.peerTls.enabled }}
         - name: peer-tls

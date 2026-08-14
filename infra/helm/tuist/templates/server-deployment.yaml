@@ -2,6 +2,7 @@
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- $registryRuntimeSecretName := .Values.registry.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "registry-runtime")) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,9 +39,6 @@ spec:
         # per pod. See helm/k8s-monitoring/values.yaml for the
         # annotation→config mapping.
         prometheus.io/port-name: metrics
-        {{- if and .Values.server.serviceAccount.create .Values.server.migrationJob.asHook }}
-        tuist.dev/server-service-account-revision: {{ .Release.Revision | quote }}
-        {{- end }}
         {{- with .Values.server.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -123,6 +121,39 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.registry.enabled }}
+            - name: TUIST_REGISTRY_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGISTRY_BUCKET
+            - name: TUIST_REGISTRY_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
+            - name: TUIST_REGISTRY_S3_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_HOST
+            - name: TUIST_REGISTRY_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGION
+            - name: TUIST_REGISTRY_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ACCESS_KEY_ID
+            - name: TUIST_REGISTRY_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_SECRET_ACCESS_KEY
+            {{- end }}
             {{- if .Values.codebaseSearch.enabled }}
             - name: TUIST_CODEBASE_SEARCH_URL
               value: {{ printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "codebase-search")) .Values.codebaseSearch.service.port | quote }}
@@ -362,6 +393,7 @@ spec:
             - name: TUIST_KURA_PEER_FAILOVER_IPS
               value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
             {{- end }}
+            {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}

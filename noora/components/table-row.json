@@ -1,0 +1,36 @@
+{
+  "name": "TableRow",
+  "tagName": "noora-table-row",
+  "elementClassName": "NooraTableRow",
+  "className": "noora-table-row",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative table row.",
+  "usage": "<noora-table-row row-key=\"tuist\"><noora-table-cell column=\"project\">Tuist</noora-table-cell></noora-table-row>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "row-key",
+      "property": "rowKey",
+      "type": "string",
+      "description": "Sets the row identifier."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The noora-table-cell children."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "row",
+      "title": "Row",
+      "description": "Describe one table row.",
+      "markup": "<noora-table-row row-key=\"tuist\"><noora-table-cell column=\"project\">Tuist</noora-table-cell></noora-table-row>"
+    }
+  ]
+}

@@ -10,113 +10,17 @@ defmodule TuistWeb.Storybook.Badge do
       %VariationGroup{
         id: "Fill",
         description: "Solid fill style badges with various colors",
-        variations: [
-          %Variation{
-            id: :fill_neutral,
-            attributes: %{
-              id: "badge-fill-neutral",
-              style: "fill",
-              color: "neutral",
-              label: "neutral"
-            }
-          },
-          %Variation{
-            id: :fill_destructive,
-            attributes: %{id: "badge-fill-destructive", style: "fill", color: "destructive", label: "destructive"}
-          },
-          %Variation{
-            id: :fill_warning,
-            attributes: %{id: "badge-fill-warning", style: "fill", color: "warning", label: "warning"}
-          },
-          %Variation{
-            id: :fill_attention,
-            attributes: %{id: "badge-fill-attention", style: "fill", color: "attention", label: "attention"}
-          },
-          %Variation{
-            id: :fill_success,
-            attributes: %{id: "badge-fill-success", style: "fill", color: "success", label: "success"}
-          },
-          %Variation{
-            id: :fill_information,
-            attributes: %{id: "badge-fill-information", style: "fill", color: "information", label: "information"}
-          },
-          %Variation{
-            id: :fill_focus,
-            attributes: %{id: "badge-fill-focus", style: "fill", color: "focus", label: "focus"}
-          },
-          %Variation{
-            id: :fill_primary,
-            attributes: %{id: "badge-fill-primary", style: "fill", color: "primary", label: "primary"}
-          },
-          %Variation{
-            id: :fill_secondary,
-            attributes: %{id: "badge-fill-secondary", style: "fill", color: "secondary", label: "secondary"}
-          }
-        ]
+        variations: color_variations("fill")
       },
       %VariationGroup{
         id: "Light fill",
         description: "Light fill style badges with subtle background colors",
-        variations: [
-          %Variation{
-            id: :light_fill_neutral,
-            attributes: %{id: "badge-light-fill-neutral", style: "light-fill", color: "neutral", label: "neutral"}
-          },
-          %Variation{
-            id: :light_fill_destructive,
-            attributes: %{id: "badge-light-fill-destructive", style: "light-fill", color: "destructive", label: "destructive"}
-          },
-          %Variation{
-            id: :light_fill_warning,
-            attributes: %{id: "badge-light-fill-warning", style: "light-fill", color: "warning", label: "warning"}
-          },
-          %Variation{
-            id: :light_fill_attention,
-            attributes: %{id: "badge-light-fill-attention", style: "light-fill", color: "attention", label: "attention"}
-          },
-          %Variation{
-            id: :light_fill_success,
-            attributes: %{id: "badge-light-fill-success", style: "light-fill", color: "success", label: "success"}
-          },
-          %Variation{
-            id: :light_fill_information,
-            attributes: %{id: "badge-light-fill-information", style: "light-fill", color: "information", label: "information"}
-          },
-          %Variation{
-            id: :light_fill_focus,
-            attributes: %{id: "badge-light-fill-focus", style: "light-fill", color: "focus", label: "focus"}
-          },
-          %Variation{
-            id: :light_fill_primary,
-            attributes: %{id: "badge-light-fill-primary", style: "light-fill", color: "primary", label: "primary"}
-          },
-          %Variation{
-            id: :light_fill_secondary,
-            attributes: %{id: "badge-light-fill-secondary", style: "light-fill", color: "secondary", label: "secondary"}
-          }
-        ]
+        variations: color_variations("light-fill")
       },
       %VariationGroup{
         id: "size",
         description: "Badge sizes: small (default) and large",
-        variations: [
-          %Variation{
-            id: :size_small,
-            attributes: %{
-              id: "badge-size-small",
-              size: "small",
-              label: "Small"
-            }
-          },
-          %Variation{
-            id: :size_large,
-            attributes: %{
-              id: "badge-size-large",
-              size: "large",
-              label: "Large"
-            }
-          }
-        ]
+        variations: size_variations()
       },
       %VariationGroup{
         id: "disabled",
@@ -198,7 +102,7 @@ defmodule TuistWeb.Storybook.Badge do
             id: :icon_only_small,
             attributes: %{
               id: "badge-icon-only-small",
-              icon_only: true,
+              icon_only: true
             },
             slots: [
               """
@@ -213,7 +117,7 @@ defmodule TuistWeb.Storybook.Badge do
             attributes: %{
               id: "badge-icon-only-large",
               size: "large",
-              icon_only: true,
+              icon_only: true
             },
             slots: [
               """
@@ -229,7 +133,7 @@ defmodule TuistWeb.Storybook.Badge do
               id: "badge-icon-only-colored",
               icon_only: true,
               color: "success",
-              style: "light-fill",
+              style: "light-fill"
             },
             slots: [
               """
@@ -280,5 +184,34 @@ defmodule TuistWeb.Storybook.Badge do
         ]
       }
     ]
+  end
+
+  defp color_variations(appearance) do
+    appearance_id = String.replace(appearance, "-", "_")
+
+    Enum.map(Noora.Badge.badge_colors(), fn color ->
+      %Variation{
+        id: String.to_atom("#{appearance_id}_#{color}"),
+        attributes: %{
+          id: "badge-#{appearance}-#{color}",
+          style: appearance,
+          color: color,
+          label: color
+        }
+      }
+    end)
+  end
+
+  defp size_variations do
+    Enum.map(Noora.Badge.badge_sizes(), fn size ->
+      %Variation{
+        id: String.to_atom("size_#{size}"),
+        attributes: %{
+          id: "badge-size-#{size}",
+          size: size,
+          label: String.capitalize(size)
+        }
+      }
+    end)
   end
 end

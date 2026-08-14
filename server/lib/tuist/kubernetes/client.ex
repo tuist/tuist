@@ -267,6 +267,17 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Reads a Node. Dispatch uses this to read the cache-master labels
+  tart-kubelet advertises on each macOS host, so it can hand a polling
+  runner a job whose account's cache is already resident there. The
+  server SA is granted `nodes: [get, list]` by the runners-fleet-reader
+  ClusterRole.
+  """
+  def get_node(name) when is_binary(name) do
+    get("/api/v1/nodes/#{name}")
+  end
+
+  @doc """
   Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
   to stamp owner labels on a polling Pod at the moment it claims
   a queue entry, so subsequent `max_concurrent` counts include

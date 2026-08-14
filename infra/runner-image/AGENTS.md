@@ -17,6 +17,46 @@ The Cirrus base image's pre-existing `admin` user is kept around
 as the Packer SSH provisioning identity but is not used at
 runtime — no service, sudo entry, or auto-login targets it.
 
+Because the base images provision as `admin` and jobs run as
+`runner`, anything the base installs under `admin` has to be
+handed over explicitly. Two things are:
+
+- `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
+  install` from a workflow step failed its writability audit
+  while `brew` itself resolved fine on `PATH`. GitHub-hosted
+  images build and run under one account, so the job user owns
+  the prefix — this image chowns it to `runner` to match.
+- `~/.zprofile`. The cirruslabs base writes it for `admin` and
+  symlinks `/Users/runner` at `/Users/admin`; this image replaces
+  that symlink with a real `runner` account whose home comes from
+  macOS's user template and has no `.zprofile`, so the file is
+  copied over. Without it the login shell the LaunchAgent (and
+  every step shell under it) runs resolves no brew shellenv, no
+  rbenv, no node.
+
+When adding tooling to the base, check ownership and login-shell
+reachability from `runner`, not just presence under `admin`.
+
+A related class of gap is anything GitHub-hosted images pre-seed
+that ours do not. TCC is one: scripted Finder automation
+(`create-dmg`, and anything else driving an app through
+`osascript`) needs a standing `kTCCServiceAppleEvents` approval,
+or macOS raises a prompt no one can answer on a headless VM and
+the send fails as `AppleEvent timed out (-1712)`. That reads as
+flakiness and is not. When adding parity features, compare
+against `actions/runner-images` `images/macos/scripts/build/`,
+and pair each one with a check that asserts the behaviour rather
+than the ingredient — every gap so far was found by a release
+failing, not by the image build.
+
+The sanity checks at the end of the Packer template run as `sudo
+-u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
+leaves them pointed at `/Users/admin` and they assert against the
+provisioning account's environment instead of the runtime one —
+which is how a reachability check stayed green through months of
+broken `brew install`s, and how the `brew install hello` check
+added to catch that failed on `admin`'s unwritable cache instead.
+
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
   by `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).
@@ -51,20 +91,74 @@ runtime — no service, sudo entry, or auto-login targets it.
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
   (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
   budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune, and snapshots the pre-job inventory. Timeout /
-  absent share / failed attach ⇒ cold path, unchanged. A cold first job still
-  gets an *empty* image — the guest can only attach what is there, and no image
-  would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: read the inventory and write `cache-dirty` +
-  `cache-digest` while still MOUNTED, then **detach**, then upload the detached
-  image as the account's HEAD. The host clones the image to promote it and
-  cannot tell a torn snapshot from a good one, so a mount torn down by the VM
-  halting would poison the account's master. If the detach fails even with
-  `-force`, the guest withdraws the image from both promotion and publication.
+  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
+  used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
+  still gets an *empty* image — the guest can only attach what is there, and no
+  image would kill the job rather than cost it warmth.
+  Teardown order is load-bearing: snapshot the post-job inventory while still
+  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
+  its absence is what tells the host to discard, the safe default for any teardown
+  that never reaches a clean detach). Promotion is a **fast-forward
+  compare-and-swap**, not a direct host clone: the guest uploads the detached
+  image to a content-addressed key and reports the HEAD with `base_generation`,
+  and the server advances the HEAD only if it is still at that base (200,
+  returning the accepted generation) or rejects a stale base (409). The guest
+  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
+  and a transport error into one failure) and relays the outcome into the
+  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
+  or `error`. The host's `Finalize` installs the branch as the account's local
+  master (a whole-image replace) ONLY on `accepted` — so the local master and the
+  HEAD advance together. A `conflict` (a stale base another host advanced past) or
+  an `error` (upload/network/control-plane failure — kept distinct so an outage
+  is not mistaken for cross-host contention) discards the branch and lets
+  convergence re-warm it. A rejected promote still uploaded its object, so the
+  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  host clones the promoted image and cannot tell a torn snapshot from a good one,
+  so a mount torn down by the VM halting would poison the account's master; if the
+  detach fails even with `-force`, the guest withdraws the image from both
+  promotion and publication.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
-  lets a clonefiled master validate across the account's VMs.
+  lets a clonefiled master validate across the account's VMs. The Xcode
+  compilation cache (CAS) is **folded INTO the cache image**: a
+  `CompilationCache.noindex` store dir beside `tuist/` inside the one mounted
+  image, so it rides the binary cache's whole lifecycle — clone, promote,
+  fast-forward HEAD, convergence — with no separate image, mount, or promote
+  gate. (It works because the store is on the block-device image, not the
+  virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
+  the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
+  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
+  exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
+  gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
+  guard) covers it. A compile-only job still persists its CAS because the
+  inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
+  content identity, computed identically host- and guest-side), so CAS growth
+  flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
+  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
+  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
+  `--cache-volume-cap-gib` for both and keep HEAD uploads fast
+  (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
+  blocks slot reclaim).
+  `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
+  `xcodebuild build` against a project Tuist never generated and never wraps —
+  which the generate-time project mapper and the `tuist xcodebuild` wrapper both
+  miss. It is the one layer every xcodebuild invocation honors. (Measured on
+  staging: `COMPILATION_CACHE_*` exported as plain env vars does nothing —
+  xcodebuild does not read build settings from the environment.) Consequences to
+  know: the xcconfig deliberately does **not** set
+  `COMPILATION_CACHE_ENABLE_CACHING` (enabling the cache stays the project's
+  opt-in; this only says *where* an already-caching build keeps its store); it
+  chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
+  clobbering it, but a workflow exporting that variable *after* us wins and the
+  CAS falls back to VM-local; and `XCODE_XCCONFIG_FILE` is an OVERRIDES layer
+  (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
+  project/target-defined settings — a stray target-level `COMPILATION_CACHE_CAS_PATH`
+  does NOT win. The escape hatch is a workflow's own xcconfig, which we `#include`
+  LAST, so anything it sets explicitly (the CAS path included) still wins.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
@@ -162,6 +256,12 @@ hosted runners. Builder fleet operator runbook:
 [`../vm-image-builder.md`](../vm-image-builder.md) — cluster-
 managed via the same CAPI provider as the macOS Node fleets;
 scale via `buildersFleet.replicas` / `kubectl scale`.
+
+Both flows publish through the shared
+[`tart-push`](../../.github/actions/tart-push/action.yml)
+action. It bounds registry concurrency, chunks large layers, randomizes
+retry timing across builders, and captures registry-path diagnostics.
+Keep manual and production image publication on that shared action.
 
 ## Layer 1 dependency
 

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
@@ -120,6 +121,38 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(
             hash,
             "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none"
+        )
+    }
+}
+
+struct SettingsContentHasherBaseDebugTests {
+    @Test func hash_includesBaseDebugSettings() async throws {
+        // Given
+        let contentHasher = MockContentHashing()
+        let xcconfigHasher = MockXCConfigContentHashing()
+        let subject = SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher)
+        given(contentHasher)
+            .hash(Parameter<[String]>.any)
+            .willProduce { $0.joined(separator: ";") }
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willProduce { $0 + "-hash" }
+        let settings = Settings(
+            base: ["CURRENT_PROJECT_VERSION": SettingValue.string("1")],
+            baseDebug: ["ENABLE_TESTING_SEARCH_PATHS": SettingValue.string("YES")],
+            configurations: [
+                BuildConfiguration.debug("Debug"): nil,
+            ],
+            defaultSettings: .recommended
+        )
+
+        // When
+        let hash = try await subject.hash(settings: settings)
+
+        // Then
+        #expect(
+            hash
+                == "CURRENT_PROJECT_VERSION:string(\"1\")-hash;ENABLE_TESTING_SEARCH_PATHS:string(\"YES\")-hash;Debugdebug;recommended"
         )
     }
 }

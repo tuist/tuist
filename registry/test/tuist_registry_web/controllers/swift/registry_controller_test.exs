@@ -169,9 +169,7 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
   end
 
   describe "GET /swift/:scope/:name/:version.zip (download_archive)" do
-    test "redirects with See Other to presigned S3 URL when artifact exists", %{conn: conn} do
-      expect(S3, :exists?, fn _key, _opts -> true end)
-
+    test "redirects with See Other to the presigned object-storage URL", %{conn: conn} do
       expect(S3, :presign_download_url, fn _key, opts ->
         assert opts == [type: :registry, content_type: "application/zip"]
 
@@ -191,20 +189,7 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
              ]
     end
 
-    test "returns 404 when artifact not in S3", %{conn: conn} do
-      expect(S3, :exists?, fn _key, _opts -> false end)
-
-      conn =
-        conn
-        |> registry_zip_conn()
-        |> get("/swift/apple/swift-argument-parser/1.0.0.zip")
-
-      assert conn.status == 404
-      assert get_resp_header(conn, "content-version") == ["1"]
-    end
-
-    test "returns 404 when presign fails", %{conn: conn} do
-      expect(S3, :exists?, fn _key, _opts -> true end)
+    test "returns 503 when presigning fails", %{conn: conn} do
       expect(S3, :presign_download_url, fn _key, _opts -> {:error, :unavailable} end)
 
       conn =
@@ -212,7 +197,7 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
         |> registry_zip_conn()
         |> get("/swift/apple/swift-argument-parser/1.0.0.zip")
 
-      assert conn.status == 404
+      assert conn.status == 503
       assert get_resp_header(conn, "content-version") == ["1"]
     end
   end

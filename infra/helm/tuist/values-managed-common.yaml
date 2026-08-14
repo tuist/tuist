@@ -90,6 +90,9 @@ server:
   # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
+      # Authorization redirects combine a signed session cookie with a long
+      # Location header. Keep enough response-header headroom for both.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 
@@ -105,16 +108,27 @@ server:
   managedSecrets: true
   config:
     managedSecrets: true
+    opsClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    # Source the Tuist license from 1Password instead of the blob, so the blob
-    # can be removed. Per-env vault holds the TUIST_LICENSE_KEY item.
+    # All managed envs (staging, canary, production) validate the license
+    # OFFLINE from a signed air-gapped certificate (Ed25519-verified locally),
+    # so the server has zero network dependency on api.keygen.sh at boot. This
+    # is deliberate: a Keygen/egress outage must not crash-loop the server on
+    # startup (see the 2026-07-30 canary incident, where a dead egress gateway
+    # made the online key path time out and CrashLoopBackOff the server). The
+    # three envs share one license, so the same certificate item is valid in
+    # each vault. `item` (the online TUIST_LICENSE_KEY path) is intentionally
+    # left empty; set it only for an env whose vault lacks the certificate.
     license:
-      item: TUIST_LICENSE_KEY
+      item: ""
       field: password
+      certificateItem: TUIST_LICENSE_CERTIFICATE_BASE64
+      certificateField: password
 
   # ESO-synced GitHub App + bot PATs. The PEM file attachment name
   # differs per env (production.pem / staging.pem / canary.pem) and is
@@ -316,6 +330,10 @@ swiftRegistrySync:
     databasePassword:
       item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
       field: password
+  # Conservative default so the pod still schedules on the cramped
+  # staging/canary nodepools. Envs that actually sync a real catalog
+  # override this — see values-managed-production.yaml, where the
+  # measured working set needs considerably more than 1Gi.
   resources:
     requests:
       cpu: "250m"

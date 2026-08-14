@@ -63,17 +63,25 @@ ingress-nginx:
     # managed Tuist cluster runs. Other providers should disable these in
     # their own overlay when their LB doesn't pass through PROXY headers.
     #
-    # upstream-keepalive-timeout must stay below Bandit's
-    # thousand_island_options.read_timeout (15s in server/config/runtime.exs).
-    # Otherwise nginx reuses a connection the backend has already FIN'd,
-    # producing 502s with Bandit `reason=protocol_error`.
+    # Keep upstream connection reuse disabled for the main web ingress. Under
+    # production load, reused nginx-to-Bandit connections intermittently
+    # stalled until Bandit's read timeout or were closed before nginx received
+    # a response. Fresh connections directly to the same pods remained healthy.
+    # Keep the timeout below Bandit's 15-second read timeout as a guard if
+    # connection reuse is enabled again after the underlying behavior is fixed.
     config:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
+      upstream-keepalive-connections: "0"
       upstream-keepalive-timeout: "10"
     metrics:
       enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
 
 kura-eu-central-ingress-nginx:
   enabled: false
@@ -299,6 +307,9 @@ ciliumEgressGateway:
     egressIP: ""
     hostConfigurator:
       enabled: false
+      # Required when enabled. Select the full candidate pool so every standby
+      # is prepared before the failover controller can activate it.
+      nodeSelector: {}
       image: quay.io/cilium/cilium:v1.18.7
       imagePullPolicy: IfNotPresent
       interface: eth0
@@ -332,6 +343,18 @@ ciliumEgressGateway:
       # an un-allowlisted egress IP. Keep this in lockstep with the customer
       # network guide (server/priv/docs/en/guides/server/network.md).
       egressIpAllowlist: []
+      # Port 9962 requires Cilium's Prometheus listener, which the managed
+      # workload bootstrap enables on every Linux node.
+      # Probe Cilium directly on the node instead of treating Kubernetes
+      # NodeReady as the active-gateway failover signal. The wall-clock grace
+      # period cannot be consumed early by bursts of Kubernetes events.
+      nodeHealthPort: 9962
+      nodeHealthTimeout: 2s
+      nodeUnhealthyGracePeriod: 90s
+      # Host preparation is a promotion requirement. A longer demotion grace
+      # avoids moving the address during a host-configurer rolling update while
+      # still recovering when the address or source-routing state stays absent.
+      nodeUnpreparedGracePeriod: 5m
       resources:
         requests:
           cpu: 25m
@@ -345,6 +368,44 @@ ciliumEgressGateway:
         # `token` is the canonical key bootstrap-workload waits for.
         name: hcloud
         key: token
+  # The CAPI Apple Silicon operator's SSH egress to the Mac minis. The minis
+  # drop inbound :22 from everything except the tailnet, loopback and the
+  # addresses in macosFleet.sshIngressAllowCIDRs (see the tuist chart), which
+  # keeps internet SSH scan traffic from exhausting launchd's ssh listen
+  # backlog and wedging the operator out of both dial paths at once. Without a
+  # stable source the operator SNATs out of whichever worker node hosts it, and
+  # those addresses change on every MachineDeployment roll, so there is nothing
+  # durable to put in that allow list. Routing it through the gateway gives it
+  # one address per env that the allow list can name.
+  #
+  # Reuses the server entry's Floating IP and gateway node, so this adds a
+  # policy and no infrastructure. hostConfigurator / failoverController stay
+  # on the server entry and serve both.
+  capi:
+    enabled: false
+    name: tuist-capi-applesilicon-stable-egress
+    namespace: tuist
+    podSelector:
+      app.kubernetes.io/component: capi-scaleway-applesilicon
+      app.kubernetes.io/instance: tuist
+      app.kubernetes.io/name: tuist
+    # Scaleway only, unlike the server entry's 0.0.0.0/0: the operator's
+    # Scaleway API calls and image pulls keep their normal route, so the
+    # gateway isn't in the path of everything it does. A mini adopted outside
+    # this range degrades gracefully rather than breaking, since its dial just
+    # isn't SNAT'd, the guard drops it, and the drift loop falls back to the
+    # tailnet exactly as it does with no allow list at all.
+    destinationCIDRs:
+      - 62.210.0.0/16
+    excludedCIDRs:
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    gatewayNodeSelector:
+      tuist.dev/stable-egress-gateway: server
+    egressIP: ""
 
 # Optional in-cluster cleanup loop for the managed preview cluster. Disabled
 # by default so ordinary platform installs do not get cluster-wide delete

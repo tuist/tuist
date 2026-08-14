@@ -21,10 +21,25 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_job_completed, do: [:tuist, :runners, :job, :completed]
   def event_name_job_requeued, do: [:tuist, :runners, :job, :requeued]
   def event_name_dispatch_request, do: [:tuist, :runners, :dispatch, :request]
+
+  # Which cache-volume residency outcome decided the candidate handed to a
+  # polling node. The host's warm/cold materialize counter is the ground truth
+  # for cache warmth, but it cannot say why a job landed cold; this can, and
+  # the two answers call for opposite fixes. Emitted on the macOS fleet only,
+  # where cache volumes exist.
+  def event_name_dispatch_affinity, do: [:tuist, :runners, :dispatch, :affinity]
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
+
+  # Queued jobs excluded from the autoscaler's demand signal because
+  # their account is at its concurrency limit. Sustained non-zero means
+  # a customer is queueing past their cap: the queue is deep but the
+  # fleet must not grow for it. Without this the withholding is
+  # invisible, since dispatch declines those jobs at `Logger.debug`.
+  def event_name_queue_withheld, do: [:tuist, :runners, :queue, :withheld]
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
+  def event_name_session_clamp, do: [:tuist, :runners, :session, :clamped]
 end

@@ -207,6 +207,9 @@ objectStorage:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # Keep the shared application-user memory guard active outside production so
+  # query and ingestion retry behavior is covered during rollout.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:
@@ -216,6 +219,41 @@ cache:
     bucket: tuist-stag-storage
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
+
+# OCI registry. Reuses a staging object-storage bucket under an `oci`
+# prefix, alongside the Docker mirror below. Reachable at
+# tuist-oci-staging.<tailnet>.ts.net; nothing points at it yet, so it
+# is inert until the build workflows and fleet image pins move.
+ociRegistry:
+  enabled: true
+  s3:
+    # Not the default `tuist-stag-storage` bucket the Docker mirror uses:
+    # an object miss there resolves against a shadow-bucket configuration
+    # whose source no longer exists, so the store answers "NoSuchBucket"
+    # instead of a not-found. A registry turns that into a 500 on the
+    # "is this layer already present?" check every push starts with.
+    # Revisit once that bucket's shadow configuration is cleared.
+    bucket: tuist-xcode-cache-staging
+    rootDirectory: oci
+  auth:
+    enabled: true
+  externalSecret:
+    enabled: true
+  tailscale:
+    enabled: true
+    hostname: tuist-oci-staging
+    tags: tag:tuist-k8s-staging
+  # 443 so image references carry no port: `oci-staging.tuist.dev/<repo>`.
+  # The reference is embedded in every pushed tag and chart pin, so the
+  # port is expensive to change later.
+  service:
+    port: 443
+  tls:
+    enabled: true
+    host: oci-staging.tuist.dev
+    dns:
+      enabled: true
+      tailnet: taild6d7bb.ts.net
 
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.
@@ -471,6 +509,17 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # The minis drop inbound :22 from everything except the tailnet, loopback
+  # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
+  # listen backlog. That socket binds *:22, so an exhausted backlog takes the
+  # operator's tailnet fallback down with the public path and the host stops
+  # accepting config pushes entirely. This is the cluster's stable egress
+  # Floating IP, which the capi entry in the platform chart's
+  # ciliumEgressGateway routes the operator through; keep the two in lockstep.
+  # Dropping it here is safe (the drift loop falls back to the tailnet) but
+  # costs the public dial path, the only one that can update Tailscale itself.
+  sshIngressAllowCIDRs:
+    - 78.47.186.71/32
   # Per-account cache volumes, validated on staging first. The quota is an
   # APFS ceiling (shares the container's free space, not a reservation)
   # fenced by admission + watermark eviction. A real Tuist cache master is
@@ -481,12 +530,19 @@ macosFleet:
   # Staging is the proving ground for the cache volume: it carries the
   # fail-safe guest (a share it cannot write is abandoned for a local cold
   # cache instead of failing the job) plus cache_diag, so a bad share costs
-  # warmth and names itself in the runner log. Canary/production stay at 0
-  # until a real CI job is verified green here — host-side checks (volume
-  # provisioned, config converged) are NOT evidence; trusting them is what
-  # broke every macOS job in production on 2026-07-16.
+  # warmth and names itself in the runner log — the guard that was missing
+  # when host-side checks alone (volume provisioned, config converged) let a
+  # broken share reach prod and break every macOS job on 2026-07-16.
   runnerCacheVolume:
     gib: 40
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
+    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
+    # unusable store falls back to a VM-local cold compilation cache, never
+    # fails the job), so a bad budget costs warmth, not the build.
+    masterCapGib: 28
+    casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first

@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
@@ -130,7 +131,19 @@ public struct GenerateService {
             }
         }
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage: CacheStoring
+        do {
+            cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        } catch where
+            ServerErrorClassifier.isTransient(error)
+            || (error as? CacheURLStoreError) == .noReachableEndpoints
+        {
+            AlertController.current.warning(.alert(
+                "The remote cache is temporarily unavailable.",
+                takeaway: "Generation will continue using the local cache."
+            ))
+            cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        }
 
         let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,

@@ -2,10 +2,16 @@
 //! libToolchainCASPlugin for local storage and hashing, and adds kura-backed
 //! remoteness over the Bazel Remote Execution API (see reapi.rs).
 //!
-//! The build system runs in its fast "plugin-local" mode (no
-//! COMPILATION_CACHE_REMOTE_SERVICE_PATH); this plugin owns all remote
-//! traffic. Interception is deliberately not keyed on the `globally` flag,
-//! which is never set on this path.
+//! This plugin owns all remote traffic. `COMPILATION_CACHE_REMOTE_SERVICE_PATH`
+//! points at our proxy's socket, but Xcode's own remote client never sees it: we
+//! consume the matching `remote-service-path` option below rather than forwarding
+//! it to the wrapped plugin. The setting is still required, because it is what
+//! turns on the build system's clang caching lane, which routes C, Objective-C,
+//! precompiled modules and headers through whichever CAS plugin is configured.
+//! Without it, only Swift compilations are shared.
+//!
+//! Interception is therefore not keyed on the `globally` flag: the clang lane
+//! sets it and the Swift path does not, and both are ours to serve.
 
 pub mod analytics;
 pub mod proxy;
@@ -21,9 +27,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use proxy_proto::{ProxyClient, Resolution};
-use prefetch::Prefetcher;
-use reapi::{ManifestEntry, OpStats, Remote, RemoteConfig};
-use token::TokenProvider;
+use reapi::OpStats;
 use types::*;
 use upstream::Upstream;
 
@@ -131,6 +135,17 @@ unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut
     *error_out = adopt_upstream_string(up, error_in);
 }
 
+/// Like `adopt_error`, but for the paths that must INSPECT the failure rather than
+/// forward it.
+unsafe fn take_upstream_error(up: &Upstream, error: *mut c_char) -> String {
+    if error.is_null() {
+        return String::new();
+    }
+    let message = CStr::from_ptr(error).to_string_lossy().into_owned();
+    (up.llcas_string_dispose)(error);
+    message
+}
+
 // --- Handles -------------------------------------------------------------------
 
 struct OptionsState {
@@ -174,34 +189,6 @@ impl PublishRecord {
             value_digest: body[2 + key_len..].to_vec(),
             spool_path,
         })
-    }
-
-    fn encode_item(&self) -> Vec<u8> {
-        let body = self.encode_body();
-        let mut item = Vec::with_capacity(2 + body.len() + 128);
-        item.extend_from_slice(&(body.len() as u16).to_be_bytes());
-        item.extend_from_slice(&body);
-        if let Some(path) = &self.spool_path {
-            item.extend_from_slice(path.to_string_lossy().as_bytes());
-        }
-        item
-    }
-
-    fn decode_item(item: &[u8]) -> Option<Self> {
-        if item.len() < 2 {
-            return None;
-        }
-        let body_len = u16::from_be_bytes([item[0], item[1]]) as usize;
-        if item.len() < 2 + body_len {
-            return None;
-        }
-        let path_bytes = &item[2 + body_len..];
-        let spool_path = if path_bytes.is_empty() {
-            None
-        } else {
-            Some(std::path::PathBuf::from(String::from_utf8_lossy(path_bytes).into_owned()))
-        };
-        Self::decode_body(&item[2..2 + body_len], spool_path)
     }
 }
 
@@ -261,10 +248,11 @@ fn resolve_upload(state: &OptionsState) -> bool {
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
-    remote: Option<Arc<Remote>>,
-    // Proxy mode: all remote work is delegated to the per-machine proxy
-    // over a unix socket; this process runs no gRPC client at all.
-    proxy: Option<ProxyClient>,
+    // All remote work is delegated to the per-machine proxy over a unix
+    // socket; this process runs no gRPC client at all. Always present: an
+    // unconfigured socket resolves to the well-known path, and a proxy that is
+    // not listening degrades per op rather than up front.
+    proxy: ProxyClient,
     // The account/project this build's cache belongs to, declared to the proxy
     // so it routes to the right instance. Empty for an Xcode ⌘B build (no CLI
     // env); the proxy then falls back to its primed cas_path mapping.
@@ -280,11 +268,9 @@ struct CasState {
     remote_hits: Mutex<std::collections::HashMap<Vec<u8>, Vec<u8>>>,
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
-    sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
     // Uploads value-object graphs on actioncache_put. Deliberately NOT hooked
     // on store_object: the compiler stores input ingests and scan trees every
     // build (warm included), and mirroring those re-uploads the world.
-    uploader: Prefetcher,
     // The client puts the same (key, value) many times per build; only the
     // first becomes a publication. Publish items carry unique spool paths, so
     // the queue's content dedup cannot do this.
@@ -293,10 +279,17 @@ struct CasState {
     // warm build re-fetches (read side) and re-compresses/re-hashes (publish
     // side) the same nodes once per referencing key.
     known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
-    publish_cache: Mutex<std::collections::HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
     stats_remote_entry_hits: AtomicU64,
-    stats_remote_node_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
+    // Both count keys that stay uncacheable for the life of the store generation
+    // (tuist/tuist#12245).
+    stats_unbacked_local_hits: AtomicU64,
+    stats_poisoned_puts: AtomicU64,
+    // Resolve hits whose association was NOT recorded because the graph had not
+    // materialized yet. Not a degradation: the key resolves again next build and
+    // is recorded then. A count that stays high across builds means graphs are
+    // not landing at all, which is a materialization problem, not a cache one.
+    stats_deferred_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
     // above the local-replay floor due to fetching, as opposed to overheads.
@@ -311,8 +304,6 @@ struct CasState {
     stats_mat_store: OpStats,
     stats_mat_store_bytes: AtomicU64,
     stats_local_put_ms: AtomicU64,
-    stats_upload_walk_loads: AtomicU64,
-    stats_manifest_entries: AtomicU64,
 }
 
 /// Process CPU (user+system) in milliseconds, for attributing wall-time gaps
@@ -512,17 +503,23 @@ pub unsafe extern "C" fn llcas_cas_create(
         return std::ptr::null_mut();
     }
 
-    let explicit_socket = std::env::var("TUIST_CAS_PROXY_SOCKET")
+    // All remote work goes through the proxy, so there is always one to address:
+    // an unset socket falls back to the well-known path rather than disabling
+    // remote caching, because the Xcode ⌘B case carries no CLI environment and
+    // would otherwise silently build local-only. If nothing is listening there
+    // the connect fails per op and we degrade to the local CAS.
+    let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")
         .ok()
-        .filter(|socket| !socket.is_empty());
-    let has_direct_endpoint = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").is_ok();
-    // Proxy mode when a socket is given, or (the Xcode ⌘B case, which carries
-    // no CLI environment) when no direct endpoint is configured: fall back to
-    // the well-known proxy socket so a running proxy is used, else the
-    // connect fails and we degrade to the local CAS. Direct mode is bench-only.
-    let proxy = explicit_socket
-        .or_else(|| (!has_direct_endpoint).then(default_proxy_socket))
-        .map(|socket_path| ProxyClient { socket_path });
+        .filter(|socket| !socket.is_empty())
+        .unwrap_or_else(default_proxy_socket);
+    let proxy = ProxyClient { socket_path };
+    // Logged once per CAS create: a build that degrades to local-only (proxy
+    // unreachable) is otherwise indistinguishable from a cold cache, since both
+    // just emit misses.
+    log_line(&format!(
+        "cas create: proxy={:?} cas_dir={:?}",
+        proxy.socket_path, state.ondisk_path,
+    ));
     // The account/project this build's cache belongs to, routed to the proxy.
     // Prefer the `tuist-instance` plugin option (baked into build settings by
     // `tuist generate`, so it reaches every compiler frontend including an Xcode
@@ -537,12 +534,6 @@ pub unsafe extern "C" fn llcas_cas_create(
             _ => String::new(),
         }
     });
-    let remote = if proxy.is_some() {
-        None
-    } else {
-        RemoteConfig::from_env().map(|config| Remote::new(config, TokenProvider::from_env()))
-    };
-    let has_remote = remote.is_some();
     let cas_dir = state
         .ondisk_path
         .as_ref()
@@ -551,59 +542,26 @@ pub unsafe extern "C" fn llcas_cas_create(
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
-        remote,
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
         created_at: std::time::Instant::now(),
         cas_dir,
-        sweeper: Mutex::new(None),
-        uploader: Prefetcher::new(),
         published: Mutex::new(std::collections::HashSet::new()),
         remote_hits: Mutex::new(std::collections::HashMap::new()),
         known_local: Mutex::new(std::collections::HashSet::new()),
-        publish_cache: Mutex::new(std::collections::HashMap::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
-        stats_remote_node_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
+        stats_unbacked_local_hits: AtomicU64::new(0),
+        stats_poisoned_puts: AtomicU64::new(0),
+        stats_deferred_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
         stats_client_store: OpStats::default(),
         stats_client_store_bytes: AtomicU64::new(0),
         stats_mat_store: OpStats::default(),
         stats_mat_store_bytes: AtomicU64::new(0),
         stats_local_put_ms: AtomicU64::new(0),
-        stats_upload_walk_loads: AtomicU64::new(0),
-        stats_manifest_entries: AtomicU64::new(0),
     }));
-    if has_remote {
-        let cas_addr = state_ptr as usize;
-        (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |item| {
-            upload_process(cas_addr, item);
-        });
-        // Spawn a sweeper only when there is something to sweep: most
-        // processes find an empty spool, and a per-process thread plus its
-        // dispose-join costs real wall time multiplied by thousands of
-        // short-lived compiler processes.
-        let has_spool_entries = spool_dir(&*state_ptr)
-            .and_then(|dir| std::fs::read_dir(dir).ok())
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false);
-        if has_spool_entries {
-            *(*state_ptr).sweeper.lock().unwrap() = Some(std::thread::spawn(move || {
-                // Only processes that live a while sweep: a short-lived
-                // frontend claiming records it cannot finish just bounces
-                // them back to the spool.
-                for _ in 0..75 {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
-                    let state = cas_state(cas_addr as llcas_cas_t);
-                    if state.uploader.is_shutdown() {
-                        return;
-                    }
-                }
-                sweep_spool(cas_addr);
-            }));
-        }
-    }
     state_ptr as llcas_cas_t
 }
 
@@ -611,46 +569,6 @@ fn spool_dir(state: &CasState) -> Option<std::path::PathBuf> {
     state.cas_dir.as_ref().map(|dir| dir.join("tuist-spool"))
 }
 
-/// Requeues publications left behind by processes that died before their
-/// uploader finished (most compiler processes exit without disposing the
-/// CAS). Every plugin instance with a remote sweeps once at creation; files
-/// are claimed by rename so concurrent sweepers do not duplicate work, and
-/// claims from dead pids are re-claimable.
-fn sweep_spool(cas_addr: usize) {
-    let state = unsafe { cas_state(cas_addr as llcas_cas_t) };
-    let Some(dir) = spool_dir(state) else { return };
-    let Ok(entries) = std::fs::read_dir(&dir) else { return };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        let base = if let Some((base, claim_pid)) = name.split_once(".claim-") {
-            // A claim from a live process is in flight; a dead claimant's
-            // record is fair game again.
-            let alive = claim_pid
-                .parse::<i32>()
-                .map(|pid| unsafe { libc::kill(pid, 0) } == 0)
-                .unwrap_or(false);
-            if alive {
-                continue;
-            }
-            base.to_string()
-        } else {
-            name.to_string()
-        };
-        let claimed = dir.join(format!("{base}.claim-{}", std::process::id()));
-        if std::fs::rename(&path, &claimed).is_err() {
-            continue;
-        }
-        if let Ok(bytes) = std::fs::read(&claimed) {
-            if let Some(record) = PublishRecord::decode_body(&bytes, Some(claimed.clone())) {
-                state.uploader.enqueue(record.encode_item());
-            } else {
-                let _ = std::fs::remove_file(&claimed);
-            }
-        }
-    }
-}
 
 /// Writes the publication's write-ahead record. Returns the path the worker
 /// deletes after a successful publish.
@@ -683,39 +601,28 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
-        // whatever is still queued is spooled for later processes to upload.
-        let drain_budget = std::env::var("TUIST_CAS_DRAIN_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(50);
-        let drain_started = std::time::Instant::now();
-        // Leftovers are simply dropped: each publication's write-ahead record
-        // survives on disk and a later sweep completes it.
-        let leftovers = state
-            .uploader
-            .drain_stop_timeout(std::time::Duration::from_millis(drain_budget));
-        let spooled = leftovers.len();
-        if let Some(sweeper) = state.sweeper.lock().unwrap().take() {
-            let _ = sweeper.join();
-        }
-        if let Some(remote) = &state.remote {
-            let drain_ms = drain_started.elapsed().as_millis();
+
+        // A summary only: most compiler processes exit without disposing (see the
+        // PublishRecord note above), so the per-event lines are the real signal.
+        // This does cover the build system's own instance, which issues the gets.
+        let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
+        let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
+        if unbacked > 0 || poisoned > 0 {
             log_line(&format!(
-                "dispose: drain={drain_ms}ms spooled={spooled} cpu={}ms life={}ms walks up={} remote entry hits={} manifest entries={} blobs fetched={} misses={} demand_wait={}ms | gets {} | posts {}",
-                process_cpu_ms(),
-                state.created_at.elapsed().as_millis(),
-                state.stats_upload_walk_loads.load(Ordering::Relaxed),
-                state.stats_remote_entry_hits.load(Ordering::Relaxed),
-                state.stats_manifest_entries.load(Ordering::Relaxed),
-                state.stats_remote_node_hits.load(Ordering::Relaxed),
-                state.stats_remote_misses.load(Ordering::Relaxed),
-                state.stats_demand_wait_ms.load(Ordering::Relaxed),
-                remote.get_stats.summary(),
-                remote.post_stats.summary(),
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
             ));
         }
-        // Ingestion counters are logged with or without a remote so a floor
-        // build produces the same accounting as a warm-remote build.
+        // Deliberately NOT part of `degraded:`. A deferral is the expected
+        // outcome whenever a resolve outruns its materialization, so a cold build
+        // defers routinely and reporting that as degradation would train the
+        // reader to ignore the line that does mean something. What matters is the
+        // trend across builds, not its presence in one.
+        let deferred = state.stats_deferred_puts.load(Ordering::Relaxed);
+        if deferred > 0 {
+            log_line(&format!("deferred_puts={deferred}"));
+        }
+        // Ingestion counters, logged whether or not this build reached the
+        // proxy, so a floor build produces the same accounting as a warm one.
         if state.stats_client_store.count.load(Ordering::Relaxed) > 0
             || state.stats_mat_store.count.load(Ordering::Relaxed) > 0
         {
@@ -735,22 +642,6 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
     drop(Box::from_raw(state_ptr));
 }
 
-/// Diagnostic: records which executable missed which key remotely, so miss
-/// populations can be attributed to task classes and compared across builds.
-fn log_miss(key: &[u8]) {
-    static EXE: OnceLock<String> = OnceLock::new();
-    let exe = EXE.get_or_init(|| {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-            .unwrap_or_else(|| "unknown".into())
-    });
-    let mut hex = String::with_capacity(key.len() * 2);
-    for byte in key {
-        hex.push_str(&format!("{byte:02x}"));
-    }
-    log_line(&format!("miss exe={exe} key={hex}"));
-}
 
 pub fn log_line(message: &str) {
     if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
@@ -806,8 +697,8 @@ pub unsafe extern "C" fn llcas_cas_prune_ondisk_data(cas: llcas_cas_t, error: *m
     // re-fetching them and hand back a broken graph. Prune is infrequent, so the
     // occasional re-warm from an over-broad invalidation is cheap.
     state.known_local.lock().unwrap().clear();
-    if let (Some(client), Some(cas_dir)) = (&state.proxy, &state.cas_dir) {
-        let _ = client.invalidate(&cas_dir.to_string_lossy());
+    if let Some(cas_dir) = &state.cas_dir {
+        let _ = state.proxy.invalidate(&cas_dir.to_string_lossy());
     }
     result
 }
@@ -949,6 +840,28 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 
 // --- Read-through: object loads -----------------------------------------------
 
+/// Printed form (`0~...`), so a log line can be matched against the
+/// `missing object '0~...'` a build reports.
+unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
+    let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+    let mut printed: *mut c_char = std::ptr::null_mut();
+    let mut print_error: *mut c_char = std::ptr::null_mut();
+    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut printed, &mut print_error);
+    if !print_error.is_null() {
+        (state.up.llcas_string_dispose)(print_error);
+    }
+    if failed || printed.is_null() {
+        return hex(&digest_bytes(state, id));
+    }
+    let text = CStr::from_ptr(printed).to_string_lossy().into_owned();
+    (state.up.llcas_string_dispose)(printed);
+    text
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
     if digest.data.is_null() || digest.size == 0 {
@@ -957,45 +870,6 @@ unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     std::slice::from_raw_parts(digest.data, digest.size).to_vec()
 }
 
-/// Stores one fetched node into the upstream local CAS.
-unsafe fn store_node(state: &CasState, node: &reapi::Node) -> bool {
-    let mut ref_ids = Vec::with_capacity(node.refs.len());
-    for reference in &node.refs {
-        let digest = llcas_digest_t { data: reference.as_ptr(), size: reference.len() };
-        let mut id = llcas_objectid_t { opaque: 0 };
-        let mut id_error: *mut c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest, &mut id, &mut id_error) {
-            if !id_error.is_null() {
-                (state.up.llcas_string_dispose)(id_error);
-            }
-            return false;
-        }
-        ref_ids.push(id);
-    }
-    let data = llcas_data_t { data: node.data.as_ptr() as *const c_void, size: node.data.len() };
-    let mut stored = llcas_objectid_t { opaque: 0 };
-    let mut store_error: *mut c_char = std::ptr::null_mut();
-    let started = std::time::Instant::now();
-    let failed = (state.up.llcas_cas_store_object)(
-        state.cas,
-        data,
-        ref_ids.as_ptr(),
-        ref_ids.len(),
-        &mut stored,
-        &mut store_error,
-    );
-    state.stats_mat_store.record(started.elapsed());
-    state
-        .stats_mat_store_bytes
-        .fetch_add(node.data.len() as u64, Ordering::Relaxed);
-    if failed {
-        if !store_error.is_null() {
-            (state.up.llcas_string_dispose)(store_error);
-        }
-        return false;
-    }
-    true
-}
 
 unsafe fn load_object_impl(
     state: &CasState,
@@ -1012,33 +886,39 @@ unsafe fn load_object_impl(
     // node is produced: FETCH_OBJECT blocks until the proxy has it (present,
     // mid-materialization, or fetched on demand), then the local load retries.
     if result == LLCAS_LOOKUP_RESULT_NOTFOUND {
-        if let Some(client) = &state.proxy {
-            let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
-            let digest = std::slice::from_raw_parts(digest.data, digest.size);
-            let cas_path = state
-                .cas_dir
-                .as_ref()
-                .map(|dir| dir.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            match client.fetch_object(&cas_path, &state.proxy_instance, digest) {
-                Ok(true) => {
-                    if !upstream_error.is_null() {
-                        (state.up.llcas_string_dispose)(upstream_error);
-                    }
-                    upstream_error = std::ptr::null_mut();
-                    let retried = (state.up.llcas_cas_load_object)(
-                        state.cas,
-                        id,
-                        loaded,
-                        &mut upstream_error,
-                    );
-                    adopt_error(state.up, upstream_error, error);
-                    return retried;
+        let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+        let digest = std::slice::from_raw_parts(digest.data, digest.size);
+        let cas_path = state
+            .cas_dir
+            .as_ref()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        match state.proxy.fetch_object(&cas_path, &state.proxy_instance, digest) {
+            Ok(true) => {
+                if !upstream_error.is_null() {
+                    (state.up.llcas_string_dispose)(upstream_error);
                 }
-                Ok(false) => {}
-                Err(message) => {
-                    log_line(&format!("proxy fetch_object error: {message}"));
-                }
+                upstream_error = std::ptr::null_mut();
+                let retried =
+                    (state.up.llcas_cas_load_object)(state.cas, id, loaded, &mut upstream_error);
+                adopt_error(state.up, upstream_error, error);
+                return retried;
+            }
+            // The PROXY cannot produce it: not present, not pending, and not
+            // nameable from the snapshot's node table. Not the same as gone —
+            // kura may still hold the blob under a key we cannot name, which is
+            // what a resolve recovers and this cannot. Clang fails the build
+            // here. Correlate with the unbacked-hit line: a digest logged here
+            // that no such line names is an interior node, invisible to the
+            // root probe.
+            Ok(false) => {
+                log_line(&format!(
+                    "proxy fetch_object could not produce {}",
+                    printed_digest(state, id)
+                ));
+            }
+            Err(message) => {
+                log_line(&format!("proxy fetch_object error: {message}"));
             }
         }
     }
@@ -1073,9 +953,7 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
     let mut loaded = llcas_loaded_object_t { opaque: 0 };
     let mut probe_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
-        || (state.remote.is_none() && state.proxy.is_none())
-    {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);
         callback(ctx_cb, result, loaded, error);
@@ -1164,209 +1042,194 @@ unsafe fn actioncache_get_impl(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
+    let result = verified_local_get(state, key_digest, globally, p_value, error);
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
+        return result;
+    }
+
+    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
+    let client = &state.proxy;
+    let cas_path = state
+        .cas_dir
+        .as_ref()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    match client.resolve(&cas_path, &state.proxy_instance, key) {
+        Ok(Resolution::Hit(value_digest)) => {
+            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+            // Remember the association: the client re-puts replayed results
+            // at the end of its job, and re-publishing a (key, value) that
+            // just came FROM the remote is pure churn — a spool write on
+            // the compile path plus a proxy publish check per key
+            // (thousands per warm build). actioncache_put_remote skips
+            // puts that match this map.
+            state
+                .remote_hits
+                .lock()
+                .unwrap()
+                .insert(key.to_vec(), value_digest.clone());
+            let value_digest_t =
+                llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
+            let mut value_id = llcas_objectid_t { opaque: 0 };
+            let mut id_error: *mut c_char = std::ptr::null_mut();
+            if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
+                adopt_error(state.up, id_error, error);
+                return LLCAS_LOOKUP_RESULT_ERROR;
+            }
+            // Record the association ONLY once the graph it names is actually
+            // here. A resolve replies before materialization finishes (protocol
+            // v2 is non-blocking on purpose — this runs on the serial task-setup
+            // path), so putting unconditionally writes `key -> value` for a graph
+            // that may never arrive, and NOTHING can retract it: the ABI has no
+            // delete and a re-put with a different value is refused. That made
+            // this function an author of the very state `verified_local_get`
+            // exists to catch, with no prune involved — measured on a real build
+            // over an EMPTY store, which ended it holding 9 dangling roots.
+            //
+            // Skipping costs one extra resolve for this key, ONCE: the
+            // materialized root persists on disk, so the next build's resolve
+            // finds it present and records the association then. On the warm
+            // snapshot path the graph is already materialized, the probe passes,
+            // and nothing changes. The same ROOT-only probe as the read guard —
+            // an interior node still needs the load path's FETCH_OBJECT.
+            if value_graph_is_available(state, value_id) {
+                let mut put_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                    // Reachable BECAUSE of the verification: a stale association sends
+                    // its key here and the remote may answer a different digest, which
+                    // the store then refuses to cache. The resolve itself succeeded, so
+                    // failing would trade `missing object` for `cache poisoned`.
+                    let message = take_upstream_error(state.up, put_error);
+                    if adopt_put_failure(state, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
+                }
+            } else {
+                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
+            }
+            if !p_value.is_null() {
+                *p_value = value_id;
+            }
+            return LLCAS_LOOKUP_RESULT_SUCCESS;
+        }
+        Ok(Resolution::Miss) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
+        Err(message) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            log_line(&format!("proxy resolve error: {message}"));
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
+    }
+}
+
+/// The ROOT only, and a probe rather than a load: this runs on the thread that
+/// schedules every task in the build, so its cost is multiplied by every lookup
+/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
+/// write-through ordering, not to a graph walk here.
+///
+/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
+/// condition. A probe that errors counts as unavailable — falling through costs a
+/// resolve, serving an unbacked hit costs a build.
+unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
+    let mut probe_error: *mut c_char = std::ptr::null_mut();
+    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
+    if !probe_error.is_null() {
+        (state.up.llcas_string_dispose)(probe_error);
+    }
+    result == LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// The upstream local lookup, with a hit verified before it is served.
+///
+/// A local association does NOT imply its value graph is present — a prune can
+/// strand it — and nothing can retract it once it dangles (the ABI has no delete;
+/// a re-put with a different value is refused). Serving one hands the compiler an
+/// id that names nothing, permanently, because the local hit is what shadows the
+/// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
+///
+/// The write-side invariants keep this guard from being the only defense: an
+/// association is recorded only once its root is present, and materialization
+/// publishes a root only over a complete closure. This still runs, because a
+/// prune remains an author no writer controls.
+///
+/// So an unverifiable hit is reported as NOTFOUND and the caller's remote path
+/// takes over, which is also what repairs it.
+unsafe fn verified_local_get(
+    state: &CasState,
+    key_digest: llcas_digest_t,
+    globally: bool,
+    p_value: *mut llcas_objectid_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    // Every path must leave the slot defined: a client that passes an uninitialised
+    // `char **error` and reads it on SUCCESS must not see an indeterminate pointer.
+    if !error.is_null() {
+        *error = std::ptr::null_mut();
+    }
+    // Never the caller's slot: `p_value` is nullable and the verification needs
+    // an id to probe. Apple's plugin dereferences the pointer it is handed.
+    let mut value = llcas_objectid_t { opaque: 0 };
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || (state.remote.is_none() && state.proxy.is_none()) {
+        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut upstream_error);
+    if result == LLCAS_LOOKUP_RESULT_ERROR {
         adopt_error(state.up, upstream_error, error);
         return result;
     }
     if !upstream_error.is_null() {
         (state.up.llcas_string_dispose)(upstream_error);
     }
-
-    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
-    if let Some(client) = &state.proxy {
-        let cas_path = state
-            .cas_dir
-            .as_ref()
-            .map(|dir| dir.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        match client.resolve(&cas_path, &state.proxy_instance, key) {
-            Ok(Resolution::Hit(value_digest)) => {
-                state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
-                // Remember the association: the client re-puts replayed results
-                // at the end of its job, and re-publishing a (key, value) that
-                // just came FROM the remote is pure churn — a spool write on
-                // the compile path plus a proxy publish check per key
-                // (thousands per warm build). actioncache_put_remote skips
-                // puts that match this map.
-                state
-                    .remote_hits
-                    .lock()
-                    .unwrap()
-                    .insert(key.to_vec(), value_digest.clone());
-                let value_digest_t =
-                    llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
-                let mut value_id = llcas_objectid_t { opaque: 0 };
-                let mut id_error: *mut c_char = std::ptr::null_mut();
-                if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
-                    adopt_error(state.up, id_error, error);
-                    return LLCAS_LOOKUP_RESULT_ERROR;
-                }
-                // The local association outlives the value graph (the build
-                // system prunes the store several times per build), so a later
-                // get can hit it locally with the objects gone. That is safe
-                // ONLY because the load path self-heals: a local load miss
-                // consults the proxy (FETCH_OBJECT), whose fetch instructions
-                // are retained after materialization and also cover locally
-                // published nodes — clang fails the build outright on a
-                // missing object, it does not recompile.
-                let mut put_error: *mut c_char = std::ptr::null_mut();
-                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                    adopt_error(state.up, put_error, error);
-                    return LLCAS_LOOKUP_RESULT_ERROR;
-                }
-                if !p_value.is_null() {
-                    *p_value = value_id;
-                }
-                return LLCAS_LOOKUP_RESULT_SUCCESS;
-            }
-            Ok(Resolution::Miss) => {
-                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            }
-            Err(message) => {
-                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-                log_line(&format!("proxy resolve error: {message}"));
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            }
-        }
+    if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+        return result;
     }
-    let remote = state.remote.as_ref().unwrap();
-    let manifest = match remote.get_action(key) {
-        Ok(Some(manifest)) if !manifest.is_empty() => manifest,
-        Ok(_) => {
-            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-            log_miss(key);
-            return LLCAS_LOOKUP_RESULT_NOTFOUND;
-        }
-        Err(message) => {
-            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-            log_line(&format!("get_action failed: {message}"));
-            return LLCAS_LOOKUP_RESULT_NOTFOUND;
-        }
-    };
-    state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
-    state
-        .stats_manifest_entries
-        .fetch_add(manifest.len() as u64, Ordering::Relaxed);
-
-    // The manifest names every blob in the value graph up front; fetch only
-    // what the local CAS lacks, in one batched round trip.
-    let missing: Vec<&ManifestEntry> = manifest
-        .iter()
-        .filter(|entry| {
-            if state
-                .known_local
-                .lock()
-                .unwrap()
-                .contains(&entry.llcas_digest)
-            {
-                return false;
-            }
-            let digest_t =
-                llcas_digest_t { data: entry.llcas_digest.as_ptr(), size: entry.llcas_digest.len() };
-            let mut id = llcas_objectid_t { opaque: 0 };
-            let mut id_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
-                if !id_error.is_null() {
-                    (state.up.llcas_string_dispose)(id_error);
-                }
-                return true;
-            }
-            // Authoritative presence check: an actual load, the same call the
-            // consumer will make.
-            let mut loaded = llcas_loaded_object_t { opaque: 0 };
-            let mut check_error: *mut c_char = std::ptr::null_mut();
-            let present = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut check_error);
-            if !check_error.is_null() {
-                (state.up.llcas_string_dispose)(check_error);
-            }
-            if present == LLCAS_LOOKUP_RESULT_SUCCESS {
-                state
-                    .known_local
-                    .lock()
-                    .unwrap()
-                    .insert(entry.llcas_digest.clone());
-                return false;
-            }
-            true
-        })
-        .collect();
-    if !missing.is_empty() {
-        // Blobs the server inlined into the GetActionResult response (see
-        // reapi::ManifestEntry::contents) need no second round-trip;
-        // batch-read only the remainder.
-        let digests: Vec<_> = missing
-            .iter()
-            .filter(|entry| entry.contents.is_none())
-            .map(|entry| entry.blob.clone())
-            .collect();
-        let contents = if digests.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            match remote.batch_read(&digests) {
-                Ok(contents) => contents,
-                Err(message) => {
-                    log_line(&format!("batch_read failed: {message}"));
-                    return LLCAS_LOOKUP_RESULT_NOTFOUND;
-                }
-            }
-        };
-        for entry in &missing {
-            // An unreadable or absent blob means the published graph is
-            // incomplete; degrade to a miss and let the client recompute.
-            let Some(blob) = entry
-                .contents
-                .as_ref()
-                .or_else(|| contents.get(&entry.blob.hash))
-            else {
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            };
-            let Some(frame) = reapi::decompress_frame(blob) else {
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            };
-            let Some(node) = reapi::decode_frame(&frame) else {
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            };
-            if !store_node(state, &node) {
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
-            }
-            state
-                .known_local
-                .lock()
-                .unwrap()
-                .insert(entry.llcas_digest.clone());
-            state.stats_remote_node_hits.fetch_add(1, Ordering::Relaxed);
-        }
+    if !value_graph_is_available(state, value) {
+        state.stats_unbacked_local_hits.fetch_add(1, Ordering::Relaxed);
+        log_line(&format!(
+            "unbacked local hit, falling through to the remote: value={}",
+            printed_digest(state, value)
+        ));
+        return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
-    let value_digest = manifest[0].llcas_digest.clone();
-
-    let value_digest_t = llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
-    let mut value_id = llcas_objectid_t { opaque: 0 };
-    let mut id_error: *mut c_char = std::ptr::null_mut();
-    if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
-        adopt_error(state.up, id_error, error);
-        return LLCAS_LOOKUP_RESULT_ERROR;
-    }
-
-    let mut put_error: *mut c_char = std::ptr::null_mut();
-    let put_started = std::time::Instant::now();
-    let put_failed =
-        (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error);
-    state
-        .stats_local_put_ms
-        .fetch_add(put_started.elapsed().as_millis() as u64, Ordering::Relaxed);
-    if put_failed {
-        adopt_error(state.up, put_error, error);
-        return LLCAS_LOOKUP_RESULT_ERROR;
-    }
-
     if !p_value.is_null() {
-        *p_value = value_id;
+        *p_value = value;
     }
     LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// Whether a put failure is the store declining to CHANGE an existing
+/// association, rather than a real storage error.
+///
+/// An association is immutable for the life of the store generation, and the
+/// verification above drives recompiles on exactly the stale keys, so a
+/// non-reproducible recompile reaches this often. Surfacing it would only trade a
+/// `missing object` build failure for a `cache poisoned` one.
+///
+/// Matched on the message because the ABI reports every put failure identically.
+/// Apple's wording is not a contract, so `adopt_put_failure` logs EVERY failure and
+/// a missed variant shows up in TUIST_CAS_LOG rather than failing a build. Both
+/// words are required: a false positive also publishes the value remotely. Two
+/// substrings, not the exact phrase, to survive rewording.
+fn is_cache_poisoned(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    message.contains("poison") && message.contains("cache")
+}
+
+/// A refused association is not fatal: the store keeps what it already had and the
+/// caller carries on.
+unsafe fn adopt_put_failure(state: &CasState, message: &str, error: *mut *mut c_char) -> bool {
+    log_line(&format!("actioncache put failed: {message}"));
+    if is_cache_poisoned(message) {
+        state.stats_poisoned_puts.fetch_add(1, Ordering::Relaxed);
+        // Reported as a success, so the slot must not be left carrying an error.
+        if !error.is_null() {
+            *error = std::ptr::null_mut();
+        }
+        return false;
+    }
+    set_error(error, message);
+    true
 }
 
 #[no_mangle]
@@ -1395,25 +1258,12 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 ) {
     let state = cas_state(cas);
     let key_bytes = std::slice::from_raw_parts(key.data, key.size).to_vec();
-
-    // Fast path: answer local hits synchronously.
-    let mut value = llcas_objectid_t { opaque: 0 };
-    let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || (state.remote.is_none() && state.proxy.is_none()) {
-        let _ = ours_cancel_token(cancel_tok);
-        let error = adopt_upstream_string(state.up, probe_error);
-        callback(ctx_cb, result, value, error);
-        return;
-    }
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
-    }
-
     let _ = ours_cancel_token(cancel_tok);
-    // Answered on the caller's thread; see llcas_cas_load_object_async.
+
+    // Answered on the caller's thread; see llcas_cas_load_object_async. Do not
+    // reintroduce a local "fast path" here: it saves nothing (this is synchronous
+    // either way), and a second home for the local decision is how this entry point
+    // came to be missing the verification the sync one had.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1427,7 +1277,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 }
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
-    if state.proxy.is_some() && state.upload {
+    if state.upload {
         let value_digest = digest_bytes(state, value);
         // This exact association was served FROM the remote earlier in this
         // process (see actioncache_get_impl): publishing it back is pure churn.
@@ -1450,169 +1300,15 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            if let Some(client) = &state.proxy {
-                // Failure is fine: the record survives for the proxy sweep.
-                let _ = client.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
-            }
+            // Failure is fine: the record survives for the proxy sweep.
+            let _ =
+                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
         }
         return;
     }
-    if state.remote.is_some() && state.upload {
-        if std::env::var("TUIST_CAS_LOG_PUTS").is_ok() {
-            let mut hex = String::with_capacity(key.len() * 2);
-            for byte in key {
-                hex.push_str(&format!("{byte:02x}"));
-            }
-            log_line(&format!("put key={hex}"));
-        }
-        let value_digest = digest_bytes(state, value);
-        if !state
-            .published
-            .lock()
-            .unwrap()
-            .insert((key.to_vec(), value_digest.clone()))
-        {
-            return;
-        }
-        let mut record = PublishRecord {
-            key: key.to_vec(),
-            value_digest,
-            spool_path: None,
-        };
-        record.spool_path = write_publish_record(state, &record);
-        state.uploader.enqueue(record.encode_item());
-    }
 }
 
-/// Loads a node from the local CAS and encodes its transport blob. Returns
-/// the compressed frame and the node's child digests.
-unsafe fn encode_node_blob(
-    state: &CasState,
-    digest: &[u8],
-) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
-    state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
-    let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
-    let mut id = llcas_objectid_t { opaque: 0 };
-    let mut id_error: *mut c_char = std::ptr::null_mut();
-    if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
-        if !id_error.is_null() {
-            (state.up.llcas_string_dispose)(id_error);
-        }
-        return Err("objectid".into());
-    }
-    let mut loaded = llcas_loaded_object_t { opaque: 0 };
-    let mut load_error: *mut c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-    if !load_error.is_null() {
-        (state.up.llcas_string_dispose)(load_error);
-    }
-    if result != LLCAS_LOOKUP_RESULT_SUCCESS {
-        return Err("local load".into());
-    }
-    let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
-    let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
-    let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-    let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
-    let mut ref_digests = Vec::with_capacity(count);
-    for index in 0..count {
-        let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-        ref_digests.push(digest_bytes(state, child));
-    }
-    let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
-    Ok((blob, ref_digests))
-}
 
-/// Uploader worker: completes one publication over REAPI. Fast-skips when
-/// this exact result is already published; otherwise walks the closure from
-/// the local CAS, uploads only the blobs the server reports missing, and
-/// publishes the ActionResult manifest LAST, so a reader can never observe
-/// an entry whose graph is incomplete. On failure the write-ahead record
-/// survives for a later sweep.
-fn upload_process(cas_addr: usize, item: Vec<u8>) {
-    unsafe {
-        let state = cas_state(cas_addr as llcas_cas_t);
-        let Some(remote) = &state.remote else { return };
-        let Some(record) = PublishRecord::decode_item(&item) else { return };
-
-        let outcome = (|| -> Result<(), String> {
-            // Existence probe: only the first entry's digest is compared, so
-            // skip the wildcard inline hint the resolve path uses.
-            if let Ok(Some(manifest)) = remote.probe_action(&record.key) {
-                if manifest.first().map(|entry| entry.llcas_digest.as_slice())
-                    == Some(record.value_digest.as_slice())
-                {
-                    return Ok(());
-                }
-            }
-
-            // Walk the closure from the shared local CAS, root first. Shared
-            // subtrees appear in many closures; the publish cache makes each
-            // unique node's load + compress + hash happen once per process.
-            let mut entries: Vec<ManifestEntry> = Vec::new();
-            let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
-            let mut visited = std::collections::HashSet::new();
-            let mut pending = std::collections::VecDeque::from([record.value_digest.clone()]);
-            while let Some(digest) = pending.pop_front() {
-                if !visited.insert(digest.clone()) {
-                    continue;
-                }
-                if let Some((blob_digest, children)) =
-                    state.publish_cache.lock().unwrap().get(&digest).cloned()
-                {
-                    entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
-                    blobs.push(None);
-                    pending.extend(children);
-                    continue;
-                }
-                let (blob, children) = encode_node_blob(state, &digest)?;
-                let blob_digest = reapi::blob_digest(&blob);
-                state
-                    .publish_cache
-                    .lock()
-                    .unwrap()
-                    .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
-                blobs.push(Some(blob));
-                pending.extend(children);
-            }
-
-            // Server-side dedup: upload only what the server lacks. Bytes
-            // dropped by the cache are re-encoded only if actually needed.
-            let missing =
-                remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
-            let missing_set: std::collections::HashSet<(String, i64)> = missing
-                .into_iter()
-                .map(|digest| (digest.hash, digest.size_bytes))
-                .collect();
-            let mut uploads: Vec<(reapi::Digest, Vec<u8>)> = Vec::new();
-            for (entry, blob) in entries.iter().zip(blobs) {
-                if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
-                    continue;
-                }
-                let bytes = match blob {
-                    Some(bytes) => bytes,
-                    None => encode_node_blob(state, &entry.llcas_digest)?.0,
-                };
-                uploads.push((entry.blob.clone(), bytes));
-            }
-            if !uploads.is_empty() {
-                remote.batch_update(uploads)?;
-            }
-            remote.update_action(&record.key, &entries)
-        })();
-
-        match outcome {
-            Ok(()) => {
-                if let Some(path) = &record.spool_path {
-                    let _ = std::fs::remove_file(path);
-                }
-            }
-            Err(reason) => {
-                log_line(&format!("publish failed ({reason}); record kept for sweep"));
-            }
-        }
-    }
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
@@ -1624,12 +1320,21 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
 ) -> bool {
     let state = cas_state(cas);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    adopt_error(state.up, upstream_error, error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        adopt_put_failure(state, &message, error)
+    } else {
+        adopt_error(state.up, upstream_error, error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: a panic here must neither fail the
         // already-succeeded local put nor unwind across the extern "C" boundary.
+        // A downgraded poisoned put publishes too, deliberately: the local
+        // association can never be changed, so the remote becomes the healed truth
+        // that later builds resolve to.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             actioncache_put_remote(state, &key, value)
         }));
@@ -1650,8 +1355,15 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let state = cas_state(cas);
     let _ = ours_cancel_token(cancel_tok);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    let error = adopt_upstream_string(state.up, upstream_error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let mut error: *mut c_char = std::ptr::null_mut();
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        adopt_put_failure(state, &message, &mut error)
+    } else {
+        adopt_error(state.up, upstream_error, &mut error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: swallow panics so they cannot fail the
@@ -1661,4 +1373,25 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
         }));
     }
     callback(ctx_cb, failed, error);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // tests/unbacked_local_hit.rs covers the behaviour end to end against Apple's
+    // plugin. What it cannot reach is the other branch: a real storage error must
+    // stay a failure, or the downgrade would swallow every problem the store hits.
+    #[test]
+    fn only_a_refused_association_counts_as_poisoning() {
+        // The wording observed on Xcode 26.3, plus rewordings it should survive.
+        assert!(is_cache_poisoned("ERROR : cache poisoned"));
+        assert!(is_cache_poisoned("Cache Poisoned"));
+        assert!(is_cache_poisoned("the cache is poisoned"));
+
+        assert!(!is_cache_poisoned(""));
+        assert!(!is_cache_poisoned("No space left on device"));
+        assert!(!is_cache_poisoned("failed to open the action cache"));
+        assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
 }

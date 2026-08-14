@@ -13,6 +13,7 @@ node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  max_ttl: [authorization_code: 300],
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
     clients: Tuist.OAuth.Clients,
@@ -107,6 +108,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
@@ -117,12 +119,19 @@ config :logger, :console,
   metadata: [
     :request_id,
     :request_kind,
+    :method,
+    :route,
+    :request_path,
+    :status,
+    :duration_ms,
     :auth_account_handle,
     :selected_account_handle,
     :selected_project_handle,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    :session_payload_bytes,
+    :warning_threshold_bytes,
     # Tuist.Runners structured fields
     :pod_uid,
     :pod_name,
@@ -144,6 +153,7 @@ config :logger, :console,
     :pod_image,
     :pool_image,
     :fleet,
+    :node,
     :state,
     :connection_id,
     :reported_pod,
@@ -166,10 +176,21 @@ config :logger, :console,
     :stale_after_seconds,
     :verify_after_seconds,
     :reap_after_seconds,
+    :confirmed_absent_seconds,
+    :observed_pods,
+    :claims,
+    :missing,
+    :newly_marked,
+    :recovered,
+    :released,
+    :eligible,
+    :cap,
+    :workflow_job_ids,
     :enqueued_at,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    :repository,
     :conclusion,
     :ours,
     :winner,
@@ -220,6 +241,7 @@ config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 

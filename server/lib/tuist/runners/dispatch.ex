@@ -25,7 +25,7 @@ defmodule Tuist.Runners.Dispatch do
        no such coupling.
     2. Reject if runners aren't enabled for the customer
        (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
-       flag in production).
+       flag in canary and production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -198,6 +198,15 @@ defmodule Tuist.Runners.Dispatch do
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
+
+      {:error, reason} ->
+        Logger.error("runners: failed to enqueue webhook job",
+          repo: full_name,
+          workflow_job_id: Map.get(job, "id"),
+          reason: inspect(reason)
+        )
+
+        {:error, reason}
     end
   end
 
@@ -363,9 +372,15 @@ defmodule Tuist.Runners.Dispatch do
                 conclusion
               )
 
-            ignored ->
-              ignored
+            other ->
+              other
           end
+
+        # Any other failure of the completion write (a rolled-back
+        # transaction, an ordering lock we could not take) is transient, so
+        # the reason goes back to the worker for a retry.
+        {:error, reason} ->
+          {:error, reason}
       end
     end)
   end
@@ -384,7 +399,7 @@ defmodule Tuist.Runners.Dispatch do
     # framework noise, and step content streams directly from the
     # .NET Worker to GitHub's `ResultsLog`. See
     # `Tuist.Runners.Workers.FetchLogsWorker`.
-    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, raw_steps)
 
     Logger.info("runners: completed",
       workflow_job_id: workflow_job_id,
@@ -408,16 +423,31 @@ defmodule Tuist.Runners.Dispatch do
     else
       {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
         {:ignored, reason}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "", _raw_steps) do
     # Cancelled / synthetic workflow_jobs sometimes ship without a
     # repository field. Without it we can't address the Logs API.
     :ok
   end
 
-  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, _repository, []) do
+    # A completed job that reports no steps never executed: either it
+    # was `skipped` by an `if:` gate, or `cancelled` while still queued
+    # so no runner ever picked it up. GitHub uploads no log archive for
+    # that class, and its Logs API answers 404 forever — not the
+    # ~30 s finalisation window the fetch worker retries through. Left
+    # unfiltered, every one of these burns all five attempts before
+    # discarding. A job cancelled mid-run does report its steps and
+    # does have a (partial) log, so it still goes through.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, _raw_steps) do
     %{
       workflow_job_id: workflow_job_id,
       account_id: account_id,

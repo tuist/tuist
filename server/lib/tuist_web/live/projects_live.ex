@@ -35,16 +35,21 @@ defmodule TuistWeb.ProjectsLive do
   end
 
   @impl true
-  def handle_params(params, uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
+    uri = URI.parse(uri)
+    uri = %{uri | query: URI.encode_query(params)}
+
     selected_account = socket.assigns[:selected_account]
     total_project_count = Projects.get_project_count_for_account(selected_account)
 
     {:noreply,
      socket
+     |> assign(:current_params, params)
      |> assign(:total_project_count, total_project_count)
      |> assign_projects(params, total_project_count)
      |> assign(:search_term, Map.get(params, "search", ""))
-     |> assign(:uri, URI.parse(uri))}
+     |> assign(:uri, uri)}
   end
 
   defp assign_projects(socket, _params, total_project_count) when total_project_count <= @pagination_threshold do
@@ -120,7 +125,6 @@ defmodule TuistWeb.ProjectsLive do
   def render(assigns) do
     ~H"""
     <div id="projects">
-      <h1 data-part="page-title">{@selected_account.name}</h1>
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
         <.create_project_form

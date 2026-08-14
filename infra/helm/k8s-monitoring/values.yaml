@@ -37,6 +37,29 @@ grafanaCloud:
       item: TEMPO_TOKEN
       field: password
 
+# Optional management-cluster exporter for Hetzner load-balancer health and
+# traffic. It runs beside Cluster API so the signal remains available when a
+# workload cluster's own control endpoint is unreachable.
+hcloudLoadBalancerExporter:
+  enabled: false
+  namespace: org-tuist
+  image:
+    repository: wacken/hetzner-load-balancer-prometheus-exporter
+    tag: 1.7.0
+    pullPolicy: IfNotPresent
+  loadBalancerIds: all
+  scrapeIntervalSeconds: 30
+  tokenSecretRef:
+    name: hetzner
+    key: hcloud
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 192Mi
+
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
 # https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
@@ -48,7 +71,7 @@ k8s-monitoring:
     name: ""
 
   global:
-    scrapeInterval: 30s
+    scrapeInterval: 60s
 
   # v4 schema: destinations is a map keyed by destination name. Per-env
   # overlays merge into these entries (e.g. adding `extraLabels.env`) so
@@ -78,7 +101,7 @@ k8s-monitoring:
         }
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "node_network_(receive|transmit)_drop_total|traces_service_graph_request_.*"
+          regex = "traces_service_graph_request_.*"
           action = "drop"
         }
         write_relabel_config {
@@ -121,6 +144,40 @@ k8s-monitoring:
         name: k8s-monitoring-grafana-cloud
         namespace: observability
       extraLabels: {}
+      processors:
+        # Keep all failed and slow traces, then retain a representative sample
+        # of healthy traffic. Sampling after the trace completes preserves the
+        # diagnostic traces that head-based sampling could discard.
+        tailSampling:
+          enabled: true
+          decisionWait: 15s
+          # The chart's default cache object does not validate with Alloy 1.15.
+          decisionCache: null
+          numTraces: 5000
+          expectedNewTracesPerSec: 100
+          policies:
+            - name: errors
+              type: status_code
+              status_codes:
+                - ERROR
+            - name: slow
+              type: latency
+              threshold_ms: 2000
+            - name: healthy-sample
+              type: probabilistic
+              sampling_percentage: 25
+          collector:
+            alloy:
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            controller:
+              type: statefulset
+              replicas: 1
 
   # ───── Features ─────
 
@@ -176,9 +233,44 @@ k8s-monitoring:
         # container metrics. No-op for the runner pods cAdvisor never scrapes.
         excludeNamespaces:
           - tuist-runners
+      # Tart nodes never answer these. tart-kubelet is not a real kubelet:
+      # it serves no /metrics/cadvisor, /metrics/resource or /stats/summary,
+      # and the cluster has no route to a mini's CGNAT address anyway. The
+      # targets were failing on every scrape (40 of them in production, 3 per
+      # Tart node across the macos, runners and builders fleets), which is
+      # noise in the target list and a standing false signal for any
+      # "scrape target down" alerting.
+      #
+      # Nothing is lost by dropping them: host-level telemetry for these
+      # machines already arrives through the tailnet egress jobs further
+      # down (`tuist-macos-node-exporter` and `tuist-macos-tart-kubelet`,
+      # both `up == 1` on every Tart node in all three environments).
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
     kubelet:
       metricsTuning:
         useDefaultAllowList: true
+      # Same reason as cadvisor above.
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
+    kubeletResource:
+      metricsTuning:
+        useDefaultAllowList: true
+      # Same reason as cadvisor above.
+      extraRelabelingRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
     kube-state-metrics:
       # Do not blank the `pod` label on kube_pod_* metrics: relabeling
       # cannot aggregate duplicate samples, so that produces colliding
@@ -280,24 +372,56 @@ k8s-monitoring:
           # throughput against the Hetzner kura nodes.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
+          - node_network_receive_packets_total
+          - node_network_transmit_packets_total
+          - node_network_receive_drop_total
+          - node_network_transmit_drop_total
+          # NIC link-state + error signals so a host NIC/datapath flap is
+          # directly visible per-node. 2026-07-20 incident: the Postgres
+          # primary's node eth0 flapped for ~7s (isolating it from its
+          # replicas → a fleet-wide sync-commit stall), but with no NIC
+          # metric the flap was only *inferable* from Cilium's qdisc-reset
+          # burst, and the node's own journal was lost because its log
+          # shipper sat on the same isolated node. carrier_changes is the
+          # direct flap counter; `up` is the operstate; errs catch a virtio
+          # NIC dropping packets without toggling carrier.
+          - node_network_up
+          - node_network_carrier_changes_total
+          - node_network_receive_errs_total
+          - node_network_transmit_errs_total
+          # Disk service time and saturation identify a host storage stall
+          # even when etcd itself has not emitted an error.
+          - node_disk_io_time_seconds_total
+          - node_disk_read_time_seconds_total
+          - node_disk_write_time_seconds_total
+          - node_disk_reads_completed_total
+          - node_disk_writes_completed_total
+          # Retransmissions distinguish a network path interruption from
+          # application or storage latency.
+          - node_netstat_Tcp_OutSegs
+          - node_netstat_Tcp_RetransSegs
+          - node_timex_offset_seconds
       # The allow-list above keeps node_cpu_seconds_total for all CPU modes
-      # and node_network_*_bytes_total for every interface, but the dashboards
-      # only read mode="idle" and physical devices (device=~"e(n|th).*").
-      # Drop the unqueried CPU modes and the virtual interfaces — the largest
-      # node-exporter series source left after the curated allow-list.
+      # and every node_network_* series for every interface, but the
+      # dashboards/alerts only read mode="idle" and physical devices
+      # (device=~"e(n|th).*"). Drop the unqueried CPU modes and the virtual
+      # interfaces (the per-pod lxc* veths are the largest node-exporter
+      # series source left after the curated allow-list). The network rule
+      # matches all kept node_network_* metrics generically so the NIC
+      # link-state signals added above are trimmed to physical NICs too.
       # extraMetricProcessingRules runs after the allow-list keep, so it trims
       # within the kept set.
       extraMetricProcessingRules: |
         rule {
           source_labels = ["__name__", "mode"]
           separator = ";"
-          regex = "node_cpu_seconds_total;(guest|guest_nice|steal|irq|softirq)"
+          regex = "node_cpu_seconds_total;(guest|guest_nice|irq|softirq)"
           action = "drop"
         }
         rule {
           source_labels = ["__name__", "device"]
           separator = ";"
-          regex = "node_network_(receive|transmit)_bytes_total;(en|eth).*"
+          regex = "node_network_.*;(en|eth).*"
           target_label = "__tmp_keep_net_iface"
           replacement = "true"
           action = "replace"
@@ -305,7 +429,7 @@ k8s-monitoring:
         rule {
           source_labels = ["__name__", "__tmp_keep_net_iface"]
           separator = ";"
-          regex = "node_network_(receive|transmit)_bytes_total;"
+          regex = "node_network_.*;"
           action = "drop"
         }
         rule {
@@ -319,6 +443,48 @@ k8s-monitoring:
   podLogsViaLoki:
     enabled: true
     collector: alloy-logs
+    extraLogProcessingStages: |
+      // Each Tuist request produces one completion entry with its method, path,
+      // status, and duration. Sample routine responses while preserving every
+      // warning, error, and unsuccessful response.
+      stage.match {
+        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\\\[info\\\\] Request completed\""
+
+        stage.sampling {
+          rate = 0.1
+          drop_counter_reason = "tuist_request_completion_sampling"
+        }
+      }
+
+      // Kura cache misses return 404 as part of normal operation. Extract the
+      // ingress response status temporarily so successful responses and cache
+      // misses can be sampled without suppressing other client or server errors.
+      stage.match {
+        selector = "{service_name=~\"kura-.*-ingress-nginx\"}"
+
+        stage.regex {
+          expression = "^[^ ]+ - - \\[[^]]+\\] \"[A-Z]+ [^\"]+\" (?P<response_status>[0-9]{3}) "
+        }
+
+        stage.labels {
+          values = {
+            tmp_response_status = "response_status",
+          }
+        }
+      }
+
+      stage.match {
+        selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
+
+        stage.sampling {
+          rate = 0.1
+          drop_counter_reason = "kura_ingress_request_sampling"
+        }
+      }
+
+      stage.label_drop {
+        values = ["tmp_response_status"]
+      }
 
   # Node journald → Loki. The in-guest runner vitals probe is blind to a
   # host-side microVM teardown (kata-shim/qemu kill, containerd restart,
@@ -346,6 +512,62 @@ k8s-monitoring:
   # override to prometheus.io/* so the same annotations work for both
   # this chart and the embedded Prometheus that self-hosters opt into
   # via observability.enabled in the main Tuist chart.
+  #
+  # This is what scrapes the capi-scaleway-applesilicon operator's :8080
+  # (annotated in infra/helm/tuist/templates/capi-scaleway-applesilicon.yaml),
+  # including its custom capt_scaleway_applesilicon_machine_phase gauge.
+  #
+  # Alert to create in Grafana Cloud (PromQL) — runner host stuck terminal
+  # Failed. A host whose tart-kubelet config roll keeps failing (e.g.
+  # TartKubeletUpdateExceededRetries from a full disk or wedged sshd) goes
+  # terminal Failed and stops receiving operator updates while its Node may
+  # still serve — otherwise only visible via `kubectl get machine`:
+  #
+  #   max by (cluster, machine, fleet, failure_reason) (
+  #     capt_scaleway_applesilicon_machine_phase{phase="Failed", fleet="tuist-tuist-runners-fleet"}
+  #   ) == 1
+  #
+  # Group by failure_reason (and cluster) so the alert keeps that label —
+  # dropping it would render the summary's {{ $labels.failure_reason }} empty.
+  # phase and failure_reason move together (one series per machine), so
+  # grouping on failure_reason never splits a machine into two alerts.
+  #
+  # Recommended config:
+  #   - For: 30m   (a transient roll failure self-heals via the retry cap /
+  #                 config-drift clear; 30m means genuinely stuck)
+  #   - Severity: warning
+  #   - Summary: "Runner machine {{ $labels.machine }} stuck Failed
+  #              ({{ $labels.failure_reason }}) — not receiving operator
+  #              updates. Read the operator log for the real error before
+  #              clearing status.failureReason."
+  #   - Note: exactly one series per machine (recordMachinePhase clears the
+  #     prior phase on transition), so a recovered machine stops matching.
+  #
+  # Alert to create in Grafana Cloud (PromQL) — fleet short of its replicas.
+  # The gauge above is per-CR, so it cannot see a machine that was never
+  # created: a MachineSet whose infrastructure clone is rejected by the
+  # apiserver (`InfrastructureTemplateCloningFailed`, e.g. a MachineTemplate
+  # missing a field the schema requires) retries forever and emits no series
+  # at all. That is how a fleet ran at half capacity unnoticed — every
+  # remaining machine was Ready, so the Failed alert above stayed green.
+  # Count the fleet instead and compare against its chart replica count:
+  #
+  #   count by (cluster, fleet) (
+  #     capt_scaleway_applesilicon_machine_phase{fleet="tuist-tuist-macos-fleet"}
+  #   ) < 2
+  #
+  # Recommended config:
+  #   - For: 1h    (an adopt legitimately takes ~50 min end to end, and a
+  #                 planned roll deletes a Machine before its replacement
+  #                 finishes bootstrapping)
+  #   - Severity: warning
+  #   - Summary: "Fleet {{ $labels.fleet }} is short of its replicas — check
+  #              `kubectl -n tuist describe machineset` for a cloning error
+  #              before assuming the pool is empty."
+  #   - Note: the threshold is the fleet's `replicas` in
+  #     values-managed-<env>.yaml; bump both together when a fleet grows.
+  #     One alert per fleet whose replicas > 1 — a single-replica fleet is
+  #     already covered by the workload's own availability alerting.
   #
   # metricsPortName narrows the discovery output to a single target per
   # pod when the pod declares more than one container port. Without it,
@@ -538,6 +760,17 @@ k8s-monitoring:
                 - alloy_config_last_load_success_timestamp_seconds
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
+        - name: grafana-cloud-traces-sampler
+          labelSelectors:
+            app.kubernetes.io/name: k8s-monitoring-grafana-cloud-traces-sampler
+          metrics:
+            tuning:
+              useDefaultAllowList: false
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
 
   # ───── Collectors (Alloy instances) ─────
   #
@@ -546,6 +779,84 @@ k8s-monitoring:
   # upstream presets — without them the Alloy subchart defaults to a
   # DaemonSet, which is wrong for the singleton + receiver roles.
   collectors:
+    # One Pod per control-plane node, using the host network so etcd's
+    # loopback-only metrics endpoint stays private. This captures the control
+    # endpoint and etcd signals that distinguish a network interruption from
+    # request saturation, storage latency, or lost etcd leadership.
+    alloy-control-plane:
+      includeDestinations:
+        - grafana-cloud-metrics
+      controller:
+        type: daemonset
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - operator: Exists
+        priorityClassName: system-node-critical
+      alloy:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 192Mi
+      extraConfig: |
+        prometheus.scrape "tuist_kube_apiserver" {
+          targets = [{
+            "__address__" = "127.0.0.1:6443",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          forward_to = [prometheus.relabel.tuist_kube_apiserver.receiver]
+          job_name = "tuist-kube-apiserver"
+          scheme = "https"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+          bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+          tls_config {
+            ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+            server_name = "kubernetes"
+          }
+        }
+
+        prometheus.relabel "tuist_kube_apiserver" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|process_cpu_seconds_total|process_resident_memory_bytes|process_open_fds|process_max_fds|go_goroutines|go_gc_duration_seconds(_sum|_count)?|go_sched_latencies_seconds_(bucket|count|sum)|apiserver_current_inflight_requests|apiserver_flowcontrol_current_executing_requests|apiserver_flowcontrol_current_executing_seats|apiserver_flowcontrol_current_limit_seats|apiserver_flowcontrol_nominal_limit_seats|apiserver_flowcontrol_rejected_requests_total|apiserver_request_duration_seconds_(bucket|count|sum)|apiserver_request_terminations_total|apiserver_request_total|apiserver_admission_webhook_rejection_count"
+            action = "keep"
+          }
+          rule {
+            regex = "component|dry_run|group|resource|scope|subresource|version"
+            action = "labeldrop"
+          }
+
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+        }
+
+        prometheus.scrape "tuist_etcd" {
+          targets = [{
+            "__address__" = "127.0.0.1:2381",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          forward_to = [prometheus.relabel.tuist_etcd.receiver]
+          job_name = "tuist-etcd"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+        }
+
+        prometheus.relabel "tuist_etcd" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|process_cpu_seconds_total|process_resident_memory_bytes|process_open_fds|process_max_fds|go_goroutines|go_gc_duration_seconds(_sum|_count)?|etcd_server_has_leader|etcd_server_is_leader|etcd_server_leader_changes_seen_total|etcd_server_proposals_failed_total|etcd_server_proposals_pending|etcd_server_slow_apply_total|etcd_disk_wal_fsync_duration_seconds_(bucket|count|sum)|etcd_disk_backend_commit_duration_seconds_(bucket|count|sum)|etcd_network_peer_round_trip_time_seconds_(bucket|count|sum)|etcd_mvcc_db_total_size_in_bytes|etcd_mvcc_db_total_size_in_use_in_bytes"
+            action = "keep"
+          }
+
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+        }
+
     # Clustering lets multiple alloy-metrics replicas hash-partition the
     # scrape targets, so adding replicas linearly scales capacity. Required
     # by the clusterMetrics / hostMetrics / annotationAutodiscovery features.
@@ -556,6 +867,12 @@ k8s-monitoring:
         # keep flowing from the dedicated Dedibox/OVH cache boxes.
         tolerations:
           - key: tuist.dev/kura-cache
+            operator: Exists
+            effect: NoSchedule
+          # Keep scraping host/pod metrics from the tainted stable-egress
+          # gateway nodes — otherwise the egress pool is a monitoring blind spot
+          # and the egress alerts can't see it.
+          - key: tuist.dev/stable-egress
             operator: Exists
             effect: NoSchedule
       # Custom scrape jobs for the macOS fleet's node_exporter (:9100)
@@ -584,6 +901,32 @@ k8s-monitoring:
       # materialise these Services, so the discovery returns zero
       # targets and the scrape jobs are no-ops. No need to gate this
       # block behind a values flag.
+      #
+      # Alert to create in Grafana Cloud (PromQL) — runner-host disk buffer.
+      # The Mac minis accumulate Tart golden base images (~68G each) on the
+      # root APFS container; at ~6 goldens the disk fills and every operator
+      # SSH config update fails with "No space left on device" while the Node
+      # still reports Ready (tart-kubelet now also reports DiskPressure + a
+      # golden GC reclaims at 15% free, but the alert is the backstop). Keep
+      # at least a 10% free buffer:
+      #
+      #   100 * (
+      #     node_filesystem_avail_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #     /
+      #     node_filesystem_size_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #   ) < 10
+      #
+      # Recommended config:
+      #   - For: 15m   (ride out a scrape gap; well under the fill timescale)
+      #   - Severity: warning
+      #   - Summary: "Runner host {{ $labels.instance }} root disk
+      #              {{ $value | printf \"%.0f\" }}% free (< 10% buffer) —
+      #              Tart goldens filling the disk; the golden GC should be
+      #              reclaiming. Check tart-kubelet DiskPressure + ~/.tart/vms."
+      #   - Note: node_* series carry no fleet label; the machine-name prefix
+      #     `instance=~"tuist-tuist-runners-fleet-.*"` scopes to the runners
+      #     fleet (vs -macos-fleet-/-builders-fleet-). Add env="production"
+      #     to scope by environment.
       extraConfig: |
         // Discover all Services labelled tuist.dev/macmini-egress=true.
         // Materialised by infra/helm/tailscale-operator/templates/
@@ -618,16 +961,17 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_macos_node_exporter.output
           forward_to = [prometheus.relabel.tuist_macos_node_exporter.receiver]
           job_name = "tuist-macos-node-exporter"
-          scrape_interval = "30s"
+          scrape_interval = "60s"
           scrape_timeout = "10s"
 
           // Without this block, every alloy-metrics replica scrapes the
           // same target independently. The chart-default scrape blocks
           // (cadvisor, kubelet, kube-state-metrics, …) all opt in; the
           // five Tuist extraConfig blocks below did not, which manifested
-          // as 36 DPM (~18× the 2 DPM expected at 30s) on the `node_*` /
-          // `tart_kubelet_*` / `cnpg_*` series — a perfect match against
-          // the 18 alloy-metrics replicas the chart runs in production.
+          // as 36 data points per minute at the previous 30-second interval
+          // on the `node_*` / `tart_kubelet_*` / `cnpg_*` series — a perfect
+          // match against the 18 alloy-metrics replicas the chart runs in
+          // production.
           clustering {
             enabled = true
           }
@@ -673,9 +1017,64 @@ k8s-monitoring:
           // values.yaml — dashes → underscores per Alloy syntax).
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
           job_name = "tuist-macos-tart-kubelet"
-          scrape_interval = "30s"
+          scrape_interval = "60s"
           scrape_timeout = "10s"
 
+          clustering {
+            enabled = true
+          }
+        }
+
+        // PromEx metrics from the BEAM running inside the Tart guests
+        // (today: the xcresult-processor), reached through tart-kubelet's
+        // host-side forwarder on :9091.
+        //
+        // This has to come through the egress Services like every other
+        // mini port. The Pods carry `prometheus.io/scrape` annotations,
+        // but annotation autodiscovery resolves them to the guest's
+        // 100.64.0.0/10 address, which no ordinary cluster Pod can route
+        // to — only the Connector Pod's tailscaled knows those routes.
+        // That scrape has therefore never succeeded: `up == 0` on every
+        // Tart node in all three environments, which is why nothing from
+        // the macOS fleet has ever appeared in Grafana.
+        //
+        // Service-role discovery emits one target per (Service, port).
+        // Filter on both the port name and the processor fleet label:
+        // runner and builder minis publish the same Service ports, but
+        // they do not run a guest metrics endpoint on :9091.
+        discovery.relabel "tuist_macos_pod_metrics" {
+          targets = discovery.kubernetes.tuist_macmini_egress.targets
+          rule {
+            source_labels = ["__meta_kubernetes_service_port_name"]
+            regex = "pod-metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_service_label_tuist_dev_fleet"]
+            regex = ".*-macos-fleet"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_service_name"]
+            target_label = "instance"
+          }
+        }
+
+        prometheus.scrape "tuist_macos_pod_metrics" {
+          targets = discovery.relabel.tuist_macos_pod_metrics.output
+          // Top-level extraConfig sits OUTSIDE the chart's `declare`
+          // blocks, so `argument.metrics_destinations.value` is out of
+          // scope here. Forward straight to the concrete Grafana Cloud
+          // metrics destination (matches the `destinations` key in
+          // values.yaml — dashes → underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          job_name = "tuist-macos-pod-metrics"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          // Same reason as the node-exporter job above: without this,
+          // every alloy-metrics replica scrapes the target independently
+          // and multiplies the reported data points.
           clustering {
             enabled = true
           }
@@ -740,7 +1139,7 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_cnpg_instances.output
           forward_to = [prometheus.relabel.tuist_cnpg_instances.receiver]
           job_name = "tuist-cnpg-instances"
-          scrape_interval = "30s"
+          scrape_interval = "60s"
           scrape_timeout = "10s"
 
           clustering {
@@ -822,7 +1221,7 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_cnpg_pooler.output
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
           job_name = "tuist-cnpg-pooler"
-          scrape_interval = "30s"
+          scrape_interval = "60s"
           scrape_timeout = "10s"
 
           clustering {
@@ -872,13 +1271,83 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_cnpg_operator.output
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
           job_name = "tuist-cnpg-operator"
-          scrape_interval = "30s"
+          scrape_interval = "60s"
           scrape_timeout = "10s"
 
           clustering {
             enabled = true
           }
         }
+        // annotationAutodiscovery only scrapes Ready pods: the upstream
+        // feature-annotation-autodiscovery template (_pods.alloy.tpl) hardcodes
+        // a __meta_kubernetes_pod_ready=true keep with no values knob to relax
+        // it. So a Kura replica that is Running but still bootstrapping (/ready
+        // 503s until the bootstrap gate passes) goes unscraped for the whole
+        // pull — exactly when its kura_bootstrap_* / memory metrics are
+        // diagnostic. /metrics, unlike /ready, is not readiness-gated, so
+        // scrape those pods here.
+        //
+        // Under the same job="kura" as the Ready scrape (not a separate job) so
+        // existing job="kura" queries/alerts keep covering the bootstrap
+        // window. The ready="false" label marks the window and keeps these
+        // series distinct from the Ready ones (which carry no ready label), so a
+        // transient double-match at the readiness flip can't collide.
+        discovery.kubernetes "tuist_kura_unready" {
+          role = "pod"
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/name=kura"
+          }
+        }
+
+        discovery.relabel "tuist_kura_unready" {
+          targets = discovery.kubernetes.tuist_kura_unready.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase", "__meta_kubernetes_pod_ready"]
+            separator = ";"
+            regex = "Running;false"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "http"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:4000"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            target_label = "container"
+            replacement = "kura"
+          }
+          rule {
+            target_label = "ready"
+            replacement = "false"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_unready" {
+          targets = discovery.relabel.tuist_kura_unready.output
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          job_name = "kura"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
     # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
@@ -906,6 +1375,10 @@ k8s-monitoring:
           - key: tuist.dev/kura-cache
             operator: Exists
             effect: NoSchedule
+          # Keep tailing logs from the tainted stable-egress gateway nodes.
+          - key: tuist.dev/stable-egress
+            operator: Exists
+            effect: NoSchedule
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
@@ -915,3 +1388,39 @@ k8s-monitoring:
     # footprint of the upstream default.
     alloy-receiver:
       presets: [deployment]
+      # Loki push endpoint for workloads that cannot be tailed.
+      #
+      # Alloy's pod-log collection reads container log files from the node,
+      # which works for Linux pods and cannot work for a macOS Tart guest:
+      # the "pod" is a VM and the cluster has no route into it. `kubectl logs`
+      # fails on those pods too, because the apiserver cannot resolve the
+      # Tailscale-only kubelet hostnames. The xcresult-processor has therefore
+      # never had readable output by any route.
+      #
+      # Rather than give the application Grafana Cloud credentials, it pushes
+      # here over the tailnet and Alloy forwards using the credentials it
+      # already holds. `loki.source.api` serves the same
+      # /loki/api/v1/push contract the app's handler speaks, so no client-side
+      # auth is involved and the tailnet ACL is the access control.
+      alloy:
+        extraPorts:
+          - name: otlp-grpc
+            port: 4317
+            targetPort: 4317
+            protocol: TCP
+          - name: otlp-http
+            port: 4318
+            targetPort: 4318
+            protocol: TCP
+          - name: loki-push
+            port: 3100
+            targetPort: 3100
+            protocol: TCP
+      extraConfig: |
+        loki.source.api "tuist_tart_guests" {
+          http {
+            listen_address = "0.0.0.0"
+            listen_port = 3100
+          }
+          forward_to = [loki.write.grafana_cloud_logs.receiver]
+        }

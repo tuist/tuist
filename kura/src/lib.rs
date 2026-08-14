@@ -1,13 +1,16 @@
 mod accelerated_file_serving;
+mod action_cache_refs;
 mod analytics;
 mod app;
 mod artifact;
+mod auth;
+mod backfill;
 mod bandwidth;
 mod config;
 mod constants;
 mod enrollment;
-mod extension;
 mod failpoints;
+mod file_cache;
 mod geoip;
 mod http;
 mod io;

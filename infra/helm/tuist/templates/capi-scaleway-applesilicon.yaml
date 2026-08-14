@@ -315,6 +315,15 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # Scrape the operator's controller-runtime + custom metrics
+        # (capt_scaleway_applesilicon_machine_phase) into Grafana Cloud via
+        # the k8s-monitoring chart's annotation autodiscovery. Without this
+        # the :8080 endpoint is served but never scraped, so the
+        # machine-stuck-Failed alert has no metric to fire on.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
     spec:
@@ -346,6 +355,12 @@ spec:
             - --runner-cache-volume-gib={{ .gib }}
             {{- with .masterCapGib }}
             - --cache-volume-master-cap-gib={{ . }}
+            {{- end }}
+            {{- with .casGib }}
+            # Folded Xcode compilation-cache (CAS) budget within each
+            # per-account cache image. 0/unset keeps the compilation cache
+            # VM-local; the binary cache is unaffected.
+            - --cache-volume-cas-gib={{ . }}
             {{- end }}
             {{- end }}
             {{- end }}
@@ -414,6 +429,14 @@ spec:
             {{- end }}
             {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
             - --vm-cache-pn-cidr={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.sshIngressAllowCIDRs }}
+            # Sources allowed to reach :22 on the minis on top of the
+            # tailnet and loopback. A pf anchor drops the rest, so the
+            # continuous internet SSH brute-force traffic a public Mac
+            # mini absorbs can't fill launchd's ssh listen backlog and
+            # wedge the operator out of both dial paths at once.
+            - --ssh-ingress-allow-cidrs={{ join "," . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the

@@ -15,7 +15,7 @@ import org.gradle.api.logging.Logging
  * Usage in settings.gradle.kts:
  * ```
  * plugins {
- *     id("dev.tuist") version "0.1.0"
+ *     id("dev.tuist") version "0.10.0"
  * }
  *
  * tuist {
@@ -30,7 +30,7 @@ import org.gradle.api.logging.Logging
  *
  *     buildCache {
  *         enabled = true
- *         push = true
+ *         push = System.getenv("CI") != null
  *     }
  * }
  * ```
@@ -53,7 +53,10 @@ data class TuistGradleConfig(
 
         fun from(settings: Settings, extension: TuistExtension): TuistGradleConfig =
             TuistGradleConfig(
-                url = extension.url,
+                url = ServerUrlResolver.resolve(
+                    extensionUrl = extension.url,
+                    projectDir = settings.settingsDir
+                ),
                 project = extension.project.ifBlank { null },
                 network = Network(
                     proxy = EnvironmentProxyResolver.resolve(

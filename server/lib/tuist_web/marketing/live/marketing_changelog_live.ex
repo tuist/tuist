@@ -58,7 +58,10 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(
        :head_image,
        Tuist.Environment.app_url(
-         path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/changelog.jpg")
+         path:
+           TuistWeb.Helpers.OpenGraph.image_path(:marketing_changelog,
+             title: dgettext("marketing", "Changelog")
+           )
        )
      )
      |> assign(:head_title, "Tuist Changelog")

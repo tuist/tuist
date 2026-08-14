@@ -232,6 +232,8 @@ jobs:
           github.event_name == 'push' ||
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
+        env:
+          EXPORT_METHOD: release-testing
         run: mise run app:bundle-ios
       - name: Inspect TuistApp
         if: |

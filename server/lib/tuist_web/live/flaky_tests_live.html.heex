@@ -350,6 +350,7 @@
             case @flaky_tests_sort_by do
               "name" -> dgettext("dashboard_tests", "Test Case")
               "last_flaky_at" -> dgettext("dashboard_tests", "Last flaky run")
+              "marked_flaky_at" -> dgettext("dashboard_tests", "Marked flaky at")
               _ -> dgettext("dashboard_tests", "Flaky runs")
             end
           }
@@ -376,6 +377,14 @@
             label={dgettext("dashboard_tests", "Last flaky run")}
             patch={sort_by_patch(@uri, "last_flaky_at")}
             data-selected={@flaky_tests_sort_by == "last_flaky_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="marked_flaky_at"
+            label={dgettext("dashboard_tests", "Marked flaky at")}
+            patch={sort_by_patch(@uri, "marked_flaky_at")}
+            data-selected={@flaky_tests_sort_by == "marked_flaky_at"}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -427,6 +436,21 @@
                 end
               }
             />
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Marked flaky at")}
+            patch={
+              @flaky_tests_sort_by == "marked_flaky_at" &&
+                column_sort_patch(assigns, "marked_flaky_at")
+            }
+            sort_order={@flaky_tests_sort_by == "marked_flaky_at" && @flaky_tests_sort_order}
+          >
+            <.text_cell
+              :if={test_case.marked_flaky_at}
+              sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.marked_flaky_at)}
+            />
+            <span :if={is_nil(test_case.marked_flaky_at)}>—</span>
           </:col>
           <:col
             :let={test_case}

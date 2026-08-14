@@ -19,11 +19,17 @@ import (
 )
 
 const (
-	poolLabel  = "pool"
-	phaseLabel = "phase"
+	poolLabel            = "pool"
+	phaseLabel           = "phase"
+	reasonLabel          = "reason"
+	fleetSelectorLabel   = "fleet_selector"
+	operatingSystemLabel = "operating_system"
 )
 
 var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
+var admissionBlockReasons = []string{"fleet_cap", "no_healthy_node", "fleet_view_error"}
+var fleetNodeFilterReasons = []string{"unschedulable", "not_ready", "memory_pressure", "disk_pressure", "pid_pressure"}
+var podStartTimeoutReasons = []string{"poller_not_started", "unschedulable"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
@@ -64,25 +70,23 @@ var (
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
 	}, []string{poolLabel})
 
-	// rollingPods is how many of a pool's Pods are mid-roll right now:
-	// drain-eligible stale-image Pods (committed to retire) plus
-	// current-image Pods not yet Ready (pulling/booting a replacement).
-	// This is the throttled quantity and must stay <= rollCap. Pinned at
-	// the cap with stalePods > 0 is a healthy in-progress roll;
-	// rollingPods > rollCap means the cap isn't being enforced (a bug).
+	// rollingPods is how much of a pool's serving capacity is unavailable
+	// during a roll: drain-eligible stale-image Pods plus current-template
+	// idle Pods that are not warm. The latter deliberately includes
+	// ordinary scale-up, matching Deployment-style maxUnavailable
+	// semantics. This is the throttled quantity and must stay <= rollCap.
 	rollingPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_rolling_pods",
-		Help: "Pods mid-roll (drain-eligible stale + current-image not-Ready) per pool.",
+		Help: "Unavailable serving capacity during a Pod-template roll per pool.",
 	}, []string{poolLabel})
 
-	// stalePods is how many alive Pods are still on a superseded image —
-	// the roll backlog. It decreases to 0 as the roll completes. Stuck
-	// > 0 (flat, not draining) while rollingPods is pinned is the
-	// "roll wedged" signal: a replacement isn't reaching Ready, so the
-	// cap never frees and the rollout can't advance.
+	// stalePods is how many alive Pods still use a superseded image or
+	// RuntimeClass revision. It decreases to 0 as the roll completes.
+	// Stuck above 0 while rollingPods is pinned means unavailable
+	// current-template capacity is intentionally pausing the rollout.
 	stalePods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_stale_pods",
-		Help: "Alive Pods still on a superseded spec.image (image-roll backlog) per pool.",
+		Help: "Alive Pods still on a superseded image or RuntimeClass revision per pool.",
 	}, []string{poolLabel})
 
 	// rollCap is the computed concurrency ceiling:
@@ -118,14 +122,79 @@ var (
 		Name: "tuist_runners_pool_oldest_pending_pod_age_seconds",
 		Help: "Age of a darwin pool's oldest alive Pod that has not reached Running (0 when none).",
 	}, []string{poolLabel})
+
+	// Claimed jobs, occupied runners, and queued jobs are the server's
+	// demand signals. Occupied remains high through post-job cache and
+	// teardown work after the GitHub completion webhook releases the
+	// claim.
+	claimedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_claimed_jobs",
+		Help: "Jobs currently claimed by a runner Pod in this pool (server signal).",
+	}, []string{poolLabel})
+
+	occupiedRunners = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_occupied_runners",
+		Help: "Runner Pods currently holding fleet capacity, including post-job cache and teardown work (server signal).",
+	}, []string{poolLabel})
+
+	queuedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_queued_jobs",
+		Help: "Jobs waiting for a runner Pod in this pool (server signal).",
+	}, []string{poolLabel})
+
+	// idleReplicas is how many current-template Pods are alive, unclaimed,
+	// and actually able to take work right now. On darwin that means
+	// Running: a Pod still waiting for a Mac mini has no VM and is not
+	// capacity, however long it has been alive. On Linux it includes
+	// Pending, which is where a warm dispatch poller spends its whole
+	// idle life. See isWarmCapacity in the RunnerPool reconciler.
+	//
+	// Pair with queuedJobs to detect dispatch starvation. `queued > 0 AND
+	// idle > 0`, sustained, is a contradiction in a healthy fleet: an idle
+	// warm Pod polls dispatch continuously, so queued work should reach it
+	// within a poll interval. Sustained overlap means dispatch is not
+	// serving this pool despite capacity being available, which is the
+	// starvation signature that no other series can express — phaseReplicas
+	// counts a warm idle Pod and a Pod running a customer job identically,
+	// and oldestPendingPodAge only sees Pods that never booted, not booted
+	// Pods that never received work.
+	idleReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_idle_replicas",
+		Help: "Alive current-template runner Pods with no claim and able to take work.",
+	}, []string{poolLabel})
+
+	pendingProvisioningPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_pending_provisioning_pods",
+		Help: "Linux Kata runner Pods waiting for their dispatch poller to start, including local create reservations not yet observed by the cache.",
+	}, []string{poolLabel})
+
+	admissionBlockedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_admission_blocked_total",
+		Help: "Runner reconciliations that left a replica gap because Linux Kata provisioning admission was blocked.",
+	}, []string{poolLabel, reasonLabel})
+
+	fleetReadyNodes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_ready_nodes",
+		Help: "Ready, schedulable, pressure-free nodes contributing capacity to a runner fleet.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel})
+
+	fleetFilteredNodes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_filtered_nodes",
+		Help: "Runner-fleet nodes excluded from capacity or provisioning admission, grouped by reason.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel, reasonLabel})
+
+	podStartTimeoutsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_pod_start_timeouts_total",
+		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
+	}, []string{poolLabel, reasonLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
-// reconcile tick. `load` is claimed+queued, `floor` is
+// reconcile tick. `load` is occupied+queued, `floor` is
 // minWarmPoolFloor, `targetReplicas` is the pre-allocation
 // DesiredReplicas, `allocatedReplicas` is the post-allocation value
 // patched to spec.replicas.
@@ -136,10 +205,54 @@ func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplica
 	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
 }
 
-// RecordRoll publishes a pool's image-roll progress for this reconcile
-// tick: how many Pods are mid-roll, how many remain on the old image,
-// and the concurrency cap they're throttled against. Steady state
-// (no roll) reports rolling=0, stale=0.
+// RecordDemand publishes the server's demand signals for a pool as
+// separate series. Called on every autoscaler tick, including when the
+// fleet allocator falls back to the per-pool target, so the signals stay
+// live even while allocation is degraded.
+func RecordDemand(pool string, claimed, occupied, queued int32) {
+	claimedJobs.WithLabelValues(pool).Set(float64(claimed))
+	occupiedRunners.WithLabelValues(pool).Set(float64(occupied))
+	queuedJobs.WithLabelValues(pool).Set(float64(queued))
+}
+
+// RecordIdleReplicas publishes the pool's unclaimed warm Pod count.
+// Callers pass 0 rather than skipping the call so the gauge drains when
+// a pool goes fully busy, instead of holding its last sample.
+func RecordIdleReplicas(pool string, idle int) {
+	if idle < 0 {
+		idle = 0
+	}
+	idleReplicas.WithLabelValues(pool).Set(float64(idle))
+}
+
+func RecordPendingProvisioningPods(pool string, pending int) {
+	if pending < 0 {
+		pending = 0
+	}
+	pendingProvisioningPods.WithLabelValues(pool).Set(float64(pending))
+}
+
+func RecordAdmissionBlocked(pool, reason string) {
+	admissionBlockedTotal.WithLabelValues(pool, reason).Inc()
+}
+
+func RecordFleetNodes(fleetSelector, operatingSystem string, ready int, filtered map[string]int) {
+	if ready < 0 {
+		ready = 0
+	}
+	fleetReadyNodes.WithLabelValues(fleetSelector, operatingSystem).Set(float64(ready))
+	for _, reason := range fleetNodeFilterReasons {
+		fleetFilteredNodes.WithLabelValues(fleetSelector, operatingSystem, reason).Set(float64(filtered[reason]))
+	}
+}
+
+func RecordPodStartTimeout(pool, reason string) {
+	podStartTimeoutsTotal.WithLabelValues(pool, reason).Inc()
+}
+
+// RecordRoll publishes a pool's Pod-template rollout progress for this
+// reconcile tick: unavailable serving capacity, stale Pods remaining,
+// and the concurrency cap. Steady state reports rolling=0, stale=0.
 func RecordRoll(pool string, rolling, stale, capacity int) {
 	rollingPods.WithLabelValues(pool).Set(float64(rolling))
 	stalePods.WithLabelValues(pool).Set(float64(stale))
@@ -174,6 +287,9 @@ func ClearAutoscaler(pool string) {
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+	claimedJobs.DeleteLabelValues(pool)
+	occupiedRunners.DeleteLabelValues(pool)
+	queuedJobs.DeleteLabelValues(pool)
 }
 
 // ClearRunnerPool drops the primary RunnerPool reconciler's series for
@@ -183,6 +299,14 @@ func ClearRunnerPool(pool string) {
 	stalePods.DeleteLabelValues(pool)
 	rollCap.DeleteLabelValues(pool)
 	oldestPendingPodAge.DeleteLabelValues(pool)
+	idleReplicas.DeleteLabelValues(pool)
+	pendingProvisioningPods.DeleteLabelValues(pool)
+	for _, reason := range admissionBlockReasons {
+		admissionBlockedTotal.DeleteLabelValues(pool, reason)
+	}
+	for _, reason := range podStartTimeoutReasons {
+		podStartTimeoutsTotal.DeleteLabelValues(pool, reason)
+	}
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
@@ -197,7 +321,7 @@ func Clear(pool string) {
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to
 // fund but couldn't under contention. The allocator funds real load
-// (claimed+queued) inviolably, then the warm floor above it; the floor
+// (occupied+queued) inviolably, then the warm floor above it; the floor
 // is what yields first. So the deficit is the floor portion — (load +
 // floor), capped at the pool's target — left unfunded by `allocated`.
 // Headroom (the speculative p95 buffer above the floor) is excluded:

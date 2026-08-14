@@ -12,6 +12,21 @@ defmodule TuistRegistry.S3Test do
     :ok
   end
 
+  test "requests strongly consistent object-storage reads" do
+    operation = %S3Operation{headers: %{"existing" => "header"}}
+
+    expect(ExAws, :request, fn requested_operation ->
+      assert requested_operation.headers == %{
+               "existing" => "header",
+               "X-Tigris-Consistent" => "true"
+             }
+
+      {:ok, :response}
+    end)
+
+    assert S3.request(operation) == {:ok, :response}
+  end
+
   describe "presign_download_url/2" do
     test "signs the requested response content type" do
       key = "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
@@ -21,7 +36,10 @@ defmodule TuistRegistry.S3Test do
       expect(ExAws.S3, :presigned_url, fn :config, :get, "test-registry-bucket", ^key, opts ->
         assert opts == [
                  expires_in: 600,
-                 query_params: [{"response-content-type", "application/zip"}]
+                 query_params: [
+                   {"response-content-type", "application/zip"},
+                   {"x-tigris-consistent", "true"}
+                 ]
                ]
 
         {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
@@ -30,35 +48,23 @@ defmodule TuistRegistry.S3Test do
       assert S3.presign_download_url(key, type: :registry, content_type: "application/zip") ==
                {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
     end
-  end
 
-  describe "exists?/2" do
-    test "does not cache positive results" do
+    test "requests consistent object-storage reads without a content type override" do
       key = "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
-      cache_key = {:registry, key}
-      {:ok, true} = Cachex.del(S3.exists_cache_name(), cache_key)
 
-      {:ok, request_count} = Agent.start_link(fn -> 0 end)
+      expect(ExAws.Config, :new, fn :s3 -> :config end)
 
-      expect(ExAws.S3, :head_object, 2, fn "test-registry-bucket", ^key ->
-        %S3Operation{path: "head"}
+      expect(ExAws.S3, :presigned_url, fn :config, :get, "test-registry-bucket", ^key, opts ->
+        assert opts == [
+                 expires_in: 600,
+                 query_params: [{"x-tigris-consistent", "true"}]
+               ]
+
+        {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
       end)
 
-      expect(ExAws, :request, 2, fn %S3Operation{}, _opts ->
-        Agent.get_and_update(request_count, fn count ->
-          response =
-            case count do
-              0 -> {:ok, %{status_code: 200}}
-              1 -> {:error, {:http_error, 404, ""}}
-            end
-
-          {response, count + 1}
-        end)
-      end)
-
-      assert S3.exists?(key, type: :registry)
-      refute S3.exists?(key, type: :registry)
-      assert Agent.get(request_count, & &1) == 2
+      assert S3.presign_download_url(key, type: :registry) ==
+               {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
     end
   end
 

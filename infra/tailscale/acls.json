@@ -15,12 +15,23 @@
 //                            setup.
 //   tag:tuist-macmini-<env>  Mac minis in a specific env's macOS
 //                            fleet (xcresult-processor, customer
-//                            runners, future fleets). Joined via
+//                            runners, future fleets), plus the
+//                            xcresult-processor Tart VMs that share
+//                            the fleet's credential. Joined via
 //                            infra/macos-host-bootstrap; the env
 //                            suffix is set by the operator-image
 //                            flag --tailscale-tags, which the chart
 //                            wires from macosFleet.tailscale.tags
-//                            per env values file.
+//                            per env values file. Like the k8s tag
+//                            below, each env joins with its own
+//                            OAuth client scoped to this tag,
+//                            never a pre-auth key, which Tailscale
+//                            caps at 90 days and which took the
+//                            xcresult queue offline when it lapsed
+//                            (2026-08-12). Tags declared here are
+//                            what an OAuth-minted key applies, so
+//                            a tag removed from tagOwners breaks
+//                            every subsequent join.
 //   tag:tuist-k8s-<env>      Tailscale K8s operator + the cluster-
 //                            side subnet-router Connector it
 //                            provisions, scoped to one env's
@@ -134,17 +145,29 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -161,7 +184,7 @@
 		// `*.svc.cluster.local` names. Subnet-routed destinations are
 		// matched by CIDR, not by the router's tag, hence the literal
 		// prefix in dst. Per-account isolation is enforced at the Kura
-		// app layer (the tuist.lua tenant hook verifies the build's JWT),
+		// app layer (Kura's authorization verifies the build's JWT),
 		// same as for Linux runners.
 		//
 		// Staging only for now: all envs share this Service CIDR, so the

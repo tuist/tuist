@@ -737,6 +737,63 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "returns service unavailable and marks the test run failed when processing cannot be scheduled", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_pid = self()
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, 2, fn attrs ->
+        send(test_pid, {:created_test_status, attrs.status})
+
+        case attrs.status do
+          "processing" ->
+            {:ok,
+             %Test{
+               id: attrs.id,
+               duration: attrs.duration,
+               project_id: project.id,
+               account_id: attrs.account_id,
+               is_ci: false,
+               build_system: "xcode",
+               status: "processing",
+               test_case_runs: []
+             }}
+
+          "failed_processing" ->
+            {:ok, %{id: attrs.id}}
+        end
+      end)
+
+      expect(Oban, :insert, fn %Ecto.Changeset{} -> {:error, :database_unavailable} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, :service_unavailable) == %{
+               "message" => "The test run could not be scheduled for processing"
+             }
+
+      assert_received {:created_test_status, "processing"}
+      assert_received {:created_test_status, "failed_processing"}
+      refute_enqueued(worker: ProcessXcresultWorker, args: %{"test_run_id" => test_run_id})
+    end
+
     test "attributes the run to the authenticated user while keeping storage under the project account", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
