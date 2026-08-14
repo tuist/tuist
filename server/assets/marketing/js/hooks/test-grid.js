@@ -9,8 +9,10 @@
  *   3. hold     — purple + amber + blank outlines sit for a moment;
  *   4. fade     — the colours ebb away and the grey placeholders return …
  *
- * … then it loops back to loading. The clock starts on the first on-screen
- * frame and rendering pauses while the canvas is off-screen. The grid is a
+ * … then it loops back to loading. Each pass re-deals the cell states with
+ * jittered densities, so every loop shows a different grid and different
+ * counts. The clock starts on the first on-screen frame and rendering pauses
+ * while the canvas is off-screen. The grid is a
  * fixed size, centred in the slightly taller stage and cropped left/right on
  * narrow viewports.
  *
@@ -122,14 +124,14 @@ export const TestGrid = {
       this.render(this.now);
     });
 
-    // Assign a state + shimmer params to every cell once.
+    // Shimmer params are fixed per cell; states are re-dealt every cycle.
     this.cells = [];
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         this.cells.push({
           c,
           r,
-          state: this.pickState(),
+          state: "empty",
           f1: 0.0004 + Math.random() * 0.0009,
           f2: 0.0003 + Math.random() * 0.0007,
           p1: Math.random() * Math.PI * 2,
@@ -149,6 +151,8 @@ export const TestGrid = {
     // flaky = amber), computed over the currently-visible columns — see
     // computeCounts().
     this.effCols = this.cols;
+    this.cycleIndex = 0;
+    this.shuffleStates();
     const illustration = this.canvas.closest('[data-part="illustration"]');
     this.stats = {
       skipped: illustration && illustration.querySelector('[data-stat="skipped"]'),
@@ -203,12 +207,17 @@ export const TestGrid = {
     if (this.observer) this.observer.disconnect();
   },
 
-  // Roughly matches the reference density: ~28% selective (purple), ~2% flaky.
-  pickState() {
-    const r = Math.random();
-    if (r < 0.02) return "flaky";
-    if (r < 0.3) return "selective";
-    return "empty";
+  // Re-deal every cell's state. Densities jitter around the reference mix
+  // (~28% selective, ~2% flaky) so each loop lands on different counts, and
+  // the stats recount from the fresh grid.
+  shuffleStates() {
+    const pFlaky = 0.015 + Math.random() * 0.02;
+    const pSelective = 0.2 + Math.random() * 0.16;
+    for (const cell of this.cells) {
+      const r = Math.random();
+      cell.state = r < pFlaky ? "flaky" : r < pFlaky + pSelective ? "selective" : "empty";
+    }
+    this.computeCounts();
   },
 
   rgba([r, g, b], a) {
@@ -235,11 +244,19 @@ export const TestGrid = {
     return Math.pow(v, 1.3);
   },
 
-  // Where we are in the loop (ms), or the fixed reduced-motion frame.
+  // Where we are in the loop (ms), or the fixed reduced-motion frame. Each
+  // time the loop wraps, the grid re-deals — the swap happens at the start of
+  // the grey loading phase, when no colour is up, so it's invisible.
   cycleTime(now) {
     if (this.forcedCt != null) return this.forcedCt;
     if (this.revealStart == null) return 0;
-    return (now - this.revealStart) % CYCLE_MS;
+    const elapsed = now - this.revealStart;
+    const index = Math.floor(elapsed / CYCLE_MS);
+    if (index !== this.cycleIndex) {
+      this.cycleIndex = index;
+      this.shuffleStates();
+    }
+    return elapsed % CYCLE_MS;
   },
 
   // Rise (after `lag`) then fall (at FADE_AT) — one bump per loop.
