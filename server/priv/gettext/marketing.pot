@@ -88,8 +88,8 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:274
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:485
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:86
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:274
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:567
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:267
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:560
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:747
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #: lib/tuist_web/marketing/live/marketing_blog_live.ex:109
@@ -107,7 +107,7 @@ msgid "Blog posts by the Tuist team."
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:256
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:119
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr ""
@@ -181,8 +181,8 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:204
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:420
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:47
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:453
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:539
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:446
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:532
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.html.heex:8
 #: lib/tuist_web/marketing/live/marketing_changelog_live.ex:63
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
@@ -287,7 +287,7 @@ msgid "Contributors"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:292
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:144
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
 msgstr ""
@@ -310,7 +310,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:96
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:204
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:336
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:358
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
@@ -324,8 +324,8 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:165
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:165
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:387
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:240
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:519
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:233
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "Developers"
 msgstr ""
@@ -414,8 +414,8 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:131
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:360
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:3
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:224
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:502
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:217
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:495
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Features"
@@ -493,7 +493,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:181
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:374
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:94
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:117
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:116
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "GitHub"
@@ -546,7 +546,7 @@ msgid "Ideal for individual developers."
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:298
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:148
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Imprint"
 msgstr ""
@@ -634,13 +634,13 @@ msgid "Learn about Tuist and meet the team"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:277
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:133
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Legal"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:264
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:125
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "LinkedIn"
 msgstr ""
@@ -653,7 +653,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:94
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:202
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:335
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:336
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -670,7 +670,7 @@ msgid "Make modular Xcode projects more manageable"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:240
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:113
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr ""
@@ -714,7 +714,7 @@ msgid "No, there's no minimum contract length. You're free to cancel at any time
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:38
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:212
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr ""
@@ -800,8 +800,8 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:267
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:480
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:43
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:267
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:564
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:260
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:557
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:842
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:853
 #, elixir-autogen, elixir-format
@@ -819,7 +819,7 @@ msgid "Priority support via Slack channel"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:286
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:140
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr ""
@@ -874,8 +874,8 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:235
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:450
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:256
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:545
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:249
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:538
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -919,7 +919,7 @@ msgid "Shared app preview with the team"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:318
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:357
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -951,7 +951,7 @@ msgid "Social Media Links"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:232
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:110
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Socials"
 msgstr ""
@@ -1073,7 +1073,7 @@ msgid "Teams using Tuist"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:280
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:136
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr ""
@@ -1266,14 +1266,14 @@ msgid "Verification link expired or invalid. Please try signing up again."
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:272
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:129
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Videos"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:206
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:422
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:455
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr ""
@@ -2330,7 +2330,7 @@ msgid "All features, no credit card required"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:32
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:206
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
 msgstr ""
@@ -2531,12 +2531,6 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:166
 #, elixir-autogen, elixir-format
 msgid "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
-msgstr ""
-
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:103
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:205
-#, elixir-autogen, elixir-format
-msgid "Brand assets"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:324
@@ -2940,7 +2934,7 @@ msgstr ""
 msgid "Tests skipped:"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:586
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Theme"
 msgstr ""
@@ -3044,23 +3038,27 @@ msgstr ""
 msgid "iOS Developer at Toss"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:175
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Copy logo as SVG"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:186
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Copy wordmark as SVG"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:193
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Download brand assets"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:176
-#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:187
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:103
 #, elixir-autogen, elixir-format
-msgid "Copied to clipboard"
+msgid "Brand"
+msgstr ""
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Brand guidelines"
 msgstr ""
