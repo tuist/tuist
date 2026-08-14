@@ -61,6 +61,111 @@ func TestInstallTailscale_SkipShortCircuitsBeforeClient(t *testing.T) {
 	}
 }
 
+// An OAuth-minted key is always tagged and has no default tag to fall back on,
+// so a fleet configured without tags can never join. Reject before pushing
+// anything, so the error lands on Machine.status.failureMessage rather than
+// surfacing as a join timeout that reads like a network fault. A legacy
+// pre-auth key carries its own tag binding and has to stay pushable untagged
+// while envs migrate.
+func TestValidateTailscaleCredential(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		credential string
+		tags       []string
+		wantErr    bool
+	}{
+		{name: "oauth without tags", credential: "tskey-client-abc123", wantErr: true},
+		{name: "oauth with tags", credential: "tskey-client-abc123", tags: []string{"tag:tuist-macmini-production"}},
+		{name: "pre-auth key without tags", credential: "tskey-auth-abc123"},
+		{name: "tailscale not wired", credential: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTailscaleCredential(Config{TailscaleAuthKey: tc.credential, TailscaleTags: tc.tags})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateTailscaleCredential = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// installTailscale must run the credential guard before it touches the SSH
+// client, so an unjoinable config never half-pushes. A nil client proves no
+// client method is reached.
+func TestInstallTailscale_GuardsCredentialBeforeClient(t *testing.T) {
+	cfg := Config{
+		TailscaleBinaries: []byte("nonempty-archive"),
+		TailscaleAuthKey:  "tskey-client-abc123",
+	}
+	if err := installTailscale(context.Background(), nil, cfg); err == nil {
+		t.Fatal("installTailscale with an OAuth credential and no tags = nil, want error")
+	}
+}
+
+// The fleet credential is an OAuth client secret, which `tailscale up` turns
+// into a freshly minted key. Two properties have to ride along, because the
+// implicit key defaults to preauthorized=false and the fleet needs ephemeral
+// registrations. This runs the classification the renderer emits, rather than
+// matching on its text, so a rewrite that keeps the shape but breaks the
+// behaviour still fails.
+func TestRenderTailscaleScript_AnnotatesOAuthCredential(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	script := renderTailscaleScript(Config{TailscaleTags: []string{"tag:tuist-macmini-production"}})
+
+	// The minted key's properties only reach Tailscale if `up` reads the
+	// annotated variable. An edit that inlines the credential back into the
+	// flag would silently drop them.
+	if !strings.Contains(script, `--authkey="$TS_AUTH_KEY"`) {
+		t.Fatal("tailscale up must read the annotated $TS_AUTH_KEY, not the raw credential")
+	}
+
+	const marker = `case "$TS_AUTH_KEY" in`
+	start := strings.Index(script, marker)
+	if start < 0 {
+		t.Fatal("rendered script has no credential classification block")
+	}
+	end := strings.Index(script[start:], "esac")
+	if end < 0 {
+		t.Fatal("credential classification block is unterminated")
+	}
+	classify := script[start : start+end+len("esac")]
+
+	for _, tc := range []struct {
+		name       string
+		credential string
+		want       string
+	}{
+		{
+			name:       "oauth client secret",
+			credential: "tskey-client-abc123",
+			want:       "tskey-client-abc123?ephemeral=true&preauthorized=true",
+		},
+		{
+			// Bootstrap has to keep succeeding against the legacy
+			// credential while envs migrate; a pre-auth key takes no
+			// query parameters and appending them would corrupt it.
+			name:       "legacy pre-auth key",
+			credential: "tskey-auth-abc123",
+			want:       "tskey-auth-abc123",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := exec.Command(bash, "-c",
+				"TS_AUTH_KEY=\"$1\"\n"+classify+"\nprintf '%s' \"$TS_AUTH_KEY\"",
+				"bash", tc.credential).Output()
+			if err != nil {
+				t.Fatalf("run classification: %v", err)
+			}
+			if string(out) != tc.want {
+				t.Errorf("annotated credential = %q, want %q", out, tc.want)
+			}
+		})
+	}
+}
+
 // SkipTailscaleInstall is a transport-only flag: it must not perturb the
 // fleet-wide HostConfigHash (else a tailnet-fallback update would look like a
 // config drift and re-roll the fleet).

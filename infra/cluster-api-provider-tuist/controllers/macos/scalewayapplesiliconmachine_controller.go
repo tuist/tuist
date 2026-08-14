@@ -122,9 +122,11 @@ type ScalewayAppleSiliconMachineReconciler struct {
 
 	// TailscaleTags are the Tailscale ACL tags every Mac mini in
 	// the fleet advertises at `tailscale up` time (e.g.
-	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
-	// auth key — see acls.json's tagOwners block. Empty means the
-	// minis use whatever default tag the auth key carries.
+	// `["tag:tuist-macmini"]`). Must be in the scope of the
+	// operator-namespace OAuth credential and declared in acls.json's
+	// tagOwners block. Required with that credential, which always
+	// mints tagged keys and carries no default tag; empty only works
+	// with a legacy pre-auth key.
 	TailscaleTags []string
 
 	// TailscaleAcceptRoutes makes every Mac mini run `tailscale up
