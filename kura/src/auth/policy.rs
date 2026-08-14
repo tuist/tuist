@@ -5,25 +5,41 @@
 //! falls back to asking Tuist's server only when it cannot. Authorization is
 //! pure — by the time it runs, everything it needs is on the principal.
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
+use tracing::warn;
 
 use super::grants::CacheGrants;
 use super::target::{Action, RequestTarget, Scope, request_action, request_target};
 use super::tuist::TuistBackend;
 use crate::auth::{DenyDecision, Principal, RequestContext};
 
-/// How long a decision stays cached. Denials expire quickly so a caller who
-/// has just been granted access is not locked out, and grants live long enough
-/// to keep a build's worth of requests off the authentication backend.
+/// Lifetimes for the authorization cache, and for the denials the engine holds.
+///
+/// `authorize` is pure and its cache key carries the principal, so a cached
+/// allow cannot go stale: a principal carrying different grants is a different
+/// key. The lifetime only bounds how long an unused entry holds memory.
+/// Denials expire far sooner, so a caller who has just been granted access is
+/// not locked out by their own rejection, and a backend that could not be
+/// reached is tried again shortly after it recovers.
+///
+/// What keeps a build's worth of requests off the authentication backend is the
+/// engine's own deadlines, which it takes from the credential.
 const ALLOW_TTL: Duration = Duration::from_secs(60);
-const DENY_TTL: Duration = Duration::from_secs(3);
+pub const DENY_TTL: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Authentication {
     Principal(Principal),
     Deny(DenyDecision),
+    /// The backend could not be reached or could not answer, so this is not a
+    /// verdict on the token. Kept apart from `Deny` because the engine may
+    /// answer it from a principal the backend already confirmed, which it must
+    /// never do for a backend that did answer.
+    Unavailable(DenyDecision),
 }
 
 impl Authentication {
@@ -34,12 +50,33 @@ impl Authentication {
         })
     }
 
-    pub fn ttl(&self) -> Duration {
-        match self {
-            Self::Principal(_) => ALLOW_TTL,
-            Self::Deny(_) => DENY_TTL,
-        }
+    fn unavailable(reason: &str) -> Self {
+        warn!("authentication backend unavailable: {reason}");
+        Self::Unavailable(DenyDecision {
+            status: 503,
+            message: "Authentication backend unavailable".into(),
+        })
     }
+}
+
+/// How much life the credential says it has left, read from an unverified
+/// `exp` claim.
+///
+/// Only ever consulted for a credential the backend has just confirmed. A
+/// forged `exp` breaks the signature the backend checks, so an `exp` read off
+/// a confirmed credential is the one the issuer signed. A credential this
+/// cannot be read from — an opaque project or account token, which the server
+/// resolves against its own records — is bounded by the cache instead.
+pub fn credential_expiry(ctx: &RequestContext) -> Option<Duration> {
+    let token = bearer_token(authorization_header(ctx)?);
+    let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
+    let expires_at = serde_json::from_slice::<Value>(&claims)
+        .ok()?
+        .get("exp")?
+        .as_u64()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
+
+    Some(Duration::from_secs(expires_at.saturating_sub(now)))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -163,7 +200,12 @@ pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authe
         return authenticate_via_cache_access(backend, authorization).await;
     }
 
-    Authentication::deny(503, "Authentication backend unavailable")
+    // Not an outage: this node was never given the credentials that would let
+    // it ask about an account-scoped request, so retrying cannot help.
+    Authentication::deny(
+        503,
+        "Authentication backend is not configured for account-scoped requests",
+    )
 }
 
 /// What a verified token alone can settle. `None` means the token was readable
@@ -208,12 +250,16 @@ async fn authenticate_via_introspection(
     target: &RequestTarget,
     action: &Action,
 ) -> Authentication {
-    let Ok(response) = backend.introspect(token).await else {
-        return Authentication::deny(503, "Authentication backend unavailable");
+    let response = match backend.introspect(token).await {
+        Ok(response) => response,
+        Err(error) => return Authentication::unavailable(&error),
     };
 
     if response.status != 200 {
-        return Authentication::deny(503, "Authentication backend unavailable");
+        return Authentication::unavailable(&format!(
+            "introspection returned status {}",
+            response.status
+        ));
     }
 
     if response.body.get("active") == Some(&Value::Bool(true)) {
@@ -243,8 +289,9 @@ async fn authenticate_via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
 ) -> Authentication {
-    let Ok(response) = backend.cache_access(authorization).await else {
-        return Authentication::deny(503, "Authentication backend unavailable");
+    let response = match backend.cache_access(authorization).await {
+        Ok(response) => response,
+        Err(error) => return Authentication::unavailable(&error),
     };
 
     match response.status {
@@ -255,7 +302,7 @@ async fn authenticate_via_cache_access(
             project_handles(&response.body),
         )),
         401 => Authentication::deny(401, "Invalid or expired token"),
-        _ => Authentication::deny(503, "Authentication backend unavailable"),
+        status => Authentication::unavailable(&format!("cache access returned status {status}")),
     }
 }
 

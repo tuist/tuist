@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use axum::{
@@ -116,10 +117,11 @@ fn introspection_credentials() -> IntrospectionCredentials {
 }
 
 fn engine(config: AuthConfig) -> SharedAuth {
-    Arc::new(
-        AuthEngine::new(config, Metrics::new("test".into(), "tenant".into()))
-            .expect("build the authorization engine"),
-    )
+    engine_with_metrics(config, Metrics::new("test".into(), "tenant".into()))
+}
+
+fn engine_with_metrics(config: AuthConfig, metrics: Metrics) -> SharedAuth {
+    Arc::new(AuthEngine::new(config, metrics).expect("build the authorization engine"))
 }
 
 fn ctx() -> RequestContext {
@@ -655,6 +657,10 @@ async fn concurrent_requests_with_the_same_credentials_introspect_once() {
     assert_eq!(*calls.lock().unwrap(), 1);
 }
 
+// The legacy route only speaks about projects, so the principal it returns
+// cannot answer an account request. It must not answer one just because a
+// project request carrying the same token resolved first: this node has no
+// introspection credentials, and that is the answer either way.
 #[tokio::test]
 async fn does_not_reuse_legacy_project_fallback_for_account_requests() {
     let calls = Arc::new(Mutex::new(0usize));
@@ -694,7 +700,8 @@ async fn does_not_reuse_legacy_project_fallback_for_account_requests() {
         .insert("authorization".into(), "Bearer opaque-token".into());
 
     let deny = expect_deny(engine.evaluate_access(&account_context).await);
-    assert_eq!(deny.status, 403);
+    assert_eq!(deny.status, 503);
+    assert!(deny.message.contains("account-scoped"));
     assert_eq!(*calls.lock().unwrap(), 1);
 }
 
@@ -890,6 +897,237 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
     let deny = expect_deny(engine.evaluate_access(&context).await);
     assert_eq!(deny.status, 403);
     assert!(deny.message.contains("server for"));
+}
+
+// A control-plane blip must not become a cache outage. Revalidation asks the
+// backend again; a backend that cannot answer knows nothing new about the
+// credential, so the principal it did confirm keeps serving. Without this the
+// deny is cached for DENY_TTL and re-derived every few seconds for as long as
+// the outage lasts, and every client sharing the token 5xxes for all of it.
+#[tokio::test]
+async fn an_unreachable_backend_keeps_serving_the_principal_it_last_confirmed() {
+    let reachable = Arc::new(AtomicBool::new(true));
+    let reachable_for_handler = reachable.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if reachable_for_handler.load(Ordering::SeqCst) {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                )
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, json!({}))
+            }
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+
+    engine.expire_serving_deadline(&context).await;
+    reachable.store(false, Ordering::SeqCst);
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+}
+
+// The reuse above covers a backend that did not answer. One that did — even to
+// reject the token — is taken at its word, and the entry goes with it.
+#[tokio::test]
+async fn a_backend_that_rejects_the_token_is_taken_at_its_word() {
+    let active = Arc::new(AtomicBool::new(true));
+    let active_for_handler = active.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if active_for_handler.load(Ordering::SeqCst) {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                )
+            } else {
+                (StatusCode::OK, json!({ "active": false }))
+            }
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+
+    engine.expire_serving_deadline(&context).await;
+    active.store(false, Ordering::SeqCst);
+
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 401);
+
+    // And it stays rejected: the entry the reuse would have drawn on is gone.
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 401);
+}
+
+// Revalidation happens off a cache hit, which moka's own coalescing does not
+// cover. One request asks the backend and the rest take its answer, or a
+// control plane that is already struggling gets a burst at the moment the
+// serving deadline passes.
+#[tokio::test]
+async fn concurrent_revalidations_of_the_same_credentials_introspect_once() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    engine.expire_serving_deadline(&context).await;
+
+    let requests = (0..25).map(|_| {
+        let engine = engine.clone();
+        let context = context.clone();
+        async move { engine.evaluate_access(&context).await }
+    });
+    for decision in futures_util::future::join_all(requests).await {
+        assert!(matches!(decision, AccessDecision::Allow));
+    }
+
+    assert_eq!(*calls.lock().unwrap(), 2);
+}
+
+// The same token asking about two projects is two questions. The policy can
+// reach a different principal for each — an active token whose grants miss one
+// project falls through to the legacy route — so one project's answer must not
+// settle the other's.
+#[tokio::test]
+async fn two_projects_carrying_the_same_token_are_resolved_separately() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(
+                    &[],
+                    &[],
+                    &["acme/ios", "acme/android"],
+                    &[],
+                )),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut ios = ctx();
+    ios.tenant_id = Some("acme".into());
+    ios.namespace_id = Some("ios".into());
+    ios.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let mut android = ios.clone();
+    android.namespace_id = Some("android".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&ios).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    assert!(matches!(
+        engine.evaluate_access(&android).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 2);
+}
+
+// Nothing to fall back to means the node still fails closed.
+#[tokio::test]
+async fn counts_and_denies_when_the_backend_is_unavailable_and_nothing_is_known_yet() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let metrics = Metrics::new("test".into(), "tenant".into());
+    let engine = engine_with_metrics(
+        AuthConfig {
+            base_url: base.clone(),
+            connect_timeout: Duration::from_millis(500),
+            request_timeout: Duration::from_millis(4000),
+            verifier: Some(JwtVerifier {
+                algorithm: Algorithm::HS512,
+                secret: GUARDIAN_SECRET.into(),
+                issuer: Some("tuist".into()),
+                audiences: Vec::new(),
+            }),
+            introspection: Some(introspection_credentials()),
+            cache_max_entries: 1000,
+        },
+        metrics.clone(),
+    );
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 503);
+
+    let rendered = metrics.render();
+    assert!(
+        rendered
+            .lines()
+            .any(|line| line.starts_with("kura_auth_decisions_total")
+                && line.contains("stage=\"authenticate\"")
+                && line.contains("result=\"unavailable\"")),
+        "expected an unavailable authenticate decision, got:\n{rendered}"
+    );
 }
 
 fn expect_deny(decision: AccessDecision) -> DenyDecision {

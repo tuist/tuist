@@ -578,9 +578,55 @@ Core env vars:
   `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which
   let a node introspect tokens it cannot verify itself
+- `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` (default `3000`) and
+  `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` (default `4000`) bound the calls to the
+  server. The request budget spans the connect, so keep it the larger of the
+  two; a connect budget under about a second fails on a single dropped SYN,
+  because TCP does not retransmit one until then.
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+A token the node can verify itself never reaches the server. What follows is
+about the rest: opaque project and account tokens, and tokens signed by a key
+this node does not hold.
+
+An answer the server gives is held per credentials **and per target**, because
+the answer depends on both. An active token whose grants do not cover the
+project being asked about falls through to the legacy cache-access route and
+yields a differently shaped principal, so keyed on the credentials alone
+whichever project asked first would settle the answer for every other project
+that token reaches.
+
+How long that answer is held depends on what the credential says about itself:
+
+- A credential carrying an `exp` is held until then, capped at 25 minutes, and
+  never revalidated. The client stops presenting it at that point, so there is
+  nothing a later answer could change. The `exp` is read without verifying the
+  signature, which is safe because it is only read off a credential the server
+  has just confirmed — a forged one would not have been.
+- A credential carrying no expiry, which is every opaque project and account
+  token, is served for 10 minutes and then revalidated against the server. That
+  10 minutes is the revocation latency for those tokens.
+
+Revalidation is what keeps a control-plane blip off the serving path. A server
+that answers is taken at its word either way: it renews the entry, or it rejects
+the token and the entry goes with it. A server that does **not** answer knows
+nothing new about the credential, so the principal it already confirmed keeps
+serving, up to 25 minutes from that confirmation and no further — only a fresh
+answer moves that deadline, so an outage cannot walk it forward. A node holding
+nothing confirmed still fails closed.
+
+Exactly one request revalidates a given credential while the rest wait for its
+outcome, and a server that did not answer is left alone for a few seconds before
+the next attempt, so an outage does not turn into a burst against a control
+plane that is already down.
+
+Reuse during an outage is counted as
+`kura_auth_cache_total{cache="authenticate",result="stale"}`, a trip back to the
+server as `result="revalidate"`, and an outage the node could not cover is
+`kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
+with the underlying transport or status error.
 
 Requests carry their target as `tenant_id` and `namespace_id`, also read from
 `account_handle` and `project_handle` in the query. A request naming no project
