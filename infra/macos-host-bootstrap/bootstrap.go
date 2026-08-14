@@ -30,13 +30,14 @@
 //     kubelet ever advertises.
 //  7. Install node_exporter for host-level (CPU, mem, disk, network,
 //     thermal) metrics, scraped over the tailnet on :9100.
-//  8. Install tuist-log-shipper, which tails the host's log files and
+//  8. Drop the kubeconfig the controller built for this host.
+//  9. Upload the tart-kubelet binary.
+//  10. Write the launchd plist with this host's flags + load it.
+//  11. Install tuist-log-shipper, which tails the host's log files and
 //     pushes them to the in-cluster Alloy receiver over the tailnet.
 //     Metrics are pulled; logs are pushed, because nothing in the
-//     cluster can tail a file on a macOS host.
-//  9. Drop the kubeconfig the controller built for this host.
-//  10. Upload the tart-kubelet binary.
-//  11. Write the launchd plist with this host's flags + load it.
+//     cluster can tail a file on a macOS host. Last on purpose — see
+//     the comment at the call site.
 //
 // After the last step the agent on the host registers a Node and
 // starts reconciling Pods. The provider's MachineReconciler flips
@@ -430,9 +431,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
-	if err := installLogShipper(ctx, client, cfg); err != nil {
-		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
-	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
@@ -450,6 +448,16 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		if err := runActionsRunnerInstall(ctx, client, cfg.SSHUser, cfg.NodeName, *cfg.GHActionsRunner); err != nil {
 			return hk.Observed(), fmt.Errorf("install gh actions runner: %w", err)
 		}
+	}
+	// Last, and deliberately so on both paths. Nothing else needs the log
+	// shipper, and every step above is what makes this host a working Node —
+	// so ordering it here means a failure in the observability agent can never
+	// be what stops the kubelet from being installed, configured or reloaded.
+	// The step is still fatal (a host that silently stops shipping is the
+	// failure mode this whole agent exists to end), it just cannot cost
+	// anything but itself.
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
 	return hk.Observed(), nil
 }
@@ -531,15 +539,20 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
-	// Re-run on the drift path for the same reason node_exporter does: the
-	// binary and the push URL both come from the operator, so an image bump
-	// or a values change has to reach already-bootstrapped minis without
-	// re-provisioning them.
-	if err := installLogShipper(ctx, client, cfg); err != nil {
-		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
-	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
+	}
+	// Re-run on the drift path for the same reason node_exporter does: the
+	// binary and the push URL both come from the operator, so an image bump or
+	// a values change has to reach already-bootstrapped minis without
+	// re-provisioning them.
+	//
+	// Last, after the kubelet reload, for the reason spelled out at the end of
+	// Run: a failure here records an update failure and eventually turns the CR
+	// terminal, and ordering it earlier would mean the logging agent could stop
+	// a tart-kubelet roll from landing at all.
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
 	return hk.Observed(), nil
 }
