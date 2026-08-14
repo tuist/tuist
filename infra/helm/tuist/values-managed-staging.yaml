@@ -528,6 +528,18 @@ macosFleet:
     # is the single advertiser of 10.128.0.0/12 on the shared tailnet
     # — keep it that way until per-env CIDRs (or 4via6) land.
     acceptRoutes: true
+  # Ship each mini's tart-kubelet host log to Loki. Staging goes first:
+  # this is the env that proves the push path (host → tailnet →
+  # alloy-receiver's loki.source.api → Grafana Cloud) before canary and
+  # production turn it on. The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-staging.yaml.
+  #
+  # Query it as {job="tuist-macos-tart-kubelet", env="staging"}; every line
+  # also carries `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-staging:3100/loki/api/v1/push
+    env: staging
   # Firewall half of the runner-cache path: allow VM egress to the
   # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
   # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's

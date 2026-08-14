@@ -711,6 +711,27 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
+  # Host logs, wired but not yet on — staging proves the push path first
+  # (macosFleet.hostLogs in values-managed-staging.yaml), then canary, then
+  # here. The receiver's tailnet hostname already exists in this env
+  # (infra/helm/k8s-monitoring/values-production.yaml exposed it for the
+  # xcresult processor's Tart guests), so flipping this to true is the whole
+  # change.
+  #
+  # Volume before flipping it: tart-kubelet logs on events, not on a tick —
+  # pod create/status/exit, GC reclaims, cache-volume materialize/converge —
+  # so the fleet's rate tracks job throughput, not uptime. At the observed
+  # ~286 materializes/day across 9 hosts and a few tens of lines per job, the
+  # fleet lands in single-digit MB/day. Re-check with
+  #   sum(bytes_over_time({job="tuist-macos-tart-kubelet"}[24h]))
+  # once staging has a day of data, and if it ever gets chatty the `level`
+  # stream label is the lever: drop `debug`/`info` at the alloy-receiver's
+  # loki.source.api rather than filtering on the host, so the host stays a
+  # dumb pipe.
+  hostLogs:
+    enabled: false
+    url: http://tuist-alloy-receiver-production:3100/loki/api/v1/push
+    env: production
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.

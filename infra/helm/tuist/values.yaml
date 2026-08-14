@@ -1356,6 +1356,35 @@ macosFleet:
       item: TAILSCALE
       fields:
         authKey: auth-key
+  # Host logs from each Mac mini, shipped to Loki.
+  #
+  # tart-kubelet runs under launchd and everything it logs — the pod
+  # reconciler, the node agent, the cache-volume manager — lands in
+  # /var/log/tart-kubelet.log on the mini and nowhere else. There is no
+  # DaemonSet path to it: a Pod on a macOS Node is a Tart VM with no view of
+  # the host filesystem, and the apiserver can't resolve these kubelets to
+  # serve `kubectl logs` either. So the host runs its own agent
+  # (infra/macos-log-shipper), installed by the same bootstrap that installs
+  # node_exporter.
+  #
+  # Direction is the difference from metrics: metrics are pulled by
+  # alloy-metrics through the egress ProxyGroup, logs are pushed by the host.
+  # They are pushed to the in-cluster Alloy receiver over the tailnet —
+  # already reachable, already granted in acls.json, already serving this
+  # exact endpoint for the xcresult processor's Tart guests — rather than to
+  # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
+  #
+  # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
+  hostLogs:
+    enabled: false
+    # Loki push endpoint, including the /loki/api/v1/push path. The tailnet
+    # hostname of the Tailscale-operator proxy fronting the k8s-monitoring
+    # chart's alloy-receiver — set the matching `tailscale.com/expose` +
+    # `tailscale.com/hostname` annotations there, or this resolves nowhere.
+    url: ""
+    # `env` stream label on every shipped line, mirroring the label the
+    # server's own Loki handler sets. Empty omits it.
+    env: ""
   # Tailscale egress Services. When enabled, the CAPI operator
   # creates one ExternalName Service per Mac mini in
   # `.namespace` (matching the tailscale-operator wrapper chart's

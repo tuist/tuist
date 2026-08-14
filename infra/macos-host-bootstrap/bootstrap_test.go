@@ -628,3 +628,133 @@ func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
 		t.Fatalf("guard script is not valid sh: %v\n%s", err, combined)
 	}
 }
+
+func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T) {
+	out := renderLogShipperScript(Config{
+		NodeName:   "tuist-tuist-runners-fleet-abc12",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	for _, want := range []string{
+		"<string>--url=http://tuist-alloy-receiver-staging:3100/loki/api/v1/push</string>",
+		"<string>--file=tuist-macos-tart-kubelet=/var/log/tart-kubelet.log</string>",
+		"<string>--instance=tuist-tuist-runners-fleet-abc12</string>",
+		"<string>--env=staging</string>",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("rendered script missing %q\n%s", want, out)
+		}
+	}
+}
+
+// The env label is optional; a chart that hasn't set it must not render an
+// empty flag, which the agent would read as an empty label value.
+func TestRenderLogShipperScript_OmitsEnvWhenUnset(t *testing.T) {
+	out := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if strings.Contains(out, "--env=") {
+		t.Fatalf("expected no --env flag when LogShipEnv is empty\n%s", out)
+	}
+	if strings.Contains(out, "--instance=") {
+		t.Fatalf("expected no --instance flag when NodeName is empty\n%s", out)
+	}
+}
+
+// A `&` in the push URL would otherwise close the plist's <string> element
+// malformed, launchd would refuse the job, and the host would go quiet with no
+// symptom other than absent logs.
+func TestRenderLogShipperScript_EscapesXMLInSubstitutedValues(t *testing.T) {
+	out := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/push?a=1&b=2"})
+	if !strings.Contains(out, "--url=http://receiver:3100/push?a=1&amp;b=2</string>") {
+		t.Fatalf("expected the ampersand to be XML-escaped\n%s", out)
+	}
+}
+
+// The script ships the binary on stdin and the plist as a heredoc; a syntax
+// error in it is invisible until a host silently stops shipping logs.
+func TestRenderLogShipperScript_IsValidSh(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "install-log-shipper")
+	body := renderLogShipperScript(Config{
+		NodeName:   "macmini-1",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("log shipper script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+// Both gates matter. The binary rides the operator image, but the push URL
+// comes from the chart, and the tailnet is the only route to it — the endpoint
+// does not exist on the public internet.
+func TestInstallLogShipper_SkipsWithoutURLOrTailnet(t *testing.T) {
+	binary := Config{LogShipperBinary: []byte("shipper")}
+
+	noURL := binary
+	noURL.TailscaleAuthKey = "auth-key"
+	if err := installLogShipper(context.Background(), nil, noURL); err != nil {
+		t.Fatalf("expected a no-op without a push URL, got %v", err)
+	}
+
+	noTailnet := binary
+	noTailnet.LogShipURL = "http://receiver:3100/loki/api/v1/push"
+	if err := installLogShipper(context.Background(), nil, noTailnet); err != nil {
+		t.Fatalf("expected a no-op without a tailnet, got %v", err)
+	}
+
+	if err := installLogShipper(context.Background(), nil, Config{}); err != nil {
+		t.Fatalf("expected a no-op with nothing wired, got %v", err)
+	}
+}
+
+// Turning host logs on, pointing them at a different receiver, or re-baking the
+// agent all have to move the fleet hash — otherwise the change never reaches
+// an already-bootstrapped mini, which is exactly how node_exporter silently
+// skipped every drift update once.
+func TestHostConfigHash_ChangesWithLogShipping(t *testing.T) {
+	base := Config{TartKubeletBinary: []byte("kubelet-v1")}
+
+	url := base
+	url.LogShipURL = "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push"
+	if HostConfigHash(base) == HostConfigHash(url) {
+		t.Fatal("HostConfigHash must change when the log push URL changes")
+	}
+
+	env := url
+	env.LogShipEnv = "staging"
+	if HostConfigHash(url) == HostConfigHash(env) {
+		t.Fatal("HostConfigHash must change when the log env label changes")
+	}
+
+	binary := env
+	binary.LogShipperBinary = []byte("shipper-v1")
+	if HostConfigHash(env) == HostConfigHash(binary) {
+		t.Fatal("HostConfigHash must change when the log shipper binary changes")
+	}
+
+	rebuilt := binary
+	rebuilt.LogShipperBinary = []byte("shipper-v2")
+	if HostConfigHash(binary) == HostConfigHash(rebuilt) {
+		t.Fatal("HostConfigHash must change when the log shipper binary is re-baked")
+	}
+}
+
+// The shipper tails whatever launchd points tart-kubelet's stdout at. Nothing
+// enforces that at compile time, and a silent mismatch is invisible: the plist
+// would still load, the agent would still run, and the host would just never
+// appear in Loki.
+func TestLogShipperTailsTheTartKubeletLaunchdSink(t *testing.T) {
+	plist := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if !strings.Contains(plist, "<key>StandardOutPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's launchd sink is not %s; the log shipper would tail a dead file\n%s", tartKubeletLogPath, plist)
+	}
+	if !strings.Contains(plist, "<key>StandardErrorPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's stderr does not go to %s, so panics would never ship\n%s", tartKubeletLogPath, plist)
+	}
+	shipper := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if !strings.Contains(shipper, "--file="+tartKubeletLogJob+"="+tartKubeletLogPath+"</string>") {
+		t.Fatalf("the shipper does not tail %s\n%s", tartKubeletLogPath, shipper)
+	}
+}

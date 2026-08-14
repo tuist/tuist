@@ -79,7 +79,7 @@ Beyond first bootstrap, a drift loop re-pushes host config to already-Ready
 hosts when the operator's `bootstrap.HostConfigHash` differs from the
 Machine's `Status.HostConfigHash`. That hash is a fleet-wide fingerprint over
 everything the operator pushes — the rendered install scripts plus the
-embedded binaries (tart-kubelet, tailscale, node_exporter) — computed once at
+embedded binaries (tart-kubelet, tailscale, node_exporter, tuist-log-shipper) — computed once at
 startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
@@ -121,6 +121,32 @@ target on the update path (HostConfigHash strips it), so the fallback re-points
 it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
+
+### Host observability
+
+Two agents ride the operator image onto every mini, both installed by
+`macos-host-bootstrap` and both re-pushed by the drift loop (their bytes are in
+`HostConfigHash`, so forgetting to thread one through `UpdateTartKubelet` makes
+it silently skip on every roll — which is exactly what happened to
+`node_exporter` once).
+
+They travel in opposite directions, and the asymmetry is not a preference:
+
+- **`node_exporter`** is *pulled*. `alloy-metrics` dials `:9100` through the
+  Tailscale operator's egress ProxyGroup. It binds the tailnet IP specifically
+  so it is never exposed on the mini's public interface.
+- **`tuist-log-shipper`** ([`infra/macos-log-shipper`](../macos-log-shipper))
+  is *pushed*. A file has no scrapeable surface, and nothing in the cluster can
+  tail one on a macOS host: a Pod on a macOS Node is a Tart VM, so a
+  DaemonSet-shaped collector sees a guest filesystem, not the host's. It tails
+  `/var/log/tart-kubelet.log` — the launchd sink for everything the reconciler,
+  node agent and volume manager log — and POSTs to the in-cluster Alloy
+  receiver's `loki.source.api` over the tailnet, so no Grafana Cloud credential
+  is distributed to the fleet. Query `{job="tuist-macos-tart-kubelet"}`.
+
+Both are gated on Tailscale being wired, for mirrored reasons: without a
+tailnet, the pull agent would have to listen somewhere public, and the push
+agent has no route to its target at all.
 
 ### SSH ingress guard
 
@@ -215,7 +241,8 @@ infra/cluster-api-provider-tuist/
 ├── cmd/manager/    # controller-manager entry point
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
-├── Dockerfile
+├── Dockerfile      # cross-builds the darwin/arm64 host artifacts (tart-kubelet,
+│                   # tuist-log-shipper, tailscale) alongside the linux manager
 └── AGENTS.md (this file)
 ```
 

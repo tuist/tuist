@@ -468,6 +468,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
+  # Host logs, wired but not yet on. Staging proves the push path first
+  # (macosFleet.hostLogs in values-managed-staging.yaml); flipping this to
+  # true is then the whole change, since the receiver's tailnet hostname
+  # already exists (infra/helm/k8s-monitoring/values-canary.yaml).
+  hostLogs:
+    enabled: false
+    url: http://tuist-alloy-receiver-canary:3100/loki/api/v1/push
+    env: canary
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private

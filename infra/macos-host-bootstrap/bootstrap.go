@@ -30,9 +30,13 @@
 //     kubelet ever advertises.
 //  7. Install node_exporter for host-level (CPU, mem, disk, network,
 //     thermal) metrics, scraped over the tailnet on :9100.
-//  8. Drop the kubeconfig the controller built for this host.
-//  9. Upload the tart-kubelet binary.
-//  10. Write the launchd plist with this host's flags + load it.
+//  8. Install tuist-log-shipper, which tails the host's log files and
+//     pushes them to the in-cluster Alloy receiver over the tailnet.
+//     Metrics are pulled; logs are pushed, because nothing in the
+//     cluster can tail a file on a macOS host.
+//  9. Drop the kubeconfig the controller built for this host.
+//  10. Upload the tart-kubelet binary.
+//  11. Write the launchd plist with this host's flags + load it.
 //
 // After the last step the agent on the host registers a Node and
 // starts reconciling Pods. The provider's MachineReconciler flips
@@ -221,6 +225,41 @@ type Config struct {
 	// listening on a public IP.
 	NodeExporterBinary []byte
 
+	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary
+	// (cross-built in the operator image from infra/macos-log-shipper).
+	// Installed at /usr/local/bin/tuist-log-shipper under a launchd
+	// plist that tails the host's log files and pushes the lines to
+	// LogShipURL.
+	//
+	// A host-side agent is the only option here, and the reason is
+	// structural rather than incidental: tart-kubelet turns a Pod
+	// scheduled to this Node into a Tart VM, so a log collector
+	// deployed as a DaemonSet lands *inside a virtual machine* with no
+	// view of the host filesystem. Nothing in the cluster can tail
+	// /var/log/tart-kubelet.log, and that file is where everything the
+	// reconciler, node agent and volume manager log ends up.
+	//
+	// Empty (or an empty LogShipURL / TailscaleAuthKey) disables the
+	// step, same shape as NodeExporterBinary.
+	LogShipperBinary []byte
+
+	// LogShipURL is the Loki push endpoint the host agent POSTs to,
+	// including the /loki/api/v1/push path. In managed envs this is the
+	// tailnet hostname of the Tailscale-operator proxy fronting the
+	// k8s-monitoring chart's alloy-receiver, which already serves the
+	// same endpoint for the xcresult processor's Tart guests.
+	//
+	// Pushed rather than pulled, and pushed there rather than straight
+	// to Grafana Cloud, for the same reason those guests do it: the
+	// tailnet ACL is the access control, so no Grafana Cloud credential
+	// ever lands on a Mac mini. Empty disables the step.
+	LogShipURL string
+
+	// LogShipEnv is the `env` stream label (staging / canary /
+	// production), mirroring the label the server's own Loki handler
+	// sets. Empty omits the label.
+	LogShipEnv string
+
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
 	HostMemoryMB int
@@ -386,6 +425,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
@@ -484,6 +526,13 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
+	// Re-run on the drift path for the same reason node_exporter does: the
+	// binary and the push URL both come from the operator, so an image bump
+	// or a values change has to reach already-bootstrapped minis without
+	// re-provisioning them.
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
+	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
@@ -493,7 +542,7 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 // HostConfigHash is a fleet-wide canonical fingerprint of everything the
 // operator pushes to a host: the rendered install scripts (firewall +
 // vmnat, PN interface, launchd job + plist, Tailscale, node_exporter,
-// tart-kubelet install) plus the bytes of every embedded binary. The
+// log shipper, tart-kubelet install) plus the bytes of every embedded binary. The
 // reconciler stamps it on each Machine and re-pushes when it drifts, so
 // a change to ANY pushed config — a script tweak, a fleet-config CIDR, or
 // a re-baked binary in the operator image — reaches existing hosts on the
@@ -559,6 +608,7 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
@@ -585,6 +635,7 @@ func HostConfigHash(cfg Config) string {
 		{"tart-kubelet", cfg.TartKubeletBinary},
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
+		{"log-shipper-binary", cfg.LogShipperBinary},
 	} {
 		b.WriteString(bin.name)
 		b.WriteByte('\x00')
@@ -1993,6 +2044,22 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
 }
 
+// installLogShipper drops the cross-built darwin/arm64 tuist-log-shipper
+// binary and supervises it via launchd, tailing the host's log files and
+// pushing the lines to cfg.LogShipURL.
+//
+// Gated on the tailnet exactly like installNodeExporter, for the mirror-image
+// reason. node_exporter is *pulled*, so without a tailnet it would listen on a
+// public interface; the log shipper *pushes*, so without a tailnet it has no
+// route to the in-cluster receiver at all — the endpoint only exists on the
+// tailnet. Either way, no tailnet means no step.
+func installLogShipper(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.LogShipperBinary) == 0 || cfg.LogShipURL == "" || cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	return RunCommandWithStdin(ctx, client, renderLogShipperScript(cfg), bytes.NewReader(cfg.LogShipperBinary))
+}
+
 // installSSHReachability installs the host-side self-heal that keeps the
 // operator's only management channel (SSH → tart-kubelet updates) from staying
 // wedged. See renderSSHReachabilityScript.
@@ -2289,6 +2356,122 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
+}
+
+// tartKubeletLogPath is the launchd StandardOut/StandardError sink for the
+// tart-kubelet job (see renderLaunchdPlist). It is the file the log shipper
+// tails, and the reason this whole agent exists: everything the reconciler,
+// node agent and volume manager log lands here and nowhere else.
+const tartKubeletLogPath = "/var/log/tart-kubelet.log"
+
+// tartKubeletLogJob is the Loki `job` label the tart-kubelet host log ships
+// under. Queries in dashboards and runbooks select on it, so treat it as an
+// interface: renaming it orphans every saved query.
+const tartKubeletLogJob = "tuist-macos-tart-kubelet"
+
+// renderLogShipperScript is the SSH script that installs the tuist-log-shipper
+// binary + launchd job. The binary rides stdin and its drift is tracked by its
+// own SHA in the host config hash; the push URL, env label and node name are
+// substituted here, so this script is config-shaped and folds into the hash.
+//
+// Only /var/log/tart-kubelet.log is tailed. The other host logs (tailscaled,
+// node_exporter, the shipper's own) are either already observable by other
+// means or are diagnostics for the transport itself — shipping the shipper's
+// push failures through the shipper would turn one outage into a loop.
+func renderLogShipperScript(cfg Config) string {
+	args := []string{
+		"/usr/local/bin/tuist-log-shipper",
+		"--url=" + cfg.LogShipURL,
+		"--file=" + tartKubeletLogJob + "=" + tartKubeletLogPath,
+	}
+	if cfg.NodeName != "" {
+		// Explicit rather than relying on the agent's os.Hostname() default,
+		// for the same reason tart-kubelet takes --node-name explicitly: macOS
+		// will happily let a DHCP lease rename the host out from under the
+		// value SetHostname wrote, and an `instance` label that drifts is worse
+		// than no label at all.
+		args = append(args, "--instance="+cfg.NodeName)
+	}
+	if cfg.LogShipEnv != "" {
+		args = append(args, "--env="+cfg.LogShipEnv)
+	}
+	var programArgs strings.Builder
+	for _, arg := range args {
+		programArgs.WriteString("\n    <string>")
+		programArgs.WriteString(xmlEscape(arg))
+		programArgs.WriteString("</string>")
+	}
+
+	// The reload mirrors loadTartKubeletLaunchd's content comparison rather
+	// than the unconditional bootout+bootstrap the older install steps use:
+	// every re-registration is a Background Task Management event, and BTM
+	// stops honouring KeepAlive for a job that churns too often. The common
+	// drift case is a binary bump with identical args, which `kickstart -k`
+	// handles without touching BTM at all.
+	//
+	// Unlike loadTartKubeletLaunchd, a job that fails to come up is NOT an
+	// error here. A drift roll that failed on the log shipper would block the
+	// tart-kubelet and firewall config it also carries — letting the logging
+	// path wedge the fleet it is supposed to observe. launchd's KeepAlive
+	// retries on its own, and the failure is visible both in
+	// /var/log/tuist-log-shipper.log and as this host going quiet in Loki.
+	return fmt.Sprintf(`set -euo pipefail
+sudo mkdir -p /usr/local/bin /var/lib/tuist-log-shipper
+sudo tee /usr/local/bin/tuist-log-shipper >/dev/null
+sudo chmod 0755 /usr/local/bin/tuist-log-shipper
+# Re-sign in place for the same reason renderTartKubeletInstallScript does:
+# overwriting the binary at the same inode leaves AMFI validating the new pages
+# against the old cdhash, and the kernel kills the next launch as
+# OS_REASON_CODESIGNING.
+sudo codesign --force --sign - /usr/local/bin/tuist-log-shipper
+
+PLIST=/Library/LaunchDaemons/dev.tuist.log-shipper.plist
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW" <<'LOGSHIPPER_PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.log-shipper</string>
+  <key>ProgramArguments</key>
+  <array>%[1]s
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tuist-log-shipper.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tuist-log-shipper.log</string>
+</dict>
+</plist>
+LOGSHIPPER_PLIST
+
+if cmp -s "$NEW" "$PLIST" && sudo launchctl print system/dev.tuist.log-shipper >/dev/null 2>&1; then
+  sudo launchctl kickstart -k system/dev.tuist.log-shipper 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+`, programArgs.String())
+}
+
+// xmlEscape makes a launchd plist <string> safe for values the operator
+// substitutes. A push URL with a query string is the realistic case: a bare `&`
+// makes the plist malformed, launchd refuses to load the job, and the host goes
+// quiet with no other symptom.
+func xmlEscape(s string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		`"`, "&quot;",
+		"'", "&apos;",
+	)
+	return replacer.Replace(s)
 }
 
 // === SSH helpers ===========================================================

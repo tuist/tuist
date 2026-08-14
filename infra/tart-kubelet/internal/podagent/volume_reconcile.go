@@ -401,10 +401,18 @@ func readVolumeHead(statusDir string) *volumeHead {
 // can't race the reconciler mutating that entry. Best-effort and bounded: no
 // HEAD, already-current, or any download/extract failure leaves the local
 // master untouched (the status quo — jobs just pay a few remote misses).
+//
+// Every decline logs which branch it took, keyed by vm + account. A counter can
+// say how often a branch fires; only the line says why THIS account on THIS
+// host declined, which is where an investigation into a fleet that materializes
+// hundreds of times a day and converges once has to go next. Convergence runs
+// at most once per VM, so this is a handful of lines per job, not a per-tick
+// stream. They ship off the host via infra/macos-log-shipper.
 func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account string) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return
 	}
+	logger := log.Log.WithName("volume")
 	// Wait (bounded) for the guest to stage the HEAD. The guest writes
 	// volume-head.json only after it receives the dispatch response, which the
 	// server returns after stamping the label that triggered this convergence,
@@ -412,7 +420,15 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// would usually miss it and permanently skip convergence; since this runs in
 	// the background, it can afford to wait for the file to appear.
 	head := awaitVolumeHead(statusDir)
-	if head == nil || head.Generation <= 0 || head.DownloadURL == "" {
+	if head == nil {
+		logger.Info("converge: declined, guest staged no HEAD before the wait elapsed",
+			"vm", vmName, "account", account, "statusDir", statusDir)
+		return
+	}
+	if head.Generation <= 0 || head.DownloadURL == "" {
+		logger.Info("converge: declined, HEAD is incomplete",
+			"vm", vmName, "account", account,
+			"generation", head.Generation, "hasDownloadURL", head.DownloadURL != "")
 		return
 	}
 	// Skip if this host's master is already at or past the HEAD generation. The
@@ -420,10 +436,11 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// generation >= the HEAD's means this host already holds that HEAD (or its own
 	// newer promote) and has nothing to adopt.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
+		logger.Info("converge: declined, local master is already at or past HEAD",
+			"vm", vmName, "account", account, "local", local, "head", head.Generation)
 		return
 	}
 
-	logger := log.Log.WithName("volume")
 	staging := r.Volumes.ConvergeStagingDir(vmName)
 	_ = os.RemoveAll(staging)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
@@ -458,16 +475,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
 		return
 	}
-	if installed {
-		RecordVolumeConverged()
-		logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+	if !installed {
+		// InstallMaster's generation gate refused: something moved the local
+		// master to a newer generation while this download was in flight (a
+		// promote from the job that triggered it, or a concurrent converge to a
+		// later HEAD). Benign, but indistinguishable from a broken download
+		// unless it says so.
+		logger.Info("converge: declined at install, local master moved to a newer generation mid-download",
+			"vm", vmName, "account", account, "head", head.Generation)
+		return
 	}
+	RecordVolumeConverged()
+	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
 // background convergence waits for the guest to stage the HEAD before giving
-// up (best-effort; the next job on this host converges instead).
-const (
+// up (best-effort; the next job on this host converges instead). Package-level
+// vars, not consts, so tests can shrink the wait.
+var (
 	convergeHeadWaitInterval = 1 * time.Second
 	convergeHeadWaitAttempts = 15
 )

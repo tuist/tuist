@@ -59,6 +59,22 @@ Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps 
 
 `internal/podagent/volume*.go` owns the **per-account cache volumes** (spec #76), materialized after dispatch: a VM boots with an empty per-VM branch share, and once the server stamps the account label the host APFS-clonefiles that account's master into it. A master is a sparse disk image (`<account>/<volume>/master.sparseimage` + a `master.generation` sidecar), not a directory tree — virtio-fs cannot carry a macOS cache faithfully (no xattrs on symlinks, which versioned framework bundles and the CLI's artifact signatures both need), so exactly one file crosses the share and the filesystem inside it is real APFS. Reconciliation is **fast-forward last-writer-wins**: promote and converge both `InstallMaster` — a whole-image CoW replace gated so the local master only ever moves to a NEWER generation. The generation is the version marker both compare against, and the compare-and-swap that prevents a stale writer from clobbering a newer master lives in the server's HEAD bump (`VolumeHeads.bump_head/5`), not on the host; the host only relays a base generation up (staged for the guest at materialize) and installs the branch on an accepted fast-forward (the guest writes the accepted generation back to the status share). Consequences worth knowing before editing: `MasterGeneration` reads the sidecar and is honored only while the master image exists; `ImageDigest` is the only place the host looks inside an image, via a read-only attach with a deferred detach (a leaked attach pins the file against LRU eviction), used solely to verify a downloaded HEAD matches its advertised digest before adopting it; and `Materialize` must leave an image at the branch on **every** path (an empty one on failure), because the guest cannot attach what isn't there and a missing image kills the job rather than costing it warmth. The guest attaches with `-owners off`, which is why no host-side chmod of the cache tree is needed. Off unless `--runner-cache-volume-gib` > 0. The host also **advertises which masters it holds** to the server: `CacheMasterNodeLabels` scans the same directories eviction does and publishes one `tuist.dev/cache-master-<account_id>` Node label per resident master through the node maintainer's `DynamicLabels` hook (the same hook that advertises golden base VMs), and the server's dispatch reads them to hand a polling runner a job whose cache is already there. Master directories are named after the account id the server stamps in `tuist.dev/runner-account`, so the labels need no translation. This is deliberately a report of what is on disk rather than something the server models: an admission decline, a watermark eviction, or a reprovisioned host all change residency without the server issuing a dispatch, and only the host can see that.
 
+### `macos-log-shipper/` — Mac mini host log agent
+`tuist-log-shipper`, a launchd daemon on every mini that tails
+`/var/log/tart-kubelet.log` and pushes the lines to the in-cluster Alloy
+receiver's `loki.source.api` over the tailnet. It exists because the standard
+collector-as-DaemonSet path is structurally unavailable on these hosts: a Pod
+scheduled to a macOS Node *is* a Tart VM, so an in-cluster collector never sees
+the host filesystem, and `kubectl logs` can't resolve the tailnet-only kubelet
+either. Metrics are pulled (alloy-metrics dials `:9100`); logs are pushed,
+because a file has no scrapeable surface. Pushing to the cluster rather than
+straight to Grafana Cloud keeps every ingest credential off nine
+internet-facing minis — the tailnet ACL is the access control and Alloy
+forwards with the token it already holds. Installed and drift-rolled by
+`macos-host-bootstrap` exactly like `node_exporter`. Per-env gate:
+`macosFleet.hostLogs.enabled`. See
+[`macos-log-shipper/AGENTS.md`](macos-log-shipper/AGENTS.md).
+
 ### `registry-router/` — Cloudflare Worker for the Tuist registry path
 Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. The ingress hostname is an origin, not a separately advertised registry endpoint.
 
