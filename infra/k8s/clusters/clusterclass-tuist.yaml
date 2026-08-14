@@ -121,6 +121,22 @@ spec:
               # to go and there is no reason to give up a zero-downtime roll.
               maxSurge: 0
               maxUnavailable: 1
+        deletion:
+          # Unbounded on purpose. Runner Pods are drained with
+          # `behavior: WaitCompleted` (see
+          # `infra/k8s/clusters/machinedrainrules.yaml`), so a drain waits
+          # for the node's in-flight CI jobs instead of evicting them, and
+          # a job can legitimately run for hours. Any finite timeout here
+          # is a promise to kill a customer's job once it is exceeded,
+          # which is the failure this whole arrangement exists to prevent.
+          #
+          # The risk this accepts is a drain that never finishes holding
+          # the roll open. That is deliberately handled by making it loud
+          # rather than by capping it: "Worker node pool stuck mid-rollout"
+          # in `infra/helm/k8s-monitoring/alerts.md` fires on
+          # `upToDateReplicas < spec.replicas`, which covers a stalled
+          # drain and the all-hosts-claimed wedge alike.
+          nodeDrainTimeoutSeconds: 0
         healthCheck:
           checks:
             # Longer timeout than hcloud: rescue → installimage → reboot

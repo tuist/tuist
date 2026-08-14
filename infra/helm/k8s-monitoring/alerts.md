@@ -769,6 +769,41 @@ absent_over_time(
 
 ## Warning alerts
 
+### Worker node pool stuck mid-rollout
+
+Catches a worker MachineDeployment that started replacing Machines and cannot
+finish. Desired-vs-ready is blind to this: a stalled roll keeps every Machine
+it already has Ready, so `ready == spec` the whole time and the pool looks
+healthy while it silently stops receiving template changes. That is how
+`tuist-runners-linux` went two months — from 2026-06-17 — with two Ready
+Machines, one of them up to date, and no signal at all.
+
+Two distinct failures land here. A bare-metal pool whose hosts are all
+claimed cannot surge a replacement, so the roll never starts (fixed by
+`maxSurge: 0` / `maxUnavailable: 1` on the `bare-metal-worker` class). And a
+drain that cannot complete holds the roll open — expected briefly, since
+runner Pods are drained with `WaitCompleted` and a node waits for its
+in-flight CI jobs, but not for hours.
+
+```promql
+kube_customresource_machinedeployment_up_to_date_replicas{
+  cluster="tuist-management"
+}
+<
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 6 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has been mid-rollout for six hours`
+
+The pending period is set against a legitimately slow drain rather than
+against a fast roll. Replacing a bare-metal Machine takes 8-15 minutes of
+`installimage`, and the drain ahead of it waits for the node's running jobs,
+so a healthy roll can take a while. Six hours never fires on that, and still
+catches a genuine wedge the same day instead of the next quarter.
+
 ### Kubernetes request latency
 
 ```promql
