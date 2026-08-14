@@ -280,3 +280,54 @@ func TestTailLogsARepeatingFailureOnce(t *testing.T) {
 		t.Fatalf("expected the repeated failure to be logged once, got %d lines", len(logged))
 	}
 }
+
+// Run gives every --file source its own goroutine against one shared positions
+// store, so two sources persisting offsets is the normal case, not an edge one.
+// Unsynchronised, this races the map and interleaves the temp-file writes, and
+// the surviving rename can be missing an offset the other source already
+// advanced — which silently re-ships everything after it.
+func TestPositionsAreSafeForConcurrentSources(t *testing.T) {
+	positions := LoadPositions(filepath.Join(t.TempDir(), "positions.json"))
+	paths := []string{"/var/log/tart-kubelet.log", "/var/log/tart-vms/a.log", "/var/log/tart-vms/b.log"}
+
+	var wg sync.WaitGroup
+	for i, path := range paths {
+		wg.Add(1)
+		go func(i int, path string) {
+			defer wg.Done()
+			for offset := 1; offset <= 50; offset++ {
+				if err := positions.Set(path, Position{Inode: uint64(i + 1), Offset: int64(offset)}); err != nil {
+					t.Errorf("Set(%s): %v", path, err)
+					return
+				}
+				if _, ok := positions.Get(path); !ok {
+					t.Errorf("Get(%s) lost the position it just stored", path)
+					return
+				}
+			}
+		}(i, path)
+	}
+	wg.Wait()
+
+	// Every source's final offset has to be in the store, and in the file: a
+	// lost writer here is a source that re-ships its whole backlog on restart.
+	for i, path := range paths {
+		got, ok := positions.Get(path)
+		if !ok {
+			t.Fatalf("%s is missing from the store", path)
+		}
+		if got.Offset != 50 || got.Inode != uint64(i+1) {
+			t.Fatalf("%s = %+v, want inode %d offset 50", path, got, i+1)
+		}
+	}
+	reloaded := LoadPositions(positions.path)
+	for i, path := range paths {
+		got, ok := reloaded.Get(path)
+		if !ok {
+			t.Fatalf("%s did not survive the flush", path)
+		}
+		if got.Offset != 50 || got.Inode != uint64(i+1) {
+			t.Fatalf("persisted %s = %+v, want inode %d offset 50", path, got, i+1)
+		}
+	}
+}

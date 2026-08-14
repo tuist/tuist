@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Position is how far into a file the shipper has read AND successfully
@@ -18,7 +19,15 @@ type Position struct {
 }
 
 // Positions maps a tailed path to its resume point.
+//
+// One store is shared by every tailed source, and Run gives each source its own
+// goroutine, so the map and the file behind it are both concurrent. The mutex
+// covers the whole read-modify-write-flush: without it two sources racing on
+// Set corrupt the map, and even a safe map would let two flushes interleave and
+// rename a serialization that is missing the other's offset — silently
+// resurrecting an old position and re-shipping everything after it.
 type Positions struct {
+	mu     sync.Mutex
 	path   string
 	byPath map[string]Position
 }
@@ -45,19 +54,23 @@ func LoadPositions(path string) *Positions {
 
 // Get reports the stored position for a path and whether one exists.
 func (p *Positions) Get(path string) (Position, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	pos, ok := p.byPath[path]
 	return pos, ok
 }
 
 // Set records a position and persists the whole set.
 func (p *Positions) Set(path string, pos Position) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.byPath[path] = pos
 	return p.flush()
 }
 
 // flush writes through a temp file in the same directory and renames, so a
 // crash mid-write leaves the previous positions intact instead of a truncated
-// JSON document that LoadPositions would discard.
+// JSON document that LoadPositions would discard. Callers hold p.mu.
 func (p *Positions) flush() error {
 	if p.path == "" {
 		return nil

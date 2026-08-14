@@ -1390,6 +1390,12 @@ macosFleet:
   # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
   #
   # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
+  #
+  # Reversible in both directions: turning this off moves the fleet host-config
+  # hash, and the drift roll that follows unloads the launchd job and removes
+  # the agent from every mini. A flag that only stopped new config from being
+  # pushed would leave the daemon running with its old URL, so ingestion would
+  # continue after a "rollback" — this one actually stops it.
   hostLogs:
     enabled: false
     # Loki push endpoint, including the /loki/api/v1/push path. The tailnet

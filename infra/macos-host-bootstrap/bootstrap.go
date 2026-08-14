@@ -2121,20 +2121,53 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
 }
 
-// installLogShipper drops the cross-built darwin/arm64 tuist-log-shipper
-// binary and supervises it via launchd, tailing the host's log files and
-// pushing the lines to cfg.LogShipURL.
+// logShippingConfigured reports whether the CHART asked for host logs: the
+// operator image carries the agent and macosFleet.hostLogs supplied a push URL.
 //
-// Gated on the tailnet exactly like installNodeExporter, for the mirror-image
-// reason. node_exporter is *pulled*, so without a tailnet it would listen on a
-// public interface; the log shipper *pushes*, so without a tailnet it has no
-// route to the in-cluster receiver at all — the endpoint only exists on the
-// tailnet. Either way, no tailnet means no step.
+// This, not logShippingEnabled, is what the rendered script keys on, because
+// HostConfigHash deliberately zeroes TailscaleAuthKey (it is a secret, and the
+// hash has to be identical fleet-wide). A render that consulted the auth key
+// would therefore see "disabled" on every canonical hash computation, the
+// enabled and disabled configs would hash the same, and the drift loop would
+// never deliver either state — the flag would move nothing.
+func logShippingConfigured(cfg Config) bool {
+	return len(cfg.LogShipperBinary) > 0 && cfg.LogShipURL != ""
+}
+
+// logShippingEnabled adds the runtime precondition to the chart's intent: a
+// tailnet to reach the receiver over.
+//
+// The gate exists for the mirror-image reason node_exporter has one.
+// node_exporter is *pulled*, so without a tailnet it would listen on a public
+// interface; the shipper *pushes*, so without a tailnet it has no route to the
+// in-cluster receiver at all — that endpoint exists nowhere else. A host in
+// that state gets the agent removed rather than left running against an
+// unreachable URL.
+func logShippingEnabled(cfg Config) bool {
+	return logShippingConfigured(cfg) && cfg.TailscaleAuthKey != ""
+}
+
+// installLogShipper converges the host onto the desired state: it installs and
+// (re)loads the agent when host logging is on, and removes it when host logging
+// is off.
+//
+// The removal half is what makes the chart flag a real switch. Returning early
+// when the feature is off only prevents the operator from PUSHING a new
+// config; a launchd job that is already loaded keeps running, keeps its old URL
+// and env label, and keeps ingesting. Flipping macosFleet.hostLogs.enabled back
+// to false would then stop nothing, which is the wrong behaviour for a rollback
+// lever whose whole point is to stop ingestion.
+//
+// This is convergent rather than latched, so the uninstall also runs on hosts
+// that never had the agent (one cheap SSH command per drift roll). That is
+// deliberate: the operator cannot know what a host is carrying — a host
+// bootstrapped by an older operator image, or one whose CR was detached and
+// re-adopted, may hold a job this config never installed.
 func installLogShipper(ctx context.Context, client *ssh.Client, cfg Config) error {
-	if len(cfg.LogShipperBinary) == 0 || cfg.LogShipURL == "" || cfg.TailscaleAuthKey == "" {
-		return nil
+	if !logShippingEnabled(cfg) {
+		return RunCommand(ctx, client, renderLogShipperUninstallScript())
 	}
-	return RunCommandWithStdin(ctx, client, renderLogShipperScript(cfg), bytes.NewReader(cfg.LogShipperBinary))
+	return RunCommandWithStdin(ctx, client, renderLogShipperInstallScript(cfg), bytes.NewReader(cfg.LogShipperBinary))
 }
 
 // installSSHReachability installs the host-side self-heal that keeps the
@@ -2446,16 +2479,52 @@ const tartKubeletLogPath = "/var/log/tart-kubelet.log"
 // interface: renaming it orphans every saved query.
 const tartKubeletLogJob = "tuist-macos-tart-kubelet"
 
-// renderLogShipperScript is the SSH script that installs the tuist-log-shipper
-// binary + launchd job. The binary rides stdin and its drift is tracked by its
-// own SHA in the host config hash; the push URL, env label and node name are
-// substituted here, so this script is config-shaped and folds into the hash.
+// renderLogShipperScript is what the host config hash folds in: whichever of
+// the two scripts this config would actually push. Turning host logging off
+// therefore moves the fleet hash, which is what makes the drift loop deliver
+// the uninstall — a disable that did not move the hash would never reach a
+// single host.
+func renderLogShipperScript(cfg Config) string {
+	if !logShippingConfigured(cfg) {
+		return renderLogShipperUninstallScript()
+	}
+	return renderLogShipperInstallScript(cfg)
+}
+
+// renderLogShipperUninstallScript removes the agent and the state it owns.
+//
+// The positions file goes with it, deliberately. It records how far into
+// /var/log/tart-kubelet.log the agent had shipped, and that file keeps growing
+// while the agent is off — so a re-enable that resumed from the stale offset
+// would replay the entire disabled window in one burst, which is both the cost
+// the feature flag was flipped to avoid and a batch Grafana Cloud would reject
+// as too old. Dropping it makes a re-enable start at the end of the file, the
+// same as a first install.
+//
+// /var/log/tuist-log-shipper.log is left in place: it holds the agent's own
+// diagnostics, which are the first thing anyone reads when asking why host
+// logging was turned off.
+func renderLogShipperUninstallScript() string {
+	return `set -euo pipefail
+PLIST=/Library/LaunchDaemons/dev.tuist.log-shipper.plist
+sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+sudo rm -f "$PLIST"
+sudo rm -f /usr/local/bin/tuist-log-shipper
+sudo rm -rf /var/lib/tuist-log-shipper
+`
+}
+
+// renderLogShipperInstallScript is the SSH script that installs the
+// tuist-log-shipper binary + launchd job. The binary rides stdin and its drift
+// is tracked by its own SHA in the host config hash; the push URL, env label
+// and node name are substituted here, so this script is config-shaped and
+// folds into the hash.
 //
 // Only /var/log/tart-kubelet.log is tailed. The other host logs (tailscaled,
 // node_exporter, the shipper's own) are either already observable by other
 // means or are diagnostics for the transport itself — shipping the shipper's
 // push failures through the shipper would turn one outage into a loop.
-func renderLogShipperScript(cfg Config) string {
+func renderLogShipperInstallScript(cfg Config) string {
 	args := []string{
 		"/usr/local/bin/tuist-log-shipper",
 		"--url=" + cfg.LogShipURL,

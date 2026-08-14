@@ -96,6 +96,17 @@ read time, so one bad line cannot make its whole batch a permanent rejection.
 `instance` is the CAPI Machine / Node name, so it joins directly against the
 `node_*` and `tart_kubelet_*` metrics scraped from the same host.
 
+## What lands in Loki is documented as stored data
+
+`tart-kubelet`'s cache-volume lines carry the Tuist **account id** (from the
+`tuist.dev/runner-account` label the server stamps at dispatch), so this stream
+is account-correlated operational telemetry, not just infrastructure noise. It
+is written up in [`server/data-export.md`](../../server/data-export.md) under
+Non-Exportable Data, alongside the Kura traces in Tempo.
+
+Adding a new tailed file, or a new field to an existing line, is a change to
+what Tuist stores about an account. Update that document in the same change.
+
 ## Rollout
 
 Gated per env by `macosFleet.hostLogs.enabled` in
@@ -107,6 +118,18 @@ receiver has to be exposed on the tailnet in the matching env — the
 
 Staging is on; canary and production are wired with their URLs and left off
 until staging has proven the path and a day of volume data.
+
+The flag is reversible. Turning it off moves the fleet host-config hash, and
+the drift roll that follows unloads `dev.tuist.log-shipper` and removes the
+binary and its positions file from every mini — so the rollback lever actually
+stops ingestion instead of only stopping config pushes to a daemon that keeps
+running. The uninstall is convergent, so it also runs on hosts that never had
+the agent; it is a no-op there.
+
+Positions go with the uninstall on purpose: the tailed log keeps growing while
+the agent is off, so a re-enable that resumed from the stale offset would
+replay the whole disabled window in one burst. A re-enable starts at the end of
+the file, the same as a first install.
 
 ## Guest stdout is a separate problem — `tart run` cannot capture it
 

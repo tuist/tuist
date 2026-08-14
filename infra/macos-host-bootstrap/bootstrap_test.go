@@ -735,7 +735,7 @@ func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
 }
 
 func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T) {
-	out := renderLogShipperScript(Config{
+	out := renderLogShipperInstallScript(Config{
 		NodeName:   "tuist-tuist-runners-fleet-abc12",
 		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
 		LogShipEnv: "staging",
@@ -755,7 +755,7 @@ func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T
 // The env label is optional; a chart that hasn't set it must not render an
 // empty flag, which the agent would read as an empty label value.
 func TestRenderLogShipperScript_OmitsEnvWhenUnset(t *testing.T) {
-	out := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
 	if strings.Contains(out, "--env=") {
 		t.Fatalf("expected no --env flag when LogShipEnv is empty\n%s", out)
 	}
@@ -768,7 +768,7 @@ func TestRenderLogShipperScript_OmitsEnvWhenUnset(t *testing.T) {
 // malformed, launchd would refuse the job, and the host would go quiet with no
 // symptom other than absent logs.
 func TestRenderLogShipperScript_EscapesXMLInSubstitutedValues(t *testing.T) {
-	out := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/push?a=1&b=2"})
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/push?a=1&b=2"})
 	if !strings.Contains(out, "--url=http://receiver:3100/push?a=1&amp;b=2</string>") {
 		t.Fatalf("expected the ampersand to be XML-escaped\n%s", out)
 	}
@@ -778,7 +778,7 @@ func TestRenderLogShipperScript_EscapesXMLInSubstitutedValues(t *testing.T) {
 // error in it is invisible until a host silently stops shipping logs.
 func TestRenderLogShipperScript_IsValidSh(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "install-log-shipper")
-	body := renderLogShipperScript(Config{
+	body := renderLogShipperInstallScript(Config{
 		NodeName:   "macmini-1",
 		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
 		LogShipEnv: "staging",
@@ -791,26 +791,91 @@ func TestRenderLogShipperScript_IsValidSh(t *testing.T) {
 	}
 }
 
-// Both gates matter. The binary rides the operator image, but the push URL
-// comes from the chart, and the tailnet is the only route to it — the endpoint
-// does not exist on the public internet.
-func TestInstallLogShipper_SkipsWithoutURLOrTailnet(t *testing.T) {
-	binary := Config{LogShipperBinary: []byte("shipper")}
-
-	noURL := binary
-	noURL.TailscaleAuthKey = "auth-key"
-	if err := installLogShipper(context.Background(), nil, noURL); err != nil {
-		t.Fatalf("expected a no-op without a push URL, got %v", err)
+// All three inputs gate the feature. The binary rides the operator image, the
+// push URL comes from the chart, and the tailnet is the only route to that URL
+// — the receiver does not exist on the public internet.
+func TestLogShippingEnabled_RequiresBinaryURLAndTailnet(t *testing.T) {
+	full := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
 	}
-
-	noTailnet := binary
-	noTailnet.LogShipURL = "http://receiver:3100/loki/api/v1/push"
-	if err := installLogShipper(context.Background(), nil, noTailnet); err != nil {
-		t.Fatalf("expected a no-op without a tailnet, got %v", err)
+	if !logShippingEnabled(full) {
+		t.Fatal("expected a fully wired config to enable host logging")
 	}
+	for name, mutate := range map[string]func(*Config){
+		"no binary":  func(c *Config) { c.LogShipperBinary = nil },
+		"no url":     func(c *Config) { c.LogShipURL = "" },
+		"no tailnet": func(c *Config) { c.TailscaleAuthKey = "" },
+	} {
+		cfg := full
+		mutate(&cfg)
+		if logShippingEnabled(cfg) {
+			t.Fatalf("expected host logging to be disabled with %s", name)
+		}
+	}
+}
 
-	if err := installLogShipper(context.Background(), nil, Config{}); err != nil {
-		t.Fatalf("expected a no-op with nothing wired, got %v", err)
+// Turning the chart flag off has to REMOVE the daemon, not merely stop pushing
+// a new config to it. A launchd job that is already loaded keeps running with
+// whatever URL and env label it was last given, so a disable that only skipped
+// the install would stop no ingestion at all — leaving the rollback lever
+// attached to nothing.
+func TestRenderLogShipperScript_UninstallsWhenDisabled(t *testing.T) {
+	out := renderLogShipperScript(Config{LogShipperBinary: []byte("shipper")})
+	for _, want := range []string{
+		"launchctl bootout system \"$PLIST\"",
+		"rm -f \"$PLIST\"",
+		"rm -f /usr/local/bin/tuist-log-shipper",
+		// The positions file has to go too: it points into a log that kept
+		// growing while the agent was off, so resuming from it would replay the
+		// whole disabled window — the exact cost the flag was flipped to avoid.
+		"rm -rf /var/lib/tuist-log-shipper",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("disabled render missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "launchctl bootstrap") {
+		t.Fatalf("disabled render must not load the job\n%s", out)
+	}
+}
+
+// The uninstall is delivered by the drift loop, which only fires when the fleet
+// hash moves. A disable that left the hash unchanged would never reach a host.
+func TestHostConfigHash_ChangesWhenLogShippingIsTurnedOff(t *testing.T) {
+	enabled := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+		LogShipURL:        "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv:        "staging",
+		TailscaleAuthKey:  "auth-key",
+	}
+	disabled := enabled
+	disabled.LogShipURL = ""
+	if HostConfigHash(enabled) == HostConfigHash(disabled) {
+		t.Fatal("HostConfigHash must change when host logging is turned off, or the uninstall never rolls")
+	}
+}
+
+// The uninstall runs on hosts that never carried the agent, so it has to be a
+// clean no-op there rather than a failed step that fails the whole drift roll.
+func TestRenderLogShipperUninstallScript_IsIdempotentAndValidSh(t *testing.T) {
+	body := renderLogShipperUninstallScript()
+	if !strings.Contains(body, "2>/dev/null || true") {
+		t.Fatalf("bootout of an absent job must not fail the script\n%s", body)
+	}
+	for _, removal := range []string{"rm -f \"$PLIST\"", "rm -f /usr/local/bin/tuist-log-shipper", "rm -rf /var/lib/tuist-log-shipper"} {
+		if !strings.Contains(body, removal) {
+			t.Fatalf("missing %q\n%s", removal, body)
+		}
+	}
+	script := filepath.Join(t.TempDir(), "uninstall-log-shipper")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("uninstall script is not valid sh: %v\n%s", err, combined)
 	}
 }
 
@@ -819,12 +884,23 @@ func TestInstallLogShipper_SkipsWithoutURLOrTailnet(t *testing.T) {
 // an already-bootstrapped mini, which is exactly how node_exporter silently
 // skipped every drift update once.
 func TestHostConfigHash_ChangesWithLogShipping(t *testing.T) {
-	base := Config{TartKubeletBinary: []byte("kubelet-v1")}
+	// An operator image that carries the agent but no push URL is the disabled
+	// state, so the URL is what turns the feature on from here.
+	base := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+	}
 
 	url := base
 	url.LogShipURL = "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push"
 	if HostConfigHash(base) == HostConfigHash(url) {
 		t.Fatal("HostConfigHash must change when the log push URL changes")
+	}
+
+	moved := url
+	moved.LogShipURL = "http://tuist-alloy-receiver-canary:3100/loki/api/v1/push"
+	if HostConfigHash(url) == HostConfigHash(moved) {
+		t.Fatal("HostConfigHash must change when the receiver moves")
 	}
 
 	env := url
@@ -833,15 +909,9 @@ func TestHostConfigHash_ChangesWithLogShipping(t *testing.T) {
 		t.Fatal("HostConfigHash must change when the log env label changes")
 	}
 
-	binary := env
-	binary.LogShipperBinary = []byte("shipper-v1")
-	if HostConfigHash(env) == HostConfigHash(binary) {
-		t.Fatal("HostConfigHash must change when the log shipper binary changes")
-	}
-
-	rebuilt := binary
+	rebuilt := env
 	rebuilt.LogShipperBinary = []byte("shipper-v2")
-	if HostConfigHash(binary) == HostConfigHash(rebuilt) {
+	if HostConfigHash(env) == HostConfigHash(rebuilt) {
 		t.Fatal("HostConfigHash must change when the log shipper binary is re-baked")
 	}
 }
@@ -858,7 +928,7 @@ func TestLogShipperTailsTheTartKubeletLaunchdSink(t *testing.T) {
 	if !strings.Contains(plist, "<key>StandardErrorPath</key><string>"+tartKubeletLogPath+"</string>") {
 		t.Fatalf("tart-kubelet's stderr does not go to %s, so panics would never ship\n%s", tartKubeletLogPath, plist)
 	}
-	shipper := renderLogShipperScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	shipper := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
 	if !strings.Contains(shipper, "--file="+tartKubeletLogJob+"="+tartKubeletLogPath+"</string>") {
 		t.Fatalf("the shipper does not tail %s\n%s", tartKubeletLogPath, shipper)
 	}
@@ -938,5 +1008,25 @@ load anchor "com.apple" from "/etc/pf.anchors/com.apple"
 	// precisely the failure this guards against.
 	if !strings.Contains(string(out), `nat-anchor "com.apple/*"`) {
 		t.Fatalf("strip removed the stock Apple nat-anchor\n%s", out)
+	}
+}
+
+// HostConfigHash zeroes TailscaleAuthKey, so anything the rendered script keys
+// on must survive that. If the render consulted the auth key, the enabled and
+// disabled configs would hash identically and the flag would move nothing —
+// neither the install nor the uninstall would ever reach a host.
+func TestRenderLogShipperScript_ChoiceSurvivesTheHashZeroingTheAuthKey(t *testing.T) {
+	cfg := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
+	}
+	withKey := renderLogShipperScript(cfg)
+	cfg.TailscaleAuthKey = ""
+	if renderLogShipperScript(cfg) != withKey {
+		t.Fatal("the rendered script must not depend on the auth key the hash strips")
+	}
+	if !strings.Contains(withKey, "launchctl bootstrap") {
+		t.Fatalf("a configured fleet must render the install, not the uninstall\n%s", withKey)
 	}
 }
