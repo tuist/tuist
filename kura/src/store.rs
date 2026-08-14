@@ -7406,6 +7406,7 @@ mod tests {
             outbox_max_depth: 100_000,
             replication_bandwidth_limit_bytes_per_second: 0,
             replication_public_latency_target_ms: 100,
+            replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             multipart_max_active_uploads: 128,

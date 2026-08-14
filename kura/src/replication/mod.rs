@@ -5,7 +5,10 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     net::{IpAddr, SocketAddr},
     path::Path,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -21,10 +24,12 @@ use tracing::{Instrument, field, info, warn};
 
 use crate::{
     artifact::manifest::ArtifactManifest,
+    bandwidth::BandwidthLimiter,
     config::Config,
     constants::{
         BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
+        RESPONSE_STREAM_CHUNK_BYTES,
     },
     failpoints::FailpointName,
     file_cache::FileCachePolicy,
@@ -1491,6 +1496,95 @@ enum ReplicationOutcome {
     DroppedOversized,
 }
 
+/// The instant an upload last made forward progress, as milliseconds since the
+/// attempt began. Held as an atomic rather than a `Mutex<Instant>` so the
+/// per-chunk marking stays lock-free and cannot panic on a poisoned lock.
+struct UploadProgress {
+    started: Instant,
+    last_progress_ms: AtomicU64,
+}
+
+impl UploadProgress {
+    fn new() -> Self {
+        Self {
+            started: Instant::now(),
+            last_progress_ms: AtomicU64::new(0),
+        }
+    }
+
+    /// Re-arm the stall window. Called for each body chunk the stream yields,
+    /// and once more when the stream terminates.
+    fn mark(&self) {
+        let elapsed = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        self.last_progress_ms.store(elapsed, Ordering::Relaxed);
+    }
+
+    fn idle(&self) -> Duration {
+        let last = Duration::from_millis(self.last_progress_ms.load(Ordering::Relaxed));
+        self.started.elapsed().saturating_sub(last)
+    }
+}
+
+/// The request body of an artifact upload: the artifact's bytes, throttled by
+/// the shared replication limiter, marking `progress` for every chunk and once
+/// more when the stream terminates.
+///
+/// Chunks are 512 KiB rather than `ReaderStream`'s 4 KiB default. A multi-GB
+/// artifact would otherwise take a bandwidth reservation hundreds of thousands
+/// of times, and the limiter is shared, so 4 KiB slivers queue behind other
+/// callers' 512 KiB reservations.
+///
+/// The terminating mark is what gives the wait for the response a whole stall
+/// window instead of the last chunk's remainder: the receiver copies the staged
+/// body into a segment and fsyncs it under the node-wide segment write lock
+/// before it answers, and that tail scales with the artifact, not the network.
+fn upload_body_stream<R>(
+    reader: R,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    progress: Arc<UploadProgress>,
+) -> impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Send + 'static
+where
+    R: tokio::io::AsyncRead + Send + Unpin + 'static,
+{
+    let end_progress = progress.clone();
+    ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES)
+        .then(move |item| {
+            let bandwidth_limiter = bandwidth_limiter.clone();
+            let progress = progress.clone();
+            async move {
+                if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                    limiter.acquire(chunk.len()).await;
+                }
+                progress.mark();
+                item
+            }
+        })
+        .chain(
+            stream::once(async move { end_progress.mark() })
+                .filter_map(|()| std::future::ready(None)),
+        )
+}
+
+/// Resolves once the upload has made no forward progress for `stall`.
+///
+/// This is deliberately not [`bootstrap_no_progress_watchdog`], which samples a
+/// counter once per interval and so fires anywhere between one and two
+/// intervals after the last progress. That imprecision is fine for bootstrap,
+/// where the watchdog is a backstop on a walk that has its own retry loop. Here
+/// it is the *only* deadline on the attempt, and the drain is serial and
+/// node-wide, so a doubled window would double how long one stuck peer blocks
+/// every other peer's replication. Sleeping to the exact deadline keeps that
+/// cost fixed, and still wakes an active transfer at most once per window.
+async fn upload_stalled(progress: &UploadProgress, stall: Duration) {
+    loop {
+        let idle = progress.idle();
+        if idle >= stall {
+            return;
+        }
+        sleep(stall - idle).await;
+    }
+}
+
 async fn replicate_message(
     state: &SharedState,
     message: &OutboxMessage,
@@ -1559,17 +1653,11 @@ async fn replicate_message(
                 url.push_str(&url_encode(trunk));
             }
             let url = url;
+            let size = manifest.size;
             let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
-            let body_stream = ReaderStream::new(file).then(move |item| {
-                let bandwidth_limiter = bandwidth_limiter.clone();
-                async move {
-                    if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref())
-                    {
-                        limiter.acquire(chunk.len()).await;
-                    }
-                    item
-                }
-            });
+            let upload_stall = Duration::from_millis(state.config.replication_upload_stall_ms);
+            let upload_progress = std::sync::Arc::new(UploadProgress::new());
+            let body_stream = upload_body_stream(file, bandwidth_limiter, upload_progress.clone());
             let body = reqwest::Body::wrap_stream(body_stream);
             let request_span = tracing::info_span!(
                 "replication.request",
@@ -1595,14 +1683,31 @@ async fn replicate_message(
                     HeaderValue::from_static("application/octet-stream"),
                 );
 
-                let response = state
-                    .client()
+                let send = state
+                    .upload_client()
                     .put(&url)
                     .headers(headers)
                     .body(body)
-                    .send()
-                    .await
-                    .map_err(|error| format!("artifact replication request failed: {error:?}"))?;
+                    .send();
+                // The upload client has no read timeout (the response side is
+                // silent until the body completes), so the stall watchdog is
+                // the attempt's only deadline; dropping the send future on
+                // stall tears the connection down. `biased` polls the response
+                // first so a reply landing on the deadline is never discarded
+                // in favour of the watchdog: the watchdog is a fallback, not a
+                // competitor, and losing that race costs a full re-upload.
+                let response = tokio::select! {
+                    biased;
+                    response = send => response.map_err(|error| {
+                        format!("artifact replication request failed ({size} bytes): {error:?}")
+                    })?,
+                    () = upload_stalled(&upload_progress, upload_stall) => {
+                        return Err(format!(
+                            "artifact replication upload stalled: no body progress for {}ms ({size} bytes)",
+                            upload_stall.as_millis()
+                        ));
+                    }
+                };
                 response_span.record("http.response.status_code", response.status().as_u16());
                 if response.status().is_server_error() {
                     response_span.record("otel.status_code", "ERROR");
@@ -1610,7 +1715,9 @@ async fn replicate_message(
                 response
                     .error_for_status()
                     .map(|_| ReplicationOutcome::Delivered)
-                    .map_err(|error| format!("artifact replication response failed: {error}"))
+                    .map_err(|error| {
+                        format!("artifact replication response failed ({size} bytes): {error}")
+                    })
             }
             .instrument(request_span)
             .await
@@ -1668,12 +1775,18 @@ async fn replicate_message(
 
 #[cfg(test)]
 mod tests {
-    use axum::{Json, Router, extract::Path as AxumPath, http::StatusCode, routing::get};
+    use axum::{
+        Json, Router,
+        extract::Path as AxumPath,
+        http::StatusCode,
+        routing::{get, put},
+    };
     use tokio::net::TcpListener;
 
     use super::*;
     use crate::{
         artifact::producer::ArtifactProducer,
+        constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         failpoints::{FailpointAction, FailpointName},
         http::router,
         memory::MemoryPressure,
@@ -1687,6 +1800,77 @@ mod tests {
             count,
             hash: hash.to_string(),
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn upload_stall_watchdog_fires_only_without_body_progress() {
+        let stall = Duration::from_millis(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
+        let progress = UploadProgress::new();
+
+        // Poll first, so the watchdog is armed against the *original* deadline
+        // and has to observe the later progress to survive. Without this the
+        // test passes against a watchdog that ignores `progress` entirely.
+        let watchdog = upload_stalled(&progress, stall);
+        tokio::pin!(watchdog);
+        assert!(
+            futures_util::poll!(watchdog.as_mut()).is_pending(),
+            "the watchdog must not fire before the window elapses"
+        );
+
+        // Progress just short of the deadline pushes it out by a full window.
+        tokio::time::advance(stall - Duration::from_millis(1)).await;
+        progress.mark();
+        assert!(
+            futures_util::poll!(watchdog.as_mut()).is_pending(),
+            "the watchdog must not fire while the upload is still progressing"
+        );
+
+        // Past the original deadline, but not past the re-armed one.
+        tokio::time::advance(stall - Duration::from_millis(1)).await;
+        assert!(
+            futures_util::poll!(watchdog.as_mut()).is_pending(),
+            "progress must reset the stall window, not merely delay the first check"
+        );
+
+        // A full window with no further progress trips it.
+        tokio::time::advance(Duration::from_millis(1)).await;
+        watchdog.await;
+    }
+
+    // The response wait is the part of the attempt where the receiver copies
+    // the body into a segment and fsyncs it, so it needs a window of its own
+    // rather than the remainder of the last chunk's.
+    #[tokio::test(start_paused = true)]
+    async fn the_end_of_the_body_stream_re_arms_the_stall_window() {
+        let stall = Duration::from_millis(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
+        let directory = tempfile::tempdir().expect("temp dir should create");
+        let path = directory.path().join("artifact");
+        tokio::fs::write(&path, b"payload")
+            .await
+            .expect("artifact should write");
+        let file = tokio::fs::File::open(&path)
+            .await
+            .expect("artifact should open");
+
+        let progress = Arc::new(UploadProgress::new());
+        let stream = upload_body_stream(file, None, progress.clone());
+        tokio::pin!(stream);
+
+        // Drain the body, then spend almost a whole window producing nothing —
+        // exactly what the receiver's commit looks like from the sender's side.
+        while stream.next().await.is_some() {
+            tokio::time::advance(stall - Duration::from_millis(1)).await;
+        }
+        assert!(
+            progress.idle() < stall,
+            "the end of the body stream must re-arm the stall window"
+        );
+
+        tokio::time::advance(stall - Duration::from_millis(1)).await;
+        assert!(
+            progress.idle() < stall,
+            "the response wait must get a whole window, not the last chunk's remainder"
+        );
     }
 
     #[test]
@@ -2014,6 +2198,54 @@ mod tests {
         assert!(
             queued.is_empty(),
             "successful replication should clear outbox"
+        );
+    }
+
+    // The bug this path exists to fix: the receiver stays silent while it
+    // consumes and commits the body, so any deadline that keys on response
+    // silence eventually strands the artifact. Here the receiver answers only
+    // after a delay, and the upload still has to be delivered.
+    //
+    // The delay is short. Reproducing the original 30s ceiling would add 30s of
+    // wall clock to every run, and paused time is not safe in this test —
+    // real sockets make the runtime look idle while bytes sit in a kernel
+    // buffer, so the clock can jump to the watchdog deadline mid-transfer. The
+    // 30s claim is pinned instead by
+    // `upload_client_has_no_read_timeout_and_download_client_keeps_one`.
+    #[tokio::test]
+    async fn artifact_upload_survives_a_receiver_that_delays_its_response() {
+        let local = test_context(|_| {}).await;
+        // The harness caps its clients at 5s; production's upload client has no
+        // total timeout at all, which is what this path depends on.
+        local.state.upload_client.store(std::sync::Arc::new(
+            crate::peer_tls::PeerClientFactory::plain()
+                .build_upload()
+                .expect("upload client should build"),
+        ));
+
+        let receiver = Router::new().route(
+            "/_internal/replicate/artifact",
+            put(|body: axum::body::Bytes| async move {
+                assert_eq!(body.as_ref(), b"payload", "receiver should get whole body");
+                sleep(Duration::from_millis(250)).await;
+                StatusCode::NO_CONTENT
+            }),
+        );
+        let (target, _server) = spawn_server(receiver).await;
+        persist_and_enqueue_upsert(&local, target).await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("a delayed response must not fail the upload");
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert!(
+            queued.is_empty(),
+            "a delivered upload must clear the outbox instead of retrying forever"
         );
     }
 
