@@ -37,6 +37,8 @@ The app depends on several CLI modules:
 
 - Bundling the macOS app builds the DMG with `dmgbuild`, which writes the window layout into the image's `.DS_Store`. Layout lives in `app/dmg-settings.py`. Nothing in the release drives Finder, and it must stay that way: the fleet's VMs have no Finder that answers, so the previous tool, `create-dmg`, waited out a 120 second AppleEvent timeout on every attempt and no release could produce a DMG. That is an unreachable Finder rather than an unapproved one, so seeding TCC does not help; the approval seeded in `infra/runner-image/runner.pkr.hcl` was an attempt at this and did not fix it.
 - The macOS and iOS jobs allow 50 minutes because `tuist generate` runs with `--no-binary-cache`, making each release a full archive whenever the compilation cache is cold. Any runner image roll leaves it cold, so the first release after one runs far longer than a warm release.
+- `CFBundleVersion` is epoch seconds. It must exceed the newest `sparkle:version` in `app/appcast.xml`, or `generate_appcast` files the build as an old update: it writes no appcast entry and moves the DMG into `old_updates`, which is how `app@0.25.5` published with no DMG and pointed the Homebrew cask at a 404. It ran on `github.run_number` twice before, and both times the counter reset below the high-water mark when the workflow was recreated.
+- `generate_appcast` mutates the directory it reads, so it runs against a copy in `app/build/appcast-input` rather than the artifacts directory the release uploads from.
 
 ## Environment Configuration
 The app supports multiple environments via `TUIST_ENV`:
