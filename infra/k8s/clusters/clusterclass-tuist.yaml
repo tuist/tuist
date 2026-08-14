@@ -90,37 +90,6 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: HetznerBareMetalMachineTemplate
             name: tuist-bare-metal-machinetemplate
-        rollout:
-          strategy:
-            type: RollingUpdate
-            rollingUpdate:
-              # CAPI defaults to `maxSurge: 1, maxUnavailable: 0` — build the
-              # replacement Machine, then delete the old one. That default
-              # cannot make progress on a bare-metal pool. Hosts here are
-              # pre-ordered and operator-managed, so at steady state every
-              # `HetznerBareMetalHost` is claimed and the surge Machine has
-              # nothing to land on: caph parks it `NoAvailableHost` ("all
-              # hosts are in use"), it never goes Ready, `maxUnavailable: 0`
-              # therefore never permits deleting an old Machine, and the
-              # freed host that would unblock it never appears. Self-
-              # sustaining deadlock — the production runner pool sat in it
-              # from 2026-06-17, receiving no template change for two months
-              # while still reporting healthy.
-              #
-              # Inverting the order makes a roll self-sufficient on a fully
-              # claimed pool: delete first, then reprovision the freed host.
-              # The cost is one node of capacity per replacement for the
-              # 8-15 min an installimage cycle takes. On the two-host
-              # production pool that is degraded capacity, the same exposure
-              # as remediating a host by hand; on the single-host staging and
-              # canary pools it is a brief full outage of Linux runners,
-              # which is the only option those pools have either way.
-              #
-              # `hcloud-worker` deliberately keeps the default: Hetzner Cloud
-              # provisions on demand, so a surge there always has somewhere
-              # to go and there is no reason to give up a zero-downtime roll.
-              maxSurge: 0
-              maxUnavailable: 1
         healthCheck:
           checks:
             # Longer timeout than hcloud: rescue → installimage → reboot
