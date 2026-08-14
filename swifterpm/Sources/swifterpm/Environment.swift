@@ -12,6 +12,11 @@ enum Environment {
     @TaskLocal
     static var netrc: Netrc = .empty
 
+    /// Git's own configuration, for deciding whether git can authenticate a location
+    /// unaided. Unbound outside tests, in which case it is read from `git config` once.
+    @TaskLocal
+    static var gitConfiguration: GitConfiguration?
+
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
     }

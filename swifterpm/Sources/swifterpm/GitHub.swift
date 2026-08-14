@@ -21,7 +21,9 @@ struct GitHubRepo {
     }
 }
 
-private actor GitHubTokenCache {
+/// Caches only the `gh auth token` subprocess. Reading the environment is free and has to
+/// observe `Environment.current` rather than a value memoized on first use, so it stays out.
+private actor GitHubCLITokenCache {
     private var loaded = false
     private var cachedToken: String?
 
@@ -30,14 +32,6 @@ private actor GitHubTokenCache {
             return cachedToken
         }
         loaded = true
-
-        let env = ProcessInfo.processInfo.environment
-        if let token = env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
-           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            cachedToken = token
-            return token
-        }
 
         guard let output = try? await SystemProcess.output("/usr/bin/env", ["gh", "auth", "token"])
         else {
@@ -49,11 +43,17 @@ private actor GitHubTokenCache {
     }
 }
 
-private let githubTokenCache = GitHubTokenCache()
+private let githubCLITokenCache = GitHubCLITokenCache()
 
 enum GitHubAuth {
     static func token() async -> String? {
-        await githubTokenCache.token()
+        let environment = Environment.current
+        if let token = environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"],
+           !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return token
+        }
+        return await githubCLITokenCache.token()
     }
 
     static func hasSession() async -> Bool {
@@ -86,6 +86,29 @@ enum SourceControlLocations {
         appendGitHubLocations(for: location, to: &locations)
         appendGitLabLocations(for: location, to: &locations)
         return locations
+    }
+
+    /// Every candidate location crossed with the credentials to try it with, flattened
+    /// into the order the fetch loops walk.
+    static func fetchAttempts(_ location: String) async -> [GitFetchAttempt] {
+        var attempts: [GitFetchAttempt] = []
+        for candidate in fetchCandidates(location) {
+            attempts.append(contentsOf: await GitTransportAuth.attempts(for: candidate))
+        }
+        return attempts
+    }
+
+    /// Identifies the package a location points at, collapsing the HTTPS and SSH forms
+    /// `fetchCandidates` produces onto one key so a credential resolved through one form
+    /// is reused for the other.
+    static func packageIdentity(_ location: String) -> String {
+        if let repo = try? GitHubRepo(location: location) {
+            return "github.com/\(repo.owner.lowercased())/\(repo.repo.lowercased())"
+        }
+        if let repo = try? GitLabRepo(location: location) {
+            return "\(repo.host)/\(repo.pathWithNamespace.lowercased())"
+        }
+        return canonicalResolvedFileLocation(location)
     }
 
     /// Offer both the HTTPS and SSH forms regardless of how the location was originally
@@ -124,26 +147,139 @@ enum SourceControlLocations {
     }
 }
 
-/// Authenticates the HTTPS git fallback with the same token swifterpm discovers for the
-/// provider's API. Without this, the HTTPS candidate added by `fetchCandidates` only works
-/// when an ambient credential (a `url.insteadOf` token rewrite, a credential helper, or
-/// ~/.netrc) is configured, so an SSH-declared private dependency keeps failing in CI even
-/// with a usable `GITHUB_TOKEN`/`GH_TOKEN`. Emitting an `http.<base>.extraheader` via `-c`
-/// mirrors what `actions/checkout` does and keeps the token out of the on-disk git config.
-/// SSH candidates return no arguments so ssh-agent stays in charge, and when no token is
-/// available we add nothing so configured ambient credentials keep working unchanged.
+/// How one fetch attempt authenticates. A candidate location is tried with each of these
+/// in turn, most specific first, so an ambient provider token is only ever a last resort.
+enum GitTransportCredential: Equatable, Sendable, CustomStringConvertible {
+    /// Whatever git resolves on its own: ~/.netrc, a credential helper, a
+    /// `url.<...>.insteadOf` rewrite, or ssh-agent on an SSH candidate.
+    case gitConfigured
+    /// A netrc entry git cannot reach by itself, from `--netrc-file` or `SWIFTPM_NETRC_DATA`.
+    case netrc
+    /// `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token`.
+    case gitHubToken
+    /// `GITLAB_TOKEN`, `CI_JOB_TOKEN`, and the other GitLab environment tokens.
+    case gitLabToken
+
+    var description: String {
+        switch self {
+        case .gitConfigured: return "git's configured credentials"
+        case .netrc: return "netrc"
+        case .gitHubToken: return "an ambient GitHub token"
+        case .gitLabToken: return "an ambient GitLab token"
+        }
+    }
+}
+
+/// One candidate location paired with the credential to try it with.
+struct GitFetchAttempt: Sendable {
+    let location: String
+    let credential: GitTransportCredential
+    let configArguments: [String]
+}
+
+/// Remembers which credential authenticated a package, so the requests that follow the
+/// first one reuse the answer instead of walking the ladder again.
+///
+/// Keyed by package rather than by host, because access differs per repository — an
+/// enterprise-managed token reads one org's repositories and a `~/.netrc` account reads
+/// another's, both on `github.com`, and a host-keyed answer would poison one with the other.
+actor ResolvedPackageCredentials {
+    static let shared = ResolvedPackageCredentials()
+
+    private var credentials: [String: GitTransportCredential] = [:]
+
+    func record(_ credential: GitTransportCredential, for location: String) {
+        credentials[SourceControlLocations.packageIdentity(location)] = credential
+    }
+
+    func credential(for location: String) -> GitTransportCredential? {
+        credentials[SourceControlLocations.packageIdentity(location)]
+    }
+}
+
+/// Orders the credentials a candidate location is tried with.
+///
+/// The HTTPS candidate `fetchCandidates` adds is useless in CI without a credential, so
+/// swifterpm injects the provider token it already discovers for the API as an
+/// `http.<base>.extraheader`, the way `actions/checkout` does, which keeps it out of the
+/// on-disk git config.
+///
+/// That header used to go on unconditionally, which made it an override rather than a
+/// fallback. `http.<base>.extraheader` beats every credential git would have found for
+/// itself, and against GitHub it also stops curl consulting ~/.netrc, so the request 401s
+/// and git falls through to a prompt that `nonInteractiveGitEnvironment` has disabled. A
+/// token that cannot read the repository — a `gh` login on a personal account, one not
+/// authorized for a SAML-SSO org, a `GITHUB_TOKEN` exported for unrelated tooling — turned
+/// a working checkout into the same failure as having no credential at all, on machines
+/// where plain git and SwiftPM both succeed.
+///
+/// So the token stops being an override and becomes a rung. Git resolves the credential
+/// itself, exactly as it did before swifterpm, alongside a netrc source only swifterpm can
+/// see and the ambient token, and whichever the ladder reaches first that works is used.
+///
+/// Which rung goes first is decided by reading git's own configuration once, because both
+/// orderings waste a request in the setup they do not suit. When a rewrite rule, a
+/// credential helper or `~/.netrc` covers the host, git can authenticate unaided and goes
+/// first. When nothing does — a CI runner holding only a token — the injected credential
+/// goes first instead, and the credential-free attempt trails it rather than being dropped:
+/// a public dependency needs no credential at all, so a broken or expired token must never
+/// be the only thing tried.
 enum GitTransportAuth {
-    static func configArguments(for location: String) async -> [String] {
-        guard location.hasPrefix("https://") else { return [] }
-        if (try? GitHubRepo(location: location)) != nil {
-            guard let token = await GitHubAuth.token() else { return [] }
-            return gitHubArguments(token: token)
+    static func attempts(for location: String) async -> [GitFetchAttempt] {
+        let bare = GitFetchAttempt(
+            location: location, credential: .gitConfigured, configArguments: []
+        )
+        // SSH candidates are always tried bare: ssh-agent is invisible to git's config and
+        // there is no token form for SSH anyway.
+        guard location.hasPrefix("https://"),
+              let url = URL(string: location),
+              let host = url.host
+        else {
+            return [bare]
         }
-        if let repo = try? GitLabRepo(location: location) {
-            guard let token = await GitLabAuth.token(host: repo.host) else { return [] }
-            return gitLabArguments(host: repo.host, token: token)
+
+        var injected: [GitFetchAttempt] = []
+
+        // `~/.netrc` is already covered by the bare attempt, since git reads it through
+        // curl. This one carries the sources git has no way to know about.
+        if let credential = Environment.netrc.credential(for: url) {
+            let encoded = basicCredential(user: credential.user, token: credential.password)
+            injected.append(
+                GitFetchAttempt(
+                    location: location,
+                    credential: .netrc,
+                    configArguments: extraHeaderArguments(
+                        base: "https://\(host)/", authorization: "Basic \(encoded)"
+                    )
+                )
+            )
         }
-        return []
+
+        if (try? GitHubRepo(location: location)) != nil, let token = await GitHubAuth.token() {
+            injected.append(
+                GitFetchAttempt(
+                    location: location,
+                    credential: .gitHubToken,
+                    configArguments: gitHubArguments(token: token)
+                )
+            )
+        } else if let repo = try? GitLabRepo(location: location),
+                  let token = await GitLabAuth.token(host: repo.host)
+        {
+            injected.append(
+                GitFetchAttempt(
+                    location: location,
+                    credential: .gitLabToken,
+                    configArguments: gitLabArguments(host: repo.host, token: token)
+                )
+            )
+        }
+
+        guard !injected.isEmpty else { return [bare] }
+        if await GitCredentialDiscovery.gitCanAuthenticate(location) {
+            return [bare] + injected
+        }
+        return injected + [bare]
     }
 
     static func gitHubArguments(token: String) -> [String] {

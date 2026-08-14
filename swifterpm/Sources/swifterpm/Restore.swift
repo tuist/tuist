@@ -777,8 +777,12 @@ enum WorkspaceRestorer {
     private static func downloadSourceArchive(cache: Cache, pin: ResolvedPin, destination: URL)
         async throws
     {
-        if (try? GitHubRepo(location: pin.location)) != nil, await GitHubAuth.hasSession() {
-            try await downloadGitHubArchive(cache: cache, pin: pin, destination: destination)
+        if (try? GitHubRepo(location: pin.location)) != nil,
+           let authorization = await gitHubArchiveAuthorization(location: pin.location)
+        {
+            try await downloadGitHubArchive(
+                cache: cache, pin: pin, destination: destination, authorization: authorization
+            )
             return
         }
         if let repo = try? GitLabRepo(location: pin.location),
@@ -792,9 +796,37 @@ enum WorkspaceRestorer {
         )
     }
 
-    private static func downloadGitHubArchive(cache: Cache, pin: ResolvedPin, destination: URL)
-        async throws
-    {
+    /// The tarball endpoint is the one request git cannot make, so it is the one credential
+    /// swifterpm still has to choose for itself. Choose it by reusing whatever authenticated
+    /// this package's git traffic rather than reaching for the ambient token: picking
+    /// independently is how a token that cannot read the repository ends up shadowing the
+    /// credential that can, and how a machine whose only credential is a `~/.netrc` entry
+    /// never reaches this fast path at all.
+    ///
+    /// A credential git resolved internally cannot be reused — a helper's answer or curl's
+    /// netrc read never surfaces — so those fall back to choosing, the same order
+    /// `HTTPAuthorization` applies to every other download.
+    private static func gitHubArchiveAuthorization(location: String) async -> String? {
+        let netrcAuthorization = URL(string: "https://github.com")
+            .flatMap { Environment.netrc.credential(for: $0) }
+            .map { "Basic \(Data("\($0.user):\($0.password)".utf8).base64EncodedString())" }
+
+        switch await ResolvedPackageCredentials.shared.credential(for: location) {
+        case .netrc:
+            return netrcAuthorization
+        case .gitHubToken:
+            return await GitHubAuth.token().map { "Bearer \($0)" }
+        case .gitLabToken:
+            return nil
+        case .gitConfigured, nil:
+            if let netrcAuthorization { return netrcAuthorization }
+            return await GitHubAuth.token().map { "Bearer \($0)" }
+        }
+    }
+
+    private static func downloadGitHubArchive(
+        cache: Cache, pin: ResolvedPin, destination: URL, authorization: String
+    ) async throws {
         let repo = try GitHubRepo(location: pin.location)
         let revision = try pin.revision()
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
@@ -802,10 +834,10 @@ enum WorkspaceRestorer {
             let lock = try await cache.lock(namespace: "archives", key: archivePath.path)
             _ = lock
             if try !(await fileSystem.exists(archivePath.absolutePath)) {
-                var headers = ["User-Agent": "swifterpm/0.1"]
-                if let token = await GitHubAuth.token() {
-                    headers["Authorization"] = "Bearer \(token)"
-                }
+                let headers = [
+                    "User-Agent": "swifterpm/0.1",
+                    "Authorization": authorization,
+                ]
                 let url = URL(
                     string:
                     "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tarball/\(revision)"
@@ -848,18 +880,18 @@ enum WorkspaceRestorer {
         let revision = try pin.revision()
         let isLocalSourceControlPackage =
             try await PackageResolver.localSourceControlPackageLocation(pin.location) != nil
-        var attempts: [(candidate: String, error: any Error)] = []
-        for location in SourceControlLocations.fetchCandidates(pin.location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(pin.location) {
             do {
                 try await resetDirectory(destination)
                 try await SystemProcess.run("/usr/bin/git", ["init", destination.path])
                 try await SystemProcess.run(
-                    "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
+                    "/usr/bin/git",
+                    ["-C", destination.path, "remote", "add", "origin", attempt.location]
                 )
-                let authArguments = await GitTransportAuth.configArguments(for: location)
                 try await SystemProcess.run(
                     "/usr/bin/git",
-                    authArguments
+                    attempt.configArguments
                         + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
@@ -868,7 +900,7 @@ enum WorkspaceRestorer {
                 )
                 try await updateSubmodulesIfNeeded(
                     in: destination,
-                    gitConfigArguments: authArguments,
+                    gitConfigArguments: attempt.configArguments,
                     allowFileProtocol: isLocalSourceControlPackage
                 )
                 let gitDir = destination.appendingPathComponent(".git")
@@ -877,9 +909,12 @@ enum WorkspaceRestorer {
                 {
                     try await fileSystem.remove(gitDir.absolutePath)
                 }
+                await ResolvedPackageCredentials.shared.record(
+                    attempt.credential, for: pin.location
+                )
                 return
             } catch {
-                attempts.append((location, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: pin.location, attempts: attempts)
