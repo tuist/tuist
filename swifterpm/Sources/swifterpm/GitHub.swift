@@ -98,6 +98,19 @@ enum SourceControlLocations {
         return attempts
     }
 
+    /// Identifies the package a location points at, collapsing the HTTPS and SSH forms
+    /// `fetchCandidates` produces onto one key so a credential resolved through one form
+    /// is reused for the other.
+    static func packageIdentity(_ location: String) -> String {
+        if let repo = try? GitHubRepo(location: location) {
+            return "github.com/\(repo.owner.lowercased())/\(repo.repo.lowercased())"
+        }
+        if let repo = try? GitLabRepo(location: location) {
+            return "\(repo.host)/\(repo.pathWithNamespace.lowercased())"
+        }
+        return canonicalResolvedFileLocation(location)
+    }
+
     /// Offer both the HTTPS and SSH forms regardless of how the location was originally
     /// declared. The original is tried first, so SSH-declared dependencies keep using
     /// ssh-agent locally while still falling back to HTTPS in environments (typically CI)
@@ -162,6 +175,26 @@ struct GitFetchAttempt: Sendable {
     let location: String
     let credential: GitTransportCredential
     let configArguments: [String]
+}
+
+/// Remembers which credential authenticated a package, so the requests that follow the
+/// first one reuse the answer instead of walking the ladder again.
+///
+/// Keyed by package rather than by host, because access differs per repository — an
+/// enterprise-managed token reads one org's repositories and a `~/.netrc` account reads
+/// another's, both on `github.com`, and a host-keyed answer would poison one with the other.
+actor ResolvedPackageCredentials {
+    static let shared = ResolvedPackageCredentials()
+
+    private var credentials: [String: GitTransportCredential] = [:]
+
+    func record(_ credential: GitTransportCredential, for location: String) {
+        credentials[SourceControlLocations.packageIdentity(location)] = credential
+    }
+
+    func credential(for location: String) -> GitTransportCredential? {
+        credentials[SourceControlLocations.packageIdentity(location)]
+    }
 }
 
 /// Orders the credentials a candidate location is tried with.
