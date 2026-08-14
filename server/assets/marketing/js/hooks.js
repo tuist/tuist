@@ -24,6 +24,7 @@ import { CustomersDitherDots } from "./hooks/customers-dither-dots.js";
 import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
 import { LogoContextMenu } from "./hooks/logo-context-menu.js";
+import { BlogViewPreference } from "./hooks/blog-view-preference.js";
 
 const Hooks = {
   PlatformBackground,
@@ -52,6 +53,7 @@ const Hooks = {
   LogoTransition,
   CacheChart,
   CounterAnimation,
+  BlogViewPreference,
 };
 
 export { Hooks };
