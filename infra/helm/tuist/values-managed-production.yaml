@@ -788,6 +788,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-production.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="production"}; every line also
+  # carries `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-production:3100/loki/api/v1/push
+    env: production
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.

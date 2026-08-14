@@ -115,6 +115,7 @@
       "include_paths": [
         "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
+        "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*"
       ]
     },
