@@ -987,7 +987,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
 				"Returning Scaleway server %s to pool %q (with reinstall)",
 				machine.Status.ServerID, poolPrefix)
-			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, machine.Spec.OS); err != nil {
+			if err := releaseHostToPool(ctx, r.ScalewayClient, r.Recorder, machine, poolPrefix); err != nil {
 				logger.Error(err, "Scaleway release-to-pool failed; will retry")
 				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 					"Scaleway ReleaseToPool: %v (will retry)", err)
@@ -1322,6 +1322,43 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, reason str
 		"cleared the terminal tart-kubelet update failure (%s); retrying", reason)
 }
 
+// poolReleaser is the one call releaseHostToPool needs, so both the
+// full *scaleway.Client on the reconciler and the narrow
+// bootstrapRecoveryClient can go through the same policy.
+type poolReleaser interface {
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName string) error
+}
+
+// releaseHostToPool returns a host to the pool, reinstalling it onto
+// the fleet's pinned image so the next AdoptFromPool scan — which
+// matches the image name exactly — can claim it back.
+//
+// A pin Scaleway has retired is downgraded to an unpinned release
+// rather than failed. Every Machine created before an operator
+// repoints its fleet carries the old pin baked into its own spec, and
+// failing here would wedge each of them on delete: the host stays
+// claimed and billing, the finalizer never clears, and the fleet
+// can't shed the Machine to get a correctly-pinned replacement. The
+// host lands on the server type's default image instead, which is
+// what a repointed fleet will be pinned to anyway. The event names
+// the pin so the fix is obvious.
+func releaseHostToPool(
+	ctx context.Context,
+	client poolReleaser,
+	recorder record.EventRecorder,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	poolPrefix string,
+) error {
+	err := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, machine.Spec.OS)
+	if !errors.Is(err, scaleway.ErrOSNotPublished) {
+		return err
+	}
+	recorder.Eventf(machine, corev1.EventTypeWarning, "OSPinUnavailable",
+		"Fleet os pin %q is no longer published by Scaleway; releasing %s onto the server type default instead. Repoint the fleet's os pin: %v",
+		machine.Spec.OS, machine.Status.ServerID, err)
+	return client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, "")
+}
+
 // bootstrapRecoveryClient is the narrow Scaleway surface
 // handleBootstrapFailure needs. Tests can satisfy it with a tiny
 // in-memory stub; the production *scaleway.Client satisfies it
@@ -1402,7 +1439,7 @@ func handleBootstrapFailure(
 	hostAdoptable := machine.Status.ServerID != "" && poolPrefix != ""
 	switch {
 	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
-		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, machine.Spec.OS); releaseErr != nil {
+		if releaseErr := releaseHostToPool(ctx, client, recorder, machine, poolPrefix); releaseErr != nil {
 			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
 			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",

@@ -297,6 +297,15 @@ func IsPoolOrAdopting(name, poolPrefix string) bool {
 // more capacity.
 var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 
+// ErrOSNotPublished reports that a fleet's os pin names an image
+// Scaleway no longer lists. Callers releasing a host must not treat
+// this as fatal: the pin is unsatisfiable, so refusing to release
+// would strand both the host (still billing) and the Machine (its
+// finalizer never clears) with no way for the fleet to recover on its
+// own. Fall back to the server type's default image and surface the
+// pin as the thing needing an operator fix.
+var ErrOSNotPublished = errors.New("os pin names an image Scaleway no longer publishes")
+
 // AdoptFromPool claims a pre-ordered server in `zone` whose
 // Scaleway-side name starts with `poolPrefix`, matches
 // (`serverType`, `osName`), and is `Delivered=true` +
@@ -625,10 +634,12 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
 	}
 
-	// Resolve before the rename so a pin naming an image Scaleway no
-	// longer publishes fails loudly with the host still claimed and
-	// recoverable, rather than after it has been parked in the pool
-	// under a name its own fleet can no longer match.
+	// Resolve before the rename so a pin that can't be honoured is
+	// discovered while the host is still claimed and recoverable,
+	// rather than after it has been parked in the pool. An
+	// unresolvable pin comes back as ErrOSNotPublished, which the
+	// caller is expected to downgrade to an unpinned release rather
+	// than treat as fatal — see the sentinel's doc comment.
 	var osID *string
 	if osName != "" {
 		resolved, err := c.resolveOSID(ctx, zone, osName)
@@ -729,8 +740,8 @@ func (c *Client) resolveOSID(ctx context.Context, zone, name string) (string, er
 	}
 
 	return "", fmt.Errorf(
-		"OS %q is not published by Scaleway in %s; repoint the fleet's os pin at one of: %s",
-		name, zone, strings.Join(available, ", "))
+		"%w: %q not listed in %s; repoint the fleet's os pin at one of: %s",
+		ErrOSNotPublished, name, zone, strings.Join(available, ", "))
 }
 
 // isTransientState detects scaleway-sdk-go's typed
