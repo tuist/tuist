@@ -733,3 +733,80 @@ func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
 		t.Fatalf("guard script is not valid sh: %v\n%s", err, combined)
 	}
 }
+
+// Hosts provisioned before the begin/end markers existed carry a bare,
+// un-delimited anchor/load-anchor pair in /etc/pf.conf. A marker-only strip
+// leaves it in place and appends a second copy, so loading /etc/pf.conf hits
+// "cannot define table vm_sources: Resource busy" and rejects the WHOLE
+// ruleset. pf then keeps serving whatever it loaded previously, which no longer
+// carries the stock nat-anchor "com.apple/*" line, so the
+// com.apple/tuist.vmnat sub-anchor holding the VM NAT rules is never evaluated:
+// cache traffic leaves un-NAT'd with its 192.168.64.x source, the per-instance
+// kura NetworkPolicy drops it at ingress with no RST, and every cache request
+// hangs until its client timeout. Observed on a live production host whose
+// anchor held perfectly correct rules that nothing ever consulted.
+func TestRenderVMEgressFirewallScript_StripsLegacyUndelimitedAnchorBlock(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	// The command may be split across continuation lines; collect it whole.
+	var sedLine string
+	lines := strings.Split(script, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "sudo sed ") {
+			continue
+		}
+		parts := []string{}
+		for _, l := range lines[i:] {
+			parts = append(parts, strings.TrimSuffix(strings.TrimSpace(l), `\`))
+			if !strings.HasSuffix(strings.TrimSpace(l), `\`) {
+				break
+			}
+		}
+		sedLine = strings.Join(parts, " ")
+		break
+	}
+	if sedLine == "" || !strings.Contains(sedLine, "/etc/pf.conf") {
+		t.Fatalf("no pf.conf strip command in rendered script\n%s", script)
+	}
+
+	// A host that has been re-pushed once: the legacy block the old bootstrap
+	// appended, then the canonical marker-delimited block.
+	const legacy = `# Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
+anchor "tuist.runners"
+load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+`
+	fixture := `scrub-anchor "com.apple/*"
+nat-anchor "com.apple/*"
+rdr-anchor "com.apple/*"
+anchor "com.apple/*"
+load anchor "com.apple" from "/etc/pf.anchors/com.apple"
+` + legacy + "# BEGIN tuist.runners\n" + legacy + "# END tuist.runners\n"
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pf.conf")
+	if err := os.WriteFile(path, []byte(fixture), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	// Run the very expressions the host runs, with the in-place flag removed so
+	// the result lands on stdout.
+	cmd := strings.Replace(sedLine, "sudo ", "", 1)
+	cmd = strings.Replace(cmd, "-i.bak ", "", 1)
+	cmd = strings.Replace(cmd, "/etc/pf.conf", path, 1)
+	out, err := exec.Command("sh", "-c", cmd).Output()
+	if err != nil {
+		t.Fatalf("run %q: %v", cmd, err)
+	}
+
+	if n := strings.Count(string(out), `anchor "tuist.runners"`); n != 0 {
+		t.Fatalf("strip left %d tuist.runners anchor line(s); a re-push would duplicate them and break the whole pf load\n%s", n, out)
+	}
+	// The stock Apple hooks must survive: losing nat-anchor "com.apple/*" is
+	// precisely the failure this guards against.
+	if !strings.Contains(string(out), `nat-anchor "com.apple/*"`) {
+		t.Fatalf("strip removed the stock Apple nat-anchor\n%s", out)
+	}
+}

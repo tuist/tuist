@@ -1410,12 +1410,33 @@ block drop out quick from <vm_sources> to <blocked_dst>
 block drop out quick from <vm_sources> to 169.254.169.254
 PFCONF
 
-# Manage the anchor block in /etc/pf.conf via begin/end markers.
-# Strip-and-append between markers is idempotent and convergent:
-# any number of pre-existing marker-delimited blocks (duplicates
-# from a stuttering reconcile, partial writes from a prior crashed
-# run) get removed before the canonical block is written.
-sudo sed -i.bak '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' /etc/pf.conf
+# Manage the anchor block in /etc/pf.conf. Strip-and-append is
+# idempotent and convergent, but it has to strip EVERY historical
+# form of the block, not just the marker-delimited one.
+#
+# Hosts provisioned before the markers existed carry a bare,
+# un-delimited anchor/load-anchor pair. A marker-only strip left
+# that in place and appended a second copy, so loading /etc/pf.conf
+# hit "cannot define table vm_sources: Resource busy"
+# and rejected the WHOLE ruleset. pf kept serving whatever it had
+# loaded before, which no longer carried the stock
+# nat-anchor "com.apple/*" line, so the com.apple/tuist.vmnat sub-anchor
+# holding the VM NAT rules was never evaluated: cache traffic left
+# un-NAT'd with its 192.168.64.x source, the per-instance kura
+# NetworkPolicy dropped it at ingress with no RST, and every cache
+# request hung until its client timeout. The rules looked perfect in
+# the anchor the whole time; nothing consulted them.
+#
+# Deleting the bare lines as well is safe because the canonical
+# block is re-appended immediately below, and this script is folded
+# into the host config hash, so editing it re-pushes the filter to
+# every host and converges the ones already carrying a duplicate.
+sudo sed -i.bak \
+  -e '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' \
+  -e '/^# Tuist runner VM egress filter/d' \
+  -e '/^anchor "tuist.runners"$/d' \
+  -e '\#^load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"$#d' \
+  /etc/pf.conf
 sudo rm -f /etc/pf.conf.bak
 sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
 # BEGIN tuist.runners
