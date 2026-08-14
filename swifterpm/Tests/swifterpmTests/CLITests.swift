@@ -128,14 +128,8 @@ struct CLITests {
 
     @Test
     func resolveParsesNetrcOptions() throws {
-        let cli = try CLIParser.parse([
-            "--netrc-file", "/tmp/netrc",
-            "--disable-netrc",
-            "resolve",
-        ])
-
-        #expect(cli.netrcFile?.path == "/tmp/netrc")
-        #expect(!cli.netrc)
+        #expect(try CLIParser.parse(["--netrc-file", "/tmp/netrc", "resolve"]).netrcFile?.path == "/tmp/netrc")
+        #expect(!(try CLIParser.parse(["--disable-netrc", "resolve"]).netrc))
     }
 
     @Test
@@ -144,7 +138,16 @@ struct CLITests {
         #expect(try CLIParser.parse(["--enable-netrc", "resolve"]).netrc)
     }
 
-    @Test(arguments: ["--disable-prefetching", "--enable-prefetching", "--netrc"])
+    @Test
+    func forceNetrcIsAParsedFlagRatherThanAnIgnoredOne() throws {
+        // `--netrc` is SwiftPM's `forceNetrc`, which disables the keychain for
+        // registry requests. Stripping it as a deprecated spelling of
+        // `--enable-netrc` would silently invert registry precedence.
+        #expect(try CLIParser.parse(["--netrc", "resolve"]).forceNetrc)
+        #expect(!(try CLIParser.parse(["resolve"]).forceNetrc))
+    }
+
+    @Test(arguments: ["--disable-prefetching", "--enable-prefetching"])
     func deprecatedSwiftPackageManagerOptionsAreAccepted(option: String) throws {
         // `tuist install` forwards passthrough arguments verbatim and ahead of the
         // action, and SwiftPM still exits 0 on these, so rejecting them would break

@@ -129,23 +129,38 @@ enum RegistryAuthorization {
             )
         }
 
-        // Inline netrc data, then the keychain, then any netrc file. SwiftPM's
-        // registry provider reads SWIFTPM_NETRC_DATA before anything else and then
-        // orders the rest "OS-specific AuthorizationProvider has higher precedence",
-        // which is the opposite of how it orders its download provider.
-        if let credential = Environment.netrc.credential(for: url, from: .environment) {
-            return header(for: credential, url: url, registryConfig: registryConfig)
-        }
-
-        if let credential = await RegistryKeychain.credential(for: url) {
-            return header(for: credential, url: url, registryConfig: registryConfig)
-        }
-
-        if let credential = Environment.netrc.credential(for: url, from: .file) {
+        let netrc = Environment.netrc
+        if let credential = await prioritizedCredential(
+            environmentNetrc: netrc.credential(for: url, from: .environment),
+            fileNetrc: netrc.credential(for: url, from: .file),
+            forcesNetrc: netrc.forcesNetrc,
+            keychain: { await RegistryKeychain.credential(for: url) }
+        ) {
             return header(for: credential, url: url, registryConfig: registryConfig)
         }
 
         return nil
+    }
+
+    /// Registry credentials in SwiftPM's order: inline netrc data, then the OS
+    /// credential store, then any netrc file. `makeRegistryAuthorizationProvider`
+    /// returns immediately on `SWIFTPM_NETRC_DATA` and otherwise takes
+    /// `providers.first` with the keychain appended ahead of netrc, so this is the
+    /// reverse of how its download provider is composed.
+    ///
+    /// Where it differs on purpose: upstream selects one provider and stops, so a
+    /// host missing from the chosen one gets no credentials, while a miss here falls
+    /// through to the next source. That fall-through is what lets `--netrc-file`
+    /// reach registry auth at all when a keychain item exists.
+    static func prioritizedCredential(
+        environmentNetrc: RegistryCredential?,
+        fileNetrc: RegistryCredential?,
+        forcesNetrc: Bool,
+        keychain: () async -> RegistryCredential?
+    ) async -> RegistryCredential? {
+        if let environmentNetrc { return environmentNetrc }
+        if !forcesNetrc, let credential = await keychain() { return credential }
+        return fileNetrc
     }
 
     static func header(

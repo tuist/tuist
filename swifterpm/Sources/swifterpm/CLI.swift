@@ -38,6 +38,7 @@ struct CLI {
     var securityPath: CLIPath?
     var netrcFile: CLIPath?
     var netrc = true
+    var forceNetrc = false
     var disableSandbox = false
     var enableDependencyCache = false
     var disableDependencyCache = false
@@ -234,6 +235,9 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     @Flag(inversion: .prefixedEnableDisable)
     var netrc = true
 
+    @Flag(name: .customLong("netrc"))
+    var forceNetrc = false
+
     @Flag(name: .customLong("disable-sandbox"))
     var disableSandbox = false
 
@@ -317,6 +321,7 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             securityPath: CLIPath.optional(securityPath),
             netrcFile: CLIPath.optional(netrcFile),
             netrc: netrc,
+            forceNetrc: forceNetrc,
             disableSandbox: disableSandbox,
             enableDependencyCache: enableDependencyCache,
             disableDependencyCache: disableDependencyCache,
@@ -367,17 +372,16 @@ enum CLIParser {
 /// collects arguments that trail the `action` positional, and `tuist install`
 /// forwards passthrough arguments ahead of it.
 ///
-/// `--netrc` joins that set because SwiftPM deprecated it once netrc became the
-/// default, so it only restates what `--enable-netrc` already gives.
-/// `--netrc-file` and `--enable-netrc`/`--disable-netrc` still change what
-/// happens, so they are real options instead. `--netrc-optional` is deliberately
-/// absent: Swift 6.3.2 rejects it outright, so tolerating it here would be more
-/// permissive than the tool we are standing in for.
+/// No netrc option belongs in this set. `--netrc` looks like a deprecated spelling
+/// of `--enable-netrc` and is not: SwiftPM's `SecurityOptions.forceNetrc` is a
+/// separate, undeprecated flag that disables the keychain for registry requests, so
+/// swallowing it would quietly invert registry precedence. `--netrc-optional` is
+/// absent for the opposite reason: Swift 6.3.2 rejects it outright, and tolerating
+/// it would make us more permissive than the tool we are standing in for.
 public enum DeprecatedSwiftPMOptions {
     static let ignored: Set<String> = [
         "--disable-prefetching",
         "--enable-prefetching",
-        "--netrc",
     ]
 
     public static func strip(_ arguments: [String]) -> [String] {
@@ -511,7 +515,11 @@ enum CLIRunner {
     static func netrcConfiguration(cli: CLI, paths: CLIPathResolver)
         -> SwifterPMNetrcConfiguration
     {
-        SwifterPMNetrcConfiguration(isEnabled: cli.netrc, path: paths.resolve(cli.netrcFile))
+        SwifterPMNetrcConfiguration(
+            isEnabled: cli.netrc,
+            path: paths.resolve(cli.netrcFile),
+            forcesNetrc: cli.forceNetrc
+        )
     }
 
     static func run(_ cli: CLI) async throws {

@@ -7,10 +7,14 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
     /// An explicit netrc file, as passed through `--netrc-file`. When nil the
     /// `SWIFTPM_NETRC_DATA` environment variable and `~/.netrc` are used.
     public var path: URL?
+    /// `--netrc`, SwiftPM's `forceNetrc`: skip the OS credential store for registry
+    /// requests so a netrc entry beats a keychain item for the same host.
+    public var forcesNetrc: Bool
 
-    public init(isEnabled: Bool = true, path: URL? = nil) {
+    public init(isEnabled: Bool = true, path: URL? = nil, forcesNetrc: Bool = false) {
         self.isEnabled = isEnabled
         self.path = path
+        self.forcesNetrc = forcesNetrc
     }
 
     public static let `default` = SwifterPMNetrcConfiguration()
@@ -33,21 +37,49 @@ struct NetrcSource: Sendable {
 /// The netrc credentials a resolution runs with, read and parsed once up front so
 /// every later lookup is a search over `sources` rather than another file read.
 struct Netrc: Sendable {
-    static let empty = Netrc(sources: [])
+    static let empty = Netrc(configuration: .default, sources: [])
 
+    /// What was asked for, kept so a child `swift package` invocation can be given
+    /// the same flags this process resolved from.
+    let configuration: SwifterPMNetrcConfiguration
     /// Parsed sources in priority order, the environment ahead of any file, matching
     /// the order SwiftPM appends its netrc providers in.
     private let sources: [NetrcSource]
 
-    init(sources: [NetrcSource]) {
+    init(configuration: SwifterPMNetrcConfiguration = .default, sources: [NetrcSource]) {
+        self.configuration = configuration
         self.sources = sources
+    }
+
+    /// Skips the keychain for registry requests, SwiftPM's `forceNetrc`.
+    var forcesNetrc: Bool { configuration.forcesNetrc }
+
+    /// The netrc flags to hand a child `swift package` invocation so it authenticates
+    /// against the same credentials this process does.
+    var swiftPackageArguments: [String] {
+        guard configuration.isEnabled else { return ["--disable-netrc"] }
+        var arguments: [String] = []
+        if let path = configuration.path {
+            arguments.append(contentsOf: ["--netrc-file", path.path])
+        }
+        if configuration.forcesNetrc {
+            arguments.append("--netrc")
+        }
+        return arguments
     }
 
     static func resolve(
         _ configuration: SwifterPMNetrcConfiguration,
         environment: [String: String]
     ) async throws -> Netrc {
-        guard configuration.isEnabled else { return .empty }
+        // SwiftPM rejects this pair outright rather than letting one win, and this is
+        // the choke point every entry point goes through, embedders included.
+        if !configuration.isEnabled, configuration.path != nil {
+            throw ToolError.message("'--disable-netrc' and '--netrc-file' are mutually exclusive")
+        }
+        guard configuration.isEnabled else {
+            return Netrc(configuration: configuration, sources: [])
+        }
 
         var sources: [NetrcSource] = []
         if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty {
@@ -70,7 +102,7 @@ struct Netrc: Sendable {
                 sources.append(NetrcSource(origin: .file, machines: NetrcParser.machines(in: content)))
             }
         }
-        return Netrc(sources: sources)
+        return Netrc(configuration: configuration, sources: sources)
     }
 
     func credential(for url: URL) -> RegistryCredential? {
@@ -148,11 +180,11 @@ enum NetrcParser {
             tokens.removeFirst()
             switch key {
             case "login":
-                login = tokens.popFirst()
+                login = tokens.popFirstValue()
             case "password":
-                password = tokens.popFirst()
+                password = tokens.popFirstValue()
             default:
-                _ = tokens.popFirst()
+                _ = tokens.popFirstValue()
             }
             if login != nil, password != nil {
                 while let key = tokens.first, key != "machine", key != "default" {
@@ -208,5 +240,14 @@ enum NetrcParser {
 private extension Array where Element == String {
     mutating func popFirst() -> String? {
         isEmpty ? nil : removeFirst()
+    }
+
+    /// Pops a value, refusing one that opens the next entry. A `login` or `password`
+    /// whose value never materialises, from an empty quoted string or a value that
+    /// starts a comment, would otherwise consume the following `machine` keyword and
+    /// take the rest of the file down with it.
+    mutating func popFirstValue() -> String? {
+        guard let first, first != "machine", first != "default" else { return nil }
+        return removeFirst()
     }
 }

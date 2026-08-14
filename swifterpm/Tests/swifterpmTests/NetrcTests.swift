@@ -55,6 +55,22 @@ struct NetrcTests {
     }
 
     @Test
+    func parserContainsAMissingValueToItsOwnEntry() {
+        // A value that never materialises must not swallow the next `machine`
+        // keyword: the damage belongs to the malformed entry, not to the rest of
+        // the file, which would drop credentials silently.
+        let machines = NetrcParser.machines(
+            in: """
+            machine first.example.com  login user  password ""
+            machine second.example.com login u2    password p2
+            """
+        )
+
+        #expect(
+            machines == [NetrcMachine(name: "second.example.com", login: "u2", password: "p2")])
+    }
+
+    @Test
     func parserSkipsEntriesWithoutBothCredentials() {
         let machines = NetrcParser.machines(
             in: """
@@ -233,15 +249,79 @@ struct NetrcTests {
     }
 
     @Test
-    func resolveIgnoresAMissingNetrcFileWhenDisabledOrUnconfigured() async throws {
+    func resolveIgnoresAMissingHomeNetrcFile() async throws {
         try await withTemporaryDirectory { root in
-            let missing = root.appendingPathComponent("netrc")
-
-            _ = try await Netrc.resolve(
-                SwifterPMNetrcConfiguration(isEnabled: false, path: missing), environment: [:])
             _ = try await Netrc.resolve(
                 SwifterPMNetrcConfiguration(), environment: ["HOME": root.path])
         }
+    }
+
+    @Test
+    func resolveRejectsDisabledNetrcCombinedWithAnExplicitFile() async throws {
+        // SwiftPM fails the command outright here rather than letting one win:
+        // "error: '--disable-netrc' and '--netrc-file' are mutually exclusive".
+        try await withTemporaryDirectory { root in
+            let netrcFile = root.appendingPathComponent("netrc")
+            try await fileSystem.atomicWrite("machine example.com login a password b", to: netrcFile)
+
+            await #expect(throws: (any Error).self) {
+                try await Netrc.resolve(
+                    SwifterPMNetrcConfiguration(isEnabled: false, path: netrcFile), environment: [:])
+            }
+        }
+    }
+
+    @Test
+    func swiftPackageArgumentsCarryTheConfigurationToTheChildProcess() async throws {
+        // The child `swift package resolve` solves the graph, so it hits the same
+        // registries. Its environment is inherited, but flags are not.
+        try await withTemporaryDirectory { root in
+            let netrcFile = root.appendingPathComponent("netrc")
+            try await fileSystem.atomicWrite("machine example.com login a password b", to: netrcFile)
+
+            let file = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(path: netrcFile, forcesNetrc: true), environment: [:])
+            #expect(file.swiftPackageArguments == ["--netrc-file", netrcFile.path, "--netrc"])
+
+            let disabled = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(isEnabled: false), environment: [:])
+            #expect(disabled.swiftPackageArguments == ["--disable-netrc"])
+
+            let defaults = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(), environment: [:])
+            #expect(defaults.swiftPackageArguments.isEmpty)
+        }
+    }
+
+    @Test
+    func registryPrecedenceIsEnvironmentThenKeychainThenFile() async throws {
+        let environmentNetrc = RegistryCredential(user: "u", password: "environment")
+        let fileNetrc = RegistryCredential(user: "u", password: "file")
+        let keychain = RegistryCredential(user: "u", password: "keychain")
+
+        let environmentWins = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrc: environmentNetrc,
+            fileNetrc: fileNetrc,
+            forcesNetrc: false,
+            keychain: { Issue.record("keychain consulted despite inline netrc data"); return keychain }
+        )
+        #expect(environmentWins?.password == "environment")
+
+        let keychainWins = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrc: nil, fileNetrc: fileNetrc, forcesNetrc: false, keychain: { keychain })
+        #expect(keychainWins?.password == "keychain")
+
+        let forced = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrc: nil,
+            fileNetrc: fileNetrc,
+            forcesNetrc: true,
+            keychain: { Issue.record("keychain consulted despite --netrc"); return keychain }
+        )
+        #expect(forced?.password == "file")
+
+        let fileFallback = await RegistryAuthorization.prioritizedCredential(
+            environmentNetrc: nil, fileNetrc: fileNetrc, forcesNetrc: false, keychain: { nil })
+        #expect(fileFallback?.password == "file")
     }
 
     @Test
