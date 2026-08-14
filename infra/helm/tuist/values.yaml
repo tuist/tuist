@@ -418,6 +418,11 @@ server:
     domain: ""
     fromAddress: ""
     replyToAddress: ""
+  # Base URL of the Atlas email API. Unset means the newsletter signup does
+  # not reach Atlas, which is what every environment other than production
+  # wants: they would otherwise write contacts into the production audience.
+  atlasEmail:
+    apiUrl: ""
   license:
     key: ""
     certificateBase64: ""
