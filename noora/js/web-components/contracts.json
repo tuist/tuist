@@ -3671,9 +3671,16 @@
     "elementClassName": "NooraNeutralButton",
     "className": "noora-neutral-button",
     "modulePath": "./priv/static/noora-web-components.js",
-    "description": "Provides a low-emphasis compact control.",
+    "description": "Provides a low-emphasis compact control, either icon-only or with a text label.",
     "usage": "<noora-neutral-button aria-label=\"Previous page\"><noora-icon name=\"chevron_left\"></noora-icon></noora-neutral-button>",
     "attributes": [
+      {
+        "name": "label",
+        "property": "label",
+        "type": "string",
+        "default": "",
+        "description": "Sets the visible label. When set, the default slot is replaced by the label and the icon-left/icon-right slots."
+      },
       {
         "name": "size",
         "property": "size",
@@ -3711,7 +3718,15 @@
     "slots": [
       {
         "name": "",
-        "description": "The complete control content."
+        "description": "The complete control content when no label is set."
+      },
+      {
+        "name": "icon-left",
+        "description": "An icon before the label. Only rendered when a label is set."
+      },
+      {
+        "name": "icon-right",
+        "description": "An icon after the label. Only rendered when a label is set."
       }
     ],
     "cssParts": [
@@ -3739,6 +3754,12 @@
         "title": "Different icons",
         "description": "Use the icon that matches the navigation direction.",
         "markup": "<noora-neutral-button size=\"medium\" aria-label=\"Previous\"><noora-icon name=\"chevron_left\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"medium\" aria-label=\"Next\"><noora-icon name=\"chevron_right\"></noora-icon></noora-neutral-button>"
+      },
+      {
+        "id": "text",
+        "title": "Text labels",
+        "description": "Use a label, optionally with icons, for low-emphasis text actions. The spacing matches the standard button sizes.",
+        "markup": "<noora-neutral-button size=\"small\" label=\"Button\"></noora-neutral-button>\n<noora-neutral-button size=\"medium\" label=\"Button\"></noora-neutral-button>\n<noora-neutral-button size=\"large\" label=\"Button\"></noora-neutral-button>\n<noora-neutral-button size=\"large\" label=\"Button\"><noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon><noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon></noora-neutral-button>\n<noora-neutral-button size=\"large\" label=\"Button\" disabled></noora-neutral-button>"
       }
     ],
     "properties": [],
