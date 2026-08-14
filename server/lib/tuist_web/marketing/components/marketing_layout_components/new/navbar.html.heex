@@ -325,9 +325,8 @@ resources_items = [
         size="large"
         href={~p"/users/log_in"}
         data-part="log-in"
-      >
-        {dgettext("marketing", "Log in")}
-      </.neutral_button>
+        label={dgettext("marketing", "Log in")}
+      />
       <.button
         variant={
           if(is_nil(TuistWeb.Authentication.current_user(assigns)),
