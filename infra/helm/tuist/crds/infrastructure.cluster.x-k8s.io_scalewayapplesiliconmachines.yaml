@@ -215,25 +215,25 @@ spec:
                 os:
                   default: Tahoe
                   description: |-
-                  OS is the macOS release family the fleet runs — "Tahoe",
-                  "Sequoia", "Sonoma". Adoption accepts any pool host in the family
-                  and release reinstalls onto the family's newest published image,
-                  so the fleet tracks Scaleway's point releases instead of chasing
-                  them.
+                    OS is the macOS release family the fleet runs — "Tahoe",
+                    "Sequoia", "Sonoma". Adoption accepts any pool host in the family
+                    and release reinstalls onto the family's newest published image,
+                    so the fleet tracks Scaleway's point releases instead of chasing
+                    them.
 
-                  Deliberately not a point release. Scaleway retires point releases
-                  without notice and reimages released hosts onto the server type's
-                  current default, so an exact pin drifts out from under the fleet
-                  and no pool host can satisfy it again — that is how staging lost
-                  its whole runner pool in Aug 2026 while sitting on
-                  macos-tahoe-26.3.
+                    Deliberately not a point release. Scaleway retires point releases
+                    without notice and reimages released hosts onto the server type's
+                    current default, so an exact pin drifts out from under the fleet
+                    and no pool host can satisfy it again — that is how staging lost
+                    its whole runner pool in Aug 2026 while sitting on
+                    macos-tahoe-26.3.
 
-                  A value naming a specific image is refused at adoption with an
-                  InvalidOSPin condition rather than widened to its family —
-                  silently granting any Tahoe host to someone who asked for 26.5
-                  would be worse than saying no. Release is deliberately lenient:
-                  Machines predating this carry exact pins in their own specs and
-                  have to be able to drain.
+                    A value naming a specific image is refused at adoption with an
+                    InvalidOSPin condition rather than widened to its family —
+                    silently granting any Tahoe host to someone who asked for 26.5
+                    would be worse than saying no. Release is deliberately lenient:
+                    Machines predating this carry exact pins in their own specs and
+                    have to be able to drain.
                   type: string
                 providerID:
                   description: |-
