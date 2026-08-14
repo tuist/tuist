@@ -2,6 +2,47 @@ import Foundation
 import Testing
 @testable import SwifterPMCore
 
+/// Attempt ordering is decided by reading the developer's own git configuration, so every
+/// test that exercises it pins that configuration instead of inheriting the machine's.
+func withGitConfiguration<T: Sendable>(
+    _ configuration: GitConfiguration,
+    environment: [String: String] = [:],
+    operation: () async -> T
+) async -> T {
+    await Environment.$gitConfiguration.withValue(configuration) {
+        await Environment.$values.withValue(environment) {
+            await operation()
+        }
+    }
+}
+
+extension GitConfiguration {
+    /// What Apple's toolchain ships on every developer Mac: an unscoped helper, which
+    /// answers for every host.
+    static let osxkeychain = GitConfiguration(
+        insteadOfPrefixes: [], hasUnscopedHelper: true, helperURLs: []
+    )
+}
+
+extension Netrc {
+    /// `SWIFTPM_NETRC_DATA` or a `--netrc-file`, neither of which curl reads for git.
+    static let invisibleToGit = Netrc(sources: [
+        NetrcSource(
+            origin: .environment,
+            machines: [NetrcMachine(name: "github.com", login: "machine-user", password: "s3cret")]
+        ),
+    ])
+
+    /// `~/.netrc`, the one netrc source git authenticates with by itself.
+    static let visibleToGit = Netrc(sources: [
+        NetrcSource(
+            origin: .file,
+            machines: [NetrcMachine(name: "github.com", login: "machine-user", password: "s3cret")],
+            isGitVisible: true
+        ),
+    ])
+}
+
 struct GitHubTests {
     @Test
     func parsesHTTPSGitHubLocations() throws {
@@ -100,7 +141,9 @@ struct GitHubTests {
 
     @Test
     func gitTransportAuthAddsNoArgumentsForSSHLocations() async {
-        let attempts = await GitTransportAuth.attempts(for: "git@github.com:acme/private-lib.git")
+        let attempts = await withGitConfiguration(.osxkeychain) {
+            await GitTransportAuth.attempts(for: "git@github.com:acme/private-lib.git")
+        }
 
         #expect(attempts.map(\.credential) == [.gitConfigured])
         #expect(attempts.map(\.configArguments) == [[]])
@@ -111,7 +154,9 @@ struct GitHubTests {
         // An `http.<base>.extraheader` overrides every credential git would resolve on its
         // own and stops curl reading ~/.netrc, so a token that cannot read the repository
         // used to fail the fetch outright on a machine where plain git succeeds.
-        let attempts = await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+        let attempts = await withGitConfiguration(
+            .osxkeychain, environment: ["GITHUB_TOKEN": "ghp_secret"]
+        ) {
             await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
         }
 
@@ -129,14 +174,8 @@ struct GitHubTests {
     func gitTransportAuthTriesANetrcSourceGitCannotSeeBeforeAnAmbientToken() async throws {
         // `--netrc-file` and SWIFTPM_NETRC_DATA are invisible to git, so they need to be
         // injected, but they are deliberate per-host credentials and outrank a generic token.
-        let netrc = Netrc(sources: [
-            NetrcSource(
-                origin: .environment,
-                machines: [NetrcMachine(name: "github.com", login: "machine-user", password: "s3cret")]
-            ),
-        ])
-        let attempts = await Environment.$netrc.withValue(netrc) {
-            await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+        let attempts = await Environment.$netrc.withValue(.invisibleToGit) {
+            await withGitConfiguration(.osxkeychain, environment: ["GITHUB_TOKEN": "ghp_secret"]) {
                 await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
             }
         }
@@ -152,7 +191,7 @@ struct GitHubTests {
 
     @Test
     func gitTransportAuthAddsNoTokenAttemptWhenNoneIsAvailable() async {
-        let attempts = await Environment.$values.withValue([:]) {
+        let attempts = await withGitConfiguration(.empty) {
             await GitTransportAuth.attempts(for: "https://source.example.com/acme/private-lib.git")
         }
 
@@ -160,8 +199,64 @@ struct GitHubTests {
     }
 
     @Test
+    func gitTransportAuthTriesAnAmbientTokenFirstWhenGitHasNothingToResolve() async {
+        // A CI runner holding only a token has no rewrite rule, no helper and no ~/.netrc,
+        // so probing without a credential can only ever cost a round trip.
+        let attempts = await withGitConfiguration(
+            .empty, environment: ["GITHUB_TOKEN": "ghp_secret"]
+        ) {
+            await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
+        }
+
+        #expect(attempts.map(\.credential) == [.gitHubToken, .gitConfigured])
+    }
+
+    @Test
+    func gitTransportAuthStillEndsWithACredentialFreeAttemptWhenGitHasNothingToResolve() async {
+        // Dropping it rather than demoting it would break every public dependency the
+        // moment the ambient token is expired or scoped elsewhere: an anonymous fetch is
+        // what reads them, and an injected Authorization header suppresses it.
+        let attempts = await withGitConfiguration(
+            .empty, environment: ["GITHUB_TOKEN": "ghp_secret"]
+        ) {
+            await GitTransportAuth.attempts(for: "https://github.com/acme/public-lib.git")
+        }
+
+        #expect(attempts.last?.credential == .gitConfigured)
+        #expect(attempts.last?.configArguments == [])
+    }
+
+    @Test
+    func gitTransportAuthTriesGitFirstWhenTheHostIsCoveredByHomeNetrc() async {
+        // ~/.netrc is the one netrc source curl reads for git, so it is a reason to let git
+        // go first rather than a reason to inject.
+        let attempts = await Environment.$netrc.withValue(.visibleToGit) {
+            await withGitConfiguration(.empty, environment: ["GITHUB_TOKEN": "ghp_secret"]) {
+                await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
+            }
+        }
+
+        #expect(attempts.first?.credential == .gitConfigured)
+    }
+
+    @Test
+    func gitTransportAuthTriesGitFirstWhenAnAskpassHelperIsConfigured() async {
+        // GIT_ASKPASS authenticates without a rewrite, a helper or a netrc, and being an
+        // environment variable it never shows up in the config parse.
+        let attempts = await withGitConfiguration(
+            .empty, environment: ["GITHUB_TOKEN": "ghp_secret", "GIT_ASKPASS": "/usr/bin/true"]
+        ) {
+            await GitTransportAuth.attempts(for: "https://github.com/acme/private-lib.git")
+        }
+
+        #expect(attempts.map(\.credential) == [.gitConfigured, .gitHubToken])
+    }
+
+    @Test
     func fetchAttemptsWalkEveryCandidateWithGitsOwnCredentialsFirst() async {
-        let attempts = await Environment.$values.withValue(["GITHUB_TOKEN": "ghp_secret"]) {
+        let attempts = await withGitConfiguration(
+            .osxkeychain, environment: ["GITHUB_TOKEN": "ghp_secret"]
+        ) {
             await SourceControlLocations.fetchAttempts("git@github.com:acme/private-lib.git")
         }
 
