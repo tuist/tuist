@@ -58,6 +58,10 @@ spec:
   extraEnv:
     - name: KURA_CONTROL_PLANE_URL
       value: {{ $controlPlaneURL }}
+    - name: KURA_AUTH_TUIST_URL
+      value: {{ $controlPlaneURL }}
+    # Read by Kura releases that predate KURA_AUTH_TUIST_URL. Drop once every
+    # instance runs a release that reads the name above.
     - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
       value: {{ $controlPlaneURL }}
   {{- with $instance.nodeSelector }}

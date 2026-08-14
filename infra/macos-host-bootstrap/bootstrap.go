@@ -119,19 +119,24 @@ type Config struct {
 	// mini directly (rare). Production deployments always set this.
 	TailscaleBinaries []byte
 
-	// TailscaleAuthKey is a per-fleet Tailscale pre-auth key (from
-	// 1Password via ESO). Reusable + ephemeral-tagged so each Mac
-	// mini in the fleet authenticates without a separate key, and
-	// stale node records age out automatically. Empty disables the
-	// Tailscale step even when TailscaleBinaries is present — covers
-	// chart bring-up where the key hasn't been provisioned yet.
+	// TailscaleAuthKey is the per-fleet Tailscale join credential
+	// (from 1Password via ESO): an OAuth client secret, which
+	// `tailscale up` turns into a freshly minted key per join. It is
+	// deliberately not a pre-auth key: those expire after at most 90
+	// days, and an expired one is an outage rather than a degraded
+	// mode (2026-08-12). See renderTailscaleScript for the properties
+	// pinned on the minted key. Empty disables the Tailscale step even
+	// when TailscaleBinaries is present, covering chart bring-up where
+	// the credential hasn't been provisioned yet.
 	TailscaleAuthKey string
 
 	// TailscaleTags are the Tailscale ACL tags advertised on this
 	// node at `tailscale up` time. Drives which ACL groups can dial
 	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
-	// cluster's `tag:cluster-scraper` group on :9091 + :9100. Empty
-	// uses the auth key's default tag.
+	// cluster's `tag:cluster-scraper` group on :9091 + :9100.
+	// Required with an OAuth-client credential, which always mints
+	// tagged keys and carries no default tag; empty only works with a
+	// legacy pre-auth key, whose own tag binding then applies.
 	TailscaleTags []string
 
 	// TailscaleAcceptRoutes adds `--accept-routes` to `tailscale up`,
@@ -199,6 +204,17 @@ type Config struct {
 	// management (the firewall pass rule still applies if the CIDR
 	// is set, for hosts configured out-of-band).
 	VMCachePNVLAN uint32
+
+	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
+	// and loopback, that may reach the host's :22. Everything else is
+	// dropped at the pf edge by installSSHIngressGuard. The operator's
+	// own SSH egress belongs here so the public-IP dial path (the one
+	// that can still update Tailscale itself) keeps working; the
+	// tailnet fallback is allowed unconditionally. Each entry must
+	// parse as an IPv4 CIDR and bootstrap fails closed otherwise.
+	// Empty installs the guard with just the tailnet and loopback
+	// allowances plus the live session's source address.
+	SSHIngressAllowCIDRs []string
 
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
 	// (cross-compiled in the operator image from
@@ -367,6 +383,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the guard's unconditional allowance is the
+	// tailnet, so it must not narrow :22 before that path exists.
+	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install ssh ingress guard: %w", err)
+	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
@@ -462,6 +483,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
+	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
@@ -527,6 +551,10 @@ func HostConfigHash(cfg Config) string {
 		// validates these inputs before they reach a host.
 		firewall = "ERROR:" + err.Error()
 	}
+	sshGuard, err := renderSSHIngressGuardScript(cfg)
+	if err != nil {
+		sshGuard = "ERROR:" + err.Error()
+	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
 		{"vmnat", renderVMNATScript(cfg)},
@@ -538,6 +566,7 @@ func HostConfigHash(cfg Config) string {
 		{"node-exporter", renderNodeExporterScript()},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
+		{"ssh-ingress-guard", sshGuard},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -1381,12 +1410,33 @@ block drop out quick from <vm_sources> to <blocked_dst>
 block drop out quick from <vm_sources> to 169.254.169.254
 PFCONF
 
-# Manage the anchor block in /etc/pf.conf via begin/end markers.
-# Strip-and-append between markers is idempotent and convergent:
-# any number of pre-existing marker-delimited blocks (duplicates
-# from a stuttering reconcile, partial writes from a prior crashed
-# run) get removed before the canonical block is written.
-sudo sed -i.bak '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' /etc/pf.conf
+# Manage the anchor block in /etc/pf.conf. Strip-and-append is
+# idempotent and convergent, but it has to strip EVERY historical
+# form of the block, not just the marker-delimited one.
+#
+# Hosts provisioned before the markers existed carry a bare,
+# un-delimited anchor/load-anchor pair. A marker-only strip left
+# that in place and appended a second copy, so loading /etc/pf.conf
+# hit "cannot define table vm_sources: Resource busy"
+# and rejected the WHOLE ruleset. pf kept serving whatever it had
+# loaded before, which no longer carried the stock
+# nat-anchor "com.apple/*" line, so the com.apple/tuist.vmnat sub-anchor
+# holding the VM NAT rules was never evaluated: cache traffic left
+# un-NAT'd with its 192.168.64.x source, the per-instance kura
+# NetworkPolicy dropped it at ingress with no RST, and every cache
+# request hung until its client timeout. The rules looked perfect in
+# the anchor the whole time; nothing consulted them.
+#
+# Deleting the bare lines as well is safe because the canonical
+# block is re-appended immediately below, and this script is folded
+# into the host config hash, so editing it re-pushes the filter to
+# every host and converges the ones already carrying a duplicate.
+sudo sed -i.bak \
+  -e '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' \
+  -e '/^# Tuist runner VM egress filter/d' \
+  -e '/^anchor "tuist.runners"$/d' \
+  -e '\#^load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"$#d' \
+  /etc/pf.conf
 sudo rm -f /etc/pf.conf.bak
 sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
 # BEGIN tuist.runners
@@ -1750,10 +1800,10 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 //     the daemon. Direct equivalent of `systemctl enable --now
 //     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
 //     job first so new binaries aren't held open).
-//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+
-//     ephemeral keys mean every Mac mini in the fleet uses the same
-//     key and stale node records age out automatically — the right
-//     shape for a CAPI-managed fleet where machines come and go.
+//  3. `tailscale up` with the per-fleet credential. Every Mac mini in
+//     the fleet uses the same one, and the key it mints is ephemeral
+//     so stale node records age out automatically: the right shape
+//     for a CAPI-managed fleet where machines come and go.
 //
 // No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
 // chart's per-env values gate the tailnet end-to-end, and a partial
@@ -1769,6 +1819,10 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 		return nil
 	}
 
+	if err := validateTailscaleCredential(cfg); err != nil {
+		return err
+	}
+
 	// Stage 1: write the auth key. See function-level comment for the
 	// security rationale.
 	keyScript := `set -euo pipefail
@@ -1780,6 +1834,25 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	}
 
 	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// validateTailscaleCredential rejects a config the host could only fail on.
+//
+// A key minted through an OAuth client is always tagged, and the tag has to be
+// named at join time, because the credential carries no default to fall back
+// on. A legacy pre-auth key carries its own tag binding, so it stays valid
+// untagged while envs migrate.
+//
+// Checked here rather than on the host so the error reaches
+// Machine.status.failureMessage instead of surfacing 60s later as a join
+// timeout that reads like a network fault, and read off the credential rather
+// than the rendered script so it can't perturb HostConfigHash (which
+// neutralizes TailscaleAuthKey).
+func validateTailscaleCredential(cfg Config) error {
+	if strings.HasPrefix(cfg.TailscaleAuthKey, "tskey-client-") && len(cfg.TailscaleTags) == 0 {
+		return errors.New("tailscale credential is an OAuth client secret but TailscaleTags is empty; OAuth-minted keys must be tagged at join time")
+	}
+	return nil
 }
 
 // renderTailscaleScript builds the stage-2 SSH script (extract binaries,
@@ -1919,6 +1992,34 @@ if [ "$DAEMON_READY" != true ]; then
   exit 1
 fi
 
+# The credential is an OAuth client secret, which Tailscale accepts
+# wherever an auth key goes and turns into a freshly minted key for
+# this join. OAuth clients don't expire; pre-auth keys are capped at
+# 90 days, which is a scheduled outage nobody can turn off. See the
+# chart's macos-fleet-tailscale-external-secrets.yaml.
+#
+# preauthorized=true because the implicitly minted key defaults to
+# false, and a host parked in manual-approval limbo fails this join
+# exactly the way an expired credential would.
+#
+# ephemeral=true carries its weight only for the first four hours of a
+# host's life: Tailscale converts a device that stays online that long
+# into a standard tagged one, so a mini that ran for weeks is no longer
+# ephemeral by the time CAPI replaces it and its record outlives the
+# machine either way. It is set to preserve the behaviour the fleet
+# already had, NOT because it cleans up after the fleet. Nothing deletes
+# a mini's tailnet device today (reconcileDelete revokes the kubelet
+# identity and stops there); a reaper is the tracked follow-up, and
+# ephemeral should go once one exists.
+#
+# The prefix test leaves a legacy pre-auth key working untouched:
+# appending these parameters to one would corrupt it, and bootstrap
+# has to succeed against either credential while envs migrate.
+TS_AUTH_KEY="$(sudo cat /etc/tuist/tailscale-auth-key)"
+case "$TS_AUTH_KEY" in
+  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=true&preauthorized=true" ;;
+esac
+
 # Capture up's combined stdout+stderr so a failure surfaces
 # actionable diagnostics. The auth key is expanded by the remote
 # shell from the file Stage 1 wrote; the formatted script body
@@ -1926,7 +2027,7 @@ fi
 TS_UP_LOG=$(mktemp)
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
-    --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
+    --authkey="$TS_AUTH_KEY" \
     --reset \
     --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
@@ -2050,6 +2151,157 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
 sudo launchctl bootout system/dev.tuist.ssh-reachability 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
 `
+}
+
+// installSSHIngressGuard drops inbound :22 from everywhere except the
+// tailnet, loopback and cfg.SSHIngressAllowCIDRs, so internet scan
+// traffic can't exhaust the ssh listen backlog. See
+// renderSSHIngressGuardScript.
+//
+// No-op when Tailscale isn't wired: without a tailnet there is no
+// second path to the host, so a guard whose allow list turned out to be
+// wrong would strand it behind VNC with no way back in.
+func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	script, err := renderSSHIngressGuardScript(cfg)
+	if err != nil {
+		return err
+	}
+	return RunCommand(ctx, client, script)
+}
+
+// renderSSHIngressGuardScript builds the pf anchor that filters inbound
+// SSH.
+//
+// A Scaleway Mac mini's public interface is internet-facing and its :22
+// absorbs continuous brute-force traffic. Observed on a wedged runner:
+// several hundred half-open connections from scanner ranges sitting in
+// SYN_RCVD, well past SOMAXCONN, so the kernel dropped every new SYN.
+// launchd (not sshd) owns that listener and binds it to *:22, so an
+// exhausted backlog blocks the tailnet just as hard as the public
+// interface, which is how a host stops accepting operator config pushes
+// on both paths at once and drifts on a stale tart-kubelet.
+//
+// The host-side backlog drain (renderSSHReachabilityScript) reloads the
+// socket but cannot win: it clears a queue that the flood refills within
+// seconds. Filtering the SYNs at the pf edge removes the pressure
+// instead of racing it, and lets the existing SYN_RCVD entries age out
+// on their own, so a host recovers within a couple of minutes of the
+// rules loading.
+//
+// The allow list is source-based rather than interface-based: the public
+// interface name varies across hosts, while the sources we trust
+// (tailnet CGNAT, loopback, the operator's egress) are the same
+// everywhere. Loopback must stay open or the reachability watchdog's
+// 127.0.0.1 probe reads as permanently wedged and reloads ssh every
+// minute.
+//
+// The live session's own source address is folded into the table on the
+// host at render time, so a roll can never sever the connection
+// carrying it. That also makes the guard self-correcting: if the
+// operator's egress address changes and the configured list goes stale,
+// the public dial is dropped, the drift loop falls back to the tailnet,
+// and that push rewrites the table with the new address.
+//
+// The rules load into the `com.apple/tuist.sshguard` sub-anchor, the same
+// trick renderVMNATScript uses and for the same reason. A top-level
+// `anchor "tuist.sshguard"` appended to /etc/pf.conf only enters the live
+// ruleset when the whole file is loaded, which happens at boot; on a running
+// host `pfctl -a` would populate an anchor nothing evaluates, the drift update
+// would stamp HostConfigHash as converged, and the guard would sit inert until
+// the next reboot. The stock pf.conf already carries `anchor "com.apple/*"`,
+// so a sub-anchor underneath it is attached to the live ruleset from the
+// moment it is written, and it lands ahead of anything appended to the end of
+// pf.conf. That is also why nothing here edits /etc/pf.conf.
+//
+// A LaunchDaemon re-loads the anchor on boot and every 60s. The anchor file is
+// the source of truth, so the re-arm needs no SSH session and restores the
+// rules after a reboot or an external ruleset flush within a minute.
+//
+// Folded into the host config hash so an allow-list change re-pushes.
+func renderSSHIngressGuardScript(cfg Config) (string, error) {
+	allow := ""
+	for _, cidr := range cfg.SSHIngressAllowCIDRs {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil || ip.To4() == nil {
+			return "", fmt.Errorf("ssh ingress allow cidr %q is not an IPv4 CIDR: %v", cidr, err)
+		}
+		allow += ", " + cidr
+	}
+
+	return fmt.Sprintf(`set -euo pipefail
+
+# Source address of the SSH session running this script, folded into the
+# allow table so the roll can't drop the connection it arrived on.
+SESSION_SRC="$(printf '%%s\n' "${SSH_CONNECTION:-}" | awk '{print $1}' | grep -E '^[0-9]+(\.[0-9]+){3}$' || true)"
+SESSION_ENTRY=""
+if [ -n "$SESSION_SRC" ]; then
+  SESSION_ENTRY=", $SESSION_SRC"
+fi
+
+sudo mkdir -p /etc/pf.anchors
+sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
+# Tuist runner SSH ingress guard.
+#
+# Keeps internet scan traffic off the host's :22 so it can't exhaust
+# launchd's ssh listen backlog and lock the operator out on every
+# path at once.
+#
+# pf is first-match-wins across 'quick' rules, so the pass lines
+# MUST stay above the block.
+
+table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
+
+# The reachability watchdog probes 127.0.0.1:22 every minute; a
+# blocked loopback reads as a permanent wedge to it.
+pass in quick on lo0 proto tcp to any port 22 keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+block drop in quick proto tcp to any port 22
+PFCONF
+
+sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
+#!/bin/sh
+# Re-loads the SSH ingress guard into the com.apple/tuist.sshguard pf
+# sub-anchor (see installSSHIngressGuard in macos-host-bootstrap). The
+# anchor file is the source of truth, so this needs no SSH session and
+# re-converges after a reboot or an external ruleset flush. pfctl swaps
+# anchor contents atomically, so re-running is cheap and never leaves a
+# window with no rules.
+set -u
+[ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
+pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard
+SSHGUARD
+sudo chmod 0755 /usr/local/bin/tuist-pf-sshguard
+sudo pfctl -E 2>/dev/null || true
+sudo /usr/local/bin/tuist-pf-sshguard
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-sshguard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-sshguard</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pf-sshguard.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
+sudo launchctl bootout system/dev.tuist.pfctl-sshguard 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.plist
+`, allow), nil
 }
 
 // renderNodeExporterScript is the static SSH script that installs the

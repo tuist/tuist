@@ -122,6 +122,48 @@ it without changing what's pushed; the whole transport is controller-side only,
 so `HostConfigHash` is unchanged and an already-terminal CR only retries once
 its cooldown elapses (or `Status.FailureReason` is cleared by hand).
 
+### SSH ingress guard
+
+Both dial paths land on the same listener, so both fail together. A Scaleway
+Mac mini's public interface is internet-facing and its `:22` absorbs continuous
+SSH brute-force traffic; several hundred half-open connections from scanner
+ranges sit in `SYN_RCVD`, past `SOMAXCONN`, and the kernel drops every new SYN.
+launchd (not sshd) owns that socket and binds it to `*:22`, so an exhausted
+backlog blocks the tailnet fallback exactly as hard as the public path. That is
+how a host stops accepting config pushes on every path at once and drifts on a
+stale tart-kubelet until someone consoles in over VNC.
+
+`installSSHIngressGuard` (bootstrap + drift, right after `installTailscale`)
+drops inbound `:22` at the pf edge from everything except the tailnet
+(`100.64.0.0/10`), loopback, `--ssh-ingress-allow-cidrs`, and the live session's
+own source address. Notes:
+
+- It runs *after* Tailscale so it never narrows `:22` before the fallback path
+  exists, and it no-ops entirely when Tailscale isn't wired: without a second
+  path, a wrong allow list strands the host behind VNC.
+- The rules live in the `com.apple/tuist.sshguard` sub-anchor, the same trick
+  `renderVMNATScript` uses. A top-level `anchor` appended to `/etc/pf.conf` is
+  only read on a full ruleset load (i.e. at boot), so on a running host
+  `pfctl -a` would populate an anchor nothing evaluates while the drift update
+  stamped `HostConfigHash` as converged: the guard would report shipped and
+  filter nothing until a reboot. The stock pf.conf already carries
+  `anchor "com.apple/*"`, so a sub-anchor under it is live the moment it is
+  written. Nothing here edits `/etc/pf.conf`, and a test asserts that.
+  `dev.tuist.pfctl-sshguard` re-loads the anchor file at boot and every 60s, so
+  the rules survive a reboot or an external flush with no SSH round trip.
+- Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
+  probe reads as a permanent wedge and reloads ssh every minute.
+- Folding the live session's source into the table makes the guard
+  self-correcting: if the operator's egress address changes and the configured
+  list goes stale, the public dial is dropped, the drift loop falls back to the
+  tailnet, and that push rewrites the table with the new address.
+- Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
+  public path usable, since a tailnet-transported roll can't update Tailscale
+  itself (`SkipTailscaleInstall`, above).
+- The host-side backlog drain alone can't fix this. It clears a queue the flood
+  refills within seconds, which is why hosts stayed wedged for weeks with the
+  watchdog installed and firing.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
@@ -178,10 +220,20 @@ infra/cluster-api-provider-tuist/
 ```
 
 CRDs live in [`infra/helm/tuist/crds/`](../helm/tuist/crds/) so Helm
-installs them automatically on first `helm install` (Helm 3 ignores
-the `crds/` directory on upgrades, which is what we want — CRD
-schema changes go through a deliberate `kubectl apply` rather than
-piggybacking on routine deploys).
+installs them on first `helm install`. Helm 3 skips that directory on
+upgrades, so the deploy workflow re-applies it every run
+(`kubectl apply -f "$HELM_CHART_PATH/crds/"` in
+[`server-deployment.yml`](../../.github/workflows/server-deployment.yml)) —
+schema changes ship with the deploy that carries them, no operator step.
+
+A schema change is therefore a live change to what the apiserver accepts,
+including for the CRs **CAPI clones on its own**. Adding a required field
+to a machine spec makes every MachineTemplate that predates it un-clonable,
+which surfaces as `InfrastructureTemplateCloningFailed` on the next
+MachineSet scale-up rather than at deploy time — and Helm does not backfill
+the field onto a live template (it patches these CRs manifest-to-manifest,
+so a field the live object never received is never added). Prefer an
+optional field with a controller-side default over a required one.
 
 ## Node extended resources
 
@@ -205,29 +257,59 @@ resources are integer and non-overcommittable). A pod that requests one on a
 node that does not advertise it never schedules, which is why both are opt-in
 on the consumer side.
 
-### MemoryQoS
+## Node memory governance
 
-The floor half of that model is currently advisory: `requests.memory` never
-reaches the kernel, so nothing stops a pod that has expanded toward its ceiling
-from taking memory a quieter neighbour was promised. The kubelet's `MemoryQoS`
-feature gate is what closes it, mapping requests onto cgroup v2 `memory.min` /
-`memory.low` so reclaim takes from whoever is furthest above their own floor.
+`kubeletMemoryGovernanceBlock` in `controllers/linux/linux_cloudinit.go` carries
+three settings that only make sense together. Read that constant's comment for
+the per-setting reasoning; what matters here is the ordering between them and
+how they reach a running node.
 
-It is deliberately **not** enabled in `kubeletConfigContent`
-(`controllers/linux/linux_cloudinit.go`). Enabling it is a one-line change
-there, and because `desiredKubeletConfigHash` fingerprints the rendered config,
-the drift loop would re-push it to every already-Ready node and restart their
-kubelets — no machine roll, but a simultaneous kubelet restart across all three
-Linux fleets. Before turning it on:
+1. **`systemReserved` / `kubeReserved`** carve the daemons that live outside any
+   pod out of allocatable. This has to come first: MemoryQoS derives its
+   protection from pod *requests*, so with allocatable equal to capacity the
+   scheduler can promise pods the whole box and the protection would then
+   squeeze the kubelet itself.
+2. **`evictionHard`** raises `memory.available` off the 100Mi default. On a
+   31GiB box that default leaves so little margin that the kernel OOM killer
+   usually beats the eviction manager, turning contention into a SIGKILL
+   mid-transfer rather than an evicted pod with an event. It **replaces** the
+   kubelet defaults rather than merging, so all four signals are restated.
+3. **`MemoryQoS`** (alpha, off by default upstream — enabled here deliberately)
+   maps requests onto cgroup v2 `memory.min` / `memory.low`, which is what makes
+   the memory floor kernel-enforced instead of advisory. `memoryThrottlingFactor`
+   is pinned to `1.0` so `memory.high` sits at the limit: the default 0.9 would
+   throttle on `memory.current`, which counts the clean artifact page cache a
+   warm cache node is supposed to hold.
 
-- The feature is alpha and off by default (still so as of v1.36), and its
-  semantics have moved: v1.36 adds `memoryReservationPolicy`, where
-  `TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods
-  `memory.low`. Cache pods are Burstable by design, so confirm which protection
-  they actually get on the fleet's kubelet version rather than assuming
-  `memory.min`.
-- Tier the floors first. `memory.min` derived from today's uniform reservations
-  would pin far more unreclaimable memory per box than the instances use.
+**This is version-dependent, and the fleet is on v1.34.** There, MemoryQoS sets
+`memory.min` from requests for Burstable containers too, so a cache pod's floor
+is hard, unreclaimable protection. That is safe only because the reservations
+land first: `memory.min` is memory the kernel may not reclaim, so it OOMs rather
+than reclaims once the protected total approaches capacity. The
+`sum(requests) <= allocatable` invariant with allocatable properly reserved is
+what keeps the protected total clear of the box.
+
+**Upgrading to v1.36+ silently disables it.** v1.36 splits protection out into a
+new `memoryReservationPolicy` field defaulting to `None`, and retiers it so
+`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods the
+softer `memory.low`. With this config unchanged on v1.36 the result is no
+protection at all and no throttling either (the factor is pinned to 1.0) — a
+silent no-op, not a visible failure. Set `memoryReservationPolicy:
+TieredReservation` as part of the version bump, never before it: an unknown
+field fails KubeletConfiguration's strict decode and the kubelet will not start.
+The same warning sits on `linuxCloudInitOptions.K8sMinor`, which is what an
+upgrade actually edits.
+
+**Propagation.** `desiredKubeletConfigHash` fingerprints the rendered config, so
+any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
+node and restarts its kubelet — no machine roll, and running pods survive (the
+re-push never touches containerd, apt, or the `/data` mounts), but it lands on
+all three Linux fleets at once. Prefer a low-traffic window.
+
+**Rollback is not symmetric.** Turning `MemoryQoS` back off does not reliably
+clear the `memory.min` / `memory.low` values already written to existing cgroups
+(kubernetes/kubernetes#138436), so a node may need a kubelet restart or reboot to
+fully shed them. Budget for that rather than assuming a revert is instant.
 
 ## Operator UX: one Secret in 1Password
 

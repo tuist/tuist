@@ -118,6 +118,15 @@ independent workqueues:
   fleet boundary. Excess demand remains a replica gap and is retried
   every five seconds. macOS pools skip this gate.
 
+  The count deliberately includes Pods with no node. An unbound Pod is
+  one the scheduler may bind at any moment, and nothing re-checks
+  admission between that bind and the sandbox start, so discounting
+  unbound Pods would let a backlog build and then start all at once when
+  capacity returns — the very burst the ceiling exists to prevent.
+  Scheduling gates do not help here either: a gate can be removed but
+  never re-added, so a Pod that turns out to be unschedulable after
+  ungating is back to holding a slot with no way to reclaim it.
+
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
   successful create and counts it until the cache observes the Pod. This
@@ -128,9 +137,26 @@ independent workqueues:
 
   A Linux Pod that is bound to a node but whose poller has not started
   within `spec.provisioning.startTimeoutSeconds` (default 300, 0 disables)
-  is reaped with a warning event and node-condition log. Unscheduled Pods
-  are not recycled because recreation cannot solve a scheduler capacity
-  wait. Claimed Pods and Pods whose poller has terminated are protected.
+  is reaped with a warning event and node-condition log.
+
+  A Pod the scheduler has been rejecting (`PodScheduled=False`, reason
+  `Unschedulable`) for that same duration is reaped too, timed from the
+  condition's `LastTransitionTime`. Recreating it cannot conjure
+  capacity, and that is not the point: it holds a slot in the fleet-wide
+  ceiling that it will never convert into a running sandbox, and nothing
+  else releases it, since the bound-Pod timeout above cannot fire on a
+  Pod with no node. Left in place, one pool whose shape no node can fit
+  holds the whole `FleetSelector`'s budget indefinitely and every
+  sibling shape reconciles at `observed: 0` forever, with queued jobs
+  and healthy dispatch. Reaping returns the slot; the replica gap is
+  untouched, so the pool retries and simply goes unschedulable again
+  while the shortfall lasts, at a rate the timeout bounds. The two reaps
+  are distinguished on
+  `tuist_runners_pool_pod_start_timeouts_total{reason}` as
+  `poller_not_started` and `unschedulable`; a rising `unschedulable`
+  rate is a capacity shortfall for that shape, not a boot fault.
+
+  Claimed Pods and Pods whose poller has terminated are protected.
   Terminal cleanup and idle scale-down run before admission and are never
   blocked by the provisioning ceiling.
 

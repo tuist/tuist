@@ -161,14 +161,14 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | OpenTelemetry deployment environment. | Yes | No default | `config.telemetry.deploymentEnvironment` |
 | `KURA_SENTRY_DSN` | Sentry DSN for panic and error reporting. | No | Disabled | `extraEnv` or `extraEnvFrom` |
 | `KURA_GEOIP_REFRESH_INTERVAL_SECS` | Interval for refreshing the vendored GeoIP database. Set `0` to disable refreshes. | No | `86400` | `config.geoip.refreshIntervalSecs` |
-| `KURA_EXTENSION_ENABLED` | Enables Lua extension hooks. | No | Disabled | `extension.enabled` |
-| `KURA_EXTENSION_SCRIPT_PATH` | Path to the Lua extension script. | Required when extensions are enabled | No default | Derived from `extension.mountDir` and `extension.scriptFileName` |
-| `KURA_EXTENSION_HOOK_TIMEOUT_MS` | Timeout for each extension hook invocation. | No | `25` | `extraEnv` |
-| `KURA_EXTENSION_AUTH_CACHE_ALLOW_TTL_SECONDS` | TTL for positive extension authentication and authorization cache entries. | No | `600` | `extraEnv` |
-| `KURA_EXTENSION_AUTH_CACHE_DENY_TTL_SECONDS` | TTL for negative extension authentication and authorization cache entries. | No | `3` | `extraEnv` |
-| `KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE` | Whether authentication hook errors reject the request. | No | `true` | `extraEnv` |
-| `KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE` | Whether authorization hook errors reject the request. | No | `true` | `extraEnv` |
-| `KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS` | Whether response-header hook errors are ignored. | No | `true` | `extraEnv` |
-| `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each extension cache. | No | `100000` | `extraEnv` |
+| `KURA_AUTH_ENABLED` | Requires callers to present a valid Tuist token. Setting `KURA_AUTH_TUIST_URL` enables authorization on its own, and setting this to `false` does not turn it back off — unset the URL to run a node without authorization. | No | Disabled | `auth.enabled` |
+| `KURA_AUTH_TUIST_URL` | Tuist server the node authorizes against. Enables authorization on its own. | Required when authorization is enabled | No default | `auth.tuistUrl` |
+| `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | Connect timeout for calls to that server. | No | `500` | `extraEnv` |
+| `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` | Request timeout for calls to that server. | No | `1500` | `extraEnv` |
+| `KURA_AUTH_JWT_SECRET` | Verification key for tokens the node can read itself, skipping a round trip. Self-hosted nodes normally leave this unset. | No | Disabled | `extraEnv` or `extraEnvFrom` |
+| `KURA_AUTH_JWT_ALGORITHM` | Algorithm for that key (`HS256`, `HS384` or `HS512`). | No | `HS256` | `extraEnv` |
+| `KURA_AUTH_JWT_ISSUER` | Issuer that tokens must carry. | No | Unchecked | `extraEnv` |
+| `KURA_AUTH_JWT_AUDIENCES` | Comma-separated audiences that tokens must carry. | No | Unchecked | `extraEnv` |
+| `KURA_AUTH_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the authentication and authorization caches. | No | `100000` | `extraEnv` |
 
 If you enable internal peer mTLS, set `KURA_INTERNAL_TLS_CA_CERT_PATH`, `KURA_INTERNAL_TLS_CERT_PATH`, and `KURA_INTERNAL_TLS_KEY_PATH` together. `KURA_NODE_URL` and every value in `KURA_PEERS` must then use `https://` with the internal peer port.

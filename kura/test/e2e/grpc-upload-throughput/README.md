@@ -117,4 +117,4 @@ run only this shard for chart edits is tracked in #11321.
   production is a separate failure mode addressed on the kura runtime side; it
   is not exercised here.
 - kura runs as a bare standalone node with the auth extension disabled
-  (`KURA_EXTENSION_ENABLED=false`), so no Tuist control plane is required.
+  (`KURA_AUTH_ENABLED=false`), so no Tuist control plane is required.

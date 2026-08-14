@@ -140,12 +140,23 @@ defmodule Tuist.Runners do
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
-  # affine to its node only if that job's enqueue time is within the age
-  # tolerance of the queue head, else the head. Both are configuration,
-  # tuned from the affinity hit rate and queue-latency telemetry rather
-  # than re-litigated here; the age tolerance is the precise operational
-  # meaning of the hard rule that affinity never delays a job.
+  # whose account's master the node likely still holds, unless the queue head
+  # has waited past the age tolerance, in which case the head goes out. All
+  # three are configuration, tuned from the affinity outcome and queue-latency
+  # telemetry rather than re-litigated here; the age tolerance is the precise
+  # operational meaning of the hard rule that affinity never delays a job.
   @volume_affinity_top_k 20
+
+  # Queue latency is not spent to buy cache warmth. Past this age the head is
+  # handed out even when a resident candidate is queued behind it, which caps
+  # any job's affinity-induced delay at the tolerance.
+  #
+  # This bounds REORDERING only, not warmth: `select_candidate/3` checks whether
+  # the head's own account is resident before it checks the age, so an overdue
+  # head still lands warm whenever its master is already on the node. What the
+  # tolerance gives up is the narrower case of passing an older job over for a
+  # younger resident one, and it gives it up exactly when the fleet is backed
+  # up and throughput matters more than any single job's warmth.
   @volume_affinity_age_tolerance_seconds 30
 
   defp volume_affinity_top_k do
@@ -165,8 +176,9 @@ defmodule Tuist.Runners do
   # other volumeless fleet) out of affinity recording and queue reordering, so a
   # host that holds no volume never has its queue scored for one. The macOS host
   # capability itself is the runner-cache volume; the server can't see a host's
-  # per-host `gib`, so platform is the capability proxy — a `gib:0` macOS host
-  # just records harmless affinity that materialize never acts on.
+  # per-host `gib`, so platform is only a coarse proxy. The residency bound is
+  # what makes it safe: a `gib:0` macOS fleet leaves it at 0, so such a host
+  # records affinity that is never read and its queue is never reordered.
   defp volume_affinity_enabled?(fleet_name) do
     Catalog.fleet_platform(fleet_name) == :macos
   end
@@ -644,69 +656,50 @@ defmodule Tuist.Runners do
            excluded_repositories,
            excluded_workflow_job_ids
          ) do
-      {:ok, candidate} ->
-        claim_candidate(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          candidate,
-          %{
+      {:ok, candidate, affinity_outcome} ->
+        claim_candidate(%{
+          namespace: namespace,
+          sa_name: sa_name,
+          fleet_name: fleet_name,
+          node_name: node_name,
+          candidate: candidate,
+          affinity_outcome: affinity_outcome,
+          retry_context: %{
             excluded_account_ids: excluded_account_ids,
             excluded_repositories: excluded_repositories,
             excluded_workflow_job_ids: excluded_workflow_job_ids,
             attempts_left: attempts_left
           }
-        )
+        })
 
       {:error, :empty} ->
         {:error, :empty}
     end
   end
 
-  defp claim_candidate(namespace, sa_name, fleet_name, node_name, candidate, retry_context) do
+  defp claim_candidate(%{candidate: candidate, fleet_name: fleet_name} = context) do
     case candidate_resources(candidate, fleet_name) do
       {:ok, resources} ->
-        attempt_candidate(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          candidate,
-          resources,
-          retry_context
-        )
+        attempt_candidate(context, resources)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, retry_context) do
-    context = %{
-      namespace: namespace,
-      sa_name: sa_name,
-      fleet_name: fleet_name,
-      node_name: node_name,
-      candidate: candidate,
-      retry_context: retry_context
-    }
-
+  defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
     candidate.workflow_job_id
     |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
     |> handle_claim_attempt(context)
   end
 
   defp handle_claim_attempt({:ok, claim}, context) do
-    %{namespace: namespace, sa_name: sa_name, fleet_name: fleet_name, node_name: node_name, candidate: candidate} =
-      context
-
-    record_volume_affinity(fleet_name, node_name, candidate.account_id)
+    %{sa_name: sa_name, candidate: candidate} = context
 
     case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
       :ok ->
-        namespace
-        |> serve_claim(sa_name, fleet_name, candidate, claim)
+        context
+        |> serve_claim(claim)
         |> handle_serve_claim(context)
 
       {:error, :completed} ->
@@ -810,17 +803,6 @@ defmodule Tuist.Runners do
 
   defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
 
-  defp record_volume_affinity(fleet_name, node_name, account_id) do
-    # Record the affinity signal on every claim win, but only for fleets
-    # that actually hold volumes (macOS): a volume for this account
-    # exists (or is about to) where its jobs ran, so future jobs of this
-    # account prefer this node. Volumeless fleets record nothing so their
-    # queues are never reordered for masters that don't exist.
-    if volume_affinity_enabled?(fleet_name) do
-      VolumeAffinities.record(node_name, account_id)
-    end
-  end
-
   defp retry_claim_and_serve(
          namespace,
          sa_name,
@@ -900,9 +882,10 @@ defmodule Tuist.Runners do
   end
 
   # Fetch the K oldest queued candidates and let the volume-affinity policy
-  # pick the one to hand this node: the oldest affine candidate within the
-  # age tolerance of the head, else the head. With no node identity or no
-  # affinity, this is exactly today's "oldest queued job".
+  # pick the one to hand this node: the oldest candidate whose master this node
+  # likely holds, unless the head has waited past the age tolerance, else the
+  # head. With no node identity or no residency, this is exactly today's
+  # "oldest queued job".
   defp pick_affine_candidate(
          fleet_name,
          node_name,
@@ -919,21 +902,54 @@ defmodule Tuist.Runners do
          ) do
       {:ok, candidates} ->
         if volume_affinity_enabled?(fleet_name) do
-          {:ok,
-           VolumeAffinities.select_candidate(
-             candidates,
-             node_name,
-             volume_affinity_age_tolerance_seconds()
-           )}
+          select_affine_candidate(candidates, node_name)
         else
           # No volumes on this fleet: hand out the plain oldest-queued head, no
-          # affinity scoring or reordering.
-          {:ok, List.first(candidates)}
+          # affinity scoring or reordering. A nil outcome means "affinity never
+          # ran here", which is what suppresses the metric for this fleet.
+          {:ok, List.first(candidates), nil}
         end
 
       {:error, :empty} ->
         {:error, :empty}
     end
+  end
+
+  defp select_affine_candidate(candidates, node_name) do
+    case VolumeAffinities.select_candidate(candidates, node_name,
+           tolerance_seconds: volume_affinity_age_tolerance_seconds()
+         ) do
+      nil -> {:ok, nil, nil}
+      {candidate, outcome} -> {:ok, candidate, outcome}
+    end
+  end
+
+  # The affinity outcome is the only server-side read on whether the preference
+  # discriminates at all. The host's warm/cold materialize counter is the ground
+  # truth, but it can't distinguish "dispatch had no resident candidate queued"
+  # from "dispatch preferred one and the host had evicted it anyway" — the two
+  # call for opposite fixes (more hosts holding an account's master vs. a
+  # smaller assumed resident count), so the decision is reported where it's made.
+  #
+  # Emitted once per COMMITTED dispatch, not once per scoring pass. A poll that
+  # scores a candidate and then loses the claim race, or hits an account's
+  # concurrency cap, retries and scores again; counting every pass would report
+  # several outcomes for one served job and leave this metric with a different
+  # denominator than the host's one-materialize-per-job counter, which is the
+  # thing it exists to be compared against.
+  #
+  # An untrusted job is reported as `:untrusted` rather than by its residency
+  # outcome: the host skips materialize for it, so it runs cold by design no
+  # matter how resident its account is, and folding it into `resident` would
+  # overstate the warm placements this is meant to measure.
+  defp record_affinity_outcome(_fleet_name, nil, _trusted), do: :ok
+
+  defp record_affinity_outcome(fleet_name, outcome, trusted) do
+    :telemetry.execute(
+      Telemetry.event_name_dispatch_affinity(),
+      %{count: 1},
+      %{fleet: fleet_name, outcome: if(trusted, do: Atom.to_string(outcome), else: "untrusted")}
+    )
   end
 
   # The dispatch poll loop only needs "nothing for you this tick", so
@@ -952,7 +968,15 @@ defmodule Tuist.Runners do
   defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp dispatch_outcome(_), do: "unknown"
 
-  defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
+  defp serve_claim(context, claim) do
+    %{
+      namespace: namespace,
+      sa_name: sa_name,
+      fleet_name: fleet_name,
+      candidate: candidate,
+      affinity_outcome: affinity_outcome
+    } = context
+
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -980,6 +1004,8 @@ defmodule Tuist.Runners do
           # runs a different one. The untrusted label rides the same patch so the
           # host sees both atomically. See stamp_account_label/4.
           stamp_account_label(namespace, pod_name, account, trusted)
+
+          record_affinity_outcome(fleet_name, affinity_outcome, trusted)
 
           # Open the per-Pod billing session only after dispatch
           # commits — JIT minted, PG marked running, CH state

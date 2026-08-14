@@ -1,3 +1,12 @@
+-- RETAINED FOR ROLLOUT ONLY. Kura authorizes natively now (kura/src/auth/) and
+-- no release built from this tree reads this file. It stays because the Tuist
+-- server ships it as each KuraInstance's extensionScript, and a Kura release
+-- that predates native authorization needs it in order to authorize at all.
+--
+-- Delete it together with the server's kura_hook_path, the controller's
+-- ExtensionScript handling, and the CRD property, once every instance runs a
+-- release that reads KURA_AUTH_TUIST_URL.
+
 -- Kura extension hook for Tuist-managed deployments.
 --
 -- This file is *not* part of the Kura project — it's a Tuist consumer's

@@ -77,11 +77,28 @@ type ScalewayAppleSiliconMachineSpec struct {
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
-	// scans when claiming a Mac mini for this Machine. Required:
-	// the controller has no auto-order path. Operators pre-order
-	// capacity in the Scaleway console because Mac mini inventory is
-	// frequently out of stock and Apple's 24h licensing floor makes
-	// speculative ordering expensive.
+	// scans when claiming a Mac mini for this Machine. The controller
+	// has no auto-order path, so a prefix must resolve from somewhere:
+	// this field, or the operator-global `--default-adopt-pool-prefix`
+	// when it is unset. Operators pre-order capacity in the Scaleway
+	// console because Mac mini inventory is frequently out of stock
+	// and Apple's 24h licensing floor makes speculative ordering
+	// expensive.
+	//
+	// Optional on purpose, even though every chart-rendered
+	// MachineTemplate sets it. A required field here is a schema
+	// constraint on a resource CAPI *clones*, so a MachineTemplate
+	// that lacks it fails `InfrastructureTemplateCloningFailed` on
+	// every MachineSet scale-up — and the drift that produces such a
+	// template is invisible until the next scale-up, which is
+	// typically an operator recovering a host by deleting its Machine.
+	// That turned a routine roll into an unrecoverable fleet: the CR
+	// the MachineSet needs to create is the one the apiserver rejects,
+	// and no elevation short of break-glass can repair a
+	// MachineTemplate. Accepting an empty value and resolving the
+	// operator default instead keeps scale-up working on a drifted
+	// template and confines the blast radius to a missing default,
+	// which the controller surfaces as a `NoAdoptPoolPrefix` event.
 	//
 	// Operator workflow:
 	//
@@ -107,8 +124,8 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// scan once Scaleway flips it back to `Delivered + Ready`.
 	// Physical destruction is operator-owned via the Scaleway
 	// console so the 24h billing floor doesn't leak into deploy flows.
-	// +kubebuilder:validation:MinLength=1
-	AdoptPoolPrefix string `json:"adoptPoolPrefix"`
+	// +optional
+	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
 
 // GHActionsRunnerConfig tells the reconciler what GitHub Actions

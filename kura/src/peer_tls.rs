@@ -30,6 +30,12 @@ struct PeerIdentity {
     ca_pem: Vec<u8>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PeerClientTimeouts {
+    Download,
+    Upload,
+}
+
 /// Builds outbound peer HTTP clients with the current peer mTLS identity. The
 /// identity is held behind an atomic swap so a renewal task can rotate the
 /// certificate in place: clients built afterwards (and `state.client` once it is
@@ -94,21 +100,36 @@ impl PeerClientFactory {
     }
 
     pub fn build(&self) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PeerClientTimeouts::Download)?
             .build()
             .map_err(|error| format!("failed to build peer HTTP client: {error}"))
     }
 
+    /// A client for streaming request BODIES to a peer (outbox artifact
+    /// replication). It carries no `read_timeout`: while a request body
+    /// uploads, the response read side is silent by design — the receiver
+    /// sends nothing until the whole body has been consumed — so the
+    /// download client's 30s read timeout acts as a hard ceiling on total
+    /// upload time and permanently fails any artifact that streams longer
+    /// (observed in production as an outbox message retrying for hours).
+    /// Stall protection is the caller's byte-progress watchdog, which keys
+    /// on the upload actually moving instead of on response silence.
+    pub fn build_upload(&self) -> Result<Client, String> {
+        self.builder(PeerClientTimeouts::Upload)?
+            .build()
+            .map_err(|error| format!("failed to build peer upload HTTP client: {error}"))
+    }
+
     pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
-        self.builder()?
+        self.builder(PeerClientTimeouts::Download)?
             .resolve_to_addrs(host, &[address])
             .build()
             .map_err(|error| format!("failed to build peer HTTP client for {host}: {error}"))
     }
 
-    fn builder(&self) -> Result<reqwest::ClientBuilder, String> {
-        let mut builder = Client::builder()
-            .connect_timeout(Duration::from_secs(5))
+    fn builder(&self, timeouts: PeerClientTimeouts) -> Result<reqwest::ClientBuilder, String> {
+        let mut builder = Client::builder().connect_timeout(Duration::from_secs(5));
+        if timeouts == PeerClientTimeouts::Download {
             // Idle/read timeout, NOT a total request timeout. A bootstrap
             // artifact streams its whole body over this client; under
             // cold-start load (bandwidth-limited + congested) a large
@@ -117,7 +138,8 @@ impl PeerClientFactory {
             // (incomplete) response — silently wedging bootstrap. read_timeout
             // resets on each chunk, so a slow-but-progressing transfer
             // completes while a genuinely stalled connection still fails fast.
-            .read_timeout(Duration::from_secs(30));
+            builder = builder.read_timeout(Duration::from_secs(30));
+        }
 
         if let Some(identity) = self.identity.load_full() {
             let id = Identity::from_pem(&identity.identity_pem)
@@ -133,7 +155,7 @@ impl PeerClientFactory {
 }
 
 /// The verified client-certificate identity of an internal-plane request,
-/// inserted as a request extension by [`InternalPeerIdentityAcceptor`]. Absent
+/// inserted as a request auth by [`InternalPeerIdentityAcceptor`]. Absent
 /// on the plain-HTTP internal listener (peer TLS disabled), which is only
 /// reachable inside the trusted cluster network.
 ///
@@ -342,9 +364,32 @@ mod tests {
         path
     }
 
+    // A read timeout on the upload client is a hard ceiling on total upload
+    // time, because the response side stays silent until the receiver has
+    // consumed the whole body: it strands every artifact that streams for
+    // longer than the timeout, permanently. Proving that functionally would
+    // cost a >30s transfer per run, so this asserts the property directly.
+    // reqwest's Debug prints `read_timeout` only when one is configured.
+    #[test]
+    fn upload_client_has_no_read_timeout_and_download_client_keeps_one() {
+        let factory = PeerClientFactory::plain();
+
+        let upload = format!("{:?}", factory.build_upload().expect("build upload client"));
+        assert!(
+            !upload.contains("read_timeout"),
+            "the upload client must carry no read timeout; got {upload}"
+        );
+
+        let download = format!("{:?}", factory.build().expect("build download client"));
+        assert!(
+            download.contains("read_timeout"),
+            "the download client's read timeout is load-bearing for bootstrap; got {download}"
+        );
+    }
+
     // End-to-end proof that the internal mTLS listener surfaces the verified
     // client certificate: a request over the acceptor carries the leaf cert's
-    // fingerprint identity as a request extension, and two different client
+    // fingerprint identity as a request auth, and two different client
     // certificates yield two different identities.
     #[tokio::test]
     async fn internal_peer_identity_acceptor_stamps_client_cert_fingerprints() {
