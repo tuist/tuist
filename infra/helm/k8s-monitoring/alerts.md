@@ -911,6 +911,50 @@ absent_over_time(
 
 ## Warning alerts
 
+### Worker node pool stuck mid-rollout
+
+Catches a worker MachineDeployment that started replacing Machines and cannot
+finish. Desired-vs-ready is blind to this: a stalled roll keeps every Machine
+it already has Ready, so `ready == spec` the whole time and the pool looks
+healthy while it silently stops receiving template changes. That is how
+`tuist-runners-linux` went two months — from 2026-06-17 — with two Ready
+Machines, one of them up to date, and no signal at all.
+
+Two distinct failures land here. A bare-metal pool whose hosts are all
+claimed cannot surge a replacement, so the roll never starts (fixed by
+`maxSurge: 0` / `maxUnavailable: 1` on the `bare-metal-worker` class). And a
+drain that cannot complete holds the roll open — expected briefly, since
+runner Pods are drained with `WaitCompleted` and a node waits for its
+in-flight CI jobs, but not for hours.
+
+```promql
+kube_customresource_machinedeployment_up_to_date_replicas{
+  cluster="tuist-management"
+}
+<
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 24 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has been mid-rollout for a day`
+
+The pending period is set against a healthy *worst-case* roll, and on the
+bare-metal runner pools that is dominated by waiting for jobs, not by
+provisioning. Runner Pods drain with `WaitCompleted`, so a node is only
+replaced once its in-flight jobs finish, and a Linux job can run up to six
+hours. `installimage` adds ~8-15 minutes on top. This series stays below
+`spec.replicas` for the *whole* roll rather than per node, so a two-host
+pool replacing both nodes sequentially is legitimately mid-rollout for
+around 13 hours.
+
+Anything under that would fire on a perfectly healthy roll, which is worse
+than firing late — an alert that cries wolf on the expected path gets
+muted, and this is the only signal covering a class of failure that
+previously went unnoticed for two months. Twenty-four hours clears the
+worst case with margin and still catches a wedge the next day.
+
 ### Kubernetes request latency
 
 ```promql

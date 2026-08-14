@@ -636,6 +636,64 @@ serving.
 `node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
 "Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.
 
+### Replacing a node without killing CI jobs
+
+Every Machine replacement — a template roll, a MachineHealthCheck
+remediation, a scale-down — drains the node first, and Cluster API's
+default drain *evicts* Pods. On a runner node that means killing
+customer CI jobs mid-flight, which surfaces as "lost communication".
+There is no PodDisruptionBudget in `tuist-runners`, so nothing held
+that back.
+
+Two pieces make a replacement safe, and neither works without the
+other:
+
+1. **`MachineDrainRule`** (`infra/k8s/clusters/machinedrainrules.yaml`)
+   sets `behavior: WaitCompleted` for Pods labeled
+   `tuist.dev/runner=true`. Cluster API stops evicting them and waits
+   for a terminal phase instead. Runner Pods are single-shot
+   (`RestartPolicy: Never`, one `workflow_job`, then exit), so a Pod
+   running a job completes on its own and releases the drain.
+2. **The idle reap** (`controllers/node_drain.go`) retires idle Pods on
+   a cordoned node. Without it the drain never converges: an idle Pod
+   is a dispatch poller with nothing to finish, so `WaitCompleted`
+   would wait on it forever, and the cordon stops new Pods landing
+   without removing the ones already bound. Idle Pods are pure warm
+   capacity, so retiring them costs only a cold start and the
+   autoscaler replaces them on a node that can still accept Pods.
+
+The reap reads `isIdle`, **not** the `tuist.dev/runner-pool-owner`
+label. This is also why a PodDisruptionBudget cannot do this job: a PDB
+selects on labels, and that label is best-effort — the server degrades
+to running a job without it rather than dropping the job when the
+apiserver patch fails. `isIdle` additionally treats a terminated
+`poller` init container as proof of a claim, so a Pod running a job
+survives even when the label never landed.
+
+Consequences worth knowing before triggering a roll:
+
+- A drain takes as long as the node's longest in-flight job — up to six
+  hours for a Linux job. `nodeDrainTimeoutSeconds: 0` on the
+  `bare-metal-worker` class leaves that unbounded on purpose: any finite
+  value is a promise to kill a job once exceeded.
+- **Budget a day for a full roll, not a quarter hour.** With
+  `maxSurge: 0` / `maxUnavailable: 1` the pool runs one node short for
+  the whole replacement, and that is dominated by the drain rather than
+  by the ~8-15 min `installimage` cycle. Two hosts replaced
+  sequentially is roughly 13 hours of halved capacity. On the
+  single-host staging and canary pools it is a full outage of Linux
+  runners for the same window.
+- That trade is deliberate: the Linux pools carry internal workflows
+  only. A spare host is the alternative — it restores `maxSurge: 1` and
+  removes the dip entirely, because the replacement builds while the
+  old node drains — and is what to revisit if customer workloads ever
+  land on Linux.
+- The stall risk is covered by alerting, not by a cap: "Worker node
+  pool stuck mid-rollout" in `infra/helm/k8s-monitoring/alerts.md`
+  fires on `upToDateReplicas < spec.replicas` after 24 hours, which is
+  set to clear that worst-case healthy roll rather than to catch a
+  wedge quickly.
+
 ### Emergency SSH access
 
 If a bare-metal host misbehaves and caph isn't responding, the
