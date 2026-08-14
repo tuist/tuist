@@ -36,6 +36,12 @@ env:
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
+  # Same repositories as Trivy's default, in the opposite order. Trivy only
+  # falls through to the next repository on a temporary status code (408, 429,
+  # 5xx) or a BLOB_UNKNOWN diagnostic. mirror.gcr.io intermittently serves a
+  # bare 404 for the blob redirect target, which is neither, so a mirror.gcr.io
+  # fault is fatal when it is first and recoverable when it is second.
+  TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
 
 defaults:
   run:
