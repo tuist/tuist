@@ -44,30 +44,92 @@
     /* 1200px frame with 16px side / 20px vertical padding. */
     max-width: var(--marketing-page-width);
 
-    & > [data-part="tuist"] {
+    /* No position: relative here — the logo context menu positions against
+       the bar so it hangs from the navbar's bottom edge like the mega-menu
+       panel, not from the logo itself. */
+    & > [data-part="brand"] {
       display: flex;
       flex-direction: row;
       align-items: center;
-      text-decoration: none;
 
-      & > [data-part="logo"] {
-        display: block;
-        width: auto;
-        height: 32px;
+      & > [data-part="tuist"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        text-decoration: none;
+
+        & > [data-part="logo"] {
+          display: block;
+          width: auto;
+          height: 32px;
+        }
+
+        /* Light/dark wordmark pair — the theme bootstrap stamps data-theme on
+           <html>, which picks the matching variant. */
+        & > [data-part="logo"][data-theme="dark"] {
+          display: none;
+        }
+
+        :root[data-theme="dark"] & > [data-part="logo"][data-theme="light"] {
+          display: none;
+        }
+
+        :root[data-theme="dark"] & > [data-part="logo"][data-theme="dark"] {
+          display: block;
+        }
       }
 
-      /* Light/dark wordmark pair — the theme bootstrap stamps data-theme on
-         <html>, which picks the matching variant. */
-      & > [data-part="logo"][data-theme="dark"] {
-        display: none;
-      }
+      /* Right-click brand menu. The panel and its rows are stock Noora
+         dropdown pieces (noora-dropdown-content + noora-dropdown-item, as in
+         the dashboard's projects dropdown); this wrapper only positions the
+         panel under the logo and drives open/close with the same motion as
+         the navbar's other dropdowns. */
+      & > [data-part="logo-menu"] {
+        position: absolute;
+        /* Same placement as the shared dropdown viewport: flush under the
+           bar's bottom edge with the identical spacing-2 seam (the navbar's
+           border hairline draws inside it), left-aligned to the page
+           container edge. */
+        top: calc(100% + var(--noora-spacing-2));
+        left: 0;
+        transform: translateY(-8px);
+        visibility: hidden;
+        opacity: 0;
+        z-index: var(--noora-z-index-12);
+        transition:
+          opacity 0.18s var(--ease-out-cubic),
+          transform 0.18s var(--ease-out-cubic),
+          visibility 0.18s;
+        width: max-content;
+        min-width: 250px;
 
-      :root[data-theme="dark"] & > [data-part="logo"][data-theme="light"] {
-        display: none;
-      }
+        &[data-open="true"] {
+          transform: translateY(0);
+          visibility: visible;
+          opacity: 1;
+        }
 
-      :root[data-theme="dark"] & > [data-part="logo"][data-theme="dark"] {
-        display: block;
+        & .noora-dropdown-item {
+          white-space: nowrap;
+
+          /* The check icon fades in while the hook's data-copied flag is
+             set; the label itself never changes. */
+          & [data-part="right-icon"] {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: var(--noora-surface-label-primary);
+          }
+
+          &[data-copied="true"] [data-part="right-icon"] {
+            opacity: 1;
+          }
+        }
+
+        /* Give the separator the same breathing room the dashboard's
+           dropdown rows create around it. */
+        & [data-part="separator"] {
+          margin-block: var(--noora-spacing-2);
+        }
       }
     }
 

@@ -134,20 +134,74 @@ resources_items = [
 ] %>
 <header id="marketing-navbar" phx-update="ignore">
   <div data-part="bar">
-    <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
-      <img
-        data-part="logo"
-        data-theme="light"
-        src={~p"/marketing/images/components/navbar/logo-light.svg"}
-        alt="Tuist"
-      />
-      <img
-        data-part="logo"
-        data-theme="dark"
-        src={~p"/marketing/images/components/navbar/logo-dark.svg"}
-        alt="Tuist"
-      />
-    </.link>
+    <div data-part="brand" id="marketing-navbar-brand" phx-hook="LogoContextMenu">
+      <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
+        <img
+          data-part="logo"
+          data-theme="light"
+          src={~p"/marketing/images/components/navbar/logo-light.svg"}
+          alt="Tuist"
+        />
+        <img
+          data-part="logo"
+          data-theme="dark"
+          src={~p"/marketing/images/components/navbar/logo-dark.svg"}
+          alt="Tuist"
+        />
+      </.link>
+      <%!-- Right-click (context) menu on the logo: brand asset shortcuts,
+      built from Noora dropdown items inside a statically-open Noora content
+      panel — the wrapper only positions it and drives visibility. Copy
+      actions always serve the light-mode SVGs regardless of theme. --%>
+      <div data-part="logo-menu" data-open="false" role="menu" aria-label="Brand assets">
+        <div class="noora-dropdown-content" data-state="open">
+          <div data-part="items">
+            <%!-- The hook's data-copied flag fades in the check icon as
+            copy feedback; the label itself never changes. --%>
+            <Noora.Dropdown.dropdown_item
+              value="copy-logo"
+              label={dgettext("marketing", "Copy logo as SVG")}
+              data-copy-url={~p"/marketing/images/brand/tuist-logo.svg"}
+            >
+              <:left_icon>
+                <svg viewBox="0 0 27 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M25.2936 21.3441C23.8928 22.3779 22.3966 23.2755 20.8239 23.9788C23.1956 21.286 25.093 18.049 26.5402 15.0482C26.0861 14.1592 25.5129 13.3135 24.8849 12.5421C23.4259 15.3039 21.734 17.9809 19.6776 20.3456C19.4286 20.6261 19.1746 20.9051 18.9152 21.1808C20.4746 16.7253 21.4336 12.1112 22.1684 7.49133C21.4242 6.95278 20.6258 6.47946 19.7804 6.08233C19.0234 9.76934 18.0831 13.4221 16.8805 16.9548C16.3562 18.4852 15.7772 19.9937 15.118 21.4384L14.662 2.72436C14.2242 2.68579 13.7815 2.66675 13.3338 2.66675C12.8862 2.66675 12.4435 2.68532 12.0057 2.72436L11.5491 21.4441C10.8821 19.988 10.3173 18.4761 9.78667 16.9553C8.58403 13.4221 7.64375 9.76934 6.88679 6.08281C6.04138 6.47994 5.24291 6.95325 4.4988 7.4918C5.23402 12.115 6.19406 16.7329 7.75542 21.1913C7.49552 20.9146 7.24007 20.6332 6.98956 20.3461C4.93361 17.9814 3.24131 15.3044 1.78222 12.5426C1.15274 13.3154 0.579581 14.1625 0.125502 15.052C0.606757 16.0591 1.12062 17.0533 1.67451 18.0343C2.85442 20.0447 4.22655 22.1265 5.85165 23.9836C4.27546 23.2793 2.77636 22.3803 1.37311 21.3441C0.84689 22.0503 0.385893 22.8041 0 23.6002C7.13581 31.2438 19.5294 31.2452 26.6667 23.6002C26.2803 22.8041 25.8198 22.0503 25.2936 21.3441Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </:left_icon>
+              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_item
+              value="copy-wordmark"
+              label={dgettext("marketing", "Copy wordmark as SVG")}
+              data-copy-url={~p"/marketing/images/brand/tuist-wordmark.svg"}
+            >
+              <:left_icon><Noora.Icon.icon name="copy" /></:left_icon>
+              <:right_icon><Noora.Icon.icon name="check" /></:right_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_item
+              value="download-brand-assets"
+              label={dgettext("marketing", "Download brand assets")}
+              href={~p"/marketing/images/brand/tuist-brand-assets.zip"}
+              {[download: true]}
+            >
+              <:left_icon><Noora.Icon.icon name="download" /></:left_icon>
+            </Noora.Dropdown.dropdown_item>
+            <Noora.Dropdown.dropdown_separator />
+            <%!-- Points at the upcoming /brand marketing page (not built
+            yet); swap in nothing here when it ships — the route just needs
+            to exist. --%>
+            <Noora.Dropdown.dropdown_item
+              value="brand-assets"
+              label={dgettext("marketing", "Brand assets")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/brand")}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
     <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
       <div data-part="menu">
         <button

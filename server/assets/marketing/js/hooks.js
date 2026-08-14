@@ -23,6 +23,7 @@ import { DitherPing } from "./hooks/dither-ping.js";
 import { CustomersDitherDots } from "./hooks/customers-dither-dots.js";
 import { CustomersDitherLine } from "./hooks/customers-dither-line.js";
 import { DitherBlocks } from "./hooks/dither-blocks.js";
+import { LogoContextMenu } from "./hooks/logo-context-menu.js";
 
 const Hooks = {
   PlatformBackground,
@@ -39,6 +40,7 @@ const Hooks = {
   DitherPing,
   NavbarDropdown,
   NavbarMegaMenu,
+  LogoContextMenu,
   MobileMenu,
   MobileMenuDropdown,
   FaqAccordion,
