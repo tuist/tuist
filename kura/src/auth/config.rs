@@ -47,8 +47,8 @@ impl AuthConfig {
         let has_url = env_value(TUIST_URL).is_some();
         if asked_to_disable && has_url {
             warn!(
-                "{} is set false but {} is set; authorization stays on. Unset {} to run without it.",
-                ENABLED[0], TUIST_URL[0], TUIST_URL[0]
+                "{ENABLED} is set false but {TUIST_URL} is set; authorization stays on. \
+                 Unset {TUIST_URL} to run without it."
             );
         }
 
@@ -115,12 +115,15 @@ fn introspection_from_env() -> Option<IntrospectionCredentials> {
     })
 }
 
-/// Blank reads as unset, so a variable set to an empty string in a manifest
-/// does not count as configuration.
 fn env_value(key: &str) -> Option<String> {
-    std::env::var(key)
-        .ok()
-        .map(|value| value.trim().to_owned())
+    configured(std::env::var(key).ok())
+}
+
+/// Blank reads as unset, so a variable rendered empty by a manifest does not
+/// count as configuration. This decides whether a node authorizes at all, so it
+/// is kept separate from reading the environment in order to stay testable.
+fn configured(raw: Option<String>) -> Option<String> {
+    raw.map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
 }
 
@@ -149,6 +152,24 @@ fn env_truthy(key: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A variable rendered empty is not configuration. It decides whether
+    // `from_env` answers `Some` or `None`, and a node that answers `None`
+    // serves the cache to anyone who reaches it.
+    #[test]
+    fn treats_a_blank_value_as_unset() {
+        assert_eq!(
+            configured(Some("https://tuist.dev".into())),
+            Some("https://tuist.dev".into())
+        );
+        assert_eq!(
+            configured(Some("  https://tuist.dev  ".into())),
+            Some("https://tuist.dev".into())
+        );
+        assert_eq!(configured(Some("".into())), None);
+        assert_eq!(configured(Some("   ".into())), None);
+        assert_eq!(configured(None), None);
+    }
 
     #[test]
     fn parses_the_algorithms_the_server_signs_with() {

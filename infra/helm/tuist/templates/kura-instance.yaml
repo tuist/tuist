@@ -56,6 +56,10 @@ spec:
   {{- end }}
   storageSize: {{ $instance.storageSize }}
   extraEnv:
+    # Paired with the URL so a blank one makes the node refuse to start rather
+    # than quietly start without authorization.
+    - name: KURA_AUTH_ENABLED
+      value: "true"
     - name: KURA_CONTROL_PLANE_URL
       value: {{ $controlPlaneURL }}
     - name: KURA_AUTH_TUIST_URL

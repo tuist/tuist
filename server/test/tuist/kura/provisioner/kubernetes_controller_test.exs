@@ -65,6 +65,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
       assert env["KURA_AUTH_TUIST_URL"] == "https://tuist.dev"
+
+      # Paired with the URL on purpose. A node reads a blank URL as no
+      # configuration and starts serving the cache unauthorized; with this set
+      # it refuses to start, so the failure is visible rather than silent.
+      assert env["KURA_AUTH_ENABLED"] == "true"
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
       refute Map.has_key?(env, "KURA_CONTROL_PLANE_CLIENT_SECRET")
 

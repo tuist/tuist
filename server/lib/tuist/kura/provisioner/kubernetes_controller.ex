@@ -531,6 +531,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # introspection client ID are safe to keep in the spec.
   defp auth_env(%Regions{} = region, entitlements) do
     [
+      # Emitted alongside the URL so that authorizing is an instruction rather
+      # than an inference. A node reads a blank URL as no configuration at all
+      # and starts serving the cache with no authorization; with this set it
+      # refuses to start instead, which is the failure we want to see.
+      env_var("KURA_AUTH_ENABLED", "true"),
       env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
       env_var("KURA_AUTH_TUIST_URL", tuist_base_url(region)),
       env_var("KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS", "3000"),
