@@ -151,12 +151,13 @@ private func makeTuistCASURLSession(useEnvironmentProxy: Bool) -> URLSession {
 /// A single transfer here can be several gigabytes, such as a shard's test products. The resource
 /// timeout is a wall-clock cap on the whole transfer rather than a stall guard, so the 90s default
 /// cancels transfers that are progressing normally: finishing 3GB within it requires a sustained
-/// ~270Mbps. Here the inactivity timeout is the stall guard, and the wall-clock cap matches the
-/// one-hour expiry of the presigned URLs artifacts are served from.
+/// ~270Mbps. The inactivity timeout is the stall guard instead, and the wall-clock cap is only a
+/// backstop against a transfer that trickles: 30 minutes clears the largest archives observed
+/// (13.8GB) at 61Mbps without letting a degenerate transfer run until the URLs expire after an hour.
 private func makeTuistLargeTransferURLSession(useEnvironmentProxy: Bool) -> URLSession {
     let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
     configuration.timeoutIntervalForResource = Double(
-        environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 3600)
+        environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 1800)
     )
     return makeURLSession(configuration: configuration)
 }

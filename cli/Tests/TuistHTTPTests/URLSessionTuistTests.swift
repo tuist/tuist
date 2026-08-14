@@ -157,13 +157,13 @@
         }
 
         @Test(.withMockedEnvironment())
-        func tuistLargeTransfer_uses_an_hour_long_resource_timeout_by_default() async throws {
+        func tuistLargeTransfer_uses_a_thirty_minute_resource_timeout_by_default() async throws {
             invalidateSharedTuistURLSession()
             defer { invalidateSharedTuistURLSession() }
 
             let configuration = URLSession.tuistLargeTransfer.configuration
 
-            #expect(configuration.timeoutIntervalForResource == 3600)
+            #expect(configuration.timeoutIntervalForResource == 1800)
             #expect(configuration.timeoutIntervalForRequest == 120)
         }
 
