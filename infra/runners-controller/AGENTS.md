@@ -462,17 +462,27 @@ survives even when the label never landed.
 
 Consequences worth knowing before triggering a roll:
 
-- A drain takes as long as the node's longest in-flight job.
-  `nodeDrainTimeoutSeconds: 0` on the `bare-metal-worker` class leaves
-  that unbounded on purpose — any finite value is a promise to kill a
-  job once exceeded.
+- A drain takes as long as the node's longest in-flight job — up to six
+  hours for a Linux job. `nodeDrainTimeoutSeconds: 0` on the
+  `bare-metal-worker` class leaves that unbounded on purpose: any finite
+  value is a promise to kill a job once exceeded.
+- **Budget a day for a full roll, not a quarter hour.** With
+  `maxSurge: 0` / `maxUnavailable: 1` the pool runs one node short for
+  the whole replacement, and that is dominated by the drain rather than
+  by the ~8-15 min `installimage` cycle. Two hosts replaced
+  sequentially is roughly 13 hours of halved capacity. On the
+  single-host staging and canary pools it is a full outage of Linux
+  runners for the same window.
+- That trade is deliberate: the Linux pools carry internal workflows
+  only. A spare host is the alternative — it restores `maxSurge: 1` and
+  removes the dip entirely, because the replacement builds while the
+  old node drains — and is what to revisit if customer workloads ever
+  land on Linux.
 - The stall risk is covered by alerting, not by a cap: "Worker node
   pool stuck mid-rollout" in `infra/helm/k8s-monitoring/alerts.md`
-  fires on `upToDateReplicas < spec.replicas` after six hours.
-- With `maxSurge: 0` / `maxUnavailable: 1`, the pool runs one node
-  short for the whole replacement. On the two-host production pool
-  that is degraded capacity; on the single-host staging and canary
-  pools it is a brief full outage of Linux runners.
+  fires on `upToDateReplicas < spec.replicas` after 24 hours, which is
+  set to clear that worst-case healthy roll rather than to catch a
+  wedge quickly.
 
 ### Emergency SSH access
 

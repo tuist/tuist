@@ -109,12 +109,26 @@ spec:
               #
               # Inverting the order makes a roll self-sufficient on a fully
               # claimed pool: delete first, then reprovision the freed host.
-              # The cost is one node of capacity per replacement for the
-              # 8-15 min an installimage cycle takes. On the two-host
-              # production pool that is degraded capacity, the same exposure
-              # as remediating a host by hand; on the single-host staging and
-              # canary pools it is a brief full outage of Linux runners,
-              # which is the only option those pools have either way.
+              #
+              # The cost is one node of capacity for the whole replacement,
+              # and that is dominated by the drain, not by provisioning.
+              # Runner Pods drain with `WaitCompleted`, so the node waits
+              # for its in-flight jobs before it is deleted — up to six
+              # hours for a Linux job — and `installimage` adds ~8-15 min
+              # after that. Budget most of a day for a two-host pool, not
+              # the quarter hour the provisioning time alone suggests.
+              #
+              # Accepted deliberately: the Linux pools run internal
+              # workflows only, so halved capacity for a stretch is a
+              # tolerable trade against paying rent on a permanently idle
+              # spare host. A spare would be the alternative — it restores
+              # `maxSurge: 1` and removes the dip entirely by building the
+              # replacement while the old node drains — and is the thing to
+              # revisit if customer workloads ever land on Linux.
+              #
+              # On the single-host staging and canary pools this is a full
+              # outage of Linux runners for the same window, which is the
+              # only option those pools have either way.
               #
               # `hcloud-worker` deliberately keeps the default: Hetzner Cloud
               # provisions on demand, so a surge there always has somewhere

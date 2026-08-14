@@ -795,14 +795,23 @@ kube_customresource_machinedeployment_spec_replicas{
 }
 ```
 
-- Pending period: 6 hours
-- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has been mid-rollout for six hours`
+- Pending period: 24 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has been mid-rollout for a day`
 
-The pending period is set against a legitimately slow drain rather than
-against a fast roll. Replacing a bare-metal Machine takes 8-15 minutes of
-`installimage`, and the drain ahead of it waits for the node's running jobs,
-so a healthy roll can take a while. Six hours never fires on that, and still
-catches a genuine wedge the same day instead of the next quarter.
+The pending period is set against a healthy *worst-case* roll, and on the
+bare-metal runner pools that is dominated by waiting for jobs, not by
+provisioning. Runner Pods drain with `WaitCompleted`, so a node is only
+replaced once its in-flight jobs finish, and a Linux job can run up to six
+hours. `installimage` adds ~8-15 minutes on top. This series stays below
+`spec.replicas` for the *whole* roll rather than per node, so a two-host
+pool replacing both nodes sequentially is legitimately mid-rollout for
+around 13 hours.
+
+Anything under that would fire on a perfectly healthy roll, which is worse
+than firing late — an alert that cries wolf on the expected path gets
+muted, and this is the only signal covering a class of failure that
+previously went unnoticed for two months. Twenty-four hours clears the
+worst case with margin and still catches a wedge the next day.
 
 ### Kubernetes request latency
 
