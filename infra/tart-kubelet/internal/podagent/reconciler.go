@@ -116,6 +116,13 @@ type Reconciler struct {
 	// lifecycle no-ops.
 	Volumes *VolumeManager
 
+	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
+	// background convergence waits for the guest to stage the cache-volume HEAD.
+	// Zero values use the package defaults; injectable so tests don't wait real
+	// seconds, mirroring the manager's mount-check wait.
+	ConvergeHeadWaitInterval time.Duration
+	ConvergeHeadWaitAttempts int
+
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
 	// events between the scheduler placing the Pod and the VM getting
