@@ -382,27 +382,23 @@ defmodule TuistWeb.OperatorGrant do
   # for the confirmed operator named in `sub`.
   #
   # The browser also requires that the session authenticated through Google
-  # (`auth_method == :google`). An access token carries no such signal, and this
-  # check does not recover it: it asks whether the *operator* proved Google
-  # recently, not whether *this credential* was obtained that way. A token minted
-  # through another path still passes while its owner has a Google login inside
-  # the window. What it does buy is that an operator who never uses Google SSO
-  # cannot present a grant at all. Establishing the browser's invariant needs the
-  # authentication method bound to the token itself. The window is the grant's own
-  # TTL ceiling, since minting one at ops.tuist.dev already requires a
-  # Google-authenticated session.
+  # (`auth_method == :google`). There is no session here, and no equivalent
+  # signal on an access token — but the grant itself is the artifact of that
+  # authentication: ops.tuist.dev mints it only for an authenticated operator,
+  # signs it, and binds it to `sub` with a short TTL, all verified above. A
+  # second Google login *to this server* would prove nothing about the one that
+  # produced the grant, and requiring it would reject freshly minted grants from
+  # operators who authenticated only at ops.
+  #
+  # What remains unestablished is that the *credential presenting* the grant was
+  # itself Google-authenticated. That needs the authentication method bound to
+  # the token, which is not reachable without changing the OAuth dependency.
   defp check_header_subject_is_operator(%User{email: email} = user, %{sub: sub}) do
-    cond do
-      not (Accounts.tuist_operator?(user) and emails_match?(email, sub)) ->
-        Logger.warning("operator grant rejected: subject does not match the authenticated user")
-        {:error, :subject_mismatch}
-
-      not Accounts.google_authenticated_within?(user, Environment.operator_grant_max_ttl_seconds()) ->
-        Logger.warning("operator grant rejected: no recent Google authentication for the operator")
-        {:error, :stale_google_authentication}
-
-      true ->
-        :ok
+    if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
+      :ok
+    else
+      Logger.warning("operator grant rejected: subject does not match the authenticated user")
+      {:error, :subject_mismatch}
     end
   end
 

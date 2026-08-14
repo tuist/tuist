@@ -35,11 +35,6 @@ defmodule TuistWeb.MCPOperatorGrantTest do
 
     AccountsFixtures.oauth2_identity_fixture(user: operator, provider: :google)
 
-    {:ok, operator} =
-      operator
-      |> Ecto.Changeset.change(last_google_authenticated_at: NaiveDateTime.utc_now(:second))
-      |> Tuist.Repo.update()
-
     {:ok, signer: jwk, project: project, operator: operator}
   end
 

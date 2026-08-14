@@ -1558,35 +1558,6 @@ defmodule Tuist.Accounts do
 
   def tuist_operator?(_), do: false
 
-  @doc """
-  Records how a user just authenticated, for checks that run later against a
-  credential which does not carry that context.
-
-  Only Google is recorded, and only because operator access to customer data
-  depends on it: a browser session knows it authenticated through Google, an
-  access token presented to the API or MCP does not. Writing it here — the one
-  funnel every sign-in passes through — keeps the record honest.
-  """
-  def record_authentication_method(%User{} = user, :google) do
-    user
-    |> Changeset.change(last_google_authenticated_at: NaiveDateTime.utc_now(:second))
-    |> Repo.update()
-  end
-
-  def record_authentication_method(%User{} = user, _auth_method), do: {:ok, user}
-
-  @doc """
-  Whether the user proved Google Workspace SSO within `max_age_seconds`.
-  """
-  def google_authenticated_within?(%User{last_google_authenticated_at: nil}, _max_age_seconds), do: false
-
-  def google_authenticated_within?(%User{last_google_authenticated_at: at}, max_age_seconds)
-      when is_integer(max_age_seconds) do
-    NaiveDateTime.diff(NaiveDateTime.utc_now(), at) <= max_age_seconds
-  end
-
-  def google_authenticated_within?(_user, _max_age_seconds), do: false
-
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
     domain = Environment.operator_email_domain()
 

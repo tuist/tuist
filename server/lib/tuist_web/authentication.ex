@@ -192,7 +192,6 @@ defmodule TuistWeb.Authentication do
       end
 
     Analytics.user_authenticate(user)
-    Accounts.record_authentication_method(user, auth_method)
 
     conn
     |> renew_session()

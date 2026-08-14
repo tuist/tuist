@@ -490,48 +490,6 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
     # The grant is a bearer token, so a leaked one must not become usable just
     # because whoever holds it is also an operator.
-    # The browser requires the session to have authenticated through Google. A
-    # bearer token cannot say how it was obtained, so the equivalent is a
-    # recorded Google authentication that is still recent — without it a stolen
-    # grant could ride a password-authenticated operator token.
-    test "rejects a grant when the operator has no recorded Google authentication", %{
-      conn: conn,
-      signer: signer
-    } do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      operator = operator_user(google_authenticated_at: nil)
-      token = mint(signer, claims(project.account.name, operator.email))
-
-      {conn, log} =
-        with_log(fn ->
-          conn
-          |> assign(:current_user, operator)
-          |> put_req_header("x-tuist-operator-grant", token)
-          |> OperatorGrant.accept_operator_grant_header([])
-        end)
-
-      assert conn.halted
-      assert conn.status == 401
-      assert log =~ "no recent Google authentication"
-    end
-
-    test "rejects a grant when the Google authentication has gone stale", %{conn: conn, signer: signer} do
-      project = ProjectsFixtures.project_fixture(preload: [:account])
-      stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -7200, :second)
-      operator = operator_user(google_authenticated_at: stale)
-      token = mint(signer, claims(project.account.name, operator.email))
-
-      {conn, _log} =
-        with_log(fn ->
-          conn
-          |> assign(:current_user, operator)
-          |> put_req_header("x-tuist-operator-grant", token)
-          |> OperatorGrant.accept_operator_grant_header([])
-        end)
-
-      assert conn.halted
-      assert conn.status == 401
-    end
 
     test "rejects a grant minted for a different operator", %{conn: conn, signer: signer} do
       project = ProjectsFixtures.project_fixture(preload: [:account])
@@ -610,7 +568,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     end
   end
 
-  defp operator_user(opts \\ []) do
+  defp operator_user do
     user =
       AccountsFixtures.user_fixture(
         email: "operator-#{System.unique_integer([:positive])}@tuist.dev",
@@ -618,12 +576,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       )
 
     AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
-
-    case Keyword.get(opts, :google_authenticated_at, :recent) do
-      nil -> user
-      :recent -> %{user | last_google_authenticated_at: NaiveDateTime.utc_now(:second)}
-      at -> %{user | last_google_authenticated_at: at}
-    end
+    user
   end
 
   defp with_handles(conn, account_handle, project_handle) do
