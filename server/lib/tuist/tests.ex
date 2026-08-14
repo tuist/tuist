@@ -94,10 +94,6 @@ defmodule Tuist.Tests do
     join_algorithm: "grace_hash",
     grace_hash_join_initial_buckets: 16
   ]
-  @sharded_test_lookup_settings [
-    max_threads: 1,
-    max_memory_usage: 128 * 1024 * 1024
-  ]
   @flaky_correction_lookup_settings [
     max_threads: 1,
     max_memory_usage: 128 * 1024 * 1024
@@ -576,14 +572,35 @@ defmodule Tuist.Tests do
     project_id = Map.fetch!(attrs, :project_id)
     test_modules = Map.get(attrs, :test_modules, [])
 
-    existing = existing_sharded_test(project_id, shard_plan_id)
-
     {:ok, shard_plan} = Shards.get_shard_plan(shard_plan_id)
     expected_shard_count = shard_plan.shard_count
 
     shard_index = Map.get(attrs, :shard_index)
     shard_status = Map.get(attrs, :status, "success")
     shard_duration = Map.get(attrs, :duration, 0)
+
+    # `shard_runs` is the only authority on which run a plan's shards report
+    # into. The first shard claims that mapping before its run row exists, so a
+    # report that dies in between leaves a pointer the next shard rebuilds
+    # through, rather than a run no later shard can find.
+    mapped_id = mapped_shard_test_run_id(project_id, shard_plan_id)
+    merged_id = mapped_id || Map.get(attrs, :id) || UUIDv7.generate()
+
+    if is_nil(mapped_id) do
+      insert_shard_run(
+        shard_plan_id,
+        project_id,
+        merged_id,
+        shard_index,
+        shard_status,
+        shard_duration,
+        attrs
+      )
+    end
+
+    existing = sharded_test_by_id(project_id, merged_id)
+
+    attrs = Map.put(attrs, :id, merged_id)
 
     result =
       case existing do
@@ -669,7 +686,9 @@ defmodule Tuist.Tests do
       end
 
     with {:ok, test} <- result do
-      if is_nil(existing) do
+      # Rebuilding a run whose row went missing still owes the mapping this
+      # shard's status; the claim above only covers the plan's first shard.
+      if is_nil(existing) and not is_nil(mapped_id) do
         insert_shard_run(
           shard_plan_id,
           project_id,
@@ -685,50 +704,32 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp existing_sharded_test(project_id, shard_plan_id) do
-    test_run_id =
-      ClickHouseRepo.one(
-        from(shard_run in ShardRun,
-          where: shard_run.project_id == ^project_id,
-          where: shard_run.shard_plan_id == ^shard_plan_id,
-          order_by: [desc: shard_run.inserted_at],
-          limit: 1,
-          select: shard_run.test_run_id
-        )
+  # Keyed on the `(project_id, shard_plan_id, …)` sorting key. Resolving this
+  # against `test_runs` instead would scan the project's whole key range, since
+  # `shard_plan_id` is not part of that table's sorting key.
+  defp mapped_shard_test_run_id(project_id, shard_plan_id) do
+    ClickHouseRepo.one(
+      from(shard_run in ShardRun,
+        where: shard_run.project_id == ^project_id,
+        where: shard_run.shard_plan_id == ^shard_plan_id,
+        order_by: [desc: shard_run.inserted_at],
+        limit: 1,
+        select: shard_run.test_run_id
       )
+    )
+  end
 
-    test =
-      if test_run_id do
-        ClickHouseRepo.one(
-          from(test in Test,
-            where: test.project_id == ^project_id,
-            where: test.id == ^test_run_id,
-            order_by: [desc: test.inserted_at],
-            limit: 1
-          )
-        )
-      end
-
-    case test do
-      %Test{} = test ->
-        test
-
-      _ ->
-        # The first shard has no shard-run row yet. The fallback also repairs a
-        # report interrupted after writing the merged test but before writing
-        # its shard-run row. It avoids FINAL because ordering the physical rows
-        # by version returns the same latest test without an in-memory merge.
-        # Every later shard takes the prefix-keyed lookup above.
-        ClickHouseRepo.one(
-          from(test in Test,
-            where: test.shard_plan_id == ^shard_plan_id,
-            where: test.project_id == ^project_id,
-            order_by: [desc: test.inserted_at],
-            limit: 1
-          ),
-          settings: @sharded_test_lookup_settings
-        )
-    end
+  # Avoids FINAL because ordering the physical rows by version returns the same
+  # latest run without an in-memory merge.
+  defp sharded_test_by_id(project_id, test_run_id) do
+    ClickHouseRepo.one(
+      from(test in Test,
+        where: test.project_id == ^project_id,
+        where: test.id == ^test_run_id,
+        order_by: [desc: test.inserted_at],
+        limit: 1
+      )
+    )
   end
 
   # Carry forward metadata fields when a later shard report has them and
