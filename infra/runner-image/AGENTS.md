@@ -38,16 +38,23 @@ When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
 
 A related class of gap is anything GitHub-hosted images pre-seed
-that ours do not. TCC is one: scripted Finder automation
-(`create-dmg`, and anything else driving an app through
-`osascript`) needs a standing `kTCCServiceAppleEvents` approval,
-or macOS raises a prompt no one can answer on a headless VM and
-the send fails as `AppleEvent timed out (-1712)`. That reads as
-flakiness and is not. When adding parity features, compare
-against `actions/runner-images` `images/macos/scripts/build/`,
-and pair each one with a check that asserts the behaviour rather
-than the ingredient — every gap so far was found by a release
-failing, not by the image build.
+that ours do not. When adding parity features, compare against
+`actions/runner-images` `images/macos/scripts/build/`, and pair
+each one with a check that asserts the behaviour rather than the
+ingredient — every gap so far was found by a release failing, not
+by the image build.
+
+TCC looked like one of those gaps and was not. Scripted Finder
+automation here fails as `AppleEvent timed out (-1712)`, which
+reads as a missing `kTCCServiceAppleEvents` approval, and this
+template used to seed one. It changed nothing: seeding the
+approval into the session user's database and reading the row
+back still left every send timing out, because these VMs have no
+Finder that answers rather than one that refuses. Do not re-add
+it. The DMG step that surfaced this no longer drives Finder at
+all (`app/dmg-settings.py`), and if something else needs a GUI
+app here, the question to answer first is whether the auto-login
+session materialises, not whether it is authorised.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
