@@ -3594,6 +3594,7 @@ where
     InstrumentedArtifactStream::new(
         state.metrics.clone(),
         manifest.producer,
+        Some(manifest.size),
         stream,
         request_guard,
     )
@@ -3603,6 +3604,7 @@ struct InstrumentedArtifactStream<S> {
     inner: S,
     metrics: Metrics,
     producer: ArtifactProducer,
+    expected_bytes: Option<u64>,
     _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
@@ -3613,6 +3615,7 @@ impl<S> InstrumentedArtifactStream<S> {
     fn new(
         metrics: Metrics,
         producer: ArtifactProducer,
+        expected_bytes: Option<u64>,
         stream: S,
         request_guard: Option<InflightGuard>,
     ) -> Self {
@@ -3620,6 +3623,7 @@ impl<S> InstrumentedArtifactStream<S> {
             inner: stream,
             metrics,
             producer,
+            expected_bytes,
             _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
@@ -3691,7 +3695,17 @@ where
 
 impl<S> Drop for InstrumentedArtifactStream<S> {
     fn drop(&mut self) {
-        self.record_once("aborted");
+        // Artifact responses declare a Content-Length, and hyper drops a
+        // fixed-length body as soon as the encoder has written that many bytes
+        // instead of polling it to `None`, so a fully delivered stream reaches
+        // this path just like a client abort does. Only the byte count tells
+        // them apart. An unknown expectation stays conservative and counts as
+        // aborted.
+        let result = match self.expected_bytes {
+            Some(expected) if self.yielded_bytes >= expected => "ok",
+            _ => "aborted",
+        };
+        self.record_once(result);
     }
 }
 
@@ -7106,6 +7120,7 @@ mod tests {
         let instrumented = InstrumentedArtifactStream::new(
             context.state.metrics.clone(),
             ArtifactProducer::Xcode,
+            Some(64),
             stream,
             Some(context.state.start_http_request(HttpTrafficClass::Public)),
         );
@@ -7113,6 +7128,131 @@ mod tests {
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
         drop(instrumented);
         assert_eq!(context.state.runtime.public_http_inflight(), 0);
+    }
+
+    fn artifact_egress_completions(metrics: &Metrics, result: &str) -> u64 {
+        metrics
+            .render()
+            .lines()
+            .filter(|line| {
+                line.starts_with("kura_artifact_egress_completions_total")
+                    && line.contains("producer=\"xcode\"")
+                    && line.contains(&format!("result=\"{result}\""))
+            })
+            .filter_map(|line| {
+                line.rsplit(' ')
+                    .next()
+                    .and_then(|value| value.parse::<u64>().ok())
+            })
+            .sum()
+    }
+
+    fn chunked_artifact_stream(
+        chunks: &[&'static [u8]],
+    ) -> impl Stream<Item = Result<Bytes, std::io::Error>> {
+        futures_util::stream::iter(
+            chunks
+                .iter()
+                .map(|chunk| Ok(Bytes::from_static(chunk)))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_stream_dropped_after_the_expected_bytes_records_ok() {
+        let context = test_context(|_| {}).await;
+        let mut instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            Some(11),
+            chunked_artifact_stream(&[b"hello", b" world"]),
+            None,
+        );
+
+        // Mirrors hyper dropping a fixed-length body once Content-Length has
+        // been written, without ever polling it to `None`.
+        assert!(instrumented.next().await.is_some());
+        assert!(instrumented.next().await.is_some());
+        drop(instrumented);
+
+        assert_eq!(artifact_egress_completions(&context.state.metrics, "ok"), 1);
+        assert_eq!(
+            artifact_egress_completions(&context.state.metrics, "aborted"),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stream_dropped_before_the_expected_bytes_records_aborted() {
+        let context = test_context(|_| {}).await;
+        let mut instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            Some(11),
+            chunked_artifact_stream(&[b"hello", b" world"]),
+            None,
+        );
+
+        assert!(instrumented.next().await.is_some());
+        drop(instrumented);
+
+        assert_eq!(
+            artifact_egress_completions(&context.state.metrics, "aborted"),
+            1
+        );
+        assert_eq!(artifact_egress_completions(&context.state.metrics, "ok"), 0);
+    }
+
+    #[tokio::test]
+    async fn a_stream_polled_to_completion_records_ok_once() {
+        let context = test_context(|_| {}).await;
+        let mut instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            Some(11),
+            chunked_artifact_stream(&[b"hello", b" world"]),
+            None,
+        );
+
+        while instrumented.next().await.is_some() {}
+        assert_eq!(artifact_egress_completions(&context.state.metrics, "ok"), 1);
+
+        drop(instrumented);
+        assert_eq!(artifact_egress_completions(&context.state.metrics, "ok"), 1);
+        assert_eq!(
+            artifact_egress_completions(&context.state.metrics, "aborted"),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failing_stream_records_error_once() {
+        let context = test_context(|_| {}).await;
+        let stream = futures_util::stream::iter(vec![
+            Ok(Bytes::from_static(b"hello")),
+            Err(std::io::Error::other("read failed")),
+        ]);
+        let mut instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            Some(11),
+            stream,
+            None,
+        );
+
+        assert!(instrumented.next().await.expect("first chunk").is_ok());
+        assert!(instrumented.next().await.expect("second chunk").is_err());
+        drop(instrumented);
+
+        assert_eq!(
+            artifact_egress_completions(&context.state.metrics, "error"),
+            1
+        );
+        assert_eq!(artifact_egress_completions(&context.state.metrics, "ok"), 0);
+        assert_eq!(
+            artifact_egress_completions(&context.state.metrics, "aborted"),
+            0
+        );
     }
 
     #[test]
