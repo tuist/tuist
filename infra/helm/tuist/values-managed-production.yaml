@@ -418,9 +418,11 @@ processor:
   # ~9-10 GiB. A processor therefore could not reach a 24Gi cgroup limit
   # without first exhausting the node - 24 + 10 > 30.6 - so the kernel OOM
   # killer fired at the node level and picked the largest RSS cgroup, which is
-  # always a processor. The container was reported OOMKilled while sitting far
-  # below its own limit, which is why raising the limit would have made the
-  # problem worse rather than better.
+  # always a processor. Measured on the 2026-08-14 07:13Z kill: both replicas
+  # were stacked on ...-g7wzh-qk9kr, that node sat at 27-28 GiB of 30.5 GiB
+  # for half an hour, crossed capacity, and the victim container was killed
+  # holding 10.7 GiB - 45% of its own 24Gi limit. Raising the limit would
+  # therefore have made this worse rather than better.
   #
   # 16Gi is the largest limit a single replica can actually be given here:
   # 16 + ~10 GiB of co-resident platform leaves ~5 GiB of node headroom, so
@@ -438,19 +440,28 @@ processor:
   # node, anything above ~11.7Gi leaves the surge pod Pending and, with
   # maxUnavailable=0, stalls the deploy indefinitely.
   #
-  # Within that ceiling the request is raised 8Gi -> 10Gi because
-  # oom_score_adj for a burstable pod scales with memoryRequest/capacity:
-  # 10Gi moves the processor from ~739 to ~673 while the small platform pods
-  # stay near 1000, so if the node does come under pressure the kernel
-  # reaches for them before it reaches for a live parse.
+  # Within that ceiling the request is raised 8Gi -> 10Gi, which also matches
+  # the measured median daily peak, because oom_score_adj for a burstable pod
+  # scales with memoryRequest/capacity: 10Gi moves the processor from ~739 to
+  # ~673 while the small platform pods stay near 1000, so if the node does
+  # come under pressure the kernel reaches for them before a live parse.
+  #
+  # Sized against 30 days of container_memory_working_set_bytes: the daily
+  # peak sits at 9-12 GiB on 29 of 31 days, with two excursions (14.9 GiB,
+  # and 20.1 GiB on 2026-07-23 when several pods spiked together). So 16Gi
+  # clears normal operation with room and clips only the far tail. That tail
+  # is a deliberate trade: a 20 GiB parse cannot be served on a co-tenanted
+  # node at all, and a contained cgroup kill of the one offending pod is
+  # strictly better than a node-level kill that also destabilises whatever
+  # platform workload happens to share the node.
   #
   # The Swift parser holds ~3-4x the .xcactivitylog file size while building
   # the BuildStep tree and JSON-encoding the result, so 16Gi is ~3.2 GiB per
   # slot at queueConcurrency=5 - the same per-slot budget tmpSizeLimit is
-  # sized against. If this OOMKills again with the container at its own limit
-  # (as opposed to the node-level kills seen here), lower queueConcurrency
-  # before raising memory, or reintroduce a per-archive size cap in
-  # Tuist.Processor.BuildProcessor.
+  # sized against. A future OOMKill with the container at its own limit
+  # (rather than the node-level kills seen here) means the tail got common:
+  # lower queueConcurrency before raising memory, or reintroduce a
+  # per-archive size cap in Tuist.Processor.BuildProcessor.
   #
   # CPU stays burstable at 4/12. The limit at 12 cores lets the BEAM run ~12
   # dirty-CPU schedulers, so all 5 NIF parses get a dedicated dirty scheduler
