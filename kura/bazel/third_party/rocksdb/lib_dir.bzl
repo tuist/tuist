@@ -6,6 +6,13 @@ bundled RocksDB C++ (see build.rs `try_to_find_and_link_lib`). `$(execpath)` of 
 `cc_library` gives its `.a` file, not a directory, so this rule copies that archive
 into a declared directory the build script can point at. Mirrors the sibling
 `//bazel/third_party/lz4:include_dir` rule, which does the same for headers.
+
+The real archive here is load-bearing, not defensive: rules_rs resolves the build script's emitted
+`-l static=rocksdb` through this `ROCKSDB_LIB_DIR` search path when it compiles the `librocksdb-sys`
+rlib, NOT through the crate's `deps` edge on the cc_library. Pointing `ROCKSDB_LIB_DIR` at an empty
+directory instead was tested and fails the rlib compile with `error: could not find native static
+library rocksdb, perhaps an -L flag is missing?`. So the `deps` edge alone does not satisfy the
+link, and this materialized copy must contain `librocksdb.a`.
 """
 
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
