@@ -7,10 +7,19 @@ import TuistServer
 struct CacheClientAuthenticationMiddleware: ClientMiddleware {
     private let authenticationURL: URL
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let cacheTokenStore: CacheTokenStoring
+    private let fullHandle: String?
 
-    init(authenticationURL: URL, serverAuthenticationController: ServerAuthenticationControlling) {
+    init(
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling,
+        cacheTokenStore: CacheTokenStoring,
+        fullHandle: String?
+    ) {
         self.authenticationURL = authenticationURL
         self.serverAuthenticationController = serverAuthenticationController
+        self.cacheTokenStore = cacheTokenStore
+        self.fullHandle = fullHandle
     }
 
     func intercept(
@@ -26,9 +35,26 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
             throw ClientAuthenticationError.notAuthenticated
         }
 
+        // Prefer a token the cache node can verify itself, falling back to the
+        // credential we already hold when the server cannot mint one.
+        //
+        // Only callers that name the project they are caching for take this
+        // path. The scope is what keeps the token small enough to send as a
+        // header, so exchanging without one would risk a token carrying every
+        // project an account-wide credential reaches.
+        var value = token.value
+        if let fullHandle,
+           let cacheToken = await cacheTokenStore.cacheToken(
+               authenticationURL: authenticationURL,
+               fullHandle: fullHandle
+           )
+        {
+            value = cacheToken
+        }
+
         request.headerFields.append(
             .init(
-                name: .authorization, value: "Bearer \(token.value)"
+                name: .authorization, value: "Bearer \(value)"
             )
         )
 

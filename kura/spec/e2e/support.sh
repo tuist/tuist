@@ -377,7 +377,7 @@ extract_upload_id() {
 
 jwt_for_namespace() {
   local namespace_id="$1"
-  python3 - "$namespace_id" <<'PY'
+  python3 - "$namespace_id" <<'PYEOF'
 import base64
 import hashlib
 import hmac
@@ -389,28 +389,27 @@ def b64url(data: bytes) -> str:
 
 namespace_id = sys.argv[1]
 header = {"alg": "HS256", "typ": "JWT"}
-payload = {"sub": "user-1", "namespace_id": namespace_id, "exp": 4000000000}
+# `scopes` marks a token whose bare project handles are not themselves
+# authorization; the grants below are what the node reads.
+payload = {
+    "sub": "user-1",
+    "type": "user",
+    "scopes": ["project_cache_write"],
+    "cache_grants": {
+        "project": {
+            "read": ["default/" + namespace_id],
+            "write": ["default/" + namespace_id],
+        }
+    },
+    "exp": 4000000000,
+}
 
 header_b64 = b64url(json.dumps(header, separators=(",", ":")).encode())
 payload_b64 = b64url(json.dumps(payload, separators=(",", ":")).encode())
-signing_input = f"{header_b64}.{payload_b64}".encode()
-signature = hmac.new(b"extension-jwt-secret", signing_input, hashlib.sha256).digest()
-print(f"{header_b64}.{payload_b64}.{b64url(signature)}")
-PY
-}
-
-expected_signature() {
-  local payload="$1"
-  python3 - "$payload" <<'PY'
-import base64
-import hashlib
-import hmac
-import sys
-
-payload = sys.argv[1].encode()
-signature = hmac.new(b"extension-signing-secret", payload, hashlib.sha256).digest()
-print(base64.b64encode(signature).decode())
-PY
+signing_input = (header_b64 + "." + payload_b64).encode()
+signature = hmac.new(b"kura-auth-jwt-secret", signing_input, hashlib.sha256).digest()
+print(header_b64 + "." + payload_b64 + "." + b64url(signature))
+PYEOF
 }
 
 create_bazel_workspace() {

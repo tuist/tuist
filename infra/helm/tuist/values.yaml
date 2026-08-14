@@ -163,9 +163,9 @@ kuraController:
       item: ""
       field: KURA_SENTRY_DSN
     # Example shape — never commit real values here:
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
+    #   KURA_AUTH_JWT_ALGORITHM: HS512
+    #   KURA_AUTH_JWT_ISSUER: tuist
+    #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
@@ -200,8 +200,10 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
-    # Lua extension, normally supplied with
-    # `--set-file kuraRuntime.instance.extensionScript=<path>`.
+    # No longer read by Kura, which authorizes natively. Still emitted so a
+    # release that predates that keeps authorizing; remove this field, the
+    # controller's handling of it, and the CRD property together once every
+    # instance runs a release that reads KURA_AUTH_TUIST_URL.
     extensionScript: ""
 
 codebaseSearch:

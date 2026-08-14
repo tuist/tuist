@@ -165,11 +165,11 @@ spec:
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
               value: {{ .Values.config.telemetry.deploymentEnvironment | quote }}
-            {{- if .Values.extension.enabled }}
-            - name: KURA_EXTENSION_ENABLED
+            {{- if .Values.auth.enabled }}
+            - name: KURA_AUTH_ENABLED
               value: "true"
-            - name: KURA_EXTENSION_SCRIPT_PATH
-              value: {{ printf "%s/%s" .Values.extension.mountDir .Values.extension.scriptFileName | quote }}
+            - name: KURA_AUTH_TUIST_URL
+              value: {{ .Values.auth.tuistUrl | quote }}
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -184,11 +184,6 @@ spec:
             {{- if .Values.peerTls.enabled }}
             - name: peer-tls
               mountPath: /etc/kura/peer-tls
-              readOnly: true
-            {{- end }}
-            {{- if .Values.extension.enabled }}
-            - name: extension-script
-              mountPath: {{ .Values.extension.mountDir }}
               readOnly: true
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
@@ -230,16 +225,11 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.extension.enabled .Values.peerTls.enabled .Values.extraVolumes }}
+      {{- if or (not .Values.persistence.enabled) .Values.peerTls.enabled .Values.extraVolumes }}
       volumes:
         {{- if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
-        {{- end }}
-        {{- if .Values.extension.enabled }}
-        - name: extension-script
-          configMap:
-            name: {{ include "kura.extensionConfigMapName" . }}
         {{- end }}
         {{- if .Values.peerTls.enabled }}
         - name: peer-tls
