@@ -155,7 +155,7 @@ impl PeerClientFactory {
 }
 
 /// The verified client-certificate identity of an internal-plane request,
-/// inserted as a request extension by [`InternalPeerIdentityAcceptor`]. Absent
+/// inserted as a request auth by [`InternalPeerIdentityAcceptor`]. Absent
 /// on the plain-HTTP internal listener (peer TLS disabled), which is only
 /// reachable inside the trusted cluster network.
 ///
@@ -389,7 +389,7 @@ mod tests {
 
     // End-to-end proof that the internal mTLS listener surfaces the verified
     // client certificate: a request over the acceptor carries the leaf cert's
-    // fingerprint identity as a request extension, and two different client
+    // fingerprint identity as a request auth, and two different client
     // certificates yield two different identities.
     #[tokio::test]
     async fn internal_peer_identity_acceptor_stamps_client_cert_fingerprints() {

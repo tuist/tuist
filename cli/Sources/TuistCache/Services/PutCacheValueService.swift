@@ -63,7 +63,8 @@ public struct PutCacheValueService: PutCacheValueServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: fullHandle
         )
         let handles = try fullHandleService.parse(fullHandle)
 

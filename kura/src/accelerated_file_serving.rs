@@ -27,9 +27,9 @@ use tracing::{Instrument, info};
 use crate::{
     analytics::Analytics,
     artifact::producer::ArtifactProducer,
+    auth::{AccessDecision, RequestContext},
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
     constants::response_stream_chunk_bytes,
-    extension::{AccessDecision, ExtensionContext},
     memory::{MemoryController, ResponseStreamAdmissionPatience},
     runtime::HttpTrafficClass,
     state::SharedState,
@@ -384,7 +384,6 @@ struct AcceleratedCandidate {
     header_len: usize,
     artifact: ArtifactRequest,
     file: AcceleratedArtifactFile,
-    extension_response_headers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -448,10 +447,10 @@ async fn open_and_authorize(
         Ok(Some(file)) => file,
         _ => return ClassifiedRequest::Fallback,
     };
-    let access_context = extension_context(state, &parsed, &artifact, None);
-    let principal = if let Some(extension) = state.extension.as_ref() {
-        match extension.evaluate_access(&access_context).await {
-            AccessDecision::Allow(principal) => principal,
+    let access_context = request_context(state, &parsed, &artifact, None);
+    if let Some(auth) = state.auth.as_ref() {
+        match auth.evaluate_access(&access_context).await {
+            AccessDecision::Allow => {}
             AccessDecision::Deny(deny) => {
                 return ClassifiedRequest::Deny(Denial {
                     header_len: parsed.header_len,
@@ -462,26 +461,12 @@ async fn open_and_authorize(
                 });
             }
         }
-    } else {
-        None
-    };
-    let extension_response_headers = if let Some(extension) = state.extension.as_ref() {
-        extension
-            .response_headers(
-                &extension_context(state, &parsed, &artifact, Some(StatusCode::OK.as_u16())),
-                principal.as_ref(),
-            )
-            .await
-            .headers
-    } else {
-        BTreeMap::new()
-    };
+    }
 
     ClassifiedRequest::Accelerate(AcceleratedCandidate {
         header_len: parsed.header_len,
         artifact,
         file,
-        extension_response_headers,
     })
 }
 
@@ -568,7 +553,6 @@ async fn serve_accelerated(
     let namespace_id = candidate.artifact.namespace_id.clone();
     let analytics_key = candidate.artifact.analytics_key.clone();
     let route = candidate.artifact.route.to_owned();
-    let extension_headers = candidate.extension_response_headers.clone();
     let content_type = sanitized_content_type(&file.content_type);
     let mode = config.mode;
     let chunk_bytes = config.chunk_bytes;
@@ -613,15 +597,7 @@ async fn serve_accelerated(
             let mut stream = stream.into_std()?;
             stream.set_nonblocking(false)?;
             stream.set_write_timeout(Some(IO_TIMEOUT))?;
-            write_headers(
-                &mut stream,
-                200,
-                "OK",
-                &content_type,
-                file.size,
-                &extension_headers,
-                keep_alive,
-            )?;
+            write_headers(&mut stream, 200, "OK", &content_type, file.size, keep_alive)?;
             // Time to first byte is measured once the headers are on the wire,
             // before the body transfer, so large downloads do not inflate the
             // responsiveness signal.
@@ -959,13 +935,13 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
     None
 }
 
-fn extension_context(
+fn request_context(
     state: &SharedState,
     parsed: &ParsedRequest,
     artifact: &ArtifactRequest,
     status_code: Option<u16>,
-) -> ExtensionContext {
-    ExtensionContext {
+) -> RequestContext {
+    RequestContext {
         transport: "http".into(),
         route: artifact.route.to_owned(),
         method: parsed.method.clone(),
@@ -1059,7 +1035,6 @@ fn write_headers(
     reason: &str,
     content_type: &str,
     content_length: u64,
-    headers: &BTreeMap<String, String>,
     keep_alive: bool,
 ) -> std::io::Result<()> {
     let connection = if keep_alive { "keep-alive" } else { "close" };
@@ -1067,7 +1042,6 @@ fn write_headers(
         stream,
         "HTTP/1.1 {status} {reason}\r\ncontent-length: {content_length}\r\ncontent-type: {content_type}\r\nconnection: {connection}\r\n"
     )?;
-    append_headers(stream, headers)?;
     stream.write_all(b"\r\n")
 }
 
@@ -1367,7 +1341,7 @@ mod tests {
     }
 
     #[test]
-    fn module_nx_and_metro_requests_carry_extension_artifact_hash() {
+    fn module_nx_and_metro_requests_carry_auth_artifact_hash() {
         let nx = artifact_request("/v1/cache/nx-hash", "acme").expect("nx request should parse");
         assert_eq!(nx.artifact_hash.as_deref(), Some("nx-hash"));
 
@@ -1445,7 +1419,6 @@ mod tests {
                 query: BTreeMap::new(),
             },
             file,
-            extension_response_headers: BTreeMap::new(),
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

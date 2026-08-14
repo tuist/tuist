@@ -55,7 +55,8 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.downloadModuleCacheArtifact(
