@@ -480,6 +480,10 @@ defmodule Tuist.Slack do
   defp alert_title(%{category: :test_run_duration, metric: metric, scheme: scheme}),
     do: "#{scheme} Test Time #{alert_metric_label(metric)} Increased"
 
+  defp alert_title(%{category: :cache_hit_rate, metric: metric, git_branch: git_branch})
+       when is_binary(git_branch) and git_branch != "",
+       do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased on #{git_branch}"
+
   defp alert_title(%{category: :cache_hit_rate, metric: metric}),
     do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased"
 
@@ -525,10 +529,14 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_duration(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :cache_hit_rate, metric: metric}} = alert) do
+  defp format_alert_message(
+         %Alert{alert_rule: %{category: :cache_hit_rate, metric: metric, git_branch: git_branch}} = alert
+       ) do
     deviation = calculate_decrease_deviation(alert)
 
-    "*Cache hit rate #{alert_metric_label(metric)} decreased by #{deviation}%*\n" <>
+    branch_suffix = if is_binary(git_branch) and git_branch != "", do: " on `#{git_branch}`", else: ""
+
+    "*Cache hit rate #{alert_metric_label(metric)} decreased by #{deviation}%#{branch_suffix}*\n" <>
       "Previous: #{format_alert_percentage(alert.previous_value)}\n" <>
       "Current: #{format_alert_percentage(alert.current_value)}"
   end

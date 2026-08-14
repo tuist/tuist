@@ -269,6 +269,109 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
     end
   end
 
+  describe "cache_hit_rate branch" do
+    test "creates a cache_hit_rate alert rule scoped to a branch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      {:ok, channel_token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C123456",
+          channel_name: "test-channel",
+          webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+        })
+
+      # When
+      render_hook(lv, "update_create_alert_form_category", %{"category" => "cache_hit_rate"})
+      render_hook(lv, "update_create_alert_form_name", %{"value" => "Cache alert"})
+      render_hook(lv, "update_create_alert_form_git_branch", %{"value" => "main"})
+      render_hook(lv, "create_alert_form_channel_selected", %{"channel_token" => channel_token})
+      render_hook(lv, "create_alert_rule", %{})
+
+      # Then
+      [alert_rule] = Alerts.get_project_alert_rules(project)
+      assert alert_rule.category == :cache_hit_rate
+      assert alert_rule.git_branch == "main"
+    end
+
+    test "creates a cache_hit_rate alert rule without a branch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      {:ok, channel_token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C123456",
+          channel_name: "test-channel",
+          webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+        })
+
+      # When: the branch is left blank
+      render_hook(lv, "update_create_alert_form_category", %{"category" => "cache_hit_rate"})
+      render_hook(lv, "update_create_alert_form_name", %{"value" => "Cache alert"})
+      render_hook(lv, "create_alert_form_channel_selected", %{"channel_token" => channel_token})
+      render_hook(lv, "create_alert_rule", %{})
+
+      # Then: the rule is created and applies to every branch
+      [alert_rule] = Alerts.get_project_alert_rules(project)
+      assert alert_rule.category == :cache_hit_rate
+      assert is_nil(alert_rule.git_branch)
+    end
+
+    test "renders the branch in the create form description", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      render_hook(lv, "update_create_alert_form_category", %{"category" => "cache_hit_rate"})
+
+      # When
+      html = render_hook(lv, "update_create_alert_form_git_branch", %{"value" => "main"})
+
+      # Then
+      assert html =~ "on branch"
+      assert html =~ "main"
+    end
+
+    test "updates the branch of an existing cache_hit_rate alert rule", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(project: project, category: :cache_hit_rate, git_branch: "main")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When
+      render_hook(lv, "update_edit_alert_form_git_branch", %{
+        "id" => alert_rule.id,
+        "value" => "develop"
+      })
+
+      render_hook(lv, "update_alert_rule", %{"id" => alert_rule.id})
+
+      # Then
+      {:ok, updated_rule} = Alerts.get_alert_rule(alert_rule.id)
+      assert updated_rule.git_branch == "develop"
+    end
+  end
+
   describe "create_alert_rule" do
     test "does not allow creating an alert rule when user lacks project_update permission", %{
       conn: conn,
