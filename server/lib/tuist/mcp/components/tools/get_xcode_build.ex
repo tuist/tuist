@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
   use Tuist.MCP.Tool,
     name: "get_xcode_build",
     title: "Get Xcode Build",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

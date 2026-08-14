@@ -51,7 +51,13 @@ defmodule Tuist.MCP.Tool do
                               )
       @mcp_tool_resolved_output_schema ExJsonSchema.Schema.resolve(@mcp_tool_output_schema)
       @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
-      @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
+      # Required rather than defaulted. A tool author who says nothing is exactly
+      # the case this cannot guess at, and guessing "read-only" hands every
+      # client that trusts the annotation a write tool wearing a safe label —
+      # the annotation is advisory in the protocol, but proxies and agent
+      # harnesses gate on it. Failing to compile puts the decision in front of
+      # the person introducing the risk, while it is still cheap to make.
+      @mcp_tool_read_only_hint Keyword.fetch!(unquote(opts), :read_only_hint)
       @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
       @mcp_tool_destructive_hint Keyword.get(unquote(opts), :destructive_hint, false)
 

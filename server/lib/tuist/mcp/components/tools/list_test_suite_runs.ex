@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
   use Tuist.MCP.Tool,
     name: "list_test_suite_runs",
     title: "List Test Suite Runs",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
