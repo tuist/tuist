@@ -18,16 +18,18 @@ import (
 // fakePool is a stand-in for *scaleway.Client driving the sweep: it
 // serves a fixed per-zone server list and records every ReleaseToPool.
 type fakePool struct {
-	byZone      map[string][]scaleway.Server
-	releasedIDs []string
-	releaseErr  map[string]error
+	byZone          map[string][]scaleway.Server
+	releasedIDs     []string
+	releasedOsNames []string
+	releaseErr      map[string]error
 }
 
 func (f *fakePool) ListServers(_ context.Context, zone string) ([]scaleway.Server, error) {
 	return f.byZone[zone], nil
 }
 
-func (f *fakePool) ReleaseToPool(_ context.Context, id, _, _ string) error {
+func (f *fakePool) ReleaseToPool(_ context.Context, id, _, _, osName string) error {
+	f.releasedOsNames = append(f.releasedOsNames, osName)
 	if err := f.releaseErr[id]; err != nil {
 		return err
 	}

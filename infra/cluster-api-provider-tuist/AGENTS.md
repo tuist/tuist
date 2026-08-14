@@ -480,12 +480,25 @@ kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
 CAPI core picks the most-recently-created Machines for deletion. The
 controller renames the host back into the pool namespace
-(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall; the
-host stays alive, returns to factory-default state, and becomes
-eligible for the next adoption once Scaleway flips it back to
-`Delivered + Ready`. The 24h Apple licensing floor stays in
-operator-owned territory — you keep paying for capacity you already
-pre-ordered until you decide to release it via the Scaleway console.
+(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall onto the
+Machine's own `spec.os`; the host stays alive, returns to
+factory-default state, and becomes eligible for the next adoption
+once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
+licensing floor stays in operator-owned territory — you keep paying
+for capacity you already pre-ordered until you decide to release it
+via the Scaleway console.
+
+`spec.os` must name an image `scw apple-silicon os list` still
+returns. Adoption matches a pool host's image name exactly, so a pin
+on a retired image can never match anything: releases fail loudly
+with the host still claimed (deliberately — parking it would strand
+it), and the fleet cannot adopt replacements. Scaleway retires point
+releases without notice, so a fleet that has not churned a host in a
+while can be pinned to an image that quietly disappeared. Staging
+lost its whole runner pool this way in Aug 2026. Repoint the pin in
+`values.yaml` (`{macosFleet,runnersFleet,buildersFleet}.machine.os`)
+when that happens; `OnDelete` means live hosts are not churned by the
+change.
 
 ### Replace a wedged host
 ```bash

@@ -41,6 +41,7 @@ type AppleSiliconAPI interface {
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	RebootServer(req *applesilicon.RebootServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
 }
 
 // AppleSiliconPrivateNetworkAPI is the slice of the SDK's
@@ -88,6 +89,16 @@ type Client struct {
 	// short (a few API calls); serializing it has no meaningful
 	// throughput cost.
 	adoptMu sync.Mutex
+
+	// osIDCache memoizes image-name → UUID lookups per zone. The
+	// catalog only changes when Scaleway publishes or retires an image,
+	// so a resolved ID stays valid for the process lifetime; caching
+	// keeps ReleaseToPool from spending a ListOS round-trip on every
+	// host teardown. Misses are deliberately not cached — a pin that
+	// doesn't resolve today may resolve once the operator repoints it,
+	// and the controller shouldn't need a restart to notice.
+	osIDMu    sync.Mutex
+	osIDCache map[string]string
 }
 
 // NewClient initializes a Scaleway client from the standard environment
@@ -582,14 +593,26 @@ func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
 //     `findServerByName(claimName)` lookups (the per-Machine name
 //     is gone) and visible to future `AdoptFromPool` scans.
 //
-//  2. Trigger ReinstallServer, which wipes the disk and reimages
-//     with the server type's default OS. Async on Scaleway's side
-//     (~5-15 min on M2-L); we fire-and-forget because
-//     AdoptFromPool already filters on `Delivered + Status == Ready`
-//     and the host transitions through `reinstalling → ready` on
-//     its own. Means: next adopt sees factory-default state — no
-//     stale tart-kubelet config, no leftover Tailscale auth, no
-//     cached secrets — so bootstrap doesn't need to be re-entrant.
+//  2. Trigger ReinstallServer, which wipes the disk and reimages.
+//     Async on Scaleway's side (~5-15 min on M2-L); we
+//     fire-and-forget because AdoptFromPool already filters on
+//     `Delivered + Status == Ready` and the host transitions through
+//     `reinstalling → ready` on its own. Means: next adopt sees
+//     factory-default state — no stale tart-kubelet config, no
+//     leftover Tailscale auth, no cached secrets — so bootstrap
+//     doesn't need to be re-entrant.
+//
+// `osName` pins step 2's image. Passing it empty reimages with the
+// server type's *current* default, which is what Scaleway does when
+// no os_id is supplied — and that is a trap when the caller adopts on
+// an exact image match. A fleet pinned to an older point release
+// would get its host back on whatever Scaleway defaults to that week,
+// AdoptFromPool would never match it again, and the host is lost to
+// the fleet for good. Staging lost its entire runner pool to exactly
+// this in Aug 2026, after Scaleway retired macos-tahoe-26.3 out from
+// under the pin. So the per-Machine release path passes its pin here
+// and the host returns adoptable; only the orphan sweep, which has no
+// CR left to read a pin from, leaves it empty.
 //
 // Idempotency: callers retry on error. Step 1 is safe to repeat —
 // renaming to a different UUID just lands the host at a different
@@ -597,9 +620,22 @@ func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
 // TransientStateError if the server is already mid-reinstall from a
 // previous attempt; we swallow it as success. 404 on either step
 // means the operator deleted the host out-of-band; also success.
-func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error {
+func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName string) error {
 	if poolPrefix == "" {
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
+	}
+
+	// Resolve before the rename so a pin naming an image Scaleway no
+	// longer publishes fails loudly with the host still claimed and
+	// recoverable, rather than after it has been parked in the pool
+	// under a name its own fleet can no longer match.
+	var osID *string
+	if osName != "" {
+		resolved, err := c.resolveOSID(ctx, zone, osName)
+		if err != nil {
+			return err
+		}
+		osID = &resolved
 	}
 
 	// Hold the adoption lock across the rename + reinstall request so an
@@ -624,6 +660,7 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	if _, err := c.API.ReinstallServer(&applesilicon.ReinstallServerRequest{
 		ServerID: id,
 		Zone:     scw.Zone(zone),
+		OsID:     osID,
 	}, scw.WithContext(ctx)); err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -639,6 +676,61 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	}
 
 	return nil
+}
+
+// resolveOSID maps a `macos-tahoe-26.6.1`-style image name to the OS
+// UUID ReinstallServer takes. The macOS analog of the bare-metal
+// resolveOS.
+//
+// Matching is exact on Name. Scaleway's own `Name` list filter is a
+// prefix match ("11.1" also returns "11.1.2"), which would silently
+// resolve a retired pin to a neighbouring point release — the exact
+// substitution that strands a fleet pinned on exact-match adoption.
+// So we list and compare ourselves.
+//
+// A name with no match returns an error naming the available images:
+// the pin is on something Scaleway no longer publishes, and the
+// operator has to repoint it. That is a real configuration failure,
+// not a transient one, and the alternative — falling back to the type
+// default — is precisely how a fleet loses hosts it can never adopt
+// back.
+func (c *Client) resolveOSID(ctx context.Context, zone, name string) (string, error) {
+	cacheKey := zone + "/" + name
+
+	c.osIDMu.Lock()
+	if id, ok := c.osIDCache[cacheKey]; ok {
+		c.osIDMu.Unlock()
+		return id, nil
+	}
+	c.osIDMu.Unlock()
+
+	resp, err := c.API.ListOS(&applesilicon.ListOSRequest{
+		Zone: scw.Zone(zone),
+	}, scw.WithContext(ctx), scw.WithAllPages())
+	if err != nil {
+		return "", fmt.Errorf("list apple silicon OS images in %s: %w", zone, err)
+	}
+
+	available := make([]string, 0, len(resp.Os))
+	for _, os := range resp.Os {
+		if os == nil {
+			continue
+		}
+		if os.Name == name {
+			c.osIDMu.Lock()
+			if c.osIDCache == nil {
+				c.osIDCache = map[string]string{}
+			}
+			c.osIDCache[cacheKey] = os.ID
+			c.osIDMu.Unlock()
+			return os.ID, nil
+		}
+		available = append(available, os.Name)
+	}
+
+	return "", fmt.Errorf(
+		"OS %q is not published by Scaleway in %s; repoint the fleet's os pin at one of: %s",
+		name, zone, strings.Join(available, ", "))
 }
 
 // isTransientState detects scaleway-sdk-go's typed

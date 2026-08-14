@@ -250,6 +250,22 @@ type fakeAppleSiliconAPI struct {
 	rebootErrors map[int]error
 	rebootCalls  int
 	rebootedIDs  []string
+
+	// osCatalog is what ListOS returns, and osListCalls counts the
+	// round-trips so a test can prove the resolver caches. An empty
+	// catalog models a pin Scaleway has retired.
+	osCatalog        []*applesilicon.OS
+	osListCalls      int
+	osListErr        error
+	reinstalledOsIDs []*string
+}
+
+func (f *fakeAppleSiliconAPI) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	f.osListCalls++
+	if f.osListErr != nil {
+		return nil, f.osListErr
+	}
+	return &applesilicon.ListOSResponse{Os: f.osCatalog, TotalCount: uint32(len(f.osCatalog))}, nil
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -296,6 +312,7 @@ func (f *fakeAppleSiliconAPI) UpdateServer(req *applesilicon.UpdateServerRequest
 
 func (f *fakeAppleSiliconAPI) ReinstallServer(req *applesilicon.ReinstallServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
 	f.reinstallCalls++
+	f.reinstalledOsIDs = append(f.reinstalledOsIDs, req.OsID)
 	if err, ok := f.reinstallErrors[f.reinstallCalls]; ok {
 		return nil, err
 	}
@@ -697,7 +714,7 @@ func TestReleaseToPool_HappyPathRenamesAndReinstalls(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
 		t.Fatalf("ReleaseToPool: %v", err)
 	}
 	if got := api.servers[0].Name; !strings.HasPrefix(got, "tuist-pool-") {
@@ -718,7 +735,7 @@ func TestReleaseToPool_RejectsEmptyPoolPrefix(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", ""); err == nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "", ""); err == nil {
 		t.Fatal("expected ReleaseToPool to refuse empty poolPrefix")
 	}
 	if api.updateCalls != 0 || api.reinstallCalls != 0 {
@@ -742,7 +759,7 @@ func TestReleaseToPool_SwallowsTransientStateOnReinstall(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil on TransientStateError, got %v", err)
 	}
 }
@@ -759,7 +776,7 @@ func TestReleaseToPool_TreatsRename404AsAlreadyGone(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-", ""); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil when rename sees 404, got %v", err)
 	}
 	if api.reinstallCalls != 0 {
@@ -778,7 +795,7 @@ func TestReleaseToPool_TreatsReinstall404AsAlreadyGone(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-", ""); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil when reinstall sees 404, got %v", err)
 	}
 }
@@ -792,12 +809,145 @@ func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-")
+	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-", "")
 	if err == nil {
 		t.Fatal("expected non-recoverable reinstall error to surface")
 	}
 	if !strings.Contains(err.Error(), "reinstall server") {
 		t.Fatalf("expected error to identify reinstall step, got %v", err)
+	}
+}
+
+// --- os-pinned release tests ----------------------------------------------
+//
+// AdoptFromPool matches a pool host's image name exactly, so the image
+// a release reinstalls onto decides whether the fleet can ever adopt
+// the host back. These cover the contract that keeps the two in sync.
+
+func TestReleaseToPool_ReinstallsOntoPinnedOS(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+		osCatalog: []*applesilicon.OS{
+			{ID: "os-2661", Name: "macos-tahoe-26.6.1"},
+			{ID: "os-265", Name: "macos-tahoe-26.5"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.5"); err != nil {
+		t.Fatalf("ReleaseToPool: %v", err)
+	}
+	if len(api.reinstalledOsIDs) != 1 {
+		t.Fatalf("expected exactly one reinstall, got %d", len(api.reinstalledOsIDs))
+	}
+	got := api.reinstalledOsIDs[0]
+	if got == nil {
+		t.Fatal("expected the pinned OS to be passed to ReinstallServer; got the server type default (nil os_id)")
+	}
+	if *got != "os-265" {
+		t.Fatalf("reinstalled onto %q, want the pinned macos-tahoe-26.5 (os-265)", *got)
+	}
+}
+
+func TestReleaseToPool_EmptyPinKeepsServerTypeDefault(t *testing.T) {
+	// The orphan sweep has no CR to read a pin from. It must keep the
+	// old behaviour — reinstall with whatever the server type defaults
+	// to — and must not spend a ListOS round-trip deciding that.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
+		t.Fatalf("ReleaseToPool: %v", err)
+	}
+	if len(api.reinstalledOsIDs) != 1 || api.reinstalledOsIDs[0] != nil {
+		t.Fatalf("expected a nil os_id for an unpinned release, got %v", api.reinstalledOsIDs)
+	}
+	if api.osListCalls != 0 {
+		t.Fatalf("expected no ListOS call for an unpinned release, got %d", api.osListCalls)
+	}
+}
+
+func TestReleaseToPool_RetiredPinFailsBeforeParkingHost(t *testing.T) {
+	// The staging outage in Aug 2026: the fleet pinned macos-tahoe-26.3
+	// after Scaleway retired it. Releasing must not park the host in the
+	// pool under an image its own fleet can no longer match — that loses
+	// the host permanently. Fail with the host still claimed instead.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+		osCatalog: []*applesilicon.OS{
+			{ID: "os-2661", Name: "macos-tahoe-26.6.1"},
+		},
+	}
+	c := newTestClient(api)
+
+	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.3")
+	if err == nil {
+		t.Fatal("expected a retired os pin to fail the release")
+	}
+	if !strings.Contains(err.Error(), "macos-tahoe-26.3") || !strings.Contains(err.Error(), "macos-tahoe-26.6.1") {
+		t.Fatalf("error should name the bad pin and the available images, got %v", err)
+	}
+	if api.updateCalls != 0 {
+		t.Fatalf("host must stay claimed when the pin cannot resolve; got %d rename(s)", api.updateCalls)
+	}
+	if api.reinstallCalls != 0 {
+		t.Fatalf("host must not be wiped when the pin cannot resolve; got %d reinstall(s)", api.reinstallCalls)
+	}
+}
+
+func TestReleaseToPool_CachesResolvedOSAcrossReleases(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-tuist-runners-fleet-0"),
+			readyServer("srv-2", "tuist-tuist-runners-fleet-1"),
+		},
+		osCatalog: []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}},
+	}
+	c := newTestClient(api)
+
+	for _, id := range []string{"srv-1", "srv-2"} {
+		if err := c.ReleaseToPool(context.Background(), id, "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err != nil {
+			t.Fatalf("ReleaseToPool(%s): %v", id, err)
+		}
+	}
+	if api.osListCalls != 1 {
+		t.Fatalf("expected the catalog to be listed once and cached, got %d calls", api.osListCalls)
+	}
+}
+
+func TestReleaseToPool_DoesNotCacheUnresolvedPin(t *testing.T) {
+	// A pin that fails to resolve must stay unresolved-but-retryable:
+	// the operator repoints the fleet and the very next reconcile has
+	// to pick it up without a controller restart.
+	api := &fakeAppleSiliconAPI{
+		servers:   []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
+		osCatalog: []*applesilicon.OS{},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err == nil {
+		t.Fatal("expected an empty catalog to fail the release")
+	}
+
+	api.osCatalog = []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}}
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err != nil {
+		t.Fatalf("expected the retry to resolve once Scaleway lists the image, got %v", err)
+	}
+}
+
+func TestResolveOSID_RejectsPrefixMatch(t *testing.T) {
+	// Scaleway's own Name filter is a prefix match — "26.6" matches
+	// "26.6.1". Resolving a pin that way would silently substitute a
+	// neighbouring point release for the one the fleet adopts on.
+	api := &fakeAppleSiliconAPI{
+		osCatalog: []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}},
+	}
+	c := newTestClient(api)
+
+	if _, err := c.resolveOSID(context.Background(), "fr-par-1", "macos-tahoe-26.6"); err == nil {
+		t.Fatal("expected an exact-match miss for a prefix of a published image")
 	}
 }
 

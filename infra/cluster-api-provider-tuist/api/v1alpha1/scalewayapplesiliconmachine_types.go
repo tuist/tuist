@@ -37,9 +37,13 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`
 
-	// OS is the Scaleway-provided macOS image name. The controller
-	// resolves this to an OS UUID via `scw apple-silicon os list`.
-	// +kubebuilder:default=macos-tahoe-26.3
+	// OS is the Scaleway-provided macOS image name. Adoption matches it
+	// exactly against a pool host's current image, and release reinstalls
+	// back onto it, so it must name an image Scaleway still publishes —
+	// `scw apple-silicon os list` is the source of truth. Scaleway retires
+	// point releases without notice, and a pin left on a retired image
+	// strands the fleet: no pool host can ever match it again.
+	// +kubebuilder:default=macos-tahoe-26.6.1
 	OS string `json:"os,omitempty"`
 
 	// FleetName groups Machines that share an SSH key. Set by the
