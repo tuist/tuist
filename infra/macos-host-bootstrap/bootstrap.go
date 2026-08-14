@@ -119,19 +119,24 @@ type Config struct {
 	// mini directly (rare). Production deployments always set this.
 	TailscaleBinaries []byte
 
-	// TailscaleAuthKey is a per-fleet Tailscale pre-auth key (from
-	// 1Password via ESO). Reusable + ephemeral-tagged so each Mac
-	// mini in the fleet authenticates without a separate key, and
-	// stale node records age out automatically. Empty disables the
-	// Tailscale step even when TailscaleBinaries is present — covers
-	// chart bring-up where the key hasn't been provisioned yet.
+	// TailscaleAuthKey is the per-fleet Tailscale join credential
+	// (from 1Password via ESO): an OAuth client secret, which
+	// `tailscale up` turns into a freshly minted key per join. It is
+	// deliberately not a pre-auth key: those expire after at most 90
+	// days, and an expired one is an outage rather than a degraded
+	// mode (2026-08-12). See renderTailscaleScript for the properties
+	// pinned on the minted key. Empty disables the Tailscale step even
+	// when TailscaleBinaries is present, covering chart bring-up where
+	// the credential hasn't been provisioned yet.
 	TailscaleAuthKey string
 
 	// TailscaleTags are the Tailscale ACL tags advertised on this
 	// node at `tailscale up` time. Drives which ACL groups can dial
 	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
-	// cluster's `tag:cluster-scraper` group on :9091 + :9100. Empty
-	// uses the auth key's default tag.
+	// cluster's `tag:cluster-scraper` group on :9091 + :9100.
+	// Required with an OAuth-client credential, which always mints
+	// tagged keys and carries no default tag; empty only works with a
+	// legacy pre-auth key, whose own tag binding then applies.
 	TailscaleTags []string
 
 	// TailscaleAcceptRoutes adds `--accept-routes` to `tailscale up`,
@@ -1774,10 +1779,10 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 //     the daemon. Direct equivalent of `systemctl enable --now
 //     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
 //     job first so new binaries aren't held open).
-//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+
-//     ephemeral keys mean every Mac mini in the fleet uses the same
-//     key and stale node records age out automatically — the right
-//     shape for a CAPI-managed fleet where machines come and go.
+//  3. `tailscale up` with the per-fleet credential. Every Mac mini in
+//     the fleet uses the same one, and the key it mints is ephemeral
+//     so stale node records age out automatically: the right shape
+//     for a CAPI-managed fleet where machines come and go.
 //
 // No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
 // chart's per-env values gate the tailnet end-to-end, and a partial
@@ -1793,6 +1798,10 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 		return nil
 	}
 
+	if err := validateTailscaleCredential(cfg); err != nil {
+		return err
+	}
+
 	// Stage 1: write the auth key. See function-level comment for the
 	// security rationale.
 	keyScript := `set -euo pipefail
@@ -1804,6 +1813,25 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	}
 
 	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// validateTailscaleCredential rejects a config the host could only fail on.
+//
+// A key minted through an OAuth client is always tagged, and the tag has to be
+// named at join time, because the credential carries no default to fall back
+// on. A legacy pre-auth key carries its own tag binding, so it stays valid
+// untagged while envs migrate.
+//
+// Checked here rather than on the host so the error reaches
+// Machine.status.failureMessage instead of surfacing 60s later as a join
+// timeout that reads like a network fault, and read off the credential rather
+// than the rendered script so it can't perturb HostConfigHash (which
+// neutralizes TailscaleAuthKey).
+func validateTailscaleCredential(cfg Config) error {
+	if strings.HasPrefix(cfg.TailscaleAuthKey, "tskey-client-") && len(cfg.TailscaleTags) == 0 {
+		return errors.New("tailscale credential is an OAuth client secret but TailscaleTags is empty; OAuth-minted keys must be tagged at join time")
+	}
+	return nil
 }
 
 // renderTailscaleScript builds the stage-2 SSH script (extract binaries,
@@ -1943,6 +1971,34 @@ if [ "$DAEMON_READY" != true ]; then
   exit 1
 fi
 
+# The credential is an OAuth client secret, which Tailscale accepts
+# wherever an auth key goes and turns into a freshly minted key for
+# this join. OAuth clients don't expire; pre-auth keys are capped at
+# 90 days, which is a scheduled outage nobody can turn off. See the
+# chart's macos-fleet-tailscale-external-secrets.yaml.
+#
+# preauthorized=true because the implicitly minted key defaults to
+# false, and a host parked in manual-approval limbo fails this join
+# exactly the way an expired credential would.
+#
+# ephemeral=true carries its weight only for the first four hours of a
+# host's life: Tailscale converts a device that stays online that long
+# into a standard tagged one, so a mini that ran for weeks is no longer
+# ephemeral by the time CAPI replaces it and its record outlives the
+# machine either way. It is set to preserve the behaviour the fleet
+# already had, NOT because it cleans up after the fleet. Nothing deletes
+# a mini's tailnet device today (reconcileDelete revokes the kubelet
+# identity and stops there); a reaper is the tracked follow-up, and
+# ephemeral should go once one exists.
+#
+# The prefix test leaves a legacy pre-auth key working untouched:
+# appending these parameters to one would corrupt it, and bootstrap
+# has to succeed against either credential while envs migrate.
+TS_AUTH_KEY="$(sudo cat /etc/tuist/tailscale-auth-key)"
+case "$TS_AUTH_KEY" in
+  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=true&preauthorized=true" ;;
+esac
+
 # Capture up's combined stdout+stderr so a failure surfaces
 # actionable diagnostics. The auth key is expanded by the remote
 # shell from the file Stage 1 wrote; the formatted script body
@@ -1950,7 +2006,7 @@ fi
 TS_UP_LOG=$(mktemp)
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
-    --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
+    --authkey="$TS_AUTH_KEY" \
     --reset \
     --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
