@@ -252,13 +252,8 @@
       /* Push the actions to the right edge now that the menus hug the logo. */
       margin-left: auto;
 
-      /* On mobile only Sign up remains; Log in lives in the sign-up flow.
-         The extra inline padding matches the primary button next to it,
-         whose label span carries its own 0/spacing-2 inset — the neutral
-         button renders its text as plain inner content. */
+      /* On mobile only Sign up remains; Log in lives in the sign-up flow. */
       & > [data-part="log-in"] {
-        padding-inline: calc(var(--noora-spacing-3) + var(--noora-spacing-2));
-
         @media (max-width: 960px) {
           display: none;
         }
