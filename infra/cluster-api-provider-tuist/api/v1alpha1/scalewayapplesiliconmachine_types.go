@@ -50,8 +50,12 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// its whole runner pool in Aug 2026 while sitting on
 	// macos-tahoe-26.3.
 	//
-	// Legacy exact-image values still work: they normalize to their
-	// family, so a CR carrying macos-tahoe-26.3 behaves as "Tahoe".
+	// A value naming a specific image is refused at adoption with an
+	// InvalidOSPin condition rather than widened to its family —
+	// silently granting any Tahoe host to someone who asked for 26.5
+	// would be worse than saying no. Release is deliberately lenient:
+	// Machines predating this carry exact pins in their own specs and
+	// have to be able to drain.
 	// +kubebuilder:default=Tahoe
 	OS string `json:"os,omitempty"`
 

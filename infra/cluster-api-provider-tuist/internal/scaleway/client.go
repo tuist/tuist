@@ -308,6 +308,31 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 // pin as the thing needing an operator fix.
 var ErrOSNotPublished = errors.New("os pin names an image Scaleway no longer publishes")
 
+// ErrOSPinNotFamily reports that a fleet's os pin names a specific
+// image ("macos-tahoe-26.5") where a release family ("Tahoe") is
+// required.
+//
+// Adoption refuses it rather than widening it to the family. Silently
+// treating an exact pin as its family would tell an operator who
+// asked for 26.5 that they got it while handing them any Tahoe host,
+// and a pin nobody can honour should fail where it is written, not
+// somewhere downstream.
+//
+// Release deliberately does not enforce this: Machines predating the
+// switch to families carry exact pins in their own specs, and
+// refusing to release one would strand it — host still claimed and
+// billing, finalizer never clearing. A drain path has to accept what
+// already exists.
+var ErrOSPinNotFamily = errors.New("os pin must name a release family, not a specific image")
+
+// osPinIsFamily reports whether a pin names a family rather than an
+// image. Families are place names — Tahoe, Sequoia, Sonoma, Ventura,
+// Golden Gate — and carry no digits, so a digit anywhere is a version
+// the fleet cannot actually hold.
+func osPinIsFamily(pin string) bool {
+	return !strings.ContainsAny(pin, "0123456789")
+}
+
 // AdoptFromPool claims a pre-ordered server in `zone` whose
 // Scaleway-side name starts with `poolPrefix`, matches
 // (`serverType`, `osName`), and is `Delivered=true` +
@@ -352,6 +377,14 @@ var ErrOSNotPublished = errors.New("os pin names an image Scaleway no longer pub
 func (c *Client) AdoptFromPool(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
 	if poolPrefix == "" {
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
+	}
+	if !osPinIsFamily(osName) {
+		// Matching is case-insensitive, so the derived key is a
+		// literal the operator can paste straight into the fleet's
+		// values without worrying about capitalisation.
+		return nil, fmt.Errorf(
+			"%w: %q pins an image; set the fleet's os to its family instead (%q)",
+			ErrOSPinNotFamily, osName, osFamilyKey(osName))
 	}
 
 	c.adoptMu.Lock()

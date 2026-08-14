@@ -368,7 +368,7 @@ func TestAdoptFromPool_HappyPath(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("AdoptFromPool returned error: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestAdoptFromPool_IdempotentRediscovery(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("expected idempotent rediscovery, got error: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestAdoptFromPool_RaceLost_SkipsCandidate(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-mine", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-mine", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("AdoptFromPool returned error: %v", err)
 	}
@@ -465,7 +465,7 @@ func TestAdoptFromPool_OrphanReAdopted(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-recovered", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-recovered", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("orphan re-adoption returned error: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestAdoptFromPool_NoEligibleHosts(t *testing.T) {
 			api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{tc.srv}}
 			c := newTestClient(api)
 			_, err := c.AdoptFromPool(context.Background(),
-				"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+				"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 			if !errors.Is(err, ErrNoAvailableHost) {
 				t.Fatalf("expected ErrNoAvailableHost, got %v", err)
 			}
@@ -558,7 +558,7 @@ func TestAdoptFromPool_Phase2FailureSurfacesError(t *testing.T) {
 	c := newTestClient(api)
 
 	_, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected phase-2 error to be surfaced, got nil")
 	}
@@ -578,7 +578,7 @@ func TestAdoptFromPool_RequiresPoolPrefix(t *testing.T) {
 	api := &fakeAppleSiliconAPI{}
 	c := newTestClient(api)
 	_, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "")
 	if err == nil {
 		t.Fatalf("expected error when poolPrefix is empty")
 	}
@@ -608,7 +608,7 @@ func TestAdoptFromPool_Phase1Update404SkipsCandidate(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("phase 1 404 should be race-lost, not error; got %v", err)
 	}
@@ -635,7 +635,7 @@ func TestAdoptFromPool_Phase1UpdateNon404SurfacesError(t *testing.T) {
 	c := newTestClient(api)
 
 	_, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected non-404 phase 1 error to be surfaced")
 	}
@@ -663,7 +663,7 @@ func TestAdoptFromPool_Phase1Verify404SkipsCandidate(t *testing.T) {
 	c := newTestClient(api)
 
 	srv, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("verify 404 should be race-lost, not error; got %v", err)
 	}
@@ -684,7 +684,7 @@ func TestAdoptFromPool_Phase1VerifyNon404SurfacesError(t *testing.T) {
 	c := newTestClient(api)
 
 	_, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected non-404 verify error to be surfaced")
 	}
@@ -969,10 +969,10 @@ func TestOSFamilyKey(t *testing.T) {
 }
 
 func TestAdoptFromPool_MatchesAnyPointReleaseInFamily(t *testing.T) {
-	// The outage in one assertion: a fleet still pinned at the retired
-	// macos-tahoe-26.3 must adopt a pool host running current Tahoe.
-	// Under exact-name matching this returned ErrNoAvailableHost while
-	// the host sat there ready.
+	// The point of pinning a family: a Tahoe fleet adopts whichever
+	// Tahoe point release Scaleway is shipping, so a retirement or a
+	// default bump can't strand it the way macos-tahoe-26.3 stranded
+	// staging.
 	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{{
 		ID: "srv-1", Name: "tuist-pool-abc", Status: applesilicon.ServerStatusReady,
 		Delivered: true, Type: "M2-L",
@@ -981,12 +981,37 @@ func TestAdoptFromPool_MatchesAnyPointReleaseInFamily(t *testing.T) {
 	c := newTestClient(api)
 
 	got, err := c.AdoptFromPool(context.Background(),
-		"tuist-tuist-runners-fleet-0", "fr-par-1", "M2-L", "macos-tahoe-26.3", "tuist-pool-")
+		"tuist-tuist-runners-fleet-0", "fr-par-1", "M2-L", "Tahoe", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("expected a current Tahoe host to satisfy a Tahoe fleet, got %v", err)
 	}
 	if got.ID != "srv-1" {
 		t.Fatalf("adopted %q, want srv-1", got.ID)
+	}
+}
+
+func TestAdoptFromPool_RejectsVersionedPin(t *testing.T) {
+	// A versioned pin is refused rather than quietly widened to its
+	// family: an operator who wrote 26.5 would otherwise be handed any
+	// Tahoe host and told nothing. Refusing before the scan also means
+	// no candidate is renamed, so nothing is half-claimed.
+	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{{
+		ID: "srv-1", Name: "tuist-pool-abc", Status: applesilicon.ServerStatusReady,
+		Delivered: true, Type: "M2-L",
+		Os: &applesilicon.OS{Name: "macos-tahoe-26.5", Family: "Tahoe", Version: "26.5"},
+	}}}
+	c := newTestClient(api)
+
+	_, err := c.AdoptFromPool(context.Background(),
+		"tuist-tuist-runners-fleet-0", "fr-par-1", "M2-L", "macos-tahoe-26.5", "tuist-pool-")
+	if !errors.Is(err, ErrOSPinNotFamily) {
+		t.Fatalf("expected ErrOSPinNotFamily, got %v", err)
+	}
+	if !strings.Contains(err.Error(), `"tahoe"`) {
+		t.Fatalf("error should name the family to use instead, got %v", err)
+	}
+	if api.updateCalls != 0 {
+		t.Fatalf("nothing may be claimed when the pin is invalid; got %d rename(s)", api.updateCalls)
 	}
 }
 

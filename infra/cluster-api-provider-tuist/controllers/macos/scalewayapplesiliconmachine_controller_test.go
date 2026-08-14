@@ -967,7 +967,7 @@ func newAdoptMachine(name string) *infrav1.ScalewayAppleSiliconMachine {
 			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Type: "M2-L",
 			Zone: "fr-par-1",
-			OS:   "macos-tahoe-26.3",
+			OS:   "Tahoe",
 		},
 	}
 }

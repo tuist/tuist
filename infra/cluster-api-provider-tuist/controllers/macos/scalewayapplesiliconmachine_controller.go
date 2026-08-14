@@ -1545,6 +1545,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 		machine.Spec.OS,
 		poolPrefix,
 	)
+	// A versioned pin is a configuration error, not absent capacity.
+	// Reporting it as NoAvailableHost would send an operator to
+	// pre-order hosts that could never match. Requeue slowly: nothing
+	// changes until someone edits the fleet's os.
+	if errors.Is(err, scaleway.ErrOSPinNotFamily) {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "InvalidOSPin",
+			clusterv1.ConditionSeverityError, "%v", err)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "InvalidOSPin",
+			"Fleet os %q pins a specific image; adoption requires a release family. %v",
+			machine.Spec.OS, err)
+		return nil, 5 * time.Minute, nil
+	}
 	if errors.Is(err, scaleway.ErrNoAvailableHost) {
 		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost",
 			clusterv1.ConditionSeverityWarning,
