@@ -24,6 +24,8 @@
 @import "css/new/routes/blog-post.css";
 @import "css/new/routes/changelog.css";
 @import "css/new/routes/changelog-entry.css";
+@import "css/new/routes/customers.css";
+@import "css/new/routes/case-study.css";
 @import "css/new/routes/page.css";
 @import "css/new/layouts/components/navbar.css";
 @import "css/new/layouts/components/footer.css";
@@ -89,6 +91,13 @@
 
 [data-fill="neutral-10"] {
   fill: var(--marketing-illustration-neutral-10);
+}
+
+/* Purple accent dots in the customer cover artwork (see
+   MarketingCustomerCovers): 500 needs the light background, 400 the dark
+   one, same flip as the site-wide focus ring. */
+[data-fill="purple"] {
+  fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 }
 
 /* One focus treatment for the whole redesign, noora components included:
