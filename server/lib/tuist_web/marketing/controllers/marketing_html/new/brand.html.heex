@@ -1,0 +1,145 @@
+<% # Each showcase grid is a 2x2 row-flow: color on light / color on dark,
+# then mono on light / mono on dark. The cells are download links for the
+# exact asset they preview.
+wordmark_cells = [
+  %{
+    src: ~p"/marketing/images/brand/tuist-wordmark.svg",
+    surface: "light",
+    alt: dgettext("marketing", "Tuist wordmark in color on a light background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-wordmark-dark.svg",
+    surface: "dark",
+    alt: dgettext("marketing", "Tuist wordmark in color on a dark background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-wordmark-mono-light.svg",
+    surface: "light",
+    alt: dgettext("marketing", "Monochrome Tuist wordmark on a light background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-wordmark-mono-dark.svg",
+    surface: "dark",
+    alt: dgettext("marketing", "Monochrome Tuist wordmark on a dark background")
+  }
+]
+
+logo_cells = [
+  %{
+    src: ~p"/marketing/images/brand/tuist-logo.svg",
+    surface: "light",
+    alt: dgettext("marketing", "Tuist logo in color on a light background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-logo-dark.svg",
+    surface: "dark",
+    alt: dgettext("marketing", "Tuist logo in color on a dark background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-logo-mono-light.svg",
+    surface: "light",
+    alt: dgettext("marketing", "Monochrome Tuist logo on a light background")
+  },
+  %{
+    src: ~p"/marketing/images/brand/tuist-logo-mono-dark.svg",
+    surface: "dark",
+    alt: dgettext("marketing", "Monochrome Tuist logo on a dark background")
+  }
+] %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-brand">
+    <%!-- Hero card: same shell as the about page header, plus the primary
+    download action. --%>
+    <header data-part="header">
+      <h1 data-part="title">{dgettext("marketing", "Brand guidelines")}</h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
+        )}
+      </p>
+      <.button
+        href={~p"/marketing/images/brand/tuist-brand-assets.zip"}
+        label={dgettext("marketing", "Download brand assets")}
+        size="large"
+        {[download: true]}
+      >
+        <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
+      </.button>
+    </header>
+
+    <%!-- Wordmark and logo live in ONE continuous frame (no 2px seam
+    between them in Figma) — the seam between the two subsections is the
+    wordmark grid's own bottom hairline. --%>
+    <section data-part="section" aria-label="Brand assets">
+      <div data-part="wordmark">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Wordmark")}</span>
+          <h2 data-part="title">{dgettext("marketing", "Tuist wordmark")}</h2>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "The Tuist wordmark should be used whenever space allows. The color version is preferred, but the monochrome version can be used in layouts or contexts that use a monochrome visual style."
+            )}
+          </p>
+        </div>
+        <div data-part="grid">
+          <div :for={cell <- wordmark_cells} data-part="cell" data-surface={cell.surface}>
+            <img src={cell.src} alt={cell.alt} />
+            <.neutral_button
+              data-part="download"
+              href={cell.src}
+              aria-label={cell.alt}
+              label={dgettext("marketing", "Download")}
+              {[download: true]}
+            >
+              <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
+            </.neutral_button>
+          </div>
+        </div>
+      </div>
+      <div data-part="logo">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Logo")}</span>
+          <h2 data-part="title">{dgettext("marketing", "Tuist logo")}</h2>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "For tight layouts or logo-only grids, the Tuist mark can be used in either color or monochrome. Use whichever fits the surrounding design best, while keeping the full wordmark for contexts where stronger brand recognition is needed."
+            )}
+          </p>
+        </div>
+        <div data-part="grid">
+          <div :for={cell <- logo_cells} data-part="cell" data-surface={cell.surface}>
+            <img src={cell.src} alt={cell.alt} />
+            <.neutral_button
+              data-part="download"
+              href={cell.src}
+              aria-label={cell.alt}
+              label={dgettext("marketing", "Download")}
+              {[download: true]}
+            >
+              <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
+            </.neutral_button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%!-- Usage note: its own frame on the page's 2px seam (Figma: a
+    separate 1198x101 aside below the logo section). --%>
+    <aside data-part="note">
+      <Noora.Icon.icon name="info_circle" />
+      <p>
+        {dgettext(
+          "marketing",
+          "Tuist brand assets are provided for use when referencing or representing Tuist. Please keep the assets as provided and avoid using them in ways that could suggest an official partnership, sponsorship, or endorsement where one doesn't exist. They also shouldn't be incorporated into your own logo, product name, or brand identity. If you're unsure about a particular use, feel free to"
+        )}
+        <a href="mailto:contact@tuist.dev">{dgettext("marketing", "get in touch")}</a> {dgettext(
+          "marketing",
+          "with us"
+        )}.
+      </p>
+    </aside>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

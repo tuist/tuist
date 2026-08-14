@@ -377,6 +377,10 @@ defmodule TuistWeb.Router do
         metadata: @marketing_route_metadata,
         private: private
 
+      get Path.join(locale_path_prefix, "/brand"), MarketingController, :brand,
+        metadata: @marketing_route_metadata,
+        private: private
+
       get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
         metadata: @marketing_route_metadata,
         private: private
