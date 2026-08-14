@@ -15,12 +15,23 @@
 //                            setup.
 //   tag:tuist-macmini-<env>  Mac minis in a specific env's macOS
 //                            fleet (xcresult-processor, customer
-//                            runners, future fleets). Joined via
+//                            runners, future fleets), plus the
+//                            xcresult-processor Tart VMs that share
+//                            the fleet's credential. Joined via
 //                            infra/macos-host-bootstrap; the env
 //                            suffix is set by the operator-image
 //                            flag --tailscale-tags, which the chart
 //                            wires from macosFleet.tailscale.tags
-//                            per env values file.
+//                            per env values file. Like the k8s tag
+//                            below, each env joins with its own
+//                            OAuth client scoped to this tag,
+//                            never a pre-auth key, which Tailscale
+//                            caps at 90 days and which took the
+//                            xcresult queue offline when it lapsed
+//                            (2026-08-12). Tags declared here are
+//                            what an OAuth-minted key applies, so
+//                            a tag removed from tagOwners breaks
+//                            every subsequent join.
 //   tag:tuist-k8s-<env>      Tailscale K8s operator + the cluster-
 //                            side subnet-router Connector it
 //                            provisions, scoped to one env's

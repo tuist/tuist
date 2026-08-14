@@ -98,6 +98,11 @@ public protocol Environmenting: Sendable {
     /// proxy serves every project on the machine, multiplexing by instance.
     func casProxyLaunchAgentLabel() -> String
 
+    /// Returns the machine-wide LaunchAgent label for the host metrics sampling
+    /// daemon. Shared between `tuist setup insights` (which registers the LaunchAgent)
+    /// and `tuist teardown insights` (which boots it out).
+    func metricsSamplerLaunchAgentLabel() -> String
+
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
 
@@ -450,6 +455,10 @@ public struct Environment: Environmenting {
 
     public func casProxyLaunchAgentLabel() -> String {
         "tuist.cas-proxy"
+    }
+
+    public func metricsSamplerLaunchAgentLabel() -> String {
+        "tuist.metrics-sampler"
     }
 
     #if os(macOS)
