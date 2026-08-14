@@ -58,7 +58,7 @@ export const NavbarMegaMenu = {
     // cluster closes the panel — those signal the user has left the menu.
     const closers = [
       ...this.navbar.querySelectorAll('[data-part="menus"] [data-part="action"]:not([data-nav-trigger])'),
-      this.navbar.querySelector('[data-part="bar"] > [data-part="tuist"]'),
+      this.navbar.querySelector('[data-part="bar"] [data-part="tuist"]'),
       this.navbar.querySelector('[data-part="bar"] > [data-part="actions"]'),
     ].filter(Boolean);
     for (const closer of closers) {
