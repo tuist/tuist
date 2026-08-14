@@ -455,6 +455,41 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
+  # The brand page only exists in the redesign, so instead of a legacy
+  # fallback the route 404s until the :brand rollout flag is on.
+  def brand(conn, _params) do
+    if Design.new?(conn, :brand) do
+      conn
+      |> assign_structured_data(get_organization_structured_data())
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Brand"), Tuist.Environment.app_url(path: ~p"/brand")}
+        ])
+      )
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(
+          path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Brand guidelines"))
+        )
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign(
+        :head_description,
+        dgettext(
+          "marketing",
+          "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
+        )
+      )
+      |> assign(:head_title, dgettext("marketing", "Brand guidelines"))
+      |> assign(:new_design, true)
+      |> render(:brand_new, layout: false)
+    else
+      raise NotFoundError,
+            dgettext("marketing", "The page you are looking for doesn't exist.")
+    end
+  end
+
   def support(conn, _params) do
     conn
     |> assign_structured_data(get_organization_structured_data())
