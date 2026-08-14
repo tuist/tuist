@@ -71,6 +71,35 @@
     }
   }
 
+  /* Section CTA buttons with a trailing chevron (span + svg matches only the
+     icon_right slot) reveal the arrow on hover: collapsed and transparent by
+     default, it slides in left-to-right while the button widens to fit it. */
+  & .noora-button > span + svg {
+    transform: translateX(calc(-1 * var(--noora-spacing-3)));
+    transition:
+      transform 200ms var(--ease-out-cubic),
+      width 200ms var(--ease-out-cubic),
+      opacity 200ms var(--ease-out-cubic);
+    opacity: 0;
+    width: 0;
+  }
+
+  & .noora-button:hover > span + svg,
+  & .noora-button:focus-visible > span + svg {
+    transform: translateX(0);
+    opacity: 1;
+    width: var(--noora-button-icon-size);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & .noora-button > span + svg {
+      transform: none;
+      transition: none;
+      opacity: 1;
+      width: var(--noora-button-icon-size);
+    }
+  }
+
   /* Full-width dithered band below the features box (same Bayer texture as the
      navbar changelog panel), acting as a section divider. */
   & > [data-part="features-divider"] {
