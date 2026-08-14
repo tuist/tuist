@@ -1,0 +1,341 @@
+/*
+ * Same page skeleton as the new blog index: 1200px bordered boxes separated
+ * by 2px seams. The header box holds the title and the filters bar (category
+ * pills + RSS/Atom), and the timeline is a single bordered box with the date
+ * rail on the left — a vertical hairline with a dot per entry — and the
+ * entry content on the right (the legacy design lives in routes/changelog.css).
+ */
+#marketing-changelog {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* The header[data-part] selector matches the specificity of pages.css's
+     `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
+     ID), whose margins and 1296px max-width must lose to the page frame. */
+  & > header[data-part="header"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the header. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(header[data-part="header"], [data-part="timeline"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  /* Title + filters share one box: no hairline between them, and the box's
+     insets are the page's 64px gutter on desktop. */
+  & > header[data-part="header"] {
+    /* pages.css puts every section on the same z-index, so the timeline box
+       below would paint over the category dropdown escaping this one. While
+       the menu is open the header also has to clear the sticky navbar, so the
+       phone tray's scrim covers the whole viewport. */
+    z-index: var(--noora-z-index-2);
+    padding: var(--noora-spacing-10) var(--noora-spacing-8);
+
+    &:has([data-part="trigger"][data-state="open"]) {
+      z-index: var(--noora-z-index-12);
+    }
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13);
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+    }
+  }
+
+  & [data-part="filters-bar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    margin-top: var(--noora-spacing-9);
+
+    /* The pill row is the desktop presentation of the categories; below
+       1024px the dropdown below takes over. */
+    & > [data-part="categories"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: flex;
+        column-gap: var(--noora-spacing-2);
+        row-gap: var(--noora-spacing-3);
+        flex: 1;
+        flex-wrap: wrap;
+        align-items: center;
+        min-width: 0;
+      }
+
+      & > [data-part="category"] {
+        flex-shrink: 0;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+        border-radius: var(--noora-radius-99);
+        padding: var(--noora-spacing-3) var(--noora-spacing-6);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-decoration: none;
+        white-space: nowrap;
+
+        &[data-selected] {
+          background: var(--noora-surface-background-secondary);
+          color: var(--noora-surface-label-primary);
+        }
+
+        &:not([data-selected]):hover {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+
+    /* Category dropdown: the tab/mobile stand-in for the pill row. */
+    & > [data-part="category-select"] {
+      flex-shrink: 0;
+
+      @media (min-width: 1024px) {
+        display: none;
+      }
+
+      /* On phones the menu is a tray pinned to the bottom of the viewport
+         behind a modal scrim, instead of a popover anchored to the trigger.
+         Zag positions the popover with inline styles, so overriding its
+         placement needs !important (same treatment as the blog index). */
+      @media (max-width: 767px) {
+        & > [data-part="positioner"] {
+          position: fixed !important;
+          transform: none !important;
+          z-index: var(--noora-z-index-12);
+          inset: auto 0 0 0 !important;
+          padding: 0;
+
+          &::before {
+            position: fixed;
+            backdrop-filter: blur(2.5px);
+            inset: 0;
+            background: var(--noora-surface-overlay);
+            content: "";
+          }
+        }
+
+        & .noora-dropdown-content {
+          position: relative;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-4) var(--noora-radius-4) 0 0;
+          width: 100%;
+          max-height: 60vh;
+        }
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      /* Keeps the buttons at the right edge next to the narrow dropdown. */
+      margin-left: auto;
+    }
+  }
+
+  & > [data-part="timeline"] {
+    /* The rail: the dates' column, the gap the vertical line runs through
+       (the line sits at its center, dots on top of it), and the content
+       column with the entries. */
+    --changelog-date-column: 220px;
+    --changelog-rail-gap: var(--noora-spacing-13);
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    padding: var(--noora-spacing-10) var(--noora-spacing-8);
+
+    @media (min-width: 1024px) {
+      display: grid;
+      /* The content column caps at the comp's 729px; whatever is left of the
+         1200px box past the date column and rail stays empty on the right. */
+      grid-template-columns: var(--changelog-date-column) minmax(0, 729px);
+      column-gap: var(--changelog-rail-gap);
+      /* 96px between one changelog entry and the next. */
+      row-gap: var(--noora-spacing-16);
+      /* The columns add up to less than the box's inner width, so center
+         the group instead of leaving all the slack on the right. The rail
+         and dots are drawn relative to the columns, so they follow. */
+      justify-content: center;
+      align-items: start;
+      padding: var(--noora-spacing-13);
+    }
+
+    /* Both the dot anchor and the date group pin 7px above the group's
+       resting nudge, so a pinned date's text line and the dot stay level
+       with each other (and with where the title's first line pins). */
+    --changelog-sticky-top: calc(var(--noora-spacing-16) - 7px);
+
+    & > [data-part="date-cell"] {
+      /* Phones stack the date group above its entry, 24px from the title
+         to keep the entry rhythm; 96px separates it from the previous
+         entry, mirroring the desktop row gap. Scoped to phones: these have
+         higher specificity than a bare margin override in the desktop
+         block, so they must not apply there at all. */
+      @media (max-width: 1023px) {
+        margin-bottom: var(--noora-spacing-8);
+
+        &:not(:first-child) {
+          margin-top: var(--noora-spacing-16);
+        }
+      }
+
+      @media (min-width: 1024px) {
+        grid-column: 1;
+        /* The cell is the sticky range: it stretches over the whole row and
+           runs 64px into the 96px row gap, so the dot comes to rest just
+           above the next entry's title while the date group (taller, so it
+           releases sooner) never reaches the next row's group. */
+        align-self: stretch;
+        margin-bottom: calc(-1 * var(--noora-spacing-13));
+      }
+
+      /* The rail ends at the last entry's resting dot, so that date group
+         must not travel: its content scrolls past a fixed date and dot.
+         Relative, not static — the dot's absolute anchor has to stay. */
+      &:has(+ [data-part="entry"]:last-of-type) > [data-part="date-group"] {
+        @media (min-width: 1024px) {
+          position: relative;
+          /* The sticky rule's top offset must not apply: on a relative box
+             it would shift the group down instead of setting a pin. */
+          top: auto;
+        }
+      }
+
+      /* Date with its category tag 12px below and the dot on the rail, all
+         one sticky unit so the dot can never drift from its date. */
+      & > [data-part="date-group"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        /* Phones keep the stack's uniform 24px rhythm; next to the rail the
+           tag tucks 12px under its date. */
+        gap: var(--noora-spacing-8);
+
+        @media (min-width: 1024px) {
+          position: sticky;
+          top: var(--changelog-sticky-top);
+          /* Right-aligned so every date ends next to its dot. */
+          align-items: flex-end;
+          gap: var(--noora-spacing-5);
+          z-index: var(--noora-z-index-1);
+          /* Nudged so the date's line centers on the dot and the title's
+             first line, rather than hanging from the same box top. */
+          padding-top: 7px;
+
+          /* The dot, centered on the date's text line (which at rest is
+             also the title's first line) and on the rail's hairline. */
+          &::before {
+            position: absolute;
+            top: calc(7px + (1.5rem - 9px) / 2);
+            right: calc(-1 * var(--changelog-rail-gap) / 2 - 5px);
+            border-radius: var(--noora-radius-99);
+            background: light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700));
+            width: 9px;
+            height: 9px;
+            content: "";
+          }
+        }
+      }
+
+      & [data-part="date"] {
+        display: block;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+        @media (min-width: 1024px) {
+          text-align: right;
+          white-space: nowrap;
+        }
+      }
+    }
+
+    & > [data-part="entry"] {
+      display: flex;
+      position: relative;
+      /* 24px between the items of an entry: tag, title row and body. */
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-8);
+      min-width: 0;
+      scroll-margin-top: 120px;
+
+      @media (min-width: 1024px) {
+        grid-column: 2;
+
+        /* Each row draws its own segment of the rail, from its dot's resting
+           spot (the title's first line) down to the next row's (the last
+           entry draws nothing below its dot, so the line starts and ends on
+           a dot). The dots (z-index 1) paint over these segments. */
+        &:not(:last-of-type)::before {
+          position: absolute;
+          top: 19px;
+          bottom: calc(-1 * var(--noora-spacing-16) - 19px);
+          left: calc(-1 * var(--changelog-rail-gap) / 2 - 0.5px);
+          background: var(--marketing-stroke-default);
+          width: 1px;
+          content: "";
+        }
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+        /* The site-wide balance on headings halves any two-line title at its
+           midpoint; here the first line should fill the column instead. */
+        text-wrap: pretty;
+
+        & > a {
+          color: inherit;
+          text-decoration: none;
+        }
+      }
+
+      & > [data-part="body"] {
+        align-self: stretch;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+        /* Every image rounds at 8px — prose.css's site-wide 12px loses
+           here — wearing the light default border. */
+        & img,
+        & video {
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-4);
+        }
+      }
+    }
+
+    & > [data-part="more"] {
+      display: flex;
+      justify-content: center;
+      margin-top: var(--noora-spacing-11);
+
+      @media (min-width: 1024px) {
+        grid-column: 1 / -1;
+        margin-top: 0;
+      }
+    }
+  }
+}

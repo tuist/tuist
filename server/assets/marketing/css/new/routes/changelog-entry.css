@@ -1,0 +1,129 @@
+/*
+ * Same page skeleton as the new blog post: a 1200px bordered box holding
+ * the article (breadcrumb + title + metadata + prose on the site-wide
+ * 650px column with 780px media overhang).
+ */
+#marketing-changelog-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Matches the specificity of pages.css's section margins so the page frame
+     wins (see blog-new.css for the full story). */
+  & > article[data-part="article"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the article. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > article[data-part="article"] {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  & > article[data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--noora-spacing-10) var(--noora-spacing-6) var(--noora-spacing-12);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-15);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* The title column: comfortably wider than the prose so multi-line
+         titles keep a balanced shape. */
+      max-width: 780px;
+
+      & > [data-part="breadcrumb"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > a {
+          color: inherit;
+          text-decoration: none;
+
+          &:hover {
+            color: var(--noora-surface-label-primary);
+            text-decoration: underline;
+          }
+        }
+
+        & > svg {
+          margin: 0 var(--noora-spacing-2);
+          color: var(--noora-surface-label-tertiary);
+        }
+      }
+
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        letter-spacing: -0.02em;
+        text-align: center;
+        text-wrap: balance;
+      }
+
+      & > [data-part="metadata"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > [data-part="separator"] {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    }
+
+    & > [data-part="content"] {
+      box-sizing: border-box;
+      margin-top: var(--noora-spacing-11);
+      width: 100%;
+
+      /* Every image rounds at 8px wearing the light default border, like
+         the timeline — prose.css's site-wide 12px loses here. */
+      & img,
+      & video {
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-4);
+      }
+
+      @media (min-width: 1024px) {
+        max-width: 650px;
+
+        /* Media hangs past the 650px text column to 780px, like the blog
+           post's hero. */
+        & img,
+        & video {
+          margin-left: calc((650px - 780px) / 2);
+          width: 780px;
+          max-width: 780px;
+        }
+      }
+    }
+  }
+}
