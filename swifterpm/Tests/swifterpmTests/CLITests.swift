@@ -126,6 +126,27 @@ struct CLITests {
         }
     }
 
+    @Test
+    func resolveParsesNetrcOptions() throws {
+        #expect(try CLIParser.parse(["--netrc-file", "/tmp/netrc", "resolve"]).netrcFile?.path == "/tmp/netrc")
+        #expect(!(try CLIParser.parse(["--disable-netrc", "resolve"]).netrc))
+    }
+
+    @Test
+    func netrcIsEnabledByDefault() throws {
+        #expect(try CLIParser.parse(["resolve"]).netrc)
+        #expect(try CLIParser.parse(["--enable-netrc", "resolve"]).netrc)
+    }
+
+    @Test
+    func forceNetrcIsAParsedFlagRatherThanAnIgnoredOne() throws {
+        // `--netrc` is SwiftPM's `forceNetrc`, which disables the keychain for
+        // registry requests. Stripping it as a deprecated spelling of
+        // `--enable-netrc` would silently invert registry precedence.
+        #expect(try CLIParser.parse(["--netrc", "resolve"]).forceNetrc)
+        #expect(!(try CLIParser.parse(["resolve"]).forceNetrc))
+    }
+
     @Test(arguments: ["--disable-prefetching", "--enable-prefetching"])
     func deprecatedSwiftPackageManagerOptionsAreAccepted(option: String) throws {
         // `tuist install` forwards passthrough arguments verbatim and ahead of the
@@ -155,12 +176,14 @@ struct CLITests {
             let scratch = root.appendingPathComponent("Scratch")
             let config = root.appendingPathComponent("registries.json")
             let packageInfoCache = root.appendingPathComponent("PackageInfo")
+            let netrc = root.appendingPathComponent("netrc")
 
             let command = try await SwifterPMCommandParser.parse([
                 "--package-path", package.path,
                 "--cache-path", cache.path,
                 "--scratch-path", scratch.path,
                 "--config-path", config.path,
+                "--netrc-file", netrc.path,
                 "--default-registry-url", "https://registry.example.com",
                 "--disable-sandbox",
                 "--force-resolved-versions",
@@ -180,6 +203,7 @@ struct CLITests {
             #expect(request.cacheDirectory == cache.standardizedFileURL)
             #expect(request.scratchDirectory == scratch.standardizedFileURL)
             #expect(request.registryConfigurationPath == config.standardizedFileURL)
+            #expect(request.netrc == SwifterPMNetrcConfiguration(path: netrc.standardizedFileURL))
             #expect(request.defaultRegistryURL == "https://registry.example.com")
             #expect(request.disableSandbox)
             #expect(request.forceResolvedVersions)

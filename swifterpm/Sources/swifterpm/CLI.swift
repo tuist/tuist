@@ -36,6 +36,9 @@ struct CLI {
     var buildPath: CLIPath?
     var configPath: CLIPath?
     var securityPath: CLIPath?
+    var netrcFile: CLIPath?
+    var netrc = true
+    var forceNetrc = false
     var disableSandbox = false
     var enableDependencyCache = false
     var disableDependencyCache = false
@@ -152,6 +155,7 @@ public enum SwifterPMCommandParser {
                         cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir),
                     registryConfigurationPath: paths.resolve(cli.configPath),
                     defaultRegistryURL: cli.defaultRegistryURL,
+                    netrc: CLIRunner.netrcConfiguration(cli: cli, paths: paths),
                     disableSandbox: cli.disableSandbox,
                     disablePackageInfoCache: cli.disablePackageInfoCache,
                     packageInfoCacheDirectory: paths.resolve(cli.packageInfoCachePath),
@@ -181,6 +185,7 @@ public enum SwifterPMCommandParser {
                 cli: cli, paths: paths, packageDir: package, commandScratchDir: nil),
             registryConfigurationPath: paths.resolve(cli.configPath),
             defaultRegistryURL: cli.defaultRegistryURL,
+            netrc: CLIRunner.netrcConfiguration(cli: cli, paths: paths),
             disableSandbox: cli.disableSandbox,
             forceResolvedVersions: cli.forceResolvedVersions || cli.disableAutomaticResolution
                 || cli.onlyUseVersionsFromResolvedFile,
@@ -223,6 +228,15 @@ public struct SwifterPMCommand: AsyncParsableCommand {
 
     @Option(name: .customLong("security-path"))
     var securityPath: String?
+
+    @Option(name: .customLong("netrc-file"))
+    var netrcFile: String?
+
+    @Flag(inversion: .prefixedEnableDisable)
+    var netrc = true
+
+    @Flag(name: .customLong("netrc"))
+    var forceNetrc = false
 
     @Flag(name: .customLong("disable-sandbox"))
     var disableSandbox = false
@@ -305,6 +319,9 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             buildPath: CLIPath.optional(buildPath),
             configPath: CLIPath.optional(configPath),
             securityPath: CLIPath.optional(securityPath),
+            netrcFile: CLIPath.optional(netrcFile),
+            netrc: netrc,
+            forceNetrc: forceNetrc,
             disableSandbox: disableSandbox,
             enableDependencyCache: enableDependencyCache,
             disableDependencyCache: disableDependencyCache,
@@ -354,6 +371,13 @@ enum CLIParser {
 /// subcommand parse, because `.allUnrecognized` on `commandArguments` only
 /// collects arguments that trail the `action` positional, and `tuist install`
 /// forwards passthrough arguments ahead of it.
+///
+/// No netrc option belongs in this set. `--netrc` looks like a deprecated spelling
+/// of `--enable-netrc` and is not: SwiftPM's `SecurityOptions.forceNetrc` is a
+/// separate, undeprecated flag that disables the keychain for registry requests, so
+/// swallowing it would quietly invert registry precedence. `--netrc-optional` is
+/// absent for the opposite reason: Swift 6.3.2 rejects it outright, and tolerating
+/// it would make us more permissive than the tool we are standing in for.
 public enum DeprecatedSwiftPMOptions {
     static let ignored: Set<String> = [
         "--disable-prefetching",
@@ -488,66 +512,83 @@ struct CLIPathResolver {
 }
 
 enum CLIRunner {
+    static func netrcConfiguration(cli: CLI, paths: CLIPathResolver)
+        -> SwifterPMNetrcConfiguration
+    {
+        SwifterPMNetrcConfiguration(
+            isEnabled: cli.netrc,
+            path: paths.resolve(cli.netrcFile),
+            forcesNetrc: cli.forceNetrc
+        )
+    }
+
     static func run(_ cli: CLI) async throws {
         try await Environment.withCachedDirectoryMaterialization(
             cli.cachedDirectoryMaterialization
         ) {
             let paths = try await CLIPathResolver(chdir: cli.chdir)
-
-            switch cli.command {
-            case .resolve(let options):
-                try ensureWholePackageResolution(
-                    packageName: options.packageName,
-                    version: options.version,
-                    branch: options.branch,
-                    revision: options.revision
-                )
-                try await runResolutionCommand(
-                    cli: cli,
-                    paths: paths,
-                    packageDir: options.packageDir,
-                    cacheDir: options.cacheDir,
-                    preferResolvedFile: true,
-                    write: options.write,
-                    restore: options.restore,
-                    printOnly: options.printOnly
-                )
-            case .update(let options):
-                if !options.packageNames.isEmpty {
-                    throw ToolError.message("package-specific update is not supported yet")
-                }
-                try await runResolutionCommand(
-                    cli: cli,
-                    paths: paths,
-                    packageDir: options.packageDir,
-                    cacheDir: options.cacheDir,
-                    preferResolvedFile: false,
-                    write: options.write,
-                    restore: options.restore,
-                    printOnly: options.printOnly
-                )
-            case .restore(let options):
-                let cache = try await Cache(
-                    root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
-                let package = canonicalPackageDir(
-                    commandPackageDir(
-                        cli: cli, paths: paths, commandPackageDir: options.packageDir))
-                let scratch = commandScratchDir(
-                    cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir)
-                let registryConfig = try await cliRegistryConfig(
-                    cli: cli, paths: paths, package: package)
-                let resolved = try await ResolvedFile.read(packageDir: package)
-                try await WorkspaceRestorer.restorePackage(
-                    scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
-                    resolved: resolved,
-                    progress: cli.quiet ? nil : RestoreProgressReporter(),
-                    disableSandbox: cli.disableSandbox)
-                try await maybeWritePackageInfoCache(
-                    cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
-                try await WorkspaceRestorer.writeWorkspaceState(
-                    packageDir: package, scratchDir: scratch, resolved: resolved,
-                    disableSandbox: cli.disableSandbox)
+            let netrc = try await Netrc.resolve(
+                netrcConfiguration(cli: cli, paths: paths), environment: Environment.current)
+            try await Environment.withNetrc(netrc) {
+                try await runCommand(cli: cli, paths: paths)
             }
+        }
+    }
+
+    private static func runCommand(cli: CLI, paths: CLIPathResolver) async throws {
+        switch cli.command {
+        case .resolve(let options):
+            try ensureWholePackageResolution(
+                packageName: options.packageName,
+                version: options.version,
+                branch: options.branch,
+                revision: options.revision
+            )
+            try await runResolutionCommand(
+                cli: cli,
+                paths: paths,
+                packageDir: options.packageDir,
+                cacheDir: options.cacheDir,
+                preferResolvedFile: true,
+                write: options.write,
+                restore: options.restore,
+                printOnly: options.printOnly
+            )
+        case .update(let options):
+            if !options.packageNames.isEmpty {
+                throw ToolError.message("package-specific update is not supported yet")
+            }
+            try await runResolutionCommand(
+                cli: cli,
+                paths: paths,
+                packageDir: options.packageDir,
+                cacheDir: options.cacheDir,
+                preferResolvedFile: false,
+                write: options.write,
+                restore: options.restore,
+                printOnly: options.printOnly
+            )
+        case .restore(let options):
+            let cache = try await Cache(
+                root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
+            let package = canonicalPackageDir(
+                commandPackageDir(
+                    cli: cli, paths: paths, commandPackageDir: options.packageDir))
+            let scratch = commandScratchDir(
+                cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir)
+            let registryConfig = try await cliRegistryConfig(
+                cli: cli, paths: paths, package: package)
+            let resolved = try await ResolvedFile.read(packageDir: package)
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                resolved: resolved,
+                progress: cli.quiet ? nil : RestoreProgressReporter(),
+                disableSandbox: cli.disableSandbox)
+            try await maybeWritePackageInfoCache(
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved,
+                disableSandbox: cli.disableSandbox)
         }
     }
 
