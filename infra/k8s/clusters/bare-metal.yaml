@@ -308,6 +308,19 @@ spec:
           # be: unbounded growth of a kernel resource reaches whatever the
           # limit is, and the fix is to stop leaking rather than to budget
           # against a constant.
+          #
+          # Scope caveat, established while remediating the live hosts:
+          # the root-level leak above is one of TWO equally sized leaked
+          # populations. The other is /sys/fs/cgroup/kata_overhead/<id>,
+          # one per sandbox, also never reclaimed — 65478 and 65486
+          # respectively on the host that wedged. This setting explains
+          # and fixes the root-level one. Whether it also stops the
+          # kata_overhead leak is NOT established: the shim creates those
+          # cgroups either way, and only a host running this config can
+          # settle it. Check kata_overhead growth specifically on the
+          # first host provisioned after this lands. The cgroup-count
+          # alert covers both regardless, because it counts cgroups
+          # rather than matching a name.
           SystemdCgroup = true
           KATAQEMU
       # Two-label gate, both required for caph to claim an HBM:

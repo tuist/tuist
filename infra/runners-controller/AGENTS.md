@@ -540,37 +540,98 @@ cgroup objects roughly 1:1, asynchronously (`/proc/cgroups` trails the
 directory count by a few seconds, so re-read it after a pause rather
 than concluding the removal did nothing).
 
-The sweep is safe by construction and needs no drain. The path pattern
-is itself the guard: a correctly-nested cgroup lives under
-`kubepods.slice`, so anything matching `kubepods-*.slice:cri-containerd:*`
-at the cgroup *root* is by definition leaked. Skipping any entry with a
-non-empty `cgroup.procs` leaves the live kata containers (which the same
-bug also parks at the root) untouched, and an in-use cgroup would fail
-`EBUSY` anyway.
+**There are two leaked populations, not one, and they are the same
+size.** Sweeping only the first leaves the node at half its leak and
+looks like the reclaim failed:
 
-Reachable without SSH via a debug Pod, which is also how to run it when
-the 1Password SSH key path is unavailable:
+- `/sys/fs/cgroup/*:cri-containerd:*` — the literal slice names at the
+  cgroup root, described above.
+- `/sys/fs/cgroup/kata_overhead/*` — one per sandbox, named by
+  container ID. Same shape (flat empty leaves), same one-per-container
+  -start growth, never reclaimed.
+
+On the wedged production host these were 65478 and 65486 respectively.
+Sweeping only the root population dropped `/proc/cgroups` memory from
+131134 to 65710 and no further, which reads as a stuck reclaim; it was
+`kata_overhead` still holding the other half. Sweeping both took it to
+250.
+
+Whether `SystemdCgroup = true` also stops the `kata_overhead` leak is
+**not established**. The root-level leak is explained by the cgroup
+driver mismatch; the overhead cgroups are created by the shim either
+way, and only a host running the fixed config can settle it. Check
+`kata_overhead` growth specifically on the first newly provisioned
+host. The alert covers this either way — it counts cgroups, not
+directory names, which is why it was set against normal (hundreds)
+rather than against a known pattern.
+
+The sweep is safe by construction and needs no drain. For the root
+population the path is itself the guard: a correctly-nested cgroup
+lives under `kubepods.slice`, so anything matching
+`*:cri-containerd:*` at the cgroup *root* is by definition leaked.
+Under `kata_overhead` every child is a candidate. In both cases
+skipping a non-empty `cgroup.procs` leaves live sandboxes untouched —
+measured as `kept_busy` equal to the number of running containers — and
+an in-use cgroup would fail `EBUSY` anyway.
+
+**Verify with the directory count, not `/proc/cgroups`.** Directory
+counts drop immediately and deterministically. `/proc/cgroups` lags by
+tens of seconds and keeps counting cgroups whose directory is gone but
+whose charges are not yet reclaimed, so a clean host can read 1500
+there while holding 65 directories.
+
+For a node that can still start Pods, no SSH is needed:
 
 ```bash
 kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- \
-  sh -c 'cd /host/sys/fs/cgroup
-         for d in $(ls -d kubepods-*.slice:cri-containerd:* 2>/dev/null); do
-           [ -s "$d/cgroup.procs" ] && continue
-           rmdir "$d" 2>/dev/null
+  sh -c 'for p in /host/sys/fs/cgroup /host/sys/fs/cgroup/kata_overhead; do
+           cd "$p" || continue
+           for d in *; do
+             [ -d "$d" ] || continue
+             case "$p" in */kata_overhead) ;; *) case "$d" in *:cri-containerd:*) ;; *) continue ;; esac ;; esac
+             [ -s "$d/cgroup.procs" ] && continue
+             rmdir "$d" 2>/dev/null
+           done
          done'
 ```
 
-Measured on `bm-tuist-staging-runners-linux-v5bcr-gwn8x-7mhgg`
-(2026-08-13, 85-day host, never rebooted): 3359 leaked directories of
-3398 total root entries. Full sweep removed all 3359 with zero
-failures and zero busy skips, took the cgroup root back to 39 entries,
-and dropped kernel cgroups from 8338 to 4981. The node stayed `Ready`
-with no pressure condition throughout and its running Pods were
-unaffected.
+**A fully wedged node cannot be swept this way**, and this is the
+important limitation. Creating the debug Pod is itself a Pod creation,
+so it fails with the same error the node is failing everything else
+with:
 
-So a wedged host does **not** need a Hetzner Robot hardware reset. The
-reboot only ever mattered as a blunt way to clear the cgroup root, and
-the sweep does that directly while the node keeps serving.
+```
+FailedCreatePodContainer: unable to ensure pod container exists: failed to
+create container for [kubepods besteffort pod<uid>] : mkdir
+/sys/fs/cgroup/kubepods.slice/.../kubepods-besteffort-pod<uid>.slice:
+no space left on device
+```
+
+The Pod sits `Pending` indefinitely. On such a host go in over SSH
+("Emergency SSH access" below) and run the sweep directly. Prefer
+`python3` over a shell loop there: at 65k entries a `kubepods-*` glob
+exceeds `ARG_MAX`, so `ls -d <glob> | wc -l` reports **0** rather than
+failing loudly, and a shell loop forks `rmdir` once per directory.
+Count with `ls | grep -c ':cri-containerd:'` instead.
+
+Measured on both production hosts and staging/canary (2026-08-13):
+
+| host | state | root leaked | `kata_overhead` | memcg before → after |
+| --- | --- | --- | --- | --- |
+| prod `vl8jt` | wedged, ENOSPC | 65478 | 65489 | 131134 → 250 |
+| prod `bkzxh` | rebooted 08-13, re-leaking | 14 | 322 | 621 → 287 |
+| staging | 85-day | 3359 | 3359 | 8338 → 1552 |
+| canary | 85-day | 2855 | 2855 | 7208 → 1509 |
+
+Zero failures anywhere. Every node stayed `Ready` with no pressure
+condition and its running Pods were unaffected. The wedged host went
+from every Pod `Pending` to 16 `Running` within a minute of the sweep,
+without a reboot.
+
+So the Hetzner Robot hardware reset is avoidable even on a wedged
+host — but only over SSH. The reboot only ever mattered as a blunt way
+to clear the cgroup tree, and the sweep does that while the node keeps
+serving.
 
 `node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
 "Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.

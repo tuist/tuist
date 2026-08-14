@@ -589,6 +589,22 @@ check whether the count grows with container starts
 node_cgroups_cgroups`) — that is the signature of a runtime not cleaning
 up, and the fix is the runtime config, not a bigger node.
 
+Counting cgroups rather than matching a directory pattern is what makes
+this alert robust, and that paid off immediately. The 2026-08-13 leak
+turned out to have two populations of the same size — the literal slice
+names at the cgroup root and a second set under
+`/sys/fs/cgroup/kata_overhead/` — and the remediation initially swept
+only the first. This series counted both throughout, because a leaked
+cgroup raises it regardless of where in the tree it sits or what it is
+called.
+
+One caveat when reading it after a remediation: `/proc/cgroups` keeps
+counting cgroups whose directory is gone but whose charges the kernel
+has not reclaimed yet. A freshly swept node can read in the low
+thousands here while holding a few dozen directories, and it drains
+over the following minutes. Confirm a sweep with
+`find /sys/fs/cgroup -type d | wc -l`, not with this metric.
+
 Requires the `cgroups` collector, enabled via `extraArgs` on the
 node-exporter DaemonSet in `values.yaml`; it is off in the upstream
 chart default.
