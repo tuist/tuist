@@ -7,8 +7,22 @@ enum Environment {
     @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
+    /// The netrc every download authenticates against. Entry points install it once
+    /// per resolution, so the unbound value means no netrc source was configured.
+    @TaskLocal
+    static var netrc: Netrc = .empty
+
     static var isCI: Bool {
         ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"].contains { current[$0] != nil }
+    }
+
+    static func withNetrc<T>(
+        _ netrc: Netrc,
+        operation: () async throws -> T
+    ) async throws -> T {
+        try await Environment.$netrc.withValue(netrc) {
+            try await operation()
+        }
     }
 
     static func cachedDirectoryMaterializationMode()

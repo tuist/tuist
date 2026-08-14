@@ -467,6 +467,148 @@ that collector enabled or a per-host sink (a Node condition from tart-kubelet,
 which already has the DiskPressure probe pattern, or a node_exporter textfile
 gauge written by `tuist-pf-vmnat` itself).
 
+### Runner queue not draining
+
+Runner capacity can collapse without a single component reporting a
+fault. On 2026-08-13 one of the two Linux fleet nodes
+(`bm-tuist-runners-linux-pvv5b-249nj-bkzxh`) stopped being able to
+create pod cgroups — kubelet failed every new sandbox with
+`mkdir /sys/fs/cgroup/kubepods.slice/...: no space left on device`
+after 85 days of uptime. Kubelet reports that per Pod, not as a node
+condition, so the node stayed `Ready` with no Memory/Disk/PID pressure
+and, being the emptiest node in the fleet, the scheduler preferred it.
+Every Pod it accepted sat in `Init:0/4` holding a slot in the
+fleet-wide provisioning ceiling (`maxConcurrentPerFleetSelector: 4`)
+until the 5-minute start timeout reaped it, and the replacement landed
+on the same node. The ceiling stayed saturated by Pods that could never
+run, so every sibling shape was refused admission with
+`reason="fleet_cap"`. The autoscaler asked for 160 replicas and the
+fleet ran 5. Around 111 jobs queued over 5.5 hours. Nothing paged; it
+was noticed by a person looking at the queue.
+
+```promql
+max by (cluster, env, fleet) (
+  tuist_runners_queue_oldest_age_seconds
+) > 1800
+```
+
+- Pending period: 5 minutes
+- Severity: critical
+- `affected_service`: the runners component (customer-visible — a job
+  that never starts is indistinguishable from CI being down)
+- Summary: `Workflow jobs on {{ $labels.fleet }} have been queued for
+  over 30 minutes in {{ $labels.cluster }}: the fleet is not draining
+  its queue`
+
+Age, not depth, for the same reason the remote-processing rule uses it,
+and the reason is already written into the metric's definition in
+`Tuist.Runners.PromExPlugin`: a busy fleet serving arrivals promptly and
+a fleet that has stopped starting Pods entirely both sit at a non-zero
+depth. Only age separates them, and only age keeps climbing while
+nothing drains. During this incident depth oscillated between 0 and 111
+as bursts arrived and partially cleared, so a depth threshold would
+have flapped; the oldest-job age climbed monotonically.
+
+`max by` is required: PromEx polling gauges are reported once per server
+pod, so a bare `>` would fire on whichever replica polled first and the
+series would double-count.
+
+30 minutes is well clear of a normal wait — a queued job lands on a
+Pod within seconds when the fleet is healthy, and even a cold-start
+sandbox is minutes — while still catching the stall long before it
+reaches the hours this incident ran.
+
+This rule deliberately keys on the queue rather than on any particular
+cause. Cgroup exhaustion, an expired runner image pull secret, a
+saturated fleet, and a wedged provisioning ceiling all present as "jobs
+are queued and not starting", and only the queue itself is common to
+all of them.
+
+There is no automated containment behind this alert, by choice: a
+per-node circuit breaker was built and dropped because on a two-node
+fleet it could quarantine both nodes and stall everything outright (see
+`infra/runners-controller/AGENTS.md`). This alert is the detection, and
+the response is manual.
+
+When it fires, the first question is whether one node is eating the
+fleet's provisioning ceiling:
+
+```bash
+kubectl get pods -n tuist-runners -o wide | grep -v Running
+```
+
+Runner Pods stuck in `Init` and concentrated on a single node is the
+signature. `kubectl describe pod` on one of them names the cause, and
+`kubectl cordon <node>` restores throughput on the remaining nodes
+immediately. Cordoning does not evict the already-bound Pods, so delete
+them too or the ceiling stays occupied until the start timeout reaps
+them:
+
+```bash
+kubectl delete pod -n tuist-runners -l tuist.dev/runner=true --field-selector spec.nodeName=<node>
+```
+
+### Node leaking cgroups
+
+```promql
+max by (cluster, env, instance) (
+  node_cgroups_cgroups{subsys_name="memory"}
+) > 20000
+```
+
+- Pending period: 15 minutes
+- Severity: warning
+- Summary: `{{ $labels.instance }} holds {{ $value }} cgroups — something
+  is leaking them, and at exhaustion the node fails every new Pod sandbox`
+
+A node that runs out of cgroups fails every subsequent `mkdir` in
+cgroupfs with ENOSPC, which kubelet reports per Pod as
+`FailedCreatePodContainer: ... no space left on device`. None of that
+surfaces as a node condition: the node stays `Ready` with no
+Memory/Disk/PID pressure while being unable to start a single Pod, so
+the scheduler keeps feeding it. On 2026-08-13 a Linux runner node
+reached that state after 85 days of a kata cgroup-driver leak and took
+the fleet's throughput to near zero (see "Runner queue not draining").
+
+The threshold keys on the leak, not on the ceiling. The exact kernel
+limit was never pinned down during that incident — the memory controller
+was past 130k cgroups, so it is not the 16-bit `MEM_CGROUP_ID_MAX`
+figure that circulates — and it does not need to be, because the
+diagnostic property is that the count is unbounded rather than that it
+is near a specific number.
+
+20000 is chosen against normal, not against the limit: a healthy node
+sits in the hundreds, and the failing pair sat around 130k. Anything in
+five figures is already anomalous by two orders of magnitude while still
+leaving a large multiple of headroom before the observed failure point.
+
+Read it as a rate, not a level. A node flat at 20k has whatever it has;
+a node at 5k doubling weekly is the one about to fail. If this fires,
+check whether the count grows with container starts
+(`kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep
+node_cgroups_cgroups`) — that is the signature of a runtime not cleaning
+up, and the fix is the runtime config, not a bigger node.
+
+Counting cgroups rather than matching a directory pattern is what makes
+this alert robust, and that paid off immediately. The 2026-08-13 leak
+turned out to have two populations of the same size — the literal slice
+names at the cgroup root and a second set under
+`/sys/fs/cgroup/kata_overhead/` — and the remediation initially swept
+only the first. This series counted both throughout, because a leaked
+cgroup raises it regardless of where in the tree it sits or what it is
+called.
+
+One caveat when reading it after a remediation: `/proc/cgroups` keeps
+counting cgroups whose directory is gone but whose charges the kernel
+has not reclaimed yet. A freshly swept node can read in the low
+thousands here while holding a few dozen directories, and it drains
+over the following minutes. Confirm a sweep with
+`find /sys/fs/cgroup -type d | wc -l`, not with this metric.
+
+Requires the `cgroups` collector, enabled via `extraArgs` on the
+node-exporter DaemonSet in `values.yaml`; it is off in the upstream
+chart default.
+
 ### Tuist server replicas unavailable
 
 ```promql

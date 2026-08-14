@@ -274,6 +274,54 @@ spec:
           pod_annotations = ["io.katacontainers.*"]
           [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
           ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
+          # SystemdCgroup MUST be set here explicitly. The sed above only
+          # rewrites the occurrences present in `containerd config default`
+          # output, and this block is appended afterwards — so the kata-qemu
+          # handler silently kept the `false` default while kubelet ran
+          # `cgroupDriver: systemd`.
+          #
+          # Under that mismatch the kata shim does not resolve the systemd
+          # cgroup parent kubelet hands it. It creates the slice name as a
+          # LITERAL directory at the cgroup root:
+          #   /sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>
+          # instead of nesting it under kubepods.slice. Nothing owns those
+          # directories — systemd never knew about them and the shim does not
+          # remove them on exit — so they accumulate one per container start
+          # and are never reclaimed.
+          #
+          # Left to accumulate, the node eventually fails every cgroup mkdir
+          # with ENOSPC, which kubelet surfaces as `FailedCreatePodContainer:
+          # ... no space left on device`. It keeps reporting Ready with no
+          # pressure condition, because the failure is per Pod rather than a
+          # node condition, so the scheduler keeps feeding it and every Pod it
+          # accepts wedges in Init.
+          #
+          # Measured on 2026-08-13, same workload, same 85-day provisioning:
+          # the node that failed and its sibling both sat around 65k leaked
+          # root cgroups / ~130k total descendants, against 70 on one freshly
+          # rebooted. Growth was ~2/min under load, so a node reaches that
+          # magnitude in roughly a month of runner churn.
+          #
+          # The exact kernel ceiling was not pinned down (the memory
+          # controller was past 130k cgroups, so it is not the 16-bit
+          # MEM_CGROUP_ID_MAX some write-ups point at). It does not need to
+          # be: unbounded growth of a kernel resource reaches whatever the
+          # limit is, and the fix is to stop leaking rather than to budget
+          # against a constant.
+          #
+          # Scope caveat, established while remediating the live hosts:
+          # the root-level leak above is one of TWO equally sized leaked
+          # populations. The other is /sys/fs/cgroup/kata_overhead/<id>,
+          # one per sandbox, also never reclaimed — 65478 and 65486
+          # respectively on the host that wedged. This setting explains
+          # and fixes the root-level one. Whether it also stops the
+          # kata_overhead leak is NOT established: the shim creates those
+          # cgroups either way, and only a host running this config can
+          # settle it. Check kata_overhead growth specifically on the
+          # first host provisioned after this lands. The cgroup-count
+          # alert covers both regardless, because it counts cgroups
+          # rather than matching a name.
+          SystemdCgroup = true
           KATAQEMU
       # Two-label gate, both required for caph to claim an HBM:
       #   - `app.kubernetes.io/managed-by=hetzner-robot-controller`
