@@ -34,7 +34,6 @@
 #   --set      kuraRuntime.image.tag=<release>
 #   --set      kuraRuntime.instance.name=<release>-kura
 #   --set      kuraRuntime.instance.publicHost=kura-<slug>.preview.tuist.dev
-#   --set-file kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua
 global:
   commonLabels:
     tuist.dev/environment: preview

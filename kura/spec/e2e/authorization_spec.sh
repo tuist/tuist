@@ -1,16 +1,16 @@
 # shellcheck shell=bash
 
-Describe 'extension hooks'
+Describe 'cache authorization'
   Include spec/e2e/support.sh
 
   setup_suite() {
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
-      -f "${PROJECT_ROOT}/test/e2e/docker-compose.extension.yml"
+      -f "${PROJECT_ROOT}/test/e2e/docker-compose.auth.yml"
     )
     setup_suite_tmpdir
 
-    suite_env COMPOSE_PROJECT_NAME kura-extension
+    suite_env COMPOSE_PROJECT_NAME kura-authorization
     ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -38,9 +38,9 @@ Describe 'extension hooks'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  It 'enforces authz and signs module cache responses'
+  It 'admits a token that grants the project and refuses one that does not'
     unauthorized_status="$(status_only -X POST \
-      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios" \
+      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=default&namespace_id=ios" \
       -H "content-type: application/octet-stream" \
       --data-binary "xcode-binary")"
     The variable unauthorized_status should eq 401
@@ -51,20 +51,33 @@ Describe 'extension hooks'
     The value "${android_token}" should be present
 
     authorized_status="$(status_only -X POST \
-      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios" \
+      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=default&namespace_id=ios" \
       -H "authorization: Bearer ${ios_token}" \
       -H "content-type: application/octet-stream" \
       --data-binary "xcode-binary")"
     The variable authorized_status should eq 204
 
-    forbidden_status="$(status_only \
-      "${KURA_EU_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios" \
+    # These nodes hold no route to a Tuist server, so a token whose grants do
+    # not cover the request cannot be settled at all: the node reports that it
+    # could not reach an answer rather than inventing one.
+    unsettled_status="$(status_only \
+      "${KURA_EU_URL}/api/cache/cas/artifact-1?tenant_id=default&namespace_id=ios" \
       -H "authorization: Bearer ${android_token}")"
-    The variable forbidden_status should eq 403
+    The variable unsettled_status should eq 503
+
+    # A tenant this node does not serve is refused without leaving the node.
+    wrong_tenant_status="$(status_only \
+      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios" \
+      -H "authorization: Bearer ${ios_token}")"
+    The variable wrong_tenant_status should eq 403
+  End
+
+  It 'carries the principal through a replicated module cache upload'
+    capture_into ios_token jwt_for_namespace ios || return 1
 
     capture_into start_response \
       curl -fsS -X POST \
-      "${KURA_US_URL}/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      "${KURA_US_URL}/api/cache/module/start?tenant_id=default&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
       -H "authorization: Bearer ${ios_token}" || return 1
     upload_id="$(extract_upload_id "${start_response}")"
     The value "${upload_id}" should be present
@@ -91,23 +104,17 @@ Describe 'extension hooks'
     The variable complete_status should eq 204
 
     wait_for_status_with \
-      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=default&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
       200 \
       -H "authorization: Bearer ${ios_token}" >/dev/null || return 1
 
-    headers_file="${SUITE_TMP_DIR}/module.headers"
     body_file="${SUITE_TMP_DIR}/module.body"
     capture_into curl_output \
       curl -fsS \
-      -D "${headers_file}" \
       -o "${body_file}" \
-      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=default&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
       -H "authorization: Bearer ${ios_token}" || return 1
     body="$(cat "${body_file}")"
-    signature="$(awk 'BEGIN {IGNORECASE=1} /^x-cache-signature:/ {print $2}' "${headers_file}" | tr -d '\r')"
-    expected="$(expected_signature hash-1)"
     The variable body should eq 'part-one-part-two'
-    The value "${signature}" should be present
-    The variable signature should eq "${expected}"
   End
 End

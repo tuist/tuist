@@ -117,9 +117,8 @@ services:
       # this path; it introspects each token against the control plane using the
       # control-plane client above, so only valid Tuist tokens for this account
       # can read or write. No JWT verifier secret is involved.
-      KURA_EXTENSION_ENABLED: "1"
-      KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
-      KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.dev"
+      KURA_AUTH_ENABLED: "1"
+      KURA_AUTH_TUIST_URL: "https://tuist.dev"
     volumes:
       - kura-tls:/tls            # empty; enrollment populates it
       - kura-data:/var/cache/kura
@@ -154,9 +153,8 @@ services:
       # credential from the Cache page.
       KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
       KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
-      KURA_EXTENSION_ENABLED: "1"
-      KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
-      KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.acme.internal"
+      KURA_AUTH_ENABLED: "1"
+      KURA_AUTH_TUIST_URL: "https://tuist.acme.internal"
 
       # Register the client-facing cache URL with the Tuist server.
       KURA_REGISTRATION_URL: "https://tuist.acme.internal/_internal/kura/mesh/registrations"
@@ -170,15 +168,13 @@ services:
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
     volumes:
       - kura-data:/var/cache/kura
-      # Only needed when your Kura image does not bundle the Tuist hook:
-      # - ./tuist.lua:/etc/kura/extensions/tuist.lua:ro
 volumes:
   kura-data: {}
 ```
 
 For a single node, leave peer TLS unset and set `KURA_PEERS` to an empty string. When `KURA_PEERS` is unset, Kura seeds static peer discovery from `KURA_NODE_URL` and periodically checks that URL's `/_internal/status` endpoint. With peer TLS disabled, `KURA_NODE_URL` must use the `http://` scheme even when the node is reachable through a private network name.
 
-The `tuist.lua` mount is only needed when your Kura image does not already bundle the hook at that path. `KURA_CONTROL_PLANE_URL` is not needed in this example because the auth hook and usage reporter use `KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` must be the URL that your developers and CI can reach; the Tuist server advertises ready, registered endpoints to Kura-enabled CLI clients.
+`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` must be the URL that your developers and CI can reach; the Tuist server advertises ready, registered endpoints to Kura-enabled CLI clients.
 
 ### Kubernetes with Helm {#standalone-helm}
 
@@ -236,11 +232,9 @@ extraEnv:
       secretKeyRef:
         name: kura-control-plane
         key: client-secret
-  - name: KURA_EXTENSION_ENABLED
+  - name: KURA_AUTH_ENABLED
     value: "1"
-  - name: KURA_EXTENSION_SCRIPT_PATH
-    value: /etc/kura/extensions/tuist.lua
-  - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
+  - name: KURA_AUTH_TUIST_URL
     value: "https://tuist.acme.internal"
   - name: KURA_REGISTRATION_URL
     value: "https://tuist.acme.internal/_internal/kura/mesh/registrations"
@@ -308,23 +302,20 @@ Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, 
 
 ## Authentication of cache requests {#cache-auth}
 
-By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, a node runs an **extension** that introspects every token against the Tuist control plane. The standalone setup above enables this extension against your self-hosted Tuist server.
-
-Images built from this repository bundle the Tuist hook at `/etc/kura/extensions/tuist.lua`. If your image does not contain that file yet, mount the hook yourself and point `KURA_EXTENSION_SCRIPT_PATH` at the mounted file. Then enable it with these variables:
+By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, point the node at your Tuist server. The standalone setup above does this.
 
 | Variable | Value |
 |---|---|
-| `KURA_EXTENSION_ENABLED` | `1` |
-| `KURA_EXTENSION_SCRIPT_PATH` | `/etc/kura/extensions/tuist.lua` |
-| `KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL` | Your Tuist server URL (the introspection target) |
+| `KURA_AUTH_ENABLED` | `1` |
+| `KURA_AUTH_TUIST_URL` | Your Tuist server URL |
 
-The hook reuses the control-plane client you already set (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) as the introspection client, so no extra credential is needed. It runs **introspection-only**: it never needs the symmetric Guardian JWT verifier secret (which could mint tokens for any tenant and is never shared), so every request is authorized against the control plane. Authenticate and authorize both **fail closed** by default, so a node that cannot reach the control plane denies rather than serves. The same hook backs Tuist-managed nodes; the only difference is that managed nodes additionally configure the local JWT fast path, which self-hosted nodes deliberately omit.
+Authorization reuses the control-plane client you already set (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) to introspect tokens, so no extra credential is needed. A self-hosted node runs **introspection-only**: it never holds the symmetric Guardian JWT verifier secret, which could mint tokens for any tenant and is never shared, so every request is authorized against your server. A node that cannot reach it denies rather than serves, and there is no setting that changes that. Tuist-managed nodes run the same authorization; the only difference is that they also hold the verification key, which lets them settle most requests from the token alone.
 
 ## Networking {#networking}
 
 A node makes **outbound** connections depending on which integrations you enable:
 
-- your Tuist server for token introspection (`KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL`), registration heartbeats (`KURA_REGISTRATION_URL`), usage (`KURA_CONTROL_PLANE_URL` or `KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL`), and enrollment in the bridged topology, and
+- your Tuist server for token introspection (`KURA_AUTH_TUIST_URL`), registration heartbeats (`KURA_REGISTRATION_URL`), usage (`KURA_CONTROL_PLANE_URL` or `KURA_AUTH_TUIST_URL`), and enrollment in the bridged topology, and
 - in the bridged topology, the managed mesh's peer gateway, for replication.
 
 Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a multi-node mesh, the nodes reach each other on the peer port). These addresses only need to be reachable **within your network**. They do not need to be exposed to the public internet.

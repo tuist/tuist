@@ -2,7 +2,7 @@
 {
   "title": "SCIM provisioning",
   "titleTemplate": ":title | Authentication | Integrations | Guides | Tuist",
-  "description": "Learn how to configure SCIM provisioning with Okta."
+  "description": "Learn how to configure SCIM provisioning with Okta or Microsoft Entra ID."
 }
 ---
 # SCIM provisioning {#scim-provisioning}
@@ -70,17 +70,68 @@ Configure <.localized_link href="/guides/integrations/authentication/sso#okta">O
 
 To test deprovisioning, unassign or deactivate a user in Okta and verify that they disappear from the Tuist organization's **Members** tab.
 
+## Microsoft Entra ID {#microsoft-entra-id}
+
+Entra ID provisions Tuist through a non-gallery enterprise application. Configure <.localized_link href="/guides/integrations/authentication/sso#microsoft-entra-id">Microsoft Entra ID SSO</.localized_link> first if users should also sign in with Entra ID.
+
+The application you register for single sign-on and the enterprise application you use for provisioning can be the same one. Provisioning is configured on the enterprise application entry.
+
+### Step 1: Generate a Tuist SCIM token {#entra-step-1}
+
+1. In Tuist, navigate to your organization's **Authentication** settings tab.
+2. In the **SCIM provisioning** section, copy the **SCIM endpoint URL**. It should end in `/scim/v2`.
+3. Click **Generate token**.
+4. Name the token (for example, `Entra ID`).
+5. Copy the generated token. Tuist shows the token only once.
+
+### Step 2: Configure provisioning {#entra-step-2}
+
+1. In the Microsoft Entra admin center, go to **Identity > Applications > Enterprise applications** and open the Tuist application.
+2. Open **Provisioning** and set **Provisioning Mode** to **Automatic**.
+3. Set **Tenant URL** to the Tuist SCIM endpoint URL.
+4. Set **Secret Token** to the Tuist SCIM token. Enter the token on its own, without a `Bearer ` prefix; Entra ID adds the scheme itself.
+5. Click **Test Connection**. Entra ID should report that the supplied credentials are authorized.
+6. Save the configuration.
+
+### Step 3: Set the matching attribute {#entra-step-3}
+
+1. Under **Mappings**, open **Provision Microsoft Entra ID Users**.
+2. Confirm that `userPrincipalName` or `mail` maps to the SCIM `userName` attribute, and that this attribute is the one used for **Matching precedence 1**.
+3. Remove `externalId` from the matching attributes if it is present.
+
+Tuist matches provisioned users by `userName`. It does not store the directory object identifier that Entra ID sends as `externalId`, so a filter on that attribute does not find an existing member and provisioning cycles can behave unpredictably.
+
+### Step 4: Disable group provisioning {#entra-step-4}
+
+Under **Mappings**, set **Provision Microsoft Entra ID Groups** to disabled.
+
+Tuist's SCIM groups are two fixed groups that represent organization roles rather than directory groups you can create, so an attempt to provision a directory group fails. Assign roles as described below instead.
+
+### Step 5: Assign users and start provisioning {#entra-step-5}
+
+1. Open the application's **Users and groups** tab and assign the users or groups that should be provisioned into Tuist.
+2. Return to **Provisioning** and start it.
+3. Check Tuist's **Members** tab to verify that assigned users appear in the organization.
+
+Entra ID provisions on its own schedule, which is typically every 40 minutes, so members do not appear instantly. Use **Provision on demand** to test a single user immediately.
+
+To test deprovisioning, unassign or disable a user in Entra ID and verify that they disappear from the Tuist organization's **Members** tab.
+
+### Assigning administrators {#entra-assigning-administrators}
+
+Tuist has two access levels, `admin` and `user`. Define them as app roles on the Entra application, then map the role to the SCIM `roles` attribute so that assignment in Entra ID sets the member's Tuist role. Users provisioned without a role become regular members.
+
 ## Lifecycle behavior {#lifecycle-behavior}
 
-When Okta assigns a user to the SCIM app, Tuist creates the user if the email is not already known to Tuist, then adds them to the organization. If the email already belongs to an existing Tuist user outside the organization, Tuist rejects the request to prevent an IdP from claiming a user that it does not already manage in that organization.
+When your identity provider assigns a user to the provisioning application, Tuist creates the user if the email is not already known to Tuist, then adds them to the organization. If the email already belongs to an existing Tuist user outside the organization, Tuist rejects the request to prevent an IdP from claiming a user that it does not already manage in that organization.
 
-When Okta unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
+When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
-Tuist exposes two synthetic SCIM groups: `Admins` and `Users`. Group membership changes from Okta map to organization roles in Tuist.
+Tuist exposes two synthetic SCIM groups: `Admins` and `Users`. Group membership changes from your identity provider map to organization roles in Tuist.
 
 ## Supported SCIM features {#supported-scim-features}
 
-Tuist supports the SCIM 2.0 endpoints Okta needs for lifecycle management:
+Tuist supports the SCIM 2.0 endpoints identity providers need for lifecycle management:
 
 - `POST`, `GET`, `PUT`, `PATCH`, and `DELETE` for `/Users`.
 - `GET` and `PATCH` for `/Groups`.

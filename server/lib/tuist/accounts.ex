@@ -1167,6 +1167,22 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
+  # The decision only needs the account and its organization, so a caller that
+  # already holds both answers it without touching the database. Resolving cache
+  # grants walks every accessible project, and those projects share a handful of
+  # accounts, so re-reading the account per project dominated the call.
+  def owns_account_or_belongs_to_account_organization?(
+        user,
+        %Account{organization: %Organization{} = organization} = account
+      ) do
+    owns_account?(user, account) or organization_admin?(user, organization) or
+      organization_user?(user, organization)
+  end
+
+  def owns_account_or_belongs_to_account_organization?(user, %Account{organization: nil} = account) do
+    owns_account?(user, account)
+  end
+
   def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
     case get_account_by_id(account_id, preload: [:organization]) do
       {:ok, %Account{organization: nil} = account} ->
@@ -1179,6 +1195,17 @@ defmodule Tuist.Accounts do
       {:error, :not_found} ->
         false
     end
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(
+        user,
+        %Account{organization: %Organization{} = organization} = account
+      ) do
+    owns_account?(user, account) or organization_admin?(user, organization)
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(user, %Account{organization: nil} = account) do
+    owns_account?(user, account)
   end
 
   def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
@@ -1608,32 +1635,53 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
-    query =
-      from(u in UserRole,
-        join: r in Role,
-        on: u.role_id == r.id,
-        where:
-          u.user_id == ^user_id and r.name == "admin" and r.resource_type == "Organization" and
-            r.resource_id == ^organization_id
-      )
-
-    Repo.exists?(query)
+  def organization_admin?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "admin")
   end
 
-  def organization_user?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
-    query =
+  def organization_user?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "user") or
+      (sso_automatic_enrollment_allowed?(organization, user.email) and
+         belongs_to_sso_organization?(user, organization))
+  end
+
+  @doc """
+  Resolves every organization role the user holds in one query and attaches it
+  to the user, so that subsequent membership checks answer from memory.
+
+  Callers that check the same user against many organizations should do this
+  first. Without it each check is its own query, which is what made resolving
+  cache grants scale with the number of projects an account owns.
+  """
+  def put_organization_roles(%User{id: user_id} = user) do
+    roles =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where: u.user_id == ^user_id and r.resource_type == "Organization",
+        select: {r.resource_id, r.name}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    %{user | organization_roles: roles}
+  end
+
+  defp holds_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id}, name)
+       when is_map(roles) do
+    name in Map.get(roles, organization_id, [])
+  end
+
+  defp holds_organization_role?(%User{id: user_id}, %Organization{id: organization_id}, name) do
+    Repo.exists?(
       from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
-          u.user_id == ^user_id and r.name == "user" and r.resource_type == "Organization" and
+          u.user_id == ^user_id and r.name == ^name and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
       )
-
-    Repo.exists?(query) or
-      (sso_automatic_enrollment_allowed?(organization, user.email) and
-         belongs_to_sso_organization?(user, organization))
+    )
   end
 
   def get_invitation_by_id(id) do
@@ -2164,6 +2212,10 @@ defmodule Tuist.Accounts do
   @okta_token_path "/oauth2/v1/token"
   @okta_userinfo_path "/oauth2/v1/userinfo"
 
+  @entra_authority "https://login.microsoftonline.com"
+  @entra_user_info_url "https://graph.microsoft.com/oidc/userinfo"
+  @entra_tenant_regex ~r/\A[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
+
   def oauth2_config_for_organization(%Organization{
         sso_provider: provider,
         sso_organization_id: sso_organization_id,
@@ -2197,6 +2249,55 @@ defmodule Tuist.Accounts do
   def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
   def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"
   def okta_userinfo_url(domain), do: "https://#{domain}#{@okta_userinfo_path}"
+
+  @doc """
+  Microsoft Entra ID is a standards-compliant OpenID Connect provider, so it is
+  stored as a `:oauth2` organization. These helpers derive the endpoints from
+  the directory (tenant) identifier so administrators enter one value instead
+  of three URLs. The site is the `iss` value Entra puts in its v2.0 tokens.
+  """
+  def entra_site_url(tenant), do: "#{@entra_authority}/#{tenant}/v2.0"
+  def entra_authorize_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/authorize"
+  def entra_token_url(tenant), do: "#{@entra_authority}/#{tenant}/oauth2/v2.0/token"
+  def entra_userinfo_url, do: @entra_user_info_url
+
+  def valid_entra_tenant?(tenant) when is_binary(tenant), do: Regex.match?(@entra_tenant_regex, tenant)
+  def valid_entra_tenant?(_tenant), do: false
+
+  @doc """
+  Returns the directory (tenant) identifier when the organization's stored
+  configuration is exactly what `entra_*_url/1` would generate, and `nil`
+  otherwise.
+
+  The match has to be exact. An organization that points at Entra through
+  hand-entered endpoints keeps the generic form, because rewriting its stored
+  URLs would change `sso_organization_id` — the issuer that linked identities
+  are keyed on — and strand every existing member.
+  """
+  def entra_tenant(%Organization{sso_provider: :oauth2} = organization) do
+    with tenant when is_binary(tenant) <- entra_tenant_from_site(organization.sso_organization_id),
+         true <- organization.oauth2_authorize_url == entra_authorize_url(tenant),
+         true <- organization.oauth2_token_url == entra_token_url(tenant),
+         true <- organization.oauth2_user_info_url == entra_userinfo_url() do
+      tenant
+    else
+      _ -> nil
+    end
+  end
+
+  def entra_tenant(_organization), do: nil
+
+  defp entra_tenant_from_site(site) when is_binary(site) do
+    case String.split(site, "/") do
+      ["https:", "", "login.microsoftonline.com", tenant, "v2.0"] ->
+        if valid_entra_tenant?(tenant), do: tenant
+
+      _ ->
+        nil
+    end
+  end
+
+  defp entra_tenant_from_site(_site), do: nil
 
   def sso_organization_for_user_email(email) do
     with {:ok, user} <- get_user_by_email(email),
