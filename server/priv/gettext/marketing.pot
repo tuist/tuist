@@ -3062,3 +3062,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Brand guidelines"
 msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Hola! Hello! Hallo! Olá! Namaste!"
+msgstr ""
