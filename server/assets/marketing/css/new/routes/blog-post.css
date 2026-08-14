@@ -1,0 +1,390 @@
+/*
+ * Same page skeleton as the new blog index: 1200px bordered boxes separated
+ * by 2px seams. The article is one box (breadcrumb + title + hero + prose,
+ * with the prose on the site-wide 650px column and 780px media overhang),
+ * "Read next" is a second box reusing the index grid's card anatomy, and the
+ * page closes with the home CTA framed by its dithered divider bands.
+ */
+#marketing-blog-post {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* Matches the specificity of pages.css's section margins so the page frame
+     wins (see blog-new.css for the full story). */
+  & > article[data-part="article"],
+  & > section {
+    box-sizing: border-box;
+    /* The navbar's own margin-bottom provides the seam above the article. */
+    margin: 0 var(--noora-spacing-1);
+    width: auto;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  & > :is(article[data-part="article"], [data-part="read-next"]) {
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+  }
+
+  & > article[data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--noora-spacing-10) var(--noora-spacing-6) var(--noora-spacing-12);
+
+    @media (min-width: 1024px) {
+      padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-15);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* The title column: comfortably wider than the prose so multi-line
+         titles keep a balanced shape, but never the hero image's width. */
+      max-width: 780px;
+
+      & > [data-part="breadcrumb"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > a {
+          color: inherit;
+          text-decoration: none;
+
+          &:hover {
+            color: var(--noora-surface-label-primary);
+            text-decoration: underline;
+          }
+        }
+
+        & > svg {
+          margin: 0 var(--noora-spacing-2);
+          color: var(--noora-surface-label-tertiary);
+        }
+      }
+
+      & > [data-part="title"] {
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        letter-spacing: -0.02em;
+        text-align: center;
+        text-wrap: balance;
+      }
+
+      & > [data-part="metadata"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        margin-top: var(--noora-spacing-8);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > [data-part="separator"] {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    }
+
+    & > [data-part="image"] {
+      margin-top: var(--noora-spacing-10);
+      /* Same hairline treatment as the prose images below (prose.css). */
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--marketing-illustration-neutral-2);
+      width: 100%;
+      max-width: 780px;
+      height: auto;
+    }
+
+    & > [data-part="content"] {
+      box-sizing: border-box;
+      margin-top: var(--noora-spacing-11);
+      width: 100%;
+
+      /* Every image on the post rounds at 8px, like the hero above —
+         prose.css's site-wide 12px loses here. */
+      & img,
+      & video {
+        border-radius: var(--noora-radius-4);
+      }
+
+      @media (min-width: 1024px) {
+        max-width: 650px;
+
+        /* Media hangs past the 650px text column to the hero's 780px. */
+        & img,
+        & video {
+          margin-left: calc((650px - 780px) / 2);
+          width: 780px;
+          max-width: 780px;
+        }
+      }
+
+      & pre.mermaid {
+        display: flex;
+        justify-content: center;
+        margin: var(--noora-spacing-9) 0;
+      }
+
+      & pre.mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      & .device-showcase {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        gap: var(--noora-spacing-8);
+        /* Keep the device drop shadows off the surrounding paragraphs. */
+        margin: var(--noora-spacing-11) 0;
+      }
+
+      & .device-showcase .device {
+        position: relative;
+        flex: 0 0 auto;
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.06),
+          0 18px 36px -22px rgba(0, 0, 0, 0.45);
+        border-radius: 42px;
+        background: #0a0a0c;
+        padding: 10px;
+        width: 236px;
+      }
+
+      & .device-showcase .device img {
+        display: block;
+        margin: 0;
+        border-radius: 32px;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      & .device-showcase .device::after {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        background: #0a0a0c;
+        content: "";
+      }
+
+      & .device-showcase .device-iphone::after {
+        top: 22px;
+        border-radius: 12px;
+        width: 80px;
+        height: 22px;
+      }
+
+      & .device-showcase .device-android::after {
+        top: 19px;
+        border-radius: 50%;
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  & > [data-part="read-next"] {
+    & > [data-part="title"] {
+      border-bottom: 1px solid var(--marketing-stroke-default);
+      /* 24px vertical, 16px horizontal — an 80px row with the 32px line. */
+      padding: var(--noora-spacing-8) var(--noora-spacing-6);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+    }
+
+    /* The cards are the blog index grid's, one row of three (see
+       blog-new.css): hairlines between cells, arrow slides in on hover. */
+    & > [data-part="posts"] {
+      display: grid;
+      grid-template-columns: 1fr;
+
+      @media (min-width: 1024px) {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      & > [data-part="post"] {
+        display: flex;
+        flex-direction: column;
+        transition: background 0.2s ease;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-8);
+        color: inherit;
+        text-decoration: none;
+
+        &:first-child {
+          border-top: none;
+        }
+
+        @media (min-width: 1024px) {
+          border-top: none;
+
+          &:not(:first-child) {
+            border-left: 1px solid var(--marketing-stroke-default);
+          }
+        }
+
+        &:hover,
+        &:focus-visible {
+          background: var(--noora-surface-background-secondary);
+
+          & > [data-part="footer"] > [data-part="icon"] {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        & > [data-part="cover"] {
+          box-shadow: var(--noora-light-border-default);
+          background: var(--marketing-illustration-neutral-2);
+          aspect-ratio: 16 / 9;
+          overflow: hidden;
+
+          & > [data-part="image"] {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        & > [data-part="content"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-4);
+          margin-top: var(--noora-spacing-6);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+            text-wrap: pretty;
+          }
+
+          & > [data-part="excerpt"] {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            overflow: hidden;
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="footer"] {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+          margin-top: var(--noora-spacing-8);
+
+          & > [data-part="metadata"] {
+            display: flex;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+            & > [data-part="separator"] {
+              color: var(--noora-surface-label-secondary);
+            }
+          }
+
+          & > [data-part="icon"] {
+            display: flex;
+            flex-shrink: 0;
+            transform: translateX(-4px);
+            opacity: 0;
+            transition:
+              opacity 0.2s ease,
+              transform 0.2s var(--ease-out-cubic);
+            color: var(--noora-surface-label-primary);
+          }
+        }
+      }
+    }
+  }
+
+  /* Full-width dithered divider bands framing the CTA — same Bayer texture
+     and shell as the home page's section dividers. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home page CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+}
