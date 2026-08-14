@@ -148,16 +148,26 @@ private func makeTuistCASURLSession(useEnvironmentProxy: Bool) -> URLSession {
     return makeURLSession(configuration: configuration)
 }
 
+/// The floor on how long a whole-file transfer may take. 10 minutes clears a 3GB archive at 40Mbps.
+private let largeTransferResourceTimeout = 600
+
 /// A single transfer here can be several gigabytes, such as a shard's test products. The resource
 /// timeout is a wall-clock cap on the whole transfer rather than a stall guard, so the 90s default
 /// cancels transfers that are progressing normally: finishing 3GB within it requires a sustained
 /// ~270Mbps. The inactivity timeout is the stall guard instead, and the wall-clock cap is only a
-/// backstop against a transfer that trickles: 10 minutes clears a 3GB archive at 40Mbps, and a job
-/// moving something large enough to need longer raises `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE`.
+/// backstop against a transfer that trickles.
+///
+/// The two sessions want `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` to move in opposite directions:
+/// lowering it makes a starved cache request fail fast into a local build, which would put these
+/// transfers back under a cap they cannot meet. It is therefore honored only upward here, so a job
+/// tuning the cache path cannot reintroduce the timeout this floor exists to prevent.
 private func makeTuistLargeTransferURLSession(useEnvironmentProxy: Bool) -> URLSession {
     let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
     configuration.timeoutIntervalForResource = Double(
-        environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 600)
+        max(
+            environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: largeTransferResourceTimeout),
+            largeTransferResourceTimeout
+        )
     )
     return makeURLSession(configuration: configuration)
 }
