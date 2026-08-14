@@ -86,8 +86,8 @@ All of Tuist's [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.or
 
 ```bash
 # Maximum time (in seconds) a single resource transfer can take before it's cancelled
-# (default: 90, or 1800 for whole-file transfers such as test-product shard artifacts)
-export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=600
+# (default: 90, or 600 for whole-file transfers such as test-product shard artifacts)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=1800
 
 # Maximum time (in seconds) to wait for new data on an existing request (default: 120)
 export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST=300
@@ -102,7 +102,7 @@ export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
 export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
-The resource timeout is a wall-clock cap on the whole transfer, not a stall guard, so it has to be large enough for the biggest artifact you move. Whole-file transfers, such as the test products a shard downloads, therefore default to 30 minutes instead of 90 seconds, and a stalled transfer still fails after `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` without new data. Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
+The resource timeout is a wall-clock cap on the whole transfer, not a stall guard, so it has to be large enough for the biggest artifact you move. Whole-file transfers, such as the test products a shard downloads, therefore default to 10 minutes instead of 90 seconds, and a stalled transfer still fails after `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` without new data. Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
 
 ## Trusting a custom CA certificate {#trusting-a-custom-ca-certificate}
 
