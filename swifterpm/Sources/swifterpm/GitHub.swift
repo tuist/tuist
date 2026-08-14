@@ -180,27 +180,38 @@ struct GitFetchAttempt: Sendable {
 /// a working checkout into the same failure as having no credential at all, on machines
 /// where plain git and SwiftPM both succeed.
 ///
-/// So the token goes last. Git resolves the credential itself first, exactly as it did
-/// before swifterpm, then a netrc source only swifterpm can see, then the ambient token.
-/// A setup that has nothing but the token reaches it one failed request later; a setup
-/// that has anything else keeps using it.
+/// So the token stops being an override and becomes a rung. Git resolves the credential
+/// itself, exactly as it did before swifterpm, alongside a netrc source only swifterpm can
+/// see and the ambient token, and whichever the ladder reaches first that works is used.
+///
+/// Which rung goes first is decided by reading git's own configuration once, because both
+/// orderings waste a request in the setup they do not suit. When a rewrite rule, a
+/// credential helper or `~/.netrc` covers the host, git can authenticate unaided and goes
+/// first. When nothing does — a CI runner holding only a token — the injected credential
+/// goes first instead, and the credential-free attempt trails it rather than being dropped:
+/// a public dependency needs no credential at all, so a broken or expired token must never
+/// be the only thing tried.
 enum GitTransportAuth {
     static func attempts(for location: String) async -> [GitFetchAttempt] {
-        var attempts = [
-            GitFetchAttempt(location: location, credential: .gitConfigured, configArguments: []),
-        ]
+        let bare = GitFetchAttempt(
+            location: location, credential: .gitConfigured, configArguments: []
+        )
+        // SSH candidates are always tried bare: ssh-agent is invisible to git's config and
+        // there is no token form for SSH anyway.
         guard location.hasPrefix("https://"),
               let url = URL(string: location),
               let host = url.host
         else {
-            return attempts
+            return [bare]
         }
 
-        // `~/.netrc` is already covered by the attempt above, since git reads it through
+        var injected: [GitFetchAttempt] = []
+
+        // `~/.netrc` is already covered by the bare attempt, since git reads it through
         // curl. This one carries the sources git has no way to know about.
         if let credential = Environment.netrc.credential(for: url) {
             let encoded = basicCredential(user: credential.user, token: credential.password)
-            attempts.append(
+            injected.append(
                 GitFetchAttempt(
                     location: location,
                     credential: .netrc,
@@ -212,7 +223,7 @@ enum GitTransportAuth {
         }
 
         if (try? GitHubRepo(location: location)) != nil, let token = await GitHubAuth.token() {
-            attempts.append(
+            injected.append(
                 GitFetchAttempt(
                     location: location,
                     credential: .gitHubToken,
@@ -222,7 +233,7 @@ enum GitTransportAuth {
         } else if let repo = try? GitLabRepo(location: location),
                   let token = await GitLabAuth.token(host: repo.host)
         {
-            attempts.append(
+            injected.append(
                 GitFetchAttempt(
                     location: location,
                     credential: .gitLabToken,
@@ -230,7 +241,12 @@ enum GitTransportAuth {
                 )
             )
         }
-        return attempts
+
+        guard !injected.isEmpty else { return [bare] }
+        if await GitCredentialDiscovery.gitCanAuthenticate(location) {
+            return [bare] + injected
+        }
+        return injected + [bare]
     }
 
     static func gitHubArguments(token: String) -> [String] {
