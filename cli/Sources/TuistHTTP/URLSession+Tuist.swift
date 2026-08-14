@@ -148,12 +148,12 @@ private func makeTuistCASURLSession(useEnvironmentProxy: Bool) -> URLSession {
     return makeURLSession(configuration: configuration)
 }
 
-/// File transfers move a single artifact that can be several gigabytes, such as a shard's test
-/// products. The resource timeout is a wall-clock cap on the whole transfer rather than a stall
-/// guard, so the 90s default cancels transfers that are progressing normally: finishing 3GB within
-/// it requires a sustained ~270Mbps. Here the inactivity timeout is the stall guard, and the
-/// wall-clock cap matches the one-hour expiry of the presigned URLs artifacts are served from.
-private func makeTuistFileURLSession(useEnvironmentProxy: Bool) -> URLSession {
+/// A single transfer here can be several gigabytes, such as a shard's test products. The resource
+/// timeout is a wall-clock cap on the whole transfer rather than a stall guard, so the 90s default
+/// cancels transfers that are progressing normally: finishing 3GB within it requires a sustained
+/// ~270Mbps. Here the inactivity timeout is the stall guard, and the wall-clock cap matches the
+/// one-hour expiry of the presigned URLs artifacts are served from.
+private func makeTuistLargeTransferURLSession(useEnvironmentProxy: Bool) -> URLSession {
     let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
     configuration.timeoutIntervalForResource = Double(
         environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 3600)
@@ -163,12 +163,14 @@ private func makeTuistFileURLSession(useEnvironmentProxy: Bool) -> URLSession {
 
 private let sharedTuistURLSession = SharedTuistURLSession { makeTuistURLSession(useEnvironmentProxy: $0) }
 private let sharedTuistCASURLSession = SharedTuistURLSession { makeTuistCASURLSession(useEnvironmentProxy: $0) }
-private let sharedTuistFileURLSession = SharedTuistURLSession { makeTuistFileURLSession(useEnvironmentProxy: $0) }
+private let sharedTuistLargeTransferURLSession = SharedTuistURLSession {
+    makeTuistLargeTransferURLSession(useEnvironmentProxy: $0)
+}
 
 func invalidateSharedTuistURLSession() {
     sharedTuistURLSession.invalidate()
     sharedTuistCASURLSession.invalidate()
-    sharedTuistFileURLSession.invalidate()
+    sharedTuistLargeTransferURLSession.invalidate()
 }
 
 extension URLSession {
@@ -188,10 +190,10 @@ extension URLSession {
         sharedTuistCASURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 
-    /// A shared session for whole-file transfers, which are large enough that the
-    /// shared session's wall-clock resource timeout cancels healthy transfers.
-    public static var tuistFile: URLSession {
-        sharedTuistFileURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+    /// A shared session for transfers of whole artifacts, which are large enough that
+    /// `tuistShared`'s wall-clock resource timeout cancels healthy transfers.
+    public static var tuistLargeTransfer: URLSession {
+        sharedTuistLargeTransferURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 }
 
