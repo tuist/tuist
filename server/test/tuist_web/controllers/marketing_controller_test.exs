@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Tuist.Loops
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -15,6 +16,76 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+  end
+
+  describe "GET / (new design rollout)" do
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_home -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_home, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "anonymous responses stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
+    end
+
+    test "authenticated responses are not cacheable by shared caches", %{conn: conn} do
+      # An authenticated user can be actor-gated onto a redesigned page, so
+      # a shared cache must never store their variant at the ordinary URL.
+      user = AccountsFixtures.user_fixture()
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
     end
   end
 

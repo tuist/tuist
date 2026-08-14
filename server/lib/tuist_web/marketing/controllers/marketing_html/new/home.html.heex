@@ -1,0 +1,1082 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-home">
+    <div data-part="platform-hero" id="marketing-platform-hero" phx-hook="PlatformBackground">
+      <div data-part="stage">
+        <TuistWeb.Marketing.MarketingHomeComponents.platform_hero_panels />
+        <div data-part="layout">
+          <div data-part="hero-row">
+            <section data-part="hero">
+              <span data-part="edge-glow" aria-hidden="true"></span>
+              <header data-part="title">
+                <h1>
+                  <span data-part="line">{dgettext("marketing", "Your platform team,")}</span>
+                  <span data-part="line">{dgettext("marketing", "as a service")}</span>
+                </h1>
+              </header>
+
+              <div data-part="subtitle">
+                <p>
+                  {dgettext(
+                    "marketing",
+                    "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+                  )}
+                </p>
+              </div>
+
+              <nav data-part="actions" aria-label="Primary actions">
+                <.button
+                  href={~p"/users/register"}
+                  label={dgettext("marketing", "Get started")}
+                >
+                </.button>
+                <.button
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+                  variant="secondary"
+                  label={dgettext("marketing", "Talk to us")}
+                >
+                </.button>
+              </nav>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section data-part="company-logos" aria-label="Organizations using Tuist">
+      <div data-part="side-panel" aria-hidden="true">
+        <div data-part="box"></div>
+        <div data-part="box"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block" data-fill></div>
+        <div data-part="grid-block" data-fill></div>
+        <div data-part="grid-block" data-fill></div>
+      </div>
+
+      <div data-part="logos" phx-hook="LogoTransition" id="company-logos">
+        <div data-part="logo-group">
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.org_logo name="socar" label="Socar" />
+          <% else %>
+            <.org_logo name="trendyol" label="Trendyol" />
+          <% end %>
+          <.org_logo name="adidas" label="Adidas" />
+          <.org_logo name="asana" label="Asana" />
+          <.org_logo name="etsy" label="Etsy" />
+          <.org_logo name="monday" label="Monday.com" />
+          <.org_logo name="altel" label="Altel" />
+        </div>
+
+        <div data-part="logo-group">
+          <.org_logo name="ford" label="Ford" />
+          <.org_logo name="target" label="Target" />
+          <.org_logo name="soundcloud" label="SoundCloud" />
+          <.org_logo name="zillow" label="Zillow" />
+          <.org_logo name="waze" label="Waze" />
+          <.org_logo name="justeat" label="Just Eat" />
+        </div>
+
+        <div data-part="logo-group">
+          <.org_logo name="monzo" label="Monzo" />
+          <.org_logo name="getyourguide" label="GetYourGuide" />
+          <.org_logo name="depop" label="Depop" />
+          <.org_logo name="qonto" label="Qonto" />
+          <.org_logo name="chegg" label="Chegg" />
+          <.org_logo name="bending_spoons" label="Bending Spoons" />
+        </div>
+      </div>
+
+      <div data-part="side-panel" aria-hidden="true">
+        <div data-part="box"></div>
+        <div data-part="box"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block"></div>
+        <div data-part="grid-block" data-fill></div>
+        <div data-part="grid-block" data-fill></div>
+        <div data-part="grid-block" data-fill></div>
+      </div>
+    </section>
+
+    <section data-part="features">
+      <div data-part="cache">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Cache")}</span>
+          <h2>{dgettext("marketing", "Never build the same thing twice.")}</h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Share build artifacts across your team and CI, so no one waits on code that's already compiled."
+            )}
+          </p>
+          <.button
+            href={localized_href("/cache")}
+            variant="secondary"
+            size="medium"
+            label={dgettext("marketing", "Learn more")}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
+        <div data-part="illustration" id="cache-illustration" phx-hook="CacheChart">
+          <div data-part="panel" data-variant="without-cache">
+            <div data-part="stats">
+              <div data-part="stat">
+                <span>{dgettext("marketing", "Build time:")}</span>
+                <strong data-count-source="build-slow" data-count-format="time">
+                  {dgettext("marketing", "40m 00s")}
+                </strong>
+              </div>
+              <div data-part="stat">
+                <span>{dgettext("marketing", "Cache hit rate:")}</span>
+                <strong data-count-format="percent">0%</strong>
+              </div>
+            </div>
+            <div data-part="chart">
+              <span data-part="chart-label">{dgettext("marketing", "Without cache")}</span>
+              <canvas data-part="canvas" data-half="without" aria-hidden="true"></canvas>
+            </div>
+          </div>
+          <div data-part="panel" data-variant="with-cache">
+            <div data-part="stats">
+              <div data-part="stat">
+                <span>{dgettext("marketing", "Build time:")}</span>
+                <strong data-count-source="build-fast" data-count-format="time">
+                  {dgettext("marketing", "02m 00s")}
+                </strong>
+                <span
+                  class="noora-badge"
+                  data-style="light-fill"
+                  data-color="primary"
+                  data-size="large"
+                  data-icon="true"
+                >
+                  <div data-part="icon"><.trending_down /></div>
+                  <span data-count-source="savings" data-count-format="percent">95%</span>
+                </span>
+              </div>
+              <div data-part="stat">
+                <span>{dgettext("marketing", "Cache hit rate:")}</span>
+                <strong data-count-source="hit-fast" data-count-format="percent">92%</strong>
+              </div>
+            </div>
+            <div data-part="chart">
+              <span data-part="chart-label">{dgettext("marketing", "With cache")}</span>
+              <canvas data-part="canvas" data-half="with" aria-hidden="true"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div data-part="quote-feature">
+        <div data-part="illustration" aria-hidden="true">
+          <svg
+            data-part="logo-outline"
+            viewBox="0 0 450 450"
+            fill="none"
+            style="stroke: var(--marketing-illustration-neutral-1)"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M166.021 4.89453C206.57 -5.97148 247.874 6.56767 275.598 34.2324L276.006 34.6396L276.562 34.4912C314.405 24.3939 356.445 34.1877 386.127 63.8691C415.81 93.552 425.604 135.595 415.507 173.436L415.473 173.562V174.111L415.766 174.403C443.434 202.126 455.97 243.431 445.106 283.979C434.243 324.525 402.731 354.029 364.909 364.206L364.353 364.355L364.203 364.911C354.028 402.731 324.527 434.244 283.978 445.107C243.432 455.971 202.125 443.431 174.402 415.767L173.995 415.359L173.438 415.508C135.594 425.607 93.5537 415.811 63.8721 386.13C34.1905 356.447 24.3949 314.404 34.4922 276.563L34.6406 276.007L34.2344 275.599C6.567 247.875 -5.97093 206.571 4.89258 166.022C15.7561 125.477 47.2697 95.9724 85.0898 85.7969L85.6465 85.6475L85.7959 85.0908C95.9714 47.2707 125.473 15.758 166.021 4.89453ZM301.316 339.24C301.316 343.52 299.034 347.477 295.326 349.616L295.325 349.617L200.025 404.636L198.733 405.382L199.915 406.293C221.24 422.754 249.732 429.433 277.765 421.923C317.297 411.329 343.519 375.842 344.072 336.85L343.358 336.84H344.072V238.73C344.072 235.511 342.384 232.509 339.667 230.815L339.4 230.655L302.816 209.533L301.316 208.667V339.24ZM275.805 283.79L164.223 348.211C160.634 350.283 156.233 350.349 152.59 348.405L152.24 348.211L56.9424 293.189L55.6504 292.443L55.4521 293.922C51.9583 319.89 59.8674 347.098 79.1836 367.451H79.1318L80.8398 369.158C109.781 398.096 153.622 403.06 187.668 384.045L187.675 384.041L187.681 384.037L272.647 334.983C275.529 333.321 277.305 330.215 277.305 326.897V282.925L275.805 283.79ZM296.421 128.745C293.544 127.083 289.965 127.097 287.093 128.756L250.509 149.878L249.009 150.744L250.509 151.61L362.091 216.03V216.031C365.799 218.17 368.082 222.128 368.082 226.407V337.939L369.462 337.373C394.38 327.136 414.412 305.799 421.922 277.766C432.513 238.237 414.893 197.783 381.4 177.807L381.394 177.804L381.388 177.8L296.421 128.745ZM80.5371 112.629C55.6192 122.866 35.5885 144.204 28.0781 172.235C17.4882 211.766 35.1067 252.219 68.5996 272.194L68.6055 272.198L68.6113 272.201L153.578 321.256C156.455 322.918 160.034 322.907 162.907 321.247L162.906 321.246L199.49 300.125L200.99 299.259L199.49 298.393L87.9082 233.972C84.201 231.831 81.917 227.874 81.917 223.596V112.062L80.5371 112.629ZM250.086 43.708C228.76 27.2486 200.267 20.5698 172.234 28.0801C132.702 38.6739 106.481 74.1604 105.928 113.151L106.727 113.163H105.927V211.272C105.927 214.596 107.728 217.688 110.6 219.347L110.601 219.348L147.183 240.469L148.683 241.334V110.762C148.683 106.616 150.826 102.772 154.33 100.591L154.674 100.385L249.975 45.3652L251.267 44.6201L250.086 43.708ZM369.159 80.8447C340.218 51.9058 296.377 46.9413 262.331 65.958L262.324 65.9619L262.318 65.9648L177.352 115.02C174.471 116.682 172.696 119.787 172.696 123.104V167.078L174.196 166.212L285.777 101.792C289.482 99.6516 294.051 99.6513 297.759 101.792L393.057 156.813L394.349 157.56L394.548 156.081C398.043 130.114 390.133 102.905 370.818 82.5518H370.867L369.159 80.8447ZM277.307 194.802L276.807 194.514L225.5 164.892L225 164.603L224.5 164.892L173.192 194.514L172.692 194.802V255.201L173.192 255.489L224.5 285.111L225 285.4L225.5 285.111L276.807 255.489L277.307 255.201V194.802Z"
+              stroke-width="1"
+            />
+          </svg>
+        </div>
+        <div data-part="text">
+          <p data-part="quote">
+            “{dgettext(
+              "marketing",
+              "Tuist has made a meaningful difference to developer productivity across our growing iOS engineering organization which means faster iteration for both our engineers and coding agents working alongside them. Tuist has helped us turn build performance into a scalable advantage"
+            )}”
+          </p>
+          <footer data-part="author">
+            <svg
+              data-part="logo"
+              viewBox="0 0 90 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M9.51042 0C14.753 0 19.0208 4.26782 19.0208 9.51039C19.0208 14.753 14.753 19.0208 9.51042 19.0208C4.26784 19.0208 0 14.753 0 9.51039C0 4.26782 4.26784 0 9.51042 0ZM9.56311 15.596C12.7245 15.596 15.3326 13.0669 15.3326 9.51039C15.3326 5.95387 12.7245 3.4248 9.56311 3.4248H9.45773C6.29637 3.4248 3.68825 5.95387 3.68825 9.51039C3.68825 13.0669 6.29637 15.596 9.45773 15.596H9.56311Z"
+                fill="currentColor"
+              />
+              <path
+                d="M20.8477 23.9998V5.55859H24.2725V6.92851C25.0365 6.03279 26.4327 5.2688 28.2768 5.2688C31.9651 5.2688 34.8103 8.29843 34.8103 12.1447C34.8103 15.991 31.9651 19.0207 28.2768 19.0207C26.4327 19.0207 25.0365 18.2567 24.2725 17.361V23.9998H20.8477ZM27.829 15.991C29.7521 15.991 31.3855 14.4894 31.3855 12.1711C31.3855 9.85276 29.7521 8.29843 27.829 8.29843H27.7236C25.8005 8.29843 24.1671 9.85276 24.1671 12.1711C24.1671 14.4894 25.8005 15.991 27.7236 15.991H27.829Z"
+                fill="currentColor"
+              />
+              <path
+                d="M42.8038 19.0207C38.9048 19.0207 36.0596 16.2018 36.0596 12.1974C36.0596 8.19305 39.0629 5.2688 42.8038 5.2688C46.5447 5.2688 49.4427 7.95595 49.4427 12.4082C49.4427 12.698 49.4427 12.9878 49.4163 13.3039H39.4844C39.5371 14.5157 40.6962 16.2545 42.6721 16.2545H42.7775C44.2264 16.2545 45.3329 15.4642 45.7807 14.5948H49.2582C48.6523 16.6233 46.5711 19.0207 42.8038 19.0207ZM45.9388 10.8012C45.8334 9.4049 44.6216 8.03498 42.7775 8.03498H42.6721C40.986 8.03498 39.7742 9.37855 39.5107 10.8012H45.9388Z"
+                fill="currentColor"
+              />
+              <path
+                d="M51.4886 18.7309V5.55859H54.9135V6.92851C55.6511 6.05914 57.021 5.2688 58.7334 5.2688C61.8158 5.2688 63.8706 7.32368 63.8706 10.7485V18.7309H60.4458V11.17C60.4458 9.35221 59.4184 8.32477 57.8114 8.32477H57.706C56.0463 8.32477 54.9135 9.80007 54.9135 11.7232V18.7309H51.4886Z"
+                fill="currentColor"
+              />
+              <path
+                d="M65.1943 18.731L72.7553 0.289795H76.9177L84.2942 18.731H80.4479L78.8672 14.7003H70.516L68.9089 18.731H65.1943ZM71.7542 11.5389H77.629L74.7048 4.10976L71.7542 11.5389Z"
+                fill="currentColor"
+              />
+              <path d="M85.6888 18.731V0.289795H89.3248V18.731H85.6888Z" fill="currentColor" />
+            </svg>
+            <div data-part="identity">
+              <p data-part="name">Eric Burke</p>
+              <p data-part="role">{dgettext("marketing", "Member of Technical Staff, OpenAI")}</p>
+            </div>
+          </footer>
+        </div>
+      </div>
+
+      <div data-part="compute">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Compute")}</span>
+          <h2>{dgettext("marketing", "Stop waiting on the queue.")}</h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Runners that spin up in seconds and scale with your team and your agents."
+            )}
+          </p>
+          <.button
+            href={localized_href("/compute")}
+            variant="secondary"
+            size="medium"
+            label={dgettext("marketing", "Learn more")}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
+        <div data-part="illustration" data-orientation="horizontal">
+          <div data-part="stats">
+            <div data-part="stat">
+              <span>{dgettext("marketing", "Runners:")}</span>
+              <strong data-stat="runners">11</strong>
+            </div>
+            <div data-part="stat">
+              <span data-stat="mode">{dgettext("marketing", "Parallel")}</span>
+            </div>
+            <div data-part="stat">
+              <span>{dgettext("marketing", "Duration:")}</span>
+              <strong data-stat="duration">00m 47s</strong>
+            </div>
+          </div>
+          <div data-part="stage" aria-hidden="true">
+            <% h = 280 %>
+            <% cy = h / 2 %>
+            <% container = 1198 %>
+            <% lead = 181.25 %>
+            <% logo = 45 %>
+            <% cell = 40 %>
+            <% gap = 8 %>
+            <% flow = 282.5 %>
+            <% logo_r = lead + logo %>
+            <% grid_w = 4 * cell + 3 * gap %>
+            <%!-- Center the grid so its middle gap lines up with the stats bar's
+                center divider (the stats span the full container, 4 equal cols,
+                so the divider sits at container/2). The left fan absorbs it. --%>
+            <% grid_x = container / 2 - grid_w / 2 %>
+            <% fan = grid_x - logo_r %>
+            <% grid_r = grid_x + grid_w %>
+            <% task_x = grid_r + flow %>
+            <% task_w = 186 %>
+            <% total = task_x + task_w %>
+            <% grid_h = 6 * cell + 5 * gap %>
+            <% grid_top = (h - grid_h) / 2 %>
+            <% row_cy = fn r -> grid_top + r * (cell + gap) + cell / 2 end %>
+            <%!-- Connector shapes taken verbatim from connector.svg (283×264,
+                hub at right ≈y132, six rows down the left). Each tuple is the
+                two cubic control points {c1x, c1y, c2x, c2y} in that SVG's
+                coordinates (C1 near the hub, C2 near the grid). We map them onto
+                our grid: x spans grid_r→task_x, y is scaled so the SVG's rows
+                land on our row_cy. The middle rows carry a big center overshoot
+                (the lens); the outer rows none. --%>
+            <% svg_gx = 0.182861 %>
+            <% svg_hx = 282.683 %>
+            <% svg_y0 = 0.172363 %>
+            <% svg_y5 = 263.624 %>
+            <% sy = (row_cy.(5) - row_cy.(0)) / (svg_y5 - svg_y0) %>
+            <% mapy = fn v -> row_cy.(0) + (v - svg_y0) * sy end %>
+            <% flowx = fn v -> grid_r + (v - svg_gx) / (svg_hx - svg_gx) * flow end %>
+            <% fanx = fn v -> logo_r + (svg_hx - v) / (svg_hx - svg_gx) * fan end %>
+            <% connectors = [
+              {160.632, 124.235, 97.0709, 101.835},
+              {156.374, 123.074, 93.759, 152.544},
+              {156.374, 123.074, 93.759, 205.044},
+              {156.374, 140.722, 93.759, 58.7521},
+              {156.374, 140.722, 93.759, 111.252},
+              {160.632, 139.562, 97.0709, 161.962}
+            ] %>
+            <%!-- Pool of genuine-looking CI steps the task feed cycles through
+                (picked at random, no near-repeats — see the TaskFeed hook). --%>
+            <% tasks = [
+              {dgettext("marketing", "Set up job"), 2},
+              {dgettext("marketing", "Checkout repository"), 4},
+              {dgettext("marketing", "Set up mise"), 6},
+              {dgettext("marketing", "Run jdx/mise"), 3},
+              {dgettext("marketing", "Install dependencies"), 34},
+              {dgettext("marketing", "Restore cache"), 12},
+              {dgettext("marketing", "Run tuist install"), 18},
+              {dgettext("marketing", "Run tuist generate"), 9},
+              {dgettext("marketing", "Build app"), 47},
+              {dgettext("marketing", "Run unit tests"), 68},
+              {dgettext("marketing", "Run UI tests"), 134},
+              {dgettext("marketing", "Run actions"), 10},
+              {dgettext("marketing", "Lint"), 5},
+              {dgettext("marketing", "Upload artifacts"), 15},
+              {dgettext("marketing", "Create logs"), 22},
+              {dgettext("marketing", "Save cache"), 9},
+              {dgettext("marketing", "Post run actions"), 20},
+              {dgettext("marketing", "Complete job"), 1}
+            ] %>
+            <% row_h = 32 %>
+            <% visible_rows = 8 %>
+            <% list_h = row_h * visible_rows %>
+            <% list_top = (h - list_h) / 2 %>
+            <div data-part="scene">
+              <svg
+                data-part="wires"
+                viewBox={"0 0 #{total} #{h}"}
+                width={total}
+                height={h}
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path data-part="wire-lead" d={"M 0 #{cy} L #{lead} #{cy}"} />
+
+                <%!-- Fan (logo → grid): connector.svg mirrored horizontally. --%>
+                <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
+                  <path
+                    data-part="wire-fan"
+                    d={"M #{logo_r} #{cy} C #{fanx.(c1x)} #{mapy.(c1y)}, #{fanx.(c2x)} #{mapy.(c2y)}, #{grid_x} #{row_cy.(r)}"}
+                  />
+                <% end %>
+
+                <%!-- Flow (grid → hub): connector.svg, drawn grid→hub (so the C2/C1
+                  order is reversed from the SVG's hub→grid path). --%>
+                <%= for {{c1x, c1y, c2x, c2y}, r} <- Enum.with_index(connectors) do %>
+                  <path
+                    data-part="wire-flow"
+                    d={"M #{grid_r} #{row_cy.(r)} C #{flowx.(c2x)} #{mapy.(c2y)}, #{flowx.(c1x)} #{mapy.(c1y)}, #{task_x} #{cy}"}
+                  />
+                <% end %>
+              </svg>
+              <canvas
+                data-part="runners"
+                id="compute-runners"
+                phx-hook="RunnerGrid"
+                data-grid-x={grid_x}
+                data-grid-top={grid_top}
+                data-cell={cell}
+                data-gap={gap}
+                aria-hidden="true"
+              >
+              </canvas>
+              <canvas
+                data-part="spark"
+                id="compute-spark"
+                phx-hook="ComputeSpark"
+                data-lead={lead}
+                data-logo-size={logo}
+                data-cy={cy}
+                aria-hidden="true"
+              >
+              </canvas>
+              <div
+                data-part="tasks"
+                id="compute-tasks"
+                phx-hook="TaskFeed"
+                data-tasks={
+                  Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))
+                }
+                data-row-h="32"
+                data-panel-h={list_h}
+                style={"left: #{task_x}px; top: #{list_top}px; width: #{task_w}px; height: #{list_h}px;"}
+              >
+                <ul data-part="task-list"></ul>
+              </div>
+              <div
+                data-part="hub"
+                style={"left: #{lead}px; top: #{cy - logo / 2}px; width: #{logo}px; height: #{logo}px;"}
+              >
+                <svg viewBox="0 0 45 45" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    data-part="logo-mark"
+                    d="M22.5 10.7129C22.8942 10.7129 23.2848 10.7297 23.6709 10.7637L23.9268 10.7861L23.9336 11.043L24.2949 25.8711C24.6508 25.0079 24.9808 24.1247 25.2871 23.2305L25.6641 22.0889C26.5194 19.4127 27.2096 16.6624 27.7793 13.8877L27.8525 13.5303L28.1826 13.6855C28.9283 14.0358 29.6329 14.4538 30.2891 14.9287L30.4316 15.0322L30.4043 15.2061C29.8414 18.7454 29.1233 22.2892 28.0254 25.7412C29.6589 23.8021 31.0223 21.629 32.209 19.3828L32.4121 18.999L32.6865 19.3359C33.2385 20.014 33.7442 20.7603 34.1465 21.5479L34.2119 21.6758L34.1494 21.8037C33.0757 24.03 31.7114 26.4128 30.0439 28.5264C30.945 28.0439 31.8145 27.4905 32.6445 26.8779L32.875 26.708L33.0459 26.9375C33.5103 27.5607 33.9175 28.2264 34.2588 28.9297L34.3447 29.1074L34.21 29.251C27.9404 35.9665 17.0583 35.9652 10.79 29.251L10.6553 29.1074L10.7412 28.9297C11.0822 28.2262 11.4897 27.5607 11.9541 26.9375L12.125 26.708L12.3555 26.8779C13.1913 27.4951 14.0666 28.0531 14.9746 28.5381C13.9243 27.201 13.0057 25.7794 12.1963 24.4004L12.1943 24.3955C11.7132 23.5434 11.2663 22.6806 10.8486 21.8066L10.7871 21.6777L10.8525 21.5518C11.2549 20.7637 11.7609 20.0156 12.3145 19.3359L12.5889 19L12.791 19.3838C13.9776 21.6298 15.3406 23.8032 16.9736 25.7422C15.8758 22.2903 15.1595 18.7462 14.5967 15.207L14.5684 15.0322L14.7119 14.9287C15.3679 14.454 16.0719 14.0367 16.8174 13.6865L17.1484 13.5312L17.2217 13.8887C17.8726 17.0585 18.6796 20.1965 19.7119 23.2295H19.7129C20.0242 24.1217 20.3498 25.0065 20.7051 25.874L21.0674 11.043L21.0742 10.7861L21.3291 10.7637C21.7156 10.7292 22.1061 10.7129 22.5 10.7129Z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-part="illustration" data-orientation="vertical" aria-hidden="true">
+          <div data-part="stats">
+            <div data-part="stat">
+              <span>{dgettext("marketing", "Runners:")}</span>
+              <strong data-stat="runners">11</strong>
+            </div>
+            <div data-part="stat">
+              <span data-stat="mode">{dgettext("marketing", "Parallel")}</span>
+            </div>
+            <div data-part="stat">
+              <span>{dgettext("marketing", "Duration:")}</span>
+              <strong data-stat="duration">00m 47s</strong>
+            </div>
+          </div>
+          <div data-part="stage">
+            <% v_w = 340 %>
+            <% v_cx = v_w / 2 %>
+            <% v_lead = 40 %>
+            <% v_logo = 45 %>
+            <% v_cell = 40 %>
+            <% v_gap = 8 %>
+            <% v_logo_end = v_lead + v_logo %>
+            <% v_grid_w = 4 * v_cell + 3 * v_gap %>
+            <% v_grid_h = 6 * v_cell + 5 * v_gap %>
+            <% v_grid_x = v_cx - v_grid_w / 2 %>
+            <% v_col_cx = fn c -> v_grid_x + c * (v_cell + v_gap) + v_cell / 2 end %>
+            <%!-- Vertical connector (connector.svg, 160×232): a bottom hub fanning up
+                to 4 columns. The connector's control points are mapped onto the
+                fan/flow gap below; the gap is a touch shorter than the connector's
+                natural aspect (~209) to keep the whole illustration compact. --%>
+            <% v_con_w = 159.603 - 0.151733 %>
+            <% v_con_h = 231.675 - 0.198738 %>
+            <% v_fan = 150 %>
+            <% v_flow = v_fan %>
+            <% v_grid_top = v_logo_end + v_fan %>
+            <% v_grid_bottom = v_grid_top + v_grid_h %>
+            <% v_tasks_top = v_grid_bottom + v_flow %>
+            <% v_list_h = 32 * 8 %>
+            <% v_h = v_tasks_top + v_list_h %>
+            <% v_task_w = 260 %>
+            <% v_task_x = v_cx - v_task_w / 2 %>
+            <%!-- connector.svg control points per column (col order 0..3):
+                {c1x, c1y, c2x, c2y} — c1 near the hub, c2 near the column. --%>
+            <% v_connectors = [
+              {71.0535, 128.179, 100.524, 76.8734},
+              {71.0535, 128.179, 153.024, 76.8734},
+              {88.7016, 128.179, 6.73149, 76.8734},
+              {88.7016, 128.179, 59.2315, 76.8734}
+            ] %>
+            <% v_mapx = fn sx ->
+              v_col_cx.(0) + (sx - 0.151733) / v_con_w * (v_col_cx.(3) - v_col_cx.(0))
+            end %>
+            <% v_mapy_fan = fn sy ->
+              v_grid_top - (sy - 0.198738) / v_con_h * (v_grid_top - v_logo_end)
+            end %>
+            <% v_mapy_flow = fn sy ->
+              v_grid_bottom + (sy - 0.198738) / v_con_h * (v_tasks_top - v_grid_bottom)
+            end %>
+            <div data-part="scene">
+              <svg
+                data-part="wires"
+                viewBox={"0 0 #{v_w} #{v_h}"}
+                width={v_w}
+                height={v_h}
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path data-part="wire-lead" d={"M #{v_cx} 0 L #{v_cx} #{v_lead}"} />
+                <%!-- Fan: logo bottom → top of each column, connector.svg mirrored down. --%>
+                <%= for {{c1x, c1y, c2x, c2y}, c} <- Enum.with_index(v_connectors) do %>
+                  <path
+                    data-part="wire-fan"
+                    d={"M #{v_cx} #{v_logo_end} C #{v_mapx.(c1x)} #{v_mapy_fan.(c1y)}, #{v_mapx.(c2x)} #{v_mapy_fan.(c2y)}, #{v_col_cx.(c)} #{v_grid_top}"}
+                  />
+                <% end %>
+                <%!-- Flow: bottom of each column → task-panel hub, connector.svg as-is. --%>
+                <%= for {{c1x, c1y, c2x, c2y}, c} <- Enum.with_index(v_connectors) do %>
+                  <path
+                    data-part="wire-flow"
+                    d={"M #{v_col_cx.(c)} #{v_grid_bottom} C #{v_mapx.(c2x)} #{v_mapy_flow.(c2y)}, #{v_mapx.(c1x)} #{v_mapy_flow.(c1y)}, #{v_cx} #{v_tasks_top}"}
+                  />
+                <% end %>
+              </svg>
+              <canvas
+                data-part="runners"
+                id="compute-runners-v"
+                phx-hook="RunnerGrid"
+                data-grid-x={v_grid_x}
+                data-grid-top={v_grid_top}
+                data-cell={v_cell}
+                data-gap={v_gap}
+                aria-hidden="true"
+              >
+              </canvas>
+              <canvas
+                data-part="spark"
+                id="compute-spark-v"
+                phx-hook="ComputeSpark"
+                data-lead={v_lead}
+                data-logo-size={v_logo}
+                data-cy={v_cx}
+                data-orientation="vertical"
+                aria-hidden="true"
+              >
+              </canvas>
+              <div
+                data-part="tasks"
+                id="compute-tasks-v"
+                phx-hook="TaskFeed"
+                data-tasks={
+                  Jason.encode!(Enum.map(tasks, fn {label, secs} -> %{l: label, s: secs} end))
+                }
+                data-row-h="32"
+                data-panel-h={v_list_h}
+                style={"left: #{v_task_x}px; top: #{v_tasks_top}px; width: #{v_task_w}px; height: #{v_list_h}px;"}
+              >
+                <ul data-part="task-list"></ul>
+              </div>
+              <div
+                data-part="hub"
+                style={"left: #{v_cx - v_logo / 2}px; top: #{v_lead}px; width: #{v_logo}px; height: #{v_logo}px;"}
+              >
+                <svg viewBox="0 0 45 45" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    data-part="logo-mark"
+                    d="M22.5 10.7129C22.8942 10.7129 23.2848 10.7297 23.6709 10.7637L23.9268 10.7861L23.9336 11.043L24.2949 25.8711C24.6508 25.0079 24.9808 24.1247 25.2871 23.2305L25.6641 22.0889C26.5194 19.4127 27.2096 16.6624 27.7793 13.8877L27.8525 13.5303L28.1826 13.6855C28.9283 14.0358 29.6329 14.4538 30.2891 14.9287L30.4316 15.0322L30.4043 15.2061C29.8414 18.7454 29.1233 22.2892 28.0254 25.7412C29.6589 23.8021 31.0223 21.629 32.209 19.3828L32.4121 18.999L32.6865 19.3359C33.2385 20.014 33.7442 20.7603 34.1465 21.5479L34.2119 21.6758L34.1494 21.8037C33.0757 24.03 31.7114 26.4128 30.0439 28.5264C30.945 28.0439 31.8145 27.4905 32.6445 26.8779L32.875 26.708L33.0459 26.9375C33.5103 27.5607 33.9175 28.2264 34.2588 28.9297L34.3447 29.1074L34.21 29.251C27.9404 35.9665 17.0583 35.9652 10.79 29.251L10.6553 29.1074L10.7412 28.9297C11.0822 28.2262 11.4897 27.5607 11.9541 26.9375L12.125 26.708L12.3555 26.8779C13.1913 27.4951 14.0666 28.0531 14.9746 28.5381C13.9243 27.201 13.0057 25.7794 12.1963 24.4004L12.1943 24.3955C11.7132 23.5434 11.2663 22.6806 10.8486 21.8066L10.7871 21.6777L10.8525 21.5518C11.2549 20.7637 11.7609 20.0156 12.3145 19.3359L12.5889 19L12.791 19.3838C13.9776 21.6298 15.3406 23.8032 16.9736 25.7422C15.8758 22.2903 15.1595 18.7462 14.5967 15.207L14.5684 15.0322L14.7119 14.9287C15.3679 14.454 16.0719 14.0367 16.8174 13.6865L17.1484 13.5312L17.2217 13.8887C17.8726 17.0585 18.6796 20.1965 19.7119 23.2295H19.7129C20.0242 24.1217 20.3498 25.0065 20.7051 25.874L21.0674 11.043L21.0742 10.7861L21.3291 10.7637C21.7156 10.7292 22.1061 10.7129 22.5 10.7129Z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-part="tests">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Tests")}</span>
+          <h2>{dgettext("marketing", "Faster tests you can actually trust.")}</h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Run only the tests affected by your changes and flag flaky ones automatically, so a green build truly means green."
+            )}
+          </p>
+          <.button
+            href={localized_href("/tests")}
+            variant="secondary"
+            size="medium"
+            label={dgettext("marketing", "Learn more")}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
+        <div data-part="illustration">
+          <div data-part="stats">
+            <div data-part="stat">
+              <span data-part="marker" data-state="skipped" aria-hidden="true"></span>
+              <span>{dgettext("marketing", "Tests skipped:")}</span>
+              <strong data-stat="skipped">50</strong>
+            </div>
+            <div data-part="stat">
+              <span data-part="marker" data-state="ran" aria-hidden="true"></span>
+              <span>{dgettext("marketing", "Tests ran:")}</span>
+              <strong data-stat="ran">50</strong>
+            </div>
+            <div data-part="stat">
+              <span data-part="marker" data-state="flaky" aria-hidden="true"></span>
+              <span>{dgettext("marketing", "Flaky tests detected:")}</span>
+              <strong data-stat="flaky">10</strong>
+            </div>
+          </div>
+          <div data-part="stage" aria-hidden="true">
+            <canvas
+              data-part="grid"
+              id="test-grid"
+              phx-hook="TestGrid"
+              data-cell="15"
+              data-gap="8"
+              data-radius="2"
+              data-cols="45"
+              data-rows="12"
+            >
+            </canvas>
+          </div>
+        </div>
+      </div>
+      <div data-part="toolbox">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Other features")}</span>
+          <h2>{dgettext("marketing", "More in the toolbox.")}</h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Enhance mobile-specific workflows and accelerate local and CI performance."
+            )}
+          </p>
+        </div>
+        <div data-part="cards">
+          <.link
+            href={localized_href("https://docs.tuist.dev/guides/features/previews")}
+            target="_blank"
+            rel="noopener noreferrer"
+            draggable="false"
+            data-part="card"
+          >
+            <h3 data-part="card-title">{dgettext("marketing", "Previews")} <.arrow_right /></h3>
+            <p data-part="card-description">
+              {dgettext(
+                "marketing",
+                "Share your app instantly via URL. No delays, just click and run on any device."
+              )}
+            </p>
+          </.link>
+          <.link
+            href={localized_href("https://tuist.dev/en/docs/guides/features/projects")}
+            target="_blank"
+            rel="noopener noreferrer"
+            draggable="false"
+            data-part="card"
+          >
+            <h3 data-part="card-title">
+              {dgettext("marketing", "Generated Projects")} <.arrow_right />
+            </h3>
+            <p data-part="card-description">
+              {dgettext(
+                "marketing",
+                "Simplify modular Xcode projects to make them easier to maintain and scale."
+              )}
+            </p>
+          </.link>
+          <.link
+            href={localized_href("https://tuist.dev/en/docs/guides/features/registry")}
+            target="_blank"
+            rel="noopener noreferrer"
+            draggable="false"
+            data-part="card"
+          >
+            <h3 data-part="card-title">{dgettext("marketing", "Registry")} <.arrow_right /></h3>
+            <p data-part="card-description">
+              {dgettext(
+                "marketing",
+                "Download only what you need — faster, lighter builds locally and on CI."
+              )}
+            </p>
+          </.link>
+        </div>
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="features-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="0"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="frameworks" aria-labelledby="frameworks-heading">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Frameworks")}</span>
+        <h2 id="frameworks-heading">{dgettext("marketing", "Built for every stack")}</h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "From native mobile apps to cross-platform projects, support the tools, languages, and frameworks your teams already rely on."
+          )}
+        </p>
+      </div>
+      <div data-part="grid">
+        <div
+          :for={
+            {name, label} <- [
+              {"swift", "Swift"},
+              {"kotlin", "Kotlin"},
+              {"java", "Java"},
+              {"scala", "Scala"},
+              {"rust", "Rust"},
+              {"python", "Python"},
+              {"haskell", "Haskell"},
+              {"go", "Go"},
+              {"cpp", "C++"},
+              {"dart", "Dart"},
+              {"objc", "Objective-C"}
+            ]
+          }
+          data-part="cell"
+          data-framework={name}
+        >
+          <.tooltip id={"framework-tooltip-#{name}"} title={label} placement="bottom">
+            <:trigger :let={attrs}>
+              <div {attrs}>
+                <.framework_logo name={name} label={label} />
+              </div>
+            </:trigger>
+          </.tooltip>
+        </div>
+        <div data-part="cell" data-more>{dgettext("marketing", "and more ...")}</div>
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="transparency-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="7.3"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="transparency" aria-labelledby="transparency-heading">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Transparency")}</span>
+        <h2 id="transparency-heading">
+          {dgettext("marketing", "Built in the open, secured for scale")}
+        </h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "Tuist is built in the open because we believe developer infrastructure should be transparent, extensible, and community-driven."
+          )}
+        </p>
+      </div>
+      <div data-part="cards">
+        <article data-part="card" data-card="open-source">
+          <div data-part="illustration">
+            <span data-part="windows"><.illustration name="transparency-windows" /></span>
+            <span data-part="oss-logo">
+              <.illustration name="transparency-open-source" />
+              <canvas
+                data-part="oss-dither"
+                id="transparency-oss-dither"
+                phx-hook="DitherTexture"
+                data-pitch="2"
+                data-dot="2"
+                data-top="0.1"
+                data-bottom="1"
+                data-wave="0"
+                data-wave-scale="1"
+                data-levels="0"
+                data-speed="1"
+                data-dither="on"
+                data-opacity="1"
+                data-noise="0"
+                data-colors="--marketing-transparency-dither-shallow,--marketing-transparency-dither-mid,--marketing-transparency-dither-deep"
+                aria-hidden="true"
+              >
+              </canvas>
+              <svg width="0" height="0" aria-hidden="true">
+                <defs>
+                  <clipPath
+                    id="transparency-oss-clip"
+                    clipPathUnits="objectBoundingBox"
+                    transform="scale(0.00970874, 0.01010101)"
+                  >
+                    <path d="M57.334 67.9559C64.6253 65.2479 68.4316 60.0333 68.4316 51.0583C68.4316 42.0833 60.8684 34.1749 51.4184 34.159C41.4457 34.1431 33.9231 42.0507 34.0432 51.0583C34.1633 60.066 38.4596 66.0584 45.335 68.2251L33.155 98.19C16.8534 93.9696 0.273743 74.7385 0.273743 51.0583C0.273743 23.0112 22.8097 0.273926 51.0564 0.273926C79.3031 0.273926 102.201 23.0111 102.201 51.0583C102.201 75.1067 85.7785 94.0703 69.1291 98.2739L57.334 67.9559Z" />
+                  </clipPath>
+                </defs>
+              </svg>
+            </span>
+          </div>
+          <div data-part="info">
+            <h3>{dgettext("marketing", "Open Source Since Day Zero")}</h3>
+            <p>
+              {dgettext(
+                "marketing",
+                "Transparent by default. Inspect the code, contribute improvements, and stay in control."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="card" data-card="security">
+          <div data-part="illustration">
+            <canvas
+              data-part="soc-ping"
+              id="security-soc-ping"
+              phx-hook="DitherPing"
+              data-trigger="[data-card='security']"
+              data-shape="#security-soc-ping-shape"
+              data-size="145 145"
+              aria-hidden="true"
+            >
+            </canvas>
+            <svg width="0" height="0" aria-hidden="true">
+              <defs>
+                <g id="security-soc-ping-shape">
+                  <path d="M139.668 24.375C114.874 25.5096 90.612 16.9465 72.0226 0.5C53.4333 16.9465 29.1712 25.5096 4.37681 24.375C0.766975 36.6548 -0.337567 49.535 1.12882 62.2501C2.59521 74.9653 6.60261 87.2559 12.9129 98.3917C19.2232 109.527 27.7075 119.281 37.8619 127.073C48.0162 134.865 59.6332 140.536 72.0226 143.75C84.4121 140.536 96.0291 134.865 106.183 127.073C116.338 119.281 124.822 109.527 131.132 98.3917C137.443 87.2559 141.45 74.9653 142.916 62.2501C144.383 49.535 143.278 36.6548 139.668 24.375Z" />
+                </g>
+              </defs>
+            </svg>
+            <span data-part="soc-badge">
+              <.illustration name="security-soc-badge" />
+            </span>
+          </div>
+          <div data-part="info">
+            <h3>{dgettext("marketing", "Enterprise-Ready Security")}</h3>
+            <p>
+              {dgettext(
+                "marketing",
+                "SOC 2 compliant with the controls expected from critical infrastructure."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="card" data-card="infrastructure">
+          <div data-part="illustration">
+            <span data-part="faces" aria-hidden="true">
+              <span data-part="faces-desktop">
+                <.illustration name="transparency-stacked-faces" />
+              </span>
+              <span data-part="faces-wide">
+                <.illustration name="transparency-stacked-faces-wide" />
+              </span>
+            </span>
+          </div>
+          <div data-part="info">
+            <h3>{dgettext("marketing", "Your Own Dedicated Infrastructure")}</h3>
+            <p>
+              {dgettext(
+                "marketing",
+                "Every customer gets their own dedicated compute environment, fully managed by us."
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="community">
+        <div data-part="community-text">
+          <span data-part="eyebrow">{dgettext("marketing", "Community")}</span>
+          <h2>{dgettext("marketing", "Join our community")}</h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Hear from our community about their experience with Tuist."
+            )}
+          </p>
+          <nav data-part="actions" aria-label="Community links">
+            <.button
+              label={dgettext("marketing", "Slack")}
+              variant="secondary"
+              href="https://slack.tuist.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <:icon_left><.brand_slack /></:icon_left>
+            </.button>
+            <.button
+              label={dgettext("marketing", "Community forum")}
+              variant="secondary"
+              href="https://community.tuist.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <:icon_left><.message_circle /></:icon_left>
+            </.button>
+          </nav>
+        </div>
+        <div data-part="community-grid" aria-hidden="true">
+          <span data-part="tuist-outline">
+            <canvas
+              data-part="tuist-dither"
+              id="transparency-tuist-dither"
+              phx-hook="TuistDitherParticles"
+              data-opacity="0.9"
+            >
+            </canvas>
+          </span>
+          <span data-part="grid-label" data-pos="members">
+            {dgettext("marketing", "1500+ members")}
+          </span>
+          <span data-part="grid-label" data-pos="committers">
+            {dgettext("marketing", "300+ committers")}
+          </span>
+          <span data-part="grid-label" data-pos="teams">
+            {dgettext("marketing", "10k+ teams")}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="community-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="14.9"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="testimonials" aria-labelledby="testimonials-title">
+      <div data-part="customers" aria-labelledby="customers-title">
+        <div data-part="text">
+          <span data-part="eyebrow">{dgettext("marketing", "Customers")}</span>
+          <h2 id="customers-title">
+            {dgettext("marketing", "See what our customers are saying")}
+          </h2>
+          <p>
+            {dgettext(
+              "marketing",
+              "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
+            )}
+          </p>
+          <.button
+            href={localized_href("/customers")}
+            variant="secondary"
+            size="medium"
+            label={dgettext("marketing", "Customer stories")}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
+        <div data-part="stories">
+          <article data-part="story" data-company="monzo">
+            <a
+              data-part="overlay-link"
+              href={localized_href("/customers/monzo")}
+              aria-label={
+                dgettext("marketing", "Read the %{company} case study", company: "Monzo")
+              }
+            >
+            </a>
+            <canvas
+              data-part="dots"
+              id="customers-dots-monzo"
+              phx-hook="CustomersDitherDots"
+              aria-hidden="true"
+            >
+            </canvas>
+            <span data-part="logo" aria-label="Monzo"><.monzo_org_logo_color /></span>
+            <p>{dgettext("marketing", "Monzo slashed CI pipeline time by 70%")}</p>
+          </article>
+          <article data-part="story" data-company="trendyol">
+            <a
+              data-part="overlay-link"
+              href={localized_href("/customers/trendyol")}
+              aria-label={
+                dgettext("marketing", "Read the %{company} case study", company: "Trendyol")
+              }
+            >
+            </a>
+            <canvas
+              data-part="dots"
+              id="customers-line-trendyol"
+              phx-hook="CustomersDitherLine"
+              aria-hidden="true"
+            >
+            </canvas>
+            <span data-part="logo" aria-label="Trendyol"><.trendyol_org_logo /></span>
+            <p>{dgettext("marketing", "Trendyol reduced build times by 65%")}</p>
+          </article>
+        </div>
+      </div>
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Testimonials")}</span>
+        <h2 id="testimonials-title">{dgettext("marketing", "Beyond expectations")}</h2>
+        <p>
+          {dgettext(
+            "marketing",
+            "See how Tuist is helping teams move faster and scale confidently."
+          )}
+        </p>
+      </div>
+      <div data-part="marquee">
+        <%!-- Mobile: every review in a single row; desktop: two rows. --%>
+        <TuistWeb.Marketing.MarketingHomeComponents.testimonial_marquee_row
+          testimonials={List.flatten(@home_new_testimonials)}
+          data-viewport="mobile"
+        />
+        <TuistWeb.Marketing.MarketingHomeComponents.testimonial_marquee_row
+          :for={{row, index} <- Enum.with_index(@home_new_testimonials)}
+          testimonials={row}
+          data-viewport="desktop"
+          data-direction={if index == 0, do: "reverse"}
+        />
+      </div>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="testimonials-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="22.1"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </nav>
+    </section>
+
+    <div data-part="features-divider" aria-hidden="true">
+      <canvas
+        data-part="dither"
+        id="cta-divider-dither"
+        phx-hook="DitherTexture"
+        data-pitch="2"
+        data-dot="2"
+        data-top="0"
+        data-bottom="0.95"
+        data-wave="0.335"
+        data-wave-scale="2.5"
+        data-levels="0"
+        data-speed="1"
+        data-phase="29.6"
+        data-dither="on"
+        data-opacity="0.3"
+      >
+      </canvas>
+    </div>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

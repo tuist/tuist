@@ -24,7 +24,7 @@ defmodule Tuist.Docs.Loader do
   # Icons (rendered from Noora components at compile time)
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
   @copy_check_icon %{__changed__: nil}
-                   |> Noora.Icon.copy_check()
+                   |> Noora.Icon.check()
                    |> Safe.to_iodata()
                    |> IO.iodata_to_binary()
 
@@ -529,7 +529,7 @@ defmodule Tuist.Docs.Loader do
 
       copy_button =
         EEx.eval_string(
-          ~s(<button data-part="copy" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          ~s(<button data-part="copy" class="noora-neutral-button" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
           copy_icon: @copy_icon,
           copy_check_icon: @copy_check_icon
         )

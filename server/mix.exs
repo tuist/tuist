@@ -231,11 +231,13 @@ defmodule Tuist.MixProject do
         "cmd --cd ../noora aube run build",
         "esbuild app",
         "esbuild marketing",
+        "esbuild marketing_new",
         "esbuild docs",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild marketing_new --minify",
         "esbuild docs --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
