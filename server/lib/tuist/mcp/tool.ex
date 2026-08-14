@@ -281,7 +281,32 @@ defmodule Tuist.MCP.Tool do
     if Authorization.authorize_request(assigns, action, project, category) do
       :ok
     else
-      {:error, message}
+      {:error, denial_message(message, project)}
     end
+  end
+
+  # A caller refused for want of an operator grant cannot act on that without
+  # knowing which account to request one for, and a tool call names a record
+  # rather than an account. Naming the owner here is what lets a client turn
+  # the refusal into a next step instead of a dead end.
+  #
+  # The shape is a contract, not prose: `Tuist.MCP.ToolTest` pins it, and
+  # Atlas parses it to build a pre-filled access request. Change the wording
+  # and that client stops recognising it — it fails closed, to a refusal with
+  # no link, but it does fail.
+  #
+  # This tells a caller who cannot read the record which account owns it. They
+  # are an authenticated Tuist user, and the handle is the name they would ask
+  # for access to by, so the disclosure is the point rather than a leak.
+  defp denial_message(message, %{account: %{name: handle}}) when is_binary(handle) do
+    ~s(#{end_sentence(message)} It belongs to the account "#{handle}".)
+  end
+
+  # An unloaded association would render as a struct rather than a handle, so
+  # say nothing rather than something wrong.
+  defp denial_message(message, _project), do: message
+
+  defp end_sentence(message) do
+    if String.ends_with?(message, [".", "!", "?"]), do: message, else: message <> "."
   end
 end

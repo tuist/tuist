@@ -78,7 +78,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
         })
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
-      assert text == "You do not have access to project: acme/app"
+      assert text == ~s(You do not have access to project: acme/app. It belongs to the account "acme".)
     end
   end
 
