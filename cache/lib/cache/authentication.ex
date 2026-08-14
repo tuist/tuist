@@ -48,7 +48,10 @@ defmodule Cache.Authentication do
   end
 
   defp authorize(auth_header, requested_handle, conn, cache) do
-    cache_key = {generate_cache_key(auth_header), requested_handle}
+    # Keyed by action as well as token and handle: a token can be granted the
+    # read and not the write, so a decision reached for one must never be
+    # replayed for the other.
+    cache_key = {generate_cache_key(auth_header), requested_handle, request_action(conn)}
 
     case Cachex.get(cache, cache_key) do
       {:ok, nil} ->
@@ -68,8 +71,9 @@ defmodule Cache.Authentication do
 
   defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache) do
     token = extract_token(auth_header)
+    {_token_key, _handle, action} = cache_key
 
-    case verify_jwt(token, requested_handle) do
+    case verify_jwt(token, requested_handle, action) do
       {:ok, ttl} ->
         :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :jwt})
         cache_result(cache, cache_key, :ok, ttl)
@@ -79,31 +83,52 @@ defmodule Cache.Authentication do
 
       {:error, :project_not_in_jwt} ->
         fetch_and_cache_projects(auth_header, cache_key, conn, cache)
+
+      # A token carrying grants has already had its say, so this is the answer
+      # rather than a reason to ask the server. Asking would also be futile:
+      # the server does not accept a cache token as a credential, so the
+      # fallback turns every ungranted request into a misleading 401.
+      {:error, :not_granted} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        cache_result(cache, cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
     end
   end
+
+  defp request_action(%Plug.Conn{method: method}) when method in ["GET", "HEAD"], do: :read
+  defp request_action(_conn), do: :write
 
   defp extract_token("Bearer " <> token), do: token
   defp extract_token(token), do: token
 
-  defp verify_jwt(token, requested_handle) do
+  defp verify_jwt(token, requested_handle, action) do
     if Cache.Config.guardian_configured?() do
-      do_verify_jwt(token, requested_handle)
+      do_verify_jwt(token, requested_handle, action)
     else
       {:error, :not_jwt}
     end
   end
 
-  defp do_verify_jwt(token, requested_handle) do
+  defp do_verify_jwt(token, requested_handle, action) do
     case Cache.Guardian.decode_and_verify(token) do
       {:ok, claims} ->
-        verify_project_access(claims, requested_handle)
+        verify_project_access(claims, requested_handle, action)
 
       {:error, _reason} ->
         {:error, :not_jwt}
     end
   end
 
-  defp verify_project_access(claims, requested_handle) do
+  defp verify_project_access(claims, requested_handle, action) do
+    case Map.get(claims, "cache_grants") do
+      nil -> verify_listed_project(claims, requested_handle)
+      grants -> verify_granted_project(grants, claims, requested_handle, action)
+    end
+  end
+
+  # The projects claim lists what the token reaches without saying what it may
+  # do there, and it is capped, so a handle missing from it is inconclusive and
+  # falls through to the server.
+  defp verify_listed_project(claims, requested_handle) do
     projects = Map.get(claims, "projects", [])
     exp = Map.get(claims, "exp")
 
@@ -111,6 +136,54 @@ defmodule Cache.Authentication do
       {:ok, calculate_ttl(exp)}
     else
       {:error, :project_not_in_jwt}
+    end
+  end
+
+  # Grants are complete and say which action they cover, so they are the whole
+  # answer. Tuist's server mints these; the shape is agreed with the cache
+  # nodes that read them back.
+  defp verify_granted_project(grants, claims, requested_handle, action) do
+    if granted?(grants, requested_handle, action) do
+      {:ok, calculate_ttl(Map.get(claims, "exp"))}
+    else
+      {:error, :not_granted}
+    end
+  end
+
+  # A request naming a project is answered by the project bucket alone: an
+  # account grant is access to the account's own cache, not to every project
+  # in it.
+  defp granted?(grants, requested_handle, action) do
+    bucket = grants |> grant_bucket("project") |> granted_handles(action)
+
+    requested_handle in bucket
+  end
+
+  defp grant_bucket(grants, scope) when is_map(grants) do
+    case Map.get(grants, scope) do
+      bucket when is_map(bucket) -> bucket
+      _ -> %{}
+    end
+  end
+
+  defp grant_bucket(_grants, _scope), do: %{}
+
+  # Write implies read, so a writer never has to be granted both.
+  defp granted_handles(bucket, :read), do: handles(bucket, "read") ++ handles(bucket, "write")
+  defp granted_handles(bucket, :write), do: handles(bucket, "write")
+
+  # Handles compare lowercased, and an empty handle counts as absent rather
+  # than as a handle named "".
+  defp handles(bucket, action) do
+    case Map.get(bucket, action) do
+      handles when is_list(handles) ->
+        handles
+        |> Enum.filter(&is_binary/1)
+        |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        []
     end
   end
 
@@ -226,7 +299,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp project_access_result({_auth_key, requested_handle}, projects) do
+  defp project_access_result({_auth_key, requested_handle, _action}, projects) do
     project_handles =
       projects
       |> Enum.map(fn
