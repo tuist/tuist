@@ -131,7 +131,6 @@ defmodule Tuist do
       Xcode.XcodeGraph,
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
-      Email,
       VCS.GitHubAppInstallation,
       Alerts,
       Alerts.Alert,
