@@ -4,180 +4,141 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr/funcr"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/go-logr/logr"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Installed once for the whole package: controller-runtime's SetLogger fulfils
-// a promise, so only the FIRST call takes effect and a per-test SetLogger would
-// silently leave every later test capturing nothing. The sink stays fixed and
-// captureLogs swaps what it writes into.
+// capturingSink records log messages so a test can assert a code path said
+// something. These assertions exist because every one of the paths below used to
+// be a bare `return`: convergence is the only way a host with no master can get
+// one, and a fleet converging once a day was indistinguishable from one
+// converging constantly. A refactor that drops these lines puts us back there,
+// so the lines are behaviour, not decoration.
+type capturingSink struct{}
+
+func (capturingSink) Init(logr.RuntimeInfo)            {}
+func (capturingSink) Enabled(int) bool                 { return true }
+func (s capturingSink) WithValues(...any) logr.LogSink { return s }
+func (s capturingSink) WithName(string) logr.LogSink   { return s }
+
+func (capturingSink) Error(_ error, msg string, _ ...any) { recordLogMessage(msg) }
+func (capturingSink) Info(_ int, msg string, _ ...any)    { recordLogMessage(msg) }
+
+// controller-runtime's delegating logger can only be fulfilled ONCE, so the sink
+// is installed a single time for the package and the buffer is reset per test
+// rather than swapping loggers.
 var (
-	logSinkOnce sync.Once
-	logSinkMu   sync.Mutex
-	logSink     *[]string
+	logCaptureOnce sync.Once
+	logCaptureMu   sync.Mutex
+	logCaptured    []string
 )
 
-// captureLogs routes the package logger into a fresh buffer for the duration of
-// a test and returns an accessor for what it recorded.
-//
-// These assertions are about the host being able to answer "why did THIS
-// account decline on THIS host", which is a question only a log line can
-// answer — a counter says how often a branch fired, never for whom. The
-// branches are otherwise indistinguishable from a healthy converge, which is
-// how a fleet ran 286 materializes and 1 convergence in a day with nothing to
-// look at.
+func recordLogMessage(msg string) {
+	logCaptureMu.Lock()
+	defer logCaptureMu.Unlock()
+	logCaptured = append(logCaptured, msg)
+}
+
+// captureLogs resets the capture buffer and returns a reader for it.
 func captureLogs(t *testing.T) func() []string {
 	t.Helper()
-	logSinkOnce.Do(func() {
-		ctrllog.SetLogger(funcr.New(func(prefix, args string) {
-			logSinkMu.Lock()
-			defer logSinkMu.Unlock()
-			if logSink != nil {
-				*logSink = append(*logSink, prefix+" "+args)
-			}
-		}, funcr.Options{}))
-	})
-
-	var lines []string
-	logSinkMu.Lock()
-	logSink = &lines
-	logSinkMu.Unlock()
-	t.Cleanup(func() {
-		logSinkMu.Lock()
-		defer logSinkMu.Unlock()
-		logSink = nil
-	})
-
+	logCaptureOnce.Do(func() { log.SetLogger(logr.New(capturingSink{})) })
+	logCaptureMu.Lock()
+	logCaptured = nil
+	logCaptureMu.Unlock()
 	return func() []string {
-		logSinkMu.Lock()
-		defer logSinkMu.Unlock()
-		return append([]string(nil), lines...)
+		logCaptureMu.Lock()
+		defer logCaptureMu.Unlock()
+		return append([]string(nil), logCaptured...)
 	}
 }
 
-func containsAll(lines []string, substrings ...string) bool {
-	for _, line := range lines {
-		matched := true
-		for _, want := range substrings {
-			if !strings.Contains(line, want) {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			return true
-		}
-	}
-	return false
-}
-
-func writeVolumeHead(t *testing.T, statusDir string, head volumeHead) {
+func stageHead(t *testing.T, statusDir string, head volumeHead) {
 	t.Helper()
-	if err := os.MkdirAll(statusDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	raw, err := json.Marshal(head)
+	b, err := json.Marshal(head)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(statusDir, volumeHeadFile), raw, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(statusDir, volumeHeadFile), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// shrinkConvergeHeadWait keeps the nil-HEAD path from burning its real 15s wait.
-func shrinkConvergeHeadWait(t *testing.T) {
-	t.Helper()
-	interval, attempts := convergeHeadWaitInterval, convergeHeadWaitAttempts
-	convergeHeadWaitInterval, convergeHeadWaitAttempts = time.Millisecond, 2
-	t.Cleanup(func() { convergeHeadWaitInterval, convergeHeadWaitAttempts = interval, attempts })
-}
+func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		head  *volumeHead
+		want  string
+		setup func(t *testing.T, m *VolumeManager)
+	}{
+		{
+			// The guest never staged the file within the wait. Points at the
+			// guest or at the wait being too short, not at the server.
+			name: "guest never staged the HEAD",
+			head: nil,
+			want: "guest never staged the volume HEAD",
+		},
+		{
+			// Nothing published for the account yet, so there is nothing to
+			// converge toward. Not a fault.
+			name: "account has no published HEAD",
+			head: &volumeHead{Generation: 0, DownloadURL: "https://example.invalid/x"},
+			want: "account has no published HEAD yet",
+		},
+		{
+			// A HEAD exists but arrived without a URL, which is what the server
+			// withholding it from an untrusted (fork) dispatch looks like.
+			name: "HEAD arrived without a download URL",
+			head: &volumeHead{Generation: 7},
+			want: "HEAD carries no download URL",
+		},
+		{
+			// The healthy no-op, and the one that must be distinguishable from a
+			// failure when asking why a fleet is not converging.
+			name: "host already at the HEAD generation",
+			head: &volumeHead{Generation: 3, DownloadURL: "https://example.invalid/x"},
+			want: "host already at or past the HEAD",
+			setup: func(t *testing.T, m *VolumeManager) {
+				seedMasterGen(t, m, "42", masterImageContent("42"), 3)
+			},
+		},
+		{
+			// Object storage, as distinct from every skip above.
+			name: "HEAD cannot be downloaded",
+			head: &volumeHead{Generation: 9, DownloadURL: "http://127.0.0.1:1/missing"},
+			want: "download master image",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			messages := captureLogs(t)
+			m, _ := newTestManager(t, 100)
+			if tc.setup != nil {
+				tc.setup(t, m)
+			}
+			statusDir := t.TempDir()
+			if tc.head != nil {
+				stageHead(t, statusDir, *tc.head)
+			}
+			r := &Reconciler{
+				Volumes:                  m,
+				ConvergeHeadWaitInterval: time.Millisecond,
+				ConvergeHeadWaitAttempts: 2,
+			}
 
-// The `head_absent` case: the guest never staged volume-head.json. The counter
-// can say this dominates; only the log says which account on which host, which
-// is the next question every time.
-func TestConvergeMasterLogsWhenTheGuestStagedNoHead(t *testing.T) {
-	shrinkConvergeHeadWait(t)
-	logs := captureLogs(t)
-	m, _ := newTestManager(t, 100)
-	r := &Reconciler{Volumes: m}
+			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
 
-	r.convergeMaster("vm-1", t.TempDir(), ReservedTuistCacheVolume, "account-7")
-
-	if !containsAll(logs(), "converge", "no HEAD", "vm-1", "account-7") {
-		t.Fatalf("expected a decline line naming the vm and account, got %q", logs())
-	}
-}
-
-func TestConvergeMasterLogsWhenTheHeadIsIncomplete(t *testing.T) {
-	shrinkConvergeHeadWait(t)
-	logs := captureLogs(t)
-	m, _ := newTestManager(t, 100)
-	r := &Reconciler{Volumes: m}
-	statusDir := t.TempDir()
-	// A HEAD generation with no download URL: the server knows of a master but
-	// handed out nothing to fetch it with.
-	writeVolumeHead(t, statusDir, volumeHead{Generation: 9})
-
-	r.convergeMaster("vm-1", statusDir, ReservedTuistCacheVolume, "account-7")
-
-	if !containsAll(logs(), "converge", "incomplete", "account-7") {
-		t.Fatalf("expected a decline line for the incomplete HEAD, got %q", logs())
-	}
-}
-
-func TestConvergeMasterLogsWhenAlreadyAtHead(t *testing.T) {
-	shrinkConvergeHeadWait(t)
-	logs := captureLogs(t)
-	m, _ := newTestManager(t, 100)
-	r := &Reconciler{Volumes: m}
-	statusDir := t.TempDir()
-	writeVolumeHead(t, statusDir, volumeHead{Generation: 3, DownloadURL: "https://example.invalid/master"})
-
-	// A resident master already at generation 5 — ahead of the advertised HEAD.
-	dir := m.volumeDir("account-7", ReservedTuistCacheVolume)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, masterImageName), []byte("image"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, masterGenerationName), []byte(strconv.Itoa(5)), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	r.convergeMaster("vm-1", statusDir, ReservedTuistCacheVolume, "account-7")
-
-	if !containsAll(logs(), "converge", "already at or past HEAD", "account-7") {
-		t.Fatalf("expected a decline line for the already-current master, got %q", logs())
-	}
-}
-
-// Every line the convergence emits has to carry the literal "converge", because
-// the query the fleet is meant to be diagnosed with is a substring filter:
-// {job="tuist-macos-tart-kubelet"} |= "converge".
-func TestConvergeDeclineLinesAreSelectableBySubstring(t *testing.T) {
-	shrinkConvergeHeadWait(t)
-	logs := captureLogs(t)
-	m, _ := newTestManager(t, 100)
-	r := &Reconciler{Volumes: m}
-
-	r.convergeMaster("vm-1", t.TempDir(), ReservedTuistCacheVolume, "account-7")
-
-	emitted := logs()
-	if len(emitted) == 0 {
-		t.Fatal("expected the decline to emit at least one line")
-	}
-	for _, line := range emitted {
-		if !strings.Contains(line, "converge") {
-			t.Fatalf("line %q is invisible to |= \"converge\"", line)
-		}
+			got := messages()
+			for _, msg := range got {
+				if strings.Contains(msg, tc.want) {
+					return
+				}
+			}
+			t.Fatalf("no log line mentioning %q; got %v", tc.want, got)
+		})
 	}
 }

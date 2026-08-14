@@ -401,34 +401,36 @@ func readVolumeHead(statusDir string) *volumeHead {
 // can't race the reconciler mutating that entry. Best-effort and bounded: no
 // HEAD, already-current, or any download/extract failure leaves the local
 // master untouched (the status quo — jobs just pay a few remote misses).
-//
-// Every decline logs which branch it took, keyed by vm + account. A counter can
-// say how often a branch fires; only the line says why THIS account on THIS
-// host declined, which is where an investigation into a fleet that materializes
-// hundreds of times a day and converges once has to go next. Convergence runs
-// at most once per VM, so this is a handful of lines per job, not a per-tick
-// stream. They ship off the host via infra/macos-log-shipper.
 func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account string) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return
 	}
-	logger := log.Log.WithName("volume")
 	// Wait (bounded) for the guest to stage the HEAD. The guest writes
 	// volume-head.json only after it receives the dispatch response, which the
 	// server returns after stamping the label that triggered this convergence,
 	// so the file lands a beat later than this goroutine starts. Reading it once
 	// would usually miss it and permanently skip convergence; since this runs in
 	// the background, it can afford to wait for the file to appear.
-	head := awaitVolumeHead(statusDir)
-	if head == nil {
-		logger.Info("converge: declined, guest staged no HEAD before the wait elapsed",
-			"vm", vmName, "account", account, "statusDir", statusDir)
+	logger := log.Log.WithName("volume")
+	head := awaitVolumeHead(statusDir, r.ConvergeHeadWaitInterval, r.ConvergeHeadWaitAttempts)
+	// Each of these three used to share one silent `return`, which made the most
+	// likely reason a convergence does not happen indistinguishable from the
+	// other two — and from convergence never having been attempted. They have
+	// nothing in common: the first is the guest or the wait, the second is an
+	// account that has published nothing yet, the third is the server
+	// deliberately withholding the HEAD from an untrusted job.
+	switch {
+	case head == nil:
+		logger.Info("converge: guest never staged the volume HEAD; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
 		return
-	}
-	if head.Generation <= 0 || head.DownloadURL == "" {
-		logger.Info("converge: declined, HEAD is incomplete",
-			"vm", vmName, "account", account,
-			"generation", head.Generation, "hasDownloadURL", head.DownloadURL != "")
+	case head.Generation <= 0:
+		logger.Info("converge: account has no published HEAD yet; skipping",
+			"vm", vmName, "account", account, "volume", volumeName)
+		return
+	case head.DownloadURL == "":
+		logger.Info("converge: HEAD carries no download URL (untrusted job?); skipping",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
 	// Skip if this host's master is already at or past the HEAD generation. The
@@ -436,8 +438,12 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// generation >= the HEAD's means this host already holds that HEAD (or its own
 	// newer promote) and has nothing to adopt.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
-		logger.Info("converge: declined, local master is already at or past HEAD",
-			"vm", vmName, "account", account, "local", local, "head", head.Generation)
+		// The healthy no-op. Logged so it can be told apart from a convergence
+		// that failed or never ran, which is the distinction that matters when
+		// asking why a fleet is not converging.
+		logger.Info("converge: host already at or past the HEAD; nothing to adopt",
+			"vm", vmName, "account", account, "volume", volumeName,
+			"local_generation", local, "head_generation", head.Generation)
 		return
 	}
 
@@ -476,13 +482,10 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		return
 	}
 	if !installed {
-		// InstallMaster's generation gate refused: something moved the local
-		// master to a newer generation while this download was in flight (a
-		// promote from the job that triggered it, or a concurrent converge to a
-		// later HEAD). Benign, but indistinguishable from a broken download
-		// unless it says so.
-		logger.Info("converge: declined at install, local master moved to a newer generation mid-download",
-			"vm", vmName, "account", account, "head", head.Generation)
+		// A promote or another convergence moved the master past this HEAD while
+		// the download was in flight, so the generation gate declined the swap.
+		logger.Info("converge: master moved past this HEAD mid-download; discarding",
+			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
 	RecordVolumeConverged()
@@ -491,21 +494,28 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
 // background convergence waits for the guest to stage the HEAD before giving
-// up (best-effort; the next job on this host converges instead). Package-level
-// vars, not consts, so tests can shrink the wait.
-var (
+// up (best-effort; the next job on this host converges instead).
+const (
 	convergeHeadWaitInterval = 1 * time.Second
 	convergeHeadWaitAttempts = 15
 )
 
 // awaitVolumeHead polls the status share for the guest-staged HEAD, returning
-// as soon as it appears or nil once the bound elapses.
-func awaitVolumeHead(statusDir string) *volumeHead {
-	for i := 0; i < convergeHeadWaitAttempts; i++ {
+// as soon as it appears or nil once the bound elapses. Interval and attempts are
+// parameters so tests do not wait real seconds, mirroring the manager's
+// mount-check wait.
+func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *volumeHead {
+	if interval <= 0 {
+		interval = convergeHeadWaitInterval
+	}
+	if attempts <= 0 {
+		attempts = convergeHeadWaitAttempts
+	}
+	for i := 0; i < attempts; i++ {
 		if h := readVolumeHead(statusDir); h != nil {
 			return h
 		}
-		time.Sleep(convergeHeadWaitInterval)
+		time.Sleep(interval)
 	}
 	return readVolumeHead(statusDir)
 }
