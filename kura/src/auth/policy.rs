@@ -14,7 +14,7 @@ use tracing::warn;
 
 use super::grants::CacheGrants;
 use super::target::{Action, RequestTarget, Scope, request_action, request_target};
-use super::tuist::TuistBackend;
+use super::tuist::{EXPIRY_LEEWAY, TuistBackend};
 use crate::auth::{DenyDecision, Principal, RequestContext};
 
 /// Lifetimes for the authorization cache, and for the denials the engine holds.
@@ -68,6 +68,20 @@ impl Authentication {
 /// cannot be read from — an opaque project or account token, which the server
 /// resolves against its own records — is bounded by the cache instead.
 pub fn credential_expiry(ctx: &RequestContext) -> Option<Duration> {
+    let (expires_at, now) = credential_deadline(ctx)?;
+    Some(Duration::from_secs(expires_at.saturating_sub(now)))
+}
+
+/// Whether the credential is far enough past its own expiry that the verifier
+/// would no longer read it either.
+fn credential_expired(ctx: &RequestContext) -> bool {
+    credential_deadline(ctx)
+        .is_some_and(|(expires_at, now)| now.saturating_sub(expires_at) > EXPIRY_LEEWAY.as_secs())
+}
+
+/// The `exp` the credential carries and the time to judge it against, both in
+/// seconds since the epoch. `None` when the credential names no deadline.
+fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
     let token = bearer_token(authorization_header(ctx)?);
     let claims = URL_SAFE_NO_PAD.decode(token.split('.').nth(1)?).ok()?;
     let expires_at = serde_json::from_slice::<Value>(&claims)
@@ -76,7 +90,7 @@ pub fn credential_expiry(ctx: &RequestContext) -> Option<Duration> {
         .as_u64()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
 
-    Some(Duration::from_secs(expires_at.saturating_sub(now)))
+    Some((expires_at, now))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,15 +145,34 @@ fn principal_from_grants(id: Option<&str>, kind: Option<&str>, grants: &CacheGra
 /// reaching two projects would alternate, paying a call every time it changed
 /// which one it asked about. Both shapes normalize to grants, which is the
 /// shape `authorize` prefers when it finds one.
-pub fn merge_principals(held: &Principal, fresh: Principal) -> Principal {
-    let grants = CacheGrants::from_principal(&fresh.attributes)
+///
+/// The fold must not overrule a refusal. A server narrowing a token — a project
+/// dropped from its grants, a user removed from a project — refuses the request
+/// that triggered the consultation, and folding what the node held back in
+/// would re-grant exactly what was just taken away, for every request after it.
+/// Withdrawing what this request asked for keeps the case the fold exists for
+/// without that.
+pub fn merge_principals(held: &Principal, fresh: &Principal, ctx: &RequestContext) -> Principal {
+    let merged = CacheGrants::from_principal(&fresh.attributes)
         .merged(&CacheGrants::from_principal(&held.attributes));
+
+    let grants = match request_target(ctx) {
+        Ok(target) => {
+            let action = request_action(ctx);
+            if CacheGrants::from_principal(&fresh.attributes).allow(&target, &action) {
+                merged
+            } else {
+                merged.withdraw(&target, &action)
+            }
+        }
+        Err(_) => merged,
+    };
     let accounts = grants.accounts();
     let projects = grants.projects();
 
     Principal {
-        id: fresh.id,
-        kind: fresh.kind,
+        id: fresh.id.clone(),
+        kind: fresh.kind.clone(),
         attributes: json!({
             "cache_grants": grants,
             "accounts": accounts,
@@ -220,10 +253,10 @@ pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authe
     // past its own expiry has nothing to gain there: the server validates `exp`
     // too and answers inactive. Refusing here keeps a client looping on a stale
     // token off the control plane, and keeps the engine from holding an entry
-    // that is already dead on arrival. The verifier above has its own leeway
-    // and has already had its say, so this only sees credentials it could not
-    // settle.
-    if credential_expiry(ctx).is_some_and(|remaining| remaining.is_zero()) {
+    // that is already dead on arrival. It refuses over the same window the
+    // verifier above accepts over, or a credential inside that window would be
+    // read from its own grants and refused everything they do not cover.
+    if credential_expired(ctx) {
         return Authentication::deny(401, "Invalid or expired token");
     }
 

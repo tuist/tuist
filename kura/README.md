@@ -601,22 +601,24 @@ which is what stops a token reaching two projects from paying a call every time
 it changes which one it asks about.
 
 A refusal is held per credential **and** per target and action, because a
-refusal about one project says nothing about the next.
+refusal about one project says nothing about the next. A refusal that is about
+the credential itself — a 401, where the server says the token is invalid or
+expired rather than that it does not reach this project — takes the principal
+with it, so the other projects it covers stop being served too.
 
 A credential presented past its own expiry is refused without asking: the server
-validates `exp` too and would only answer inactive.
+validates `exp` too and would only answer inactive. That refusal holds off for
+the same minute of leeway the verifier allows, so the two cannot disagree about
+a credential in its last seconds.
 
-How long a confirmed principal is held depends on what the credential says about
-itself:
-
-- A credential carrying an `exp` is held until then, capped at 25 minutes, and
-  never revalidated. The client stops presenting it at that point, so there is
-  nothing a later answer could change. The `exp` is read without verifying the
-  signature, which is safe because it is only read off a credential the server
-  has just confirmed — a forged one would not have been.
-- A credential carrying no expiry, which is every opaque project and account
-  token, is served for 10 minutes and then revalidated against the server. That
-  10 minutes is the revocation latency for those tokens.
+Every confirmed principal is served for **10 minutes** and then revalidated
+against the server, whatever the credential is. That is the revocation latency.
+A credential carrying an `exp` is bounded by it as well — it is never held past
+its own expiry, and never past 25 minutes either — but carrying one is not a
+reason to skip revalidation: expiry says when a credential runs out, not whether
+it has been withdrawn. The `exp` is read without verifying the signature, which
+is safe because it is only read off a credential the server has just confirmed;
+a forged one would not have been.
 
 Revalidation is what keeps a control-plane blip off the serving path. A server
 that answers is taken at its word either way: it renews the principal, or it
@@ -640,6 +642,9 @@ Reuse during an outage is counted as
 server as `result="revalidate"`, and an outage the node could not cover is
 `kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
 with the underlying transport or status error.
+
+Everything above is decided against the target a request resolves to, not the
+fields it happens to carry, so the two forms below reach the same answer.
 
 Requests carry their target as `tenant_id` and `namespace_id`, also read from
 `account_handle` and `project_handle` in the query. A request naming no project

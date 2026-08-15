@@ -138,6 +138,23 @@ impl CacheGrants {
         self
     }
 
+    /// Withdraws one handle for one action.
+    ///
+    /// A write is withdrawn on its own, but a read has to take the write with
+    /// it: `allows` lets a writer read without being granted both, so leaving
+    /// the write behind would leave the read granted.
+    pub fn withdraw(mut self, target: &RequestTarget, action: &Action) -> Self {
+        let bucket = match target.scope {
+            Scope::Account => &mut self.account,
+            Scope::Project => &mut self.project,
+        };
+        bucket.write.retain(|handle| handle != &target.identifier);
+        if matches!(action, Action::Read) {
+            bucket.read.retain(|handle| handle != &target.identifier);
+        }
+        self
+    }
+
     fn from_grants_value(grants: Option<&Value>) -> Self {
         Self {
             account: GrantBucket::from_value(grants.and_then(|grants| grants.get("account"))),

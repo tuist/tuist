@@ -69,6 +69,25 @@ const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 4000;
 // it can never be reached and the node gives up on the handshake early.
 const _: () = assert!(DEFAULT_CONNECT_TIMEOUT_MS < DEFAULT_REQUEST_TIMEOUT_MS);
 
+/// The invariant the constants above are asserted against holds for what an
+/// operator sets too, and a connect budget that can never be reached is worth
+/// saying out loud rather than starting with quietly.
+fn reachable_connect_timeout_ms(connect_timeout_ms: u64, request_timeout_ms: u64) -> u64 {
+    if connect_timeout_ms < request_timeout_ms {
+        return connect_timeout_ms;
+    }
+
+    warn!(
+        "{} ({}ms) is not below {} ({}ms), which spans it; using {}ms for the connect.",
+        CONNECT_TIMEOUT_MS[0],
+        connect_timeout_ms,
+        REQUEST_TIMEOUT_MS[0],
+        request_timeout_ms,
+        request_timeout_ms
+    );
+    request_timeout_ms
+}
+
 #[derive(Clone, Debug)]
 pub struct AuthConfig {
     pub base_url: String,
@@ -111,14 +130,17 @@ impl AuthConfig {
             return Err(format!("{} must be greater than 0", CACHE_MAX_ENTRIES[0]));
         }
 
+        let request_timeout_ms =
+            optional_parse(REQUEST_TIMEOUT_MS)?.unwrap_or(DEFAULT_REQUEST_TIMEOUT_MS);
+        let configured_connect_timeout_ms =
+            optional_parse(CONNECT_TIMEOUT_MS)?.unwrap_or(DEFAULT_CONNECT_TIMEOUT_MS);
+        let connect_timeout_ms =
+            reachable_connect_timeout_ms(configured_connect_timeout_ms, request_timeout_ms);
+
         Ok(Some(Self {
             base_url,
-            connect_timeout: Duration::from_millis(
-                optional_parse(CONNECT_TIMEOUT_MS)?.unwrap_or(DEFAULT_CONNECT_TIMEOUT_MS),
-            ),
-            request_timeout: Duration::from_millis(
-                optional_parse(REQUEST_TIMEOUT_MS)?.unwrap_or(DEFAULT_REQUEST_TIMEOUT_MS),
-            ),
+            connect_timeout: Duration::from_millis(connect_timeout_ms),
+            request_timeout: Duration::from_millis(request_timeout_ms),
             verifier: jwt_verifier_from_env()?,
             introspection: introspection_from_env(),
             cache_max_entries,
@@ -252,5 +274,15 @@ mod tests {
     #[test]
     fn treats_a_blank_value_as_unset() {
         assert!(first_set(TUIST_URL, lookup(&[("KURA_AUTH_TUIST_URL", "   ")])).is_none());
+    }
+
+    // A connect budget at or above the request budget is exactly the
+    // configuration the assertion on the defaults exists to prevent, and
+    // nothing stops an operator setting one.
+    #[test]
+    fn a_connect_budget_the_request_budget_spans_is_brought_back_within_it() {
+        assert_eq!(reachable_connect_timeout_ms(3000, 4000), 3000);
+        assert_eq!(reachable_connect_timeout_ms(6000, 4000), 4000);
+        assert_eq!(reachable_connect_timeout_ms(4000, 4000), 4000);
     }
 }

@@ -1338,3 +1338,216 @@ fn seconds_since_epoch() -> u64 {
         .expect("a clock after the epoch")
         .as_secs()
 }
+
+// Folding one answer into the next must not overrule a refusal. A server that
+// narrows a token reports it still active with the project gone from its
+// grants, so the request that triggers the consultation is refused while the
+// node still holds a principal that grants it. Folding that back in would
+// re-grant exactly what was just taken away, for every request after the first.
+#[tokio::test]
+async fn a_grant_the_server_has_withdrawn_is_not_folded_back_in() {
+    let narrowed = Arc::new(AtomicBool::new(false));
+    let narrowed_for_handler = narrowed.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            let grants = if narrowed_for_handler.load(Ordering::SeqCst) {
+                cache_grants_payload(&[], &[], &[], &[])
+            } else {
+                cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])
+            };
+            (StatusCode::OK, introspection_payload(grants))
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context.namespace_id = Some("ios".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+    engine.expire_serving_deadline(&context).await;
+    narrowed.store(true, Ordering::SeqCst);
+
+    // The first refusal is judged on the server's answer; the ones after it are
+    // judged on whatever the fold wrote back.
+    for _ in 0..3 {
+        let deny = expect_deny(engine.evaluate_access(&context).await);
+        assert_eq!(deny.status, 403);
+    }
+}
+
+// A token can be withdrawn entirely, and the server says so with a 401 rather
+// than by narrowing. That is not about one project, so the principal goes with
+// it — otherwise every other project it covers keeps being served.
+#[tokio::test]
+async fn a_revoked_credential_stops_serving_the_projects_it_still_covers() {
+    let revoked = Arc::new(AtomicBool::new(false));
+    let revoked_for_introspect = revoked.clone();
+    let revoked_for_cache = revoked.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if revoked_for_introspect.load(Ordering::SeqCst) {
+                (StatusCode::OK, json!({ "active": false }))
+            } else {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(
+                        &[],
+                        &[],
+                        &["acme/ios"],
+                        &["acme/ios"],
+                    )),
+                )
+            }
+        },
+        move |_| {
+            if revoked_for_cache.load(Ordering::SeqCst) {
+                (StatusCode::UNAUTHORIZED, json!({}))
+            } else {
+                (StatusCode::OK, cache_access_payload(&[], &[]))
+            }
+        },
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let project = |name: &str| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(name.into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context
+    };
+
+    assert!(matches!(
+        engine.evaluate_access(&project("ios")).await,
+        AccessDecision::Allow
+    ));
+    revoked.store(true, Ordering::SeqCst);
+
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&project("android")).await).status,
+        401
+    );
+    assert_eq!(
+        expect_deny(engine.evaluate_access(&project("ios")).await).status,
+        401
+    );
+}
+
+// The verifier reads a credential for a minute past its own expiry, so the
+// refusal in front of the backend has to hold off for exactly as long. Inside
+// that window the two disagreeing meant a credential was read from its own
+// grants and refused everything they did not cover, without the server ever
+// being asked whether the legacy route would have allowed it.
+#[tokio::test]
+async fn a_credential_inside_the_verifier_leeway_still_reaches_the_backend() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &["acme/android"])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::HS512),
+        &json!({
+            "sub": "user-1",
+            "iss": "tuist",
+            "exp": seconds_since_epoch() - 30,
+            "cache_grants": cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"]),
+        }),
+        &jsonwebtoken::EncodingKey::from_secret(GUARDIAN_SECRET.as_bytes()),
+    )
+    .expect("sign a just-expired token");
+
+    let project = |name: &str| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(name.into());
+        context
+            .headers
+            .insert("authorization".into(), format!("Bearer {token}"));
+        context
+    };
+
+    for name in ["ios", "android"] {
+        assert!(
+            matches!(
+                engine.evaluate_access(&project(name)).await,
+                AccessDecision::Allow
+            ),
+            "{name} should be allowed inside the verifier's leeway"
+        );
+    }
+}
+
+// Some routes name their target in the query rather than the path, which is
+// the form the README documents. Both have to reach the same answer: keyed on
+// the raw context fields the query form left them unset, so two projects
+// looked identical and the first one's answer served the second.
+#[tokio::test]
+async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &["acme/ios"])),
+    )
+    .await;
+
+    let query_form = |project: &str| {
+        let mut context = ctx();
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context.query.insert("account_handle".into(), "acme".into());
+        context
+            .query
+            .insert("project_handle".into(), project.into());
+        context
+    };
+    let path_form = |project: &str| {
+        let mut context = ctx();
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(project.into());
+        context
+    };
+
+    for form in [
+        &query_form as &dyn Fn(&str) -> RequestContext,
+        &path_form as &dyn Fn(&str) -> RequestContext,
+    ] {
+        let engine = engine_pointing_at(&base, false);
+
+        assert!(matches!(
+            engine.evaluate_access(&form("ios")).await,
+            AccessDecision::Allow
+        ));
+
+        let deny = expect_deny(engine.evaluate_access(&form("android")).await);
+        assert_eq!(deny.status, 403);
+        assert!(deny.message.contains("acme/android"));
+    }
+}

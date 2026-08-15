@@ -38,8 +38,8 @@ impl Decision for Authorization {
 }
 
 /// How long a confirmed principal is served before the backend is asked about
-/// it again. It is the revocation latency for a credential that carries no
-/// expiry of its own.
+/// it again. It is the revocation latency, and it is the same for every
+/// credential: expiry says when one runs out, not whether it was withdrawn.
 const REVALIDATE_AFTER: Duration = Duration::from_secs(10 * 60);
 
 /// How long a confirmed principal stays usable at all. Past `REVALIDATE_AFTER`
@@ -129,8 +129,10 @@ pub struct AuthEngine {
     /// target and action its own grants cover.
     principals: Cache<String, ConfirmedPrincipal>,
     /// Keyed on the credential *and* what the request names, because a refusal
-    /// is only ever about one target and action. A principal that does not
-    /// cover some other target says nothing about it — the backend still might.
+    /// about one target says nothing about the next — a principal that does not
+    /// cover some other target does not settle it, and the backend still might.
+    /// A refusal that is about the credential itself takes the principal with
+    /// it instead.
     denials: Cache<String, DenyDecision>,
     decisions: Cache<String, Authorization>,
     /// One lock per credential, so exactly one request asks the backend about
@@ -213,7 +215,7 @@ impl AuthEngine {
 
     async fn resolve_authentication(&self, ctx: &RequestContext) -> Authentication {
         let credential = credentials(ctx);
-        let denial_key = denial_key(ctx, &credential);
+        let denial_key = fingerprint(&(&credential, request_key(ctx)));
 
         if let Some(deny) = self.denials.get(&denial_key).await {
             self.metrics.record_auth_cache("authenticate", "hit");
@@ -313,6 +315,13 @@ impl AuthEngine {
             // against this target alone, and the principal is left as it was:
             // it may still be the right answer for everything else.
             Authentication::Deny(deny) => {
+                // A 403 is about this target and leaves the principal alone. A
+                // 401 says the credential itself is finished, so holding on to
+                // a principal for it would keep serving every other target that
+                // principal covers.
+                if deny.status == 401 {
+                    self.principals.invalidate(&credential_key).await;
+                }
                 self.denials.insert(denial_key, deny.clone()).await;
                 Authentication::Deny(deny)
             }
@@ -404,7 +413,7 @@ impl AuthEngine {
     ) -> ConfirmedPrincipal {
         let now = Instant::now();
         let principal = match held {
-            Some(held) => policy::merge_principals(&held.principal, principal),
+            Some(held) => policy::merge_principals(&held.principal, &principal, ctx),
             None => principal,
         };
         let expiry = policy::credential_expiry(ctx);
@@ -422,13 +431,13 @@ impl AuthEngine {
 
         ConfirmedPrincipal {
             principal,
-            // A credential that says when it expires is held until then and
-            // never revalidated: the client stops presenting it at that point,
-            // so there is nothing for a later answer to change.
-            serve_until: match expiry {
-                Some(_) => reusable_until,
-                None => (now + REVALIDATE_AFTER).min(reusable_until),
-            },
+            // Every credential is revalidated on the same schedule, so
+            // revocation lands within one window whatever the credential is.
+            // Expiry bounds reuse, not revalidation: a token can be withdrawn
+            // long before it runs out, and a refresh token presented as a
+            // bearer introspects as active while being exactly the kind the
+            // server can revoke.
+            serve_until: (now + REVALIDATE_AFTER).min(reusable_until),
             reusable_until,
         }
     }
@@ -438,17 +447,12 @@ impl AuthEngine {
         ctx: &RequestContext,
         principal: &Principal,
     ) -> Authorization {
-        let key = fingerprint(&(
-            credentials(ctx),
-            principal,
-            &ctx.server_tenant_id,
-            &ctx.tenant_id,
-            &ctx.namespace_id,
-            &ctx.operation,
-            &ctx.producer,
-            &ctx.route,
-            &ctx.method,
-        ));
+        // The principal stays in the key so a cached allow falls away on
+        // its own when the grants behind it change. Nothing else `authorize`
+        // does not read belongs here: the server tenant is a constant per node,
+        // and the producer and route split the cache without ever changing the
+        // answer.
+        let key = fingerprint(&(credentials(ctx), principal, request_key(ctx)));
 
         let entry = self
             .decisions
@@ -484,24 +488,39 @@ fn result_label(result: &Authentication) -> &'static str {
     }
 }
 
-/// The credential plus what the request names, for holding a refusal.
+/// What a request asks, as everything downstream of authentication reads it.
 ///
-/// A refusal is only ever about one target and one action: a token the backend
-/// calls active, whose grants do not cover this project, falls through to the
-/// legacy route, and what that route says about this project says nothing about
-/// the next one. Keyed on the credential alone, one project's refusal would
-/// answer for every project that token reaches.
-fn denial_key(ctx: &RequestContext, credential: &str) -> String {
+/// Resolved rather than raw: `request_target` also reads the target out of the
+/// `account_handle` and `project_handle` query parameters, and the fields on
+/// the context are only ever filled from the path. Keyed on those fields a
+/// request naming its project in the query looks identical to one naming a
+/// different project the same way.
+///
+/// The scope travels with the identifier because an account target and a
+/// project target read different grant buckets.
+#[derive(Serialize)]
+enum RequestKey {
+    Resolved {
+        scope: &'static str,
+        identifier: String,
+        action: &'static str,
+    },
+    /// A request whose target cannot be resolved is refused before any of this
+    /// matters, and the three ways that happens are three different refusals —
+    /// a tenant this server does not serve, a request naming none, and a server
+    /// whose own tenant is unavailable. Sharing one key would have the first of
+    /// them answer for the others.
+    Unresolved(DenyDecision),
+}
+
+fn request_key(ctx: &RequestContext) -> RequestKey {
     match request_target(ctx) {
-        Ok(target) => fingerprint(&(
-            credential,
-            target.scope.key(),
-            target.identifier,
-            request_action(ctx).key(),
-        )),
-        // The policy rejects a request whose target it cannot resolve, and that
-        // rejection is the same for every such request this credential carries.
-        Err(_) => fingerprint(&(credential, "unresolved-target")),
+        Ok(target) => RequestKey::Resolved {
+            scope: target.scope.key(),
+            identifier: target.identifier,
+            action: request_action(ctx).key(),
+        },
+        Err(deny) => RequestKey::Unresolved(deny),
     }
 }
 
@@ -700,7 +719,7 @@ mod tests {
     // A credential that carries its own expiry is held until then and not
     // revalidated, so the two deadlines coincide and an outage buys it nothing.
     #[test]
-    fn a_credential_carrying_an_expiry_is_held_until_that_expiry() {
+    fn a_credential_carrying_an_expiry_is_held_no_longer_than_that_expiry() {
         let engine = engine();
         let mut ctx = ctx_with_token(&token_expiring_in(120));
         ctx.tenant_id = Some("acme".into());
@@ -710,6 +729,20 @@ mod tests {
         assert_eq!(held.serve_until, held.reusable_until);
         assert!(held.reusable_until <= Instant::now() + Duration::from_secs(120));
         assert!(held.reusable_until > Instant::now() + Duration::from_secs(110));
+    }
+
+    // Carrying an expiry is not a reason to skip revalidation. Expiry says when
+    // a credential runs out, not whether it has been withdrawn, and a token the
+    // server can revoke reaches this branch.
+    #[test]
+    fn a_credential_carrying_a_long_expiry_is_still_revalidated() {
+        let engine = engine();
+        let ctx = ctx_with_token(&token_expiring_in(60 * 60));
+
+        let held = engine.confirm(principal("a"), &ctx, None);
+
+        assert!(held.serve_until < held.reusable_until);
+        assert!(held.serve_until <= Instant::now() + REVALIDATE_AFTER);
     }
 
     // A credential that carries no expiry gets the cache's own deadlines: a
@@ -764,7 +797,10 @@ mod tests {
         let mut second = first.clone();
         second.namespace_id = Some("android".into());
 
-        assert_ne!(denial_key(&first, "token"), denial_key(&second, "token"));
+        assert_ne!(
+            fingerprint(&("token", request_key(&first))),
+            fingerprint(&("token", request_key(&second)))
+        );
     }
 
     // A refusal to write is not a refusal to read, for the same reason.
@@ -778,7 +814,10 @@ mod tests {
         write.method = "PUT".into();
         write.operation = "artifact.write".into();
 
-        assert_ne!(denial_key(&read, "token"), denial_key(&write, "token"));
+        assert_ne!(
+            fingerprint(&("token", request_key(&read))),
+            fingerprint(&("token", request_key(&write)))
+        );
     }
 
     #[test]
