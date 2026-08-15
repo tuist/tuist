@@ -2,7 +2,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Loops
+  alias Tuist.Atlas.Email
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -23,7 +23,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, verification_url ->
         uri = URI.parse(verification_url)
         assert uri.path == "/newsletter/verify"
         assert %{"token" => token} = URI.decode_query(uri.query)
@@ -44,11 +44,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
-    test "returns error when Loops API fails", %{conn: conn} do
+    test "returns error when the email API fails", %{conn: conn} do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url ->
         {:error, {:http_error, 400, %{"error" => "Invalid request"}}}
       end)
 
@@ -66,7 +66,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url ->
         {:error, :timeout}
       end)
 
@@ -182,7 +182,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       email = "test@example.com"
       token = signed_newsletter_token(email)
 
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
+      expect(Email, :add_to_newsletter_list, fn ^email ->
         :ok
       end)
 
@@ -197,12 +197,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert conn.assigns.head_title == "Successfully Subscribed!"
     end
 
-    test "shows error page when Loops API fails during verification", %{conn: conn} do
+    test "shows error page when the email API fails during verification", %{conn: conn} do
       # Given
       email = "test@example.com"
       token = signed_newsletter_token(email)
 
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
+      expect(Email, :add_to_newsletter_list, fn ^email ->
         {:error, {:http_error, 400}}
       end)
 
