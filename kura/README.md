@@ -620,7 +620,8 @@ the same minute of leeway the verifier allows, so the two cannot disagree about
 a credential in its last seconds.
 
 Every confirmed principal is served for **10 minutes** and then revalidated
-against the server, whatever the credential is. That is the revocation latency.
+against the server, whatever the credential is. That is how long a revocation, a
+deactivated user, or a narrowed grant can go unnoticed here.
 A credential carrying an `exp` is bounded by it as well — it is never held past
 its own expiry, and never past 25 minutes either — but carrying one is not a
 reason to skip revalidation: expiry says when a credential runs out, not whether
@@ -646,11 +647,13 @@ not answer is also left alone for a few seconds before the next attempt, so an
 outage does not turn into a burst against a control plane that is already down.
 
 What the node answers is held per credential and per target and action, for a
-few seconds. That is short on purpose: it is what stands in for invalidating an
-answer when the principal behind it changes, and working one out again is a
-local check against the principal the node already holds rather than a call to
-the server. A refusal is held for less still, so a permission just granted is
-not locked out by the refusal that preceded it.
+minute. Working one out again is a local check against the principal the node
+already holds rather than a call to the server, so that minute is a tail on top
+of the ten the principal is served for, not a window of its own. Where it is
+felt on its own is a 401: the principal goes at once, but an answer already
+worked out for another target stands until the minute runs out. A refusal is
+held for three seconds, so a permission just granted is not locked out by the
+refusal that preceded it.
 
 Answers taken from that are counted as
 `kura_auth_cache_total{cache="decide",result="hit"}` and the ones worked out as

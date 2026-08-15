@@ -30,19 +30,24 @@ pub trait Decision {
     fn ttl(&self) -> Duration;
 }
 
-/// How long a decision stands before it is worked out again.
+/// How long an allow stands before it is worked out again. A refusal has its
+/// own, shorter lifetime below.
 ///
-/// Short on purpose, and load-bearing: this is what stands in for invalidating
-/// decisions when the principal behind them changes. Working one out again is a
-/// local check against the principal the node already holds, not a backend
-/// call, so short costs almost nothing — raising it for performance would buy
-/// very little and reopen a window where a decision outlives the grants it was
-/// made from.
-const DECISION_TTL: Duration = Duration::from_secs(5);
+/// This is what stands in for invalidating an allow when the principal behind
+/// it changes, so it is the tail on top of whatever staleness the principal
+/// already carries — and the principal is held for `REVALIDATE_AFTER`, which is
+/// two orders of magnitude longer. Shortening this one would tighten a window
+/// that is set by the other; what it does buy is skipping the grant scan on the
+/// hot path. The bound worth defending is `REVALIDATE_AFTER`.
+///
+/// The one place it is felt on its own is a 401: the principal is dropped at
+/// once, but an allow already worked out for another target stands until this
+/// runs out.
+const DECISION_TTL: Duration = Duration::from_secs(60);
 
-/// How long a refusal stands. Shorter still, so a caller who has just been
-/// granted access is not locked out by their own rejection and a server that
-/// has come back is asked again promptly.
+/// How long a refusal stands. Far shorter than an allow, so a caller who has
+/// just been granted access is not locked out by their own rejection and a
+/// server that has come back is asked again promptly.
 const REFUSAL_TTL: Duration = Duration::from_secs(3);
 
 /// How long a confirmed principal is served before the backend is asked about
