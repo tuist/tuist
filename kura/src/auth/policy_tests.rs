@@ -1671,3 +1671,58 @@ async fn a_burst_spread_over_targets_and_actions_costs_one_call() {
     }
     assert_eq!(*calls.lock().unwrap(), 1);
 }
+
+// A consultation is about one credential, but it holds up only the requests
+// that need it. A target the held principal already covers is answered from
+// that principal without the lock being touched, so a build reading a project
+// it is granted is not held up by a sibling request asking about one it is not.
+#[tokio::test]
+async fn a_target_the_held_principal_covers_is_answered_while_another_is_being_consulted() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let project = |name: &str| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(name.into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context
+    };
+
+    assert!(matches!(
+        engine.evaluate_access(&project("ios")).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // Nothing already worked out is left to answer from, and a consultation for
+    // some other target is under way.
+    engine.expire_decisions().await;
+    let consulting = engine.hold_consultation(&project("android")).await;
+
+    let served = tokio::time::timeout(
+        Duration::from_secs(5),
+        engine.evaluate_access(&project("ios")),
+    )
+    .await
+    .expect("a covered target must not wait on a consultation about another");
+
+    assert!(matches!(served, AccessDecision::Allow));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    drop(consulting);
+}
