@@ -637,9 +637,19 @@ does not park every request for as long as its timeouts allow. A server that did
 not answer is also left alone for a few seconds before the next attempt, so an
 outage does not turn into a burst against a control plane that is already down.
 
-Reuse during an outage is counted as
+What the node answers is held per credential and per target and action, for a
+few seconds. That is short on purpose: it is what stands in for invalidating an
+answer when the principal behind it changes, and working one out again is a
+local check against the principal the node already holds rather than a call to
+the server. A refusal is held for less still, so a permission just granted is
+not locked out by the refusal that preceded it.
+
+Answers taken from that are counted as
+`kura_auth_cache_total{cache="decide",result="hit"}` and the ones worked out as
+`result="miss"`, with `kura_auth_decisions_total{stage="decide",...}` carrying
+what was answered and how long it took. Behind them, reuse during an outage is
 `kura_auth_cache_total{cache="authenticate",result="stale"}`, a trip back to the
-server as `result="revalidate"`, and an outage the node could not cover is
+server is `result="revalidate"`, and an outage the node could not cover is
 `kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
 with the underlying transport or status error.
 
@@ -653,13 +663,9 @@ project within it: an account grant does not reach a project, and a project
 grant does not reach the account. A request naming a tenant this node does not
 serve is refused before anything else happens.
 
-Decisions are cached per credentials — keyed on the `authorization` header
-alone — for 60 seconds when granted and 3 seconds when denied, so a revoked
-token stops working within the minute. Concurrent misses on the same key are
-coalesced: one request evaluates and the rest wait for its result, so a build
-starting a hundred requests at once makes one call to the server rather than a
-hundred. Followers are counted as
-`kura_auth_cache_total{result="coalesced"}`.
+Concurrent requests asking the same thing are coalesced: one works the answer
+out and the rest wait for it, so a build starting a hundred requests at once
+makes one call to the server rather than a hundred.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.

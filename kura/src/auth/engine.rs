@@ -17,7 +17,6 @@ use tokio::sync::Mutex;
 
 use super::config::AuthConfig;
 use super::policy::{self, Authentication, Authorization};
-use super::target::{request_action, request_target};
 use super::tuist::TuistBackend;
 use crate::auth::{AccessDecision, DenyDecision, Principal, RequestContext};
 use crate::metrics::Metrics;
@@ -31,11 +30,20 @@ pub trait Decision {
     fn ttl(&self) -> Duration;
 }
 
-impl Decision for Authorization {
-    fn ttl(&self) -> Duration {
-        Authorization::ttl(self)
-    }
-}
+/// How long a decision stands before it is worked out again.
+///
+/// Short on purpose, and load-bearing: this is what stands in for invalidating
+/// decisions when the principal behind them changes. Working one out again is a
+/// local check against the principal the node already holds, not a backend
+/// call, so short costs almost nothing — raising it for performance would buy
+/// very little and reopen a window where a decision outlives the grants it was
+/// made from.
+const DECISION_TTL: Duration = Duration::from_secs(5);
+
+/// How long a refusal stands. Shorter still, so a caller who has just been
+/// granted access is not locked out by their own rejection and a server that
+/// has come back is asked again promptly.
+const REFUSAL_TTL: Duration = Duration::from_secs(3);
 
 /// How long a confirmed principal is served before the backend is asked about
 /// it again. It is the revocation latency, and it is the same for every
@@ -53,7 +61,52 @@ const CONFIRMED_TTL: Duration = Duration::from_secs(25 * 60);
 /// dials a control plane that is already down.
 const UNAVAILABLE_BACKOFF: Duration = Duration::from_secs(3);
 
+/// One credential reaches several targets and actions, and losing a decision
+/// costs a local recompute where losing a principal costs a round trip, so the
+/// cheaper cache is the one given room.
+const DECISIONS_PER_CREDENTIAL: usize = 2;
+
 const _: () = assert!(REVALIDATE_AFTER.as_secs() < CONFIRMED_TTL.as_secs());
+const _: () = assert!(REFUSAL_TTL.as_secs() <= DECISION_TTL.as_secs());
+
+/// What the node answers a request with, and what it holds to answer the next
+/// one shaped the same way.
+///
+/// `Unavailable` is kept apart from `Deny` here rather than flattened into it,
+/// because the two are the same answer to the caller and different facts about
+/// the backend, and the engine reads that difference.
+#[derive(Clone, Debug, PartialEq)]
+enum CachedDecision {
+    Allow,
+    Deny(DenyDecision),
+    Unavailable(DenyDecision),
+}
+
+impl CachedDecision {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny(_) => "deny",
+            Self::Unavailable(_) => "unavailable",
+        }
+    }
+
+    fn into_access(self) -> AccessDecision {
+        match self {
+            Self::Allow => AccessDecision::Allow,
+            Self::Deny(deny) | Self::Unavailable(deny) => AccessDecision::Deny(deny),
+        }
+    }
+}
+
+impl Decision for CachedDecision {
+    fn ttl(&self) -> Duration {
+        match self {
+            Self::Allow => DECISION_TTL,
+            Self::Deny(_) | Self::Unavailable(_) => REFUSAL_TTL,
+        }
+    }
+}
 
 /// What the backend confirmed for a credential, and the two deadlines that
 /// govern reusing it.
@@ -96,12 +149,6 @@ impl Decision for ConfirmedPrincipal {
     }
 }
 
-impl Decision for DenyDecision {
-    fn ttl(&self) -> Duration {
-        policy::DENY_TTL
-    }
-}
-
 struct DecisionExpiry;
 
 impl<K, V: Decision> Expiry<K, V> for DecisionExpiry {
@@ -124,19 +171,16 @@ impl<K, V: Decision> Expiry<K, V> for DecisionExpiry {
 
 pub struct AuthEngine {
     backend: TuistBackend,
-    /// Keyed on the credential alone. What a principal may do is a question for
-    /// `authorize`, asked per request, so one confirmed principal answers every
-    /// target and action its own grants cover.
+    /// What the node answers with, keyed on the credential and what the request
+    /// names. Everything else below is what it takes to fill this in.
+    decisions: Cache<String, CachedDecision>,
+    /// Keyed on the credential alone. What a principal may do is a question
+    /// asked per request, so one confirmed principal settles every target and
+    /// action its own grants cover.
     principals: Cache<String, ConfirmedPrincipal>,
-    /// Keyed on the credential *and* what the request names, because a refusal
-    /// about one target says nothing about the next — a principal that does not
-    /// cover some other target does not settle it, and the backend still might.
-    /// A refusal that is about the credential itself takes the principal with
-    /// it instead.
-    denials: Cache<String, DenyDecision>,
-    decisions: Cache<String, Authorization>,
     /// One lock per credential, so exactly one request asks the backend about
-    /// it. moka coalesces a miss but not a hit that has to be refreshed.
+    /// it. moka coalesces a decision miss but not a principal that has to be
+    /// refreshed behind one.
     consultations: Cache<String, Arc<Mutex<()>>>,
     metrics: Metrics,
 }
@@ -176,9 +220,12 @@ impl AuthEngine {
 
         Ok(Self {
             backend,
+            decisions: decision_cache(
+                config
+                    .cache_max_entries
+                    .saturating_mul(DECISIONS_PER_CREDENTIAL),
+            ),
             principals: decision_cache(config.cache_max_entries),
-            denials: decision_cache(config.cache_max_entries),
-            decisions: decision_cache(config.cache_max_entries),
             consultations: Cache::builder()
                 .max_capacity(config.cache_max_entries as u64)
                 .eviction_policy(EvictionPolicy::lru())
@@ -189,62 +236,78 @@ impl AuthEngine {
     }
 
     pub async fn evaluate_access(&self, ctx: &RequestContext) -> AccessDecision {
-        let principal = match self.resolve_authentication(ctx).await {
-            Authentication::Principal(principal) => principal,
-            Authentication::Deny(deny) | Authentication::Unavailable(deny) => {
-                return AccessDecision::Deny(deny);
-            }
+        // Resolved once, then read by the key, the principal check, and the
+        // policy alike. Resolving it separately in each is how the key and the
+        // policy came to disagree about which project a request named.
+        let request = match policy::resolve_request(ctx) {
+            Ok(request) => request,
+            Err(deny) => return AccessDecision::Deny(deny),
         };
+        let credential = credentials(ctx);
+        let key = decision_key(&credential, &request);
 
-        match self.resolve_authorization(ctx, &principal).await {
-            Authorization::Allow => AccessDecision::Allow,
-            Authorization::Deny(deny) => AccessDecision::Deny(deny),
+        let entry = self
+            .decisions
+            .entry(key)
+            .or_insert_with(async {
+                let start = Instant::now();
+                let decision = self.decide(ctx, &request, &credential).await;
+                self.metrics
+                    .record_auth_decision("decide", decision.label(), start.elapsed());
+                self.metrics.record_auth_cache("decide", "miss");
+                decision
+            })
+            .await;
+
+        // A caller that waited on someone else's evaluation counts as a hit:
+        // what the label distinguishes is whether this request cost one.
+        if !entry.is_fresh() {
+            self.metrics.record_auth_cache("decide", "hit");
         }
+        entry.into_value().into_access()
     }
 
     pub async fn clear_caches(&self) -> usize {
         // Approximate, and only used to decide whether anything was worth
         // reporting; the caches are performance state, not correctness state.
-        let held = self.principals.entry_count() + self.decisions.entry_count();
-        self.principals.invalidate_all();
-        self.denials.invalidate_all();
+        let held = self.decisions.entry_count() + self.principals.entry_count();
         self.decisions.invalidate_all();
+        self.principals.invalidate_all();
         self.consultations.invalidate_all();
         held as usize
     }
 
-    async fn resolve_authentication(&self, ctx: &RequestContext) -> Authentication {
-        let credential = credentials(ctx);
-        let denial_key = fingerprint(&(&credential, request_key(ctx)));
-
-        if let Some(deny) = self.denials.get(&denial_key).await {
-            self.metrics.record_auth_cache("authenticate", "hit");
-            return Authentication::Deny(deny);
-        }
-
+    /// Works out what to answer, from the principal the node already holds when
+    /// that settles it and from the backend when it does not.
+    async fn decide(
+        &self,
+        ctx: &RequestContext,
+        request: &policy::ResolvedRequest,
+        credential: &str,
+    ) -> CachedDecision {
         let credential_key = fingerprint(&credential);
         let held = self.principals.get(&credential_key).await;
 
         if let Some(confirmed) = &held
             && !confirmed.needs_revalidation(Instant::now())
-            && self.covers(ctx, &confirmed.principal)
+            && self.allows(request, &confirmed.principal)
         {
             self.metrics.record_auth_cache("authenticate", "hit");
-            return Authentication::Principal(confirmed.principal.clone());
+            return CachedDecision::Allow;
         }
 
-        self.consult_backend(ctx, credential_key, denial_key, held)
+        self.consult_backend(ctx, request, credential_key, held)
             .await
     }
 
     /// Whether a principal settles this request on its own. A principal is
     /// about the credential, not about one target, so the one confirmed for a
-    /// read of a project also answers the write the build issues next. One that
+    /// read of a project also settles the write the build issues next. One that
     /// does not cover the request settles nothing: the backend may still allow
     /// it through a route the principal's own grants know nothing about.
-    fn covers(&self, ctx: &RequestContext, principal: &Principal) -> bool {
+    fn allows(&self, request: &policy::ResolvedRequest, principal: &Principal) -> bool {
         matches!(
-            policy::authorize(ctx, Some(principal)),
+            policy::authorize(request, Some(principal)),
             Authorization::Allow
         )
     }
@@ -256,15 +319,15 @@ impl AuthEngine {
     /// it has an answer of its own: a probe against a control plane that black
     /// holes runs for as long as the timeouts allow, and parking every request
     /// for that long to learn something the node is already holding helps
-    /// nobody. It serves what it holds and writes nothing, so no deadline moves
-    /// on the strength of a probe that has not come back.
+    /// nobody. It answers from what it holds and writes nothing, so no deadline
+    /// moves on the strength of a probe that has not come back.
     async fn consult_backend(
         &self,
         ctx: &RequestContext,
+        request: &policy::ResolvedRequest,
         credential_key: String,
-        denial_key: String,
         held: Option<ConfirmedPrincipal>,
-    ) -> Authentication {
+    ) -> CachedDecision {
         let lock = self
             .consultations
             .get_with(credential_key.clone(), async { Arc::new(Mutex::new(())) })
@@ -273,26 +336,22 @@ impl AuthEngine {
         let _guard = match lock.try_lock() {
             Ok(guard) => guard,
             Err(_) => {
-                if let Some(reusable) = self.reusable(ctx, &held) {
+                if self.reusable(request, &held).is_some() {
                     self.metrics.record_auth_cache("authenticate", "stale");
-                    return Authentication::Principal(reusable);
+                    return CachedDecision::Allow;
                 }
                 lock.lock().await
             }
         };
 
-        // Whoever held the lock may have published the answer already, and
-        // whatever they published is this request's answer too.
-        if let Some(deny) = self.denials.get(&denial_key).await {
-            self.metrics.record_auth_cache("authenticate", "hit");
-            return Authentication::Deny(deny);
-        }
+        // Whoever held the lock may have confirmed a principal that settles
+        // this request already.
         if let Some(confirmed) = self.principals.get(&credential_key).await
             && !confirmed.needs_revalidation(Instant::now())
-            && self.covers(ctx, &confirmed.principal)
+            && self.allows(request, &confirmed.principal)
         {
             self.metrics.record_auth_cache("authenticate", "hit");
-            return Authentication::Principal(confirmed.principal);
+            return CachedDecision::Allow;
         }
 
         self.metrics.record_auth_cache(
@@ -300,60 +359,54 @@ impl AuthEngine {
             if held.is_some() { "revalidate" } else { "miss" },
         );
 
-        match self.evaluate_policy(ctx).await {
+        match self.evaluate_policy(ctx, request).await {
             Authentication::Principal(principal) => {
-                let confirmed = self.confirm(principal.clone(), ctx, held.as_ref());
-                // A credential already past its own expiry is served this once,
-                // because the backend just vouched for it, but holding it would
-                // only hand back something dead on the next request.
+                let confirmed = self.confirm(&principal, ctx, request, held.as_ref());
+                // A credential already past its own expiry is answered this
+                // once, because the backend just vouched for it, but holding it
+                // would only hand back something dead on the next request.
                 if !confirmed.ttl().is_zero() {
                     self.principals.insert(credential_key, confirmed).await;
                 }
-                Authentication::Principal(principal)
+                match policy::authorize(request, Some(&principal)) {
+                    Authorization::Allow => CachedDecision::Allow,
+                    Authorization::Deny(deny) => CachedDecision::Deny(deny),
+                }
             }
-            // A backend that answered is taken at its word. The refusal is held
-            // against this target alone, and the principal is left as it was:
-            // it may still be the right answer for everything else.
             Authentication::Deny(deny) => {
                 // A 403 is about this target and leaves the principal alone. A
                 // 401 says the credential itself is finished, so holding on to
-                // a principal for it would keep serving every other target that
-                // principal covers.
+                // a principal for it would keep answering every other target
+                // that principal covers.
                 if deny.status == 401 {
                     self.principals.invalidate(&credential_key).await;
                 }
-                self.denials.insert(denial_key, deny.clone()).await;
-                Authentication::Deny(deny)
+                CachedDecision::Deny(deny)
             }
             Authentication::Unavailable(deny) => {
                 match held.as_ref().and_then(|held| held.held_off(Instant::now())) {
-                    Some(reusable) if self.covers(ctx, &reusable.principal) => {
-                        let principal = reusable.principal.clone();
+                    Some(reusable) if self.allows(request, &reusable.principal) => {
                         self.principals.insert(credential_key, reusable).await;
                         self.metrics.record_auth_cache("authenticate", "stale");
-                        Authentication::Principal(principal)
+                        CachedDecision::Allow
                     }
-                    // Nothing held covers this request, so the node does not
-                    // know. Held like any other refusal so a control plane that
-                    // is down is not dialled once per request.
-                    _ => {
-                        self.denials.insert(denial_key, deny.clone()).await;
-                        Authentication::Unavailable(deny)
-                    }
+                    // Nothing held settles this request, so the node does not
+                    // know.
+                    _ => CachedDecision::Unavailable(deny),
                 }
             }
         }
     }
 
-    /// The principal a request may be served while the backend is out of reach:
-    /// still inside its reuse deadline, and covering what is being asked.
+    /// The principal a request may be answered from while the backend is out of
+    /// reach: still inside its reuse deadline, and covering what is being asked.
     fn reusable(
         &self,
-        ctx: &RequestContext,
+        request: &policy::ResolvedRequest,
         held: &Option<ConfirmedPrincipal>,
     ) -> Option<Principal> {
         let held = held.as_ref()?;
-        if Instant::now() >= held.reusable_until || !self.covers(ctx, &held.principal) {
+        if Instant::now() >= held.reusable_until || !self.allows(request, &held.principal) {
             return None;
         }
         Some(held.principal.clone())
@@ -376,9 +429,18 @@ impl AuthEngine {
             .await
     }
 
+    /// Drops the decisions the node has already worked out, so the next request
+    /// works its own out. They stand for seconds by design, which is still
+    /// longer than a test should wait.
+    #[cfg(test)]
+    pub(crate) async fn expire_decisions(&self) {
+        self.decisions.invalidate_all();
+    }
+
     /// Ages the confirmed principal for this credential so the next request has
-    /// to go back to the backend. The deadlines are minutes long by design,
-    /// which is longer than a test can wait.
+    /// to go back to the backend, and drops the decisions it settled. The
+    /// deadlines are minutes long by design, which is longer than a test can
+    /// wait.
     #[cfg(test)]
     pub(crate) async fn expire_serving_deadline(&self, ctx: &RequestContext) {
         let key = fingerprint(&credentials(ctx));
@@ -395,11 +457,16 @@ impl AuthEngine {
                 )
                 .await;
         }
+        self.decisions.invalidate_all();
     }
 
-    async fn evaluate_policy(&self, ctx: &RequestContext) -> Authentication {
+    async fn evaluate_policy(
+        &self,
+        ctx: &RequestContext,
+        request: &policy::ResolvedRequest,
+    ) -> Authentication {
         let start = Instant::now();
-        let result = policy::authenticate(&self.backend, ctx).await;
+        let result = policy::authenticate(&self.backend, ctx, request).await;
         self.metrics
             .record_auth_decision("authenticate", result_label(&result), start.elapsed());
         result
@@ -407,18 +474,18 @@ impl AuthEngine {
 
     fn confirm(
         &self,
-        principal: Principal,
+        principal: &Principal,
         ctx: &RequestContext,
+        request: &policy::ResolvedRequest,
         held: Option<&ConfirmedPrincipal>,
     ) -> ConfirmedPrincipal {
         let now = Instant::now();
         let principal = match held {
-            Some(held) => policy::merge_principals(&held.principal, &principal, ctx),
-            None => principal,
+            Some(held) => policy::merge_principals(&held.principal, principal, request),
+            None => principal.clone(),
         };
-        let expiry = policy::credential_expiry(ctx);
 
-        let ceiling = match expiry {
+        let ceiling = match policy::credential_expiry(ctx) {
             Some(remaining) => now + remaining.min(CONFIRMED_TTL),
             None => now + CONFIRMED_TTL,
         };
@@ -441,43 +508,6 @@ impl AuthEngine {
             reusable_until,
         }
     }
-
-    async fn resolve_authorization(
-        &self,
-        ctx: &RequestContext,
-        principal: &Principal,
-    ) -> Authorization {
-        // The principal stays in the key so a cached allow falls away on
-        // its own when the grants behind it change. Nothing else `authorize`
-        // does not read belongs here: the server tenant is a constant per node,
-        // and the producer and route split the cache without ever changing the
-        // answer.
-        let key = fingerprint(&(credentials(ctx), principal, request_key(ctx)));
-
-        let entry = self
-            .decisions
-            .entry(key)
-            .or_insert_with(async {
-                let start = Instant::now();
-                let result = policy::authorize(ctx, Some(principal));
-                self.metrics.record_auth_decision(
-                    "authorize",
-                    match result {
-                        Authorization::Allow => "allow",
-                        Authorization::Deny(_) => "deny",
-                    },
-                    start.elapsed(),
-                );
-                self.metrics.record_auth_cache("authorize", "miss");
-                result
-            })
-            .await;
-
-        if !entry.is_fresh() {
-            self.metrics.record_auth_cache("authorize", "hit");
-        }
-        entry.into_value()
-    }
 }
 
 fn result_label(result: &Authentication) -> &'static str {
@@ -488,44 +518,25 @@ fn result_label(result: &Authentication) -> &'static str {
     }
 }
 
-/// What a request asks, as everything downstream of authentication reads it.
+/// The credential plus what the request resolved to.
 ///
 /// Resolved rather than raw: `request_target` also reads the target out of the
 /// `account_handle` and `project_handle` query parameters, and the fields on
-/// the context are only ever filled from the path. Keyed on those fields a
-/// request naming its project in the query looks identical to one naming a
+/// the context are only ever filled from the path. Keyed on those fields, a
+/// request naming its project in the query looked identical to one naming a
 /// different project the same way.
 ///
 /// The scope travels with the identifier because an account target and a
 /// project target read different grant buckets.
-#[derive(Serialize)]
-enum RequestKey {
-    Resolved {
-        scope: &'static str,
-        identifier: String,
-        action: &'static str,
-    },
-    /// A request whose target cannot be resolved is refused before any of this
-    /// matters, and the three ways that happens are three different refusals —
-    /// a tenant this server does not serve, a request naming none, and a server
-    /// whose own tenant is unavailable. Sharing one key would have the first of
-    /// them answer for the others.
-    Unresolved(DenyDecision),
+fn decision_key(credential: &str, request: &policy::ResolvedRequest) -> String {
+    fingerprint(&(
+        credential,
+        request.target.scope.key(),
+        &request.target.identifier,
+        request.action.key(),
+    ))
 }
 
-fn request_key(ctx: &RequestContext) -> RequestKey {
-    match request_target(ctx) {
-        Ok(target) => RequestKey::Resolved {
-            scope: target.scope.key(),
-            identifier: target.identifier,
-            action: request_action(ctx).key(),
-        },
-        Err(deny) => RequestKey::Unresolved(deny),
-    }
-}
-
-/// Exactly what authentication reads, so two requests carrying the same token
-/// share a result and nothing else about them can split it.
 fn credentials(ctx: &RequestContext) -> String {
     ctx.headers
         .get("authorization")
@@ -589,8 +600,8 @@ mod tests {
         format!("header.{payload}.signature")
     }
 
-    fn deny(message: &str) -> Authorization {
-        Authorization::Deny(DenyDecision {
+    fn deny(message: &str) -> CachedDecision {
+        CachedDecision::Deny(DenyDecision {
             status: 403,
             message: message.into(),
         })
@@ -618,6 +629,10 @@ mod tests {
             kind: "account".into(),
             attributes: serde_json::json!({}),
         }
+    }
+
+    fn resolved(ctx: &RequestContext) -> policy::ResolvedRequest {
+        policy::resolve_request(ctx).expect("a resolvable request")
     }
 
     fn confirmed(serve_in: Duration, reusable_in: Duration) -> ConfirmedPrincipal {
@@ -671,9 +686,9 @@ mod tests {
         let mut other_project = read.clone();
         other_project.namespace_id = Some("android".into());
 
-        assert!(engine.covers(&read, &granted));
-        assert!(engine.covers(&write, &granted));
-        assert!(!engine.covers(&other_project, &granted));
+        assert!(engine.allows(&resolved(&read), &granted));
+        assert!(engine.allows(&resolved(&write), &granted));
+        assert!(!engine.allows(&resolved(&other_project), &granted));
     }
 
     // A control-plane blip must not become a cache outage. The principal the
@@ -724,7 +739,7 @@ mod tests {
         let mut ctx = ctx_with_token(&token_expiring_in(120));
         ctx.tenant_id = Some("acme".into());
 
-        let held = engine.confirm(principal("a"), &ctx, None);
+        let held = engine.confirm(&principal("a"), &ctx, &resolved(&ctx), None);
 
         assert_eq!(held.serve_until, held.reusable_until);
         assert!(held.reusable_until <= Instant::now() + Duration::from_secs(120));
@@ -739,7 +754,7 @@ mod tests {
         let engine = engine();
         let ctx = ctx_with_token(&token_expiring_in(60 * 60));
 
-        let held = engine.confirm(principal("a"), &ctx, None);
+        let held = engine.confirm(&principal("a"), &ctx, &resolved(&ctx), None);
 
         assert!(held.serve_until < held.reusable_until);
         assert!(held.serve_until <= Instant::now() + REVALIDATE_AFTER);
@@ -752,7 +767,7 @@ mod tests {
         let engine = engine();
         let ctx = ctx_with_token("opaque-token");
 
-        let held = engine.confirm(principal("a"), &ctx, None);
+        let held = engine.confirm(&principal("a"), &ctx, &resolved(&ctx), None);
 
         assert!(held.serve_until < held.reusable_until);
         assert!(held.reusable_until > Instant::now() + REVALIDATE_AFTER);
@@ -768,8 +783,8 @@ mod tests {
         let engine = engine();
         let ctx = ctx_with_token("opaque-token");
 
-        let first = engine.confirm(principal("a"), &ctx, None);
-        let second = engine.confirm(principal("b"), &ctx, Some(&first));
+        let first = engine.confirm(&principal("a"), &ctx, &resolved(&ctx), None);
+        let second = engine.confirm(&principal("b"), &ctx, &resolved(&ctx), Some(&first));
 
         assert!(second.reusable_until <= first.reusable_until);
         assert!(second.serve_until > Instant::now());
@@ -781,7 +796,7 @@ mod tests {
         let engine = engine();
         let ctx = ctx_with_token(&token_expiring_in(60 * 60 * 24 * 28));
 
-        let held = engine.confirm(principal("a"), &ctx, None);
+        let held = engine.confirm(&principal("a"), &ctx, &resolved(&ctx), None);
 
         assert!(held.reusable_until <= Instant::now() + CONFIRMED_TTL);
     }
@@ -798,8 +813,8 @@ mod tests {
         second.namespace_id = Some("android".into());
 
         assert_ne!(
-            fingerprint(&("token", request_key(&first))),
-            fingerprint(&("token", request_key(&second)))
+            decision_key("token", &resolved(&first)),
+            decision_key("token", &resolved(&second))
         );
     }
 
@@ -815,34 +830,41 @@ mod tests {
         write.operation = "artifact.write".into();
 
         assert_ne!(
-            fingerprint(&("token", request_key(&read))),
-            fingerprint(&("token", request_key(&write)))
+            decision_key("token", &resolved(&read)),
+            decision_key("token", &resolved(&write))
         );
     }
 
+    // A refusal stands for less time than an allow, so a caller who has just
+    // been granted access is not locked out by their own rejection.
     #[test]
     fn a_decision_carries_its_own_lifetime_into_the_cache() {
         let expiry = DecisionExpiry;
         let created = Instant::now();
+        let refusal = CachedDecision::Deny(DenyDecision {
+            status: 403,
+            message: "no".into(),
+        });
 
         assert_eq!(
-            Expiry::<String, Authorization>::expire_after_create(
+            Expiry::<String, CachedDecision>::expire_after_create(
                 &expiry,
                 &"k".to_string(),
-                &Authorization::Allow,
+                &CachedDecision::Allow,
                 created
             ),
-            Some(Authorization::Allow.ttl())
+            Some(DECISION_TTL)
         );
         assert_eq!(
-            Expiry::<String, Authorization>::expire_after_create(
+            Expiry::<String, CachedDecision>::expire_after_create(
                 &expiry,
                 &"k".to_string(),
-                &deny("no"),
+                &refusal,
                 created
             ),
-            Some(deny("no").ttl())
+            Some(REFUSAL_TTL)
         );
+        assert!(REFUSAL_TTL < DECISION_TTL);
     }
 
     // Replacing an entry has to reset its lifetime. moka's default keeps the
@@ -853,14 +875,14 @@ mod tests {
         let expiry = DecisionExpiry;
 
         assert_eq!(
-            Expiry::<String, Authorization>::expire_after_update(
+            Expiry::<String, CachedDecision>::expire_after_update(
                 &expiry,
                 &"k".to_string(),
-                &Authorization::Allow,
+                &CachedDecision::Allow,
                 Instant::now(),
                 Some(Duration::from_secs(1)),
             ),
-            Some(Authorization::Allow.ttl())
+            Some(DECISION_TTL)
         );
     }
 
@@ -871,7 +893,7 @@ mod tests {
     // promise it and an upgrade could take it away.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_cancelled_evaluation_does_not_strand_the_next_caller() {
-        let cache: Cache<String, Authorization> = decision_cache(16);
+        let cache: Cache<String, CachedDecision> = decision_cache(16);
         let entered = Arc::new(AtomicUsize::new(0));
 
         let abandoned_cache = cache.clone();
@@ -881,7 +903,7 @@ mod tests {
                 .get_with("k".to_string(), async move {
                     abandoned_entered.fetch_add(1, Ordering::SeqCst);
                     std::future::pending::<()>().await;
-                    Authorization::Allow
+                    CachedDecision::Allow
                 })
                 .await
         });

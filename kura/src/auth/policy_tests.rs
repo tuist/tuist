@@ -1439,6 +1439,10 @@ async fn a_revoked_credential_stops_serving_the_projects_it_still_covers() {
         expect_deny(engine.evaluate_access(&project("android")).await).status,
         401
     );
+
+    // The decision already worked out for `ios` stands for its few seconds;
+    // what must not survive it is the principal behind it.
+    engine.expire_decisions().await;
     assert_eq!(
         expect_deny(engine.evaluate_access(&project("ios")).await).status,
         401
@@ -1550,4 +1554,60 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
         assert_eq!(deny.status, 403);
         assert!(deny.message.contains("acme/android"));
     }
+}
+
+// The fast path is one lookup. A request shaped like one the node has already
+// answered is answered from that, without reading the principal behind it or
+// working out what it allows again.
+#[tokio::test]
+async fn a_repeat_of_a_request_already_answered_is_answered_from_that() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let metrics = Metrics::new("test".into(), "tenant".into());
+    let engine = engine_with_metrics(
+        AuthConfig {
+            base_url: base.clone(),
+            connect_timeout: Duration::from_millis(500),
+            request_timeout: Duration::from_millis(4000),
+            verifier: None,
+            introspection: Some(introspection_credentials()),
+            cache_max_entries: 1000,
+        },
+        metrics.clone(),
+    );
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    for _ in 0..3 {
+        assert!(matches!(
+            engine.evaluate_access(&context).await,
+            AccessDecision::Allow
+        ));
+    }
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    let rendered = metrics.render();
+    assert!(
+        rendered
+            .lines()
+            .any(|line| line.starts_with("kura_auth_cache_total")
+                && line.contains("cache=\"decide\"")
+                && line.contains("result=\"hit\"")),
+        "expected the repeats to be answered from the decision cache, got:\n{rendered}"
+    );
 }

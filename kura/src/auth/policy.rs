@@ -17,19 +17,30 @@ use super::target::{Action, RequestTarget, Scope, request_action, request_target
 use super::tuist::{EXPIRY_LEEWAY, TuistBackend};
 use crate::auth::{DenyDecision, Principal, RequestContext};
 
-/// Lifetimes for the authorization cache, and for the denials the engine holds.
-///
-/// `authorize` is pure and its cache key carries the principal, so a cached
-/// allow cannot go stale: a principal carrying different grants is a different
-/// key. The lifetime only bounds how long an unused entry holds memory.
-/// Denials expire far sooner, so a caller who has just been granted access is
-/// not locked out by their own rejection, and a backend that could not be
-/// reached is tried again shortly after it recovers.
-///
-/// What keeps a build's worth of requests off the authentication backend is the
-/// engine's own deadlines, which it takes from the credential.
-const ALLOW_TTL: Duration = Duration::from_secs(60);
-pub const DENY_TTL: Duration = Duration::from_secs(3);
+/// What a request is asking, resolved once and then read by everything that
+/// needs it. Resolving it per consumer is how the cache key and the policy came
+/// to disagree about which project a request named.
+#[derive(Clone, Debug)]
+pub struct ResolvedRequest {
+    pub target: RequestTarget,
+    pub action: Action,
+}
+
+/// The credential check comes first: a request carrying none is refused for
+/// that before its target matters.
+pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDecision> {
+    if authorization_header(ctx).is_none() {
+        return Err(DenyDecision {
+            status: 401,
+            message: "Missing Authorization header".into(),
+        });
+    }
+
+    Ok(ResolvedRequest {
+        target: request_target(ctx)?,
+        action: request_action(ctx),
+    })
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Authentication {
@@ -99,15 +110,6 @@ pub enum Authorization {
     Deny(DenyDecision),
 }
 
-impl Authorization {
-    pub fn ttl(&self) -> Duration {
-        match self {
-            Self::Allow => ALLOW_TTL,
-            Self::Deny(_) => DENY_TTL,
-        }
-    }
-}
-
 fn authorization_header(ctx: &RequestContext) -> Option<&str> {
     ctx.headers
         .get("authorization")
@@ -152,20 +154,19 @@ fn principal_from_grants(id: Option<&str>, kind: Option<&str>, grants: &CacheGra
 /// would re-grant exactly what was just taken away, for every request after it.
 /// Withdrawing what this request asked for keeps the case the fold exists for
 /// without that.
-pub fn merge_principals(held: &Principal, fresh: &Principal, ctx: &RequestContext) -> Principal {
+pub fn merge_principals(
+    held: &Principal,
+    fresh: &Principal,
+    request: &ResolvedRequest,
+) -> Principal {
+    let ResolvedRequest { target, action } = request;
     let merged = CacheGrants::from_principal(&fresh.attributes)
         .merged(&CacheGrants::from_principal(&held.attributes));
 
-    let grants = match request_target(ctx) {
-        Ok(target) => {
-            let action = request_action(ctx);
-            if CacheGrants::from_principal(&fresh.attributes).allow(&target, &action) {
-                merged
-            } else {
-                merged.withdraw(&target, &action)
-            }
-        }
-        Err(_) => merged,
+    let grants = if CacheGrants::from_principal(&fresh.attributes).allow(target, action) {
+        merged
+    } else {
+        merged.withdraw(target, action)
     };
     let accounts = grants.accounts();
     let projects = grants.projects();
@@ -231,20 +232,19 @@ fn project_handles(body: &Value) -> Vec<String> {
         .collect()
 }
 
-pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authentication {
+pub async fn authenticate(
+    backend: &TuistBackend,
+    ctx: &RequestContext,
+    request: &ResolvedRequest,
+) -> Authentication {
     let Some(authorization) = authorization_header(ctx) else {
         return Authentication::deny(401, "Missing Authorization header");
     };
     let token = bearer_token(authorization);
-
-    let target = match request_target(ctx) {
-        Ok(target) => target,
-        Err(deny) => return Authentication::Deny(deny),
-    };
-    let action = request_action(ctx);
+    let ResolvedRequest { target, action } = request;
 
     if let Some(Ok(claims)) = backend.verify_token(token)
-        && let Some(authentication) = from_verified_claims(&claims, &target, &action)
+        && let Some(authentication) = from_verified_claims(&claims, target, action)
     {
         return authentication;
     }
@@ -261,8 +261,7 @@ pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authe
     }
 
     if backend.introspection_configured() {
-        return authenticate_via_introspection(backend, token, authorization, &target, &action)
-            .await;
+        return authenticate_via_introspection(backend, token, authorization, target, action).await;
     }
 
     // Without introspection the only remaining answer is the legacy route, and
@@ -377,23 +376,18 @@ async fn authenticate_via_cache_access(
     }
 }
 
-pub fn authorize(ctx: &RequestContext, principal: Option<&Principal>) -> Authorization {
+pub fn authorize(request: &ResolvedRequest, principal: Option<&Principal>) -> Authorization {
     let Some(principal) = principal else {
         return Authorization::Deny(DenyDecision {
             status: 401,
             message: "Unauthorized".into(),
         });
     };
-
-    let target = match request_target(ctx) {
-        Ok(target) => target,
-        Err(deny) => return Authorization::Deny(deny),
-    };
-    let action = request_action(ctx);
+    let ResolvedRequest { target, action } = request;
 
     match CacheGrants::from_principal_attributes(&principal.attributes) {
         Some(grants) => {
-            if grants.allow(&target, &action) {
+            if grants.allow(target, action) {
                 return Authorization::Allow;
             }
         }
@@ -537,10 +531,19 @@ mod tests {
         );
     }
 
+    // Built directly rather than through `resolve_request`, so these can drive
+    // `authorize` without also standing up a credential it never reads.
+    fn resolved(ctx: &RequestContext) -> ResolvedRequest {
+        ResolvedRequest {
+            target: request_target(ctx).expect("a resolvable target"),
+            action: request_action(ctx),
+        }
+    }
+
     #[test]
     fn authorizes_a_principal_whose_grants_cover_the_request() {
         assert_eq!(
-            authorize(&ctx(), Some(&granted_principal())),
+            authorize(&resolved(&ctx()), Some(&granted_principal())),
             Authorization::Allow
         );
     }
@@ -558,7 +561,7 @@ mod tests {
         context.method = "PUT".into();
         context.operation = "artifact.write".into();
 
-        let Authorization::Deny(deny) = authorize(&context, Some(&principal)) else {
+        let Authorization::Deny(deny) = authorize(&resolved(&context), Some(&principal)) else {
             panic!("expected a denial");
         };
         assert_eq!(deny.status, 403);
@@ -568,7 +571,7 @@ mod tests {
 
     #[test]
     fn refuses_a_request_with_no_principal() {
-        let Authorization::Deny(deny) = authorize(&ctx(), None) else {
+        let Authorization::Deny(deny) = authorize(&resolved(&ctx()), None) else {
             panic!("expected a denial");
         };
         assert_eq!(deny.status, 401);
@@ -578,7 +581,10 @@ mod tests {
     fn authorizes_a_legacy_principal_from_its_project_handles() {
         let principal = principal_from_handles(None, None, Vec::new(), vec!["acme/ios".into()]);
 
-        assert_eq!(authorize(&ctx(), Some(&principal)), Authorization::Allow);
+        assert_eq!(
+            authorize(&resolved(&ctx()), Some(&principal)),
+            Authorization::Allow
+        );
     }
 
     // A principal built from grants has already had its say, so its handles are
@@ -596,20 +602,38 @@ mod tests {
         principal.attributes["projects"] = json!(["acme/ios"]);
 
         assert!(matches!(
-            authorize(&ctx(), Some(&principal)),
+            authorize(&resolved(&ctx()), Some(&principal)),
             Authorization::Deny(_)
         ));
     }
 
+    // A request naming a tenant this server does not serve is refused where the
+    // target is resolved, before anything asks who is carrying it.
     #[test]
-    fn passes_a_target_denial_through_from_authorize() {
+    fn refuses_a_request_naming_another_server_tenant() {
         let mut context = ctx();
         context.tenant_id = Some("other".into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer token".into());
 
-        let Authorization::Deny(deny) = authorize(&context, Some(&granted_principal())) else {
-            panic!("expected a denial");
-        };
+        let deny = resolve_request(&context).expect_err("expected a denial");
+
         assert_eq!(deny.status, 403);
         assert!(deny.message.contains("routed to server for"));
+    }
+
+    // And a request carrying no credential is refused for that first, whatever
+    // its target would have resolved to.
+    #[test]
+    fn refuses_a_request_carrying_no_credential_before_resolving_its_target() {
+        let mut context = ctx();
+        context.headers.clear();
+        context.tenant_id = None;
+
+        let deny = resolve_request(&context).expect_err("expected a denial");
+
+        assert_eq!(deny.status, 401);
+        assert!(deny.message.contains("Missing Authorization"));
     }
 }
