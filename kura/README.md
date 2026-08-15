@@ -587,9 +587,17 @@ Core env vars:
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
 
-A token the node can verify itself never reaches the server. What follows is
-about the rest: opaque project and account tokens, and tokens signed by a key
-this node does not hold.
+A token the node can verify itself, whose own claims prove the request, is
+answered from those claims and never reaches the server. What follows is about
+every request the node cannot settle that way: opaque project, account and user
+tokens, tokens signed by a key this node does not hold, every request on a node
+with no verifier configured, and a verifiable token asking about a target its
+own grants do not name — those grants are a snapshot from minting time, and the
+server can still allow it through a route they know nothing about.
+
+The caches below still hold what was settled for a verifiable token, which saves
+repeating the signature check per request. But asking about one is a local check
+rather than a round trip, so none of the outage behaviour applies to it.
 
 A confirmed principal is held per credential, and it answers every target and
 action its own grants cover — the one confirmed for a read of a project also
