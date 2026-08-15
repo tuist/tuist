@@ -1,21 +1,20 @@
-//! The cache authorization policy: who a caller is, and whether they may do
-//! what they are asking for.
+//! The cache authorization policy: what a credential may do to a target.
 //!
-//! Authentication is answered from the token itself whenever it can be, and
-//! falls back to asking Tuist's server only when it cannot. Authorization is
-//! pure — by the time it runs, everything it needs is on the principal.
+//! The answer is worked out from the token itself whenever it can be, and from
+//! Tuist's server only when it cannot. Either way it comes back as one access
+//! level for the credential and target, which is the shape the engine caches.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use serde_json::{Value, json};
+use serde_json::Value;
 use tracing::warn;
 
 use super::grants::CacheGrants;
 use super::target::{Action, RequestTarget, Scope, request_action, request_target};
 use super::tuist::{EXPIRY_LEEWAY, TuistBackend};
-use crate::auth::{DenyDecision, Principal, RequestContext};
+use crate::auth::{Access, DenyDecision, RequestContext};
 
 /// What a request is asking, resolved once and then read by everything that
 /// needs it. Resolving it per consumer is how the cache key and the policy came
@@ -42,25 +41,43 @@ pub fn resolve_request(ctx: &RequestContext) -> Result<ResolvedRequest, DenyDeci
     })
 }
 
+/// The 403 a target refusal answers with.
+pub fn refusal(request: &ResolvedRequest) -> DenyDecision {
+    DenyDecision {
+        status: 403,
+        message: format!(
+            "Forbidden: {} '{}' is not granted to this principal for {}",
+            request.target.scope.key(),
+            request.target.identifier,
+            request.action.key()
+        ),
+    }
+}
+
+/// The 401 an invalid credential answers with.
+pub fn invalid_credential() -> DenyDecision {
+    DenyDecision {
+        status: 401,
+        message: "Invalid or expired token".into(),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Authentication {
-    Principal(Principal),
+    /// An authoritative access level for this credential and target, from the
+    /// token itself or from the server.
+    Access(Access),
+    /// A refusal that is not an access level: the node is not configured to
+    /// answer this shape of request at all, so caching it buys nothing.
     Deny(DenyDecision),
     /// The backend could not be reached or could not answer, so this is not a
     /// verdict on the token. Kept apart from `Deny` because the engine may
-    /// answer it from a principal the backend already confirmed, which it must
+    /// answer it from a level the backend already confirmed, which it must
     /// never do for a backend that did answer.
     Unavailable(DenyDecision),
 }
 
 impl Authentication {
-    fn deny(status: u16, message: &str) -> Self {
-        Self::Deny(DenyDecision {
-            status,
-            message: message.into(),
-        })
-    }
-
     fn unavailable(reason: &str) -> Self {
         warn!("authentication backend unavailable: {reason}");
         Self::Unavailable(DenyDecision {
@@ -104,12 +121,6 @@ fn credential_deadline(ctx: &RequestContext) -> Option<(u64, u64)> {
     Some((expires_at, now))
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Authorization {
-    Allow,
-    Deny(DenyDecision),
-}
-
 fn authorization_header(ctx: &RequestContext) -> Option<&str> {
     ctx.headers
         .get("authorization")
@@ -123,82 +134,6 @@ fn bearer_token(authorization: &str) -> &str {
         .strip_prefix("Bearer")
         .map(|token| token.trim_start())
         .unwrap_or(authorization)
-}
-
-fn principal_from_grants(id: Option<&str>, kind: Option<&str>, grants: &CacheGrants) -> Principal {
-    Principal {
-        id: id.unwrap_or("tuist").to_owned(),
-        kind: kind.unwrap_or("subject").to_owned(),
-        attributes: json!({
-            "cache_grants": grants,
-            "accounts": grants.accounts(),
-            "projects": grants.projects(),
-        }),
-    }
-}
-
-/// Folds what the backend just confirmed into what the node already held for
-/// the same credential.
-///
-/// The two answers are about different targets, and they can come from
-/// different routes: introspection speaks in grants and the legacy route speaks
-/// in bare handles. Replacing one with the other drops whatever the other had
-/// settled, and the next request for it goes back to the backend — a token
-/// reaching two projects would alternate, paying a call every time it changed
-/// which one it asked about. Both shapes normalize to grants, which is the
-/// shape `authorize` prefers when it finds one.
-///
-/// The fold must not overrule a refusal. A server narrowing a token — a project
-/// dropped from its grants, a user removed from a project — refuses the request
-/// that triggered the consultation, and folding what the node held back in
-/// would re-grant exactly what was just taken away, for every request after it.
-/// Withdrawing what this request asked for keeps the case the fold exists for
-/// without that.
-pub fn merge_principals(
-    held: &Principal,
-    fresh: &Principal,
-    request: &ResolvedRequest,
-) -> Principal {
-    let ResolvedRequest { target, action } = request;
-    let merged = CacheGrants::from_principal(&fresh.attributes)
-        .merged(&CacheGrants::from_principal(&held.attributes));
-
-    let grants = if CacheGrants::from_principal(&fresh.attributes).allow(target, action) {
-        merged
-    } else {
-        merged.withdraw(target, action)
-    };
-    let accounts = grants.accounts();
-    let projects = grants.projects();
-
-    Principal {
-        id: fresh.id.clone(),
-        kind: fresh.kind.clone(),
-        attributes: json!({
-            "cache_grants": grants,
-            "accounts": accounts,
-            "projects": projects,
-        }),
-    }
-}
-
-/// A principal that predates cache grants: it carries bare handles, and the
-/// absence of `cache_grants` is what later lets it use the handle fallback.
-fn principal_from_handles(
-    id: Option<&str>,
-    kind: Option<&str>,
-    accounts: Vec<String>,
-    projects: Vec<String>,
-) -> Principal {
-    Principal {
-        id: id.unwrap_or("tuist").to_owned(),
-        kind: kind.unwrap_or("subject").to_owned(),
-        attributes: json!({ "accounts": accounts, "projects": projects }),
-    }
-}
-
-fn string_field<'a>(body: &'a Value, key: &str) -> Option<&'a str> {
-    body.get(key).and_then(Value::as_str)
 }
 
 fn normalized_handles(value: Option<&Value>) -> Vec<String> {
@@ -238,15 +173,16 @@ pub async fn authenticate(
     request: &ResolvedRequest,
 ) -> Authentication {
     let Some(authorization) = authorization_header(ctx) else {
-        return Authentication::deny(401, "Missing Authorization header");
+        return Authentication::Access(Access::Invalid);
     };
     let token = bearer_token(authorization);
     let ResolvedRequest { target, action } = request;
+    let required = Access::required(action);
 
     if let Some(Ok(claims)) = backend.verify_token(token)
-        && let Some(authentication) = from_verified_claims(&claims, target, action)
+        && let Some(level) = from_verified_claims(&claims, target, required)
     {
-        return authentication;
+        return Authentication::Access(level);
     }
 
     // Past this point the credential is going to the server, and a credential
@@ -257,68 +193,62 @@ pub async fn authenticate(
     // verifier above accepts over, or a credential inside that window would be
     // read from its own grants and refused everything they do not cover.
     if credential_expired(ctx) {
-        return Authentication::deny(401, "Invalid or expired token");
+        return Authentication::Access(Access::Invalid);
     }
 
     if backend.introspection_configured() {
-        return authenticate_via_introspection(backend, token, authorization, target, action).await;
+        return via_introspection(backend, token, authorization, target, required).await;
     }
 
     // Without introspection the only remaining answer is the legacy route, and
     // it only speaks about projects.
     if target.scope == Scope::Project {
-        return authenticate_via_cache_access(backend, authorization).await;
+        return via_cache_access(backend, authorization, target, Access::Refused).await;
     }
 
     // Not an outage: this node was never given the credentials that would let
     // it ask about an account-scoped request, so retrying cannot help.
-    Authentication::deny(
-        503,
-        "Authentication backend is not configured for account-scoped requests",
-    )
+    Authentication::Deny(DenyDecision {
+        status: 503,
+        message: "Authentication backend is not configured for account-scoped requests".into(),
+    })
 }
 
 /// What a verified token alone can settle. `None` means the token was readable
-/// but does not itself prove this request, so the caller keeps looking.
+/// but its own level does not reach what this action needs, so the caller keeps
+/// looking: the server may allow it through a route the claims know nothing
+/// about, and only an answer that settles the request is worth skipping the
+/// server for.
 fn from_verified_claims(
     claims: &Value,
     target: &RequestTarget,
-    action: &Action,
-) -> Option<Authentication> {
-    let grants = CacheGrants::from_body(claims);
-    let id = string_field(claims, "sub");
-    let kind = string_field(claims, "type");
-
-    if grants.allow(target, action) {
-        return Some(Authentication::Principal(principal_from_grants(
-            id, kind, &grants,
-        )));
+    required: Access,
+) -> Option<Access> {
+    let level = CacheGrants::from_body(claims).level(target);
+    if level >= required {
+        return Some(level);
     }
 
     // Tokens minted before grants existed carry bare project handles instead.
     // The `scopes` claim marks the newer format, whose handles are not
-    // authorization.
+    // authorization. A handle carries no action, so it answers as both — which
+    // is exactly what it authorized on its own.
     if claims.get("scopes").is_none() && target.scope == Scope::Project {
         let projects = normalized_handles(claims.get("projects"));
         if projects.iter().any(|project| project == &target.identifier) {
-            return Some(Authentication::Principal(principal_from_handles(
-                id,
-                kind,
-                Vec::new(),
-                projects,
-            )));
+            return Some(Access::ReadWrite);
         }
     }
 
     None
 }
 
-async fn authenticate_via_introspection(
+async fn via_introspection(
     backend: &TuistBackend,
     token: &str,
     authorization: &str,
     target: &RequestTarget,
-    action: &Action,
+    required: Access,
 ) -> Authentication {
     let response = match backend.introspect(token).await {
         Ok(response) => response,
@@ -333,31 +263,33 @@ async fn authenticate_via_introspection(
     }
 
     if response.body.get("active") == Some(&Value::Bool(true)) {
-        let grants = CacheGrants::from_body(&response.body);
+        let level = CacheGrants::from_body(&response.body).level(target);
 
         // A token can be active and still not prove this project: its grants
-        // may predate the project. The legacy route still answers for those.
-        if target.scope == Scope::Project && !grants.allow(target, action) {
-            return authenticate_via_cache_access(backend, authorization).await;
+        // may predate the project. The legacy route still answers for those,
+        // and the level introspection did establish travels along so a route
+        // that cannot widen it does not erase it either.
+        if level < required && target.scope == Scope::Project {
+            return via_cache_access(backend, authorization, target, level).await;
         }
 
-        return Authentication::Principal(principal_from_grants(
-            string_field(&response.body, "sub"),
-            string_field(&response.body, "principal_kind"),
-            &grants,
-        ));
+        return Authentication::Access(level);
     }
 
     if target.scope == Scope::Project {
-        return authenticate_via_cache_access(backend, authorization).await;
+        return via_cache_access(backend, authorization, target, Access::Refused).await;
     }
 
-    Authentication::deny(401, "Invalid or expired token")
+    Authentication::Access(Access::Invalid)
 }
 
-async fn authenticate_via_cache_access(
+/// `floor` is what an earlier route already established, so an answer here can
+/// only raise the level, never lower it.
+async fn via_cache_access(
     backend: &TuistBackend,
     authorization: &str,
+    target: &RequestTarget,
+    floor: Access,
 ) -> Authentication {
     let response = match backend.cache_access(authorization).await {
         Ok(response) => response,
@@ -365,56 +297,25 @@ async fn authenticate_via_cache_access(
     };
 
     match response.status {
-        200 => Authentication::Principal(principal_from_handles(
-            None,
-            None,
-            Vec::new(),
-            project_handles(&response.body),
-        )),
-        401 => Authentication::deny(401, "Invalid or expired token"),
+        200 => {
+            let covered = project_handles(&response.body)
+                .iter()
+                .any(|project| project == &target.identifier);
+            // A handle carries no action, so it answers as both, exactly what
+            // it authorized on its own.
+            let level = if covered { Access::ReadWrite } else { floor };
+            Authentication::Access(level)
+        }
+        401 => Authentication::Access(Access::Invalid),
         status => Authentication::unavailable(&format!("cache access returned status {status}")),
     }
-}
-
-pub fn authorize(request: &ResolvedRequest, principal: Option<&Principal>) -> Authorization {
-    let Some(principal) = principal else {
-        return Authorization::Deny(DenyDecision {
-            status: 401,
-            message: "Unauthorized".into(),
-        });
-    };
-    let ResolvedRequest { target, action } = request;
-
-    match CacheGrants::from_principal_attributes(&principal.attributes) {
-        Some(grants) => {
-            if grants.allow(target, action) {
-                return Authorization::Allow;
-            }
-        }
-        None => {
-            if target.scope == Scope::Project {
-                let projects = normalized_handles(principal.attributes.get("projects"));
-                if projects.iter().any(|project| project == &target.identifier) {
-                    return Authorization::Allow;
-                }
-            }
-        }
-    }
-
-    Authorization::Deny(DenyDecision {
-        status: 403,
-        message: format!(
-            "Forbidden: {} '{}' is not granted to this principal for {}",
-            target.scope.key(),
-            target.identifier,
-            action.key()
-        ),
-    })
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
+    use serde_json::json;
 
     use super::*;
 
@@ -436,14 +337,8 @@ mod tests {
         }
     }
 
-    fn granted_principal() -> Principal {
-        principal_from_grants(
-            Some("user"),
-            Some("subject"),
-            &CacheGrants::from_body(&json!({
-                "cache_grants": { "project": { "write": ["acme/ios"] } }
-            })),
-        )
+    fn target_of(ctx: &RequestContext) -> RequestTarget {
+        request_target(ctx).expect("a resolvable target")
     }
 
     #[test]
@@ -467,17 +362,10 @@ mod tests {
             "cache_grants": { "project": { "write": ["acme/ios"] } },
         });
 
-        let authentication = from_verified_claims(
-            &claims,
-            &request_target(&ctx()).expect("target"),
-            &Action::Read,
+        assert_eq!(
+            from_verified_claims(&claims, &target_of(&ctx()), Access::Read),
+            Some(Access::ReadWrite)
         );
-
-        let Some(Authentication::Principal(principal)) = authentication else {
-            panic!("expected a principal, got {authentication:?}");
-        };
-        assert_eq!(principal.id, "user");
-        assert_eq!(principal.attributes["projects"], json!(["acme/ios"]));
     }
 
     // The grants are the authority; a token that carries them but not for this
@@ -492,11 +380,26 @@ mod tests {
         });
 
         assert_eq!(
-            from_verified_claims(
-                &claims,
-                &request_target(&ctx()).expect("target"),
-                &Action::Read
-            ),
+            from_verified_claims(&claims, &target_of(&ctx()), Access::Read),
+            None
+        );
+    }
+
+    // A level below what the action needs settles nothing: the server may
+    // allow the action through a route the claims know nothing about.
+    #[test]
+    fn a_read_only_token_does_not_settle_a_write() {
+        let claims = json!({
+            "sub": "user",
+            "cache_grants": { "project": { "read": ["acme/ios"] } },
+        });
+
+        assert_eq!(
+            from_verified_claims(&claims, &target_of(&ctx()), Access::Read),
+            Some(Access::Read)
+        );
+        assert_eq!(
+            from_verified_claims(&claims, &target_of(&ctx()), Access::ReadWrite),
             None
         );
     }
@@ -506,13 +409,13 @@ mod tests {
     fn falls_back_to_bare_handles_only_for_tokens_that_predate_scopes() {
         let legacy = json!({ "sub": "user", "projects": ["ACME/iOS"] });
         let scoped = json!({ "sub": "user", "scopes": [], "projects": ["ACME/iOS"] });
-        let target = request_target(&ctx()).expect("target");
+        let target = target_of(&ctx());
 
-        assert!(matches!(
-            from_verified_claims(&legacy, &target, &Action::Read),
-            Some(Authentication::Principal(_))
-        ));
-        assert_eq!(from_verified_claims(&scoped, &target, &Action::Read), None);
+        assert_eq!(
+            from_verified_claims(&legacy, &target, Access::Read),
+            Some(Access::ReadWrite)
+        );
+        assert_eq!(from_verified_claims(&scoped, &target, Access::Read), None);
     }
 
     #[test]
@@ -522,89 +425,26 @@ mod tests {
         let claims = json!({ "sub": "user", "projects": ["acme"] });
 
         assert_eq!(
-            from_verified_claims(
-                &claims,
-                &request_target(&context).expect("target"),
-                &Action::Read
-            ),
+            from_verified_claims(&claims, &target_of(&context), Access::Read),
             None
         );
     }
 
-    // Built directly rather than through `resolve_request`, so these can drive
-    // `authorize` without also standing up a credential it never reads.
-    fn resolved(ctx: &RequestContext) -> ResolvedRequest {
-        ResolvedRequest {
-            target: request_target(ctx).expect("a resolvable target"),
-            action: request_action(ctx),
-        }
-    }
-
     #[test]
-    fn authorizes_a_principal_whose_grants_cover_the_request() {
-        assert_eq!(
-            authorize(&resolved(&ctx()), Some(&granted_principal())),
-            Authorization::Allow
-        );
-    }
-
-    #[test]
-    fn refuses_a_write_to_a_principal_granted_only_reads() {
-        let principal = principal_from_grants(
-            Some("user"),
-            None,
-            &CacheGrants::from_body(&json!({
-                "cache_grants": { "project": { "read": ["acme/ios"] } }
-            })),
-        );
+    fn a_refusal_names_the_target_and_the_action() {
         let mut context = ctx();
         context.method = "PUT".into();
         context.operation = "artifact.write".into();
-
-        let Authorization::Deny(deny) = authorize(&resolved(&context), Some(&principal)) else {
-            panic!("expected a denial");
+        let request = ResolvedRequest {
+            target: target_of(&context),
+            action: request_action(&context),
         };
+
+        let deny = refusal(&request);
+
         assert_eq!(deny.status, 403);
         assert!(deny.message.contains("project 'acme/ios'"));
         assert!(deny.message.ends_with("for write"));
-    }
-
-    #[test]
-    fn refuses_a_request_with_no_principal() {
-        let Authorization::Deny(deny) = authorize(&resolved(&ctx()), None) else {
-            panic!("expected a denial");
-        };
-        assert_eq!(deny.status, 401);
-    }
-
-    #[test]
-    fn authorizes_a_legacy_principal_from_its_project_handles() {
-        let principal = principal_from_handles(None, None, Vec::new(), vec!["acme/ios".into()]);
-
-        assert_eq!(
-            authorize(&resolved(&ctx()), Some(&principal)),
-            Authorization::Allow
-        );
-    }
-
-    // A principal built from grants has already had its say, so its handles are
-    // not a second chance; only a principal carrying no grants at all falls back.
-    #[test]
-    fn does_not_let_a_granted_principal_fall_back_to_its_handles() {
-        let principal = principal_from_grants(
-            Some("user"),
-            None,
-            &CacheGrants::from_body(&json!({
-                "cache_grants": { "project": { "read": ["acme/web"] } }
-            })),
-        );
-        let mut principal = principal;
-        principal.attributes["projects"] = json!(["acme/ios"]);
-
-        assert!(matches!(
-            authorize(&resolved(&ctx()), Some(&principal)),
-            Authorization::Deny(_)
-        ));
     }
 
     // A request naming a tenant this server does not serve is refused where the

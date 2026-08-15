@@ -657,9 +657,9 @@ async fn concurrent_requests_with_the_same_credentials_introspect_once() {
     assert_eq!(*calls.lock().unwrap(), 1);
 }
 
-// The legacy route only speaks about projects, so the principal it returns
-// cannot answer an account request. It must not answer one just because a
-// project request carrying the same token resolved first: this node has no
+// The legacy route only speaks about projects, so what it settles cannot
+// answer an account request. It must not answer one just because a project
+// request carrying the same token resolved first: this node has no
 // introspection credentials, and that is the answer either way.
 #[tokio::test]
 async fn does_not_reuse_legacy_project_fallback_for_account_requests() {
@@ -901,11 +901,11 @@ async fn denies_when_request_tenant_does_not_match_server_tenant() {
 
 // A control-plane blip must not become a cache outage. Revalidation asks the
 // backend again; a backend that cannot answer knows nothing new about the
-// credential, so the principal it did confirm keeps serving. Without this the
-// deny is cached for DENY_TTL and re-derived every few seconds for as long as
-// the outage lasts, and every client sharing the token 5xxes for all of it.
+// credential, so the level it did confirm keeps serving. Without this the
+// deny is cached for seconds and re-derived unchanged for as long as the
+// outage lasts, and every client sharing the token 5xxes for all of it.
 #[tokio::test]
-async fn an_unreachable_backend_keeps_serving_the_principal_it_last_confirmed() {
+async fn an_unreachable_backend_keeps_serving_the_level_it_last_confirmed() {
     let reachable = Arc::new(AtomicBool::new(true));
     let reachable_for_handler = reachable.clone();
     let base = spawn_tuist_auth_mock(
@@ -1035,12 +1035,13 @@ async fn concurrent_revalidations_of_the_same_credentials_introspect_once() {
     assert_eq!(*calls.lock().unwrap(), 2);
 }
 
-// A principal is about the credential, not about one target. A second project
-// its grants already cover is answered from it, without a second call — and
-// that is what lets a build's first write mid-outage be served from the read it
-// did a minute earlier.
+// The level is about the credential and target, not about one action. The
+// level confirmed for a read also answers the write the build issues next,
+// without a second call — and that is what lets a build's first write
+// mid-outage be served from the read it did a minute earlier. A second
+// project is a second question: it costs its own call, once.
 #[tokio::test]
-async fn a_second_project_the_grants_cover_is_answered_from_the_same_principal() {
+async fn a_write_is_answered_from_the_level_confirmed_for_a_read() {
     let calls = Arc::new(Mutex::new(0usize));
     let calls_for_handler = calls.clone();
     let base = spawn_tuist_auth_mock(
@@ -1080,18 +1081,27 @@ async fn a_second_project_the_grants_cover_is_answered_from_the_same_principal()
     ));
     assert_eq!(*calls.lock().unwrap(), 1);
 
-    for context in [&android, &ios_write] {
+    // The write rides the read's answer.
+    assert!(matches!(
+        engine.evaluate_access(&ios_write).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // The second project is asked about once, and then it too is settled.
+    for _ in 0..2 {
         assert!(matches!(
-            engine.evaluate_access(context).await,
+            engine.evaluate_access(&android).await,
             AccessDecision::Allow
         ));
     }
-    assert_eq!(*calls.lock().unwrap(), 1);
+    assert_eq!(*calls.lock().unwrap(), 2);
 }
 
-// A project the grants do not cover is a different question, and the principal
-// settles nothing about it: the legacy route may still allow it. So it costs a
-// call, and its refusal is held against that project alone.
+// A project the grants do not cover is a different question, and the level
+// held for another target settles nothing about it: the legacy route may still
+// allow it. So it costs a call, and its refusal is held against that project
+// alone.
 #[tokio::test]
 async fn a_project_the_grants_do_not_cover_is_asked_about_on_its_own() {
     let calls = Arc::new(Mutex::new(0usize));
@@ -1192,11 +1202,11 @@ fn expect_deny(decision: AccessDecision) -> DenyDecision {
 
 // The headline of the outage story. A build reads a project for its whole
 // serving window, then issues its first upload while the control plane is
-// down. The principal confirmed for the read covers the write, so the upload
-// is served from it instead of being refused for being shaped differently
-// from the traffic that came before it.
+// down. The level confirmed for the read answers the write, so the upload is
+// served from it instead of being refused for being shaped differently from
+// the traffic that came before it.
 #[tokio::test]
-async fn an_outage_serves_a_write_from_the_principal_confirmed_for_a_read() {
+async fn an_outage_serves_a_write_from_the_level_confirmed_for_a_read() {
     let reachable = Arc::new(AtomicBool::new(true));
     let reachable_for_handler = reachable.clone();
     let base = spawn_tuist_auth_mock(
@@ -1339,13 +1349,12 @@ fn seconds_since_epoch() -> u64 {
         .as_secs()
 }
 
-// Folding one answer into the next must not overrule a refusal. A server that
-// narrows a token reports it still active with the project gone from its
-// grants, so the request that triggers the consultation is refused while the
-// node still holds a principal that grants it. Folding that back in would
-// re-grant exactly what was just taken away, for every request after the first.
+// A server that narrows a token reports it still active with the project gone
+// from its grants. The fresh answer replaces the level the node held — nothing
+// of the old one survives — so the refusal sticks for every request after the
+// first rather than being re-granted from what was held before.
 #[tokio::test]
-async fn a_grant_the_server_has_withdrawn_is_not_folded_back_in() {
+async fn a_grant_the_server_has_withdrawn_stays_withdrawn() {
     let narrowed = Arc::new(AtomicBool::new(false));
     let narrowed_for_handler = narrowed.clone();
     let base = spawn_tuist_auth_mock(
@@ -1376,17 +1385,133 @@ async fn a_grant_the_server_has_withdrawn_is_not_folded_back_in() {
     engine.expire_serving_deadline(&context).await;
     narrowed.store(true, Ordering::SeqCst);
 
-    // The first refusal is judged on the server's answer; the ones after it are
-    // judged on whatever the fold wrote back.
+    // The first refusal is judged on the server's answer; the ones after it
+    // replay the entry that answer replaced the old level with.
     for _ in 0..3 {
         let deny = expect_deny(engine.evaluate_access(&context).await);
         assert_eq!(deny.status, 403);
     }
 }
 
+// The sibling of the narrowing above: the server drops one project while the
+// credential stays in daily use on another. The revalidation the surviving
+// project triggers writes only its own entry, so the dropped project's answer
+// ages out on its own schedule and is refused when it is next asked about —
+// nothing carries it forward.
+#[tokio::test]
+async fn a_project_the_server_has_dropped_is_not_kept_alive_by_its_sibling() {
+    let narrowed = Arc::new(AtomicBool::new(false));
+    let narrowed_for_handler = narrowed.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            let grants = if narrowed_for_handler.load(Ordering::SeqCst) {
+                cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])
+            } else {
+                cache_grants_payload(
+                    &[],
+                    &[],
+                    &["acme/ios", "acme/android"],
+                    &["acme/ios", "acme/android"],
+                )
+            };
+            (StatusCode::OK, introspection_payload(grants))
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let project = |name: &str| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(name.into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context
+    };
+
+    for name in ["android", "ios"] {
+        assert!(matches!(
+            engine.evaluate_access(&project(name)).await,
+            AccessDecision::Allow
+        ));
+    }
+
+    // The server drops android; ios keeps being used and revalidates.
+    narrowed.store(true, Ordering::SeqCst);
+    engine.expire_serving_deadline(&project("ios")).await;
+    assert!(matches!(
+        engine.evaluate_access(&project("ios")).await,
+        AccessDecision::Allow
+    ));
+
+    // When android's own deadline passes, its next request is refused.
+    engine.expire_serving_deadline(&project("android")).await;
+    let deny = expect_deny(engine.evaluate_access(&project("android")).await);
+    assert_eq!(deny.status, 403);
+}
+
+// A read-only credential attempting an upload must not hammer the backend: a
+// fresh evaluation is authoritative for the refusal too, for the same short
+// window a refused entry stands. And the refused write must not cost the read
+// the level it legitimately holds.
+#[tokio::test]
+async fn a_refused_write_neither_hammers_the_backend_nor_costs_the_read() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut read = ctx();
+    read.tenant_id = Some("acme".into());
+    read.namespace_id = Some("ios".into());
+    read.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let mut write = read.clone();
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+
+    assert!(matches!(
+        engine.evaluate_access(&read).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // Inside the settled window the write is refused from the entry alone.
+    let deny = expect_deny(engine.evaluate_access(&write).await);
+    assert_eq!(deny.status, 403);
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // Past it the server is asked — the legacy route might have allowed the
+    // write — and its answer keeps the read grant it reports.
+    engine.expire_serving_deadline(&write).await;
+    let deny = expect_deny(engine.evaluate_access(&write).await);
+    assert_eq!(deny.status, 403);
+    assert_eq!(*calls.lock().unwrap(), 2);
+
+    assert!(matches!(
+        engine.evaluate_access(&read).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 2);
+}
+
 // A token can be withdrawn entirely, and the server says so with a 401 rather
-// than by narrowing. That is not about one project, so the principal goes with
-// it — otherwise every other project it covers keeps being served.
+// than by narrowing. That is not about one project, so every entry the
+// credential has goes with it — otherwise the other projects it covers keep
+// being served.
 #[tokio::test]
 async fn a_revoked_credential_stops_serving_the_projects_it_still_covers() {
     let revoked = Arc::new(AtomicBool::new(false));
@@ -1440,9 +1565,8 @@ async fn a_revoked_credential_stops_serving_the_projects_it_still_covers() {
         401
     );
 
-    // The decision already worked out for `ios` stands for its few seconds;
-    // what must not survive it is the principal behind it.
-    engine.expire_decisions().await;
+    // The 401 voids every entry the credential has, so the answer already
+    // worked out for `ios` does not stand even for its few seconds.
     assert_eq!(
         expect_deny(engine.evaluate_access(&project("ios")).await).status,
         401
@@ -1556,9 +1680,8 @@ async fn a_target_named_in_the_query_is_authorized_like_one_named_in_the_path() 
     }
 }
 
-// The fast path is one lookup. A request shaped like one the node has already
-// answered is answered from that, without reading the principal behind it or
-// working out what it allows again.
+// The fast path is one lookup: the entry is the answer, and nothing behind it
+// is read or worked out again.
 #[tokio::test]
 async fn a_repeat_of_a_request_already_answered_is_answered_from_that() {
     let calls = Arc::new(Mutex::new(0usize));
@@ -1606,18 +1729,18 @@ async fn a_repeat_of_a_request_already_answered_is_answered_from_that() {
         rendered
             .lines()
             .any(|line| line.starts_with("kura_auth_cache_total")
-                && line.contains("cache=\"decide\"")
+                && line.contains("cache=\"access\"")
                 && line.contains("result=\"hit\"")),
-        "expected the repeats to be answered from the decision cache, got:\n{rendered}"
+        "expected the repeats to be answered from the access cache, got:\n{rendered}"
     );
 }
 
-// A burst that spreads over several targets and actions is several questions,
-// but it is still one credential. The requests coalesce per question, and the
-// questions queue behind one consultation, so the whole burst costs one call
-// rather than one per question.
+// A burst that spreads over several targets and actions is one question per
+// target: the level answers both actions, and concurrent requests for the same
+// target coalesce behind one consultation. Two targets, two calls — however
+// many requests carry them.
 #[tokio::test]
-async fn a_burst_spread_over_targets_and_actions_costs_one_call() {
+async fn a_burst_spread_over_targets_and_actions_costs_one_call_per_target() {
     let calls = Arc::new(Mutex::new(0usize));
     let calls_for_handler = calls.clone();
     let base = spawn_tuist_auth_mock(
@@ -1669,15 +1792,15 @@ async fn a_burst_spread_over_targets_and_actions_costs_one_call() {
     for decision in decisions {
         assert!(matches!(decision, AccessDecision::Allow));
     }
-    assert_eq!(*calls.lock().unwrap(), 1);
+    assert_eq!(*calls.lock().unwrap(), 2);
 }
 
-// A consultation is about one credential, but it holds up only the requests
-// that need it. A target the held principal already covers is answered from
-// that principal without the lock being touched, so a build reading a project
-// it is granted is not held up by a sibling request asking about one it is not.
+// A consultation holds up only the requests asking its own question. A target
+// already settled is answered from its entry without any lock being touched,
+// so a build reading a project it is granted is not held up by a sibling
+// request asking about one it is not.
 #[tokio::test]
-async fn a_target_the_held_principal_covers_is_answered_while_another_is_being_consulted() {
+async fn a_settled_target_is_answered_while_another_is_being_consulted() {
     let calls = Arc::new(Mutex::new(0usize));
     let calls_for_handler = calls.clone();
     let base = spawn_tuist_auth_mock(
@@ -1709,9 +1832,8 @@ async fn a_target_the_held_principal_covers_is_answered_while_another_is_being_c
     ));
     assert_eq!(*calls.lock().unwrap(), 1);
 
-    // Nothing already worked out is left to answer from, and a consultation for
-    // some other target is under way.
-    engine.expire_decisions().await;
+    // A consultation for some other target is under way; the lock is per
+    // question, so a target already settled never so much as touches it.
     let consulting = engine.hold_consultation(&project("android")).await;
 
     let served = tokio::time::timeout(

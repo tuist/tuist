@@ -595,72 +595,69 @@ with no verifier configured, and a verifiable token asking about a target its
 own grants do not name — those grants are a snapshot from minting time, and the
 server can still allow it through a route they know nothing about.
 
-The caches below still hold what was settled for a verifiable token, which saves
-repeating the signature check per request. But asking about one is a local check
-rather than a round trip, so none of the outage behaviour applies to it.
+The cache below still holds what was settled for a verifiable token, which
+saves repeating the signature check per request. But asking about one is a
+local check rather than a round trip, so none of the outage behaviour applies
+to it.
 
-A confirmed principal is held per credential, and it answers every target and
-action its own grants cover — the one confirmed for a read of a project also
-answers the write the build issues next. A request its grants do not cover is a
-different question: the principal settles nothing about it, because the server
-may still allow it through a route those grants know nothing about, so the node
-asks. What the server then confirms is folded into what the node already held,
-which is what stops a token reaching two projects from paying a call every time
-it changes which one it asks about.
+What an evaluation settles is held as one **access level** per credential and
+target — `Refused`, `Read` or `ReadWrite`. The level is ordered and write
+implies read, so the one confirmed for a read of a project also answers the
+write the build issues next, and the other way round. Each fresh answer
+**replaces** the entry outright — nothing held earlier survives it — so what
+the server takes away stays taken away.
 
-A refusal is held per credential **and** per target and action, because a
-refusal about one project says nothing about the next. A refusal that is about
-the credential itself — a 401, where the server says the token is invalid or
-expired rather than that it does not reach this project — takes the principal
-with it, so the other projects it covers stop being served too.
+A level asked for an action above it — a write against `Read` — is not refused
+outright: the server may still allow it through a route the level knows nothing
+about, so the node asks, and the answer replaces the entry. For a short window
+after any evaluation the refusal is answered from the entry alone, so a
+read-only credential retrying uploads does not hammer the server.
 
-A credential presented past its own expiry is refused without asking: the server
-validates `exp` too and would only answer inactive. That refusal holds off for
-the same minute of leeway the verifier allows, so the two cannot disagree about
-a credential in its last seconds.
+A refusal about one target says nothing about the next, and is held against
+that target alone. A refusal about the credential itself — a 401, where the
+server says the token is invalid or expired — voids every entry the credential
+has at once, so the other projects it covered stop being served immediately.
 
-Every confirmed principal is served for **10 minutes** and then revalidated
-against the server, whatever the credential is. That is how long a revocation, a
-deactivated user, or a narrowed grant can go unnoticed here.
-A credential carrying an `exp` is bounded by it as well — it is never held past
-its own expiry, and never past 25 minutes either — but carrying one is not a
-reason to skip revalidation: expiry says when a credential runs out, not whether
-it has been withdrawn. The `exp` is read without verifying the signature, which
-is safe because it is only read off a credential the server has just confirmed;
-a forged one would not have been.
+A credential presented past its own expiry is refused without asking: the
+server validates `exp` too and would only answer inactive. That refusal holds
+off for the same minute of leeway the verifier allows, so the two cannot
+disagree about a credential in its last seconds.
+
+Every level is served for **10 minutes** and then revalidated against the
+server, whatever the credential is. That is how long a revocation, a
+deactivated user, or a narrowed grant can go unnoticed here. A credential
+carrying an `exp` is bounded by it as well — an entry never outlives the
+credential's own expiry, and never 25 minutes either — but carrying one is not
+a reason to skip revalidation: expiry says when a credential runs out, not
+whether it has been withdrawn. The `exp` is read without verifying the
+signature, which is safe because it is only read off a credential the server
+has just confirmed; a forged one would not have been.
 
 Revalidation is what keeps a control-plane blip off the serving path. A server
-that answers is taken at its word either way: it renews the principal, or it
-refuses, and that refusal is held against the target it was about. A server that
-does **not** answer knows nothing new about the credential, so a principal that
-covers the request keeps serving it, up to 25 minutes from the first answer that
-started it and no further. That deadline never moves forward, so neither an
-outage nor a run of fresh answers can walk it out, and a credential in
-continuous use is resolved from scratch once it runs out. A node holding nothing
-that covers the request still fails closed.
+that answers is taken at its word either way: its answer replaces the entry,
+grant or refusal. A server that does **not** answer knows nothing new about the
+credential, so a level that covers the request keeps serving it, up to 25
+minutes from the answer that established it and no further — nothing is
+written while the server is out of reach, so an outage can never extend its
+own cover. A node holding nothing that covers the request still fails closed,
+and a credential the server just failed to answer for is left alone for a few
+seconds before any request dials again, so an outage costs one probe per
+credential per backoff window rather than one per cold target.
 
-Exactly one request asks the server about a given credential at a time. A
-request that arrives while that is in flight is served from what the node holds
-rather than queueing behind it, so a server that black holes instead of refusing
-does not park every request for as long as its timeouts allow. A server that did
-not answer is also left alone for a few seconds before the next attempt, so an
-outage does not turn into a burst against a control plane that is already down.
+Exactly one request asks the server a given question — one credential, one
+target — at a time. Concurrent requests for the same question wait for its
+answer, so a build starting a hundred requests at once makes one call rather
+than a hundred, and a request whose level still answers it is served from that
+rather than queueing, so a server that black holes instead of refusing does
+not park every request for as long as its timeouts allow. A second project is
+a second question and costs its own call, once per revalidation window.
 
-What the node answers is held per credential and per target and action, for a
-minute. Working one out again is a local check against the principal the node
-already holds rather than a call to the server, so that minute is a tail on top
-of the ten the principal is served for, not a window of its own. Where it is
-felt on its own is a 401: the principal goes at once, but an answer already
-worked out for another target stands until the minute runs out. A refusal is
-held for three seconds, so a permission just granted is not locked out by the
-refusal that preceded it.
-
-Answers taken from that are counted as
-`kura_auth_cache_total{cache="decide",result="hit"}` and the ones worked out as
+Answers taken from a held entry are counted as
+`kura_auth_cache_total{cache="access",result="hit"}` and the ones worked out as
 `result="miss"`, with `kura_auth_decisions_total{stage="decide",...}` carrying
-what was answered and how long it took. Behind them, reuse during an outage is
-`kura_auth_cache_total{cache="authenticate",result="stale"}`, a trip back to the
-server is `result="revalidate"`, and an outage the node could not cover is
+what was answered and how long it took. Reuse during an outage is
+`result="stale"`, a trip back to the server for a held entry is
+`result="revalidate"`, and an outage the node could not cover is
 `kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
 with the underlying transport or status error.
 
@@ -673,10 +670,6 @@ is asking about the account's own cache, which is a different thing from any
 project within it: an account grant does not reach a project, and a project
 grant does not reach the account. A request naming a tenant this node does not
 serve is refused before anything else happens.
-
-Concurrent requests asking the same thing are coalesced: one works the answer
-out and the rest wait for it, so a build starting a hundred requests at once
-makes one call to the server rather than a hundred.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
