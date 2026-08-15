@@ -26,6 +26,14 @@ fn normalized_handles(value: Option<&Value>) -> Vec<String> {
         .collect()
 }
 
+fn absorb_handles(granted: &mut Vec<String>, incoming: &[String]) {
+    for handle in incoming {
+        if !granted.iter().any(|existing| existing == handle) {
+            granted.push(handle.clone());
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GrantBucket {
     #[serde(default)]
@@ -51,6 +59,11 @@ impl GrantBucket {
             }
         }
         flattened
+    }
+
+    fn absorb(&mut self, other: &Self) {
+        absorb_handles(&mut self.read, &other.read);
+        absorb_handles(&mut self.write, &other.write);
     }
 
     fn allows(&self, action: &Action, identifier: &str) -> bool {
@@ -91,6 +104,38 @@ impl CacheGrants {
             None | Some(Value::Null) => None,
             grants => Some(Self::from_grants_value(grants)),
         }
+    }
+
+    /// The grants a principal authorizes with, in one shape.
+    ///
+    /// A principal built from the legacy route carries bare project handles and
+    /// no grants, and `authorize` lets those handles allow any action on them.
+    /// Reading them back as read and write grants preserves that exactly, and
+    /// it is what lets an answer from one route be folded into an answer from
+    /// the other. Account handles are deliberately not seeded: they authorize
+    /// nothing on a handle-shaped principal today, and seeding them would widen
+    /// what the legacy route granted.
+    pub fn from_principal(attributes: &Value) -> Self {
+        if let Some(grants) = Self::from_principal_attributes(attributes) {
+            return grants;
+        }
+
+        let projects = normalized_handles(attributes.get("projects"));
+        Self {
+            account: GrantBucket::default(),
+            project: GrantBucket {
+                read: projects.clone(),
+                write: projects,
+            },
+        }
+    }
+
+    /// Every handle either side grants, so a credential keeps what one route
+    /// settled when the next answer comes from the other.
+    pub fn merged(mut self, other: &Self) -> Self {
+        self.account.absorb(&other.account);
+        self.project.absorb(&other.project);
+        self
     }
 
     fn from_grants_value(grants: Option<&Value>) -> Self {

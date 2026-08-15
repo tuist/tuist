@@ -1035,12 +1035,12 @@ async fn concurrent_revalidations_of_the_same_credentials_introspect_once() {
     assert_eq!(*calls.lock().unwrap(), 2);
 }
 
-// The same token asking about two projects is two questions. The policy can
-// reach a different principal for each — an active token whose grants miss one
-// project falls through to the legacy route — so one project's answer must not
-// settle the other's.
+// A principal is about the credential, not about one target. A second project
+// its grants already cover is answered from it, without a second call — and
+// that is what lets a build's first write mid-outage be served from the read it
+// did a minute earlier.
 #[tokio::test]
-async fn two_projects_carrying_the_same_token_are_resolved_separately() {
+async fn a_second_project_the_grants_cover_is_answered_from_the_same_principal() {
     let calls = Arc::new(Mutex::new(0usize));
     let calls_for_handler = calls.clone();
     let base = spawn_tuist_auth_mock(
@@ -1052,8 +1052,56 @@ async fn two_projects_carrying_the_same_token_are_resolved_separately() {
                     &[],
                     &[],
                     &["acme/ios", "acme/android"],
-                    &[],
+                    &["acme/ios", "acme/android"],
                 )),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut ios = ctx();
+    ios.tenant_id = Some("acme".into());
+    ios.namespace_id = Some("ios".into());
+    ios.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let mut android = ios.clone();
+    android.namespace_id = Some("android".into());
+
+    let mut ios_write = ios.clone();
+    ios_write.method = "PUT".into();
+    ios_write.operation = "artifact.write".into();
+
+    assert!(matches!(
+        engine.evaluate_access(&ios).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    for context in [&android, &ios_write] {
+        assert!(matches!(
+            engine.evaluate_access(context).await,
+            AccessDecision::Allow
+        ));
+    }
+    assert_eq!(*calls.lock().unwrap(), 1);
+}
+
+// A project the grants do not cover is a different question, and the principal
+// settles nothing about it: the legacy route may still allow it. So it costs a
+// call, and its refusal is held against that project alone.
+#[tokio::test]
+async fn a_project_the_grants_do_not_cover_is_asked_about_on_its_own() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"])),
             )
         },
         |_| (StatusCode::OK, cache_access_payload(&[], &[])),
@@ -1076,8 +1124,13 @@ async fn two_projects_carrying_the_same_token_are_resolved_separately() {
     ));
     assert_eq!(*calls.lock().unwrap(), 1);
 
+    let deny = expect_deny(engine.evaluate_access(&android).await);
+    assert_eq!(deny.status, 403);
+    assert_eq!(*calls.lock().unwrap(), 2);
+
+    // And the refusal did not cost the project that was allowed.
     assert!(matches!(
-        engine.evaluate_access(&android).await,
+        engine.evaluate_access(&ios).await,
         AccessDecision::Allow
     ));
     assert_eq!(*calls.lock().unwrap(), 2);
@@ -1135,4 +1188,153 @@ fn expect_deny(decision: AccessDecision) -> DenyDecision {
         AccessDecision::Deny(deny) => deny,
         AccessDecision::Allow => panic!("expected deny, got allow"),
     }
+}
+
+// The headline of the outage story. A build reads a project for its whole
+// serving window, then issues its first upload while the control plane is
+// down. The principal confirmed for the read covers the write, so the upload
+// is served from it instead of being refused for being shaped differently
+// from the traffic that came before it.
+#[tokio::test]
+async fn an_outage_serves_a_write_from_the_principal_confirmed_for_a_read() {
+    let reachable = Arc::new(AtomicBool::new(true));
+    let reachable_for_handler = reachable.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            if reachable_for_handler.load(Ordering::SeqCst) {
+                (
+                    StatusCode::OK,
+                    introspection_payload(cache_grants_payload(
+                        &[],
+                        &[],
+                        &["acme/ios"],
+                        &["acme/ios"],
+                    )),
+                )
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, json!({}))
+            }
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut read = ctx();
+    read.tenant_id = Some("acme".into());
+    read.namespace_id = Some("ios".into());
+    read.headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    let mut write = read.clone();
+    write.method = "PUT".into();
+    write.operation = "artifact.write".into();
+
+    assert!(matches!(
+        engine.evaluate_access(&read).await,
+        AccessDecision::Allow
+    ));
+
+    engine.expire_serving_deadline(&read).await;
+    reachable.store(false, Ordering::SeqCst);
+
+    assert!(matches!(
+        engine.evaluate_access(&write).await,
+        AccessDecision::Allow
+    ));
+}
+
+// A request that cannot take the consultation lock must not queue behind the
+// probe that holds it. Against a control plane that black holes rather than
+// refuses, that probe runs for as long as the timeouts allow, and parking every
+// request for it to learn something the node is already holding helps nobody.
+// It is served from what the node holds, and it asks nothing of the backend.
+#[tokio::test]
+async fn a_request_is_served_from_what_the_node_holds_rather_than_queueing_behind_a_probe() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), "Bearer opaque-token".into());
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    engine.expire_serving_deadline(&context).await;
+    let probing = engine.hold_consultation(&context).await;
+
+    assert!(matches!(
+        engine.evaluate_access(&context).await,
+        AccessDecision::Allow
+    ));
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    drop(probing);
+}
+
+// A credential past its own expiry has nothing to gain from the server: it
+// validates `exp` too and would answer inactive. Refusing here keeps a client
+// looping on a stale token off the control plane.
+#[tokio::test]
+async fn an_expired_credential_is_refused_without_asking_the_backend() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let expired = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::HS512),
+        &json!({
+            "sub": "user-1",
+            "iss": "tuist",
+            "exp": seconds_since_epoch() - 3600,
+        }),
+        &jsonwebtoken::EncodingKey::from_secret(GUARDIAN_SECRET.as_bytes()),
+    )
+    .expect("sign an expired token");
+
+    let mut context = ctx();
+    context.tenant_id = Some("acme".into());
+    context
+        .headers
+        .insert("authorization".into(), format!("Bearer {expired}"));
+
+    let deny = expect_deny(engine.evaluate_access(&context).await);
+    assert_eq!(deny.status, 401);
+    assert_eq!(*calls.lock().unwrap(), 0);
+}
+
+fn seconds_since_epoch() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after the epoch")
+        .as_secs()
 }

@@ -121,6 +121,33 @@ fn principal_from_grants(id: Option<&str>, kind: Option<&str>, grants: &CacheGra
     }
 }
 
+/// Folds what the backend just confirmed into what the node already held for
+/// the same credential.
+///
+/// The two answers are about different targets, and they can come from
+/// different routes: introspection speaks in grants and the legacy route speaks
+/// in bare handles. Replacing one with the other drops whatever the other had
+/// settled, and the next request for it goes back to the backend — a token
+/// reaching two projects would alternate, paying a call every time it changed
+/// which one it asked about. Both shapes normalize to grants, which is the
+/// shape `authorize` prefers when it finds one.
+pub fn merge_principals(held: &Principal, fresh: Principal) -> Principal {
+    let grants = CacheGrants::from_principal(&fresh.attributes)
+        .merged(&CacheGrants::from_principal(&held.attributes));
+    let accounts = grants.accounts();
+    let projects = grants.projects();
+
+    Principal {
+        id: fresh.id,
+        kind: fresh.kind,
+        attributes: json!({
+            "cache_grants": grants,
+            "accounts": accounts,
+            "projects": projects,
+        }),
+    }
+}
+
 /// A principal that predates cache grants: it carries bare handles, and the
 /// absence of `cache_grants` is what later lets it use the handle fallback.
 fn principal_from_handles(
@@ -187,6 +214,17 @@ pub async fn authenticate(backend: &TuistBackend, ctx: &RequestContext) -> Authe
         && let Some(authentication) = from_verified_claims(&claims, &target, &action)
     {
         return authentication;
+    }
+
+    // Past this point the credential is going to the server, and a credential
+    // past its own expiry has nothing to gain there: the server validates `exp`
+    // too and answers inactive. Refusing here keeps a client looping on a stale
+    // token off the control plane, and keeps the engine from holding an entry
+    // that is already dead on arrival. The verifier above has its own leeway
+    // and has already had its say, so this only sees credentials it could not
+    // settle.
+    if credential_expiry(ctx).is_some_and(|remaining| remaining.is_zero()) {
+        return Authentication::deny(401, "Invalid or expired token");
     }
 
     if backend.introspection_configured() {

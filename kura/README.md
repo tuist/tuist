@@ -591,14 +591,23 @@ A token the node can verify itself never reaches the server. What follows is
 about the rest: opaque project and account tokens, and tokens signed by a key
 this node does not hold.
 
-An answer the server gives is held per credentials **and per target**, because
-the answer depends on both. An active token whose grants do not cover the
-project being asked about falls through to the legacy cache-access route and
-yields a differently shaped principal, so keyed on the credentials alone
-whichever project asked first would settle the answer for every other project
-that token reaches.
+A confirmed principal is held per credential, and it answers every target and
+action its own grants cover — the one confirmed for a read of a project also
+answers the write the build issues next. A request its grants do not cover is a
+different question: the principal settles nothing about it, because the server
+may still allow it through a route those grants know nothing about, so the node
+asks. What the server then confirms is folded into what the node already held,
+which is what stops a token reaching two projects from paying a call every time
+it changes which one it asks about.
 
-How long that answer is held depends on what the credential says about itself:
+A refusal is held per credential **and** per target and action, because a
+refusal about one project says nothing about the next.
+
+A credential presented past its own expiry is refused without asking: the server
+validates `exp` too and would only answer inactive.
+
+How long a confirmed principal is held depends on what the credential says about
+itself:
 
 - A credential carrying an `exp` is held until then, capped at 25 minutes, and
   never revalidated. The client stops presenting it at that point, so there is
@@ -610,17 +619,21 @@ How long that answer is held depends on what the credential says about itself:
   10 minutes is the revocation latency for those tokens.
 
 Revalidation is what keeps a control-plane blip off the serving path. A server
-that answers is taken at its word either way: it renews the entry, or it rejects
-the token and the entry goes with it. A server that does **not** answer knows
-nothing new about the credential, so the principal it already confirmed keeps
-serving, up to 25 minutes from that confirmation and no further — only a fresh
-answer moves that deadline, so an outage cannot walk it forward. A node holding
-nothing confirmed still fails closed.
+that answers is taken at its word either way: it renews the principal, or it
+refuses, and that refusal is held against the target it was about. A server that
+does **not** answer knows nothing new about the credential, so a principal that
+covers the request keeps serving it, up to 25 minutes from the first answer that
+started it and no further. That deadline never moves forward, so neither an
+outage nor a run of fresh answers can walk it out, and a credential in
+continuous use is resolved from scratch once it runs out. A node holding nothing
+that covers the request still fails closed.
 
-Exactly one request revalidates a given credential while the rest wait for its
-outcome, and a server that did not answer is left alone for a few seconds before
-the next attempt, so an outage does not turn into a burst against a control
-plane that is already down.
+Exactly one request asks the server about a given credential at a time. A
+request that arrives while that is in flight is served from what the node holds
+rather than queueing behind it, so a server that black holes instead of refusing
+does not park every request for as long as its timeouts allow. A server that did
+not answer is also left alone for a few seconds before the next attempt, so an
+outage does not turn into a burst against a control plane that is already down.
 
 Reuse during an outage is counted as
 `kura_auth_cache_total{cache="authenticate",result="stale"}`, a trip back to the
