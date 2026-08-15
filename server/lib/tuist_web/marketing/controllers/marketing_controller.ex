@@ -4,6 +4,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   import TuistWeb.Marketing.StructuredMarkup
 
+  alias Tuist.Atlas.Email
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
@@ -322,7 +323,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     verification_token = sign_newsletter_verification_token(email)
     verification_url = url(conn, ~p"/newsletter/verify?token=#{verification_token}")
 
-    case Tuist.Loops.send_newsletter_confirmation(email, verification_url) do
+    case Email.send_newsletter_confirmation(email, verification_url) do
       :ok ->
         conn
         |> put_resp_content_type("application/json")
@@ -372,7 +373,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   def newsletter_confirm(conn, %{"token" => token} = _params) do
     case verify_newsletter_verification_token(token) do
       {:ok, email} ->
-        case Tuist.Loops.add_to_newsletter_list(email) do
+        case Email.add_to_newsletter_list(email) do
           :ok ->
             conn
             |> assign(:head_title, dgettext("marketing", "Successfully Subscribed!"))

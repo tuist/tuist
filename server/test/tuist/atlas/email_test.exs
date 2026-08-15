@@ -1,9 +1,14 @@
-defmodule Tuist.LoopsTest do
+defmodule Tuist.Atlas.EmailTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Atlas.Email
   alias Tuist.Environment
-  alias Tuist.Loops
+
+  defp stub_atlas_config do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :atlas_email_api_key, fn -> "test-api-key" end)
+  end
 
   describe "send_transactional_email/3" do
     test "successfully sends transactional email" do
@@ -12,10 +17,10 @@ defmodule Tuist.LoopsTest do
       transactional_id = "test-campaign-id"
       data_variables = %{"verificationUrl" => "https://example.com/verify"}
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn url, opts ->
-        assert url == "https://app.loops.so/api/v1/transactional"
+        assert url == "https://atlas.tuist.dev/api/email/transactional"
         assert opts[:json]["email"] == email
         assert opts[:json]["transactionalId"] == transactional_id
         assert opts[:json]["dataVariables"] == data_variables
@@ -24,7 +29,7 @@ defmodule Tuist.LoopsTest do
       end)
 
       # When
-      result = Loops.send_transactional_email(email, transactional_id, data_variables)
+      result = Email.send_transactional_email(email, transactional_id, data_variables)
 
       # Then
       assert result == :ok
@@ -32,14 +37,14 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when Loops API returns error status" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
         {:ok, %{status: 400, body: %{"error" => "Invalid campaign"}}}
       end)
 
       # When
-      result = Loops.send_transactional_email("test@example.com", "invalid-campaign")
+      result = Email.send_transactional_email("test@example.com", "invalid-campaign")
 
       # Then
       assert result == {:error, {:http_error, 400, %{"error" => "Invalid campaign"}}}
@@ -47,14 +52,14 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when network request fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
         {:error, :timeout}
       end)
 
       # When
-      result = Loops.send_transactional_email("test@example.com", "campaign-id")
+      result = Email.send_transactional_email("test@example.com", "campaign-id")
 
       # Then
       assert result == {:error, :timeout}
@@ -67,10 +72,10 @@ defmodule Tuist.LoopsTest do
       email = "test@example.com"
       mailing_lists = %{"list-id-1" => true, "list-id-2" => false}
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn url, opts ->
-        assert url == "https://app.loops.so/api/v1/contacts/update"
+        assert url == "https://atlas.tuist.dev/api/email/contacts/update"
         assert opts[:json]["email"] == email
         assert opts[:json]["mailingLists"] == mailing_lists
         assert opts[:headers] == [{"Authorization", "Bearer test-api-key"}]
@@ -78,7 +83,7 @@ defmodule Tuist.LoopsTest do
       end)
 
       # When
-      result = Loops.update_contact(email, mailing_lists)
+      result = Email.update_contact(email, mailing_lists)
 
       # Then
       assert result == :ok
@@ -88,7 +93,7 @@ defmodule Tuist.LoopsTest do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, opts ->
         assert opts[:json]["mailingLists"] == %{}
@@ -96,7 +101,7 @@ defmodule Tuist.LoopsTest do
       end)
 
       # When
-      result = Loops.update_contact(email)
+      result = Email.update_contact(email)
 
       # Then
       assert result == :ok
@@ -104,29 +109,29 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when Loops API returns error status" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 404}}
+        {:ok, %{status: 404, body: nil}}
       end)
 
       # When
-      result = Loops.update_contact("test@example.com")
+      result = Email.update_contact("test@example.com")
 
       # Then
-      assert result == {:error, {:http_error, 404}}
+      assert result == {:error, {:http_error, 404, nil}}
     end
 
     test "returns error when network request fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
         {:error, :connection_refused}
       end)
 
       # When
-      result = Loops.update_contact("test@example.com")
+      result = Email.update_contact("test@example.com")
 
       # Then
       assert result == {:error, :connection_refused}
@@ -139,18 +144,18 @@ defmodule Tuist.LoopsTest do
       email = "test@example.com"
       verification_url = "https://example.com/verify?token=abc123"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn url, opts ->
-        assert url == "https://app.loops.so/api/v1/transactional"
+        assert url == "https://atlas.tuist.dev/api/email/transactional"
         assert opts[:json]["email"] == email
-        assert opts[:json]["transactionalId"] == "cmfglb1pe5esq2w0ixnkdou94"
+        assert opts[:json]["transactionalId"] == "newsletter-confirmation"
         assert opts[:json]["dataVariables"]["verificationUrl"] == verification_url
         {:ok, %{status: 200}}
       end)
 
       # When
-      result = Loops.send_newsletter_confirmation(email, verification_url)
+      result = Email.send_newsletter_confirmation(email, verification_url)
 
       # Then
       assert result == :ok
@@ -158,7 +163,7 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when underlying send_transactional_email fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
         {:error, :timeout}
@@ -166,7 +171,7 @@ defmodule Tuist.LoopsTest do
 
       # When
       result =
-        Loops.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
+        Email.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
 
       # Then
       assert result == {:error, :timeout}
@@ -178,17 +183,17 @@ defmodule Tuist.LoopsTest do
       # Given
       email = "test@example.com"
 
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn url, opts ->
-        assert url == "https://app.loops.so/api/v1/contacts/update"
+        assert url == "https://atlas.tuist.dev/api/email/contacts/update"
         assert opts[:json]["email"] == email
-        assert opts[:json]["mailingLists"]["cmfgl9s214xcv0izt5jyu7e9d"] == true
+        assert opts[:json]["mailingLists"]["tuist-digest"] == true
         {:ok, %{status: 200}}
       end)
 
       # When
-      result = Loops.add_to_newsletter_list(email)
+      result = Email.add_to_newsletter_list(email)
 
       # Then
       assert result == :ok
@@ -196,17 +201,49 @@ defmodule Tuist.LoopsTest do
 
     test "returns error when underlying update_contact fails" do
       # Given
-      expect(Environment, :loops_api_key, fn -> "test-api-key" end)
+      stub_atlas_config()
 
       expect(Req, :post, fn _url, _opts ->
         {:error, :connection_refused}
       end)
 
       # When
-      result = Loops.add_to_newsletter_list("test@example.com")
+      result = Email.add_to_newsletter_list("test@example.com")
 
       # Then
       assert result == {:error, :connection_refused}
+    end
+  end
+
+  describe "configuration" do
+    test "returns an error instead of posting when the API key is not configured" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_email_api_key, fn -> nil end)
+
+      reject(&Req.post/2)
+
+      # When
+      result = Email.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
+
+      # Then
+      assert result == {:error, :not_configured}
+    end
+
+    test "does not reach out at all from a self-hosted instance" do
+      # Given
+      # Atlas is our own deployment, so a self-hosted instance has nothing to
+      # talk to even if a key were somehow present.
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_email_api_key, fn -> "test-api-key" end)
+
+      reject(&Req.post/2)
+
+      # When
+      result = Email.send_newsletter_confirmation("test@example.com", "https://example.com/verify")
+
+      # Then
+      assert result == {:error, :not_tuist_hosted}
     end
   end
 end
