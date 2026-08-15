@@ -90,6 +90,67 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: HetznerBareMetalMachineTemplate
             name: tuist-bare-metal-machinetemplate
+        rollout:
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              # CAPI defaults to `maxSurge: 1, maxUnavailable: 0` — build the
+              # replacement Machine, then delete the old one. That default
+              # cannot make progress on a bare-metal pool. Hosts here are
+              # pre-ordered and operator-managed, so at steady state every
+              # `HetznerBareMetalHost` is claimed and the surge Machine has
+              # nothing to land on: caph parks it `NoAvailableHost` ("all
+              # hosts are in use"), it never goes Ready, `maxUnavailable: 0`
+              # therefore never permits deleting an old Machine, and the
+              # freed host that would unblock it never appears. Self-
+              # sustaining deadlock — the production runner pool sat in it
+              # from 2026-06-17, receiving no template change for two months
+              # while still reporting healthy.
+              #
+              # Inverting the order makes a roll self-sufficient on a fully
+              # claimed pool: delete first, then reprovision the freed host.
+              #
+              # The cost is one node of capacity for the whole replacement,
+              # and that is dominated by the drain, not by provisioning.
+              # Runner Pods drain with `WaitCompleted`, so the node waits
+              # for its in-flight jobs before it is deleted — up to six
+              # hours for a Linux job — and `installimage` adds ~8-15 min
+              # after that. Budget most of a day for a two-host pool, not
+              # the quarter hour the provisioning time alone suggests.
+              #
+              # Accepted deliberately: the Linux pools run internal
+              # workflows only, so halved capacity for a stretch is a
+              # tolerable trade against paying rent on a permanently idle
+              # spare host. A spare would be the alternative — it restores
+              # `maxSurge: 1` and removes the dip entirely by building the
+              # replacement while the old node drains — and is the thing to
+              # revisit if customer workloads ever land on Linux.
+              #
+              # On the single-host staging and canary pools this is a full
+              # outage of Linux runners for the same window, which is the
+              # only option those pools have either way.
+              #
+              # `hcloud-worker` deliberately keeps the default: Hetzner Cloud
+              # provisions on demand, so a surge there always has somewhere
+              # to go and there is no reason to give up a zero-downtime roll.
+              maxSurge: 0
+              maxUnavailable: 1
+        deletion:
+          # Unbounded on purpose. Runner Pods are drained with
+          # `behavior: WaitCompleted` (see
+          # `infra/k8s/clusters/machinedrainrules.yaml`), so a drain waits
+          # for the node's in-flight CI jobs instead of evicting them, and
+          # a job can legitimately run for hours. Any finite timeout here
+          # is a promise to kill a customer's job once it is exceeded,
+          # which is the failure this whole arrangement exists to prevent.
+          #
+          # The risk this accepts is a drain that never finishes holding
+          # the roll open. That is deliberately handled by making it loud
+          # rather than by capping it: "Worker node pool stuck mid-rollout"
+          # in `infra/helm/k8s-monitoring/alerts.md` fires on
+          # `upToDateReplicas < spec.replicas`, which covers a stalled
+          # drain and the all-hosts-claimed wedge alike.
+          nodeDrainTimeoutSeconds: 0
         healthCheck:
           checks:
             # Longer timeout than hcloud: rescue → installimage → reboot

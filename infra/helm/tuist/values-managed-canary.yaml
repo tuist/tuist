@@ -468,6 +468,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-canary.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="canary"}; every line also carries
+  # `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-canary:3100/loki/api/v1/push
+    env: canary
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private

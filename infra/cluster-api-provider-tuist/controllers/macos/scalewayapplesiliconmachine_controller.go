@@ -120,6 +120,29 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// of mistake we don't want a chart-level toggle to make easy).
 	NodeExporterBinary []byte
 
+	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary,
+	// cross-built in the operator image from infra/macos-log-shipper.
+	// Installed on each Mac mini at bootstrap and supervised by
+	// launchd; it tails /var/log/tart-kubelet.log and pushes to
+	// LogShipURL. Empty disables the host-log step.
+	//
+	// Logs travel the opposite direction from metrics — pushed by the
+	// host rather than scraped by the cluster — because there is no
+	// scrapeable surface for a file. That is also why this cannot be a
+	// DaemonSet: a Pod on a macOS Node is a Tart VM with no view of the
+	// host filesystem.
+	LogShipperBinary []byte
+
+	// LogShipURL is the Loki push endpoint the host agent POSTs to,
+	// including the /loki/api/v1/push path. Empty disables the
+	// host-log step. See bootstrap.Config.LogShipURL for why it points
+	// at the in-cluster Alloy receiver over the tailnet rather than at
+	// Grafana Cloud directly.
+	LogShipURL string
+
+	// LogShipEnv is the `env` stream label on shipped host logs.
+	LogShipEnv string
+
 	// TailscaleTags are the Tailscale ACL tags every Mac mini in
 	// the fleet advertises at `tailscale up` time (e.g.
 	// `["tag:tuist-macmini"]`). Must be in the scope of the
@@ -660,6 +683,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			SSHIngressAllowCIDRs:    r.SSHIngressAllowCIDRs,
 			VMCachePNVLAN:           vmCachePNVLAN,
 			NodeExporterBinary:      r.NodeExporterBinary,
+			LogShipperBinary:        r.LogShipperBinary,
+			LogShipURL:              r.LogShipURL,
+			LogShipEnv:              r.LogShipEnv,
 			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:            hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:                 r.TartKubeletMaxPods,
@@ -843,9 +869,16 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// installNodeExporter short-circuits when its binary is
 			// empty.
 			NodeExporterBinary: r.NodeExporterBinary,
-			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:            r.TartKubeletMaxPods,
+			// Same reason node_exporter rides this path: the agent and its push
+			// URL both come from the operator, so an image bump or a values
+			// change has to reach already-bootstrapped minis here or it never
+			// lands on the fleet at all.
+			LogShipperBinary: r.LogShipperBinary,
+			LogShipURL:       r.LogShipURL,
+			LogShipEnv:       r.LogShipEnv,
+			HostCPU:          hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:     hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:          r.TartKubeletMaxPods,
 			// Per-account cache volumes must ride the drift loop
 			// too: the volume flag + provisioning land on already-bootstrapped
 			// minis via UpdateTartKubelet, not first-boot Run. Omitting these

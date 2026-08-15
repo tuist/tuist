@@ -657,6 +657,7 @@ jobs:
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
+            --include-path "infra/macos-log-shipper/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
@@ -674,6 +675,7 @@ jobs:
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
+            --include-path "infra/macos-log-shipper/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
