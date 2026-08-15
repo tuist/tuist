@@ -1611,3 +1611,63 @@ async fn a_repeat_of_a_request_already_answered_is_answered_from_that() {
         "expected the repeats to be answered from the decision cache, got:\n{rendered}"
     );
 }
+
+// A burst that spreads over several targets and actions is several questions,
+// but it is still one credential. The requests coalesce per question, and the
+// questions queue behind one consultation, so the whole burst costs one call
+// rather than one per question.
+#[tokio::test]
+async fn a_burst_spread_over_targets_and_actions_costs_one_call() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(
+                    &[],
+                    &[],
+                    &["acme/ios", "acme/android"],
+                    &["acme/ios", "acme/android"],
+                )),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let request = |project: &str, write: bool| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(project.into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        if write {
+            context.method = "PUT".into();
+            context.operation = "artifact.write".into();
+        }
+        context
+    };
+
+    let contexts = [
+        request("ios", false),
+        request("ios", true),
+        request("android", false),
+        request("android", true),
+    ];
+    let requests = (0..40).map(|index| {
+        let engine = engine.clone();
+        let context = contexts[index % contexts.len()].clone();
+        async move { engine.evaluate_access(&context).await }
+    });
+
+    let decisions = futures_util::future::join_all(requests).await;
+    assert_eq!(decisions.len(), 40);
+    for decision in decisions {
+        assert!(matches!(decision, AccessDecision::Allow));
+    }
+    assert_eq!(*calls.lock().unwrap(), 1);
+}

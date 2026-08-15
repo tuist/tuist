@@ -326,7 +326,7 @@ impl AuthEngine {
         ctx: &RequestContext,
         request: &policy::ResolvedRequest,
         credential_key: String,
-        held: Option<ConfirmedPrincipal>,
+        held_on_arrival: Option<ConfirmedPrincipal>,
     ) -> CachedDecision {
         let lock = self
             .consultations
@@ -336,7 +336,7 @@ impl AuthEngine {
         let _guard = match lock.try_lock() {
             Ok(guard) => guard,
             Err(_) => {
-                if self.reusable(request, &held).is_some() {
+                if self.reusable(request, &held_on_arrival).is_some() {
                     self.metrics.record_auth_cache("authenticate", "stale");
                     return CachedDecision::Allow;
                 }
@@ -344,9 +344,14 @@ impl AuthEngine {
             }
         };
 
-        // Whoever held the lock may have confirmed a principal that settles
-        // this request already.
-        if let Some(confirmed) = self.principals.get(&credential_key).await
+        // Read again now the lock is held, and build on this rather than on
+        // what arrived: a request that waited here read the principal before
+        // whoever went first wrote theirs, so folding against the older one
+        // would drop what they had just settled and send the next request for
+        // it back to the backend.
+        let held = self.principals.get(&credential_key).await;
+
+        if let Some(confirmed) = &held
             && !confirmed.needs_revalidation(Instant::now())
             && self.allows(request, &confirmed.principal)
         {
