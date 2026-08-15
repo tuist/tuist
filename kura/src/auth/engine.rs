@@ -33,6 +33,10 @@ pub trait Decision {
 /// How long an allow stands before it is worked out again. A refusal has its
 /// own, shorter lifetime below.
 ///
+/// The constant this replaces carried the same name and the same minute, but
+/// governed the confirmed principal as well. That half is now `REVALIDATE_AFTER`
+/// and `CONFIRMED_TTL`; this one covers only the answer worked out from it.
+///
 /// This is what stands in for invalidating an allow when the principal behind
 /// it changes, so it is the tail on top of whatever staleness the principal
 /// already carries — and the principal is held for `REVALIDATE_AFTER`, which is
@@ -43,7 +47,7 @@ pub trait Decision {
 /// The one place it is felt on its own is a 401: the principal is dropped at
 /// once, but an allow already worked out for another target stands until this
 /// runs out.
-const DECISION_TTL: Duration = Duration::from_secs(60);
+const ALLOW_TTL: Duration = Duration::from_secs(60);
 
 /// How long a refusal stands. Far shorter than an allow, so a caller who has
 /// just been granted access is not locked out by their own rejection and a
@@ -72,7 +76,7 @@ const UNAVAILABLE_BACKOFF: Duration = Duration::from_secs(3);
 const DECISIONS_PER_CREDENTIAL: usize = 2;
 
 const _: () = assert!(REVALIDATE_AFTER.as_secs() < CONFIRMED_TTL.as_secs());
-const _: () = assert!(REFUSAL_TTL.as_secs() <= DECISION_TTL.as_secs());
+const _: () = assert!(REFUSAL_TTL.as_secs() <= ALLOW_TTL.as_secs());
 
 /// What the node answers a request with, and what it holds to answer the next
 /// one shaped the same way.
@@ -107,7 +111,7 @@ impl CachedDecision {
 impl Decision for CachedDecision {
     fn ttl(&self) -> Duration {
         match self {
-            Self::Allow => DECISION_TTL,
+            Self::Allow => ALLOW_TTL,
             Self::Deny(_) | Self::Unavailable(_) => REFUSAL_TTL,
         }
     }
@@ -863,7 +867,7 @@ mod tests {
                 &CachedDecision::Allow,
                 created
             ),
-            Some(DECISION_TTL)
+            Some(ALLOW_TTL)
         );
         assert_eq!(
             Expiry::<String, CachedDecision>::expire_after_create(
@@ -874,7 +878,7 @@ mod tests {
             ),
             Some(REFUSAL_TTL)
         );
-        assert!(REFUSAL_TTL < DECISION_TTL);
+        assert!(REFUSAL_TTL < ALLOW_TTL);
     }
 
     // Replacing an entry has to reset its lifetime. moka's default keeps the
@@ -892,7 +896,7 @@ mod tests {
                 Instant::now(),
                 Some(Duration::from_secs(1)),
             ),
-            Some(DECISION_TTL)
+            Some(ALLOW_TTL)
         );
     }
 
