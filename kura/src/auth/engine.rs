@@ -463,6 +463,15 @@ impl AuthEngine {
             .await
     }
 
+    /// Lifts the backoff left by a failed probe so the next request dials the
+    /// backend again, standing in for the seconds a test cannot wait.
+    #[cfg(test)]
+    pub(crate) async fn clear_unavailable_backoff(&self, ctx: &RequestContext) {
+        self.unreachable
+            .invalidate(&fingerprint(&credentials(ctx)))
+            .await;
+    }
+
     /// Ages the entry for this request's target so the next request has to go
     /// back to the backend. The windows are minutes long by design, which is
     /// longer than a test can wait.

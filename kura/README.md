@@ -655,11 +655,12 @@ a second question and costs its own call, once per revalidation window.
 Answers taken from a held entry are counted as
 `kura_auth_cache_total{cache="access",result="hit"}` and the ones worked out as
 `result="miss"`, with `kura_auth_decisions_total{stage="decide",...}` carrying
-what was answered and how long it took. Reuse during an outage is
-`result="stale"`, a trip back to the server for a held entry is
-`result="revalidate"`, and an outage the node could not cover is
+what was answered (`allow`, `deny`, or `unavailable`) and how long it took.
+Reuse during an outage is `result="stale"`, a trip back to the server for a
+held entry is `result="revalidate"`, and an outage the node could not cover is
 `kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
-with the underlying transport or status error.
+with the underlying transport or status error — that stage's other results are
+`access` and `deny`.
 
 Everything above is decided against the target a request resolves to, not the
 fields it happens to carry, so the two forms below reach the same answer.

@@ -944,6 +944,51 @@ async fn an_unreachable_backend_keeps_serving_the_level_it_last_confirmed() {
     ));
 }
 
+// An outage costs one probe per credential per backoff window. The probe that
+// failed marks the credential, and until the window passes even a cold target
+// is answered from the marker rather than dialing a backend that just failed
+// to answer.
+#[tokio::test]
+async fn an_outage_is_probed_once_per_credential_per_backoff_window() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_handler = calls.clone();
+    let base = spawn_tuist_auth_mock(
+        move |_headers, _payload| {
+            *calls_for_handler.lock().unwrap() += 1;
+            (StatusCode::INTERNAL_SERVER_ERROR, json!({}))
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_pointing_at(&base, true);
+
+    let project = |name: &str| {
+        let mut context = ctx();
+        context.tenant_id = Some("acme".into());
+        context.namespace_id = Some(name.into());
+        context
+            .headers
+            .insert("authorization".into(), "Bearer opaque-token".into());
+        context
+    };
+
+    let deny = expect_deny(engine.evaluate_access(&project("ios")).await);
+    assert_eq!(deny.status, 503);
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // A different target of the same credential inside the window: cold, but
+    // not worth another dial.
+    let deny = expect_deny(engine.evaluate_access(&project("android")).await);
+    assert_eq!(deny.status, 503);
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    // Once the window passes, the next request asks again.
+    engine.clear_unavailable_backoff(&project("android")).await;
+    let deny = expect_deny(engine.evaluate_access(&project("android")).await);
+    assert_eq!(deny.status, 503);
+    assert_eq!(*calls.lock().unwrap(), 2);
+}
+
 // The reuse above covers a backend that did not answer. One that did — even to
 // reject the token — is taken at its word, and the entry goes with it.
 #[tokio::test]
