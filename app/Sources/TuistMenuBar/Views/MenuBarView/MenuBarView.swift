@@ -3,14 +3,16 @@ import Foundation
 import Sparkle
 import SwiftUI
 import TuistAuthentication
+import TuistServer
 
 public struct MenuBarView: View {
     @State var isExpanded = false
     @State var canCheckForUpdates = false
+    @State private var isServerSettingsPresented = false
     private let errorHandling: ErrorHandling
     private let deviceService: DeviceService
-    @StateObject
-    private var authenticationService = AuthenticationService()
+    private let openLoginWindow: () -> Void
+    @ObservedObject private var authenticationService: AuthenticationService
     @State var viewModel: MenuBarViewModel
     private var cancellables = Set<AnyCancellable>()
     private let taskStatusReporter: TaskStatusReporter
@@ -20,6 +22,11 @@ public struct MenuBarView: View {
         appDelegate: AppDelegate,
         updaterController: SPUStandardUpdaterController
     ) {
+        let authenticationService = appDelegate.authenticationService
+        self.authenticationService = authenticationService
+        openLoginWindow = { [weak appDelegate] in
+            appDelegate?.presentLoginWindow()
+        }
         let viewModel = MenuBarViewModel()
         self.viewModel = viewModel
         let taskStatusRepoter = TaskStatusReporter()
@@ -30,7 +37,8 @@ public struct MenuBarView: View {
         )
         self.deviceService = deviceService
 
-        let errorHandling = ErrorHandling()
+        let credentialsStore = appDelegate.credentialsStore
+        let errorHandling = appDelegate.errorHandling
         self.errorHandling = errorHandling
 
         // We can't rely on SwiftUI views to be rendered before a deeplink is triggered.
@@ -38,11 +46,18 @@ public struct MenuBarView: View {
         // that's eagerly set up in this `init` on startup.
         appDelegate.onChangeOfURLs.sink { urls in
             guard let url = urls.first else { return }
+            let serverURL = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "server_url" })?
+                .value
+                .flatMap { URL(string: $0) }
             Task {
                 do {
-                    try await deviceService.launchPreviewDeeplink(with: url)
+                    try await ServerCredentialsStore.$current.withValue(credentialsStore) {
+                        try await deviceService.launchPreviewDeeplink(with: url)
+                    }
                 } catch {
-                    errorHandling.handle(error: error)
+                    errorHandling.handle(error: error, serverURL: serverURL)
                 }
             }
         }
@@ -68,7 +83,7 @@ public struct MenuBarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch authenticationService.authenticationState {
-            case let .loggedIn(account):
+            case let .loggedIn(account, serverURL):
                 MenuHeader(
                     accountHandle: account.handle
                 )
@@ -78,6 +93,7 @@ public struct MenuBarView: View {
                         deviceService: deviceService
                     )
                 )
+                .id(serverURL)
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
@@ -86,7 +102,7 @@ public struct MenuBarView: View {
                     viewModel: DevicesViewModel(deviceService: deviceService)
                 )
             case .loggedOut:
-                MenuBarLoginView()
+                MenuBarLoginView(openLoginWindow: openLoginWindow)
             }
 
             Divider()
@@ -104,6 +120,13 @@ public struct MenuBarView: View {
                     .menuItemStyle()
                     .padding(.horizontal, 8)
                 }
+
+                Button("Server: \(serverDisplayName)") {
+                    isServerSettingsPresented = true
+                }
+                .padding(.vertical, 2)
+                .menuItemStyle()
+                .padding(.horizontal, 8)
 
                 Button("Check for updates", action: {
                     updater.checkForUpdates()
@@ -126,5 +149,18 @@ public struct MenuBarView: View {
         .environmentObject(deviceService)
         .environmentObject(taskStatusReporter)
         .environmentObject(authenticationService)
+        .sheet(isPresented: $isServerSettingsPresented) {
+            ServerSettingsView(authenticationService: authenticationService)
+        }
+    }
+
+    private var serverDisplayName: String {
+        guard let host = authenticationService.serverURL.host() else {
+            return authenticationService.serverURL.absoluteString
+        }
+        if let port = authenticationService.serverURL.port {
+            return "\(host):\(port)"
+        }
+        return host
     }
 }

@@ -7,6 +7,11 @@
     <string name="sign_in_apple">Sign in with Apple</string>
     <string name="sign_in_google">Sign in with Google</string>
     <string name="sign_in_github">Sign in with GitHub</string>
+    <string name="server_title">Server</string>
+    <string name="server_address">Server address</string>
+    <string name="server_address_help">Use the root address of your Tuist server.</string>
+    <string name="use_default_server">Use default server</string>
+    <string name="save">Save</string>
     <string name="projects_title">Projects</string>
     <string name="previews_title">Previews</string>
     <string name="sign_out">Sign out</string>

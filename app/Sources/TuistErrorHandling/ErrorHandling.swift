@@ -1,5 +1,6 @@
 import OpenAPIRuntime
 import SwiftUI
+import TuistAuthentication
 import TuistHTTP
 import TuistLogging
 import TuistServer
@@ -12,18 +13,28 @@ struct ErrorAlert: Identifiable {
 
 public final class ErrorHandling: ObservableObject {
     @Published var currentAlert: ErrorAlert?
+    private let credentialsStore: ServerCredentialsStoring
+
+    public init(credentialsStore: ServerCredentialsStoring = ServerCredentialsStore.current) {
+        self.credentialsStore = credentialsStore
+    }
 
     @MainActor
-    public func handle(error: Error) {
+    public func handle(error: Error, serverURL: URL? = nil) {
         if let clientError = error as? ClientError {
             if clientError.underlyingError is ClientAuthenticationError {
+                guard let serverURL else {
+                    Logger.current.error(
+                        "Client authentication error received without a server address. Preserving stored credentials."
+                    )
+                    currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
+                    return
+                }
                 Logger.current.error(
-                    "Client authentication error received. Deleting stored credentials. Error: \(clientError.underlyingError.localizedDescription)"
+                    "Client authentication error received. Deleting stored credentials for \(serverURL.absoluteString)."
                 )
                 Task {
-                    try await ServerCredentialsStore.current.delete(
-                        serverURL: ServerEnvironmentService().url()
-                    )
+                    try await credentialsStore.delete(serverURL: serverURL)
                 }
                 return
             }
@@ -40,7 +51,7 @@ public final class ErrorHandling: ObservableObject {
 }
 
 struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
-    @StateObject var errorHandling = ErrorHandling()
+    @ObservedObject var errorHandling: ErrorHandling
 
     func body(content: Content) -> some View {
         content
@@ -64,18 +75,21 @@ struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
 }
 
 extension View {
-    public func withErrorHandling() -> some View {
-        modifier(HandleErrorsByShowingAlertViewModifier())
+    public func withErrorHandling(_ errorHandling: ErrorHandling = ErrorHandling()) -> some View {
+        modifier(HandleErrorsByShowingAlertViewModifier(errorHandling: errorHandling))
     }
 }
 
 extension ErrorHandling {
     public func fireAndHandleError(_ action: @escaping () async throws -> Void) {
+        let serverURL = AppServerEnvironmentService().url()
         Task {
             do {
-                try await action()
+                try await ServerCredentialsStore.$current.withValue(credentialsStore) {
+                    try await action()
+                }
             } catch {
-                await handle(error: error)
+                await handle(error: error, serverURL: serverURL)
             }
         }
     }
