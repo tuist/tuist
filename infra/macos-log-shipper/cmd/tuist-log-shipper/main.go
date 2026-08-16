@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -93,11 +92,13 @@ func main() {
 		Positions:  shipper.LoadPositions(positions),
 		Client: &shipper.Client{
 			URL: url,
-			// A bounded timeout, not the default's absence of one: a push that
-			// hangs against a half-open tailnet connection would otherwise stall
-			// this file's tail indefinitely, which looks identical to "the host
-			// stopped logging".
-			HTTP: &http.Client{Timeout: 30 * time.Second},
+			// Resolves through tailscaled rather than /etc/resolv.conf, which is
+			// what a MagicDNS --url requires from a CGO_ENABLED=0 binary on
+			// macOS. The bounded timeout is not the default's absence of one: a
+			// push that hangs against a half-open tailnet connection would
+			// otherwise stall this file's tail indefinitely, which looks
+			// identical to "the host stopped logging".
+			HTTP: shipper.NewHTTPClient(30 * time.Second),
 		},
 	})
 	if err != nil {
