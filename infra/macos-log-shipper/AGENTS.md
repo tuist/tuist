@@ -116,8 +116,31 @@ receiver has to be exposed on the tailnet in the matching env — the
 `tailscale.com/expose` annotations on `alloy-receiver` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s per-env values.
 
-Staging is on; canary and production are wired with their URLs and left off
-until staging has proven the path and a day of volume data.
+All three managed envs are on.
+
+## The URL is a MagicDNS name, and this binary resolves it itself
+
+macOS has two resolver paths that do not agree, and a Mac mini sits on the
+wrong side of the split. tailscaled publishes MagicDNS through the system
+configuration store: libresolv reads it, so `curl`, `ssh` and `ping` all
+resolve `tuist-alloy-receiver-<env>` on a mini. This binary is built
+`CGO_ENABLED=0`, which selects Go's pure resolver, and that one reads
+`/etc/resolv.conf`, which tailscaled does not write here.
+
+So `internal/shipper/dial.go` gives the push client a resolver that asks
+tailscaled directly at `100.100.100.100:53`, falling back to the system
+resolver when that is unreachable — the agent is `RunAtLoad`, so it can start
+before tailscaled is listening, and a `--url` that is a plain address or a
+public name must still work.
+
+Two consequences worth keeping in mind:
+
+- **Reaching the endpoint from a shell proves nothing about the agent.** Every
+  off-the-shelf tool takes the libresolv path. Test resolution with the same
+  binary, or with a `CGO_ENABLED=0` Go program.
+- **Do not swap the dialer out for `http.DefaultClient`.** It resolves through
+  `/etc/resolv.conf` and every push fails with `no such host`, once a minute,
+  while `launchctl print` reports the job `running`.
 
 The flag is reversible. Turning it off moves the fleet host-config hash, and
 the drift roll that follows unloads `dev.tuist.log-shipper` and removes the
