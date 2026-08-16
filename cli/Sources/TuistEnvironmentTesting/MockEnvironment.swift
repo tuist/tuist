@@ -98,6 +98,10 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     public func casProxyLaunchAgentLabel() -> String {
         "tuist.cas-proxy"
     }
+
+    public func metricsSamplerLaunchAgentLabel() -> String {
+        "tuist.metrics-sampler"
+    }
 }
 
 extension Environment {

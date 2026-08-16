@@ -34,6 +34,10 @@ server:
 
   appUrl: https://tuist.dev
 
+  config:
+    atlasEmail:
+      enabled: true
+
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
   # grant and the runner CLI falls back to per-machine MAC signing, so a warm
@@ -354,6 +358,39 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-production
     registryBucket: tuist-registry
 
+# OCI registry of record for the large Tart VM images. Uses the shared
+# production bucket under an `oci` prefix, alongside the Docker mirror
+# below — unlike staging, which is parked on a different bucket because
+# a miss in the shared one resolves against a stale shadow-bucket
+# configuration. This bucket answers misses correctly.
+#
+# Standing this up publishes nothing: the build workflows push here only
+# once their references move, and the fleet keeps pulling GHCR until the
+# image pins move after that.
+ociRegistry:
+  enabled: true
+  s3:
+    bucket: tuist-prod-storage
+    rootDirectory: oci
+  auth:
+    enabled: true
+  externalSecret:
+    enabled: true
+  tailscale:
+    enabled: true
+    hostname: tuist-oci-production
+    tags: tag:tuist-k8s-production
+  # 443 so image references carry no port: `oci.tuist.dev/<repo>`. The
+  # reference is embedded in every pushed tag and chart pin.
+  service:
+    port: 443
+  tls:
+    enabled: true
+    host: oci.tuist.dev
+    dns:
+      enabled: true
+      tailnet: taild6d7bb.ts.net
+
 # Docker Hub pull-through cache. Reuses the production object-storage
 # bucket under a `docker-mirror` prefix. Runner `docker pull`s route
 # through it (runnersController.features.registryMirror below).
@@ -377,25 +414,69 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
-  # vCPU per node). With anti-affinity pinning one replica per node, each
-  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
-  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
-  # file size in memory while building the BuildStep tree and JSON-encoding
-  # the result; at queueConcurrency=5 most realistic builds fit comfortably
-  # in 24 GiB. If we ever start seeing OOMKills again the next move is
-  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # The 24Gi ceiling this used to carry assumed each replica owned a whole
+  # cpx51 (16 vCPU / ~30.6 GiB allocatable) minus kube-system overhead. That
+  # assumption never held: the pool is pinned by nodeSelector but not tainted,
+  # so the platform stack (CNPG, ingress-nginx, cert-manager, external-secrets,
+  # Pomerium, Tailscale, Alloy) schedules onto these nodes too and occupies
+  # ~9-10 GiB. A processor therefore could not reach a 24Gi cgroup limit
+  # without first exhausting the node - 24 + 10 > 30.6 - so the kernel OOM
+  # killer fired at the node level and picked the largest RSS cgroup, which is
+  # always a processor. Measured on the 2026-08-14 07:13Z kill: both replicas
+  # were stacked on ...-g7wzh-qk9kr, that node sat at 27-28 GiB of 30.5 GiB
+  # for half an hour, crossed capacity, and the victim container was killed
+  # holding 10.7 GiB - 45% of its own 24Gi limit. Raising the limit would
+  # therefore have made this worse rather than better.
+  #
+  # 16Gi is the largest limit a single replica can actually be given here:
+  # 16 + ~10 GiB of co-resident platform leaves ~5 GiB of node headroom, so
+  # the cgroup limit is now the thing that binds a runaway parse rather than
+  # a decoration the node can never honor. Net effect is more usable memory,
+  # not less - a stacked replica previously had ~10 GiB of real headroom
+  # before the node died, versus 16 GiB that is honorable now.
+  #
+  # Keeping the replicas off each other is the topology constraint's job
+  # (matchLabelKeys in templates/processor-deployment.yaml), not the
+  # scheduler's: there is no request value that both blocks stacking and
+  # leaves room for the maxSurge=1 pod during a rollout, because the pool
+  # has only two schedulable nodes. Requests are therefore capped by the
+  # rollout, not by the steady state - at ~7-10 GiB of platform requests per
+  # node, anything above ~11.7Gi leaves the surge pod Pending and, with
+  # maxUnavailable=0, stalls the deploy indefinitely.
+  #
+  # Within that ceiling the request is raised 8Gi -> 10Gi, which also matches
+  # the measured median daily peak, because oom_score_adj for a burstable pod
+  # scales with memoryRequest/capacity: 10Gi moves the processor from ~739 to
+  # ~673 while the small platform pods stay near 1000, so if the node does
+  # come under pressure the kernel reaches for them before a live parse.
+  #
+  # Sized against 30 days of container_memory_working_set_bytes: the daily
+  # peak sits at 9-12 GiB on 29 of 31 days, with two excursions (14.9 GiB,
+  # and 20.1 GiB on 2026-07-23 when several pods spiked together). So 16Gi
+  # clears normal operation with room and clips only the far tail. That tail
+  # is a deliberate trade: a 20 GiB parse cannot be served on a co-tenanted
+  # node at all, and a contained cgroup kill of the one offending pod is
+  # strictly better than a node-level kill that also destabilises whatever
+  # platform workload happens to share the node.
+  #
+  # The Swift parser holds ~3-4x the .xcactivitylog file size while building
+  # the BuildStep tree and JSON-encoding the result, so 16Gi is ~3.2 GiB per
+  # slot at queueConcurrency=5 - the same per-slot budget tmpSizeLimit is
+  # sized against. A future OOMKill with the container at its own limit
+  # (rather than the node-level kills seen here) means the tail got common:
+  # lower queueConcurrency before raising memory, or reintroduce a
   # per-archive size cap in Tuist.Processor.BuildProcessor.
-  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
-  # so all 5 NIF parses run on dedicated dirty schedulers without
-  # serializing on scheduler availability the way they did at 4 cores.
+  #
+  # CPU stays burstable at 4/12. The limit at 12 cores lets the BEAM run ~12
+  # dirty-CPU schedulers, so all 5 NIF parses get a dedicated dirty scheduler
+  # instead of serializing the way they did at 4 cores.
   resources:
     requests:
       cpu: "4000m"
-      memory: "8Gi"
+      memory: "10Gi"
     limits:
       cpu: "12000m"
-      memory: "24Gi"
+      memory: "16Gi"
 
   # Pin processor pods to the dedicated cpx51 pool provisioned by
   # md-processor in cluster-production.yaml. The label is set on
@@ -711,6 +792,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-production.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="production"}; every line also
+  # carries `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-production:3100/loki/api/v1/push
+    env: production
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.

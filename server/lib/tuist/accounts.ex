@@ -1167,6 +1167,22 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
+  # The decision only needs the account and its organization, so a caller that
+  # already holds both answers it without touching the database. Resolving cache
+  # grants walks every accessible project, and those projects share a handful of
+  # accounts, so re-reading the account per project dominated the call.
+  def owns_account_or_belongs_to_account_organization?(
+        user,
+        %Account{organization: %Organization{} = organization} = account
+      ) do
+    owns_account?(user, account) or organization_admin?(user, organization) or
+      organization_user?(user, organization)
+  end
+
+  def owns_account_or_belongs_to_account_organization?(user, %Account{organization: nil} = account) do
+    owns_account?(user, account)
+  end
+
   def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
     case get_account_by_id(account_id, preload: [:organization]) do
       {:ok, %Account{organization: nil} = account} ->
@@ -1179,6 +1195,17 @@ defmodule Tuist.Accounts do
       {:error, :not_found} ->
         false
     end
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(
+        user,
+        %Account{organization: %Organization{} = organization} = account
+      ) do
+    owns_account?(user, account) or organization_admin?(user, organization)
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(user, %Account{organization: nil} = account) do
+    owns_account?(user, account)
   end
 
   def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
@@ -1608,32 +1635,53 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
-    query =
-      from(u in UserRole,
-        join: r in Role,
-        on: u.role_id == r.id,
-        where:
-          u.user_id == ^user_id and r.name == "admin" and r.resource_type == "Organization" and
-            r.resource_id == ^organization_id
-      )
-
-    Repo.exists?(query)
+  def organization_admin?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "admin")
   end
 
-  def organization_user?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
-    query =
+  def organization_user?(%User{} = user, %Organization{} = organization) do
+    holds_organization_role?(user, organization, "user") or
+      (sso_automatic_enrollment_allowed?(organization, user.email) and
+         belongs_to_sso_organization?(user, organization))
+  end
+
+  @doc """
+  Resolves every organization role the user holds in one query and attaches it
+  to the user, so that subsequent membership checks answer from memory.
+
+  Callers that check the same user against many organizations should do this
+  first. Without it each check is its own query, which is what made resolving
+  cache grants scale with the number of projects an account owns.
+  """
+  def put_organization_roles(%User{id: user_id} = user) do
+    roles =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where: u.user_id == ^user_id and r.resource_type == "Organization",
+        select: {r.resource_id, r.name}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    %{user | organization_roles: roles}
+  end
+
+  defp holds_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id}, name)
+       when is_map(roles) do
+    name in Map.get(roles, organization_id, [])
+  end
+
+  defp holds_organization_role?(%User{id: user_id}, %Organization{id: organization_id}, name) do
+    Repo.exists?(
       from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
-          u.user_id == ^user_id and r.name == "user" and r.resource_type == "Organization" and
+          u.user_id == ^user_id and r.name == ^name and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
       )
-
-    Repo.exists?(query) or
-      (sso_automatic_enrollment_allowed?(organization, user.email) and
-         belongs_to_sso_organization?(user, organization))
+    )
   end
 
   def get_invitation_by_id(id) do

@@ -163,9 +163,9 @@ kuraController:
       item: ""
       field: KURA_SENTRY_DSN
     # Example shape — never commit real values here:
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
-    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
+    #   KURA_AUTH_JWT_ALGORITHM: HS512
+    #   KURA_AUTH_JWT_ISSUER: tuist
+    #   KURA_AUTH_JWT_SECRET: "<JWT signing secret>"
     #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
@@ -200,8 +200,10 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
-    # Lua extension, normally supplied with
-    # `--set-file kuraRuntime.instance.extensionScript=<path>`.
+    # No longer read by Kura, which authorizes natively. Still emitted so a
+    # release that predates that keeps authorizing; remove this field, the
+    # controller's handling of it, and the CRD property together once every
+    # instance runs a release that reads KURA_AUTH_TUIST_URL.
     extensionScript: ""
 
 codebaseSearch:
@@ -395,6 +397,11 @@ server:
     # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
     posthog:
       enabled: true
+    # Newsletter signups go to Atlas, which is our own deployment. Only the
+    # environment that owns the production audience should write to it, so
+    # this stays off everywhere else and the client then has no key to use.
+    atlasEmail:
+      enabled: false
     externalSecrets:
       refreshInterval: "1h"
       storeRef:
@@ -902,22 +909,30 @@ xcresultProcessor:
   databaseUrlSecretKey: "processor-database-url"
   # Tailscale identity for each Tart VM. When enabled the VM image's
   # tailscale-up.sh runs at boot (before the BEAM) and joins the
-  # tailnet using the auth key sourced from this Secret. The chart's
+  # tailnet using the credential sourced from this Secret. The chart's
   # `xcresult-processor-database-url` rendering points at the
   # operator-managed pooler proxy hostname; the VM resolves it via
   # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # The join is on the critical path of every boot here, not just the
+  # first: the launchd chain refuses to `exec tuist start` without a
+  # tailnet identity, and each Pod roll creates a fresh VM. That is
+  # what makes the credential's own expiry an outage class of its own
+  # (2026-08-12) and why managed envs put an OAuth client secret here
+  # rather than a pre-auth key.
   #
   # Off by default — self-hosters without a tailnet, and any
   # deployment that hasn't shipped the tailscale-enabled VM image
   # yet, leaves this off and the chart skips the env injection.
   tailscale:
     enabled: false
-    # Name of the Secret holding the per-env Tailscale pre-auth key
-    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # Name of the Secret holding the per-env Tailscale credential
+    # (the same one the Mac mini host bootstrap reads via the CAPI
     # operator's --tailscale-auth-key-secret-name flag). Empty falls
     # back to the chart-default
     # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
-    # macOS-fleet ExternalSecret syncs from 1Password.
+    # macOS-fleet ExternalSecret syncs from 1Password. The tag the VM
+    # advertises comes from `macosFleet.tailscale.tags`.
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
@@ -1315,13 +1330,17 @@ macosFleet:
   # their per-env values.
   tailscale:
     enabled: false
-    # Per-env ACL tag every Mac mini advertises at `tailscale up`.
-    # Per-env values override (e.g. `tag:tuist-macmini-staging`);
-    # the chart-default empty list lets the auth key's own tag
-    # binding apply if it carries one, but production deployments
-    # should always set this explicitly so the env boundary is
-    # load-bearing rather than auth-key-shape-derived. See
-    # infra/tailscale/acls.json for the full taxonomy.
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`,
+    # and the tag the xcresult processor's Tart VMs join under too
+    # (they share this fleet's credential and ACL binding).
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`).
+    #
+    # Required whenever the credential below is an OAuth client
+    # secret: keys minted through an OAuth client are always tagged
+    # and carry no default to fall back on. The chart-default empty
+    # list only works with a legacy pre-auth key, which applies the
+    # tag baked into the key instead. See infra/tailscale/acls.json
+    # for the full taxonomy.
     tags: []
     # `tailscale up --accept-routes` on every Mac mini: installs the
     # subnet routes the env's cluster-side Connector advertises into
@@ -1336,8 +1355,10 @@ macosFleet:
     # one). Pair with `vmClusterEgress` below, or the VMs' packets
     # will route but the pf firewall will still drop them.
     acceptRoutes: false
-    # Name of the Secret with key `auth-key` holding the Tailscale
-    # pre-auth key. ESO populates it from 1Password by default; set
+    # Name of the Secret with key `auth-key` holding the fleet's
+    # Tailscale credential: an OAuth client secret on Tuist-managed
+    # envs (see the ExternalSecret template for why it isn't a
+    # pre-auth key). ESO populates it from 1Password by default; set
     # to a manually-created Secret name to opt out.
     secretName: ""
     externalSecrets:
@@ -1347,13 +1368,49 @@ macosFleet:
         kind: ClusterSecretStore
         name: onepassword
       # Same per-env convention as the Scaleway item: one TAILSCALE
-      # entry in each env's `tuist-k8s-<env>` vault with the
-      # pre-auth key for that env's tailnet. We don't share an auth
-      # key across envs so a leaked staging key can't add a node
-      # to the production tailnet.
+      # entry in each env's `tuist-k8s-<env>` vault holding that
+      # env's tailnet credential. We don't share it across envs so a
+      # leaked staging credential can't add a node to the production
+      # tailnet, which is also why each env gets its own OAuth
+      # client, scoped to that env's `tag:tuist-macmini-<env>`.
       item: TAILSCALE
       fields:
         authKey: auth-key
+  # Host logs from each Mac mini, shipped to Loki.
+  #
+  # tart-kubelet runs under launchd and everything it logs — the pod
+  # reconciler, the node agent, the cache-volume manager — lands in
+  # /var/log/tart-kubelet.log on the mini and nowhere else. There is no
+  # DaemonSet path to it: a Pod on a macOS Node is a Tart VM with no view of
+  # the host filesystem, and the apiserver can't resolve these kubelets to
+  # serve `kubectl logs` either. So the host runs its own agent
+  # (infra/macos-log-shipper), installed by the same bootstrap that installs
+  # node_exporter.
+  #
+  # Direction is the difference from metrics: metrics are pulled by
+  # alloy-metrics through the egress ProxyGroup, logs are pushed by the host.
+  # They are pushed to the in-cluster Alloy receiver over the tailnet —
+  # already reachable, already granted in acls.json, already serving this
+  # exact endpoint for the xcresult processor's Tart guests — rather than to
+  # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
+  #
+  # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
+  #
+  # Reversible in both directions: turning this off moves the fleet host-config
+  # hash, and the drift roll that follows unloads the launchd job and removes
+  # the agent from every mini. A flag that only stopped new config from being
+  # pushed would leave the daemon running with its old URL, so ingestion would
+  # continue after a "rollback" — this one actually stops it.
+  hostLogs:
+    enabled: false
+    # Loki push endpoint, including the /loki/api/v1/push path. The tailnet
+    # hostname of the Tailscale-operator proxy fronting the k8s-monitoring
+    # chart's alloy-receiver — set the matching `tailscale.com/expose` +
+    # `tailscale.com/hostname` annotations there, or this resolves nowhere.
+    url: ""
+    # `env` stream label on every shipped line, mirroring the label the
+    # server's own Loki handler sets. Empty omits it.
+    env: ""
   # Tailscale egress Services. When enabled, the CAPI operator
   # creates one ExternalName Service per Mac mini in
   # `.namespace` (matching the tailscale-operator wrapper chart's
@@ -2044,6 +2101,138 @@ cache:
     bucket: tuist-cache
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
+
+# OCI registry of record. Holds the large Tart VM images the macOS fleet
+# boots from (Xcode base, runner, xcresult processor) and the Xcode .xip
+# mirror, which is an OCI artifact rather than an image — hence the name
+# tracking the protocol rather than the payload. Distinct from `registry`
+# (the Swift package registry) and `registryCache` (the Docker Hub
+# mirror), and backed by the same object store as the latter under its
+# own prefix; see the template for why these don't belong on GHCR.
+# Disabled by default — only hosted Tuist publishes these.
+#
+# Standing this up is inert on its own: the build workflows keep pushing
+# to GHCR and the fleet keeps pulling from there until the image
+# references move, which is a separate, canaried change.
+ociRegistry:
+  enabled: false
+  replicaCount: 1
+  image:
+    # ECR Public rather than docker.io, for the same reason as
+    # registryCache below: this must not depend on a registry that
+    # rate-limits us. 3 rather than registryCache's 2 because 2 is in
+    # maintenance; both were exercised against our object store and
+    # behave identically.
+    repository: public.ecr.aws/docker/library/registry
+    tag: "3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  logLevel: info
+  s3:
+    bucket: tuist-registry
+    rootDirectory: oci
+    # Multipart part size in bytes for blob uploads. 64 MiB against Tart's
+    # 512 MiB layers is 8 parts per layer; the default 10 MiB would be 52.
+    chunkSize: 67108864
+  auth:
+    # Anonymous read, authenticated write, split on request method by a
+    # proxy in front of the registry. Off by default so a self-hoster
+    # who exposes this on a trusted network isn't forced into it.
+    #
+    # Do not substitute the registry's own htpasswd realm: it
+    # authenticates without authorizing, so any account that can pull
+    # can also push, and a pull credential on the fleet becomes a push
+    # credential on every host.
+    enabled: false
+    realm: "Tuist OCI registry"
+    # Operator-managed Secret with `htpasswdReaders` and `htpasswdWriters`
+    # keys, used when `externalSecret` below is off. With auth on and
+    # neither set, the chart fails to render.
+    existingSecret: ""
+    proxy:
+      image:
+        repository: public.ecr.aws/nginx/nginx
+        tag: "1.29"
+        pullPolicy: IfNotPresent
+      port: 8080
+      # Generous enough to cover a part being flushed to the object
+      # store mid-upload.
+      timeoutSeconds: 900
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: "1"
+          memory: 256Mi
+  tailscale:
+    # Expose the Service on the tailnet instead of a public ingress. Every
+    # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
+    # Stays an L4 proxy: an HTTP one would impose a request-body limit
+    # that 512 MiB layer uploads would run into, and TLS terminates in
+    # the Pod rather than at the proxy anyway.
+    enabled: false
+    # Tailnet node name; the registry is reachable at
+    # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
+    hostname: ""
+    tags: ""
+  tls:
+    # Serve HTTPS from the proxy. Off by default so a self-hoster on a
+    # trusted network isn't forced into certificate plumbing; on, clients
+    # no longer need `--insecure`, and credentials stop crossing the
+    # cluster network in the clear.
+    enabled: false
+    # The name clients connect to and the certificate is issued for. Must
+    # be a name we control — no public CA issues for `.ts.net`.
+    host: ""
+    certificate:
+      # Emit a cert-manager Certificate. Turn off to supply your own.
+      enabled: true
+      issuerRef:
+        name: letsencrypt-cloudflare
+        kind: ClusterIssuer
+    # Secret holding tls.crt/tls.key when `certificate.enabled` is false.
+    existingSecret: ""
+    dns:
+      # Publish `tls.host` as a CNAME onto the MagicDNS name via
+      # external-dns, so the record follows the node rather than pinning
+      # a tailnet address that changes when it is recreated.
+      enabled: false
+      # Tailnet domain, e.g. `example-tailnet.ts.net`.
+      tailnet: ""
+  # Runtime secrets, from one 1P item via ESO. Carries `httpSecret`
+  # always, and `htpasswd` when auth is on.
+  externalSecret:
+    enabled: false
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    item: OCI_REGISTRY_CREDENTIALS
+    fields:
+      # Signs upload state; any stable random string.
+      httpSecret: http_secret
+      # Full htpasswd files (`user:$2y$...` lines), not bare passwords.
+      # Readers lists every account, writers only those allowed to push.
+      htpasswdReaders: htpasswd_readers
+      htpasswdWriters: htpasswd_writers
+  # Used when `externalSecret` is off. Required either way: leaving the
+  # registry to generate one per process breaks in-flight chunked uploads
+  # across a restart, and across a rolling update even at one replica.
+  httpSecret: ""
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      # Headroom over s3.chunkSize above: the S3 driver holds a multipart
+      # part in memory per in-flight upload, and a push runs several
+      # concurrently.
+      cpu: "2"
+      memory: 2Gi
 
 # Docker Hub pull-through cache for the Linux runner fleet. Disabled by
 # default; flip `enabled: true` per environment (staging first) once it's

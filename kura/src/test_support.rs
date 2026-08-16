@@ -9,9 +9,9 @@ use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     bandwidth::BandwidthLimiter,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
-    extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -31,12 +31,12 @@ pub(crate) async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
-    test_context_with_extension(override_config, None).await
+    test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_extension<F>(
+pub(crate) async fn test_context_with_auth<F>(
     override_config: F,
-    extension: Option<SharedExtension>,
+    auth: Option<SharedAuth>,
 ) -> TestContext
 where
     F: FnOnce(&mut Config),
@@ -184,7 +184,7 @@ where
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
         usage,
         geoip: None,

@@ -208,9 +208,10 @@ extraEnvFrom: []
 extraVolumes: []
 extraVolumeMounts: []
 
-extension:
+# Cache authorization against a Tuist server. The JWT verification key and the
+# control-plane credentials are secrets, so they come in through extraEnv or
+# extraEnvFrom as KURA_AUTH_JWT_SECRET and KURA_CONTROL_PLANE_CLIENT_ID /
+# KURA_CONTROL_PLANE_CLIENT_SECRET.
+auth:
   enabled: false
-  existingConfigMap: ""
-  script: ""
-  mountDir: /etc/kura/extensions
-  scriptFileName: hooks.lua
+  tuistUrl: ""

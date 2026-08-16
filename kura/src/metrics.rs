@@ -129,11 +129,11 @@ pub struct Metrics {
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
-    extension_hooks: Family<ExtensionHookLabels, Counter>,
-    extension_hook_duration: Family<ExtensionHookRouteLabels, Histogram>,
-    extension_cache: Family<ExtensionCacheLabels, Counter>,
-    extension_http_client_requests: Family<ExtensionHttpClientLabels, Counter>,
-    extension_http_client_duration: Family<ExtensionHttpClientRouteLabels, Histogram>,
+    auth_decisions: Family<AuthDecisionLabels, Counter>,
+    auth_decision_duration: Family<AuthDecisionStageLabels, Histogram>,
+    auth_cache: Family<AuthCacheLabels, Counter>,
+    auth_backend_requests: Family<AuthBackendLabels, Counter>,
+    auth_backend_duration: Family<AuthBackendRouteLabels, Histogram>,
     process_resident_memory_bytes: Gauge,
     process_resident_anon_bytes: Gauge,
     process_resident_file_bytes: Gauge,
@@ -342,16 +342,15 @@ impl Metrics {
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
         let segment_generation_counts = Family::<SegmentGenerationLabels, Gauge>::default();
-        let extension_hooks = Family::<ExtensionHookLabels, Counter>::default();
-        let extension_hook_duration =
-            Family::<ExtensionHookRouteLabels, Histogram>::new_with_constructor(|| {
+        let auth_decisions = Family::<AuthDecisionLabels, Counter>::default();
+        let auth_decision_duration =
+            Family::<AuthDecisionStageLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
             });
-        let extension_cache = Family::<ExtensionCacheLabels, Counter>::default();
-        let extension_http_client_requests =
-            Family::<ExtensionHttpClientLabels, Counter>::default();
-        let extension_http_client_duration =
-            Family::<ExtensionHttpClientRouteLabels, Histogram>::new_with_constructor(|| {
+        let auth_cache = Family::<AuthCacheLabels, Counter>::default();
+        let auth_backend_requests = Family::<AuthBackendLabels, Counter>::default();
+        let auth_backend_duration =
+            Family::<AuthBackendRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let process_resident_memory_bytes = Gauge::default();
@@ -892,29 +891,29 @@ impl Metrics {
             segment_generation_counts.clone(),
         );
         registry.register(
-            "kura_extension_hooks_total",
-            "Extension hook invocations by hook and result",
-            extension_hooks.clone(),
+            "kura_auth_decisions_total",
+            "Authorization decisions by stage and result",
+            auth_decisions.clone(),
         );
         registry.register(
-            "kura_extension_hook_duration_seconds",
-            "Extension hook execution latency by hook",
-            extension_hook_duration.clone(),
+            "kura_auth_decision_duration_seconds",
+            "Authorization decision latency by stage",
+            auth_decision_duration.clone(),
         );
         registry.register(
-            "kura_extension_cache_total",
-            "Extension cache lookups by cache and result",
-            extension_cache.clone(),
+            "kura_auth_cache_total",
+            "Authorization cache lookups by cache and result",
+            auth_cache.clone(),
         );
         registry.register(
-            "kura_extension_http_client_requests_total",
-            "Extension HTTP client requests by client, route, result, status class, and error kind",
-            extension_http_client_requests.clone(),
+            "kura_auth_backend_requests_total",
+            "Authentication backend requests by route, result, status class, and error kind",
+            auth_backend_requests.clone(),
         );
         registry.register(
-            "kura_extension_http_client_request_duration_seconds",
-            "Extension HTTP client request latency by client and route",
-            extension_http_client_duration.clone(),
+            "kura_auth_backend_request_duration_seconds",
+            "Authentication backend request latency by route",
+            auth_backend_duration.clone(),
         );
         registry.register(
             "kura_process_resident_memory_bytes",
@@ -1359,11 +1358,11 @@ impl Metrics {
             analytics_circuit_state,
             analytics_circuit_transitions,
             segment_generation_counts,
-            extension_hooks,
-            extension_hook_duration,
-            extension_cache,
-            extension_http_client_requests,
-            extension_http_client_duration,
+            auth_decisions,
+            auth_decision_duration,
+            auth_cache,
+            auth_backend_requests,
+            auth_backend_duration,
             process_resident_memory_bytes,
             process_resident_anon_bytes,
             process_resident_file_bytes,
@@ -2127,50 +2126,47 @@ impl Metrics {
             .set(count as i64);
     }
 
-    pub fn record_extension_hook(&self, hook: &str, result: &str, duration: Duration) {
-        self.extension_hooks
-            .get_or_create(&ExtensionHookLabels {
-                hook: hook.to_owned(),
+    pub fn record_auth_decision(&self, stage: &str, result: &str, duration: Duration) {
+        self.auth_decisions
+            .get_or_create(&AuthDecisionLabels {
+                stage: stage.to_owned(),
                 result: result.to_owned(),
             })
             .inc();
-        self.extension_hook_duration
-            .get_or_create(&ExtensionHookRouteLabels {
-                hook: hook.to_owned(),
+        self.auth_decision_duration
+            .get_or_create(&AuthDecisionStageLabels {
+                stage: stage.to_owned(),
             })
             .observe(duration.as_secs_f64());
     }
 
-    pub fn record_extension_cache(&self, cache: &str, result: &str) {
-        self.extension_cache
-            .get_or_create(&ExtensionCacheLabels {
+    pub fn record_auth_cache(&self, cache: &str, result: &str) {
+        self.auth_cache
+            .get_or_create(&AuthCacheLabels {
                 cache: cache.to_owned(),
                 result: result.to_owned(),
             })
             .inc();
     }
 
-    pub fn record_extension_http_client(
+    pub fn record_auth_backend(
         &self,
-        client: &str,
         route: &str,
         result: &str,
         status_class: &str,
         error_kind: &str,
         duration: Duration,
     ) {
-        self.extension_http_client_requests
-            .get_or_create(&ExtensionHttpClientLabels {
-                client: client.to_owned(),
+        self.auth_backend_requests
+            .get_or_create(&AuthBackendLabels {
                 route: route.to_owned(),
                 result: result.to_owned(),
                 status_class: status_class.to_owned(),
                 error_kind: error_kind.to_owned(),
             })
             .inc();
-        self.extension_http_client_duration
-            .get_or_create(&ExtensionHttpClientRouteLabels {
-                client: client.to_owned(),
+        self.auth_backend_duration
+            .get_or_create(&AuthBackendRouteLabels {
                 route: route.to_owned(),
             })
             .observe(duration.as_secs_f64());
@@ -2690,25 +2686,24 @@ struct SegmentGenerationLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHookLabels {
-    hook: String,
+struct AuthDecisionLabels {
+    stage: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHookRouteLabels {
-    hook: String,
+struct AuthDecisionStageLabels {
+    stage: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionCacheLabels {
+struct AuthCacheLabels {
     cache: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHttpClientLabels {
-    client: String,
+struct AuthBackendLabels {
     route: String,
     result: String,
     status_class: String,
@@ -2716,8 +2711,7 @@ struct ExtensionHttpClientLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHttpClientRouteLabels {
-    client: String,
+struct AuthBackendRouteLabels {
     route: String,
 }
 
