@@ -41,11 +41,15 @@ public protocol ServerSessionControlling {
     ///     - serverURL: Server URL.
     ///     - deviceCodeType: Type of device origin used for authentication.
     ///     - onOpeningBrowser: Triggered when we begin opening the browser at the given authentication url.
+    ///     - onBrowserOpenFailed: Triggered when the browser could not be opened automatically (e.g. headless
+    ///       environments without a browser opener). The auth URL was already surfaced via `onOpeningBrowser`,
+    ///       so authentication keeps going and the user can open the URL manually.
     ///     - onAuthWaitBegin: Custom callback when we started waiting for the authentication to finish in the browser.
     func authenticate(
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
         onOpeningBrowser: @escaping (URL) async -> Void,
+        onBrowserOpenFailed: @escaping () async -> Void,
         onAuthWaitBegin: @escaping () async -> Void
     ) async throws
 
@@ -95,6 +99,7 @@ public struct ServerSessionController: ServerSessionControlling {
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
         onOpeningBrowser: @escaping (URL) async -> Void,
+        onBrowserOpenFailed: () async -> Void,
         onAuthWaitBegin: () async -> Void
     ) async throws {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
@@ -110,7 +115,15 @@ public struct ServerSessionController: ServerSessionControlling {
 
         await onOpeningBrowser(authURL)
 
-        try opener.open(url: authURL)
+        do {
+            try opener.open(url: authURL)
+        } catch {
+            // Opening the browser is best-effort. In headless environments (remote servers,
+            // containers, or sandboxes without `xdg-open`) launching a browser fails. The auth
+            // URL has already been surfaced to the user via `onOpeningBrowser`, so we notify the
+            // caller and keep polling for the token instead of aborting the whole login flow.
+            await onBrowserOpenFailed()
+        }
 
         await onAuthWaitBegin()
 
