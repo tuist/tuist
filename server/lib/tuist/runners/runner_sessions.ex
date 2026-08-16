@@ -162,6 +162,83 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
+  Lists sessions still open whose `started_at` is older than
+  `threshold` — candidates for the "controller never reported the
+  Pod stopped" recovery path that `OrphanedSessionsWorker` drives.
+
+  The threshold exists so the sweep never races a Pod that is
+  simply still working. Ordering by `started_at` means the oldest
+  (most expensive against the billing clamp) sessions are resolved
+  first when a tick hits `limit`.
+  """
+  def list_open_before(%DateTime{} = threshold, limit) when is_integer(limit) and limit > 0 do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.started_at < ^threshold)
+    |> order_by([s], asc: s.started_at)
+    |> limit(^limit)
+    |> select([s], %{
+      id: s.id,
+      workflow_job_id: s.workflow_job_id,
+      executed_workflow_job_id: s.executed_workflow_job_id,
+      account_id: s.account_id,
+      pod_name: s.pod_name,
+      fleet_name: s.fleet_name,
+      started_at: s.started_at
+    })
+    |> Repo.all()
+  end
+
+  @doc """
+  Closes the session with `id` at `ended_at`, carrying the same
+  under-bill bias as `close_by_pod_name/2`.
+
+  Addressed by primary key rather than `pod_name` because the
+  recovery sweep already holds the exact row it resolved, and two
+  sessions can share a `pod_name` when a Pod served a re-claim.
+
+  `ended_at` is additionally floored at `started_at`, so a job whose
+  terminal timestamp predates the claim (clock skew between GitHub
+  and us, or a `completed_at` belonging to an earlier attempt on the
+  same runner) closes the session at zero duration instead of
+  writing an inverted interval that the billing query would read as
+  a negative contribution.
+  """
+  def close_by_id(id, %DateTime{} = ended_at) when is_integer(id) do
+    case Repo.get(RunnerSession, id) do
+      nil ->
+        {:ok, :no_open_session}
+
+      %RunnerSession{} = session ->
+        effective_end =
+          session.ended_at
+          |> case do
+            nil -> ended_at
+            %DateTime{} = existing -> earlier(existing, ended_at)
+          end
+          |> later(session.started_at)
+
+        session
+        |> Ecto.Changeset.cast(
+          %{ended_at: effective_end, updated_at: DateTime.truncate(DateTime.utc_now(), :second)},
+          [:ended_at, :updated_at]
+        )
+        |> Repo.update()
+        |> case do
+          {:ok, updated} ->
+            {:ok, updated}
+
+          {:error, changeset} ->
+            Logger.warning("runners: failed to close orphaned billing session",
+              session_id: id,
+              changeset_errors: inspect(changeset.errors)
+            )
+
+            {:error, changeset}
+        end
+    end
+  end
+
+  @doc """
   Counts runner Pods currently occupying capacity, grouped by fleet.
 
   A claim covers the dispatch window before the durable session is
@@ -425,6 +502,10 @@ defmodule Tuist.Runners.RunnerSessions do
 
   defp earlier(%DateTime{} = a, %DateTime{} = b) do
     if DateTime.before?(a, b), do: a, else: b
+  end
+
+  defp later(%DateTime{} = a, %DateTime{} = b) do
+    if DateTime.after?(a, b), do: a, else: b
   end
 
   @doc """

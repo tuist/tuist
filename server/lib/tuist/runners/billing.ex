@@ -28,10 +28,15 @@ defmodule Tuist.Runners.Billing do
   upper bound clamps to either `period_end` (so the billing
   query gives a snapshot of "compute consumed so far") or to
   `now()` whenever the caller queries with `period_end` set to
-  the future. An orphaned Pod (controller never tore it down,
-  no completion webhook) keeps billing up to whichever cap
-  applies — operationally the orphan-runners worker should
-  close those sessions out before they run away.
+  the future.
+
+  A session the runners-controller never reported stopped would
+  otherwise bill up to whichever cap applies, forever.
+  `OrphanedSessionsWorker` is what closes those out — at the
+  terminal `completed_at` of the job the Pod actually ran, so the
+  recovered number reflects real work rather than the safety
+  bound. `OrphanedRunnersWorker` does *not* cover this; it
+  recovers `runner_jobs`, never `runner_sessions`.
 
   ## Precision
 
@@ -50,16 +55,26 @@ defmodule Tuist.Runners.Billing do
 
   @default_window_days 30
 
-  # Safety clamp for sessions whose `stopped` event was never
-  # delivered (controller crash + Pod garbage-collected from K8s
-  # before recovery). Without this, an indefinitely-open session
-  # bills against `LEAST(now(), period_end)` for as long as it
-  # stays open, which is exactly the over-bill the
-  # controller-reported-close architecture exists to prevent. 6
-  # hours matches the default `workflow_job` hard timeout on
-  # GitHub-hosted runners, so the clamp never trims a legitimate
-  # session — it only bounds the worst case after the
-  # authoritative signal got lost.
+  # Last-resort bound for sessions whose `stopped` event was never
+  # delivered *and* whose job has not reached a terminal state in
+  # ClickHouse, so `OrphanedSessionsWorker` cannot resolve a real
+  # `ended_at` for them either. Without it, such a session bills
+  # against `LEAST(now(), period_end)` for as long as it stays open.
+  #
+  # 6 hours matches the default `workflow_job` hard timeout on
+  # GitHub-hosted runners, and measured sessions confirm the fit:
+  # real builds on these fleets do reach it (observed 360.6-minute
+  # jobs whose sessions closed at 361.2 minutes), while p99 sits at
+  # 68 minutes. Tightening it would under-bill that tail, because
+  # the clamp sits inside the same `LEAST` as `ended_at` and so
+  # truncates closed sessions too — not just open ones.
+  #
+  # This is deliberately not the mechanism that keeps orphans in
+  # check. It cannot be: it is a constant, and it fires equally on
+  # a Pod that vanished after 90 seconds and one that ran for six
+  # hours. `OrphanedSessionsWorker` closes orphans at their real
+  # completion time; the clamp only covers what that worker cannot
+  # resolve.
   @max_session_lifetime_seconds 6 * 60 * 60
 
   @doc """
