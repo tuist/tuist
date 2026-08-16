@@ -4,10 +4,19 @@ public enum TargetQuery: Codable, Equatable, Sendable, ExpressibleByStringLitera
     case named(String)
     /// Match targets with the given metadata tag.
     case tagged(String)
+    /// Match targets whose name matches the given glob pattern, for example `*-UnitTests`.
+    ///
+    /// The supported wildcards are `*` (any sequence of characters), `?` (any single character) and `[…]`
+    /// (any character in the set).
+    case matching(pattern: String)
+
+    /// The wildcards that turn a string literal into a ``TargetQuery/matching(pattern:)`` query.
+    private static let patternWildcards: Set<Character> = ["*", "?", "["]
 
     private enum CodingKeys: String, CodingKey {
         case named
         case tagged
+        case matching
     }
 
     public init(from decoder: Decoder) throws {
@@ -16,6 +25,8 @@ public enum TargetQuery: Codable, Equatable, Sendable, ExpressibleByStringLitera
             self = .named(name)
         } else if let tag = try container.decodeIfPresent(String.self, forKey: .tagged) {
             self = .tagged(tag)
+        } else if let pattern = try container.decodeIfPresent(String.self, forKey: .matching) {
+            self = .matching(pattern: pattern)
         } else {
             throw DecodingError.dataCorrupted(
                 .init(codingPath: decoder.codingPath, debugDescription: "Invalid TargetQuery encoding")
@@ -30,6 +41,8 @@ public enum TargetQuery: Codable, Equatable, Sendable, ExpressibleByStringLitera
             try container.encode(name, forKey: .named)
         case let .tagged(tag):
             try container.encode(tag, forKey: .tagged)
+        case let .matching(pattern):
+            try container.encode(pattern, forKey: .matching)
         }
     }
 
@@ -37,6 +50,8 @@ public enum TargetQuery: Codable, Equatable, Sendable, ExpressibleByStringLitera
         let tagPrefix = "tag:"
         if value.hasPrefix(tagPrefix) {
             self = .tagged(String(value.dropFirst(tagPrefix.count)))
+        } else if value.contains(where: Self.patternWildcards.contains) {
+            self = .matching(pattern: value)
         } else {
             self = .named(value)
         }
