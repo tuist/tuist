@@ -50,10 +50,6 @@ const CONFIRMED_TTL: Duration = Duration::from_secs(25 * 60);
 /// paying the full timeout.
 const UNAVAILABLE_BACKOFF: Duration = Duration::from_secs(3);
 
-/// One credential reaches a handful of targets in a build, and the cache is
-/// keyed per target, so it is given room accordingly.
-const TARGETS_PER_CREDENTIAL: usize = 2;
-
 const _: () = assert!(REFUSAL_TTL.as_secs() <= REVALIDATE_AFTER.as_secs());
 const _: () = assert!(REVALIDATE_AFTER.as_secs() < CONFIRMED_TTL.as_secs());
 
@@ -225,14 +221,10 @@ impl AuthEngine {
             metrics.clone(),
         )?;
 
-        let per_target_capacity = config
-            .cache_max_entries
-            .saturating_mul(TARGETS_PER_CREDENTIAL) as u64;
-
         Ok(Self {
             backend,
             entries: Cache::builder()
-                .max_capacity(per_target_capacity)
+                .max_capacity(config.cache_max_entries as u64)
                 // moka defaults to TinyLFU, whose admission filter can reject a
                 // new entry outright when the cache is full. A credential seen
                 // once or twice is exactly what that filter rejects, and every
@@ -242,7 +234,7 @@ impl AuthEngine {
                 .expire_after(EntryExpiry)
                 .build(),
             consultations: Cache::builder()
-                .max_capacity(per_target_capacity)
+                .max_capacity(config.cache_max_entries as u64)
                 .eviction_policy(EvictionPolicy::lru())
                 .time_to_idle(UNAVAILABLE_BACKOFF * 20)
                 .build(),
