@@ -134,7 +134,12 @@ unreachable — the agent is `RunAtLoad`, so it can start before tailscaled is
 listening, and a `--url` that is a plain address or a public name must still
 work.
 
-Two consequences worth keeping in mind:
+**`--url` must carry the fully qualified name** (`<host>.<tailnet>.ts.net`).
+MagicDNS answers only fully-qualified queries, and these hosts have no `search`
+domain to complete a short one, so a bare hostname `NXDOMAIN`s even when asked
+directly. Both halves are required: the right resolver and the right name.
+
+Three consequences worth keeping in mind:
 
 - **A name that resolves from your laptop says nothing about a mini.** Your Mac
   runs a tailscaled that does configure the OS resolver; these hosts do not.

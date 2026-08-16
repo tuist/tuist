@@ -1407,6 +1407,12 @@ macosFleet:
     # hostname of the Tailscale-operator proxy fronting the k8s-monitoring
     # chart's alloy-receiver — set the matching `tailscale.com/expose` +
     # `tailscale.com/hostname` annotations there, or this resolves nowhere.
+    #
+    # Must be the FULLY QUALIFIED name (<host>.<tailnet>.ts.net). MagicDNS
+    # answers only fully-qualified queries, and a mini has no `search` domain
+    # to complete a short one — the agent resolves through tailscaled rather
+    # than the OS precisely because the OS on these hosts knows no tailnet
+    # names at all. A bare hostname here fails every push with "no such host".
     url: ""
     # `env` stream label on every shipped line, mirroring the label the
     # server's own Loki handler sets. Empty omits it.
