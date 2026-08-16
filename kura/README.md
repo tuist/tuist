@@ -578,9 +578,92 @@ Core env vars:
   `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which
   let a node introspect tokens it cannot verify itself
+- `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` (default `3000`) and
+  `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` (default `4000`) bound the calls to the
+  server. The request budget spans the connect, so keep it the larger of the
+  two; a connect budget under about a second fails on a single dropped SYN,
+  because TCP does not retransmit one until then.
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+A token the node can verify itself, whose own claims prove the request, is
+answered from those claims and never reaches the server. What follows is about
+every request the node cannot settle that way: opaque project, account and user
+tokens, tokens signed by a key this node does not hold, every request on a node
+with no verifier configured, and a verifiable token asking about a target its
+own grants do not name — those grants are a snapshot from minting time, and the
+server can still allow it through a route they know nothing about.
+
+The cache below still holds what was settled for a verifiable token, which
+saves repeating the signature check per request. But asking about one is a
+local check rather than a round trip, so none of the outage behaviour applies
+to it.
+
+What an evaluation settles is held as one **access level** per credential and
+target — `Refused`, `Read` or `ReadWrite`. The level is ordered and write
+implies read, so the one confirmed for a read of a project also answers the
+write the build issues next, and the other way round. Each fresh answer
+**replaces** the entry outright — nothing held earlier survives it — so what
+the server takes away stays taken away.
+
+A level asked for an action above it — a write against `Read` — is not refused
+outright: the server may still allow it through a route the level knows nothing
+about, so the node asks, and the answer replaces the entry. For a short window
+after any evaluation the refusal is answered from the entry alone, so a
+read-only credential retrying uploads does not hammer the server.
+
+A refusal about one target says nothing about the next, and is held against
+that target alone. A refusal about the credential itself — a 401, where the
+server says the token is invalid or expired — voids every entry the credential
+has at once, so the other projects it covered stop being served immediately.
+
+A credential presented past its own expiry is refused without asking: the
+server validates `exp` too and would only answer inactive. That refusal holds
+off for the same minute of leeway the verifier allows, so the two cannot
+disagree about a credential in its last seconds.
+
+Every level is served for **10 minutes** and then revalidated against the
+server, whatever the credential is. That is how long a revocation, a
+deactivated user, or a narrowed grant can go unnoticed here. A credential
+carrying an `exp` is bounded by it as well — an entry never outlives the
+credential's own expiry, and never 25 minutes either — but carrying one is not
+a reason to skip revalidation: expiry says when a credential runs out, not
+whether it has been withdrawn. The `exp` is read without verifying the
+signature, which is safe because it is only read off a credential the server
+has just confirmed; a forged one would not have been.
+
+Revalidation is what keeps a control-plane blip off the serving path. A server
+that answers is taken at its word either way: its answer replaces the entry,
+grant or refusal. A server that does **not** answer knows nothing new about the
+credential, so a level that covers the request keeps serving it, up to 25
+minutes from the answer that established it and no further — nothing is
+written while the server is out of reach, so an outage can never extend its
+own cover. A node holding nothing that covers the request still fails closed,
+and a credential the server just failed to answer for is left alone for a few
+seconds before any request dials again, so an outage costs one probe per
+credential per backoff window rather than one per cold target.
+
+Exactly one request asks the server a given question — one credential, one
+target — at a time. Concurrent requests for the same question wait for its
+answer, so a build starting a hundred requests at once makes one call rather
+than a hundred, and a request whose level still answers it is served from that
+rather than queueing, so a server that black holes instead of refusing does
+not park every request for as long as its timeouts allow. A second project is
+a second question and costs its own call, once per revalidation window.
+
+Answers taken from a held entry are counted as
+`kura_auth_cache_total{cache="access",result="hit"}` and the ones worked out as
+`result="miss"`, with `kura_auth_decisions_total{stage="decide",...}` carrying
+what was answered (`allow`, `deny`, or `unavailable`) and how long it took.
+Reuse during an outage is `result="stale"`, a trip back to the server for a
+held entry is `result="revalidate"`, and an outage the node could not cover is
+`kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
+with the underlying transport or status error — that stage's other results are
+`access` and `deny`.
+
+Everything above is decided against the target a request resolves to, not the
+fields it happens to carry, so the two forms below reach the same answer.
 
 Requests carry their target as `tenant_id` and `namespace_id`, also read from
 `account_handle` and `project_handle` in the query. A request naming no project
@@ -588,14 +671,6 @@ is asking about the account's own cache, which is a different thing from any
 project within it: an account grant does not reach a project, and a project
 grant does not reach the account. A request naming a tenant this node does not
 serve is refused before anything else happens.
-
-Decisions are cached per credentials — keyed on the `authorization` header
-alone — for 60 seconds when granted and 3 seconds when denied, so a revoked
-token stops working within the minute. Concurrent misses on the same key are
-coalesced: one request evaluates and the rest wait for its result, so a build
-starting a hundred requests at once makes one call to the server rather than a
-hundred. Followers are counted as
-`kura_auth_cache_total{result="coalesced"}`.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
