@@ -116,8 +116,33 @@ receiver has to be exposed on the tailnet in the matching env — the
 `tailscale.com/expose` annotations on `alloy-receiver` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s per-env values.
 
-Staging is on; canary and production are wired with their URLs and left off
-until staging has proven the path and a day of volume data.
+All three managed envs are on.
+
+## The URL is a MagicDNS name, and this binary resolves it itself
+
+**No MagicDNS name resolves on a Mac mini through the OS.** `tailscale dns
+status` reports `Tailscale DNS: enabled`, but tailscaled installs no resolver:
+`scutil --dns` contains no `100.100.100.100` entry and `/etc/resolv.conf`
+carries only Scaleway's DHCP nameservers. On a production host, `curl
+http://tuist-alloy-receiver-production:3100/...` fails, and so does the FQDN
+form. Nothing on the host can turn a tailnet name into an address.
+
+tailscaled's own MagicDNS server is listening at `100.100.100.100:53`
+regardless, and answers. So `internal/shipper/dial.go` gives the push client a
+resolver that asks it directly, falling back to the system resolver when it is
+unreachable — the agent is `RunAtLoad`, so it can start before tailscaled is
+listening, and a `--url` that is a plain address or a public name must still
+work.
+
+Two consequences worth keeping in mind:
+
+- **A name that resolves from your laptop says nothing about a mini.** Your Mac
+  runs a tailscaled that does configure the OS resolver; these hosts do not.
+  Check with `scutil --dns | grep 100.100.100.100` on the host itself before
+  assuming a tailnet name is reachable from it.
+- **Do not swap the dialer out for `http.DefaultClient`.** It resolves through
+  `/etc/resolv.conf` and every push fails with `no such host`, once a minute,
+  while `launchctl print` reports the job `running`.
 
 The flag is reversible. Turning it off moves the fleet host-config hash, and
 the drift roll that follows unloads `dev.tuist.log-shipper` and removes the
