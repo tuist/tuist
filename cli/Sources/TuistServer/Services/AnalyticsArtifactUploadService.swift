@@ -258,6 +258,9 @@
             let passedArtifactPath = artifactPath
             let artifactPath: AbsolutePath
             let artifactLabel = "\(artifact.type)\(artifact.name.map { " (\($0))" } ?? "")"
+            #if canImport(TuistAppleArchiver)
+                var temporaryArchiveDirectory: AbsolutePath?
+            #endif
 
             let archiveStart = Date()
             switch artifact.type {
@@ -271,6 +274,7 @@
                     // `<destination>/<bundle>.xcresult/…` — without it, `find_xcresult`
                     // can't locate the bundle and processing fails with `:xcresult_not_found`.
                     let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-analytics-archive")
+                    temporaryArchiveDirectory = archiveDirectory
                     let archivePath = archiveDirectory.appending(
                         component: "\(passedArtifactPath.basenameWithoutExt).aar"
                     )
@@ -299,44 +303,58 @@
             }
 
             let uploadStart = Date()
-            let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
-                artifact,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
-                commandEventId: commandEventId,
-                serverURL: serverURL
-            )
+            do {
+                let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
+                    artifact,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    commandEventId: commandEventId,
+                    serverURL: serverURL
+                )
 
-            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                artifactPath: artifactPath,
-                generateUploadURL: { part in
-                    try await multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
-                        artifact,
-                        accountHandle: accountHandle,
-                        projectHandle: projectHandle,
-                        commandEventId: commandEventId,
-                        partNumber: part.number,
-                        uploadId: uploadId,
-                        serverURL: serverURL,
-                        contentLength: part.contentLength
-                    )
-                },
-                updateProgress: { _ in }
-            )
+                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                    artifactPath: artifactPath,
+                    generateUploadURL: { part in
+                        try await multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
+                            artifact,
+                            accountHandle: accountHandle,
+                            projectHandle: projectHandle,
+                            commandEventId: commandEventId,
+                            partNumber: part.number,
+                            uploadId: uploadId,
+                            serverURL: serverURL,
+                            contentLength: part.contentLength
+                        )
+                    },
+                    updateProgress: { _ in }
+                )
 
-            try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
-                artifact,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
-                commandEventId: commandEventId,
-                uploadId: uploadId,
-                parts: parts,
-                serverURL: serverURL
-            )
-            let uploadElapsed = Date().timeIntervalSince(uploadStart)
-            Logger.current.debug(
-                "Uploaded \(artifactLabel) in \(String(format: "%.2fs", uploadElapsed)) (\(parts.count) parts)"
-            )
+                try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
+                    artifact,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    commandEventId: commandEventId,
+                    uploadId: uploadId,
+                    parts: parts,
+                    serverURL: serverURL
+                )
+                let uploadElapsed = Date().timeIntervalSince(uploadStart)
+                Logger.current.debug(
+                    "Uploaded \(artifactLabel) in \(String(format: "%.2fs", uploadElapsed)) (\(parts.count) parts)"
+                )
+            } catch {
+                #if canImport(TuistAppleArchiver)
+                    if let temporaryArchiveDirectory {
+                        try? await fileSystem.remove(temporaryArchiveDirectory)
+                    }
+                #endif
+                throw error
+            }
+            #if canImport(TuistAppleArchiver)
+                if let temporaryArchiveDirectory {
+                    try await fileSystem.remove(temporaryArchiveDirectory)
+                }
+            #endif
         }
     }
 #endif
