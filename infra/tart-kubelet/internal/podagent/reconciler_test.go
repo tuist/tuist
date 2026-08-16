@@ -21,6 +21,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+// TestPodFinalizerValue pins the finalizer literal. cluster-api-provider-tuist
+// hand-duplicates this exact string as macos.PodVMCleanupFinalizer (it lives in
+// a separate Go module and can't import this internal package) to strip the
+// finalizer from Pods stranded on a deleted Mac mini. A rename here would
+// silently break that match, so this test — and its capt-side counterpart —
+// fail loudly on drift, forcing the rename to touch both places.
+func TestPodFinalizerValue(t *testing.T) {
+	const want = "tart-kubelet.tuist.dev/vm-cleanup"
+	if PodFinalizer != want {
+		t.Fatalf("PodFinalizer = %q, want %q — update macos.PodVMCleanupFinalizer in cluster-api-provider-tuist to match", PodFinalizer, want)
+	}
+}
+
 func TestCompletePodDeletionRemovesFinalizerAndDeletesPod(t *testing.T) {
 	ctx := context.Background()
 	pod := &corev1.Pod{
