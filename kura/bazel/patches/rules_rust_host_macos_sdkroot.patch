@@ -9,6 +9,13 @@ cold. Kura's macOS builds compile and link their C/C++ with the host Xcode toolc
 anyway, so pointing rustc at a differently-versioned minimal sysroot buys no hermeticity;
 leaving SDKROOT unset lets rustc's linker use the same SDK the cc toolchain already uses.
 
+This is how the Apple-facing rulesets already work: apple_support discovers the SDK through
+`xcrun`, and bazel-contrib/toolchains_llvm defaults its macOS sysroot to
+`xcrun --show-sdk-path`. Upstream tracks the retired URL in
+https://github.com/hermeticbuild/hermetic-llvm/issues/702 and host-discovered SDK support in
+https://github.com/hermeticbuild/hermetic-llvm/issues/68 — drop this patch once the @llvm
+module can resolve the SDK from the host.
+
 --- a/rust/private/BUILD.bazel
 +++ b/rust/private/BUILD.bazel
 @@ -25,10 +25,7 @@ filegroup(
