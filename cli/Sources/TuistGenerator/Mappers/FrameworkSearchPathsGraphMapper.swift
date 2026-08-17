@@ -42,20 +42,18 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let responseFileDirectory: AbsolutePath
     }
 
-    /// Everything one target contributes. Accumulated into the graph-wide state in a deterministic order once
-    /// every target has been processed.
+    /// Everything one target contributes, accumulated into the graph-wide state once every target has been
+    /// processed. The defaults describe a target below the consolidation threshold, which only contributes
+    /// build settings.
     private struct TargetOutput {
         let id: TargetID
         let responseFileDirectory: AbsolutePath
         let additions: [(key: String, values: [String])]
-        let responseFile: FileDescriptor?
-        /// Set when the target owns a `.resp` file that must survive the generated-files cleanup.
-        let activeResponseFilePath: AbsolutePath?
-        /// Whether the target went through consolidation, which registers its cleanup directory even when the
-        /// target contributes no symbolic links, so links left by earlier Tuist versions are still removed.
-        let registersFrameworkLinkDirectory: Bool
-        let frameworkLinkPaths: Set<AbsolutePath>
-        let symbolicLinks: [SideEffectDescriptor]
+        var responseFile: FileDescriptor?
+        /// Non-nil for targets that went through consolidation, including when the set is empty: the cleanup
+        /// directory has to be registered either way so links left by earlier Tuist versions are still removed.
+        var frameworkLinkPaths: Set<AbsolutePath>?
+        var symbolicLinks: [SideEffectDescriptor] = []
     }
 
     private struct PrecompiledArtifact: Hashable {
@@ -114,10 +112,14 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         // Each target's search paths depend only on the (immutable) graph, so they are computed concurrently.
         // This is the dominant cost of a binary-cache generation, and it runs twice: once over the unfocused
         // source graph to derive stable cache hashes, and again after binary substitution.
+        //
+        // The inputs are sorted because `graph.projects` and `project.targets` iterate in dictionary order, and
+        // the concurrent map preserves the order it is given: sorting here is what makes the emitted side
+        // effects come out the same on every run.
         let outputs = try targetInputs
+            .sorted { $0.id < $1.id }
             .map(context: .concurrent) { try targetOutput(for: $0, graphTraverser: graphTraverser) }
             .compactMap { $0 }
-            .sorted { $0.id < $1.id }
 
         var settingsByTarget: [TargetID: [(key: String, values: [String])]] = [:]
         var generatedFileSideEffects: [SideEffectDescriptor] = []
@@ -127,15 +129,13 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
         for output in outputs {
             settingsByTarget[output.id] = output.additions
-            if let activeResponseFilePath = output.activeResponseFilePath {
-                activeFilesByDirectory[output.responseFileDirectory, default: []].insert(activeResponseFilePath)
-            }
             if let responseFile = output.responseFile {
+                activeFilesByDirectory[output.responseFileDirectory, default: []].insert(responseFile.path)
                 generatedFileSideEffects.append(.file(responseFile))
             }
-            if output.registersFrameworkLinkDirectory {
+            if let frameworkLinkPaths = output.frameworkLinkPaths {
                 activeFrameworkLinksByDirectory[output.responseFileDirectory, default: []]
-                    .formUnion(output.frameworkLinkPaths)
+                    .formUnion(frameworkLinkPaths)
             }
             generatedSymbolicLinkSideEffects.append(contentsOf: output.symbolicLinks)
         }
@@ -206,12 +206,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return TargetOutput(
                 id: input.id,
                 responseFileDirectory: input.responseFileDirectory,
-                additions: additions,
-                responseFile: nil,
-                activeResponseFilePath: nil,
-                registersFrameworkLinkDirectory: false,
-                frameworkLinkPaths: [],
-                symbolicLinks: []
+                additions: additions
             )
         }
 
@@ -256,8 +251,6 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             responseFileDirectory: input.responseFileDirectory,
             additions: additions,
             responseFile: FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)),
-            activeResponseFilePath: responseFilePath,
-            registersFrameworkLinkDirectory: true,
             frameworkLinkPaths: swiftSearchPaths.linkPaths,
             symbolicLinks: swiftSearchPaths.symbolicLinks
         )
