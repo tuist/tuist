@@ -343,6 +343,48 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_BACKFILL_ENABLED"] == "true"
     end
 
+    test "hands the pod the country and subdivision its region's datacenter sits in" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{country: "FR", subdivision: "FR-IDF"}),
+          %Server{}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_NODE_COUNTRY"] == "FR"
+      assert env["KURA_NODE_SUBDIVISION"] == "FR-IDF"
+    end
+
+    test "omits both location variables for a region that declares no datacenter location" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(env, "KURA_NODE_COUNTRY")
+      refute Map.has_key?(env, "KURA_NODE_SUBDIVISION")
+    end
+
     test "does not resolve entitlements when the region has no gated manifest fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

@@ -211,7 +211,6 @@ async fn serve_connection(
                     denial.route.to_owned(),
                     StatusCode::from_u16(denial.status)
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    None,
                     Duration::ZERO,
                 );
                 return result;
@@ -585,7 +584,6 @@ async fn serve_accelerated(
             state.metrics.record_http(
                 route,
                 StatusCode::SERVICE_UNAVAILABLE,
-                None,
                 transfer_started_at.elapsed(),
             );
             return Ok(None);
@@ -630,7 +628,7 @@ async fn serve_accelerated(
             );
             state
                 .metrics
-                .record_http(route, StatusCode::OK, None, time_to_first_byte);
+                .record_http(route, StatusCode::OK, time_to_first_byte);
             state.metrics.record_artifact_read(producer, "ok", bytes);
             state.metrics.record_artifact_egress(
                 producer,
@@ -664,7 +662,6 @@ async fn serve_accelerated(
             state.metrics.record_http(
                 route,
                 StatusCode::INTERNAL_SERVER_ERROR,
-                None,
                 transfer_started_at.elapsed(),
             );
             state.metrics.record_artifact_read(producer, "error", 0);

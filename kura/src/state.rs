@@ -23,7 +23,6 @@ use crate::{
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
-    geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -49,7 +48,6 @@ pub struct AppState {
     pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
-    pub geoip: Option<GeoIp>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
     pub client: ArcSwap<Client>,

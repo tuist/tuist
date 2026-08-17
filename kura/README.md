@@ -366,36 +366,19 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
-HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels, and client country counts live on the separate `kura_http_client_requests_total` counter. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
-
-### GeoIP enrichment
-
-The Kura container image vendors a [DB-IP IP-to-City Lite](https://db-ip.com/db/download/ip-to-city-lite) MMDB at `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution is on by default. Location is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) at two granularities:
-
-- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_client_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
-- subdivision (ISO 3166-2, e.g. `US-CA`): the `geo.region.iso_code` OTel span attribute on `http.request` spans
-
-Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names).
-
-Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × status would inflate active series. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on a dedicated low-cardinality metric because it is bounded (~250 codes).
-
-Lookups that miss (no header, private IP, or DB missing) fall back to `client_country="unknown"` and an unset `geo.region.iso_code`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without geographic attribution.
-
-A background task refreshes the in-memory database from `https://download.db-ip.com/free/dbip-city-lite-YYYY-MM.mmdb.gz` every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`). Set the interval to `0` to keep the vendored copy for the pod's lifetime. The swap takes the in-process `RwLock` write guard for the few microseconds needed to replace the reader; concurrent lookups never observe a partial state. The City dump is ~60 MiB compressed / ~125 MiB decompressed today; each download is bounded to 128 MiB compressed / 256 MiB decompressed with a 60-second timeout, so refresh memory stays predictably capped well within the pod's limit. Outcomes are tracked in `kura_geoip_refresh_total{result="ok|http_error|parse_error"}`.
-
-DB-IP data is © DB-IP, released under CC BY 4.0.
+HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 
 ### Node geographic attribution
 
-Each pod resolves its own country and subdivision once at startup and stamps them on every exported OTel span as the `geo.country.iso_code` and `geo.region.iso_code` Resource attributes, alongside the existing `kura.region` (the cloud deployment region, e.g. `fr-par`) and `kura.tenant_id`. The same resolved country/subdivision also lands on the low-cardinality `kura_node_geo_info` Prometheus info metric so Grafana can map serving nodes without parsing traces. Combined with `geo.country.iso_code` / `geo.region.iso_code` on each request span, traces carry both endpoints of the request and Grafana can compute geographic distance directly off Tempo data.
+Each pod resolves its own country and subdivision once at startup and stamps them on every exported OTel span as the `geo.country.iso_code` and `geo.region.iso_code` Resource attributes, alongside the existing `kura.region` (the cloud deployment region, e.g. `fr-par`) and `kura.tenant_id`. The same resolved country/subdivision also lands on the low-cardinality `kura_node_geo_info` Prometheus info metric so Grafana can map serving nodes without parsing traces. This is the serving node's own location; Kura does not geolocate clients, so a request span carries where it was served and never where it came from.
 
-Country resolution chain, tried in order:
+Both values come from deployment configuration alone: resolution is a pure function of the environment, performs no network call, and consults no geographic database. Country resolution chain, tried in order:
 
-1. `KURA_NODE_COUNTRY` env var (operator override; must be a 2-letter ISO code).
-2. Public egress IP discovered via `https://api.ipify.org` (3-second timeout, best-effort), looked up against the vendored GeoIP database.
-3. Explicit deployment-region mapping for the managed labels we use today (`eu-central` -> `DE`, `us-east` / `us-west` -> `US`), otherwise a real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`).
+1. `KURA_NODE_COUNTRY` env var (2-letter ISO 3166-1 code), set from the datacenter the node runs in.
+2. The country prefix of `KURA_NODE_SUBDIVISION`, when only the subdivision is configured (`US-CA` -> `US`).
+3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-central` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
 
-Subdivision resolution: `KURA_NODE_SUBDIVISION` env var (operator override; ISO 3166-2 code such as `US-CA`), otherwise the same single egress-IP lookup. If the subdivision override is present, Kura derives the country directly from it and skips the extra probe unless subdivision itself is still missing. There is no deployment-region fallback for subdivision, so when neither the override nor the GeoIP lookup yields one, `geo.region.iso_code` is simply not stamped (the same is true of `geo.country.iso_code` when all three steps fail).
+Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-CA`) and nothing else. Neither attribute has a runtime discovery path, so an unconfigured node simply does not stamp it — `geo.region.iso_code` whenever the subdivision is unset, and `geo.country.iso_code` when all three country steps come up empty.
 
 ### Disabling OTLP tracing
 
