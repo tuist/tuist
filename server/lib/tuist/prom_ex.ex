@@ -88,7 +88,10 @@ defmodule Tuist.PromEx do
         plugins ++
           [
             {TuistCommon.PromExPhoenixPlugin,
-             router: TuistWeb.Router, endpoint: TuistWeb.Endpoint, include_controller_action_tags: false}
+             router: TuistWeb.Router,
+             endpoint: TuistWeb.Endpoint,
+             include_controller_action_tags: false,
+             normalize_path: &Tuist.Locale.collapse_locale_path_prefix/1}
           ]
       else
         plugins
