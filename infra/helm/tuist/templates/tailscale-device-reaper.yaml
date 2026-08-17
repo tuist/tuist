@@ -83,13 +83,22 @@ spec:
   #   tag:tuist-macmini-staging,    tag:tuist-k8s-production,
   #   tag:tuist-k8s-canary,         tag:tuist-k8s-staging
   #
-  # It spans every env's tags on purpose: one tailnet, one sweep. That is also
-  # why this client lives only in the production vault, unlike the per-env
-  # macOS-fleet credential -- there is exactly one consumer.
+  # It spans every env's tags on purpose: one tailnet, one sweep. The per-env
+  # split the macOS-fleet credential uses exists so a leaked staging credential
+  # cannot reach production; splitting this one would push in the opposite
+  # direction, handing device deletion to the envs that have no such capability
+  # today. So there is a single client, and it lives only in the highest-trust
+  # vault. Note the item name is not production-specific -- the ClusterSecretStore
+  # is bound to `tuist-k8s-<env>` per cluster, so this resolves per env already;
+  # production is simply the only env where the reaper is enabled.
   #
-  # Store client id and secret in a TAILSCALE_DEVICE_REAPER item in the
-  # `tuist-k8s-production` vault. Rotation is a 1Password edit; ESO resyncs
-  # within refreshInterval and the next run picks it up.
+  # ADDING AN ENV: extend this client's tag scope to the new env's tags at the
+  # same time. Miss it and the new env's devices are never reaped -- and
+  # depending on whether Tailscale filters the device listing by client scope,
+  # that either fails the Job loudly on a 403 or goes entirely unnoticed.
+  #
+  # Rotation is a 1Password edit; ESO resyncs within refreshInterval and the
+  # next run picks it up.
   data:
     - secretKey: client-id
       remoteRef:
