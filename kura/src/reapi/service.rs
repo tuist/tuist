@@ -5270,8 +5270,9 @@ mod tests {
         .expect("mint a policy token")
     }
 
-    // The base URL points nowhere on purpose: a token this node can read is
-    // answered from its own grants, without reaching the server.
+    // A server is configured, but its base URL refuses connections on purpose.
+    // A namespace the token's own grants name is answered from those grants and
+    // never reaches it; one they do not name has to, and cannot.
     fn namespace_policy_auth() -> crate::auth::SharedAuth {
         std::sync::Arc::new(
             crate::auth::AuthEngine::new(
@@ -5321,13 +5322,19 @@ mod tests {
             .await
             .expect("capabilities for a granted instance_name should be allowed");
 
+        // Grants that do not name the instance do not settle it: they are a
+        // snapshot from when the token was minted, and the server can still
+        // return wider ones. Only the server can say, and this one refuses
+        // connections, so the node reports that rather than deciding on its
+        // own. Authentication is resolved per target, so the answer for `ios`
+        // above is not reused here.
         let denied = service
             .get_capabilities(bearing_policy_token(reapi::GetCapabilitiesRequest {
                 instance_name: "forbidden".into(),
             }))
             .await
             .expect_err("capabilities for a non-granted instance_name should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -5386,7 +5393,11 @@ mod tests {
             .committed_size;
         assert_eq!(committed as usize, len);
 
-        // Non-granted namespace ("forbidden") is rejected before the blob is persisted.
+        // Non-granted namespace ("forbidden") is rejected before the blob is
+        // persisted. Grants that do not name it do not settle it — they are a
+        // snapshot from minting time and the server can still return wider ones
+        // — and this server refuses connections, so the node reports that
+        // rather than deciding on its own.
         let denied = ByteStreamClient::new(channel.clone())
             .write(bearing_policy_token(tokio_stream::iter(vec![
                 bytestream::WriteRequest {
@@ -5398,7 +5409,7 @@ mod tests {
             ])))
             .await
             .expect_err("write to a non-granted namespace should be denied");
-        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+        assert_eq!(denied.code(), tonic::Code::Unavailable);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;

@@ -623,6 +623,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  defp branch_placeholder(:bundle_size), do: dgettext("dashboard_projects", "e.g. main")
+
+  defp branch_placeholder(_category), do: dgettext("dashboard_projects", "e.g. main (optional)")
+
   defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
   defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
@@ -673,15 +677,30 @@ defmodule TuistWeb.ProjectNotificationsLive do
         text =
           case category do
             :cache_hit_rate ->
-              dgettext(
-                "dashboard_projects",
-                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-                metric_category: metric_category,
-                rolling_window_size: rolling_window_size,
-                current_unit: current_unit,
-                unit: unit,
-                deviation: deviation
-              )
+              git_branch = Keyword.get(opts, :git_branch, "")
+
+              if git_branch == "" do
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  unit: unit,
+                  deviation: deviation
+                )
+              else
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  git_branch: git_branch,
+                  unit: unit,
+                  deviation: deviation
+                )
+              end
 
             _ ->
               dgettext(

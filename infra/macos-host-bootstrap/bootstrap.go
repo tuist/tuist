@@ -2311,6 +2311,18 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // 127.0.0.1 probe reads as permanently wedged and reloads ssh every
 // minute.
 //
+// Being interface-agnostic is also what makes the VM carve-out
+// mandatory. A Tart VM's egress arrives inbound on the vmnet bridge with
+// its 192.168.64.x source before it is routed and NAT'd out, so a bare
+// `block drop in quick proto tcp to any port 22` matches it and drops
+// every SSH the customer workload makes — private git dependencies,
+// ssh:// submodules, deploy steps — silently, as a connect timeout
+// rather than a refusal. The `tuist.runners` anchor cannot compensate:
+// its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
+// anything appended to the end of /etc/pf.conf. So the VM sources get an
+// explicit pass, preceded by a block that still denies them the host's
+// and a sibling's :22.
+//
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
 // carrying it. That also makes the guard self-correcting: if the
@@ -2366,11 +2378,21 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # MUST stay above the block.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
+table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
 pass in quick on lo0 proto tcp to any port 22 keep state
 pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+
+# A Tart VM's egress arrives inbound on the vmnet bridge before it is
+# routed and NAT'd out, so the catch-all block below also swallows every
+# SSH the customer workload makes. The guard protects the host's own
+# listener, not the workload's outbound reach: VMs keep :22 to the
+# internet, but not to the host or a sibling VM.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+
 block drop in quick proto tcp to any port 22
 PFCONF
 

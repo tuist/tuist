@@ -957,7 +957,7 @@ msgstr ""
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:381
+#: lib/tuist_web/live/runner_profiles_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Select platform"
 msgstr ""
@@ -1051,23 +1051,18 @@ msgstr ""
 msgid "Operating system"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:412
-#: lib/tuist_web/live/runner_profiles_live.ex:414
+#: lib/tuist_web/live/runner_profiles_live.ex:417
+#: lib/tuist_web/live/runner_profiles_live.ex:419
 #, elixir-autogen, elixir-format
 msgid "Select Xcode version"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:363
-#, elixir-autogen, elixir-format
-msgid "Tahoe 26.3"
-msgstr ""
-
-#: lib/tuist_web/live/runner_profiles_live.ex:362
+#: lib/tuist_web/live/runner_profiles_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Ubuntu 22.04 LTS"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:417
+#: lib/tuist_web/live/runner_profiles_live.ex:422
 #, elixir-autogen, elixir-format
 msgid "Xcode %{version}"
 msgstr ""
@@ -1392,4 +1387,9 @@ msgstr ""
 #: lib/tuist_web/live/runners_live.html.heex:500
 #, elixir-autogen, elixir-format
 msgid "Every recent workflow run was skipped or cancelled"
+msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "Tahoe"
 msgstr ""

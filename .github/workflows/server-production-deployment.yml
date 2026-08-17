@@ -883,6 +883,11 @@ jobs:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Job-level, matching runner-image-build: Tart reads these for both
+      # the clone of the base and the push at the end.
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
@@ -993,10 +998,6 @@ jobs:
 
       - name: Push image to GHCR
         timeout-minutes: 90
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
@@ -1131,9 +1132,6 @@ jobs:
       - name: Push profile to GHCR
         timeout-minutes: 90
         env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           # See runner-image.yml's matching step for the rationale —
           # tart's auto-prune races mid-push (cirruslabs/tart#860).
           TART_NO_AUTO_PRUNE: "1"

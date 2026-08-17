@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -740,6 +741,11 @@ type scalewayAPIStub struct {
 	rebootedIDs    []string
 	rebootCalls    int
 	rebootError    error
+	// osCatalog is what ListOS returns; nil means "every image any
+	// fixture server is running", which is what a release path pinned
+	// to a live host's own image needs.
+	osCatalog        []*applesilicon.OS
+	reinstalledOsIDs []*string
 }
 
 // ListServers returns the whole fixture as one page. AdoptFromPool
@@ -781,10 +787,26 @@ func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerReque
 	for _, s := range f.servers {
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			f.reinstalledOsIDs = append(f.reinstalledOsIDs, req.OsID)
 			return s, nil
 		}
 	}
 	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	catalog := f.osCatalog
+	if catalog == nil {
+		seen := map[string]bool{}
+		for _, s := range f.servers {
+			if s.Os == nil || seen[s.Os.Name] {
+				continue
+			}
+			seen[s.Os.Name] = true
+			catalog = append(catalog, &applesilicon.OS{ID: "os-" + s.Os.Name, Name: s.Os.Name})
+		}
+	}
+	return &applesilicon.ListOSResponse{Os: catalog, TotalCount: uint32(len(catalog))}, nil
 }
 
 func (f *scalewayAPIStub) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -945,7 +967,7 @@ func newAdoptMachine(name string) *infrav1.ScalewayAppleSiliconMachine {
 			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Type: "M2-L",
 			Zone: "fr-par-1",
-			OS:   "macos-tahoe-26.3",
+			OS:   "Tahoe",
 		},
 	}
 }
@@ -1028,6 +1050,10 @@ type recoveryStub struct {
 	rebootErr    error
 	releaseCalls []recoveryReleaseCall
 	releaseErr   error
+	// unpublishedOS models Scaleway having retired an image: a
+	// release pinned to it comes back as ErrOSNotPublished, an
+	// unpinned one succeeds.
+	unpublishedOS string
 }
 
 type recoveryCall struct {
@@ -1039,6 +1065,7 @@ type recoveryReleaseCall struct {
 	id         string
 	zone       string
 	poolPrefix string
+	osName     string
 }
 
 func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
@@ -1049,8 +1076,11 @@ func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
 	return nil
 }
 
-func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string) error {
-	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix})
+func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error {
+	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix, osName: pin.Family})
+	if s.unpublishedOS != "" && pin.Family == s.unpublishedOS {
+		return fmt.Errorf("%w: %q not listed", scaleway.ErrOSNotPublished, pin.Family)
+	}
 	if s.releaseErr != nil {
 		return s.releaseErr
 	}
@@ -1137,6 +1167,38 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	}
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue on post-reboot retry, got %v", res.RequeueAfter)
+	}
+}
+
+func TestHandleBootstrapFailure_RetiredOSPinStillReleases(t *testing.T) {
+	// Every Machine created before an operator repoints its fleet
+	// carries the retired pin in its own spec. If an unsatisfiable pin
+	// failed the release, those Machines would wedge on delete — host
+	// still claimed and billing, finalizer never clearing — and the
+	// fleet could never shed one to get a correctly-pinned
+	// replacement. Release must fall through to the server type
+	// default instead.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Spec.OS = "macos-tahoe-26.3"
+	machine.Status.BootstrapAttempts = 7
+	machine.Status.BootstrapRebootIssued = true
+
+	stub := &recoveryStub{unpublishedOS: "macos-tahoe-26.3"}
+	secrets := &secretCleanerStub{}
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
+
+	if len(stub.releaseCalls) != 2 {
+		t.Fatalf("expected the pinned release to be retried unpinned, got %d call(s): %+v",
+			len(stub.releaseCalls), stub.releaseCalls)
+	}
+	if stub.releaseCalls[0].osName != "macos-tahoe-26.3" {
+		t.Fatalf("first release should honour the fleet pin, got %q", stub.releaseCalls[0].osName)
+	}
+	if stub.releaseCalls[1].osName != "" {
+		t.Fatalf("retry should be unpinned so Scaleway picks the type default, got %q", stub.releaseCalls[1].osName)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("host must be considered released so the Machine can finalize, got %q", machine.Status.ServerID)
 	}
 }
 
