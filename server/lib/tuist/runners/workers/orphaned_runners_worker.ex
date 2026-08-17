@@ -88,6 +88,31 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   agent registers → GH dispatches the workflow_job); 5 min is a
   generous floor that won't false-positive a slow boot.
 
+  ## Targeted mode
+
+  The threshold exists because the sweep cannot distinguish a
+  healthy in-flight build from an orphan without asking GitHub, and
+  a `running` row is overwhelmingly the former. That reasoning does
+  not apply once we have direct evidence the Pod is gone: the
+  controller's `pods/stopped` report releases the claim and passes
+  the released `workflow_job_id` here as
+  `%{"workflow_job_id" => id}`, which re-checks that one job
+  immediately.
+
+  Without it the released job is stranded for the full 5 minutes.
+  Releasing the PG claim does not make the job dispatchable — the
+  ClickHouse row is still `running` and `pick_queued/2` skips it —
+  and GitHub never re-announces a job it still considers `queued`,
+  so nothing else moves it. The customer sees "waiting for a
+  runner" for that whole window with warm capacity sitting idle.
+
+  Targeted mode is the same `recover_one/1` with the same GitHub
+  cross-check, so the safety story is unchanged; only the age gate
+  is skipped. The `executing?/1` guard inside it is naturally
+  satisfied rather than special-cased: the caller has already
+  deleted the claim, so a Pod that ran a sibling's job no longer
+  looks busy, which is correct — it has stopped.
+
   ## Cost
 
   One GitHub API call per orphaned candidate per tick. Steady-
@@ -112,6 +137,20 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   @stale_after_seconds 300
 
   @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id}}) when is_integer(workflow_job_id) do
+    case Jobs.get_orphaned_running(workflow_job_id) do
+      nil ->
+        # The row moved on between the release and this run: the
+        # executor's `completed` webhook landed, or another Pod
+        # re-claimed the job. Either way there is nothing orphaned.
+        :ok
+
+      orphan ->
+        recover_one(orphan)
+        :ok
+    end
+  end
+
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 

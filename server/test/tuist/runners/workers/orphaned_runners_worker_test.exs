@@ -183,4 +183,73 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
   end
+
+  describe "perform/1 with a targeted workflow_job_id" do
+    test "recovers the named job without waiting out the staleness floor" do
+      # The controller reported the Pod stopped seconds ago, so the row
+      # is far too young for the sweep. The evidence the sweep is
+      # waiting for — that the Pod is gone — is already in hand, and
+      # until the row leaves `running` the job is invisible to dispatch.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, started_at: DateTime.utc_now())
+
+      reject(&Jobs.list_orphaned_running/1)
+
+      expect(Jobs, :get_orphaned_running, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        Map.delete(orphan, :status)
+      end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(Jobs, :record_queued, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        :ok
+      end)
+
+      expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => orphan.workflow_job_id}})
+    end
+
+    test "still defers to GitHub before re-queueing" do
+      # Skipping the age gate must not skip the cross-check. A Pod can
+      # stop holding a claim for a job GitHub already handed to another
+      # runner and watched complete.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :get_orphaned_running, fn _wfid -> Map.delete(orphan, :status) end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
+      end)
+
+      reject(&Jobs.record_queued/1)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => orphan.workflow_job_id}})
+    end
+
+    test "is a no-op when the job already left the running state" do
+      # The executor's `completed` webhook landed, or another Pod
+      # re-claimed the job, between the release and this run.
+      expect(Jobs, :get_orphaned_running, fn _wfid -> nil end)
+
+      reject(&Tuist.VCS.get_github_app_installation_for_account/1)
+      reject(&GitHubClient.get_workflow_job/3)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => 42}})
+    end
+  end
 end

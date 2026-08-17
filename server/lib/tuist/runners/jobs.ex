@@ -1340,6 +1340,49 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Returns the same recovery shape as `list_orphaned_running/1` for a
+  single `workflow_job_id`, or `nil` when that job's latest state is
+  not `running`.
+
+  The sweep in `list_orphaned_running/1` is age-gated because it has
+  no way to tell a healthy in-flight build from an orphan without
+  asking GitHub, and asking about every running job every minute is
+  not affordable. A caller that already holds evidence the Pod is
+  gone — the controller's pod-stopped report — needs no age gate: it
+  can name the one job to re-check and skip the staleness floor
+  entirely.
+
+  Single-row lookup, so `ORDER BY updated_at DESC LIMIT 1` per the
+  moduledoc's read pattern rather than `FINAL`. The status filter is
+  applied after the fact, not in the `WHERE`, so a row that has since
+  moved on (completed, or re-claimed by another Pod) returns `nil`
+  instead of matching an older `running` INSERT that RMT has not
+  merged away yet.
+  """
+  def get_orphaned_running(workflow_job_id) when is_integer(workflow_job_id) do
+    row =
+      Job
+      |> where([j], j.workflow_job_id == ^workflow_job_id)
+      |> order_by([j], desc: j.updated_at)
+      |> limit(1)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: j.account_id,
+        repository: j.repository,
+        claimed_at: j.claimed_at,
+        started_at: j.started_at,
+        pod_name: j.pod_name,
+        status: j.status
+      })
+      |> ClickHouseRepo.one()
+
+    case row do
+      %{status: "running"} = orphan -> Map.delete(orphan, :status)
+      _ -> nil
+    end
+  end
+
+  @doc """
   Lists `runner_jobs` rows whose latest state is `queued` and whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
