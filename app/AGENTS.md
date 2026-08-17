@@ -12,7 +12,6 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 - `Sources/TuistErrorHandling` - Shared error handling
 - `Sources/TuistAppStorage` - Shared storage utilities
 - `Sources/TuistAuthentication` - Shared authentication
-- `Sources/TuistAppLogging` - Persistent application logging and support exports
 
 ## Building and Testing
 - Generate the project: `tuist generate --no-open` (from `app/` directory)
@@ -25,6 +24,7 @@ The app depends on several CLI modules:
 - `TuistSupport` - Shared utilities
 - `TuistCore` - Core domain models
 - `TuistHTTP` - HTTP client
+- `TuistLogging` - Shared logging, including persistent Apple application logs and support exports
 - `TuistAutomation` - Automation utilities
 - `TuistSimulator` - Simulator management
 

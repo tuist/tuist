@@ -609,6 +609,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "FileSystem"),
                     .external(name: "LoggingOSLog", condition: .when([.macos])),
+                    .external(name: "Pulse", condition: .when([.ios, .macos])),
+                    .external(name: "PulseLogHandler", condition: .when([.ios, .macos])),
                 ]
             case .testing:
                 [

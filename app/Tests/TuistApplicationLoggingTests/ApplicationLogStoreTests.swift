@@ -2,7 +2,7 @@ import Foundation
 import Pulse
 import Testing
 
-@testable import TuistAppLogging
+@testable import TuistLogging
 
 struct ApplicationLogStoreTests {
     @Test func plain_text_report_contains_recent_persistent_logs() async throws {

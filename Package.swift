@@ -580,6 +580,12 @@ var targets: [Target] = [
             "TuistEnvironment",
             "TuistAlert",
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
+            .product(name: "Pulse", package: "Pulse", condition: .when(platforms: [.iOS, .macOS])),
+            .product(
+                name: "PulseLogHandler",
+                package: "PulseLogHandler",
+                condition: .when(platforms: [.iOS, .macOS])
+            ),
         ],
         path: "cli/Sources/TuistLogging"
     ),

@@ -130,8 +130,8 @@ let project = Project(
             ],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAuthentication"),
-                .target(name: "TuistAppLogging"),
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
@@ -230,21 +230,7 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
-                .target(name: "TuistAppLogging"),
                 .external(name: "OpenAPIRuntime"),
-            ]
-        ),
-        .target(
-            name: "TuistAppLogging",
-            destinations: [.mac, .iPhone],
-            product: .staticFramework,
-            bundleId: "dev.tuist.app-logging",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
-            sources: ["Sources/TuistAppLogging/**"],
-            dependencies: [
-                .project(target: "TuistLogging", path: "../"),
-                .external(name: "Pulse"),
-                .external(name: "PulseLogHandler"),
             ]
         ),
         .target(
@@ -299,14 +285,14 @@ let project = Project(
             ]
         ),
         .target(
-            name: "TuistAppLoggingTests",
+            name: "TuistApplicationLoggingTests",
             destinations: [.mac, .iPhone],
             product: .unitTests,
-            bundleId: "dev.tuist.app-logging-tests",
+            bundleId: "dev.tuist.application-logging-tests",
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
-            sources: ["Tests/TuistAppLoggingTests/**"],
+            sources: ["Tests/TuistApplicationLoggingTests/**"],
             dependencies: [
-                .target(name: "TuistAppLogging"),
+                .project(target: "TuistLogging", path: "../"),
                 .external(name: "Pulse"),
             ]
         ),
@@ -346,10 +332,10 @@ let project = Project(
             )
         ),
         .scheme(
-            name: "TuistAppLogging",
-            buildAction: .buildAction(targets: [.target("TuistAppLogging")]),
+            name: "TuistApplicationLogging",
+            buildAction: .buildAction(targets: [.target("TuistApplicationLoggingTests")]),
             testAction: .targets(
-                [.testableTarget(target: "TuistAppLoggingTests")],
+                [.testableTarget(target: "TuistApplicationLoggingTests")],
                 options: .options(language: "en")
             )
         ),

@@ -1,7 +1,6 @@
 import Foundation
 import OpenAPIRuntime
 import SwiftUI
-import TuistAppLogging
 import TuistHTTP
 import TuistLogging
 import TuistServer
