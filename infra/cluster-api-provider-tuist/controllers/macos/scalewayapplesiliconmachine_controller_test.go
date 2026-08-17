@@ -293,6 +293,76 @@ func TestRecordUpdateFailure_DisabledCap(t *testing.T) {
 	}
 }
 
+func newUpdateRecoveryMachine(serverID string) *infrav1.ScalewayAppleSiliconMachine {
+	m := &infrav1.ScalewayAppleSiliconMachine{}
+	m.Spec.Zone = "fr-par-1"
+	m.Status.ServerID = serverID
+	return m
+}
+
+func TestRebootUnreachableHost_RebootsOnceAtExhaustion(t *testing.T) {
+	// The wedge this recovers: a mini whose ssh accept backlog is full
+	// answers nothing on :22 over any transport, so every retry the drift
+	// loop makes is doomed and no config push can reach it — including the
+	// pf ingress guard that would stop the flood keeping it wedged. The
+	// reboot is the only lever the operator has that changes host state.
+	machine := newUpdateRecoveryMachine("srv-1")
+	machine.Status.TartKubeletUpdateAttempts = 5
+	stub := &recoveryStub{}
+
+	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	if len(stub.rebootCalls) != 1 {
+		t.Fatalf("expected one reboot at exhaustion, got %d", len(stub.rebootCalls))
+	}
+	if stub.rebootCalls[0] != (recoveryCall{id: "srv-1", zone: "fr-par-1"}) {
+		t.Fatalf("unexpected reboot call shape: %+v", stub.rebootCalls[0])
+	}
+	if !machine.Status.UpdateRebootIssued {
+		t.Fatal("Status.UpdateRebootIssued must flip true after a successful reboot")
+	}
+
+	// A host still unreachable after its reboot must not be rebooted
+	// again on the next exhausted budget: it is not one more boot away
+	// from working, and the terminal state is what the stuck-Failed
+	// alert keys on.
+	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	if len(stub.rebootCalls) != 1 {
+		t.Fatalf("reboot must be one-shot per wedge; got %d calls", len(stub.rebootCalls))
+	}
+}
+
+func TestRebootUnreachableHost_APIErrorDoesNotConsumeOneShot(t *testing.T) {
+	machine := newUpdateRecoveryMachine("srv-1")
+	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
+
+	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	if machine.Status.UpdateRebootIssued {
+		t.Fatal("a failed RebootServer must leave the one-shot unconsumed so the next cooldown retries it")
+	}
+
+	stub.rebootErr = nil
+	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	if len(stub.rebootCalls) != 2 || !machine.Status.UpdateRebootIssued {
+		t.Fatalf("expected the reboot to be retried and succeed; calls=%d issued=%v",
+			len(stub.rebootCalls), machine.Status.UpdateRebootIssued)
+	}
+}
+
+func TestRebootUnreachableHost_NoServerIDIsNoOp(t *testing.T) {
+	// A machine with no adopted server has nothing to reboot; the
+	// bootstrap path owns that case.
+	machine := newUpdateRecoveryMachine("")
+	stub := &recoveryStub{}
+
+	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	if len(stub.rebootCalls) != 0 {
+		t.Fatalf("expected no reboot without a ServerID, got %d", len(stub.rebootCalls))
+	}
+	if machine.Status.UpdateRebootIssued {
+		t.Fatal("no-op must not consume the one-shot")
+	}
+}
+
 // nodeMissingAfterBootstrap is the drift detector that lets an
 // already-bootstrapped Machine recover when its Node disappears
 // (typically: upstream CAPI core deleting the Node during workload-

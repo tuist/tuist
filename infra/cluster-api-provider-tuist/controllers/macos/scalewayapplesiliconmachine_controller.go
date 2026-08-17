@@ -933,8 +933,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
+			// An empty fingerprint means the SSH handshake never
+			// completed on either transport — the same signal the
+			// tailnet fallback above keys on. That distinguishes a host
+			// the operator cannot reach (which a reboot can recover)
+			// from one that answered and then failed a command (which
+			// it cannot).
+			unreachable := fingerprint == ""
 			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
+				if unreachable {
+					rebootUnreachableHost(ctx, machine, r.ScalewayClient, r.Recorder, logger)
+				}
 				return ctrl.Result{}, nil
 			}
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -942,6 +952,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 		machine.Status.HostConfigHash = r.HostConfigHash
 		machine.Status.TartKubeletUpdateAttempts = 0
+		// Re-arm the recovery for the next wedge. Without this a host
+		// could be rebooted once in its lifetime and would sit terminal
+		// through every later backlog exhaustion.
+		machine.Status.UpdateRebootIssued = false
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA,
@@ -1321,6 +1335,77 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
 		"tart-kubelet update attempt %d/%d: %v",
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
+}
+
+// hostRebootClient is the narrow Scaleway surface the drift-update
+// recovery needs. Separate from bootstrapRecoveryClient because this
+// tier never releases a host: the mini is bootstrapped, Ready and
+// running work, so wiping it would cost far more than the stale config
+// it is stuck on.
+type hostRebootClient interface {
+	RebootServer(ctx context.Context, id, zone string) error
+}
+
+// rebootUnreachableHost is the drift-loop counterpart to
+// handleBootstrapFailure's tier 1: at an exhausted update budget it asks
+// Scaleway to reboot the mini once to clear volatile host state.
+//
+// Why the cooldown alone was not enough. A terminal update failure is
+// almost always a verdict on REACHABILITY rather than on the config, and
+// the cooldown's premise is that such a host recovers on its own and
+// just needs a fresh budget "once it is reachable again". One failure
+// mode breaks that premise outright: an exhausted ssh listen backlog.
+// launchd owns the *:22 listener, so once ~128 sockets pile up in
+// SYN_RCVD the kernel drops every new SYN on every interface at once —
+// public and tailnet alike — while :8080/:9100/:5900 keep answering and
+// the Node keeps posting Ready. Nothing in the drift loop can change
+// that state: every retry is another dropped SYN, so the machine cycles
+// terminal → cooldown → five doomed dials → terminal, forever.
+//
+// It is also self-sealing. The host-side watchdog drains the backlog but
+// cannot outrun a live flood, and the pf ingress guard that actually
+// removes the flood is delivered over SSH — so the hosts that most need
+// the guard are exactly the ones that can no longer receive it. A host
+// wedged before that guard shipped can never be repaired in-band, which
+// is how one mini sat on a months-old tart-kubelet while the rest of the
+// fleet rolled past it.
+//
+// A reboot is the one lever the operator holds that changes host state
+// without SSH: it drops the SYN_RCVD table and recreates the listener,
+// reopening :22 long enough for the next cooldown to push the current
+// config — which installs the guard and closes the loop for good.
+//
+// One-shot per wedge (see Status.UpdateRebootIssued), and only for a
+// connect-level failure: a host that answered SSH and then failed a
+// command has a config or disk problem that a reboot would not fix.
+func rebootUnreachableHost(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	client hostRebootClient,
+	recorder record.EventRecorder,
+	logger logr.Logger,
+) {
+	if machine.Status.UpdateRebootIssued || machine.Status.ServerID == "" {
+		return
+	}
+	attempts := machine.Status.TartKubeletUpdateAttempts
+	if err := client.RebootServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
+		// Leave the one-shot unconsumed so the next exhausted budget
+		// retries the reboot rather than stranding the host on a
+		// transient Scaleway API error.
+		logger.Error(err, "reboot for tart-kubelet-update recovery failed; will retry after the next cooldown",
+			"server", machine.Status.ServerID)
+		recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoveryFailed",
+			"Scaleway RebootServer for %s after %d unreachable tart-kubelet update attempts: %v (will retry)",
+			machine.Status.ServerID, attempts, err)
+		return
+	}
+	machine.Status.UpdateRebootIssued = true
+	logger.Info("rebooting unreachable host to clear the wedged ssh accept path",
+		"server", machine.Status.ServerID, "attempts", attempts)
+	recorder.Eventf(machine, corev1.EventTypeNormal, "RebootingForRecovery",
+		"Rebooting %s after %d tart-kubelet update attempts found :22 unreachable on every transport",
+		machine.Status.ServerID, attempts)
 }
 
 // clearUpdateFailure resets the drift-loop retry counter and lifts the

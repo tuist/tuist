@@ -157,7 +157,7 @@ ranges sit in `SYN_RCVD`, past `SOMAXCONN`, and the kernel drops every new SYN.
 launchd (not sshd) owns that socket and binds it to `*:22`, so an exhausted
 backlog blocks the tailnet fallback exactly as hard as the public path. That is
 how a host stops accepting config pushes on every path at once and drifts on a
-stale tart-kubelet until someone consoles in over VNC.
+stale tart-kubelet (recovered automatically by the reboot tier below).
 
 `installSSHIngressGuard` (bootstrap + drift, right after `installTailscale`)
 drops inbound `:22` at the pf edge from everything except the tailnet
@@ -189,6 +189,34 @@ own source address. Notes:
 - The host-side backlog drain alone can't fix this. It clears a queue the flood
   refills within seconds, which is why hosts stayed wedged for weeks with the
   watchdog installed and firing.
+- The guard ships **over SSH**, so it cannot reach a host that is already
+  wedged — the hosts that need it most are the ones that can no longer receive
+  it. `rebootUnreachableHost` (below) is what breaks that circularity.
+
+### Reboot recovery for an unreachable host
+
+The cooldown re-arms the retry budget but assumes the host recovers on its own
+"once it is reachable again". A backlog-wedged mini never does: every retry is
+another dropped SYN, so the CR cycles terminal → cooldown → five doomed dials →
+terminal indefinitely, on a stale config, while `:8080`/`:9100`/`:5900` keep
+answering and the Node keeps posting Ready.
+
+So when the update budget is exhausted *and* the failure was connect-level
+(empty fingerprint — the same signal the tailnet fallback keys on),
+`rebootUnreachableHost` asks Scaleway to reboot the mini once. That drops the
+`SYN_RCVD` table and recreates the listener, reopening `:22` long enough for
+the next cooldown to push the current config — which installs the ingress guard
+and stops the wedge recurring. It is the drift-loop counterpart to
+`handleBootstrapFailure`'s tier 1, and it replaces consoling in over VNC as the
+only recovery.
+
+It never releases the host: unlike a bootstrap failure, the mini is
+bootstrapped, Ready and running work, so wiping it would cost far more than the
+stale config it is stuck on. `Status.UpdateRebootIssued` makes it one-shot per
+wedge, cleared on a successful roll and deliberately *not* by the cooldown — a
+host still unreachable after a reboot is not one more boot away from working,
+and re-firing every cooldown would reboot a dead mini forever instead of
+leaving the terminal state for the stuck-Failed alert to surface.
 
 Two auxiliary controllers run alongside it:
 

@@ -318,6 +318,21 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// bootstrap.
 	// +optional
 	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
+
+	// UpdateRebootIssued records that a recovery reboot has already been
+	// triggered for the host after the drift loop exhausted its update
+	// budget against an unreachable :22. The bootstrap tier has its own
+	// flag because the two recoveries fire in different lifecycle stages
+	// and a host can legitimately need both, at different times.
+	//
+	// Cleared on a successful roll, so a host that wedges again later is
+	// rebooted again. Deliberately NOT cleared by the retry cooldown: a
+	// host still unreachable after a reboot is not one more boot away from
+	// working, and re-firing every cooldown would reboot a dead mini
+	// forever instead of leaving the terminal state for the stuck-Failed
+	// alert to surface.
+	// +optional
+	UpdateRebootIssued bool `json:"updateRebootIssued,omitempty"`
 }
 
 // +kubebuilder:object:root=true
