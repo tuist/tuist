@@ -3,7 +3,6 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
-import TuistServer
 
 public struct LogInView: View {
     @EnvironmentObject var errorHandler: ErrorHandling
@@ -77,16 +76,6 @@ public struct LogInView: View {
                 ) {
                     errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
-
-                ShareLink(
-                    item: AuthenticationDiagnostics.shared.currentProcessReport(),
-                    subject: Text("Tuist authentication diagnostics")
-                ) {
-                    Text("Share authentication diagnostics")
-                        .font(.footnote)
-                        .foregroundColor(Noora.Colors.surfaceLabelSecondary)
-                }
-                .padding(.top, Noora.Spacing.spacing2)
             }
             .padding(.horizontal, Noora.Spacing.spacing8)
             .padding(.top, Noora.Spacing.spacing9)

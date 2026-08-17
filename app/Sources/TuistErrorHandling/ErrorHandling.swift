@@ -3,10 +3,12 @@ import SwiftUI
 import TuistHTTP
 import TuistLogging
 import TuistServer
+import UIKit
 
 struct ErrorAlert: Identifiable {
     var id = UUID()
     var message: String
+    var logReport: String?
     var dismissAction: (() -> Void)?
 }
 
@@ -16,15 +18,18 @@ public final class ErrorHandling: ObservableObject {
     @MainActor
     public func handle(error: Error) {
         if let clientError = error as? ClientError {
-            AuthenticationDiagnostics.shared.record(
-                .requestFailed(
-                    errorType: String(reflecting: type(of: clientError)),
-                    underlyingErrorType: String(reflecting: type(of: clientError.underlyingError))
-                )
+            let recordingTask = recordRequestFailure(
+                error: clientError,
+                underlyingError: clientError.underlyingError
             )
             if clientError.underlyingError is ClientAuthenticationError {
                 Logger.current.error(
                     "Client authentication error received. Deleting stored credentials. Error: \(clientError.underlyingError.localizedDescription)"
+                )
+                showAlert(
+                    message: clientError.underlyingError.localizedDescription,
+                    withLogReport: true,
+                    after: recordingTask
                 )
                 Task {
                     try await ServerCredentialsStore.current.delete(
@@ -39,20 +44,50 @@ public final class ErrorHandling: ObservableObject {
             currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
             return
         } else {
-            AuthenticationDiagnostics.shared.record(
-                .requestFailed(
-                    errorType: String(reflecting: type(of: error)),
-                    underlyingErrorType: nil
-                )
-            )
+            let recordingTask = recordRequestFailure(error: error)
             Logger.current.error("Error received: \(error.localizedDescription)")
-            currentAlert = ErrorAlert(message: error.localizedDescription)
+            showAlert(
+                message: error.localizedDescription,
+                withLogReport: error is ClientAuthenticationError,
+                after: recordingTask
+            )
         }
+    }
+
+    @MainActor
+    private func showAlert(
+        message: String,
+        withLogReport: Bool,
+        after recordingTask: Task<Void, Never>
+    ) {
+        guard withLogReport else {
+            currentAlert = ErrorAlert(message: message)
+            return
+        }
+
+        Task {
+            await recordingTask.value
+            let logReport = await ApplicationLogStore.shared.currentProcessReport()
+            currentAlert = ErrorAlert(message: message, logReport: logReport)
+        }
+    }
+
+    private func recordRequestFailure(
+        error: Error,
+        underlyingError: Error? = nil
+    ) -> Task<Void, Never> {
+        ApplicationLogStore.shared.record(
+            level: .error,
+            category: "request",
+            message: "request_failed error_type=\(String(reflecting: type(of: error))) "
+                + "underlying_error_type=\(underlyingError.map { String(reflecting: type(of: $0)) } ?? "none")"
+        )
     }
 }
 
 struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
     @StateObject var errorHandling = ErrorHandling()
+    @State private var logsToShare: LogsToShare?
 
     func body(content: Content) -> some View {
         content
@@ -63,16 +98,48 @@ struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
             .background(
                 EmptyView()
                     .alert(item: $errorHandling.currentAlert) { currentAlert in
-                        Alert(
-                            title: Text("Error"),
-                            message: Text(currentAlert.message),
-                            dismissButton: .default(Text("Ok")) {
-                                currentAlert.dismissAction?()
-                            }
-                        )
+                        if let logReport = currentAlert.logReport {
+                            return Alert(
+                                title: Text("Error"),
+                                message: Text(currentAlert.message),
+                                primaryButton: .default(Text("Share logs")) {
+                                    currentAlert.dismissAction?()
+                                    logsToShare = LogsToShare(report: logReport)
+                                },
+                                secondaryButton: .cancel(Text("Ok")) {
+                                    currentAlert.dismissAction?()
+                                }
+                            )
+                        } else {
+                            return Alert(
+                                title: Text("Error"),
+                                message: Text(currentAlert.message),
+                                dismissButton: .default(Text("Ok")) {
+                                    currentAlert.dismissAction?()
+                                }
+                            )
+                        }
                     }
             )
+            .sheet(item: $logsToShare) { logsToShare in
+                ActivityView(activityItems: [logsToShare.report])
+            }
     }
+}
+
+private struct LogsToShare: Identifiable {
+    let id = UUID()
+    let report: String
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
 }
 
 extension View {

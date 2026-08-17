@@ -63,21 +63,6 @@ public struct ProfileView: View {
                     title: "Get help",
                     url: URL(string: "mailto:contact@tuist.dev")!
                 )
-
-                ShareLink(
-                    item: authenticationDiagnosticsReport,
-                    subject: Text("Tuist authentication diagnostics")
-                ) {
-                    HStack {
-                        Text("Share authentication diagnostics")
-                            .font(.body)
-                            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-                        Spacer()
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.title3.weight(.regular))
-                            .foregroundColor(Noora.Colors.surfaceLabelTertiary)
-                    }
-                }
             }
 
             Section {
@@ -132,9 +117,5 @@ public struct ProfileView: View {
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
-    }
-
-    private var authenticationDiagnosticsReport: String {
-        AuthenticationDiagnostics.shared.currentProcessReport()
     }
 }

@@ -59,8 +59,10 @@ public final class AuthenticationService: ObservableObject {
         Logger.current.notice(
             "Initialized authentication service with state: \(authenticationState.logDescription)"
         )
-        AuthenticationDiagnostics.shared.record(
-            .authenticationStateInitialized(state: authenticationState.logDescription)
+        ApplicationLogStore.shared.record(
+            level: .notice,
+            category: "authentication",
+            message: "state_initialized state=\(authenticationState.logDescription)"
         )
 
         startCredentialsListener()
@@ -79,12 +81,11 @@ public final class AuthenticationService: ObservableObject {
                             "Received credentials change: hasCredentials=\(credentials != nil)"
                         )
                         let expirationDates = tokenExpirationDates(credentials)
-                        AuthenticationDiagnostics.shared.record(
-                            .credentialsChanged(
-                                hasCredentials: credentials != nil,
-                                accessTokenExpiresAt: expirationDates.accessToken,
-                                refreshTokenExpiresAt: expirationDates.refreshToken
-                            )
+                        ApplicationLogStore.shared.record(
+                            level: .notice,
+                            category: "authentication",
+                            message: "credentials_changed has_credentials=\(credentials != nil) "
+                                + expirationDescription(expirationDates)
                         )
                         try updateAuthenticationState(with: credentials)
                     } catch {
@@ -125,7 +126,11 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
-        AuthenticationDiagnostics.shared.record(.userInitiatedSignOut)
+        ApplicationLogStore.shared.record(
+            level: .notice,
+            category: "authentication",
+            message: "user_initiated_sign_out"
+        )
         Logger.current.notice(
             "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
         )
@@ -401,11 +406,10 @@ public final class AuthenticationService: ObservableObject {
         let expirationDates = tokenExpirationDates(
             ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
         )
-        AuthenticationDiagnostics.shared.record(
-            .credentialsStoredAfterSignIn(
-                accessTokenExpiresAt: expirationDates.accessToken,
-                refreshTokenExpiresAt: expirationDates.refreshToken
-            )
+        ApplicationLogStore.shared.record(
+            level: .notice,
+            category: "authentication",
+            message: "credentials_stored_after_sign_in " + expirationDescription(expirationDates)
         )
         Logger.current.notice("Stored authentication credentials from token response")
     }
@@ -419,6 +423,15 @@ public final class AuthenticationService: ObservableObject {
             accessToken: try? JWT.parse(credentials.accessToken).expiryDate,
             refreshToken: credentials.refreshToken.flatMap { try? JWT.parse($0).expiryDate }
         )
+    }
+
+    private func expirationDescription(_ expirationDates: (accessToken: Date?, refreshToken: Date?)) -> String {
+        "access_token_expires_at=\(expirationDates.accessToken.map(format) ?? "unknown") "
+            + "refresh_token_expires_at=\(expirationDates.refreshToken.map(format) ?? "unknown")"
+    }
+
+    private func format(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 }
 
