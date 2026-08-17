@@ -606,7 +606,7 @@ defmodule Tuist.Runners.Jobs do
 
   A job appears only when its *latest* state is `completed` **and** its
   `completed_at` is non-NULL. Both predicates carry weight for the
-  caller, `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker`:
+  caller, `Tuist.Runners.Workers.PodReconciliationWorker`:
 
     * `completed_at` is when the runner's work actually finished, which
       is the honest close for a session whose Pod-stopped report was

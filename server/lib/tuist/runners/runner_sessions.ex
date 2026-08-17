@@ -216,7 +216,7 @@ defmodule Tuist.Runners.RunnerSessions do
   and queued demand still drive safe scale-up in that case.
 
   The clamp is a last line of defence, not the mechanism: sessions whose
-  Pod is gone are closed by `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker`
+  Pod is gone are closed by `Tuist.Runners.Workers.PodReconciliationWorker`
   long before six hours. `clamped_open_session_counts_per_fleet/0` exports
   how many rows still reach it, which is the signal that the reaper has
   stopped working.

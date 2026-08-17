@@ -66,7 +66,7 @@ defmodule Tuist.Runners.Billing do
   The clamp above, for callers that need to write an `ended_at` this
   query would have applied anyway.
 
-  `Tuist.Runners.Workers.OrphanedRunnerSessionsWorker` closes a session
+  `Tuist.Runners.Workers.PodReconciliationWorker` closes a session
   whose Pod is gone at `LEAST(now, started_at + this)`, which makes the
   close billing-neutral: the row was already being charged against that
   bound, so materialising it changes only what the autoscaler counts as

@@ -70,10 +70,11 @@ defmodule Tuist.Runners do
   dodges the `running` sweep. Production held claims stranded that way
   for over ten days, silently consuming an account's budget.
 
-  `PodClaimReconciliationWorker` is the level-triggered backstop and
-  the only path that does not infer: it compares claims against the
-  Pods that actually exist and releases the ones whose Pod is gone,
-  because a claim is capacity held by a Pod. Prefer fixing a leak there
+  `PodReconciliationWorker` is the level-triggered backstop and
+  the only path that does not infer: it compares claims and open
+  sessions against the Pods that actually exist, releasing or closing
+  the ones whose Pod is gone, because both are capacity held by a Pod
+  and neither survives the Pod. Prefer fixing a leak there
   over adding a fifth edge-keyed sweep; every one of those closes a
   slice and leaves a new blind spot at the intersections.
 
