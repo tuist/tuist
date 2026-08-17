@@ -168,6 +168,8 @@ defmodule Tuist.Cache.Analytics do
     * `opts` - Options:
       * `:limit` - Number of runs to consider (default: 100)
       * `:offset` - Number of runs to skip (default: 0)
+      * `:git_branch` - Only consider runs on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) runs
 
   ## Returns
     The averaged metric value (0.0-1.0), or `nil` if no data available.

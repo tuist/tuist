@@ -783,6 +783,129 @@ defmodule Tuist.AlertsTest do
       assert data.current == 0.7
       assert data.previous == 0.8
     end
+
+    test "filters to builds on the configured branch when git_branch is set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" main builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Feature branch builds with 0% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 0.7
+      assert data.previous == 0.8
+    end
+
+    test "considers every branch when git_branch is empty" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Recent feature-branch builds with 0% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Older main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: ""
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - the feature-branch drop is included, so the rule triggers
+      assert {:triggered, data} = result
+      assert data.current == 0.0
+      assert data.previous == 0.8
+    end
   end
 
   describe "evaluate/1 for bundle_size" do
