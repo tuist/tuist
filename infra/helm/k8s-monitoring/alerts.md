@@ -384,7 +384,7 @@ sum by (cluster, node) (
     pod=~"cilium-.*",
     node=~".*-kura-fleet-.*"
   }
-) > 0.5
+) > 0
 ```
 
 - Pending period: 10 minutes
@@ -405,33 +405,42 @@ sum by (cluster, node) (
   traffic never reaches the kura node and this counter stays at zero while the
   build hangs identically.
 
-**The threshold is `> 0.5`, not `> 0`, and the window is `[5m]`, not `[10m]`.**
-Both matter, and an earlier version of this rule had neither:
+**The window is `[5m]`, not `[10m]`. The threshold stays `> 0` deliberately.**
 
-- These nodes do **not** sit at exactly zero. Over any given week the production
-  node logs dozens of Policy-denied episodes, and roughly a fifth of all 30-minute
-  buckets are non-zero. A `> 0` threshold treats every one of them as a critical
-  page.
-- A **kura-controller rollout** produces a small burst of Policy-denied ingress on
-  *all four* kura-hosting nodes at once, within seconds of the new ReplicaSet
-  appearing. Roughly half of rollouts do it, and since every merge to `main` rolls
-  the controller, that is a recurring false page. Observed magnitudes are 0.02 to
-  0.10 packets/s, an order of magnitude below the ~1-2/s of a genuinely stuck job,
-  so a 0.5 floor separates them cleanly. The mechanism is not yet proven, but the
-  obvious suspects are ruled out: the policy object is patched, never recreated
-  (`reconcileNetworkPolicy` uses `controllerutil.CreateOrUpdate`, and the live
-  objects are still `generation: 1`), no Cilium agent restarts, and a rolling
-  update reuses the same pod labels so no new security identity has to propagate.
-  Cilium runs `routing-mode: tunnel`, which carries the source identity in the
-  VXLAN header, so ordinary in-cluster pod-to-pod traffic is matched by
-  `namespaceSelector: {}` and allowed. That leaves a path where the pod identity
-  is *lost*: from outside the cluster, or SNATed through a NodePort/LoadBalancer.
-  Note the `peer` rule already had to open `0.0.0.0/0` for exactly that reason,
-  while `http` has no equivalent escape hatch beyond per-instance `ClientCIDRs`.
-- `rate(...[10m])` stays non-zero for a full 10 minutes after the *last* dropped
-  packet. Paired with a 10-minute pending period that let a ~4-minute burst hold the
-  condition for ~14 minutes and page as critical. `[5m]` keeps the pending period
-  meaning "still dropping" rather than "dropped recently".
+The rule is meant to catch *any* sustained denial, so a magnitude floor was
+rejected: it would have to be tuned, and it would silently hide a low-rate variant
+of the same fault. The discrimination belongs on duration instead, which is what
+the pending period already expresses. `[10m]` broke that: a rate over a 10-minute
+window stays non-zero for a full 10 minutes after the *last* dropped packet, so a
+4-minute burst held the condition for ~14 minutes and cleared a 10-minute pending
+period. Any burst of roughly a minute could page. With `[5m]` the same burst holds
+the condition for about 7 minutes and never reaches the pending period, while a
+genuinely stuck job, which drips for hours, still fires after 10 minutes exactly as
+before. The pending period now means "still dropping" rather than "dropped
+recently".
+
+That matters because these nodes do **not** sit at exactly zero, contrary to what
+an earlier version of this note claimed. Two distinct populations show up:
+
+- **Transient bursts, 0.02 to 0.10 packets/s, a few minutes long.** A
+  **kura-controller rollout** produces one on *all four* kura-hosting nodes at
+  once, within seconds of the new ReplicaSet appearing, on roughly half of
+  rollouts. Since every merge to `main` rolls the controller, a rule that pages on
+  these pages constantly. The `[5m]` window is what suppresses them. The mechanism
+  is not yet proven, but the obvious suspects are ruled out: the policy object is
+  patched, never recreated (`reconcileNetworkPolicy` uses
+  `controllerutil.CreateOrUpdate`, and the live objects are still `generation: 1`),
+  no Cilium agent restarts, and a rolling update reuses the same pod labels so no
+  new security identity has to propagate. Cilium runs `routing-mode: tunnel`, which
+  carries the source identity in the VXLAN header, so ordinary in-cluster
+  pod-to-pod traffic is matched by `namespaceSelector: {}` and allowed. That leaves
+  a path where the pod identity is *lost*: from outside the cluster, or SNATed
+  through a NodePort/LoadBalancer. Note the `peer` rule already had to open
+  `0.0.0.0/0` for exactly that reason, while `http` has no equivalent escape hatch
+  beyond per-instance `ClientCIDRs`.
+- **Sustained episodes, 0.8 to 5 packets/s, lasting 30 to 90 minutes.** These are
+  the real thing and the rule *should* page on them. The production node logs them
+  regularly. Treat a firing alert as a genuine mis-sourced host, not as noise.
 
 Before concluding a Mac mini is mis-sourced, check that the drops are confined to
 **one** node. A runner VM talks to a single regional cache, so simultaneous drops
@@ -445,9 +454,9 @@ connection at all and every cache request hangs until its own timeout, which has
 turned 8-minute CI jobs into 6-hour ones while every dashboard showed kura
 healthy and idle. The drop counter is the only signal that fires, and it tracks
 the stuck job closely: a steady ~1-2/s SYN-retransmit trickle for its whole life,
-falling back to baseline within a scrape of it being cancelled. Note that baseline
-is low but not zero, which is why the rule needs a magnitude floor rather than a
-bare `> 0`.
+falling back to baseline within a scrape of it being cancelled. What makes it
+detectable is that it *persists*, which is why the rule discriminates on duration
+rather than on magnitude.
 
 Note `cilium_drop_count_total` carries no source address, so on its own it says
 *that* a host is mis-sourced but not *which* one. Use `hubble_drop_total`, which
