@@ -11,7 +11,7 @@ Umbrella chart for the server, cache, processor, auxiliary public server-owned w
 
 When editing this chart, anything gated behind `managedSecrets` must stay gated so self-hosters aren't forced into the ESO dependency.
 
-Two grace-period garbage collectors live here, both off or in dry-run by default and both documented at length in their own templates: `released-pv-reaper` (orphaned Hetzner block volumes) and `tailscale-device-reaper` (abandoned tagged tailnet devices). The Tailscale one must be enabled in **exactly one** environment — every env shares a single tailnet, so production owns the sweep and reaps canary's and staging's stale devices too.
+Two grace-period garbage collectors live here, both off or in dry-run by default and both documented at length in their own templates: `released-pv-reaper` (orphaned Hetzner block volumes) and `tailscale-device-reaper` (abandoned tagged tailnet devices). The Tailscale one runs per env and each instance requires `tailscaleDeviceReaper.tags` set to that env's ACL tags — all envs share a single tailnet, and that list is what confines a reaper to its own devices. It must match the tag scope of the env's OAuth client; see §5d of [`k8s/onboarding.md`](k8s/onboarding.md).
 
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.

@@ -40,11 +40,20 @@ pvReaper:
 # registrations accumulate until something deletes them. See the template for
 # the full failure mode and the safety argument.
 #
-# Off by default, and it must be enabled in exactly ONE environment: every env
-# shares a single tailnet, so production owns the sweep and reaps canary's and
-# staging's stale devices too.
+# One reaper per environment, each sweeping only its own env's devices. Off by
+# default; managed envs enable it and set `tags`.
 tailscaleDeviceReaper:
   enabled: false
+  # ACL tags this env's reaper is allowed to delete, and exactly the tags its
+  # OAuth client must be scoped to. Required: the job refuses to run on an empty
+  # list rather than sweeping nothing while reporting success.
+  #
+  # This is what makes three reapers on one shared tailnet safe. The devices
+  # listing returns the whole tailnet however the credential is scoped, so
+  # without the filter each env's reaper would walk every other env's devices
+  # and die on the first 403. Keep it to the env's own tags: widening it to
+  # another env's would be a credential error, not just a config one.
+  tags: []
   # dryRun logs the devices it would reap without deleting anything. Flip to
   # false once a run's logs look right.
   dryRun: true

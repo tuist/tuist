@@ -30,11 +30,23 @@ and not the next one. Registrations are an ungarbage-collected resource on a
 shared tailnet, so the sweep is the general answer and the hostname fix is a
 worthwhile narrowing on top of it.
 
+One reaper per environment, each sweeping only its own env's devices. All envs
+share a single tailnet, so `tags` is what keeps three reapers from colliding on
+one device list: a run only ever considers devices carrying one of the tags
+named here, and the OAuth client backing it is scoped to those same tags. Both
+halves matter. Without the predicate a reaper would list devices it has no
+authority over and fail on the first 403; without the client scope the predicate
+would be the only thing standing between a bug and another env's fleet.
+
 Why this is safe:
-  * The OAuth client is tag-scoped (see the ExternalSecret below), so Tailscale
-    itself refuses any write against a device outside our infrastructure tags.
-    User devices are unreachable to this credential no matter what the script
-    does. The `.tags` predicate below is the second, independent check.
+  * Two independent scopes have to agree before anything is deleted. The
+    predicate only selects devices whose tags intersect this env's `tags`, and
+    Tailscale itself refuses a write from a client scoped elsewhere. Neither
+    user devices (which carry no tags at all) nor another env's devices can pass
+    both.
+  * An empty `tags` list is a hard error rather than a silent no-op. A reaper
+    that quietly sweeps nothing is worse than one that fails: the bill keeps
+    growing while the CronJob reports success.
   * `lastSeen` older than graceHours is the liveness test. A device that is up
     reports lastSeen within minutes, so a week-stale device is off by
     definition; and the grace window is the recovery window for a host that is
@@ -48,10 +60,6 @@ Why this is safe:
     re-authenticate from the OAuth client on next boot and simply register
     again.
   * dryRun only logs what it would reap.
-
-Enable in exactly ONE environment. All envs share one tailnet, so a reaper
-running in each would race and triple the API calls; production owns the sweep
-and reaps canary's and staging's stale devices too.
 
 There is intentionally no PrometheusRule here: managed clusters have no
 Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
@@ -74,28 +82,17 @@ spec:
   target:
     name: {{ $name }}
     creationPolicy: Owner
-  # Provisioning: create an OAuth client in the Tailscale admin console under
-  # Settings > Trust credentials with the `devices:core` WRITE scope -- read
-  # alone lists devices but cannot delete them -- and restrict it to the
-  # infrastructure tags declared in infra/tailscale/acls.json:
+  # Provisioning, once per env: create an OAuth client in the Tailscale admin
+  # console under Settings > Trust credentials with the `devices:core` WRITE
+  # scope -- read alone lists devices but cannot delete them -- restricted to
+  # exactly the tags in this env's `tailscaleDeviceReaper.tags`, which must
+  # already exist under tagOwners in infra/tailscale/acls.json.
   #
-  #   tag:tuist-macmini-production, tag:tuist-macmini-canary,
-  #   tag:tuist-macmini-staging,    tag:tuist-k8s-production,
-  #   tag:tuist-k8s-canary,         tag:tuist-k8s-staging
-  #
-  # It spans every env's tags on purpose: one tailnet, one sweep. The per-env
-  # split the macOS-fleet credential uses exists so a leaked staging credential
-  # cannot reach production; splitting this one would push in the opposite
-  # direction, handing device deletion to the envs that have no such capability
-  # today. So there is a single client, and it lives only in the highest-trust
-  # vault. Note the item name is not production-specific -- the ClusterSecretStore
-  # is bound to `tuist-k8s-<env>` per cluster, so this resolves per env already;
-  # production is simply the only env where the reaper is enabled.
-  #
-  # ADDING AN ENV: extend this client's tag scope to the new env's tags at the
-  # same time. Miss it and the new env's devices are never reaped -- and
-  # depending on whether Tailscale filters the device listing by client scope,
-  # that either fails the Job loudly on a 403 or goes entirely unnoticed.
+  # Same per-env convention, and the same reason, as the macOS-fleet credential:
+  # the client is confined to one env's tags so a leaked staging credential
+  # cannot delete a production device. Note the item title is identical in every
+  # env -- the ClusterSecretStore is bound to `tuist-k8s-<env>` per cluster, so
+  # one name resolves to a different vault and a different client per env.
   #
   # Rotation is a 1Password edit; ESO resyncs within refreshInterval and the
   # next run picks it up.
@@ -126,7 +123,27 @@ data:
     api="https://api.tailscale.com/api/v2"
     grace_seconds=$(( GRACE_HOURS * 3600 ))
     disposable_seconds=$(( DISPOSABLE_GRACE_HOURS * 3600 ))
-    echo "tailscale-device-reaper: tailnet=${TAILNET} graceHours=${GRACE_HOURS} disposableGraceHours=${DISPOSABLE_GRACE_HOURS} disposablePattern='${DISPOSABLE_PATTERN}' maxDeletions=${MAX_DELETIONS} dryRun=${DRY_RUN}"
+
+    # This env's tags, as a JSON array for jq. Validated after parsing rather
+    # than on the raw string, so a value that is technically non-empty but
+    # carries no tags (a stray comma, whitespace) is caught too.
+    #
+    # Refuse to run on an empty list rather than treating it as "match nothing":
+    # a reaper that sweeps nothing looks healthy in every signal we have -- the
+    # Job succeeds, the log reads "0 devices" -- while the tailnet keeps growing,
+    # so the misconfiguration would survive exactly as long as it took someone to
+    # question the bill.
+    # -n with --arg rather than piping: an empty ALLOWED_TAGS would give `jq -R`
+    # no input line at all, which is a usage error rather than the empty list we
+    # want to fall through to the check below.
+    allowed=$(jq -nc --arg s "${ALLOWED_TAGS:-}" \
+      '$s | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
+    if [ "$(printf '%s' "$allowed" | jq -r 'length')" -eq 0 ]; then
+      echo "tailscale-device-reaper: tailscaleDeviceReaper.tags names no tags; refusing to run without a tag scope" >&2
+      exit 1
+    fi
+
+    echo "tailscale-device-reaper: tailnet=${TAILNET} tags=${ALLOWED_TAGS} graceHours=${GRACE_HOURS} disposableGraceHours=${DISPOSABLE_GRACE_HOURS} disposablePattern='${DISPOSABLE_PATTERN}' maxDeletions=${MAX_DELETIONS} dryRun=${DRY_RUN}"
 
     # An OAuth client secret is exchanged for a short-lived bearer token; the
     # secret itself is not accepted on the REST endpoints (unlike `tailscale
@@ -140,11 +157,18 @@ data:
       exit 1
     fi
 
-    # A device is reapable only if it carries one of our tags (a user device has
-    # no `tags` key at all) and has not been seen for longer than its grace
-    # window. A device with no lastSeen is skipped, never assumed old. The same
-    # predicate is applied twice: once to pick candidates, once to re-validate
-    # each device immediately before deleting it.
+    # A device is reapable only if one of its tags is in this env's scope and it
+    # has not been seen for longer than its grace window. A device with no
+    # lastSeen is skipped, never assumed old. The same predicate is applied
+    # twice: once to pick candidates, once to re-validate each device
+    # immediately before deleting it.
+    #
+    # The tag intersection is what makes three reapers on one tailnet safe:
+    # `?fields=all` returns the whole tailnet regardless of how the credential is
+    # scoped, so without this filter each env's reaper would walk every other
+    # env's devices and die on the first 403 from a write it was never
+    # authorised to make. It also excludes user devices for free -- they carry no
+    # tags, so the intersection is always empty.
     #
     # Two windows, because the devices are not equally disposable:
     #
@@ -169,17 +193,22 @@ data:
     # lastSeen is RFC3339; fromdateiso8601 rejects fractional seconds, so strip
     # them rather than letting one oddly-formatted device abort the whole run.
     predicate='
-      select((.tags // []) | length > 0)
+      select(any((.tags // [])[]; IN($allowed[])))
       | select(.lastSeen != null and .lastSeen != "")
       | select(
           ((.lastSeen | sub("\\.[0-9]+Z$"; "Z")) | fromdateiso8601)
           < (now - (if ($pattern != "" and ((.hostname // "") | test($pattern)))
                     then $disposable else $grace end))
         )'
-    jq_args=(--argjson grace "$grace_seconds" --argjson disposable "$disposable_seconds" --arg pattern "$DISPOSABLE_PATTERN")
+    jq_args=(--argjson grace "$grace_seconds" --argjson disposable "$disposable_seconds" --arg pattern "$DISPOSABLE_PATTERN" --argjson allowed "$allowed")
 
     devices=$(curl -sS -f -H "Authorization: Bearer ${token}" "${api}/tailnet/${TAILNET}/devices?fields=all")
     total=$(printf '%s' "$devices" | jq -r '.devices | length')
+    # In-scope count separately from the candidate count, so a run that reaps
+    # nothing still distinguishes "this env has no stale devices" from "the tag
+    # scope matches nothing at all", which is the shape a mistyped tag takes.
+    in_scope=$(printf '%s' "$devices" | jq -r --argjson allowed "$allowed" \
+      '[.devices[] | select(any((.tags // [])[]; IN($allowed[])))] | length')
 
     # Oldest first, so when the cap bites it reaps the deadest devices and the
     # next run picks up where this one stopped.
@@ -187,7 +216,7 @@ data:
       ".devices[] | ${predicate} | [(.lastSeen | sub(\"\\\\.[0-9]+Z\$\"; \"Z\") | fromdateiso8601), .id, .hostname] | @tsv" \
       | sort -n | cut -f2-)
     count=$(printf '%s\n' "$candidates" | grep -c . || true)
-    echo "tailscale-device-reaper: ${count} of ${total} device(s) past their grace window"
+    echo "tailscale-device-reaper: ${count} of ${in_scope} in-scope device(s) past their grace window (${total} on the tailnet)"
     if [ "$count" -eq 0 ]; then
       exit 0
     fi
@@ -262,6 +291,8 @@ spec:
               env:
                 - name: TAILNET
                   value: {{ .Values.tailscaleDeviceReaper.tailnet | quote }}
+                - name: ALLOWED_TAGS
+                  value: {{ join "," .Values.tailscaleDeviceReaper.tags | quote }}
                 - name: GRACE_HOURS
                   value: {{ .Values.tailscaleDeviceReaper.graceHours | quote }}
                 - name: DISPOSABLE_GRACE_HOURS

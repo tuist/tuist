@@ -6,11 +6,13 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-# Production owns the tailnet device sweep. Every env shares one tailnet, so
-# this is enabled here and nowhere else; it reaps canary's and staging's stale
-# devices too. Starts in dry-run -- read a run's logs, then set dryRun: false.
+# Sweeps this env's abandoned tailnet devices only; canary and staging run their
+# own. Starts in dry-run -- read a run's logs, then set dryRun: false.
 tailscaleDeviceReaper:
   enabled: true
+  tags:
+    - tag:tuist-macmini-production
+    - tag:tuist-k8s-production
 
 registry:
   # Clients stay on tuist.dev/api/registry while the Worker forwards requests
