@@ -63,6 +63,7 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
+    if: github.repository == 'tuist/tuist'
     # The self-hosted tuist-linux runners are customer runner Pods
     # governed by a NetworkPolicy that only allows public egress on
     # ports 80/443. The mgmt apiserver is reached on 6443, so this

@@ -46,6 +46,7 @@ permissions: {}
 
 jobs:
   smoke:
+    if: github.repository == 'tuist/tuist'
     # Single-label form. `tuist-staging-macos` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the

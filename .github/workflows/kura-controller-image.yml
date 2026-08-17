@@ -57,7 +57,7 @@ jobs:
 
   build:
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4

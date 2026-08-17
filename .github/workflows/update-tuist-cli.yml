@@ -29,6 +29,7 @@ env:
 jobs:
   update:
     name: Update Tuist CLI
+    if: github.repository == 'tuist/tuist'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
