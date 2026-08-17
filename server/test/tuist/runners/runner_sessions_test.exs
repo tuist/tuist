@@ -426,7 +426,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     test "list_open_for_pod_reconciliation/1 excludes closed and young sessions" do
       account = account_fixture()
       now = DateTime.utc_now()
-      grace_threshold = DateTime.add(now, -600, :second)
+      threshold = DateTime.add(now, -900, :second)
 
       old_open =
         session_fixture(account,
@@ -445,70 +445,29 @@ defmodule Tuist.Runners.RunnerSessionsTest do
         ended_at: DateTime.add(now, -1800, :second)
       )
 
-      assert [%{id: id, pod_name: "pod-old-open", pod_missing_since: nil}] =
-               RunnerSessions.list_open_for_pod_reconciliation(grace_threshold)
+      assert [%{id: id, pod_name: "pod-old-open"}] =
+               RunnerSessions.list_open_for_pod_reconciliation(threshold)
 
       assert id == old_open.id
     end
 
-    test "mark_pods_missing/2 keeps the first observed absence" do
-      account = account_fixture()
-      session = session_fixture(account, pod_name: "pod-vanished")
-      first = DateTime.add(DateTime.utc_now(), -300, :second)
-      later = DateTime.utc_now()
-
-      assert RunnerSessions.mark_pods_missing([session.id], first) == 1
-      assert RunnerSessions.mark_pods_missing([session.id], later) == 0
-
-      assert DateTime.compare(Repo.reload!(session).pod_missing_since, first) == :eq
-    end
-
-    test "clear_pods_missing/1 resets the clock for a Pod that came back" do
-      account = account_fixture()
-      session = session_fixture(account, pod_name: "pod-flapping")
-
-      RunnerSessions.mark_pods_missing([session.id], DateTime.utc_now())
-
-      assert RunnerSessions.clear_pods_missing([session.id]) == 1
-      assert Repo.reload!(session).pod_missing_since == nil
-    end
-
-    test "list_pods_missing_since/2 returns only confirmed absences, oldest first" do
+    test "list_open_for_pod_reconciliation/1 returns oldest first so a capped batch drains the worst leaks" do
       account = account_fixture()
       now = DateTime.utc_now()
-      confirmed_before = DateTime.add(now, -300, :second)
 
-      older = session_fixture(account, pod_name: "pod-gone-longest")
-      newer = session_fixture(account, pod_name: "pod-gone-a-while")
-      fresh = session_fixture(account, pod_name: "pod-gone-just-now")
+      newer = session_fixture(account, pod_name: "pod-newer", started_at: DateTime.add(now, -3600, :second))
+      oldest = session_fixture(account, pod_name: "pod-oldest", started_at: DateTime.add(now, -5 * 86_400, :second))
 
-      RunnerSessions.mark_pods_missing([older.id], DateTime.add(now, -900, :second))
-      RunnerSessions.mark_pods_missing([newer.id], DateTime.add(now, -600, :second))
-      RunnerSessions.mark_pods_missing([fresh.id], DateTime.add(now, -60, :second))
+      assert [%{id: first}, %{id: second}] =
+               RunnerSessions.list_open_for_pod_reconciliation(DateTime.add(now, -900, :second))
 
-      assert [%{id: first}, %{id: second}] = RunnerSessions.list_pods_missing_since(confirmed_before, 10)
-      assert first == older.id
+      assert first == oldest.id
       assert second == newer.id
-
-      assert RunnerSessions.count_pods_missing_since(confirmed_before) == 2
-    end
-
-    test "list_pods_missing_since/2 honours the per-tick limit" do
-      account = account_fixture()
-      marked_at = DateTime.add(DateTime.utc_now(), -900, :second)
-      confirmed_before = DateTime.add(DateTime.utc_now(), -300, :second)
-
-      ids = for i <- 1..3, do: session_fixture(account, pod_name: "pod-batch-#{i}").id
-      RunnerSessions.mark_pods_missing(ids, marked_at)
-
-      assert length(RunnerSessions.list_pods_missing_since(confirmed_before, 2)) == 2
-      assert RunnerSessions.count_pods_missing_since(confirmed_before) == 3
     end
 
     test "close_pod_missing/3 closes a fresh orphan at now" do
       account = account_fixture()
       now = DateTime.utc_now()
-      missing_since = DateTime.add(now, -600, :second)
 
       session =
         session_fixture(account,
@@ -516,9 +475,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
           started_at: DateTime.add(now, -1800, :second)
         )
 
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
-
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
       assert DateTime.compare(Repo.reload!(session).ended_at, now) == :eq
     end
 
@@ -529,12 +486,10 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       account = account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -3 * 24 * 3600, :second)
-      missing_since = DateTime.add(now, -600, :second)
 
       session = session_fixture(account, pod_name: "pod-ancient-orphan", started_at: started_at)
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
 
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
 
       expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
       assert DateTime.compare(Repo.reload!(session).ended_at, expected) == :eq
@@ -543,7 +498,6 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     test "close_pod_missing/3 loses to an accurate close that landed first" do
       account = account_fixture()
       now = DateTime.utc_now()
-      missing_since = DateTime.add(now, -600, :second)
       accurate_close = DateTime.add(now, -300, :second)
 
       session =
@@ -552,14 +506,13 @@ defmodule Tuist.Runners.RunnerSessionsTest do
           started_at: DateTime.add(now, -1800, :second)
         )
 
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
       {:ok, _} = RunnerSessions.close_by_pod_name("pod-raced", accurate_close)
 
-      assert {:error, :stale_session} = RunnerSessions.close_pod_missing(session.id, missing_since, now)
+      assert {:error, :stale_session} = RunnerSessions.close_pod_missing(session.id, now)
       assert DateTime.compare(Repo.reload!(session).ended_at, accurate_close) == :eq
     end
 
-    test "close_pod_missing/4 closes at the job's real completion when one was resolved" do
+    test "close_pod_missing/3 closes at the job's real completion when one was resolved" do
       # Closing at the clamp would bill six hours for a job that ran for
       # five minutes; closing at `now` would bill the reaper's own
       # detection delay. Neither is what the customer used.
@@ -567,19 +520,16 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -1800, :second)
       completed_at = DateTime.add(started_at, 300, :second)
-      missing_since = DateTime.add(now, -600, :second)
 
       session = session_fixture(account, pod_name: "pod-real-end", started_at: started_at)
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
 
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: completed_at)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at)
       assert DateTime.compare(Repo.reload!(session).ended_at, completed_at) == :eq
     end
 
-    test "close_pod_missing/4 never lets a late completion extend past now" do
+    test "close_pod_missing/3 never lets a late completion extend past now" do
       account = account_fixture()
       now = DateTime.utc_now()
-      missing_since = DateTime.add(now, -600, :second)
       bogus_future = DateTime.add(now, 3600, :second)
 
       session =
@@ -588,61 +538,55 @@ defmodule Tuist.Runners.RunnerSessionsTest do
           started_at: DateTime.add(now, -1800, :second)
         )
 
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
-
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: bogus_future)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: bogus_future)
       assert DateTime.compare(Repo.reload!(session).ended_at, now) == :eq
     end
 
-    test "close_pod_missing/4 still honours the six-hour bound" do
+    test "close_pod_missing/3 still honours the six-hour bound" do
       account = account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -3 * 24 * 3600, :second)
       # A job GitHub reported as running for a day: the safety bound
       # outranks it, same as it does for the no-completion path.
       completed_at = DateTime.add(started_at, 24 * 3600, :second)
-      missing_since = DateTime.add(now, -600, :second)
 
       session = session_fixture(account, pod_name: "pod-overlong", started_at: started_at)
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
 
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: completed_at)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at)
 
       expected = DateTime.add(started_at, Billing.max_session_lifetime_seconds(), :second)
       assert DateTime.compare(Repo.reload!(session).ended_at, expected) == :eq
     end
 
-    test "close_pod_missing/4 floors an inverted interval at started_at" do
+    test "close_pod_missing/3 floors an inverted interval at started_at" do
       # GitHub's clock and ours can disagree. Writing a completion that
       # precedes `started_at` would give the billing query negative time.
       account = account_fixture()
       now = DateTime.utc_now()
       started_at = DateTime.add(now, -1800, :second)
       skewed = DateTime.add(started_at, -120, :second)
-      missing_since = DateTime.add(now, -600, :second)
 
       session = session_fixture(account, pod_name: "pod-clock-skew", started_at: started_at)
-      RunnerSessions.mark_pods_missing([session.id], missing_since)
 
-      assert :ok = RunnerSessions.close_pod_missing(session.id, missing_since, now, completed_at: skewed)
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now, completed_at: skewed)
 
       ended_at = Repo.reload!(session).ended_at
       assert DateTime.compare(ended_at, started_at) == :eq
       assert DateTime.compare(ended_at, session.started_at) != :lt
     end
 
-    test "close_pod_missing/4 rejects a handle that no longer matches" do
+    test "close_pod_missing/3 is idempotent — a second close cannot move ended_at forward" do
       account = account_fixture()
       now = DateTime.utc_now()
-      session = session_fixture(account, pod_name: "pod-recovered")
+      session = session_fixture(account, pod_name: "pod-twice", started_at: DateTime.add(now, -1800, :second))
 
-      RunnerSessions.mark_pods_missing([session.id], DateTime.add(now, -600, :second))
-      RunnerSessions.clear_pods_missing([session.id])
+      assert :ok = RunnerSessions.close_pod_missing(session.id, now)
+      first_close = Repo.reload!(session).ended_at
 
       assert {:error, :stale_session} =
-               RunnerSessions.close_pod_missing(session.id, DateTime.add(now, -600, :second), now)
+               RunnerSessions.close_pod_missing(session.id, DateTime.add(now, 600, :second))
 
-      assert Repo.reload!(session).ended_at == nil
+      assert DateTime.compare(Repo.reload!(session).ended_at, first_close) == :eq
     end
   end
 end

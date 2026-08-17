@@ -39,14 +39,25 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
     2. **Non-empty result.** Zero Pods returned while sessions are open
        is treated as a bad read (wrong selector, wrong namespace, empty
        cache), not as an empty fleet.
-    3. **Grace window.** Sessions younger than `@grace_seconds` are
-       never considered — the row is written before the Pod is labelled
-       and the read is eventually consistent.
-    4. **Consecutive absence.** A first absence only records
-       `pod_missing_since`; the close needs the absence to persist past
-       `@confirm_seconds`, and a Pod that reappears resets the clock.
-    5. **Bounded blast radius.** At most `@max_closes_per_tick` per run,
-       with the overflow reported rather than silently trickled.
+    3. **Absence window.** Sessions younger than
+       `@absence_threshold_seconds` are never considered — the row is
+       written at claim-win, before the Pod exists to be listed.
+    4. **Bounded blast radius.** At most `@max_closes_per_tick` per run,
+       oldest first, with the overflow reported rather than silently
+       trickled.
+
+  There is deliberately no consecutive-absence confirmation, unlike
+  `PodClaimReconciliationWorker`'s `pod_missing_since` clock. That guard
+  defends against a live Pod being transiently missing from an otherwise
+  good read, and it does not pay for itself here. `K8sClient.list_pods/2`
+  issues an unpaginated GET with no `resourceVersion=0`, so it is a
+  quorum read rather than the watch cache; the realistic way a live Pod
+  leaves this selector is a label change during a rollout, which is
+  persistent, so requiring consecutive absence would delay that bad close
+  rather than prevent it. The consequences also differ: over-releasing a
+  claim oversubscribes real hosts, while over-closing a session
+  under-bills and dips occupancy that the claim side of
+  `RunnerSessions.occupied_counts_per_fleet/0` largely still covers.
 
   ## Which `ended_at` gets written
 
@@ -56,8 +67,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
   one account's month-to-date orphans would settle at roughly 36,000
   minutes against about 1,400 minutes of real work. A fresh orphan is
   wrong the other way — it would bill a floor of
-  `@grace_seconds + @confirm_seconds` whether the job ran for two hours
-  or ninety seconds.
+  `@absence_threshold_seconds` whether the job ran for two hours or
+  ninety seconds.
 
   So each tick resolves the batch against `Jobs.terminal_completions/1`
   first: one ClickHouse query, bounded by `@max_closes_per_tick`,
@@ -67,7 +78,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
   conservative answer when there is no evidence of a real end.
 
   Both directions are bounded — see
-  `RunnerSessions.close_pod_missing/4` for why the write is
+  `RunnerSessions.close_pod_missing/3` for why the write is
   `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`
   rather than the completion alone. A ClickHouse failure degrades the
   whole batch to the clamp, so the capacity fix never waits on the
@@ -84,15 +95,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
 
   require Logger
 
-  # A session is inserted before its Pod is labelled, and the cluster
-  # read is eventually consistent, so young sessions are legitimately
-  # absent. Matches `PodClaimReconciliationWorker`.
-  @grace_seconds 600
-
-  # How long an absence must persist before it is believed. Spans
-  # several ticks of the 1-minute cron so a transient read cannot clear
-  # the bar.
-  @confirm_seconds 300
+  # How old a session must be before its Pod's absence means anything.
+  # The row is written at claim-win, before the Pod exists to be listed,
+  # so anything younger is legitimately absent. Sized to span several
+  # ticks of the 1-minute cron.
+  @absence_threshold_seconds 900
 
   # Bounds a wrong-but-plausible read that survives the guards above,
   # and paces the first drain of a long-standing backlog.
@@ -106,9 +113,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
       :ok
     else
       now = DateTime.utc_now()
-      grace_threshold = DateTime.add(now, -@grace_seconds, :second)
+      threshold = DateTime.add(now, -@absence_threshold_seconds, :second)
 
-      case RunnerSessions.list_open_for_pod_reconciliation(grace_threshold) do
+      case RunnerSessions.list_open_for_pod_reconciliation(threshold) do
         [] -> :ok
         sessions -> reconcile(sessions, now)
       end
@@ -149,53 +156,23 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
   end
 
   defp apply_observation(sessions, pod_names, now) do
-    {present, missing} = Enum.split_with(sessions, &MapSet.member?(pod_names, &1.pod_name))
+    missing = Enum.reject(sessions, &MapSet.member?(pod_names, &1.pod_name))
 
-    # Guard 4, first half: a Pod that came back resets its clock, so only
-    # uninterrupted absence accumulates toward a close.
-    cleared =
-      present
-      |> Enum.filter(&(&1.pod_missing_since != nil))
-      |> Enum.map(& &1.id)
-      |> RunnerSessions.clear_pods_missing()
-
-    marked =
-      missing
-      |> Enum.map(& &1.id)
-      |> RunnerSessions.mark_pods_missing(now)
-
-    closed = close_confirmed(now)
-
-    if cleared > 0 or marked > 0 or closed > 0 do
-      Logger.info("runners: reconciled open sessions against observed Pods",
-        observed_pods: MapSet.size(pod_names),
-        sessions: length(sessions),
-        missing: length(missing),
-        newly_marked: marked,
-        recovered: cleared,
-        closed: closed
-      )
-    end
-
-    :ok
-  end
-
-  defp close_confirmed(now) do
-    confirmed_before = DateTime.add(now, -@confirm_seconds, :second)
-    eligible = RunnerSessions.count_pods_missing_since(confirmed_before)
-
-    candidates = RunnerSessions.list_pods_missing_since(confirmed_before, @max_closes_per_tick)
-    completions = fetch_terminal_completions(candidates)
-
-    closed = Enum.filter(candidates, &close_one(&1, completions, now))
-
+    # Guard 4. `list_open_for_pod_reconciliation/1` returns oldest first,
+    # so a capped batch drains the longest-standing leaks and the rest
+    # wait for the next tick.
+    batch = Enum.take(missing, @max_closes_per_tick)
+    completions = fetch_terminal_completions(batch)
+    closed = Enum.filter(batch, &close_one(&1, completions, now))
     count = length(closed)
 
     if count > 0 do
       Logger.warning("runners: closed runner sessions whose Pod is gone",
         count: count,
+        observed_pods: MapSet.size(pod_names),
+        sessions: length(sessions),
         pods: closed |> Enum.map(& &1.pod_name) |> Enum.take(10),
-        confirmed_absent_seconds: @confirm_seconds
+        absent_after_seconds: @absence_threshold_seconds
       )
 
       :telemetry.execute(
@@ -205,24 +182,22 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorker do
       )
     end
 
-    # Guard 5's reporting half. A backlog above the cap means either a
+    # Guard 4's reporting half. A backlog above the cap means either a
     # genuine mass teardown or a read we should not have trusted, and
     # both are worth seeing rather than trickling away silently.
-    if eligible > count do
+    if length(missing) > count do
       Logger.warning("runners: session reconciliation deferred closes past the per-tick cap",
-        eligible: eligible,
+        eligible: length(missing),
         closed: count,
         cap: @max_closes_per_tick
       )
     end
 
-    count
+    :ok
   end
 
   defp close_one(session, completions, now) do
-    RunnerSessions.close_pod_missing(session.id, session.pod_missing_since, now,
-      completed_at: completed_at_for(session, completions)
-    ) == :ok
+    RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at_for(session, completions)) == :ok
   end
 
   # `executed_workflow_job_id` outranks the claim-time `workflow_job_id`:

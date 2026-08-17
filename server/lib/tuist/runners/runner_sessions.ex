@@ -310,76 +310,24 @@ defmodule Tuist.Runners.RunnerSessions do
 
   @doc """
   Open sessions old enough to be judged against the observed Pod set,
-  carrying the `pod_missing_since` clock so the caller can tell a first
-  absence from a confirmed one.
+  oldest first so a capped batch drains the longest-standing leaks.
 
-  `grace_threshold` keeps young sessions out: a session is opened at
-  claim-win and the cluster read is eventually consistent, so a Pod that
-  is legitimately present can be missing from the listing for a while
-  after its session exists.
+  `threshold` keeps young sessions out: the row is written at claim-win,
+  before the Pod exists to be listed, so a session can legitimately have
+  no Pod for a while after it opens.
+
+  Both job ids come back because either can carry the completion the
+  caller resolves an end time from: `executed_workflow_job_id` is what
+  GitHub proved ran on the runner, `workflow_job_id` is what the claim
+  was minted for, and a runner handed a sibling's job has them differ.
   """
-  def list_open_for_pod_reconciliation(%DateTime{} = grace_threshold) do
+  def list_open_for_pod_reconciliation(%DateTime{} = threshold) do
     RunnerSession
-    |> where([s], is_nil(s.ended_at) and s.pod_name != "" and s.started_at < ^grace_threshold)
-    |> select([s], %{id: s.id, pod_name: s.pod_name, pod_missing_since: s.pod_missing_since})
-    |> Repo.all()
-  end
-
-  @doc """
-  Stamps `pod_missing_since` on sessions whose Pod was absent this tick,
-  leaving an existing stamp alone so the clock measures the FIRST
-  observed absence rather than the most recent one.
-  """
-  def mark_pods_missing([], _now), do: 0
-
-  def mark_pods_missing(ids, %DateTime{} = now) when is_list(ids) do
-    {count, _} =
-      RunnerSession
-      |> where([s], s.id in ^ids and is_nil(s.pod_missing_since))
-      |> Repo.update_all(set: [pod_missing_since: now])
-
-    count
-  end
-
-  @doc """
-  Clears `pod_missing_since` for sessions whose Pod is present again, so
-  an intermittently-visible Pod never accumulates its way to a close.
-  """
-  def clear_pods_missing([]), do: 0
-
-  def clear_pods_missing(ids) when is_list(ids) do
-    {count, _} =
-      RunnerSession
-      |> where([s], s.id in ^ids and not is_nil(s.pod_missing_since))
-      |> Repo.update_all(set: [pod_missing_since: nil])
-
-    count
-  end
-
-  @doc """
-  Sessions whose Pod has been continuously absent since before
-  `confirmed_before`, oldest absence first, at most `limit` per call.
-
-  The limit bounds a wrong-but-plausible cluster read that survives the
-  caller's guards, and gives the first run after a long leak a bounded
-  amount of work per tick instead of one enormous transaction. It also
-  bounds the single ClickHouse lookup the caller makes to resolve these
-  sessions' real end times.
-
-  Both job ids come back because either can carry the completion:
-  `executed_workflow_job_id` is what GitHub proved ran on the runner,
-  `workflow_job_id` is what the claim was minted for, and a runner
-  handed a sibling's job has them differ.
-  """
-  def list_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
-    RunnerSession
-    |> where([s], is_nil(s.ended_at) and not is_nil(s.pod_missing_since) and s.pod_missing_since < ^confirmed_before)
-    |> order_by([s], asc: s.pod_missing_since)
-    |> limit(^limit)
+    |> where([s], is_nil(s.ended_at) and s.pod_name != "" and s.started_at < ^threshold)
+    |> order_by([s], asc: s.started_at)
     |> select([s], %{
       id: s.id,
       pod_name: s.pod_name,
-      pod_missing_since: s.pod_missing_since,
       workflow_job_id: s.workflow_job_id,
       executed_workflow_job_id: s.executed_workflow_job_id
     })
@@ -387,13 +335,14 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
-  Closes one session selected by `list_pods_missing_since/2`, keyed on
-  the `pod_missing_since` handle it was selected with.
+  Closes one session whose Pod the caller has confirmed absent.
 
-  The handle closes a race against the authoritative close path: if the
-  controller's pod-stopped report lands between selection and write, it
-  sets `ended_at` and the row no longer matches `is_nil(ended_at)`, so
-  the accurate timestamp wins over this estimate.
+  `is_nil(ended_at)` is the race guard: if the controller's pod-stopped
+  report lands between the caller's listing and this write, it sets
+  `ended_at` and the row stops matching, so the accurate timestamp always
+  beats this estimate. That direction is the one that matters — the close
+  is one-way, since `close_by_pod_name/2` only ever moves `ended_at`
+  earlier.
 
   ## Which `ended_at` gets written
 
@@ -419,10 +368,10 @@ defmodule Tuist.Runners.RunnerSessions do
   Returns `:ok` when the row was closed, `{:error, :stale_session}` when
   it no longer matches.
   """
-  def close_pod_missing(id, %DateTime{} = pod_missing_since, %DateTime{} = now, opts \\ []) when is_integer(id) do
+  def close_pod_missing(id, %DateTime{} = now, opts \\ []) when is_integer(id) do
     {count, _} =
       RunnerSession
-      |> where([s], s.id == ^id and is_nil(s.ended_at) and s.pod_missing_since == ^pod_missing_since)
+      |> where([s], s.id == ^id and is_nil(s.ended_at))
       |> orphan_close_update(Keyword.get(opts, :completed_at), now)
       |> Repo.update_all([])
 
@@ -459,17 +408,6 @@ defmodule Tuist.Runners.RunnerSessions do
         updated_at: ^DateTime.truncate(now, :second)
       ]
     )
-  end
-
-  @doc """
-  Count of sessions eligible for an orphan close right now, ignoring the
-  per-tick limit, so a sustained backlog is visible instead of silently
-  trickling.
-  """
-  def count_pods_missing_since(%DateTime{} = confirmed_before) do
-    RunnerSession
-    |> where([s], is_nil(s.ended_at) and not is_nil(s.pod_missing_since) and s.pod_missing_since < ^confirmed_before)
-    |> Repo.aggregate(:count)
   end
 
   @doc """

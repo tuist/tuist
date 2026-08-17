@@ -43,10 +43,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
         updated_at: DateTime.truncate(now, :second)
       })
 
-    case Keyword.get(opts, :missing_for_seconds) do
-      nil -> session
-      s -> tap(session, &RunnerSessions.mark_pods_missing([&1.id], DateTime.add(now, -s, :second)))
-    end
+    session
   end
 
   defp reload(session), do: Repo.reload!(session)
@@ -94,7 +91,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:error, :timeout} end)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-      assert reload(session).pod_missing_since == nil
+      assert reload(session).ended_at == nil
     end
 
     # Guard 2. Zero Pods returned while sessions are open means a bad
@@ -106,7 +103,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, []} end)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-      assert reload(session).pod_missing_since == nil
+      assert reload(session).ended_at == nil
     end
 
     # Guard 3. A session is written before its Pod is labelled and the
@@ -120,68 +117,41 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       reject(&K8sClient.list_pods/2)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-      assert reload(session).pod_missing_since == nil
+      assert reload(session).ended_at == nil
     end
 
     test "ignores sessions that are already closed" do
       account = account_fixture()
+      closed_at = DateTime.add(DateTime.utc_now(), -600, :second)
 
-      session =
-        session_fixture(account, "pod-closed", ended_at: DateTime.add(DateTime.utc_now(), -600, :second))
+      session = session_fixture(account, "pod-closed", ended_at: closed_at)
 
       reject(&K8sClient.list_pods/2)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-      assert reload(session).pod_missing_since == nil
+      assert DateTime.compare(reload(session).ended_at, closed_at) == :eq
     end
 
-    # Guard 4. One absence only starts the clock.
-    test "a first absence marks but does not close" do
+    test "leaves a session alone while its Pod is present" do
       account = account_fixture()
-      session = session_fixture(account, "pod-gone")
+      session = session_fixture(account, "pod-alive")
 
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-other")]} end)
+      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-alive")]} end)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-
-      reloaded = reload(session)
-      assert reloaded.pod_missing_since
-      assert reloaded.ended_at == nil
-    end
-
-    test "a Pod that reappears resets the clock" do
-      account = account_fixture()
-      session = session_fixture(account, "pod-flapping", missing_for_seconds: 400)
-
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-flapping")]} end)
-
-      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-
-      reloaded = reload(session)
-      assert reloaded.pod_missing_since == nil
-      assert reloaded.ended_at == nil
+      assert reload(session).ended_at == nil
     end
   end
 
-  describe "closing confirmed orphans" do
-    test "closes a session whose Pod has been absent past the confirm window" do
+  describe "closing orphans" do
+    test "closes a session whose Pod is absent from a complete read" do
       account = account_fixture()
-      session = session_fixture(account, "pod-gone", age_seconds: 1800, missing_for_seconds: 400)
+      session = session_fixture(account, "pod-gone", age_seconds: 1800)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
 
       assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
       assert reload(session).ended_at
-    end
-
-    test "leaves a session whose Pod is still absent but not yet confirmed" do
-      account = account_fixture()
-      session = session_fixture(account, "pod-gone", missing_for_seconds: 60)
-
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
-
-      assert :ok = OrphanedRunnerSessionsWorker.perform(%Oban.Job{})
-      assert reload(session).ended_at == nil
     end
 
     test "drains a long-standing backlog at the billing clamp, not at now" do
@@ -192,10 +162,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
 
       session =
-        session_fixture(account, "pod-ancient",
-          age_seconds: 5 * 24 * 3600,
-          missing_for_seconds: 400
-        )
+        session_fixture(account, "pod-ancient", age_seconds: 5 * 24 * 3600)
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
 
@@ -213,8 +180,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
 
       session_fixture(account, "pod-phantom",
         fleet_name: fleet,
-        age_seconds: 1800,
-        missing_for_seconds: 400
+        age_seconds: 1800
       )
 
       assert RunnerSessions.occupied_counts_per_fleet()[fleet] == 1
@@ -227,7 +193,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
 
     test "emits recovery telemetry for the closed sessions" do
       account = account_fixture()
-      session_fixture(account, "pod-gone", missing_for_seconds: 400)
+      session_fixture(account, "pod-gone", age_seconds: 3600)
 
       handler_id = "orphaned-runner-sessions-test-#{System.unique_integer([:positive])}"
       test_pid = self()
@@ -264,8 +230,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       session =
         session_fixture(account, "pod-completed",
           workflow_job_id: 79_001,
-          age_seconds: 5 * 24 * 3600,
-          missing_for_seconds: 400
+          age_seconds: 5 * 24 * 3600
         )
 
       completed_job_fixture(account, 79_001, completed_at)
@@ -289,8 +254,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
         session_fixture(account, "pod-sibling",
           workflow_job_id: 79_002,
           executed_workflow_job_id: 79_003,
-          age_seconds: 3600,
-          missing_for_seconds: 400
+          age_seconds: 3600
         )
 
       completed_job_fixture(account, 79_002, claimed_job_completion)
@@ -311,8 +275,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       session =
         session_fixture(account, "pod-unproven",
           workflow_job_id: 79_004,
-          age_seconds: 3600,
-          missing_for_seconds: 400
+          age_seconds: 3600
         )
 
       completed_job_fixture(account, 79_004, completed_at)
@@ -330,8 +293,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       session =
         session_fixture(account, "pod-never-terminal",
           workflow_job_id: 79_005,
-          age_seconds: 5 * 24 * 3600,
-          missing_for_seconds: 400
+          age_seconds: 5 * 24 * 3600
         )
 
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -348,10 +310,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       started_at = DateTime.add(DateTime.utc_now(), -5 * 24 * 3600, :second)
 
       session =
-        session_fixture(account, "pod-ch-down",
-          age_seconds: 5 * 24 * 3600,
-          missing_for_seconds: 400
-        )
+        session_fixture(account, "pod-ch-down", age_seconds: 5 * 24 * 3600)
 
       stub(Jobs, :terminal_completions, fn _ids -> raise "clickhouse unavailable" end)
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
@@ -366,7 +325,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
       account = account_fixture()
 
       for i <- 1..3 do
-        session_fixture(account, "pod-batch-#{i}", workflow_job_id: 79_100 + i, missing_for_seconds: 400)
+        session_fixture(account, "pod-batch-#{i}", workflow_job_id: 79_100 + i, age_seconds: 3600)
       end
 
       expect(Jobs, :terminal_completions, 1, fn ids ->
@@ -383,7 +342,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnerSessionsWorkerTest do
   describe "kill switch" do
     test "does nothing while paused" do
       account = account_fixture()
-      session = session_fixture(account, "pod-gone", missing_for_seconds: 400)
+      session = session_fixture(account, "pod-gone", age_seconds: 3600)
 
       stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> true end)
       reject(&K8sClient.list_pods/2)
