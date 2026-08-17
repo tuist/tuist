@@ -31,6 +31,38 @@ set -uo pipefail
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
 
+# Host-shared status directory. A fixed mount path, so it is defined
+# here rather than beside the cache-volume code that also uses it: the
+# EXIT trap below reports through it, and the aborts worth reporting
+# (missing /etc/tuist.env, missing or empty SA token) all run before
+# that code is reached. Defined before the trap is armed for the same
+# reason.
+STATUS_SHARE="/Volumes/My Shared Files/status"
+
+# report_runner_exit hands this script's exit code to the host through
+# the writable status share, for tart-kubelet to publish as the Pod's
+# terminated container state.
+#
+# It is the ONLY way that code leaves the guest. The EXIT trap below
+# halts the VM on every path, clean or not, so `tart run` always exits
+# zero and the host cannot otherwise tell a finished job from a runner
+# that died on boot — every macOS runner death reads as Succeeded with
+# no exit code, no reason, and no log. (Linux runners get this for free:
+# the container runtime records the real terminated state.)
+#
+# Reported from inside the trap rather than after `wait` on the runner
+# so it also covers the paths that never reach a runner at all: the auth
+# aborts, the missing-file exits, an errexit anywhere above. Those are
+# exactly the deaths that are hardest to explain after the fact.
+#
+# Guarded on the share being mounted, which it is not on hosts with the
+# cache-volume feature off; an unreported exit degrades to a Pod with no
+# exit code rather than failing the halt.
+report_runner_exit() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  printf '%s' "${1}" >"${STATUS_SHARE}/runner-rc" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -39,7 +71,7 @@ exec >>"${LOG}" 2>&1
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -175,7 +207,9 @@ CACHE_INVENTORY_BEFORE=""
 # The post-job inventory, captured while the image is still mounted so the HEAD
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
-STATUS_SHARE="/Volumes/My Shared Files/status"
+# STATUS_SHARE is defined near the EXIT trap at the top of this script,
+# which reports the runner's exit code through it before this section is
+# ever reached.
 # The Xcode compilation cache (CAS) is FOLDED into the cache image: a top-level
 # store dir beside `tuist/` inside the one mounted image. It works because it
 # lives on the attached block-device APFS image, not the virtio-fs share (llcas

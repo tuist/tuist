@@ -618,6 +618,51 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "get_orphaned_running/1" do
+    test "returns the recovery shape for a running job regardless of its age" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5201, fleet: "fleet-orphan", repository: "acme/app")
+      {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
+      claimed_at = DateTime.utc_now()
+      :ok = Jobs.record_claimed(candidate, "pod-orphan", claimed_at)
+      :ok = Jobs.record_running(5201, "tuist-runner-orphan")
+
+      # No staleness floor: the caller reaches this having already been
+      # told the Pod stopped, which is the evidence the sweep's age gate
+      # is a proxy for.
+      assert %{
+               workflow_job_id: 5201,
+               account_id: account_id,
+               repository: "acme/app",
+               pod_name: "pod-orphan"
+             } = Jobs.get_orphaned_running(5201)
+
+      assert account_id == account.id
+    end
+
+    test "returns nil once the job leaves the running state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5202, fleet: "fleet-orphan")
+      {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
+      :ok = Jobs.record_claimed(candidate, "pod-orphan-2", DateTime.utc_now())
+      :ok = Jobs.record_running(5202, "tuist-runner-orphan-2")
+      {:ok, _} = Jobs.complete(5202, "success")
+
+      refute Jobs.get_orphaned_running(5202)
+    end
+
+    test "returns nil for a job that never reached running" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5203, fleet: "fleet-orphan")
+
+      refute Jobs.get_orphaned_running(5203)
+    end
+
+    test "returns nil for an unknown workflow_job_id" do
+      refute Jobs.get_orphaned_running(999_999_999)
+    end
+  end
+
   describe "record_queued/1" do
     test "re-surfaces a claimed candidate without re-reading its ClickHouse row" do
       account = account_fixture()

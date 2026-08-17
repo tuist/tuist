@@ -70,6 +70,60 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
+// runnerExitFile is the file the guest writes into the writable status
+// share from its EXIT trap, carrying dispatch-poll.sh's exit code. It is
+// the only way that code reaches the host: the trap halts the VM on every
+// path, so `tart run` exits zero whether the job finished or the runner
+// died, and its status cannot distinguish the two.
+//
+// Absent for a guest killed without running its trap, and for any host
+// where the status share is not attached at all (it rides on the cache
+// volume feature). Absence therefore means "unknown", never "clean" —
+// see runnerTermination.
+const runnerExitFile = "runner-rc"
+
+// readRunnerExit reads the guest-reported exit code from the status share.
+// The bool is false when the guest reported nothing usable.
+//
+// A wait status is a byte, and the shell reports 128+signal for a
+// signalled child, so anything outside 0-255 did not come from `$?` and
+// is a torn or truncated read of a file the guest was still writing.
+// Rejecting it matters more than it looks: the value decides clean
+// versus abnormal downstream, so a garbage read that happened to land on
+// 0 would report a dead runner as a successful job, which is the bug
+// this file exists to close. Out of range therefore reads as unreported,
+// the same as no file at all.
+func readRunnerExit(statusDir string) (int32, bool) {
+	if statusDir == "" {
+		return 0, false
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, runnerExitFile))
+	if err != nil {
+		return 0, false
+	}
+	// ParseInt over Atoi so an oversized value fails here rather than
+	// silently wrapping on the conversion to int32.
+	code, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 32)
+	if err != nil || code < 0 || code > 255 {
+		return 0, false
+	}
+	return int32(code), true
+}
+
+// readRunnerExitTime returns when the guest wrote its exit report, which
+// is the moment it halted. Used to date a stop on the recovered path,
+// where no `tart run` handle survived to have observed the exit itself.
+func readRunnerExitTime(statusDir string) (time.Time, bool) {
+	if statusDir == "" {
+		return time.Time{}, false
+	}
+	fi, err := os.Stat(filepath.Join(statusDir, runnerExitFile))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return fi.ModTime(), true
+}
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
