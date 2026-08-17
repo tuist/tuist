@@ -228,6 +228,32 @@ The consumers pin `ephemeral=true&preauthorized=true` on the minted key themselv
 
 > **ESO health is not credential health.** The ExternalSecret reports `SecretSynced` / `Ready=True` whatever the value's validity; it says only that 1Password answered. A fleet that can't join looks identical from the ESO side, so don't use it to rule the credential out. Detection for the failure class lives in [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md), keyed on queue age.
 
+## 5d. Tailscale device reaper credential (production only)
+
+Unlike 5c, this is **one credential for the whole tailnet, created once** — not one per env. Skip it entirely when onboarding staging, canary or preview.
+
+Nothing garbage-collects a tailnet device. Tagged devices have key expiry disabled, so a registration outlives whatever created it, and both the xcresult-processor VMs and the Tailscale operator's proxy Pods register a device per Pod. Renaming them does not help: identity is the node key, and an image-booted VM has no persisted state to carry one across boots. The `tailscale-device-reaper` CronJob deletes the leftovers; see [`../helm/tuist/templates/tailscale-device-reaper.yaml`](../helm/tuist/templates/tailscale-device-reaper.yaml) for the grace-window design and the safety argument.
+
+Create the client under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials) exactly as in 5c: **Credential**, then **OAuth**, then **Generate credential**.
+
+- Scope: **Devices → Core → Write**, nothing else. Read alone lists devices but cannot delete them.
+- Tags: all six env tags at once — `tag:tuist-macmini-{production,canary,staging}` and `tag:tuist-k8s-{production,canary,staging}`. One tailnet means one sweep, and production runs it on every env's behalf.
+
+Scoping the credential is the primary safety boundary: Tailscale itself refuses a write against any device outside these tags, so user devices are unreachable to the reaper whatever the script does.
+
+`tag:tuist-mgmt` is deliberately excluded. It covers a single long-lived device that has never leaked a duplicate, and reaping the mgmt cluster's tailnet identity is the one deletion that could cost you the access you'd need to undo it.
+
+```bash
+op item create --vault tuist-k8s-production --category "API Credential" --title TAILSCALE_DEVICE_REAPER \
+  "client-id[text]=..." "client-secret[password]=tskey-client-..."
+```
+
+Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_REAPER/client-id` and `/client-secret` by label.
+
+The reaper ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in [`../helm/tuist/values-managed-production.yaml`](../helm/tuist/values-managed-production.yaml) to arm it.
+
+**Adding an env later:** extend this client's tag scope at the same time, or the new env's devices are never swept.
+
 ## 6. First deploy
 
 ### Manual smoke test
