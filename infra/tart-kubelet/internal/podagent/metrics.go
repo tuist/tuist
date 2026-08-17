@@ -262,12 +262,19 @@ var cacheVolumeAdmissionDeclinedTotal = prometheus.NewCounter(
 // how long a promoting job holds the host slot before it can be reclaimed — the
 // signal for keeping the volume sized so uploads stay fast (the CAS is folded in,
 // so this now includes CAS bytes). Reported by the guest via the volume-upload-ms
-// status marker and recorded here at finalize.
+// status marker and recorded here at finalize, from the marker ALONE — outside
+// the switch on the promote result, so an accepted promote observes a sample
+// just as a rejected one does.
 //
-// A promote the server pre-empts at mint time (its base was already advanced
-// past) uploads nothing and so contributes NO sample, only a "rejected" promote.
-// The count of this histogram against promote_total{result="rejected"} is
-// therefore how much doomed transfer the pre-flight is still not avoiding.
+// That is what makes _count minus promote_total{result="accepted"} the reading
+// for the mint-time pre-flight: uploads that happened and did NOT become HEAD.
+// A promote the server pre-empts (its base was already advanced past) transfers
+// nothing, so it counts as "rejected" with no sample here, and the difference
+// trends toward zero. It does not reach zero — an upload followed by a failed
+// bump lands in the "error" bucket, and a job excluded from the promote ratio
+// (unclean halt, account mismatch) can leave a marker with no promote counted at
+// all. Reading _count against result="rejected" instead would move with the
+// accept rate rather than with the pre-flight.
 var cacheVolumeUploadSeconds = prometheus.NewHistogram(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_cache_volume_upload_seconds",
