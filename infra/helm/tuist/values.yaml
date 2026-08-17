@@ -94,8 +94,9 @@ tailscaleDeviceReaper:
   # curl + jq in one image; same image the PV reaper uses.
   image: alpine/k8s:1.31.1
   # Secret holding the tag-scoped OAuth client. Empty falls back to the
-  # ExternalSecret this chart syncs from 1Password; set it to opt out and
-  # manage the Secret by hand.
+  # ExternalSecret this chart syncs from 1Password. Setting a name opts out of
+  # that sync entirely: the CronJob reads the named Secret and no ExternalSecret
+  # is rendered, so nothing tries to pull a 1Password item you are not using.
   oauthSecretName: ""
   oauthSecretClientIDKey: client-id
   oauthSecretClientSecretKey: client-secret

@@ -66,7 +66,13 @@ Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
 reaper's log lines in Grafana Cloud instead.
 */ -}}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "tailscale-device-reaper") }}
-{{- if .Values.tailscaleDeviceReaper.externalSecrets.enabled }}
+{{- /*
+Also gated on oauthSecretName being empty: pointing the CronJob at a
+hand-managed Secret is how you opt out of the chart's 1Password sync, so
+rendering the ExternalSecret anyway would keep syncing an item nothing reads and
+fail the sync outright when that item does not exist in the vault.
+*/ -}}
+{{- if and .Values.tailscaleDeviceReaper.externalSecrets.enabled (not .Values.tailscaleDeviceReaper.oauthSecretName) }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -190,13 +196,33 @@ data:
     # An empty DISPOSABLE_PATTERN disables the short window entirely rather
     # than matching every device, which is what an unguarded test("") would do.
     #
-    # lastSeen is RFC3339; fromdateiso8601 rejects fractional seconds, so strip
-    # them rather than letting one oddly-formatted device abort the whole run.
+    # lastSeen is RFC3339. Parsing it is the fiddliest part of the predicate and
+    # every failure mode here defaults to skipping the device, never to reaping
+    # it early:
+    #
+    #   * fromdateiso8601 rejects fractional seconds, which the API does emit
+    #     (".1Z" appears on live devices), so strip them first.
+    #   * Anything else it cannot parse -- a numeric offset instead of Z, a
+    #     shape we have not seen -- is caught by `try` and skipped. Without the
+    #     catch a single odd timestamp aborts the entire sweep, which is the
+    #     failure the strip above exists to prevent in the first place.
+    #   * Go's zero time marshals to "0001-01-01T00:00:00Z", which parses fine
+    #     but to a large negative epoch, so it is older than every grace window
+    #     and sorts ahead of genuinely stale devices. `tailscale status --json`
+    #     emits exactly that for peers with no recorded lastSeen, so treat any
+    #     non-positive epoch as "no timestamp" and skip it, the same as an
+    #     absent field. Never assume old.
+    #
+    # Binding the parsed value once also keeps the sort key below honest: it
+    # reuses $seen rather than re-deriving it with a second, separately-escaped
+    # copy of the same expression.
     predicate='
       select(any((.tags // [])[]; IN($allowed[])))
       | select(.lastSeen != null and .lastSeen != "")
+      | (.lastSeen | sub("\\.[0-9]+Z$"; "Z") | try fromdateiso8601 catch null) as $seen
+      | select($seen != null and $seen > 0)
       | select(
-          ((.lastSeen | sub("\\.[0-9]+Z$"; "Z")) | fromdateiso8601)
+          $seen
           < (now - (if ($pattern != "" and ((.hostname // "") | test($pattern)))
                     then $disposable else $grace end))
         )'
@@ -213,7 +239,7 @@ data:
     # Oldest first, so when the cap bites it reaps the deadest devices and the
     # next run picks up where this one stopped.
     candidates=$(printf '%s' "$devices" | jq -r "${jq_args[@]}" \
-      ".devices[] | ${predicate} | [(.lastSeen | sub(\"\\\\.[0-9]+Z\$\"; \"Z\") | fromdateiso8601), .id, .hostname] | @tsv" \
+      ".devices[] | ${predicate} | [\$seen, .id, .hostname] | @tsv" \
       | sort -n | cut -f2-)
     count=$(printf '%s\n' "$candidates" | grep -c . || true)
     echo "tailscale-device-reaper: ${count} of ${in_scope} in-scope device(s) past their grace window (${total} on the tailnet)"
@@ -222,6 +248,7 @@ data:
     fi
 
     reaped=0
+    failed=0
     while IFS=$'\t' read -r id hostname; do
       [ -z "$id" ] && continue
       if [ "$reaped" -ge "$MAX_DELETIONS" ]; then
@@ -244,16 +271,37 @@ data:
       fi
       last_seen=$(printf '%s' "$current" | jq -r '.lastSeen')
       tags=$(printf '%s' "$current" | jq -r '(.tags // []) | join(",")')
-      if [ "$DRY_RUN" = "true" ]; then
+      # Anything other than the exact string "false" stays in dry-run. Arming is
+      # a hand-edit of a per-env values file, which is where someone writes
+      # `dryRun: "yes"` -- bare True/yes/on coerce to a boolean and render
+      # "true", but the quoted forms reach the container verbatim. Comparing
+      # against "false" means an unrecognised value fails toward not deleting,
+      # which is the direction every other guard here points.
+      if [ "$DRY_RUN" != "false" ]; then
         echo "tailscale-device-reaper: [dry-run] would reap ${hostname} (${id}, ${tags}, last seen ${last_seen})"
       else
         echo "tailscale-device-reaper: reaping ${hostname} (${id}, ${tags}, last seen ${last_seen})"
-        curl -sS -f -X DELETE -H "Authorization: Bearer ${token}" "${api}/device/${id}" >/dev/null
+        # Non-fatal per device. Under `set -e` an unguarded failure here would
+        # abort the run, and because candidates are ordered oldest-first, one
+        # undeletable device would sit at the head of the queue and block every
+        # sweep behind it forever -- a 403 from a tag scope that has drifted out
+        # of agreement with `tags` does exactly that, and so does a transient
+        # 5xx. Record it, move on, and fail the Job at the end so the run is
+        # still loud without being useless.
+        if ! curl -sS -f -X DELETE -H "Authorization: Bearer ${token}" "${api}/device/${id}" >/dev/null; then
+          echo "tailscale-device-reaper: FAILED to delete ${hostname} (${id}, ${tags}); continuing" >&2
+          failed=$(( failed + 1 ))
+          continue
+        fi
       fi
       reaped=$(( reaped + 1 ))
     done <<< "$candidates"
 
-    echo "tailscale-device-reaper: done (${reaped} device(s) $([ "$DRY_RUN" = "true" ] && echo 'would be reaped' || echo reaped))"
+    echo "tailscale-device-reaper: done (${reaped} device(s) $([ "$DRY_RUN" != "false" ] && echo 'would be reaped' || echo reaped), ${failed} failed)"
+    if [ "$failed" -gt 0 ]; then
+      echo "tailscale-device-reaper: ${failed} device(s) could not be deleted; check the tag scope on this env's OAuth client" >&2
+      exit 1
+    fi
 ---
 apiVersion: batch/v1
 kind: CronJob
