@@ -20,13 +20,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # New or edited trigger windows are temporarily constrained to the largest
-  # value currently used in production. The 100-run aggregate then has room
-  # for the correction rows produced when flaky runs are re-inserted.
-  @max_rolling_trigger_window_size 75
+  # Trigger windows are served by `test_case_runs_recent_packed_per_case`, whose
+  # 2000-slot state holds 1000 distinct runs even when every run in the window
+  # carries a flaky correction row. Triggers and recovery therefore share one
+  # ceiling.
+  @max_rolling_trigger_window_size 1000
 
-  # Recovery counts read raw runs rather than the rolling aggregate tables, so
-  # they retain the existing product cap.
+  # Recovery counts read raw runs rather than the rolling aggregate tables.
   @max_rolling_window_size 1000
 
   @doc """
@@ -37,8 +37,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   def test_updated_events, do: @test_updated_events
 
   @doc """
-  Maximum rolling trigger window accepted while the aggregate storage is being
-  replaced.
+  Maximum rolling trigger window the active aggregate storage can serve.
   """
   def max_rolling_trigger_window_size, do: @max_rolling_trigger_window_size
 
