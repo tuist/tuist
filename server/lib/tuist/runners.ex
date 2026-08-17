@@ -487,7 +487,12 @@ defmodule Tuist.Runners do
       claims and open runner sessions. Unlike `claimed`, this remains
       non-zero through cache work and Pod teardown.
     * `queued` — workflow_jobs still in `runner_jobs.status =
-      'queued'` for this fleet (ClickHouse).
+      'queued'` for this fleet (ClickHouse), capped per account at
+      what dispatch would actually hand out right now.
+    * `withheld` — queued workflow_jobs excluded from `queued`
+      because their account is at its concurrency limit. Real work
+      that cannot be served yet, so the controller can tell a pool
+      that is genuinely idle from one that is blocked.
     * `p95_concurrent_last_hour` — rolling 95th percentile of
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
@@ -501,18 +506,23 @@ defmodule Tuist.Runners do
   def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
     claimed = Map.get(Claims.counts_per_fleet(), fleet_name, 0)
     occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
+    {queued, withheld} = dispatchable_queued_count(fleet_name)
 
     %{
       fleet: fleet_name,
       claimed: claimed,
       occupied: occupied,
-      queued: dispatchable_queued_count(fleet_name),
+      queued: queued,
+      withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
     }
   end
 
-  # Queued jobs the fleet could actually be handed right now: each
-  # account's queue depth capped at its remaining concurrency headroom.
+  # Returns `{dispatchable, withheld}`.
+  #
+  # `dispatchable` is the queued jobs the fleet could actually be handed
+  # right now: each account's queue depth capped at its remaining
+  # concurrency headroom.
   #
   # Raw queue depth overstates demand whenever an account queues past its
   # limit. Dispatch declines those jobs and leaves them queued, so they
@@ -521,37 +531,43 @@ defmodule Tuist.Runners do
   # them either, so they idle on hosts that pools with claimable work are
   # then denied — one account at its cap quietly starves the fleet.
   #
+  # `withheld` is what that cap removed. It is returned rather than only
+  # emitted as telemetry because a pool reporting `dispatchable == 0` is
+  # otherwise indistinguishable from an idle one, and the controller has
+  # to tell them apart: blocked work is real work, and a pool holding it
+  # still needs one Pod to be in the race when headroom frees. The
+  # controller decides how much of it counts as demand (one Pod, never
+  # more) — this side just reports it.
+  #
   # Falls back to the raw count when the fleet's shape is unknown: an
   # unrecognised fleet should size on the signal it has rather than
-  # silently report zero demand and scale itself to nothing.
+  # silently report zero demand and scale itself to nothing. Nothing was
+  # capped in that case, so nothing is withheld.
   defp dispatchable_queued_count(fleet_name) do
     queued_by_account = Jobs.queued_count_by_fleet_and_account(fleet_name)
     raw = queued_by_account |> Map.values() |> Enum.sum()
 
-    case Catalog.resources_for_fleet(fleet_name) do
-      {:ok, resources} ->
-        dispatchable =
-          Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-            acc + min(count, Concurrency.headroom_jobs(account_id, resources))
-          end)
+    {dispatchable, withheld} =
+      case Catalog.resources_for_fleet(fleet_name) do
+        {:ok, resources} ->
+          dispatchable =
+            Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
+              acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+            end)
 
-        :telemetry.execute(
-          Telemetry.event_name_queue_withheld(),
-          %{count: raw - dispatchable},
-          %{fleet: fleet_name}
-        )
+          {dispatchable, raw - dispatchable}
 
-        dispatchable
+        {:error, _reason} ->
+          {raw, 0}
+      end
 
-      {:error, _reason} ->
-        :telemetry.execute(
-          Telemetry.event_name_queue_withheld(),
-          %{count: 0},
-          %{fleet: fleet_name}
-        )
+    :telemetry.execute(
+      Telemetry.event_name_queue_withheld(),
+      %{count: withheld},
+      %{fleet: fleet_name}
+    )
 
-        raw
-    end
+    {dispatchable, withheld}
   end
 
   @doc """
