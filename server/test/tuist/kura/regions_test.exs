@@ -282,7 +282,13 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "returns nil for a region that declares no location" do
+      # Two different shapes reach nil. The local controller omits the keys
+      # entirely, while a tombstone carries them as nil, because the region
+      # builders write both unconditionally through Map.get/2. Any future
+      # region added without a location takes the tombstone's path, so it is
+      # the one that has to keep resolving rather than raising.
       assert Regions.node_location(Regions.get("local-controller")) == nil
+      assert Regions.node_location(Regions.get("hetzner-staging-runners")) == nil
     end
   end
 
