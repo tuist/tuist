@@ -421,14 +421,16 @@ defmodule Tuist.Shards do
 
   defp resolve_units(_project, params, "module"), do: params_modules(params)
 
+  # A client that restricts a module to specific suites knows exactly what will run for it, so those
+  # suites are used as given. Modules it says nothing about are still resolved from history: a
+  # restriction usually covers part of a plan, and dropping the rest would hand whole modules to the
+  # catch-all shard.
   defp resolve_units(project, params, "suite") do
-    case Map.get(params, :test_suites) do
-      [_ | _] = suites ->
-        suites
+    declared = Map.get(params, :test_suites) || []
+    declared_modules = MapSet.new(declared, &suite_module/1)
+    undeclared_modules = Enum.reject(params_modules(params), &MapSet.member?(declared_modules, &1))
 
-      _ ->
-        latest_branch_suite_units(project, params, params_modules(params))
-    end
+    declared ++ latest_branch_suite_units(project, params, undeclared_modules)
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []
@@ -452,29 +454,40 @@ defmodule Tuist.Shards do
   defp latest_branch_suite_units(project, params, modules) do
     modules = Enum.uniq(modules)
     branches = suite_inventory_branches(project, params)
-    suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules)
+
+    {units, unresolved} = suite_units(project, branches, modules, :excluded)
+
+    # A run asked for a caller-supplied set of tests executed what it was given, not what the module
+    # holds, so it can't stand in for the module's inventory. A module whose only history is such
+    # runs still gets one: a partial inventory beats none, because what a plan misses lands on the
+    # catch-all shard.
+    {restricted_units, _} =
+      if unresolved == [], do: {[], []}, else: suite_units(project, branches, unresolved, :included)
+
+    Enum.uniq(units ++ restricted_units)
+  end
+
+  # Resolves each module against the preferred branches in order, then falls back to its most recent
+  # CI runs on any branch. The preferred branches can come up empty for reasons that have nothing to
+  # do with the module: a project that only runs tests on pull-request branches has no history on its
+  # default branch, and the build run the branch is read from is written through an async ingestion
+  # buffer, so it is usually still unflushed when the plan is created. Without the fallback every
+  # module resolves no suites, and a plan with nothing to pack collapses to a single catch-all shard
+  # that runs the whole suite serially. Returns the units it resolved and the modules it could not.
+  defp suite_units(project, branches, modules, restricted_runs) do
+    suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules, restricted_runs)
 
     units_by_module =
       Map.new(modules, fn module ->
         {module, Enum.find_value(branches, fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)}
       end)
 
-    # A module with no suite history on the preferred branches falls back to its most recent CI run
-    # on any branch. The preferred branches can come up empty for reasons that have nothing to do
-    # with the module: a project that only runs tests on pull-request branches has no history on its
-    # default branch, and the build run the branch is read from is written through an async
-    # ingestion buffer, so it is usually still unflushed when the plan is created. Without the
-    # fallback every module resolves no suites, and a plan with nothing to pack collapses to a
-    # single catch-all shard that runs the whole suite serially.
-    fallback_units =
-      units_by_module
-      |> Enum.filter(fn {_module, units} -> is_nil(units) end)
-      |> Enum.map(fn {module, _units} -> module end)
-      |> then(&latest_module_suite_units(project, &1))
-
+    without_branch_history = for {module, nil} <- units_by_module, do: module
+    any_branch_units = latest_module_suite_units(project, without_branch_history, restricted_runs)
+    resolved_by_fallback = MapSet.new(any_branch_units, &suite_module/1)
     branch_units = units_by_module |> Map.values() |> Enum.reject(&is_nil/1) |> List.flatten()
 
-    Enum.uniq(branch_units ++ fallback_units)
+    {branch_units ++ any_branch_units, Enum.reject(without_branch_history, &MapSet.member?(resolved_by_fallback, &1))}
   end
 
   defp suite_inventory_branches(project, params) do
@@ -496,10 +509,10 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp latest_branch_module_suite_units(_project, [], _modules), do: %{}
-  defp latest_branch_module_suite_units(_project, _branches, []), do: %{}
+  defp latest_branch_module_suite_units(_project, [], _modules, _restricted_runs), do: %{}
+  defp latest_branch_module_suite_units(_project, _branches, [], _restricted_runs), do: %{}
 
-  defp latest_branch_module_suite_units(project, branches, modules) do
+  defp latest_branch_module_suite_units(project, branches, modules, restricted_runs) do
     query = """
     SELECT branch, module_name, name
     FROM (
@@ -510,7 +523,7 @@ defmodule Tuist.Shards do
       FROM test_suite_runs AS sr
       INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
       INNER JOIN (
-        #{recent_branch_module_runs_query()}
+        #{recent_branch_module_runs_query(restricted_runs)}
       ) AS latest
         ON latest.test_run_id = sr.test_run_id
         AND latest.module_name = mr.name
@@ -537,9 +550,9 @@ defmodule Tuist.Shards do
   # Suite inventory for modules that have no history on any of the preferred branches, taken from
   # each module's most recent CI runs regardless of branch. Suites that exist only on the branch
   # being built still run: they are absent from the plan, and the catch-all shard picks them up.
-  defp latest_module_suite_units(_project, []), do: []
+  defp latest_module_suite_units(_project, [], _restricted_runs), do: []
 
-  defp latest_module_suite_units(project, modules) do
+  defp latest_module_suite_units(project, modules, restricted_runs) do
     query = """
     SELECT name
     FROM (
@@ -547,7 +560,7 @@ defmodule Tuist.Shards do
       FROM test_suite_runs AS sr
       INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
       INNER JOIN (
-        #{recent_module_runs_query()}
+        #{recent_module_runs_query(restricted_runs)}
       ) AS latest
         ON latest.test_run_id = sr.test_run_id
         AND latest.module_name = mr.name
@@ -572,27 +585,27 @@ defmodule Tuist.Shards do
   # Unioning the last few runs restores the module's full inventory, and also covers suites a
   # selective-testing run skipped. The bound keeps a deleted suite from lingering for the whole
   # timing lookback window.
-  defp recent_branch_module_runs_query do
+  defp recent_branch_module_runs_query(restricted_runs) do
     """
     SELECT branch, module_name, test_run_id
     FROM (
-      #{module_runs_by_recency_query("AND module_runs.git_branch IN {branches:Array(String)}")}
+      #{module_runs_by_recency_query("AND module_runs.git_branch IN {branches:Array(String)}", restricted_runs)}
       LIMIT {runs:UInt8} BY branch, module_name
     )
     """
   end
 
-  defp recent_module_runs_query do
+  defp recent_module_runs_query(restricted_runs) do
     """
     SELECT module_name, test_run_id
     FROM (
-      #{module_runs_by_recency_query("")}
+      #{module_runs_by_recency_query("", restricted_runs)}
       LIMIT {runs:UInt8} BY module_name
     )
     """
   end
 
-  defp module_runs_by_recency_query(branch_filter) do
+  defp module_runs_by_recency_query(branch_filter, restricted_runs) do
     """
     SELECT
       module_runs.git_branch AS branch,
@@ -600,6 +613,7 @@ defmodule Tuist.Shards do
       module_runs.test_run_id AS test_run_id,
       max(module_runs.ran_at) AS ran_at
     FROM test_module_runs AS module_runs
+    #{unrestricted_runs_join(restricted_runs)}
     WHERE module_runs.project_id = {project_id:Int64}
       AND module_runs.is_ci = true
       AND module_runs.ran_at >= {cutoff:DateTime64(6)}
@@ -608,6 +622,17 @@ defmodule Tuist.Shards do
       #{branch_filter}
     GROUP BY branch, module_name, test_run_id
     ORDER BY ran_at DESC
+    """
+  end
+
+  defp unrestricted_runs_join(:included), do: ""
+
+  defp unrestricted_runs_join(:excluded) do
+    """
+    INNER JOIN test_runs AS runs
+      ON runs.id = module_runs.test_run_id
+      AND runs.project_id = {project_id:Int64}
+      AND runs.has_explicit_test_selection = false
     """
   end
 

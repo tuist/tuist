@@ -7740,6 +7740,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                has_explicit_test_selection:
+                  description: Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 id:
                   description: Optional client-generated UUID for the test run. If not provided, the server generates one.
                   format: uuid

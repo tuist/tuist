@@ -82,6 +82,10 @@ struct XcodeBuildTestCommandService {
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil
     ) async throws {
+        // Read before Tuist appends the shard's own `-only-testing`: a shard restricts what runs, but
+        // it is a restriction Tuist chose, not one the caller asked for, and the two mean opposite
+        // things when the run is later read back as evidence of what a module contains.
+        let hasExplicitTestSelection = Self.declaresTestSelection(passthroughXcodebuildArguments)
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         let (
             resultBundlePathArgs,
@@ -185,7 +189,8 @@ struct XcodeBuildTestCommandService {
                 shardPlanId: resolvedShardPlanId,
                 shardIndex: shardIndex,
                 scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-                mode: mode
+                mode: mode,
+                hasExplicitTestSelection: hasExplicitTestSelection
             )
 
             let quarantinePass: Bool
@@ -240,7 +245,8 @@ struct XcodeBuildTestCommandService {
             shardPlanId: resolvedShardPlanId,
             shardIndex: shardIndex,
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
-            mode: mode
+            mode: mode,
+            hasExplicitTestSelection: hasExplicitTestSelection
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -368,6 +374,16 @@ struct XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
+    /// Whether the caller restricted the run to tests of its own choosing. xcodebuild accepts both
+    /// `-only-testing ID` and `-only-testing:ID`.
+    static func declaresTestSelection(_ arguments: [String]) -> Bool {
+        arguments.contains { argument in
+            ["-only-testing", "-skip-testing"].contains { option in
+                argument == option || argument.hasPrefix("\(option):")
+            }
+        }
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -377,7 +393,8 @@ extension XcodeBuildTestCommandService {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         scheme: String? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        hasExplicitTestSelection: Bool = false
     ) async {
         guard config.fullHandle != nil else { return }
 
@@ -392,7 +409,8 @@ extension XcodeBuildTestCommandService {
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    hasExplicitTestSelection: hasExplicitTestSelection
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -403,7 +421,8 @@ extension XcodeBuildTestCommandService {
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    hasExplicitTestSelection: hasExplicitTestSelection
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(

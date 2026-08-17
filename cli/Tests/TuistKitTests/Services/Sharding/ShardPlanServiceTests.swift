@@ -625,6 +625,90 @@ struct ShardPlanServiceTests {
         #expect(sentGitBranch.value == "feature/current")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_sendsTheSuitesTheXCTestRunRestrictsModulesTo() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            TestTargetFixture(
+                                blueprintName: "SmokeTests",
+                                onlyTestIdentifiers: ["CartSuite/testScanCart()", "CheckoutSuite"]
+                            ),
+                            TestTargetFixture(blueprintName: "UnrestrictedTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let sentTestSuites = LockedValue<[String]?>(nil)
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                parallelizableModules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                gitBranch: .any
+            )
+            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _ in
+                sentTestSuites.mutate { $0 = testSuites }
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        )
+
+        // A restricted module's suites are declared rather than guessed from history; the module
+        // that restricts nothing is left for the server to resolve.
+        #expect(sentTestSuites.value == ["SmokeTests/CartSuite", "SmokeTests/CheckoutSuite"])
+    }
+
     private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {
         try await fileSystem.makeDirectory(at: testProductsPath)
         try await fileSystem.writeAsPlist(
@@ -658,10 +742,12 @@ private struct TestConfigurationFixture: Encodable {
 private struct TestTargetFixture: Encodable {
     let blueprintName: String
     var parallelizationEnabled: Bool?
+    var onlyTestIdentifiers: [String]?
 
     enum CodingKeys: String, CodingKey {
         case blueprintName = "BlueprintName"
         case parallelizationEnabled = "ParallelizationEnabled"
+        case onlyTestIdentifiers = "OnlyTestIdentifiers"
     }
 }
 

@@ -1112,6 +1112,118 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
     end
 
+    # A run asked for a handful of a module's suites says nothing about what the module contains, so
+    # it can't stand in for the module's inventory. The reported project's default branch runs only
+    # such a job (an eight-suite smoke selection), which is what a branch with no history of its own
+    # would otherwise inherit.
+    test "ignores runs restricted to a caller-supplied selection while unrestricted history exists" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      smoke_suites = ["SmokeCartSuite", "SmokeHomeSuite"]
+      full_suites = smoke_suites ++ ["CheckoutSuite", "OrderTrackingSuite", "SearchSuite"]
+
+      for ran_at <- [-2, -1] do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "main",
+          has_explicit_test_selection: true,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), ran_at, :day),
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 4_000,
+              test_cases: [],
+              test_suites: Enum.map(smoke_suites, &%{name: &1, status: "success", duration: 2_000})
+            }
+          ]
+        )
+      end
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/full",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: Enum.map(full_suites, &%{name: &1, status: "success", duration: 4_000})
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "restricted-history",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/no-history-yet"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(Enum.map(full_suites, &"AppTests/#{&1}"))
+             )
+    end
+
+    # A run that restricts a module to specific suites doesn't have to be guessed at: the client
+    # knows the selection and sends it, and it is the only thing that will run for that module.
+    # Modules the client says nothing about still come from history.
+    test "plans the client's declared suites for the modules that declare them" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 4_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "HistorySuite", status: "success", duration: 2_000},
+              %{name: "AnotherHistorySuite", status: "success", duration: 2_000}
+            ]
+          },
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [%{name: "CoreSuite", status: "success", duration: 2_000}]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "declared-suites",
+        modules: ["AppTests", "CoreTests"],
+        test_suites: ["AppTests/DeclaredSuite"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "main"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(["AppTests/DeclaredSuite", "CoreTests/CoreSuite"])
+             )
+    end
+
     # The reported failure: a UI test module whose suites are spread across the shards that ran
     # them. Every shard of a run reports under one test run, they upload as each shard finishes, and
     # the catch-all shard finishes last, so the newest run is a fraction of the module when the next

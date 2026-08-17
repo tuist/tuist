@@ -138,7 +138,10 @@
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                // `tuist inspect test` analyses a bundle someone else produced; whether its run was
+                // restricted isn't knowable from here.
+                hasExplicitTestSelection: false
             )
 
             AlertController.current.success(
@@ -156,7 +159,8 @@
                 quarantinedTests: [],
                 buildRunId: nil,
                 shardPlanId: nil,
-                shardIndex: nil
+                shardIndex: nil,
+                hasExplicitTestSelection: false
             )
 
             AlertController.current.success(

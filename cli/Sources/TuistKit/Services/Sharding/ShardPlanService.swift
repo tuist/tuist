@@ -130,6 +130,7 @@
             let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
             let modules = xcTestRun.testModules
             let parallelizableModules = xcTestRun.parallelizableTestModules
+            let declaredTestSuites = xcTestRun.declaredTestSuites
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -139,7 +140,8 @@
             // catch-all shard guarantees any suite without history still runs. The client therefore no
             // longer enumerates suites by booting every test bundle on the simulator (slow and flaky on
             // large plans — it could take an hour) and sends only the module universe from the
-            // deterministic `.xctestrun`.
+            // deterministic `.xctestrun`, plus the suites that bundle restricts a module to, which are
+            // known exactly and don't need inferring.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -148,7 +150,7 @@
                 reference: reference,
                 modules: modules,
                 parallelizableModules: parallelizableModules,
-                testSuites: nil,
+                testSuites: declaredTestSuites.isEmpty ? nil : declaredTestSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

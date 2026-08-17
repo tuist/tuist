@@ -15892,6 +15892,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/has_explicit_test_selection`.
+                    public var has_explicit_test_selection: Swift.Bool?
                     /// Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
@@ -16437,6 +16441,7 @@ public enum Operations {
                     ///   - git_ref: The git reference.
                     ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - has_explicit_test_selection: Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
                     ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
@@ -16460,6 +16465,7 @@ public enum Operations {
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        has_explicit_test_selection: Swift.Bool? = nil,
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
@@ -16483,6 +16489,7 @@ public enum Operations {
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_build_id = gradle_build_id
+                        self.has_explicit_test_selection = has_explicit_test_selection
                         self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
@@ -16507,6 +16514,7 @@ public enum Operations {
                         case git_ref
                         case git_remote_url_origin
                         case gradle_build_id
+                        case has_explicit_test_selection
                         case id
                         case is_ci
                         case macos_version

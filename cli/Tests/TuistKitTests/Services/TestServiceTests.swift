@@ -172,7 +172,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -4255,7 +4256,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
-                    shardIndex: .any
+                    shardIndex: .any,
+                    hasExplicitTestSelection: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -5360,7 +5362,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5405,7 +5408,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciHost: .any,
                 ciProvider: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }

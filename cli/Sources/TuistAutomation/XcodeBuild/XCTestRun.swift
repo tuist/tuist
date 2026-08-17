@@ -38,6 +38,22 @@ public struct XCTestRun: Decodable, Equatable {
             .map(\.blueprintName)
     }
 
+    /// The suites the built products restrict a module to, as `Module/Suite`. A test plan that
+    /// selects specific tests bakes the selection into the bundle, so what will run is known exactly
+    /// and doesn't have to be inferred from what previous runs happened to execute. Modules that
+    /// restrict nothing contribute no entries and are left to be resolved from history.
+    public var declaredTestSuites: [String] {
+        let suites = testConfigurations
+            .flatMap { $0.testTargets ?? [] }
+            .flatMap { target in
+                (target.onlyTestIdentifiers ?? []).map { identifier in
+                    let suite = identifier.split(separator: "/").first.map(String.init) ?? identifier
+                    return "\(target.blueprintName)/\(suite)"
+                }
+            }
+        return Set(suites).sorted()
+    }
+
     /// Modules xcodebuild will run with test parallelization on. A module enabled in any
     /// configuration counts, since that is enough for its suites to overlap in the run.
     public var parallelizableTestModules: [String] {

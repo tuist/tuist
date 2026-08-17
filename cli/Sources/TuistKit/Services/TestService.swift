@@ -738,7 +738,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
-            mode: mode
+            mode: mode,
+            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -875,7 +876,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             scheme: schemeName,
-            mode: mode
+            mode: mode,
+            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1863,7 +1865,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action,
                 scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
-                mode: mode
+                mode: mode,
+                hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
             )
             throw error
         }
@@ -1886,7 +1889,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action,
             scheme: scheme.name,
             quarantinedTests: quarantinedTests,
-            mode: mode
+            mode: mode,
+            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
         )
     }
 
@@ -1954,7 +1958,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        hasExplicitTestSelection: Bool = false
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -1970,7 +1975,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    hasExplicitTestSelection: hasExplicitTestSelection
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -1981,7 +1987,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
-                    shardIndex: shardIndex
+                    shardIndex: shardIndex,
+                    hasExplicitTestSelection: hasExplicitTestSelection
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2083,7 +2090,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
-            shardIndex: nil
+            shardIndex: nil,
+            // Everything selective testing skipped: the run carries no modules, so it never reaches
+            // the suite inventory either way.
+            hasExplicitTestSelection: false
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

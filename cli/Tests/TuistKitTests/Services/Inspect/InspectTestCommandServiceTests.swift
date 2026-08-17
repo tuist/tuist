@@ -55,7 +55,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -96,7 +97,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }
@@ -134,7 +136,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }
@@ -175,7 +178,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }
@@ -242,7 +246,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }
@@ -273,7 +278,8 @@ struct InspectTestCommandServiceTests {
                 quarantinedTests: .any,
                 buildRunId: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -300,7 +306,8 @@ struct InspectTestCommandServiceTests {
                 quarantinedTests: .any,
                 buildRunId: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
         verify(uploadResultBundleService)
@@ -309,7 +316,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(0)
     }
@@ -347,7 +355,8 @@ struct InspectTestCommandServiceTests {
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
-                shardIndex: .any
+                shardIndex: .any,
+                hasExplicitTestSelection: .any
             )
             .called(1)
     }
