@@ -1,29 +1,28 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
-import Pulse
 import Testing
 
 @testable import TuistLogging
 
 struct ApplicationLogStoreTests {
-    @Test func plain_text_report_contains_recent_persistent_logs() async throws {
-        let store = try makeStore()
-        defer { try? store.destroy() }
+    @Test(.inTemporaryDirectory)
+    @MainActor
+    func plain_text_report_contains_recent_persistent_logs() async throws {
+        let logsDirectory = try temporaryLogsDirectory()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
-        let subject = ApplicationLogStore()
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
+        var handler = try subject.makeFileLogHandler(generatedAt: date)
+        handler.logLevel = .debug
+        let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
 
-        store.storeMessage(
-            createdAt: date,
-            label: "dev.tuist.app",
-            level: .notice,
-            message: "authentication refresh succeeded",
-            metadata: ["attempt": .string("1")],
-            file: "AuthenticationService.swift",
-            function: "refresh()",
-            line: 42
+        logger.notice(
+            "authentication refresh succeeded",
+            metadata: ["attempt": "1"]
         )
+        _ = try handler.contents()
 
         let report = try await subject.plainTextReport(
-            store: store,
             appVersion: "1.2.3",
             appBuild: "456",
             operatingSystemVersion: "test operating system",
@@ -32,32 +31,64 @@ struct ApplicationLogStoreTests {
 
         #expect(report.contains("Tuist application logs"))
         #expect(report.contains("App version: 1.2.3 (456)"))
-        #expect(report.contains("notice | dev.tuist.app | authentication refresh succeeded"))
-        #expect(report.contains("metadata=attempt=1"))
-        #expect(report.contains("source=AuthenticationService.swift:42"))
+        #expect(report.contains("[notice]"))
+        #expect(report.contains("authentication refresh succeeded"))
+        #expect(report.contains("attempt"))
     }
 
-    @Test func sanitizer_redacts_authentication_values() throws {
-        let subject = ApplicationLogStore()
-        let event = LoggerStore.Event.messageStored(
-            .init(
-                createdAt: Date(),
-                label: "dev.tuist.app",
-                level: .error,
-                message: "authorization=secret bearer another-secret",
-                metadata: ["refresh_token": "credential", "request": "safe"],
-                file: "Test.swift",
-                function: "test()",
-                line: 1
-            )
+    @Test(.inTemporaryDirectory)
+    @MainActor
+    func sensitive_values_are_redacted_before_they_are_stored() throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
+        var handler = try subject.makeFileLogHandler()
+        handler.logLevel = .debug
+        let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
+
+        logger.error(
+            "authorization=secret bearer another-secret",
+            metadata: ["refresh_token": "credential", "request": "safe"]
         )
+        let contents = try handler.contents()
 
-        let sanitizedEvent = subject.sanitized(event)
-        let message = try #require(sanitizedEvent.message)
+        #expect(!contents.contains("authorization=secret"))
+        #expect(!contents.contains("another-secret"))
+        #expect(!contents.contains("credential"))
+        #expect(contents.contains("authorization=[redacted]"))
+        #expect(contents.contains("bearer [redacted]"))
+        #expect(contents.contains("refresh_token"))
+        #expect(contents.contains("request"))
+        #expect(contents.contains("safe"))
+    }
 
-        #expect(message.message == "authorization=[redacted] bearer [redacted]")
-        #expect(message.metadata?["refresh_token"] == "[redacted]")
-        #expect(message.metadata?["request"] == "safe")
+    @Test(.inTemporaryDirectory)
+    @MainActor
+    func only_the_two_most_recent_launches_are_retained() throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let oldSessionURL = try makeSessionFile(
+            named: "session-old.txt",
+            contents: "old",
+            modificationDate: date,
+            in: logsDirectory
+        )
+        let recentSessionURL = try makeSessionFile(
+            named: "session-recent.txt",
+            contents: "recent",
+            modificationDate: date.addingTimeInterval(1),
+            in: logsDirectory
+        )
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
+
+        _ = try subject.makeFileLogHandler(generatedAt: date.addingTimeInterval(2))
+
+        let retainedFiles = try FileManager.default.contentsOfDirectory(
+            at: logsDirectory,
+            includingPropertiesForKeys: nil
+        )
+        #expect(retainedFiles.count == 2)
+        #expect(!FileManager.default.fileExists(atPath: oldSessionURL.path))
+        #expect(FileManager.default.fileExists(atPath: recentSessionURL.path))
     }
 
     @Test func current_can_be_overridden_for_a_task() async throws {
@@ -73,8 +104,10 @@ struct ApplicationLogStoreTests {
         #expect(exportedURL == expectedURL)
     }
 
-    @Test func concurrent_exports_use_distinct_files() async throws {
-        let subject = ApplicationLogStore()
+    @Test(.inTemporaryDirectory)
+    func concurrent_exports_use_distinct_files() async throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
         let exportedURLs = try await withThrowingTaskGroup(of: URL.self) { group in
             for _ in 0 ..< 2 {
                 group.addTask {
@@ -93,14 +126,24 @@ struct ApplicationLogStoreTests {
         #expect(Set(exportedURLs).count == 2)
     }
 
-    private func makeStore() throws -> LoggerStore {
-        let storeURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        return try LoggerStore(
-            storeURL: storeURL,
-            options: [.create, .sweep, .synchronous],
-            configuration: .init(sizeLimit: 1_000_000)
+    private func temporaryLogsDirectory() throws -> URL {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        return URL(fileURLWithPath: temporaryDirectory.pathString, isDirectory: true)
+    }
+
+    private func makeSessionFile(
+        named name: String,
+        contents: String,
+        modificationDate: Date,
+        in directory: URL
+    ) throws -> URL {
+        let fileURL = directory.appendingPathComponent(name)
+        try contents.write(to: fileURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: modificationDate],
+            ofItemAtPath: fileURL.path
         )
+        return fileURL
     }
 }
 
@@ -111,12 +154,5 @@ private struct ApplicationLogStoreStub: ApplicationLogStoring {
 
     func plainTextExport() async throws -> URL {
         exportURL
-    }
-}
-
-extension LoggerStore.Event {
-    fileprivate var message: LoggerStore.Event.MessageCreated? {
-        guard case let .messageStored(message) = self else { return nil }
-        return message
     }
 }

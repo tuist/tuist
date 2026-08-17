@@ -1,5 +1,5 @@
 {
-  "originHash" : "e3cdc51b8052ab4392e4cc2aec03c99f41798e6fb18db3d657c333bcbe68ab1a",
+  "originHash" : "16c29ce833f01572bc6afd554ec70177e2bd993c456ced7d61924a7705268d9f",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -342,15 +342,6 @@
       }
     },
     {
-      "identity" : "kean.pulse",
-      "kind" : "registry",
-      "location" : "",
-      "originalLocation" : "https://github.com/kean/Pulse",
-      "state" : {
-        "version" : "5.2.3"
-      }
-    },
-    {
       "identity" : "kishikawakatsumi.KeychainAccess",
       "kind" : "registry",
       "location" : "",
@@ -525,15 +516,6 @@
       "originalLocation" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
         "version" : "1.7.0"
-      }
-    },
-    {
-      "identity" : "pulseloghandler",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kean/PulseLogHandler",
-      "state" : {
-        "revision" : "477e9ef76615f0b76b43bb502af432fe6750b704",
-        "version" : "5.1.0"
       }
     },
     {

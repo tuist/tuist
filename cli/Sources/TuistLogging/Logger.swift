@@ -51,19 +51,21 @@ public struct LoggingConfig {
 
 /// A simple cross-platform file log handler that writes to a file.
 public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
-    private let fileHandle: FileHandle
+    private let storage: SimpleFileLogStorage
     private let label: String
-    private let lock = NSLock()
+    private let lineTransformer: @Sendable (String) -> String
     public var metadata: Logger.Metadata = [:]
     public var logLevel: Logger.Level = .info
 
-    public init(label: String, fileURL: URL) throws {
+    public init(
+        label: String,
+        fileURL: URL,
+        maximumFileSize: UInt64? = nil,
+        lineTransformer: @escaping @Sendable (String) -> String = { $0 }
+    ) throws {
         self.label = label
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
-        }
-        fileHandle = try FileHandle(forWritingTo: fileURL)
-        fileHandle.seekToEndOfFile()
+        storage = try SimpleFileLogStorage(fileURL: fileURL, maximumFileSize: maximumFileSize)
+        self.lineTransformer = lineTransformer
     }
 
     public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
@@ -83,12 +85,62 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
         let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
-        let logMessage = "[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n"
+        let logMessage = lineTransformer("[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n")
         if let data = logMessage.data(using: .utf8) {
-            lock.lock()
-            defer { lock.unlock() }
-            fileHandle.write(data)
+            storage.write(data)
         }
+    }
+
+    var fileURL: URL {
+        storage.fileURL
+    }
+
+    func contents() throws -> String {
+        try storage.contents()
+    }
+}
+
+private final class SimpleFileLogStorage: @unchecked Sendable {
+    let fileURL: URL
+
+    private let fileHandle: FileHandle
+    private let lock = NSLock()
+    private let maximumFileSize: UInt64?
+    private var currentSize: UInt64
+
+    init(fileURL: URL, maximumFileSize: UInt64?) throws {
+        self.fileURL = fileURL
+        self.maximumFileSize = maximumFileSize
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        }
+        fileHandle = try FileHandle(forWritingTo: fileURL)
+        currentSize = (try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?
+            .uint64Value ?? 0
+        try fileHandle.seekToEnd()
+    }
+
+    func write(_ data: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        do {
+            if let maximumFileSize, currentSize + UInt64(data.count) > maximumFileSize {
+                try fileHandle.truncate(atOffset: 0)
+                try fileHandle.seek(toOffset: 0)
+                currentSize = 0
+            }
+            try fileHandle.write(contentsOf: data)
+            currentSize += UInt64(data.count)
+        } catch {}
+    }
+
+    func contents() throws -> String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        try fileHandle.synchronize()
+        return try String(contentsOf: fileURL, encoding: .utf8)
     }
 }
 

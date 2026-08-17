@@ -15,6 +15,7 @@ import TuistServer
         private let updaterController: SPUStandardUpdaterController
 
         init() {
+            ApplicationLogStore.current.bootstrap()
             updaterController = SPUStandardUpdaterController(
                 startingUpdater: true,
                 updaterDelegate: nil,

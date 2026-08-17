@@ -293,7 +293,8 @@ let project = Project(
             sources: ["Tests/TuistApplicationLoggingTests/**"],
             dependencies: [
                 .project(target: "TuistLogging", path: "../"),
-                .external(name: "Pulse"),
+                .external(name: "FileSystem"),
+                .external(name: "FileSystemTesting"),
             ]
         ),
     ],
