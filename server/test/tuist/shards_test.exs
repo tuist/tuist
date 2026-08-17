@@ -24,6 +24,12 @@ defmodule Tuist.ShardsTest do
     |> Map.new()
   end
 
+  defp planned_targets(result) do
+    result.shard_assignments
+    |> Enum.flat_map(fn assignment -> assignment["test_targets"] end)
+    |> MapSet.new()
+  end
+
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
@@ -1104,6 +1110,157 @@ defmodule Tuist.ShardsTest do
         |> MapSet.new()
 
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
+    end
+
+    # The reported failure: a UI test module whose suites are spread across the shards that ran
+    # them. Every shard of a run reports under one test run, they upload as each shard finishes, and
+    # the catch-all shard finishes last, so the newest run is a fraction of the module when the next
+    # plan is created. Reading only that run planned the fraction and left the rest to the catch-all
+    # shard, which then ran them all serially.
+    test "plans every suite of a sharded module while the newest run is still being ingested" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      branch = "feature/ui-tests"
+      previous_run_id = UUIDv7.generate()
+      previous_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :hour)
+      newest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :minute)
+
+      previous_run_shards = [
+        ["CoreFlowFoodStoreCSESuite"],
+        ["CoreFlowFoodStoreSuite", "StoreWallA11ySuite"],
+        ["CheckoutA11ySuite", "OrderTrackingA11ySuite"],
+        ["CartA11ySuite", "StoreA11ySuite", "HomeA11ySuite", "MealVoucherSuite", "RatingsSuite"]
+      ]
+
+      for {suites, shard_index} <- Enum.with_index(previous_run_shards) do
+        RunsFixtures.test_fixture(
+          id: previous_run_id,
+          project_id: project.id,
+          is_ci: true,
+          git_branch: branch,
+          ran_at: previous_ran_at,
+          shard_index: shard_index,
+          test_modules: [
+            %{
+              name: "UITests",
+              status: "success",
+              duration: 60_000,
+              test_cases: [],
+              test_suites: Enum.map(suites, &%{name: &1, status: "success", duration: 20_000})
+            }
+          ]
+        )
+      end
+
+      # The run in flight: shard 0 has uploaded, the shards holding everything else have not.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: branch,
+        ran_at: newest_ran_at,
+        shard_index: 0,
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 20_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CoreFlowFoodStoreCSESuite", status: "success", duration: 20_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "sharded-partial-ingestion",
+        modules: ["UITests"],
+        granularity: "suite",
+        shard_total: 4,
+        git_branch: branch
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(Enum.map(List.flatten(previous_run_shards), &"UITests/#{&1}"))
+             )
+
+      # Nothing is left over for the catch-all shard to absorb, which is what made the last shard
+      # run for 34 minutes while the others finished in three.
+      catch_all = Enum.find(result.shard_assignments, &(&1["index"] == 3))
+      assert length(catch_all["test_targets"]) < 5
+    end
+
+    # The other half of the reported failure: the branch under test runs the full UI suite while the
+    # default branch runs a smaller nightly job. The plan links a build run that the async ingestion
+    # buffer has not made readable yet, so the branch can only come from the parameter the CLI sends.
+    # Without it the plan is the nightly's inventory and everything else falls to the catch-all shard.
+    test "plans the branch's suites when the linked build run is not readable yet" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      branch = "feature/ui-tests"
+      nightly_suites = ["CoreFlowFoodStoreCSESuite", "CartA11ySuite"]
+      branch_suites = nightly_suites ++ ["MealVoucherSuite", "RatingsSuite", "HomeAdsSuite"]
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 40_000,
+            test_cases: [],
+            test_suites: Enum.map(nightly_suites, &%{name: &1, status: "success", duration: 20_000})
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: branch,
+        test_modules: [
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 100_000,
+            test_cases: [],
+            test_suites: Enum.map(branch_suites, &%{name: &1, status: "success", duration: 20_000})
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      base_params = %{
+        modules: ["UITests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: Ecto.UUID.generate()
+      }
+
+      unreadable_build_run =
+        Shards.create_shard_plan(project, Map.put(base_params, :reference, "unreadable-build-run"))
+
+      assert MapSet.equal?(
+               planned_targets(unreadable_build_run),
+               MapSet.new(Enum.map(nightly_suites, &"UITests/#{&1}"))
+             )
+
+      with_git_branch =
+        Shards.create_shard_plan(
+          project,
+          base_params |> Map.put(:reference, "git-branch-sent") |> Map.put(:git_branch, branch)
+        )
+
+      assert MapSet.equal?(
+               planned_targets(with_git_branch),
+               MapSet.new(Enum.map(branch_suites, &"UITests/#{&1}"))
+             )
     end
 
     test "unions the branch suite inventory across recent runs" do
