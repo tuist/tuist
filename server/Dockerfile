@@ -139,7 +139,6 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 FROM deps-builder AS builder
 
 COPY server/priv priv
-COPY kura/ops/helm/kura/hooks/tuist.lua priv/kura/hooks/tuist.lua
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native

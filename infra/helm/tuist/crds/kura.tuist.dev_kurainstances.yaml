@@ -194,8 +194,6 @@ spec:
                   items:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
-                extensionScript:
-                  type: string
             status:
               type: object
               properties:

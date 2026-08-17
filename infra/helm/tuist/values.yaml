@@ -200,11 +200,6 @@ kuraRuntime:
     labels: {}
     nodeSelector: {}
     tolerations: []
-    # No longer read by Kura, which authorizes natively. Still emitted so a
-    # release that predates that keeps authorizing; remove this field, the
-    # controller's handling of it, and the CRD property together once every
-    # instance runs a release that reads KURA_AUTH_TUIST_URL.
-    extensionScript: ""
 
 codebaseSearch:
   enabled: false

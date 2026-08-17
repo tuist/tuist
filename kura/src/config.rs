@@ -80,10 +80,6 @@ const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
 const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -1357,11 +1353,9 @@ impl Config {
             ));
         }
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         // Usage reporting and authorization address the same server, so a node
@@ -1372,7 +1366,6 @@ impl Config {
         let has_credentials =
             control_plane_client_id.is_some() && control_plane_client_secret.is_some();
         let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
             .or_else(|| {
                 has_credentials
                     .then(|| lookup(KURA_AUTH_TUIST_URL))
