@@ -3180,18 +3180,37 @@ impl Proxy {
                 }
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                // Whatever the snapshot's state, answer from the per-key lookup
-                // when it is not Ready rather than declining. Declining looks
-                // safe and is not: the proxy and the build start together on CI,
-                // so the FIRST build's gets land while the snapshot is still
-                // fetching, and that is precisely the cold, freshly-promoted
-                // cache volume where an inherited association is most likely to
-                // be hollow. A per-key `get_action` is authoritative with or
-                // without a snapshot; the snapshot only makes it free. So the
-                // startup window costs round trips, which is what
-                // `TUIST_CAS_PREFETCH=0` already pays by design, instead of
-                // costing the exact build failure this check exists to prevent.
+                // A per-key `GetActionResult` is authoritative with or without a
+                // snapshot — the snapshot only makes the answer free — but this
+                // runs on the build engine's serial task-setup path, so paying
+                // one per served hit is only affordable while it is TRANSIENT.
+                // The two no-snapshot states are not the same length:
+                //
+                // `Fetching` lasts seconds and is exactly the window that must
+                // be covered. The proxy and the build start together on CI, so
+                // the first build's gets land mid-fetch, on the cold freshly
+                // promoted cache volume where an inherited association is most
+                // likely to be hollow. Declining there would leave the original
+                // failure fully reachable.
+                //
+                // Anything else is durable: an hour for a server with no
+                // snapshot support, and forever under `TUIST_CAS_PREFETCH=0`,
+                // where `ensure_snapshot` returns without even registering the
+                // instance. A round trip per served hit for that long would undo
+                // the reason a local hit is worth having. Decline instead — the
+                // hole that leaves is bounded to deployments with no snapshot
+                // support, while the poisoning this guards against arrives on
+                // the account cache volume, a runner feature backed by a kura
+                // that serves snapshots.
                 let snapshot = self.snapshot_ready(&instance);
+                if snapshot.is_none()
+                    && !matches!(
+                        self.snapshots.lock().unwrap().get(&instance),
+                        Some(SnapshotState::Fetching)
+                    )
+                {
+                    return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
+                }
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
                     self.resolve(
                         &remote,
@@ -4665,6 +4684,73 @@ mod tests {
              withholds the hit, and every one of its keys would miss"
         );
         assert_eq!(body, b"uploads disabled");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A per-key lookup is authoritative with or without a snapshot, but it is a
+    /// network round trip on the build engine's serial task-setup path, so it is
+    /// only affordable while the absence is TRANSIENT.
+    ///
+    /// `Fetching` is seconds and must be covered: the proxy and the build start
+    /// together on CI, so the first build's gets land mid-fetch. `Absent` is an
+    /// hour for a server with no snapshot support, and `TUIST_CAS_PREFETCH=0`
+    /// never registers the instance at all — paying a round trip per served hit
+    /// for that long would undo the reason a local hit is worth having, which is
+    /// a worse outcome than the hole declining leaves.
+    #[test]
+    fn a_durably_snapshotless_instance_is_declined_rather_than_looked_up_per_key() {
+        use crate::proxy_proto::{read_response, write_request, PROTOCOL_VERSION};
+
+        let dir = std::env::temp_dir().join(format!("tuist-noprefetch-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        // What a server with no snapshot support leaves behind. Seeded directly
+        // rather than through the environment: `TUIST_CAS_PREFETCH` is process
+        // global and cargo runs these as threads, so setting it would race every
+        // other test rather than fail honestly.
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Absent {
+                checked: Instant::now(),
+                retry_after: Duration::from_secs(3600),
+            },
+        );
+
+        let (mut client, server) = UnixStream::pair().expect("socketpair");
+        write_request(
+            &mut client,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_BACKED,
+                cas_path: "/cas".into(),
+                instance: "tuist/writer".into(),
+                payload: b"some-action-key".to_vec(),
+            },
+        )
+        .expect("send");
+        proxy.handle(server).expect("handle");
+        let (status, body) = read_response(&mut client).expect("recv");
+
+        assert_eq!(status, STATUS_ERROR);
+        assert_eq!(
+            body, b"no snapshot",
+            "declined for want of a snapshot, not answered from a per-key round trip"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
