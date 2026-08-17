@@ -415,6 +415,35 @@ struct ManifestTests {
     }
 
     @Test
+    func dumpingASubdirectoryOfAPackageDoesNotStandInForTheEnclosingPackage() async throws {
+        try await withTemporaryDirectory { directory in
+            // Root resolution runs through the same dump and defaults to the working
+            // directory, so the walk-up let a subdirectory stand in for its own package.
+            // It never carried a run to completion (`originHash` reads the manifest at that
+            // same directory a step later, and fails), so what the gate removes is a dump of
+            // one package announced as another, not a working invocation.
+            try await writeMinimalPackageManifest(at: directory, name: "Root")
+            let subdirectory = directory.appendingPathComponent("Sources/Root")
+            try await fileSystem.makeDirectory(
+                at: subdirectory.absolutePath, options: [.createTargetParentDirectories])
+
+            do {
+                let manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: subdirectory, disableSandbox: true
+                )
+                Issue.record(
+                    """
+                    expected the dump to fail, loaded \
+                    \(ManifestParser.packageName(manifest) ?? "an unnamed package") instead
+                    """
+                )
+            } catch {
+                #expect("\(error)" == "no Package.swift in \(subdirectory.path)")
+            }
+        }
+    }
+
+    @Test
     func localPackageManifestFailureNamesWhereTheDeclaredPathResolvesTo() async throws {
         try await withTemporaryDirectory { directory in
             let rootPackageDir = directory.appendingPathComponent("Root")
