@@ -158,18 +158,28 @@ defmodule TuistWeb.RunnersController do
   # current HEAD points at. Same SA-token + server-stamped account-label binding
   # as report_volume_head, so a runner can only mint an upload URL under the
   # account it actually ran.
+  #
+  # Minting also PRE-FLIGHTS the fast-forward the upload leads to: a runner that
+  # sends the base generation it built on gets a 409 here, before transferring
+  # the image, when that base has already been advanced past. The upload blocks
+  # the VM halt and the host slot's reclaim, so a promote that is certain to lose
+  # is worth not paying for.
   def volume_head_upload_url(conn, params) do
     digest = Map.get(params, "tree_digest", "")
 
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.volume_master_upload_url(account_id, digest) do
-        {:ok, upload_url} ->
-          json(conn, %{upload_url: upload_url})
+      if doomed_fast_forward?(account_id, params) do
+        conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
+      else
+        case Runners.volume_master_upload_url(account_id, digest) do
+          {:ok, upload_url} ->
+            json(conn, %{upload_url: upload_url})
 
-        :error ->
-          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+          :error ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+        end
       end
     else
       {:error, :missing_bearer} ->
@@ -177,6 +187,23 @@ defmodule TuistWeb.RunnersController do
 
       _ ->
         conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+    end
+  end
+
+  # True when the promote this mint would serve is already certain to be rejected
+  # because its base generation has been advanced past. Advisory: it may only
+  # skip doomed uploads, never authorize a promote — report_volume_head's
+  # compare-and-swap is what decides the HEAD, and another host can still win
+  # between this check and that bump.
+  #
+  # An absent base_generation disables the pre-check rather than defaulting to 0
+  # the way the bump does: a runner image predating this pre-flight sends no base
+  # here, and must keep its upload-then-arbitrate path instead of being told its
+  # cold-job promote is stale.
+  defp doomed_fast_forward?(account_id, params) do
+    case Map.fetch(params, "base_generation") do
+      {:ok, value} -> not Runners.fast_forward_viable?(account_id, parse_base_generation(value))
+      :error -> false
     end
   end
 

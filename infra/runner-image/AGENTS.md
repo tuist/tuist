@@ -115,13 +115,22 @@ added to catch that failed on `admin`'s unwritable cache instead.
   captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
   and a transport error into one failure) and relays the outcome into the
   `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. The host's `Finalize` installs the branch as the account's local
-  master (a whole-image replace) ONLY on `accepted` — so the local master and the
-  HEAD advance together. A `conflict` (a stale base another host advanced past) or
-  an `error` (upload/network/control-plane failure — kept distinct so an outage
-  is not mistaken for cross-host contention) discards the branch and lets
-  convergence re-warm it. A rejected promote still uploaded its object, so the
-  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  or `error`. Most promotes lose that race, and the upload blocks the VM halt and
+  the host's slot, so the guest sends `base_generation` when MINTING the upload
+  URL too and the server 409s there — pre-empting the transfer for a promote that
+  cannot win. That pre-check may only ever skip doomed work: it is racy by
+  construction (another host can win during the upload), so the bump's
+  compare-and-swap stays the authority, an absent `base_generation` disables it
+  for older runner images, and any other failure falls back to
+  upload-then-arbitrate. The host's `Finalize` installs the branch as the
+  account's local master (a whole-image replace) ONLY on `accepted` — so the local
+  master and the HEAD advance together. A `conflict` (a stale base another host
+  advanced past) or an `error` (upload/network/control-plane failure — kept
+  distinct so an outage is not mistaken for cross-host contention) discards the
+  branch and lets convergence re-warm it. A rejected promote that got as far as
+  uploading leaves an object no HEAD points at, so the server records it as an
+  orphan and reclaims it after the URL-TTL grace; a pre-empted one never wrote
+  anything to reclaim. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
