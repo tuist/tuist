@@ -46,6 +46,17 @@ register_toolchains("@default_rust_toolchains//:all")
 # rules_rs already provisions this repo; re-importing its extension only adds it to our repo mapping,
 # it does not create a second copy.
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+
+# Every Rust target rules_rs generates defaults its `macos_sdkroot` to @macos_sdk//sysroot, which
+# the @llvm module unpacks from a Command Line Tools .pkg fetched from Apple's software update CDN.
+# Apple retires those URLs (the pinned one now 403s) and the archived fallback is best-effort, so
+# macOS analysis fails outright on a cold repository cache. Our macOS builds use the host Xcode
+# toolchain for the -sys crates' C/C++, so the patch drops that attribute back to empty and lets
+# rustc's linker resolve the same SDK the cc toolchain already targets.
+rules_rust.patch(
+    patches = ["//bazel/patches:rules_rust_host_macos_sdkroot.patch"],
+    strip = 1,
+)
 use_repo(rules_rust, "rules_rust")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
