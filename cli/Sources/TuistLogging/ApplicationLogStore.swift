@@ -4,19 +4,33 @@
     import Pulse
     import PulseLogHandler
 
-    public enum ApplicationLogStore {
+    public protocol ApplicationLogStoring: Sendable {
+        @MainActor func bootstrap()
+        func plainTextExport() async throws -> URL
+    }
+
+    public final class ApplicationLogStore: ApplicationLogStoring, Sendable {
+        @TaskLocal public static var current: any ApplicationLogStoring = ApplicationLogStore()
+
         private static let maximumStoreSize: Int64 = 10_000_000
         private static let maximumAge: TimeInterval = 3 * 24 * 60 * 60
         private static let maximumSessionCount = 2
         private static let maximumMessageCount = 1000
+        @MainActor private static var hasBootstrapped = false
 
-        public static func bootstrap() {
+        public init() {}
+
+        @MainActor
+        public func bootstrap() {
+            guard !Self.hasBootstrapped else { return }
+            Self.hasBootstrapped = true
+
             var configuration = LoggerStore.shared.configuration
             let existingEventHandler = configuration.willHandleEvent
-            configuration.sizeLimit = maximumStoreSize
-            configuration.maxAge = maximumAge
+            configuration.sizeLimit = Self.maximumStoreSize
+            configuration.maxAge = Self.maximumAge
             configuration.willHandleEvent = { event in
-                existingEventHandler(event).map(sanitized)
+                existingEventHandler(event).map(self.sanitized)
             }
             LoggerStore.shared.configuration = configuration
 
@@ -30,15 +44,16 @@
             }
         }
 
-        public static func plainTextExport() async throws -> URL {
-            let report = try await plainTextReport()
+        public func plainTextExport() async throws -> URL {
+            let generatedAt = Date()
+            let report = try await plainTextReport(generatedAt: generatedAt)
             let fileURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("tuist-logs-\(fileNameDate(Date())).txt")
+                .appendingPathComponent("tuist-logs-\(Self.fileNameDate(generatedAt))-\(UUID().uuidString).txt")
             try report.write(to: fileURL, atomically: true, encoding: .utf8)
             return fileURL
         }
 
-        static func plainTextReport(
+        func plainTextReport(
             store: LoggerStore = .shared,
             appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
                 ?? "Unknown",
@@ -46,7 +61,7 @@
             operatingSystemVersion: String = ProcessInfo.processInfo.operatingSystemVersionString,
             generatedAt: Date = Date()
         ) async throws -> String {
-            let messages = try await recentMessages(store: store)
+            let messages = try await Self.recentMessages(store: store)
             let entries = messages.map { message in
                 let metadata = message.metadata.isEmpty
                     ? ""
@@ -54,17 +69,17 @@
                     .sorted { $0.key < $1.key }
                     .map { "\($0.key)=\($0.value)" }
                     .joined(separator: " ")
-                return "\(format(message.date)) | \(message.level) | \(message.label) | \(message.text)"
+                return "\(Self.format(message.date)) | \(message.level) | \(message.label) | \(message.text)"
                     + metadata
                     + " | source=\(message.file):\(message.line)"
             }
 
             return ([
                 "Tuist application logs",
-                "Generated: \(format(generatedAt))",
+                "Generated: \(Self.format(generatedAt))",
                 "App version: \(appVersion) (\(appBuild))",
                 "Operating system: \(operatingSystemVersion)",
-                "Included sessions: up to \(maximumSessionCount) most recent launches",
+                "Included sessions: up to \(Self.maximumSessionCount) most recent launches",
                 "Sensitive authentication values are redacted.",
                 "",
                 "Entries:",
@@ -72,13 +87,13 @@
                 .joined(separator: "\n")
         }
 
-        static func sanitized(_ event: LoggerStore.Event) -> LoggerStore.Event {
+        func sanitized(_ event: LoggerStore.Event) -> LoggerStore.Event {
             guard case let .messageStored(storedMessage) = event else { return event }
             var message = storedMessage
-            message.message = redacted(message.message)
-            message.metadata = message.metadata?.mapValues(redacted)
+            message.message = Self.redacted(message.message)
+            message.metadata = message.metadata?.mapValues(Self.redacted)
             if var metadata = message.metadata {
-                for key in metadata.keys where isSensitiveMetadataKey(key) {
+                for key in metadata.keys where Self.isSensitiveMetadataKey(key) {
                     metadata[key] = "[redacted]"
                 }
                 message.metadata = metadata

@@ -64,7 +64,7 @@ import TuistServer
     @main
     struct TuistApp: App {
         init() {
-            ApplicationLogStore.bootstrap()
+            ApplicationLogStore.current.bootstrap()
         }
 
         var body: some Scene {

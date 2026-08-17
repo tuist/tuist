@@ -9,6 +9,7 @@ struct ApplicationLogStoreTests {
         let store = try makeStore()
         defer { try? store.destroy() }
         let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let subject = ApplicationLogStore()
 
         store.storeMessage(
             createdAt: date,
@@ -21,7 +22,7 @@ struct ApplicationLogStoreTests {
             line: 42
         )
 
-        let report = try await ApplicationLogStore.plainTextReport(
+        let report = try await subject.plainTextReport(
             store: store,
             appVersion: "1.2.3",
             appBuild: "456",
@@ -37,6 +38,7 @@ struct ApplicationLogStoreTests {
     }
 
     @Test func sanitizer_redacts_authentication_values() throws {
+        let subject = ApplicationLogStore()
         let event = LoggerStore.Event.messageStored(
             .init(
                 createdAt: Date(),
@@ -50,12 +52,45 @@ struct ApplicationLogStoreTests {
             )
         )
 
-        let sanitizedEvent = ApplicationLogStore.sanitized(event)
+        let sanitizedEvent = subject.sanitized(event)
         let message = try #require(sanitizedEvent.message)
 
         #expect(message.message == "authorization=[redacted] bearer [redacted]")
         #expect(message.metadata?["refresh_token"] == "[redacted]")
         #expect(message.metadata?["request"] == "safe")
+    }
+
+    @Test func current_can_be_overridden_for_a_task() async throws {
+        let expectedURL = URL(fileURLWithPath: "/tmp/tuist-logs.txt")
+        let override = ApplicationLogStoreStub(exportURL: expectedURL)
+
+        let exportedURL = try await ApplicationLogStore.$current.withValue(override) {
+            try await Task {
+                try await ApplicationLogStore.current.plainTextExport()
+            }.value
+        }
+
+        #expect(exportedURL == expectedURL)
+    }
+
+    @Test func concurrent_exports_use_distinct_files() async throws {
+        let subject = ApplicationLogStore()
+        let exportedURLs = try await withThrowingTaskGroup(of: URL.self) { group in
+            for _ in 0 ..< 2 {
+                group.addTask {
+                    try await subject.plainTextExport()
+                }
+            }
+
+            return try await group.reduce(into: []) { $0.append($1) }
+        }
+        defer {
+            for exportedURL in exportedURLs {
+                try? FileManager.default.removeItem(at: exportedURL)
+            }
+        }
+
+        #expect(Set(exportedURLs).count == 2)
     }
 
     private func makeStore() throws -> LoggerStore {
@@ -66,6 +101,16 @@ struct ApplicationLogStoreTests {
             options: [.create, .sweep, .synchronous],
             configuration: .init(sizeLimit: 1_000_000)
         )
+    }
+}
+
+private struct ApplicationLogStoreStub: ApplicationLogStoring {
+    let exportURL: URL
+
+    @MainActor func bootstrap() {}
+
+    func plainTextExport() async throws -> URL {
+        exportURL
     }
 }
 

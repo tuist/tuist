@@ -67,7 +67,7 @@ public final class ErrorHandling: ObservableObject {
 
         Task {
             do {
-                let logExportURL = try await ApplicationLogStore.plainTextExport()
+                let logExportURL = try await ApplicationLogStore.current.plainTextExport()
                 currentAlert = ErrorAlert(message: message, logExportURL: logExportURL)
             } catch {
                 Logger.current.error("Failed to prepare application logs for sharing: \(error.localizedDescription)")
