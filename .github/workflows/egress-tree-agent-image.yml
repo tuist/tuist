@@ -65,6 +65,7 @@ jobs:
   # which also keeps fork PRs away from the registry.
   build:
     needs: test
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
