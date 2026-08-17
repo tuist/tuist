@@ -23,7 +23,7 @@ Test sharding follows a two-phase workflow:
 1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
 2. **Test phase:** Each continuous integration runner receives a **shard index** and the exact **shard plan identifier**, then executes that plan's test selection.
 
-With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it uses the latest CI run on the build branch that included that module, falling back to the project's default branch for modules without branch history. This keeps selective testing runs from hiding modules that were skipped in the latest branch run.
+With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it unions the suites of the last few CI runs on the branch being built, falling back to the project's default branch for modules without branch history. Reading several runs rather than the latest one matters because a sharded run uploads one test run per shard as each shard finishes, so the most recent run holds only the fraction of the module that has been ingested so far, and because it keeps selective testing runs from hiding suites that were skipped in the latest branch run.
 
 When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
@@ -76,6 +76,9 @@ tuist xcodebuild test \
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
+
+> [!IMPORTANT] Bind each shard to its own plan
+> A shard reference identifies the CI run, not the build job inside it. When a workflow builds more than one shard plan per run, every plan is created under the same reference and a shard that resolves its plan by reference gets the most recently created one, which may belong to another build job. Pass `--shard-plan-id` (`TUIST_SHARD_PLAN_ID`) from the shard matrix the build job emitted so each shard runs the plan its own build produced. Tuist warns when a shard falls back to reference resolution.
 
 ## Continuous integration {#continuous-integration}
 
@@ -134,6 +137,21 @@ jobs:
             -scheme MyScheme \
             -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
+
+#### Building more than one shard plan per run {#github-actions-matrix-builds}
+
+A job's outputs are shared by every leg of its matrix, so a matrixed build job overwrites `outputs.matrix` leg by leg and `needs.build.outputs.matrix` ends up holding whichever leg finished last. Every shard job then runs that one leg's plan. Give each leg its own shard reference and pass the same value to its shard jobs so they resolve their own plan:
+
+```yaml
+  build:
+    strategy:
+      matrix:
+        variant: [alpha, beta]
+    env:
+      TUIST_SHARD_REFERENCE: ${{ github.run_id }}-${{ matrix.variant }}
+```
+
+Then set `TUIST_SHARD_REFERENCE` to the same expression on the corresponding shard jobs, or spawn the shard jobs from a job that merges the legs' matrices into a single matrix carrying both `shard` and `shard_plan_id`.
 
 ### GitLab CI {#gitlab-ci}
 

@@ -24,6 +24,7 @@ defmodule Tuist.Shards do
   @default_module_duration_ms 30_000
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
+  @suite_inventory_runs 5
   @timing_quantile 0.90
   @min_parallelism_factor 0.5
   @max_parallelism_factor 16.0
@@ -499,83 +500,126 @@ defmodule Tuist.Shards do
   defp latest_branch_module_suite_units(_project, _branches, []), do: %{}
 
   defp latest_branch_module_suite_units(project, branches, modules) do
-    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
-
-    latest_module_runs_query =
-      from(mr in TestModuleRun,
-        where: mr.project_id == ^project.id,
-        where: mr.is_ci == true,
-        where: mr.git_branch in ^branches,
-        where: mr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        where: mr.test_suite_count > 0,
-        group_by: [mr.git_branch, mr.name],
-        select: %{
-          branch: mr.git_branch,
-          module_name: mr.name,
-          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
-        }
-      )
-
-    from(sr in TestSuiteRun,
-      join: mr in TestModuleRun,
-      on: sr.test_module_run_id == mr.id,
-      join: latest in subquery(latest_module_runs_query),
-      on:
-        latest.test_run_id == sr.test_run_id and latest.module_name == mr.name and
-          latest.branch == sr.git_branch,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.git_branch in ^branches,
-      where: sr.ran_at >= ^cutoff,
-      where: mr.name in ^modules,
-      group_by: [latest.branch, latest.module_name, sr.name],
-      select: %{
-        branch: latest.branch,
-        module: latest.module_name,
-        name: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
-      }
+    query = """
+    SELECT branch, module_name, name
+    FROM (
+      SELECT
+        latest.branch AS branch,
+        latest.module_name AS module_name,
+        concat(mr.name, '/', sr.name) AS name
+      FROM test_suite_runs AS sr
+      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+      INNER JOIN (
+        #{recent_branch_module_runs_query()}
+      ) AS latest
+        ON latest.test_run_id = sr.test_run_id
+        AND latest.module_name = mr.name
+        AND latest.branch = sr.git_branch
+      WHERE sr.project_id = {project_id:Int64}
+        AND sr.is_ci = true
+        AND sr.git_branch IN {branches:Array(String)}
+        AND sr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.name IN {modules:Array(String)}
     )
-    |> ClickHouseRepo.all()
-    |> Enum.group_by(fn row -> {row.branch, row.module} end, & &1.name)
+    GROUP BY branch, module_name, name
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, suite_inventory_params(project, modules, branches))
+
+    Enum.group_by(
+      rows,
+      fn [branch, module_name, _name] -> {branch, module_name} end,
+      fn [_branch, _module_name, name] -> name end
+    )
   end
 
   # Suite inventory for modules that have no history on any of the preferred branches, taken from
-  # each module's most recent CI run regardless of branch. Suites that exist only on the branch
+  # each module's most recent CI runs regardless of branch. Suites that exist only on the branch
   # being built still run: they are absent from the plan, and the catch-all shard picks them up.
   defp latest_module_suite_units(_project, []), do: []
 
   defp latest_module_suite_units(project, modules) do
-    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
-
-    latest_module_runs_query =
-      from(mr in TestModuleRun,
-        where: mr.project_id == ^project.id,
-        where: mr.is_ci == true,
-        where: mr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        where: mr.test_suite_count > 0,
-        group_by: mr.name,
-        select: %{
-          module_name: mr.name,
-          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
-        }
-      )
-
-    ClickHouseRepo.all(
-      from(sr in TestSuiteRun,
-        join: mr in TestModuleRun,
-        on: sr.test_module_run_id == mr.id,
-        join: latest in subquery(latest_module_runs_query),
-        on: latest.test_run_id == sr.test_run_id and latest.module_name == mr.name,
-        where: sr.project_id == ^project.id,
-        where: sr.is_ci == true,
-        where: sr.ran_at >= ^cutoff,
-        where: mr.name in ^modules,
-        group_by: [latest.module_name, sr.name],
-        select: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
-      )
+    query = """
+    SELECT name
+    FROM (
+      SELECT concat(mr.name, '/', sr.name) AS name
+      FROM test_suite_runs AS sr
+      INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+      INNER JOIN (
+        #{recent_module_runs_query()}
+      ) AS latest
+        ON latest.test_run_id = sr.test_run_id
+        AND latest.module_name = mr.name
+      WHERE sr.project_id = {project_id:Int64}
+        AND sr.is_ci = true
+        AND sr.ran_at >= {cutoff:DateTime64(6)}
+        AND mr.name IN {modules:Array(String)}
     )
+    GROUP BY name
+    """
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, suite_inventory_params(project, modules))
+
+    Enum.map(rows, fn [name] -> name end)
+  end
+
+  # A module's suites are spread across the test runs of the shards that executed them, and those
+  # runs are uploaded as each shard finishes, and the catch-all shard, which carries every suite the
+  # previous plan didn't know about, finishes last. Reading a single run therefore sees whatever
+  # fraction of the module had been ingested when the plan was created, and the suites missing from
+  # it are exactly the ones that were already unplanned, so they stay unplanned run after run.
+  # Unioning the last few runs restores the module's full inventory, and also covers suites a
+  # selective-testing run skipped. The bound keeps a deleted suite from lingering for the whole
+  # timing lookback window.
+  defp recent_branch_module_runs_query do
+    """
+    SELECT branch, module_name, test_run_id
+    FROM (
+      #{module_runs_by_recency_query("AND module_runs.git_branch IN {branches:Array(String)}")}
+      LIMIT {runs:UInt8} BY branch, module_name
+    )
+    """
+  end
+
+  defp recent_module_runs_query do
+    """
+    SELECT module_name, test_run_id
+    FROM (
+      #{module_runs_by_recency_query("")}
+      LIMIT {runs:UInt8} BY module_name
+    )
+    """
+  end
+
+  defp module_runs_by_recency_query(branch_filter) do
+    """
+    SELECT
+      module_runs.git_branch AS branch,
+      module_runs.name AS module_name,
+      module_runs.test_run_id AS test_run_id,
+      max(module_runs.ran_at) AS ran_at
+    FROM test_module_runs AS module_runs
+    WHERE module_runs.project_id = {project_id:Int64}
+      AND module_runs.is_ci = true
+      AND module_runs.ran_at >= {cutoff:DateTime64(6)}
+      AND module_runs.name IN {modules:Array(String)}
+      AND module_runs.test_suite_count > 0
+      #{branch_filter}
+    GROUP BY branch, module_name, test_run_id
+    ORDER BY ran_at DESC
+    """
+  end
+
+  defp suite_inventory_params(project, modules, branches \\ nil) do
+    params = %{
+      project_id: project.id,
+      cutoff: DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day),
+      modules: modules,
+      runs: @suite_inventory_runs
+    }
+
+    if is_nil(branches), do: params, else: Map.put(params, :branches, branches)
   end
 
   defp blank?(nil), do: true

@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistAutomation
+import TuistGit
 import TuistServer
 @testable import TuistKit
 
@@ -50,7 +51,8 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                gitBranch: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -142,7 +144,8 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                gitBranch: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -288,7 +291,8 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                gitBranch: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -441,9 +445,10 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                gitBranch: .any
             )
-            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _ in
                 capture(testSuites)
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -493,9 +498,10 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                gitBranch: .any
             )
-            .willProduce { _, _, _, _, parallelizableModules, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, parallelizableModules, _, _, _, _, _, _, _, _ in
                 sentParallelizableModules.mutate { $0 = parallelizableModules }
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -533,6 +539,82 @@ struct ShardPlanServiceTests {
         // Only the target xcodebuild will actually parallelize is declared. Whether a module runs its
         // suites concurrently is a property of this invocation, not something the server can infer.
         #expect(sentParallelizableModules.value == ["ParallelTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_sendsTheGitBranchTheTestsAreBuiltFrom() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests"], at: testProductsPath, fileSystem: fileSystem)
+
+        let sentGitBranch = LockedValue<String?>(nil)
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                parallelizableModules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                gitBranch: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, gitBranch in
+                sentGitBranch.mutate { $0 = gitBranch }
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
+
+        let gitController = MockGitControlling()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(
+                GitInfo(ref: nil, branch: "feature/current", sha: "sha", remoteURLOrigin: nil)
+            )
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService,
+            gitController: gitController
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        )
+
+        // The suite inventory is read from this branch's history. Deriving it server-side from the
+        // linked build run doesn't work: the build run is written through an async ingestion buffer
+        // and is usually still unreadable when the plan is created moments later, which silently
+        // falls the inventory back to the project's default branch.
+        #expect(sentGitBranch.value == "feature/current")
     }
 
     private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {

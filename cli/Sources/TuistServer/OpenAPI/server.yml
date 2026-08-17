@@ -1788,6 +1788,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        git_branch:
+          description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
+          type: string
+          x-struct:
+          x-validate:
         gradle_build_id:
           description: The UUID of the associated Gradle build.
           format: uuid
@@ -16416,6 +16421,11 @@ paths:
                 build_run_id:
                   description: The UUID of the associated Xcode build run.
                   format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  description: The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch.
                   type: string
                   x-struct:
                   x-validate:

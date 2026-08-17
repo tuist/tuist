@@ -1106,6 +1106,200 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
     end
 
+    test "unions the branch suite inventory across recent runs" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/sharded",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000},
+              %{name: "CheckoutSuite", status: "success", duration: 1_000},
+              %{name: "HomeSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      # A sharded execution uploads one test run per shard job, and the catch-all shard finishes
+      # last, so moments after a build the newest run holds only a fraction of the module's suites.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/sharded",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "union-branch-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/sharded"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new([
+                 "AppTests/CartSuite",
+                 "AppTests/CheckoutSuite",
+                 "AppTests/HomeSuite"
+               ])
+             )
+    end
+
+    test "unions the any-branch fallback suite inventory across recent runs" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/elsewhere",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000},
+              %{name: "CheckoutSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/elsewhere",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "union-fallback-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/no-history"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new(["AppTests/CartSuite", "AppTests/CheckoutSuite"])
+             )
+    end
+
+    test "prefers the git_branch param over the linked build run's branch" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/current",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CurrentSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "git-branch-param-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "feature/current"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/CurrentSuite"]))
+    end
+
     test "stores build_run_id on the shard plan" do
       project = ProjectsFixtures.project_fixture()
       build_run_id = Ecto.UUID.generate()

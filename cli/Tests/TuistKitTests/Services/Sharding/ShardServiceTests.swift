@@ -67,8 +67,79 @@ struct ShardServiceTests {
             "AppTests/SignupTests",
             "CoreTests/NetworkTests",
         ])
-        #expect(Logger.testingLogHandler
-            .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
+        #expect(
+            Logger.testingLogHandler
+                .collected[.notice, ==] ==
+                "Shard 0 of plan plan-123: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests"
+        )
+    }
+
+    // MARK: - plan binding
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
+    func shard_withoutPlanId_warnsThatTheReferenceCanResolveAnotherBuildJobsPlan() async throws {
+        let (subject, testProductsPath) = try await makeSubjectWithLocalProducts(
+            modules: ["AppTests"],
+            suites: [:]
+        )
+
+        _ = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        #expect(Logger.testingLogHandler.collected[.warning, ==].contains("--shard-plan-id"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
+    func shard_withPlanId_doesNotWarnAboutTheReference() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github, runId: "pinned-run"))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardPlanId: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/unused",
+                download_urls: [],
+                modules: ["AppTests"],
+                shard_plan_id: "plan-pinned",
+                skip: [],
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        _ = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            shardPlanId: "plan-pinned",
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        #expect(!Logger.testingLogHandler.collected[.warning, ==].contains("plan-pinned"))
     }
 
     // MARK: - shard plan ID normalization
@@ -241,7 +312,10 @@ struct ShardServiceTests {
         // No -only-testing; the remainder is selected by skipping everything already assigned.
         #expect(shard.testIdentifiers.isEmpty)
         #expect(shard.skipTestIdentifiers == ["AppTests/LoginTests", "CoreTests/NetworkTests"])
-        #expect(Logger.testingLogHandler.collected[.notice, ==] == "Shard 2: AppTests/LoginTests, CoreTests/NetworkTests")
+        #expect(
+            Logger.testingLogHandler.collected[.notice, ==] ==
+                "Shard 2 of plan plan-123: AppTests/LoginTests, CoreTests/NetworkTests"
+        )
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

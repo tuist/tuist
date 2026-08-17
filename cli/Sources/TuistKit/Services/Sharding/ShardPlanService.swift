@@ -8,6 +8,7 @@
     import TuistCI
     import TuistCore
     import TuistEnvironment
+    import TuistGit
     import TuistLogging
     import TuistServer
     import TuistSupport
@@ -69,6 +70,7 @@
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
+        private let gitController: GitControlling
 
         public init(
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
@@ -82,7 +84,8 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            appleArchiver: AppleArchiving = AppleArchiver()
+            appleArchiver: AppleArchiving = AppleArchiver(),
+            gitController: GitControlling = GitController()
         ) {
             self.createShardPlanService = createShardPlanService
             self.startShardUploadService = startShardUploadService
@@ -94,6 +97,7 @@
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
+            self.gitController = gitController
         }
 
         public func plan(
@@ -148,10 +152,14 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                gitBranch: try await gitBranch()
             )
 
-            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+            Logger.current.notice(
+                "Shard plan \(shardPlan.id) created: \(shardPlan.shard_count) shards",
+                metadata: .section
+            )
 
             if let archivePath {
                 try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
@@ -171,6 +179,15 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// The branch the tests are built from, which the server reads the suite inventory from. The
+        /// server can't derive it from the linked build run: that row is written through an async
+        /// ingestion buffer and is usually still unreadable when the plan is created moments later,
+        /// which silently falls the inventory back to the project's default branch.
+        private func gitBranch() async throws -> String? {
+            let workingDirectory = try await Environment.current.currentWorkingDirectory()
+            return try? await gitController.gitInfo(workingDirectory: workingDirectory).branch
         }
 
         /// Uploads the shard test products split so each shard downloads only what it needs: a single
