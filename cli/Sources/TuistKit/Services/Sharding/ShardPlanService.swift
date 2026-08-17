@@ -17,6 +17,7 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -102,6 +103,7 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -153,7 +155,7 @@
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
                 buildRunId: buildRunId,
-                gitBranch: try await gitBranch()
+                gitBranch: try await gitBranch(projectPath: projectPath)
             )
 
             Logger.current.notice(
@@ -181,13 +183,12 @@
             return shardPlan
         }
 
-        /// The branch the tests are built from, which the server reads the suite inventory from. The
-        /// server can't derive it from the linked build run: that row is written through an async
-        /// ingestion buffer and is usually still unreadable when the plan is created moments later,
-        /// which silently falls the inventory back to the project's default branch.
-        private func gitBranch() async throws -> String? {
-            let workingDirectory = try await Environment.current.currentWorkingDirectory()
-            return try? await gitController.gitInfo(workingDirectory: workingDirectory).branch
+        /// The branch of the checkout the tests were built from, which the server reads the suite
+        /// inventory from. The server can't derive it from the linked build run: that row is written
+        /// through an async ingestion buffer and is usually still unreadable when the plan is created
+        /// moments later, which silently falls the inventory back to the project's default branch.
+        private func gitBranch(projectPath: AbsolutePath) async throws -> String? {
+            try? await gitController.gitInfo(workingDirectory: projectPath).branch
         }
 
         /// Uploads the shard test products split so each shard downloads only what it needs: a single

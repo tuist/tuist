@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistAppleArchiver
 import TuistCI
 import TuistCore
@@ -113,9 +114,10 @@ public struct ShardService: ShardServicing {
         // answer with the most recent. Binding by plan identifier is what ties a shard to the build
         // that produced its test products.
         if shardPlanId == nil {
-            Logger.current.warning(
-                "Shard plan \(shard.shard_plan_id) was resolved from the reference '\(reference)', which every build job in this CI run shares. Pass --shard-plan-id (TUIST_SHARD_PLAN_ID) from the build job's shard matrix to run the plan this job's build created."
-            )
+            AlertController.current.warning(.alert(
+                "Shard plan \(shard.shard_plan_id) was resolved from the reference '\(reference)', which every build job in this CI run shares",
+                takeaway: "Pass \(.command("--shard-plan-id")) (TUIST_SHARD_PLAN_ID) from the build job's shard matrix to run the plan this job's build created"
+            ))
         }
 
         let resolvedTestProductsPath: AbsolutePath

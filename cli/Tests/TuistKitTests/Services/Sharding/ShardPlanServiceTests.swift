@@ -79,6 +79,7 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -226,6 +227,7 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -400,6 +402,7 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -523,6 +526,7 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
             reference: "ref",
             shardGranularity: .suite,
             shardMin: nil,
@@ -578,9 +582,12 @@ struct ShardPlanServiceTests {
                 )
             }
 
+        // The branch must come from the checkout the tests were built from, not from wherever the
+        // command was invoked: both callers can build a project at another path.
+        let projectPath = temporaryDirectory.appending(component: "Checkout")
         let gitController = MockGitControlling()
         given(gitController)
-            .gitInfo(workingDirectory: .any)
+            .gitInfo(workingDirectory: .value(projectPath))
             .willReturn(
                 GitInfo(ref: nil, branch: "feature/current", sha: "sha", remoteURLOrigin: nil)
             )
@@ -597,6 +604,7 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
+            projectPath: projectPath,
             reference: "ref",
             shardGranularity: .suite,
             shardMin: nil,

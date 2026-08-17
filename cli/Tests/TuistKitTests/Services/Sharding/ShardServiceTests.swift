@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistAppleArchiver
 import TuistCI
 import TuistHTTP
@@ -92,7 +93,9 @@ struct ShardServiceTests {
             testProductsArchivePath: nil
         )
 
-        #expect(Logger.testingLogHandler.collected[.warning, ==].contains("--shard-plan-id"))
+        let warnings = AlertController.current.warnings()
+        #expect(warnings.count == 1)
+        #expect(warnings.first?.takeaway?.plain().contains("--shard-plan-id") == true)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
@@ -139,7 +142,7 @@ struct ShardServiceTests {
             testProductsArchivePath: nil
         )
 
-        #expect(!Logger.testingLogHandler.collected[.warning, ==].contains("plan-pinned"))
+        #expect(AlertController.current.warnings().isEmpty)
     }
 
     // MARK: - shard plan ID normalization

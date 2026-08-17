@@ -582,6 +582,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
+                        projectPath: path,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
