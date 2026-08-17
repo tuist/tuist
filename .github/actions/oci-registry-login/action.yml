@@ -1,0 +1,89 @@
+name: OCI registry login
+description: >-
+  Read the Tuist OCI registry credentials from 1Password and authenticate
+  the tooling that pushes and pulls Tart images and OCI artifacts.
+
+# The credentials are read at run time rather than mirrored into GitHub
+# secrets, so 1Password stays the only place they live and rotation is a
+# single `op item edit`. Same shape as `notify-deploy-success.yml`, which
+# reads `op://cache/...` with a vault-scoped service-account token.
+#
+# Reads from the `cache` vault, which is where CI and ops credentials
+# already live (`GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN`,
+# `KAMAL_REGISTRY_PASSWORD`, and the rest), via the service-account token
+# that already exists for it. Deliberately not an environment vault: a
+# token pointed at one would hand every image build read access to that
+# environment's master key, database passwords and object-storage
+# credentials in order to fetch one registry login.
+#
+# The cluster's half of these credentials — the htpasswd files and the
+# HTTP secret — stays in the environment vault, where ESO reads it. The
+# two consumers need different fields, so neither vault holds the
+# other's.
+#
+# Credentials are exported to the job environment rather than returned as
+# outputs, so the push steps that follow need no credential wiring of
+# their own. `TART_REGISTRY_HOSTNAME` scopes them to this registry, which
+# keeps any other registry a job talks to on its own footing.
+
+inputs:
+  host:
+    description: Registry host, e.g. `oci.tuist.dev`
+    required: true
+  op-service-account-token:
+    description: 1Password service-account token, scoped to the vault below
+    required: true
+  vault:
+    description: 1Password vault holding the registry credential item
+    required: true
+  item:
+    description: 1Password item name
+    required: false
+    default: OCI_REGISTRY_CREDENTIALS
+
+runs:
+  using: composite
+  steps:
+    - uses: 1password/install-cli-action@v4
+      with:
+        version: 2.31.1
+
+    - name: Read registry credentials from 1Password
+      shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.op-service-account-token }}
+        REGISTRY_HOST: ${{ inputs.host }}
+        OP_VAULT: ${{ inputs.vault }}
+        OP_ITEM: ${{ inputs.item }}
+      run: |
+        set -euo pipefail
+        for v in OP_SERVICE_ACCOUNT_TOKEN REGISTRY_HOST OP_VAULT; do
+          if [ -z "${!v}" ]; then
+            echo "::error::${v} is empty; the registry credentials are not configured for this workflow"
+            exit 1
+          fi
+        done
+
+        username="$(op read "op://${OP_VAULT}/${OP_ITEM}/username")"
+        password="$(op read "op://${OP_VAULT}/${OP_ITEM}/password")"
+
+        # Mask before anything else can echo them — `set -x` in a later
+        # step, or a tool that prints its own argv, would otherwise put
+        # them in the log verbatim.
+        echo "::add-mask::$username"
+        echo "::add-mask::$password"
+
+        {
+          echo "TART_REGISTRY_HOSTNAME=${REGISTRY_HOST}"
+          echo "TART_REGISTRY_USERNAME=${username}"
+          echo "TART_REGISTRY_PASSWORD=${password}"
+        } >> "$GITHUB_ENV"
+
+        # crane and oras both persist to ~/.docker/config.json, which
+        # Tart reads through the Docker credential-helper protocol. That
+        # sidesteps the macOS keychain, whose "User interaction" prompt
+        # is not reachable from the LaunchAgent these builders run under.
+        printf '%s' "$password" | crane auth login --username "$username" --password-stdin "$REGISTRY_HOST"
+        printf '%s' "$password" | oras login "$REGISTRY_HOST" --username "$username" --password-stdin
+
+        echo "Authenticated against ${REGISTRY_HOST}"

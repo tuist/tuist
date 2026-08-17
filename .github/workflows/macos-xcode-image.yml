@@ -7,15 +7,15 @@ name: macOS + Xcode Image
 # Per-Xcode image model: each invocation produces ONE image with
 # ONE Xcode. The push tag carries the full version with dots →
 # dashes:
-#   xcode_version=26.5     → ghcr.io/tuist/macos-tahoe-xcode:26-5
-#   xcode_version=26.4.1   → ghcr.io/tuist/macos-tahoe-xcode:26-4-1
-#   xcode_version=26.0.1   → ghcr.io/tuist/macos-tahoe-xcode:26-0-1
+#   xcode_version=26.5     → <registry>/macos-tahoe-xcode:26-5
+#   xcode_version=26.4.1   → <registry>/macos-tahoe-xcode:26-4-1
+#   xcode_version=26.0.1   → <registry>/macos-tahoe-xcode:26-0-1
 #
 # Customer-facing fleet selects between these via a runner profile
 # (`runs-on: tuist-macos-xcode-26-5`, etc.) once that wiring lands.
 # For now, the chart pins one image at a time as the default.
 #
-# .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
+# .xip source: pulled from `<registry>/xcode-xips:<version>`,
 # our in-house mirror populated by `mise run xcode-mirror:upload`
 # on a maintainer's Mac (Apple's SRP-only signin + `xcodes`'s
 # per-process cookie storage rule out an in-cluster auto-mirror).
@@ -77,25 +77,35 @@ jobs:
       # pre-requirement to SSH into the builder.
       # If the .xip isn't in the mirror yet, the operator runs
       # the upload task locally and re-triggers this workflow.
+      # The .xip lives on the same registry as the images, so this needs
+      # a credential before the pull. The login is repeated before the
+      # push at the end of the job: `Build image` moves
+      # ~/.docker/config.json aside for Packer's anonymous clone of the
+      # public Cirrus base and restores it afterwards, and repeating the
+      # login costs nothing next to depending on that restore.
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+
       - name: Pull Xcode .xip from mirror
         id: xcode_xip
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
+          REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
           mkdir -p "$XCODE_XIP_DIR"
-          # Explicit oras login here (not at workflow top) because
-          # oras' login persists to ~/.docker/config.json, which
-          # Packer's anonymous-pull dance later toggles back to
-          # anonymous for the public Cirrus base.
-          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
-          if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
+          if ! oras pull "${REGISTRY_HOST}/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
             {
               echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
-              echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
+              echo "${REGISTRY_HOST}/xcode-xips:${XCODE_VERSION}."
               echo ""
-              echo "Populate the mirror from a maintainer Mac:"
+              echo "Populate the mirror from a maintainer Mac, connected"
+              echo "to the tailnet:"
               echo ""
               echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
               echo ""
@@ -172,32 +182,28 @@ jobs:
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      # crane writes creds to ~/.docker/config.json, which Tart's
-      # push reads via the Docker credential-helper protocol.
-      # Bypasses the macOS keychain (which `tart login` would use,
-      # and which gates on a Tahoe-LaunchAgent-incompatible "User
-      # interaction" prompt) and Tart 2.32.1's env-var-only push
-      # path (which hangs with "Error: The request timed out").
-      # `crane` is installed by the builder bootstrap. Logging in
-      # AFTER the Packer build is intentional: this image's base
-      # is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
-      # Packer's clone is anonymous (see the credential-dropping
-      # step above). Auth is needed only for the push that follows.
-      - name: Log in to GHCR (crane)
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+      # Logging in AFTER the Packer build is intentional: this image's
+      # base is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
+      # Packer's clone is anonymous (see the credential-dropping step
+      # above). Auth is needed only for the push that follows.
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
-      - name: Push image to GHCR
+      # 64 MB chunks, where GHCR was pinned at 3 because it rejects
+      # anything from 4 up and rate-limited the resulting request
+      # volume. For a ~50 GB image that is roughly 1,000 requests
+      # instead of ~17,000, which is the reason for the move.
+      - name: Push image to the Tuist OCI registry
         timeout-minutes: 90
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode
-          remote-names: ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
+          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
+          chunk-size: "64"
 
       - name: Cleanup
         if: always()
