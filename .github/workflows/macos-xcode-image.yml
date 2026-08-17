@@ -190,24 +190,25 @@ jobs:
       # base is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
       # Packer's clone is anonymous (see the credential-dropping step
       # above). Auth is needed only for the push that follows.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       # 64 MB chunks, where GHCR was pinned at 3 because it rejects
       # anything from 4 up and rate-limited the resulting request
       # volume. For a ~50 GB image that is roughly 1,000 requests
       # instead of ~17,000, which is the reason for the move.
-      - name: Push image to the Tuist OCI registry
+      - name: Push image to GHCR
         timeout-minutes: 90
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode
-          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
-          chunk-size: "64"
+          remote-names: ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}
 
       - name: Cleanup
         if: always()

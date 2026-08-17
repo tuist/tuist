@@ -883,6 +883,11 @@ jobs:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Job-level, matching runner-image-build: Tart reads these for both
+      # the clone of the base and the push at the end.
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
@@ -960,12 +965,10 @@ jobs:
       # credential-helper protocol for both the pull (this build's
       # clone of the base) and the push at the end. See
       # runner-image.yml's matching step for the long explanation.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
@@ -983,10 +986,9 @@ jobs:
         # infra/runner-image/profiles.json, bump this too.
         env:
           XCODE_VERSION: "26.6"
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
-          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
@@ -994,14 +996,14 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Push image to the Tuist OCI registry
+      - name: Push image to GHCR
         timeout-minutes: 90
         uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
           remote-names: |
-            ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
-            ${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:latest
+            ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
+            ghcr.io/tuist/tuist-xcresult-processor:latest
 
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
@@ -1070,12 +1072,10 @@ jobs:
       # the Docker credential-helper protocol for both pull (Packer's
       # clone of the base) and push at the end. See runner-image.yml
       # for the long explanation of why crane and not `tart login`.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Initialize Packer
         working-directory: infra/runner-image
@@ -1093,13 +1093,11 @@ jobs:
       - name: Build profile
         id: build
         working-directory: infra/runner-image
-        env:
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           XCODE="${{ matrix.xcode }}"
           BASE_TAG="${XCODE//./-}"
-          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"
           echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
@@ -1111,7 +1109,6 @@ jobs:
       - name: Restore nvram.bin if missing
         env:
           XCODE: ${{ matrix.xcode }}
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         # See `runner-image.yml` for the rationale: packer-plugin-tart
         # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
         # so the subsequent `tart push` fails after a successful disk
@@ -1123,7 +1120,7 @@ jobs:
           ls -la "$BUNDLE"
           if [ ! -f "$BUNDLE/nvram.bin" ]; then
             BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
             echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
             tart delete nvram-restore 2>/dev/null || true
             tart clone "$BASE_IMAGE" nvram-restore
@@ -1132,7 +1129,7 @@ jobs:
             echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
           fi
 
-      - name: Push profile to the Tuist OCI registry
+      - name: Push profile to GHCR
         timeout-minutes: 90
         env:
           # See runner-image.yml's matching step for the rationale —
@@ -1142,8 +1139,8 @@ jobs:
         with:
           local-name: tuist-runner
           remote-names: |
-            ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}
-            ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}
 
       - name: Cleanup
         if: always()
@@ -1184,8 +1181,6 @@ jobs:
         # matrix expands. The Release body lists exactly the tags the
         # build published. `jq` is preinstalled on ubuntu-latest.
         id: images
-        env:
-          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
@@ -1194,7 +1189,7 @@ jobs:
             jq -r '.[]' infra/runner-image/profiles.json |
               while IFS= read -r v; do
                 tag=$(echo "$v" | tr '.' '-')
-                echo "- \`${OCI_REGISTRY_HOST}/tuist-runner:macos-${tag}-${VERSION}\`"
+                echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
               done
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
@@ -1592,7 +1587,7 @@ jobs:
           name: xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
           body: |
-            Tart image: `${{ vars.OCI_REGISTRY_HOST }}/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}`
+            Tart image: `ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}`
 
             ${{ needs.release-xcresult-processor-image.outputs.release-notes }}
 
