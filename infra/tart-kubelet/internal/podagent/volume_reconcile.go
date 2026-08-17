@@ -83,7 +83,16 @@ const dirtyMarkerFile = "cache-dirty"
 const runnerExitFile = "runner-rc"
 
 // readRunnerExit reads the guest-reported exit code from the status share.
-// The bool is false when the guest reported nothing.
+// The bool is false when the guest reported nothing usable.
+//
+// A wait status is a byte, and the shell reports 128+signal for a
+// signalled child, so anything outside 0-255 did not come from `$?` and
+// is a torn or truncated read of a file the guest was still writing.
+// Rejecting it matters more than it looks: the value decides clean
+// versus abnormal downstream, so a garbage read that happened to land on
+// 0 would report a dead runner as a successful job, which is the bug
+// this file exists to close. Out of range therefore reads as unreported,
+// the same as no file at all.
 func readRunnerExit(statusDir string) (int32, bool) {
 	if statusDir == "" {
 		return 0, false
@@ -92,8 +101,10 @@ func readRunnerExit(statusDir string) (int32, bool) {
 	if err != nil {
 		return 0, false
 	}
-	code, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil {
+	// ParseInt over Atoi so an oversized value fails here rather than
+	// silently wrapping on the conversion to int32.
+	code, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 32)
+	if err != nil || code < 0 || code > 255 {
 		return 0, false
 	}
 	return int32(code), true

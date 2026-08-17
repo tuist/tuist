@@ -591,3 +591,41 @@ func TestPodStatusOnStoppedVMPublishesTerminatedContainer(t *testing.T) {
 		t.Fatalf("expected FinishedAt to be set so the controller need not fall back to its own clock")
 	}
 }
+
+func TestRunnerTerminationRejectsOutOfRangeGuestReport(t *testing.T) {
+	// A wait status is a byte. Anything else is a torn read of a file
+	// the guest was still writing, and must not be trusted: it decides
+	// clean versus abnormal, so a value that wrapped or truncated onto 0
+	// would report a dead runner as a successful job.
+	for _, raw := range []string{"4294967296", "2147483648", "256", "-1"} {
+		t.Run(raw, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, runnerExitFile), []byte(raw), 0o644); err != nil {
+				t.Fatalf("write runner-rc: %v", err)
+			}
+			r := &Reconciler{}
+
+			code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+
+			if reason != runnerExitReasonUnreported {
+				t.Fatalf("expected %q for an out-of-range report, got %d/%q", runnerExitReasonUnreported, code, reason)
+			}
+		})
+	}
+}
+
+func TestRunnerTerminationAcceptsSignalledExitCode(t *testing.T) {
+	// 128+signal is a real wait status the shell reports (143 = SIGTERM),
+	// and the idle-runner watchdog produces exactly that.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, runnerExitFile), []byte("143"), 0o644); err != nil {
+		t.Fatalf("write runner-rc: %v", err)
+	}
+	r := &Reconciler{}
+
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+
+	if code != 143 || reason != runnerExitReasonError {
+		t.Fatalf("expected 143/%q, got %d/%q", runnerExitReasonError, code, reason)
+	}
+}
