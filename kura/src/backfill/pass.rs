@@ -33,7 +33,7 @@ use crate::{
     constants::{
         BACKFILL_BATCH_FLUSH_INTERVAL_MS, BACKFILL_BODIES_BATCH_BYTES, BACKFILL_FETCH_QUEUE_TUPLES,
         BACKFILL_RETRY_BACKOFF_BASE_MS, BACKFILL_RETRY_BACKOFF_MAX_MS, MAX_BACKFILL_BODIES_ENTRIES,
-        MAX_BOOTSTRAP_PAGE_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_PEER_PAGE_BYTES, MAX_PEER_PAGE_ITEMS,
         MAX_REPLICATION_BODY_BYTES,
     },
     failpoints::FailpointName,
@@ -51,9 +51,8 @@ use crate::{
 };
 
 /// Window applied while reading one full body frame from a bodies-response
-/// spool or per-artifact stream; mirrors the bootstrap body-fetch memory
-/// window (a reservation window, not the full object size, because a valid
-/// artifact may be as large as the container).
+/// spool or per-artifact stream (a reservation window, not the full object
+/// size, because a valid artifact may be as large as the container).
 const TRANSFER_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Per-entry allowance for frame overhead (header + record id + manifest
@@ -166,7 +165,7 @@ impl BackfillPassTuning {
             flush_interval: Duration::from_millis(BACKFILL_BATCH_FLUSH_INTERVAL_MS),
             retry_backoff_base: Duration::from_millis(BACKFILL_RETRY_BACKOFF_BASE_MS),
             retry_backoff_max: Duration::from_millis(BACKFILL_RETRY_BACKOFF_MAX_MS),
-            page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
+            page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
         }
@@ -510,10 +509,9 @@ async fn fetch_listing_page(
             .map_err(PassAbort::Hard)?
         {
             RequestDisposition::Success(response) => {
-                let bytes =
-                    read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "backfill entries")
-                        .await
-                        .map_err(PassAbort::Hard)?;
+                let bytes = read_bounded_body(response, MAX_PEER_PAGE_BYTES, "backfill entries")
+                    .await
+                    .map_err(PassAbort::Hard)?;
                 let page: BackfillEntriesPage =
                     serde_json::from_slice(&bytes).map_err(|error| {
                         PassAbort::Hard(format!("failed to decode backfill entries page: {error}"))
@@ -845,15 +843,15 @@ async fn spool_batch_response(
         None => sanity_limit,
     };
     let state = context.state;
-    // The waiting reservation serializes bounded staging like bootstrap; the
-    // disk reservation enforces the local tmp ceiling. The staging and
-    // memory reservations end with the spool (at most one per pass), but the
-    // disk reservation rides in the returned spool's cleanup guard until the
-    // batch's apply finishes — with the pipelined applier, up to two spools
-    // (one applying, one awaiting apply) hold batch-sized reservations
-    // concurrently, which the tmp budget must absorb.
+    // The waiting reservation serializes bounded staging; the disk reservation
+    // enforces the local tmp ceiling. The staging and memory reservations end
+    // with the spool (at most one per pass), but the disk reservation rides in
+    // the returned spool's cleanup guard until the batch's apply finishes —
+    // with the pipelined applier, up to two spools (one applying, one awaiting
+    // apply) hold batch-sized reservations concurrently, which the tmp budget
+    // must absorb.
     let _staging_reservation =
-        cancellable(context, state.bootstrap_staging_budget.reserve(limit)).await?;
+        cancellable(context, state.peer_staging_budget.reserve(limit)).await?;
     let disk_reservation = state
         .tmp_staging_budget
         .try_reserve(limit)
@@ -1288,7 +1286,7 @@ async fn apply_individual_response(
     };
     let state = context.state;
     let _staging_reservation =
-        cancellable(context, state.bootstrap_staging_budget.reserve(limit)).await?;
+        cancellable(context, state.peer_staging_budget.reserve(limit)).await?;
     let disk_reservation = state
         .tmp_staging_budget
         .try_reserve(limit)
@@ -1484,9 +1482,8 @@ async fn retry_backoff(
     cancellable(context, sleep(delay)).await
 }
 
-/// Zeroes the pass-progress gauges when the pass ends on any path (the
-/// bootstrap-pass Drop-guard convention): a finished or abandoned pass must
-/// not read as a live wedge.
+/// Zeroes the pass-progress gauges when the pass ends on any path: a finished
+/// or abandoned pass must not read as a live wedge.
 struct BackfillPassGauges {
     metrics: crate::metrics::Metrics,
     peer: String,
@@ -1555,7 +1552,7 @@ mod tests {
             flush_interval: Duration::from_millis(200),
             retry_backoff_base: Duration::from_millis(10),
             retry_backoff_max: Duration::from_millis(40),
-            page_limit: MAX_BOOTSTRAP_PAGE_ITEMS,
+            page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
         }

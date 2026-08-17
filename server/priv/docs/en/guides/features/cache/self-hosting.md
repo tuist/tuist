@@ -76,7 +76,7 @@ TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 
 A cache mesh lets you place cache capacity next to the compute that needs it. A company might run one node near its main CI runners, another close to developers in Europe, and another near a US office or regional build cluster. Each location reads and writes against the closest node, while Kura replicates artifacts and metadata in the background so later builds in other locations can reuse the same outputs.
 
-The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, bootstrap newly joined nodes, and replicate artifacts after local writes are accepted.
+The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, backfill newly joined nodes, and replicate artifacts after local writes are accepted.
 
 We strongly recommend securing the peer plane with [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
 
@@ -153,8 +153,9 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_OUTBOX_MAX_DEPTH` | Maximum replication outbox depth before public writes return backpressure. | No | `100000` | `extraEnv` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before expiring. | No | `86400000` | `extraEnv` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often Kura scans for stale multipart uploads. | No | `600000` | `extraEnv` |
-| `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run. | No | `1800000` | `extraEnv` |
-| `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS` | Maximum concurrent bootstrap-from-peer tasks. | No | `8` | `extraEnv` |
+| `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring, counted from the newest, that bounds how far back a backfill pass reaches. | No | `40` | `config.backfill.marginPercent` |
+| `KURA_BACKFILL_READY_RING_PERCENT` | Segment-ring fullness at which a node still running its first backfill cycle reports itself ready. | No | Half of `KURA_BACKFILL_MARGIN_PERCENT` | `config.backfill.readyRingPercent` |
+| `KURA_BACKFILL_BATCH_BYTES` | Byte threshold one backfill bodies batch is composed against, and the size above which an entry is fetched on its own. | No | `33554432` | `config.backfill.batchBytes` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of Tokio worker threads. | No | Auto-derived | `extraEnv` |
 | `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | OTLP traces endpoint. Leave empty to disable tracing. | No | Disabled | `config.telemetry.otlpTracesEndpoint` |
 | `KURA_OTEL_SERVICE_NAME` | OpenTelemetry service name. | Yes | No default | Pod name in Helm |

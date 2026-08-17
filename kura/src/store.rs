@@ -16,7 +16,6 @@ use rocksdb::{
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
@@ -165,7 +164,7 @@ pub struct Store {
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
-    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // (e.g. a fresh node backfilling the same artifact from several peers at
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
@@ -268,31 +267,6 @@ impl AsyncRead for ArtifactReader {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManifestPage {
     pub manifests: Vec<ArtifactManifest>,
-    pub next_after: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ManifestBucketDigest {
-    pub prefix: String,
-    pub count: u64,
-    pub hash: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ManifestDigest {
-    pub prefix_len: usize,
-    pub buckets: Vec<ManifestBucketDigest>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamespaceTombstoneRecord {
-    pub namespace_id: String,
-    pub version_ms: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamespaceTombstonePage {
-    pub tombstones: Vec<NamespaceTombstoneRecord>,
     pub next_after: Option<String>,
 }
 
@@ -552,14 +526,11 @@ impl Drop for OutboxReservation<'_> {
 // (incoming strictly older — a real LWW rejection, the peer is behind) so
 // anti-entropy diagnosis can tell a re-walk churning already-converged data
 // from genuine one-directional version skew. The apply decision is the same
-// for both: local wins. `IgnoredMissing` covers a bootstrap body fetch the
-// peer 404s (advertised in a manifest page but no longer served, e.g. evicted
-// in between) — no version comparison happened, so it must not count as skew.
+// for both: local wins.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
     IgnoredEqual,
-    IgnoredMissing,
     IgnoredStale,
     IgnoredTombstone,
 }
@@ -569,7 +540,6 @@ impl ArtifactApplyOutcome {
         match self {
             Self::Applied => "applied",
             Self::IgnoredEqual => "ignored_equal",
-            Self::IgnoredMissing => "ignored_missing",
             Self::IgnoredStale => "ignored_stale",
             Self::IgnoredTombstone => "ignored_tombstone",
         }
@@ -594,6 +564,7 @@ impl NamespaceDeleteOutcome {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn applied(self) -> bool {
         matches!(self, Self::Applied)
     }
@@ -1232,7 +1203,7 @@ impl Store {
         // and metadata commit. Without it, concurrent applies of the same key
         // each observe "absent" below, each append a full copy to a segment, and
         // only the last manifest write wins — leaving the rest as orphaned bytes
-        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // that accumulate to N x on disk (the backfill-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
         // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
@@ -1728,8 +1699,8 @@ impl Store {
             // relies on (see `try_mmap_artifact_bytes`). A truncated segment would
             // otherwise yield a short read that streams a body shorter than the
             // declared Content-Length — peers see an undecodable response and
-            // bootstrap silently wedges. Surface a truncated artifact as missing
-            // so the serve 404s it; the bootstrap client then skips it
+            // backfill silently wedges. Surface a truncated artifact as missing
+            // so the serve 404s it; the backfilling peer then skips it
             // (IgnoredMissing) and the lost entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
@@ -4418,7 +4389,7 @@ impl Store {
     /// left for segment reclamation — the records this serves (action-cache
     /// expiry) are a few hundred bytes each. Deletion is node-local: peers
     /// running the same policy over the replicated `version_ms` converge on
-    /// their own, and an entry re-copied by a later bootstrap just expires
+    /// their own, and an entry re-copied by a later backfill just expires
     /// again on the next sweep. A concurrent republish of the same key can
     /// race the batch and lose its fresh manifest — benign, the client
     /// recompiles and republishes.
@@ -5027,7 +4998,36 @@ impl Store {
         }
     }
 
+    /// Every namespace delete tombstone as `(namespace_id, version_ms)`, in
+    /// key order. Test-only: nothing in production reads tombstones in bulk
+    /// since the legacy bootstrap walker was retired — replication carries
+    /// each delete individually and the backfill index lists them as entries.
+    #[cfg(test)]
+    pub fn namespace_tombstones(&self) -> Result<Vec<(String, u64)>, String> {
+        let mut tombstones = Vec::new();
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
+            IteratorMode::Start,
+        );
+        for item in iter {
+            let (namespace_id, payload) =
+                item.map_err(|error| format!("failed to iterate namespace tombstones: {error}"))?;
+            let namespace_id = std::str::from_utf8(&namespace_id)
+                .map_err(|error| format!("invalid namespace tombstone key: {error}"))?
+                .to_owned();
+            let slice: [u8; 8] = payload.as_ref().try_into().map_err(|_| {
+                format!(
+                    "namespace tombstone for {namespace_id} should be 8 bytes, got {}",
+                    payload.len()
+                )
+            })?;
+            tombstones.push((namespace_id, u64::from_le_bytes(slice)));
+        }
+        Ok(tombstones)
+    }
+
     /// Whether this store has any locally usable cache data.
+    #[cfg(test)]
     pub fn has_artifacts(&self) -> Result<bool, String> {
         self.db
             .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start)
@@ -5080,109 +5080,6 @@ impl Store {
 
         Ok(ManifestPage {
             manifests,
-            next_after,
-        })
-    }
-
-    /// Summarize the manifest keyspace as per-prefix-bucket digests for
-    /// range-based anti-entropy during bootstrap. Buckets partition the sorted
-    /// `artifact_id` space by their first `prefix_len` hex characters; each
-    /// bucket folds the ordered `(artifact_id, version_ms)` pairs it contains
-    /// into a hash so that adds, removes, and version bumps all flip the bucket.
-    /// One ordered scan builds every non-empty bucket; empty buckets are
-    /// omitted (a bucket present on only one side simply mismatches).
-    pub fn manifests_digest(&self, prefix_len: usize) -> Result<Vec<ManifestBucketDigest>, String> {
-        let iter = self
-            .db
-            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start);
-
-        let mut buckets = Vec::new();
-        let mut current: Option<(String, u64, Sha256)> = None;
-
-        for item in iter {
-            let (artifact_id, payload) =
-                item.map_err(|error| format!("failed to iterate manifests: {error}"))?;
-            let artifact_id = std::str::from_utf8(&artifact_id)
-                .map_err(|error| format!("invalid manifest key: {error}"))?;
-            let prefix: String = artifact_id.chars().take(prefix_len).collect();
-            let manifest = decode_manifest_record(artifact_id, &payload)?;
-
-            match current.as_mut() {
-                Some((bucket_prefix, count, hasher)) if *bucket_prefix == prefix => {
-                    hasher.update(artifact_id.as_bytes());
-                    hasher.update(manifest.version_ms.to_le_bytes());
-                    *count += 1;
-                }
-                _ => {
-                    if let Some((bucket_prefix, count, hasher)) = current.take() {
-                        buckets.push(ManifestBucketDigest {
-                            prefix: bucket_prefix,
-                            count,
-                            hash: hex::encode(hasher.finalize()),
-                        });
-                    }
-                    let mut hasher = Sha256::new();
-                    hasher.update(artifact_id.as_bytes());
-                    hasher.update(manifest.version_ms.to_le_bytes());
-                    current = Some((prefix, 1, hasher));
-                }
-            }
-        }
-
-        if let Some((bucket_prefix, count, hasher)) = current.take() {
-            buckets.push(ManifestBucketDigest {
-                prefix: bucket_prefix,
-                count,
-                hash: hex::encode(hasher.finalize()),
-            });
-        }
-
-        Ok(buckets)
-    }
-
-    pub fn namespace_tombstones_page(
-        &self,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<NamespaceTombstonePage, String> {
-        let mut tombstones = Vec::new();
-        let mut next_after = None;
-        let start_key = after.unwrap_or_default();
-        let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
-            IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
-        );
-
-        for item in iter {
-            let (namespace_id, payload) =
-                item.map_err(|error| format!("failed to iterate namespace tombstones: {error}"))?;
-            let namespace_id = std::str::from_utf8(&namespace_id)
-                .map_err(|error| format!("invalid namespace tombstone key: {error}"))?;
-            if after == Some(namespace_id) {
-                continue;
-            }
-            if tombstones.len() == limit {
-                next_after = tombstones
-                    .last()
-                    .map(|record: &NamespaceTombstoneRecord| record.namespace_id.clone());
-                break;
-            }
-            if payload.len() != 8 {
-                return Err(format!(
-                    "namespace tombstone for {namespace_id} should be 8 bytes, got {}",
-                    payload.len()
-                ));
-            }
-            let mut slice = [0_u8; 8];
-            slice.copy_from_slice(payload.as_ref());
-            tombstones.push(NamespaceTombstoneRecord {
-                namespace_id: namespace_id.to_owned(),
-                version_ms: u64::from_le_bytes(slice),
-            });
-        }
-
-        Ok(NamespaceTombstonePage {
-            tombstones,
             next_after,
         })
     }
@@ -7411,9 +7308,6 @@ mod tests {
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             multipart_max_active_uploads: 128,
             multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
-            bootstrap_timeout_ms: 30 * 60 * 1000,
-            bootstrap_max_concurrent_peers: 8,
-            backfill_enabled: false,
             backfill_margin_percent: 40,
             backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
             backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
@@ -7468,7 +7362,7 @@ mod tests {
         // sleep failpoint between the durable append and the metadata commit
         // forces the writers to overlap, so without the lock every copy would be
         // appended (writer_count x on disk). This guards the store invariant
-        // directly, independent of the bootstrap-level fetch gate.
+        // directly, independent of the backfill-level fetch gate.
         let (_temp_dir, config, store) = temp_store();
         store.failpoints().set_always(
             FailpointName::AfterArtifactBytesDurableBeforeMetadata,
@@ -9157,7 +9051,7 @@ mod tests {
     async fn live_apply_paths_keep_per_record_sync_commits() {
         let (_temp_dir, config, store) = temp_store();
         // Warm the store so the active segment exists: the first append's
-        // ring-state bootstrap would otherwise pollute the deltas below.
+        // ring-state initialization would otherwise pollute the deltas below.
         store
             .apply_replicated_artifact_from_bytes(
                 ArtifactProducer::Gradle,
@@ -9682,94 +9576,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manifests_digest_partitions_keyspace_and_matches_identical_stores() {
-        let (_temp_dir_a, _config_a, store_a) = temp_store();
-        let (_temp_dir_b, _config_b, store_b) = temp_store();
-
-        // Same replicated artifacts (identical id + version_ms) on both stores,
-        // mirroring how a peer holds the same version of a replicated artifact.
-        for key in ["alpha", "beta", "gamma", "delta", "epsilon"] {
-            apply_inline(&store_a, key, 100, b"payload").await;
-            apply_inline(&store_b, key, 100, b"payload").await;
-        }
-
-        let digest_a = store_a.manifests_digest(3).expect("digest a");
-        let digest_b = store_b.manifests_digest(3).expect("digest b");
-
-        assert_eq!(
-            digest_a, digest_b,
-            "identical content must yield identical digests across nodes"
-        );
-        assert_eq!(
-            digest_a.iter().map(|bucket| bucket.count).sum::<u64>(),
-            5,
-            "bucket counts must sum to the total manifest count"
-        );
-        for bucket in &digest_a {
-            assert_eq!(bucket.prefix.len(), 3, "prefix_len must be honored");
-        }
-        let mut prefixes: Vec<&str> = digest_a.iter().map(|b| b.prefix.as_str()).collect();
-        let sorted = {
-            let mut copy = prefixes.clone();
-            copy.sort_unstable();
-            copy
-        };
-        assert_eq!(prefixes, sorted, "buckets must be emitted in sorted order");
-        prefixes.dedup();
-        assert_eq!(prefixes.len(), digest_a.len(), "bucket prefixes are unique");
-    }
-
-    #[tokio::test]
-    async fn manifests_digest_flips_only_the_changed_bucket_on_version_bump() {
-        let (_temp_dir, _config, store) = temp_store();
-        for key in ["alpha", "beta", "gamma", "delta"] {
-            apply_inline(&store, key, 100, b"payload").await;
-        }
-
-        let before = store.manifests_digest(3).expect("digest before");
-
-        // Locate the artifact_id (hence bucket prefix) for "alpha".
-        let manifests = store
-            .manifests_page_scoped(None, None, 256)
-            .expect("list manifests")
-            .manifests;
-        let alpha_id = manifests
-            .iter()
-            .find(|m| m.key == "alpha")
-            .expect("alpha manifest")
-            .artifact_id
-            .clone();
-        let alpha_prefix: String = alpha_id.chars().take(3).collect();
-
-        // A version bump on the same key keeps the id (and bucket) but must flip
-        // the bucket's hash so the peer detects the newer version.
-        apply_inline(&store, "alpha", 200, b"payload-v2").await;
-        let after = store.manifests_digest(3).expect("digest after");
-
-        for bucket_before in &before {
-            let bucket_after = after
-                .iter()
-                .find(|b| b.prefix == bucket_before.prefix)
-                .expect("bucket present after");
-            if bucket_before.prefix == alpha_prefix {
-                assert_eq!(
-                    bucket_before.count, bucket_after.count,
-                    "a version bump must not change the bucket count"
-                );
-                assert_ne!(
-                    bucket_before.hash, bucket_after.hash,
-                    "a version bump must flip the bucket hash"
-                );
-            } else {
-                assert_eq!(
-                    bucket_before, bucket_after,
-                    "unrelated buckets must be untouched"
-                );
-            }
-        }
-    }
-
-    #[tokio::test]
     async fn manifests_page_scoped_restricts_to_prefix() {
         let (_temp_dir, _config, store) = temp_store();
         for key in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
@@ -9806,7 +9612,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn namespace_tombstones_page_returns_written_tombstones() {
+    async fn namespace_tombstones_returns_written_tombstones() {
         let (_temp_dir, _config, store) = temp_store();
 
         store
@@ -9818,15 +9624,13 @@ mod tests {
             .await
             .expect("failed to apply second tombstone");
 
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("failed to load tombstone page");
-        assert_eq!(page.tombstones.len(), 2);
-        assert_eq!(page.tombstones[0].namespace_id, "android");
-        assert_eq!(page.tombstones[0].version_ms, 200);
-        assert_eq!(page.tombstones[1].namespace_id, "ios");
-        assert_eq!(page.tombstones[1].version_ms, 100);
-        assert_eq!(page.next_after, None);
+        let tombstones = store
+            .namespace_tombstones()
+            .expect("failed to load tombstones");
+        assert_eq!(
+            tombstones,
+            vec![("android".to_owned(), 200), ("ios".to_owned(), 100)]
+        );
     }
 
     #[tokio::test]
@@ -11132,14 +10936,12 @@ mod tests {
                 "a purge removes {key} regardless of its version"
             );
         }
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("tombstone page should load");
-        assert_eq!(page.tombstones.len(), 1, "the purge writes no tombstone");
-        assert_eq!(page.tombstones[0].namespace_id, "ios");
         assert_eq!(
-            page.tombstones[0].version_ms, 100,
-            "the pre-existing tombstone survives the purge"
+            store
+                .namespace_tombstones()
+                .expect("tombstones should load"),
+            vec![("ios".to_owned(), 100)],
+            "the purge writes no tombstone and the pre-existing one survives"
         );
     }
 
@@ -11164,11 +10966,13 @@ mod tests {
                 .applied()
         );
 
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("tombstone page should load");
-        assert_eq!(page.tombstones.len(), 1, "re-delete overwrites in place");
-        assert_eq!(page.tombstones[0].version_ms, 200);
+        assert_eq!(
+            store
+                .namespace_tombstones()
+                .expect("tombstones should load"),
+            vec![("ios".to_owned(), 200)],
+            "re-delete overwrites in place"
+        );
     }
 
     // ---- Backfill per-entry index ----
@@ -13009,11 +12813,11 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         let store = Arc::new(store);
 
-        // A fresh node bootstrapping an account applies inbound artifacts
-        // concurrently (BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY at a time). Inbound
+        // A fresh node backfilling an account applies inbound artifacts
+        // concurrently (the pass pipelines its fetch and apply stages). Inbound
         // applies share the foreground write's segment-append + durability path
         // (`persist_artifact_from_path_with_version`), so group commit must
-        // coalesce their fsyncs too — otherwise the parallel bootstrap fetch just
+        // coalesce their fsyncs too — otherwise the parallel backfill fetch just
         // re-serializes one fsync per inbound write and gains nothing. Slow every
         // fsync so all appliers reach the durability barrier within one window.
         store.failpoints().set_always(
@@ -13049,7 +12853,7 @@ mod tests {
         assert!(
             fsyncs <= 4,
             "expected concurrent replicated applies to batch segment fsyncs (<=4) but observed \
-             {fsyncs} for {appliers} appliers — inbound bootstrap writes are fsyncing per write \
+             {fsyncs} for {appliers} appliers — inbound backfill writes are fsyncing per write \
              under the global segment write lock"
         );
     }

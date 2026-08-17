@@ -2,9 +2,7 @@
 //! decides, at membership cadence, which peers need a pass, runs one pass per
 //! peer at a time, cancels on peer loss, retries with bounded backoff under a
 //! non-resetting initial-cycle failure budget, and persists per-peer
-//! watermarks on completion. Selected at boot by `KURA_BACKFILL_ENABLED`; the
-//! legacy bootstrap walker runs untouched when the flag is off, and the two
-//! paths share no state.
+//! watermarks on completion.
 //!
 //! The scheduling rules live in [`LifecycleMachine`], a synchronous state
 //! machine that consumes membership ticks and pass resolutions and emits
@@ -547,7 +545,7 @@ struct ActivePass {
 
 /// The async shell around [`LifecycleMachine`]: owns the per-peer pass tasks
 /// and the node's one shared claim set, and is the surface the membership
-/// loop drives under `KURA_BACKFILL_ENABLED`.
+/// loop drives.
 pub struct BackfillLifecycle {
     machine: Mutex<LifecycleMachine>,
     passes: Mutex<HashMap<String, ActivePass>>,
