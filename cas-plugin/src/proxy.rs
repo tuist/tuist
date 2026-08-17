@@ -18,7 +18,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
+    read_request, write_response, Request, OP_BACKED, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
     OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
@@ -3147,6 +3147,57 @@ impl Proxy {
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
                     Err(message) => {
                         crate::log_line(&format!("proxy resolve failed: {message}"));
+                        write_response(&mut stream, STATUS_ERROR, message.as_bytes())
+                    }
+                }
+            }
+            OP_BACKED => {
+                // The plugin holds a local association and wants to know whether
+                // its closure is producible before serving it. A resolve IS that
+                // question: it answers from `resolved` (so a key this machine
+                // just published is backed without a round trip), then from the
+                // snapshot, then per key — and on every hit it registers the
+                // closure's fetch instructions, which is also the repair.
+                let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance)
+                else {
+                    self.note_unprimed(&request.cas_path);
+                    return write_response(&mut stream, STATUS_ERROR, b"unprimed instance");
+                };
+                let remote = self.remote_for(&instance);
+                self.ensure_snapshot(&instance, &remote);
+                // Without a Ready snapshot a miss proves nothing — the instance
+                // may simply not have been looked at yet — and answering
+                // `unbacked` on that would turn every offline or prefetch-off
+                // build fully cold. Decline instead; the plugin keeps serving
+                // the hit exactly as it does today.
+                let Some(snapshot) = self.snapshot_ready(&instance) else {
+                    return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
+                };
+                let outcome = self.path_state(&request.cas_path).and_then(|state| {
+                    self.resolve(&remote, &instance, state, &request.payload, Some(&snapshot))
+                });
+                match outcome {
+                    // The value digest goes back with the verdict: the
+                    // instructions just registered describe the REMOTE's graph,
+                    // and only the plugin can tell whether that is the same
+                    // graph as the association it is about to serve.
+                    Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
+                    Ok(None) => {
+                        // The remote does not hold this key, yet the local store
+                        // has an association for it. Nothing can retract that
+                        // association, so it will be offered on every later get
+                        // until the store generation rolls; the plugin declining
+                        // to serve it is the only thing standing between it and
+                        // a `missing object` build failure.
+                        crate::log_line(&format!(
+                            "unbacked association: instance={instance} key={} \
+                             (local hit the remote cannot back; serving a recompile instead)",
+                            reapi::hex(&request.payload)
+                        ));
+                        write_response(&mut stream, STATUS_MISS, &[])
+                    }
+                    Err(message) => {
+                        crate::log_line(&format!("proxy backed check failed: {message}"));
                         write_response(&mut stream, STATUS_ERROR, message.as_bytes())
                     }
                 }

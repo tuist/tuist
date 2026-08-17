@@ -14,6 +14,14 @@
 //! a digest learned from a throwaway store, put into a FRESH one, is "association
 //! present, root absent" with no size limits or directory surgery.
 //!
+//! Two independent conditions live here, and they fail the same way. An unbacked
+//! HIT is a value root missing from this store, which the local probe catches. An
+//! unbacked ASSOCIATION is a store that looks fine and a key the remote never
+//! received, so the interior nodes below a present root can be produced by
+//! nothing -- caught only by asking the proxy, because no local evidence
+//! distinguishes it. The second arrives on a whole-image clone of another host's
+//! store, which is why no write-side invariant in this crate reaches it.
+//!
 //! Not covered: how the state is REACHED. One consequence is worth naming -- a
 //! prune ROTATES, and reads chain through the demoted generation, so the guard
 //! stays quiet until that generation is collected. Inferred from tuist/tuist#12246,
@@ -28,7 +36,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use tuist_cas_plugin::proxy_proto::{
-    read_request, write_response, OP_FETCH_OBJECT, OP_RESOLVE, STATUS_HIT, STATUS_MISS,
+    read_request, write_response, OP_BACKED, OP_FETCH_OBJECT, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
+    STATUS_MISS,
 };
 use tuist_cas_plugin::types::*;
 use tuist_cas_plugin::upstream_path;
@@ -119,6 +128,159 @@ fn a_present_root_with_a_missing_child_still_passes_the_guard() {
         LLCAS_LOOKUP_RESULT_NOTFOUND,
         "while the child does not: the same `missing object` failure, one node deeper, \
          which the write-through ordering fixes rather than this guard"
+    );
+}
+
+/// The incident the root probe cannot see, and the check that now catches it.
+///
+/// Root present, interior node gone, and a remote that does not hold the key --
+/// so nothing anywhere can produce that node, and the compiler would be handed a
+/// graph it cannot finish loading. This is the shape that reached CI as
+/// `ClangCachingMaterializeKey <key>` failing on a DIFFERENT digest, five times
+/// across five days, self-healing on every re-run because the recompile
+/// republished the object. The write-side invariants do not cover it: the
+/// association arrives on a whole-image clone of another host's store (the
+/// per-account runner cache volume), so no writer in this crate ever touched it.
+#[test]
+fn an_association_the_remote_cannot_back_is_withheld() {
+    let Some(env) = Fixture::uploading("unbacked-association") else { return };
+    let absent_child = env.absent_value_digest();
+    let child_id = env.cas.objectid_for(&absent_child);
+    let root = env.cas.store_object_with_refs(b"an inherited root, hollow inside", &[child_id]);
+    let key = env.cas.key_digest(b"unbacked-association");
+    env.cas.actioncache_put(&key, root).expect("seeding put");
+
+    // The root is present, so the probe passes and only the remote can tell.
+    assert_eq!(env.cas.contains(root), LLCAS_LOOKUP_RESULT_SUCCESS);
+    env.proxy.answer_backed_with_no();
+    env.proxy.answer_resolve_with_miss();
+
+    let (result, _) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "an association the remote cannot back must not be served: the interior node \
+         it names is unproducible, and clang does not survive that"
+    );
+    assert_eq!(
+        env.proxy.backing_checks_for(&key),
+        1,
+        "and the verdict must come from asking, once, rather than from a graph walk \
+         on the serial task-setup path"
+    );
+    assert_eq!(
+        env.proxy.resolves_for(&key),
+        1,
+        "then fall through to the remote, which is what turns the dead build into a \
+         recompile"
+    );
+}
+
+/// The other half, and the one that protects the hit rate: when the remote DOES
+/// hold the key, the check has already registered the closure's fetch
+/// instructions, so a demand load for the missing interior node can repair it.
+/// The hit is served exactly as before.
+#[test]
+fn an_association_the_remote_can_back_is_served() {
+    let Some(env) = Fixture::uploading("backed-association") else { return };
+    let key = env.cas.key_digest(b"backed-association");
+    let value = env.cas.store_object(b"a value the remote also knows");
+    env.cas.actioncache_put(&key, value).expect("seeding put");
+    env.proxy.answer_backed_with_yes(&env.cas.digest_of(value));
+
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
+    assert_eq!(
+        env.cas.digest_of(served),
+        env.cas.digest_of(value),
+        "the served id must still name the stored value"
+    );
+    assert_eq!(
+        env.proxy.resolves_for(&key),
+        0,
+        "a backed hit stays a local hit -- the check is not a resolve in disguise"
+    );
+}
+
+/// A `Backed` verdict names the graph the REMOTE holds, and the fetch
+/// instructions it registered describe that graph. When the remote's value
+/// differs from the local association's -- a recompile that was not
+/// byte-reproducible -- the verdict does not transfer, and the local closure is
+/// still unvouched. Withholding costs no compile: the fall-through resolves the
+/// same key and serves the remote's value, which IS backed. A substitution, not
+/// a recompile.
+#[test]
+fn a_verdict_for_a_different_value_does_not_vouch_for_this_one() {
+    let Some(env) = Fixture::uploading("divergent-value") else { return };
+    let key = env.cas.key_digest(b"divergent-value");
+    let local = env.cas.store_object(b"what this machine computed");
+    let remote = env.cas.store_object(b"what the remote computed for the same key");
+    env.cas.actioncache_put(&key, local).expect("seeding put");
+
+    // The remote holds the key, but under a different graph than the local
+    // association names.
+    let remote_digest = env.cas.digest_of(remote);
+    env.proxy.answer_backed_with_yes(&remote_digest);
+    env.proxy.answer_resolve_with_hit(&remote_digest);
+
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
+    assert_eq!(
+        env.cas.digest_of(served),
+        remote_digest,
+        "the served value must be the one the verdict actually backed, not the local \
+         association it says nothing about"
+    );
+    assert_eq!(
+        env.proxy.resolves_for(&key),
+        1,
+        "which takes the fall-through: the local short-circuit cannot supply a backed value here"
+    );
+}
+
+/// The failure mode that would cost the most: a proxy that cannot answer must
+/// leave the decision alone. This covers a proxy older than the op (its dispatch
+/// answers `bad op`), an instance with no snapshot to judge against, and any
+/// transport failure -- all of which arrive as the same status, and none of
+/// which is evidence that the association is dangling.
+#[test]
+fn a_proxy_that_cannot_tell_leaves_the_hit_alone() {
+    let Some(env) = Fixture::uploading("backing-unknown") else { return };
+    let key = env.cas.key_digest(b"backing-unknown");
+    let value = env.cas.store_object(b"a value with no verdict available");
+    env.cas.actioncache_put(&key, value).expect("seeding put");
+
+    // The fixture's default: the proxy declines to judge.
+    let (result, served) = env.cas.actioncache_get(&key);
+
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_SUCCESS,
+        "an inconclusive answer must never cost a recompile"
+    );
+    assert_eq!(env.cas.digest_of(served), env.cas.digest_of(value));
+}
+
+/// With uploads off the machine deliberately keeps its results off the remote,
+/// so every one of its associations is absent there by design. Asking would
+/// answer `unbacked` for the whole build and recompile all of it, which is why
+/// the check does not run at all.
+#[test]
+fn a_build_that_does_not_upload_is_never_vetoed() {
+    let Some(env) = Fixture::new("no-upload") else { return };
+    let key = env.cas.key_digest(b"no-upload");
+    let value = env.cas.store_object(b"a value that is local on purpose");
+    env.cas.actioncache_put(&key, value).expect("seeding put");
+    env.proxy.answer_backed_with_no();
+
+    let (result, _) = env.cas.actioncache_get(&key);
+
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
+    assert_eq!(
+        env.proxy.backing_checks_for(&key),
+        0,
+        "and the proxy must not even be asked -- the answer would be misleading"
     );
 }
 
@@ -502,6 +664,17 @@ impl Fixture {
     /// the caller turns into a skip -- there is nothing to wrap and nothing the
     /// assertions would mean.
     fn new(label: &str) -> Option<Self> {
+        Self::with_upload(label, false)
+    }
+
+    /// The regime the backing check runs in. Uploads on means the machine's own
+    /// results reach the remote, which is what makes a remote miss for a key the
+    /// local store has an association for mean something.
+    fn uploading(label: &str) -> Option<Self> {
+        Self::with_upload(label, true)
+    }
+
+    fn with_upload(label: &str, upload: bool) -> Option<Self> {
         // Taken BEFORE anything reads the environment, and held for the whole
         // test. `llcas_cas_create` learns its proxy socket from
         // `TUIST_CAS_PROXY_SOCKET`, and cargo runs tests as parallel threads of
@@ -518,9 +691,11 @@ impl Fixture {
         let socket_dir = TempDir::in_tmp(label);
         let proxy = FakeProxy::listening(&socket_dir.path().join("proxy.sock"));
         std::env::set_var("TUIST_CAS_PROXY_SOCKET", proxy.socket());
-        // Publishing is irrelevant here and would spool records into the store
-        // on every put; read behaviour is unaffected by it.
-        std::env::set_var("TUIST_CAS_UPLOAD", "false");
+        // Publishing is irrelevant to most of these and would spool records into
+        // the store on every put; read behaviour is unaffected by it. The tests
+        // that exercise the backing check turn it on, because the check is
+        // deliberately inert while a build keeps its results off the remote.
+        std::env::set_var("TUIST_CAS_UPLOAD", if upload { "true" } else { "false" });
         let cas = PluginCas::open(store.path());
         Some(Self {
             cas,
@@ -870,6 +1045,7 @@ struct FakeProxy {
     socket: PathBuf,
     seen: Arc<Mutex<Vec<(u8, Vec<u8>)>>>,
     resolve_answer: Arc<Mutex<Option<Vec<u8>>>>,
+    backed_answer: Arc<Mutex<(u8, Vec<u8>)>>,
     stopping: Arc<AtomicBool>,
 }
 
@@ -878,11 +1054,16 @@ impl FakeProxy {
         let listener = UnixListener::bind(socket).expect("bind fake proxy socket");
         let seen: Arc<Mutex<Vec<(u8, Vec<u8>)>>> = Arc::new(Mutex::new(Vec::new()));
         let resolve_answer: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+        // A real proxy declines unless it has a snapshot to judge against, and a
+        // proxy older than the op answers `bad op` with the same status. Both
+        // mean "cannot tell", so that is the default a test opts out of.
+        let backed_answer = Arc::new(Mutex::new((STATUS_ERROR, Vec::new())));
         let stopping = Arc::new(AtomicBool::new(false));
 
-        let worker = (seen.clone(), resolve_answer.clone(), stopping.clone());
+        let worker =
+            (seen.clone(), resolve_answer.clone(), backed_answer.clone(), stopping.clone());
         std::thread::spawn(move || {
-            let (seen, resolve_answer, stopping) = worker;
+            let (seen, resolve_answer, backed_answer, stopping) = worker;
             for stream in listener.incoming() {
                 if stopping.load(Ordering::SeqCst) {
                     return;
@@ -895,6 +1076,7 @@ impl FakeProxy {
                         Some(value) => (STATUS_HIT, value),
                         None => (STATUS_MISS, Vec::new()),
                     },
+                    OP_BACKED => backed_answer.lock().unwrap().clone(),
                     // This proxy materialises nothing, so it can never produce an
                     // object on demand -- the truthful answer, and the one a real
                     // proxy gives once kura no longer has the blob.
@@ -906,7 +1088,7 @@ impl FakeProxy {
             }
         });
 
-        Self { socket: socket.to_path_buf(), seen, resolve_answer, stopping }
+        Self { socket: socket.to_path_buf(), seen, resolve_answer, backed_answer, stopping }
     }
 
     fn socket(&self) -> &Path {
@@ -921,12 +1103,32 @@ impl FakeProxy {
         *self.resolve_answer.lock().unwrap() = Some(value_digest.to_vec());
     }
 
+    /// The remote holds the key under `value_digest`, so that graph's closure is
+    /// producible on demand.
+    fn answer_backed_with_yes(&self, value_digest: &[u8]) {
+        *self.backed_answer.lock().unwrap() = (STATUS_HIT, value_digest.to_vec());
+    }
+
+    /// The remote does not hold the key at all -- the only answer that withholds
+    /// a local hit outright.
+    fn answer_backed_with_no(&self) {
+        *self.backed_answer.lock().unwrap() = (STATUS_MISS, Vec::new());
+    }
+
     fn resolves_for(&self, key: &[u8]) -> usize {
+        self.count_of(OP_RESOLVE, key)
+    }
+
+    fn backing_checks_for(&self, key: &[u8]) -> usize {
+        self.count_of(OP_BACKED, key)
+    }
+
+    fn count_of(&self, op: u8, payload: &[u8]) -> usize {
         self.seen
             .lock()
             .unwrap()
             .iter()
-            .filter(|(op, payload)| *op == OP_RESOLVE && payload == key)
+            .filter(|(seen_op, seen_payload)| *seen_op == op && seen_payload == payload)
             .count()
     }
 }
