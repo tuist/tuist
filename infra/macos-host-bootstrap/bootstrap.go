@@ -423,6 +423,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the resolver points at the daemon this
+	// installs, so writing it first would leave a window where `.ts.net`
+	// resolves nowhere rather than resolving publicly.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -626,6 +632,7 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -2443,6 +2450,46 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.
 // node_exporter wrapper + launchd job. The binary rides stdin and its
 // drift is tracked by its own SHA in the host config hash, so this
 // script carries no per-host or per-binary input.
+// installTailnetResolver teaches the host OS to resolve `.ts.net` names
+// through MagicDNS.
+//
+// tailscaled is running here, and answers MagicDNS on 100.100.100.100 like
+// anywhere else — but the open-source daemon on macOS never rewrites the
+// system resolver configuration, so nothing that uses ordinary OS
+// resolution can see tailnet names. That is why the log shipper resolves
+// through tailscaled itself rather than through the OS, and why a Tart VM
+// guest resolves these names while its host does not.
+//
+// Programs we do not control cannot do that. `crane`, `oras` and `tart`
+// all resolve through the OS, so on a builder every tailnet name is
+// NXDOMAIN — which is what broke image publishing when the workflows moved
+// to the tailnet-hosted registry.
+//
+// A scoped resolver supplies exactly what the daemon cannot, and nothing
+// more: only `.ts.net` is redirected, so public DNS keeps answering for
+// everything else, including the rest of tuist.dev.
+func installTailnetResolver(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderTailnetResolverScript())
+}
+
+func renderTailnetResolverScript() string {
+	return `set -euo pipefail
+sudo mkdir -p /etc/resolver
+# 100.100.100.100 is Tailscale's fixed MagicDNS address, not a per-host
+# value, so this file is identical fleet-wide and stays inside the
+# fleet-wide config hash.
+sudo tee /etc/resolver/ts.net >/dev/null <<'RESOLVER'
+nameserver 100.100.100.100
+RESOLVER
+sudo chmod 0644 /etc/resolver/ts.net
+# macOS caches negative answers, and these names have been NXDOMAIN on
+# this host until now, so without a flush the first lookups keep failing
+# for as long as the cache holds them.
+sudo dscacheutil -flushcache || true
+sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
 func renderNodeExporterScript() string {
 	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin
