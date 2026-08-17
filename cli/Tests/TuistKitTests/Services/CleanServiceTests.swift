@@ -124,6 +124,69 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertTrue(cachePathsExists[1])
     }
 
+    /// A concurrent `tuist clean` on the same host reaches the directory first, so by the time
+    /// this one deletes it there is nothing there. That interleaving is indistinguishable from a
+    /// cache that was never populated, and neither is a failure of this command.
+    func test_run_with_category_whose_directory_is_absent_does_not_fail() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let absentCacheDirectory = rootDirectory.appending(components: "tuist", "Manifests")
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.manifests))
+            .willReturn(absentCacheDirectory)
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+
+        // When / Then
+        try await subject.run(
+            categories: [TuistCleanCategory.global(.manifests)],
+            remote: false,
+            path: nil
+        )
+    }
+
+    /// The directory has to survive the clean as an empty directory rather than disappear and come
+    /// back, because concurrent commands resolve these paths and write into them. The staging copy
+    /// the contents are moved to must not outlive the command either.
+    func test_run_with_category_leaves_an_empty_directory_and_no_staging_leftovers() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let cachePaths = try await createFiles(["tuist/Manifests/manifest.json"])
+        let cacheDirectory = cachePaths[0].parentDirectory
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.manifests))
+            .willReturn(cacheDirectory)
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+
+        // When
+        try await subject.run(
+            categories: [TuistCleanCategory.global(.manifests)],
+            remote: false,
+            path: nil
+        )
+
+        // Then
+        let exists = try await fileSystem.exists(cacheDirectory, isDirectory: true)
+        XCTAssertTrue(exists)
+        let contents = try await fileSystem.glob(directory: cacheDirectory, include: ["*"]).collect()
+        XCTAssertEqual(contents, [])
+        let siblings = try await fileSystem.glob(
+            directory: cacheDirectory.parentDirectory, include: ["*"]
+        ).collect()
+        XCTAssertEqual(siblings, [cacheDirectory])
+    }
+
     func test_run_with_dependencies_cleans_dependencies() async throws {
         // Given
         let rootDirectory = try temporaryPath()

@@ -291,11 +291,23 @@ public class CachedManifestLoader: ManifestLoading {
         guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {
             throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
-        try await fileSystem.makeDirectory(
-            at: cachedManifestPath.parentDirectory,
-            options: [.createTargetParentDirectories]
-        )
-        try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
+        // Storing the entry is best effort. The manifest is loaded by the time we get here, so a
+        // cache that cannot be written costs a reload on the next run and nothing else, while
+        // failing here fails a command that already has everything it needs. The cache directory
+        // is shared by every Tuist process on the host and `tuist clean` empties it, so a
+        // concurrent clean can remove it between the call that creates it and the write, which is
+        // how this surfaced: a `tuist install` reporting a failed rename into `Manifests`.
+        do {
+            try await fileSystem.makeDirectory(
+                at: cachedManifestPath.parentDirectory,
+                options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
+        } catch {
+            Logger.current.debug(
+                "Couldn't cache the \(manifest) manifest at \(cachedManifestPath.pathString): \(error)"
+            )
+        }
     }
 }
 
