@@ -9,10 +9,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -283,21 +285,31 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// dirty marker it promotes the branch to the account's new
 			// master. A crash (exitErr != nil) or a read-only/clean job
 			// discards it.
+			// Resolve the runner's exit before deleteByKey, which
+			// cleans up the VM's user data and takes the status share
+			// (and the guest's report in it) with it.
+			exitCode, exitReason := r.runnerTermination(entry, exitErr)
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
 			if exitErr == nil {
 				logger.Info("tart run exited cleanly; marking pod succeeded",
-					"vm", entry.VMName, "log", entry.Run.LogPath)
+					"vm", entry.VMName, "log", entry.Run.LogPath,
+					"runnerExitCode", exitCode, "runnerExitReason", exitReason)
 				status.Phase = corev1.PodSucceeded
 				status.Message = fmt.Sprintf("tart run exited cleanly (see %s)", entry.Run.LogPath)
 			} else {
 				logger.Info("tart run exited with error; marking pod failed",
-					"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
+					"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr,
+					"runnerExitCode", exitCode, "runnerExitReason", exitReason)
 				status.Phase = corev1.PodFailed
 				status.Message = fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath)
 			}
+			status.StartTime = &entry.StartTS
+			status.ContainerStatuses = terminatedContainerStatuses(
+				pod, entry.VMName, entry.StartTS, metav1.NewTime(time.Now()), exitCode, exitReason,
+			)
 
 			_ = r.publishStatus(ctx, pod, status)
 			return ctrl.Result{}, nil
@@ -1215,6 +1227,11 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// safety-net finalize (empty account, cleanExit=false) would discard a
 		// successfully completed dirty branch instead of promoting it. Idempotent
 		// with the terminal path: finalize no-ops once the branch is consumed.
+		// Read the guest's exit report before deleteByKey removes the
+		// status share it lives in. No `tart run` error is available on
+		// this path — the process is simply gone — so the guest's own
+		// report is the only exit code there will ever be.
+		exitCode, exitReason := r.runnerTermination(entry, nil)
 		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so
@@ -1222,6 +1239,9 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 		status.Phase = corev1.PodSucceeded
 		status.Reason = "TartRunExited"
+		status.ContainerStatuses = terminatedContainerStatuses(
+			pod, entry.VMName, entry.StartTS, metav1.NewTime(time.Now()), exitCode, exitReason,
+		)
 		return status, nil
 	}
 
@@ -1325,6 +1345,90 @@ func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.T
 		})
 	}
 	return statuses
+}
+
+// Reasons published on a terminated runner container. The pair records
+// whether the exit code came from the guest itself or is only tart's
+// view of the VM process, because the two answer different questions and
+// conflating them is how a runner death becomes unexplainable.
+const (
+	// The guest's EXIT trap reported its own exit code.
+	runnerExitReasonCompleted = "Completed"
+	runnerExitReasonError     = "Error"
+	// No guest report. `tart run`'s own status is all we have, and it is
+	// zero on every path the trap covers, so this is NOT evidence of a
+	// clean job — only that the VM process ended without incident.
+	runnerExitReasonUnreported = "TartRunExited"
+	runnerExitReasonTartFailed = "TartRunFailed"
+)
+
+// terminatedContainerStatuses synthesizes the per-container statuses for
+// a Pod whose VM has stopped.
+//
+// Without these the terminal PodStatus carries no containerStatuses at
+// all — the running ones published earlier are replaced, not converted —
+// and everything downstream that reads `state.terminated` goes blind on
+// macOS. In the runners-controller that is three separate consumers: the
+// `runner pod terminated` forensics line (exit code, signal, reason), the
+// abnormal-end death-log capture, and the `finishedAt` that dates the
+// billing session. All three are keyed on a field only Linux was ever
+// filling in.
+//
+// Pod ↔ VM is 1:1 (multi-container Pods are rejected at admission), so
+// this is effectively a single status.
+func terminatedContainerStatuses(
+	pod *corev1.Pod,
+	vmName string,
+	startedAt, finishedAt metav1.Time,
+	exitCode int32,
+	reason string,
+) []corev1.ContainerStatus {
+	started := false
+	statuses := make([]corev1.ContainerStatus, 0, len(pod.Spec.Containers))
+	for _, c := range pod.Spec.Containers {
+		statuses = append(statuses, corev1.ContainerStatus{
+			Name:        c.Name,
+			Image:       c.Image,
+			ContainerID: "tart://" + vmName,
+			Ready:       false,
+			Started:     &started,
+			State: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					ExitCode:    exitCode,
+					Reason:      reason,
+					StartedAt:   startedAt,
+					FinishedAt:  finishedAt,
+					ContainerID: "tart://" + vmName,
+				},
+			},
+		})
+	}
+	return statuses
+}
+
+// runnerTermination resolves the exit code and reason to publish for a
+// stopped VM, preferring the guest's own report over tart's.
+//
+// `runErr` is `tart run`'s exit status where the caller has it, and nil
+// where the VM was observed gone without one (a kubelet restart, or the
+// process reaped out from under us). Never fabricates: with no guest
+// report the tart-level code is published under a reason that says so,
+// rather than being dressed up as the runner's own.
+func (r *Reconciler) runnerTermination(entry *Entry, runErr error) (int32, string) {
+	if code, ok := readRunnerExit(entry.VolumeStatusDir); ok {
+		if code == 0 {
+			return 0, runnerExitReasonCompleted
+		}
+		return code, runnerExitReasonError
+	}
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) && exitErr.ExitCode() > 0 {
+			return int32(exitErr.ExitCode()), runnerExitReasonTartFailed
+		}
+		return 1, runnerExitReasonTartFailed
+	}
+	return 0, runnerExitReasonUnreported
 }
 
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {

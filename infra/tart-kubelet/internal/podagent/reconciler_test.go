@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 
@@ -411,4 +413,181 @@ func getPod(t *testing.T, ctx context.Context, kubeClient client.Client, name ty
 		t.Fatalf("get pod: %v", err)
 	}
 	return pod
+}
+
+func TestTerminatedContainerStatusesCarriesExitCodeAndFinish(t *testing.T) {
+	// Without these the terminal PodStatus has no containerStatuses at
+	// all, and every consumer keyed on state.terminated — the
+	// controller's exit-code forensics line, its abnormal-end death-log
+	// capture, and the finishedAt that dates the billing session — is
+	// blind on macOS.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "runner", Image: "ghcr.io/tuist/runner:sha-x"}},
+		},
+	}
+	startedAt := metav1.NewTime(time.Now().Add(-90 * time.Second))
+	finishedAt := metav1.Now()
+
+	statuses := terminatedContainerStatuses(pod, "vm-abc", startedAt, finishedAt, 143, runnerExitReasonError)
+
+	if len(statuses) != 1 {
+		t.Fatalf("expected 1 container status (Pod ↔ VM is 1:1), got %d", len(statuses))
+	}
+	cs := statuses[0]
+	if cs.State.Terminated == nil {
+		t.Fatalf("expected Terminated state, got %+v", cs.State)
+	}
+	if cs.State.Terminated.ExitCode != 143 {
+		t.Fatalf("expected the runner's exit code, got %d", cs.State.Terminated.ExitCode)
+	}
+	if cs.State.Terminated.Reason != runnerExitReasonError {
+		t.Fatalf("expected reason %q, got %q", runnerExitReasonError, cs.State.Terminated.Reason)
+	}
+	if !cs.State.Terminated.FinishedAt.Equal(&finishedAt) {
+		t.Fatalf("expected FinishedAt to date the stop rather than leaving the controller to guess")
+	}
+	if cs.Ready {
+		t.Fatalf("expected Ready=false for a stopped VM")
+	}
+	if cs.Name != "runner" || cs.ContainerID != "tart://vm-abc" {
+		t.Fatalf("expected name/ContainerID mirrored, got %q/%q", cs.Name, cs.ContainerID)
+	}
+}
+
+func TestRunnerTerminationPrefersGuestReport(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, runnerExitFile), []byte("2\n"), 0o644); err != nil {
+		t.Fatalf("write runner-rc: %v", err)
+	}
+	r := &Reconciler{}
+
+	// tart run exited zero because the guest's EXIT trap halts the VM on
+	// every path. Only the guest knows the runner itself failed.
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+
+	if code != 2 || reason != runnerExitReasonError {
+		t.Fatalf("expected the guest-reported failure, got %d/%q", code, reason)
+	}
+}
+
+func TestRunnerTerminationReportsCleanGuestExit(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, runnerExitFile), []byte("0"), 0o644); err != nil {
+		t.Fatalf("write runner-rc: %v", err)
+	}
+	r := &Reconciler{}
+
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+
+	if code != 0 || reason != runnerExitReasonCompleted {
+		t.Fatalf("expected a clean guest exit, got %d/%q", code, reason)
+	}
+}
+
+func TestRunnerTerminationDistinguishesUnreportedFromClean(t *testing.T) {
+	// No status share at all: the cache-volume feature is off on this
+	// host, so the guest had nowhere to write. tart's zero must not be
+	// laundered into "the runner completed" — the reason has to say the
+	// exit code is only tart's view.
+	r := &Reconciler{}
+
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: ""}, nil)
+
+	if code != 0 || reason != runnerExitReasonUnreported {
+		t.Fatalf("expected an unreported exit, got %d/%q", code, reason)
+	}
+}
+
+func TestRunnerTerminationFallsBackToTartExitCode(t *testing.T) {
+	// The VM crashed before the trap could run, so `tart run`'s own
+	// failure is all there is.
+	r := &Reconciler{}
+	runErr := exec.Command("sh", "-c", "exit 3").Run()
+	if runErr == nil {
+		t.Fatalf("expected the probe command to fail")
+	}
+
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: t.TempDir()}, runErr)
+
+	if code != 3 || reason != runnerExitReasonTartFailed {
+		t.Fatalf("expected tart's exit code under the tart-failed reason, got %d/%q", code, reason)
+	}
+}
+
+func TestRunnerTerminationIgnoresUnparseableGuestReport(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, runnerExitFile), []byte("not-a-number"), 0o644); err != nil {
+		t.Fatalf("write runner-rc: %v", err)
+	}
+	r := &Reconciler{}
+
+	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+
+	if code != 0 || reason != runnerExitReasonUnreported {
+		t.Fatalf("expected a torn report to read as unreported, got %d/%q", code, reason)
+	}
+}
+
+// The end-to-end shape the runners-controller actually consumes: a
+// stopped VM's published PodStatus must carry a terminated container
+// status. Before this existed the terminal status was built fresh with
+// only Phase/Reason/Message, wiping the running statuses published
+// earlier, so `containerStatuses[runner].state.terminated` was nil on
+// every macOS runner death — and with it the controller's exit-code
+// forensics, its abnormal-end log capture, and the finishedAt that dates
+// the billing session.
+func TestPodStatusOnStoppedVMPublishesTerminatedContainer(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "faketart")
+	// No `tart run` process for this VM, so IsRunning is false and
+	// podStatus takes the terminal branch. Everything else no-ops.
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	statusDir := filepath.Join(dir, "status")
+	if err := os.MkdirAll(statusDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(statusDir, "runner-rc"), []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-e2e"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "runner", Image: "ghcr.io/tuist/runner:sha-x"}},
+		},
+	}
+
+	store := NewStore()
+	store.Put("tuist-runners", "runner-e2e", &Entry{
+		VMName:          "vm-e2e",
+		StartTS:         metav1.NewTime(time.Now().Add(-90 * time.Second)),
+		VolumeStatusDir: statusDir,
+	})
+
+	r := &Reconciler{Tart: &tart.Client{Binary: bin}, Store: store, NodeName: "mini-1"}
+
+	status, err := r.podStatus(context.Background(), pod)
+	if err != nil {
+		t.Fatalf("podStatus: %v", err)
+	}
+	if status.Phase != corev1.PodSucceeded {
+		t.Fatalf("expected Succeeded for a stopped VM, got %q", status.Phase)
+	}
+	if len(status.ContainerStatuses) != 1 {
+		t.Fatalf("expected a container status on the terminal PodStatus, got %d", len(status.ContainerStatuses))
+	}
+	term := status.ContainerStatuses[0].State.Terminated
+	if term == nil {
+		t.Fatalf("expected terminated state, got %+v", status.ContainerStatuses[0].State)
+	}
+	if term.ExitCode != 1 {
+		t.Fatalf("expected the guest-reported exit code 1, got %d", term.ExitCode)
+	}
+	if term.FinishedAt.IsZero() {
+		t.Fatalf("expected FinishedAt to be set so the controller need not fall back to its own clock")
+	}
 }

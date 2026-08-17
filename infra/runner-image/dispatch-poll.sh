@@ -31,6 +31,30 @@ set -uo pipefail
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
 
+# report_runner_exit hands this script's exit code to the host through
+# the writable status share, for tart-kubelet to publish as the Pod's
+# terminated container state.
+#
+# It is the ONLY way that code leaves the guest. The EXIT trap below
+# halts the VM on every path, clean or not, so `tart run` always exits
+# zero and the host cannot otherwise tell a finished job from a runner
+# that died on boot — every macOS runner death reads as Succeeded with
+# no exit code, no reason, and no log. (Linux runners get this for free:
+# the container runtime records the real terminated state.)
+#
+# Reported from inside the trap rather than after `wait` on the runner
+# so it also covers the paths that never reach a runner at all: the auth
+# aborts, the missing-file exits, an errexit anywhere above. Those are
+# exactly the deaths that are hardest to explain after the fact.
+#
+# Guarded on the share being set and mounted, since the trap is armed
+# before either is true; an unreported exit degrades to today's
+# behaviour rather than failing the halt.
+report_runner_exit() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  printf '%s' "${1}" >"${STATUS_SHARE}/runner-rc" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -39,7 +63,7 @@ exec >>"${LOG}" 2>&1
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"

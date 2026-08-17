@@ -396,6 +396,24 @@ customer-facing profile selection.
    SA and boots a replacement to keep the pool at
    `spec.replicas`.
 
+   The trap writes its exit code to `runner-rc` in the `status`
+   share on its way out, and tart-kubelet publishes that as the
+   Pod's terminated container state. Nothing else carries it off
+   the guest: the trap halts the VM on *every* path, so `tart run`
+   exits zero whether the job finished or the runner died on boot,
+   and a macOS runner death otherwise reaches the cluster as a
+   bare `Succeeded` with no exit code, no reason and no log. Three
+   consumers in the runners-controller read that field — the
+   `runner pod terminated` forensics line, the abnormal-end
+   death-log capture, and the `finishedAt` that dates the billing
+   session — and all three were Linux-only until the guest started
+   reporting. Written from inside the trap rather than after the
+   runner exits, so it also covers the aborts that never reach a
+   runner. Absent on hosts with no `status` share (it rides on the
+   cache-volume feature), which the host reports as
+   `TartRunExited` rather than laundering tart's zero into a clean
+   runner exit.
+
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
 (`runnersFleet.pools[]`) — they're the right place for routing
