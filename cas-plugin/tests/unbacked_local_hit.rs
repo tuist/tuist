@@ -262,25 +262,38 @@ fn a_proxy_that_cannot_tell_leaves_the_hit_alone() {
     assert_eq!(env.cas.digest_of(served), env.cas.digest_of(value));
 }
 
-/// With uploads off the machine deliberately keeps its results off the remote,
-/// so every one of its associations is absent there by design. Asking would
-/// answer `unbacked` for the whole build and recompile all of it, which is why
-/// the check does not run at all.
+/// The upload policy is not the client's to apply. This process's `upload` flag
+/// comes from a compiler option that reaches Swift, while swift-build's Clang
+/// caching runs against a CAS created with a plugin path and no options -- so
+/// the lane that actually fails builds reads as uploading even under an explicit
+/// opt-out, and filtering here would have silently exempted the Swift lane while
+/// leaving the Clang one recompiling every valid local entry.
+///
+/// So the question always goes to the proxy, which holds the project's real
+/// answer and declines a read-only instance
+/// (`a_read_only_project_is_never_told_its_association_is_unbacked`). Here the
+/// fixture has uploads OFF and the proxy still answers, and its answer is what
+/// counts.
 #[test]
-fn a_build_that_does_not_upload_is_never_vetoed() {
+fn the_upload_policy_is_the_proxys_call_not_the_clients() {
     let Some(env) = Fixture::new("no-upload") else { return };
     let key = env.cas.key_digest(b"no-upload");
     let value = env.cas.store_object(b"a value that is local on purpose");
     env.cas.actioncache_put(&key, value).expect("seeding put");
     env.proxy.answer_backed_with_no();
+    env.proxy.answer_resolve_with_miss();
 
     let (result, _) = env.cas.actioncache_get(&key);
 
-    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
     assert_eq!(
         env.proxy.backing_checks_for(&key),
-        0,
-        "and the proxy must not even be asked -- the answer would be misleading"
+        1,
+        "the client must ask rather than decide -- its own upload flag does not speak \
+         for the Clang lane"
+    );
+    assert_eq!(
+        result, LLCAS_LOOKUP_RESULT_NOTFOUND,
+        "and must honour the answer it gets back"
     );
 }
 

@@ -1275,26 +1275,24 @@ unsafe fn verified_local_get(
 /// Whether the proxy can produce the closure named by an association the local
 /// store holds.
 ///
-/// Answers `Unknown` — serve the hit, today's behaviour — for every regime
-/// where a remote miss is not evidence of a dangling association:
+/// Every "cannot tell" regime is decided by the PROXY, which answers `Unknown`:
+/// no routable instance, a project that does not upload, or any transport
+/// failure. Nothing is filtered here first — in particular not on `state.upload`,
+/// which is the trap `Proxy::upload_enabled` documents: that flag comes from a
+/// compiler option that reaches Swift, while swift-build's Clang caching runs
+/// against a CAS created with a plugin path and no options and so reads as
+/// uploading even under an explicit opt-out. Gating client-side would have left
+/// the Clang lane — the one that fails the build — recompiling every valid
+/// local entry, every build.
 ///
-/// - `upload: false`, where the machine deliberately keeps its results off the
-///   remote, so its own associations are absent by design and vetoing them
-///   would recompile the whole build.
-/// - no proxy, no routable instance, no snapshot, or any transport failure,
-///   which the proxy reports as `Unknown` rather than a miss.
-///
-/// What is left is the regime the invariant was written for: uploads on and a
-/// snapshot in hand, where the design's own rule is that everything a promoted
-/// CAS claims must be resolvable from the remote.
+/// What is left is the regime the invariant was written for: uploads on, where
+/// the design's own rule is that everything a promoted CAS claims must be
+/// resolvable from the remote.
 unsafe fn closure_is_backed(
     state: &CasState,
     key_digest: llcas_digest_t,
     value: llcas_objectid_t,
 ) -> bool {
-    if !state.upload {
-        return true;
-    }
     let key = std::slice::from_raw_parts(key_digest.data, key_digest.size);
     let cas_path = state
         .cas_dir
