@@ -1028,6 +1028,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             target: target,
             productName: productName,
             moduleName: moduleName,
+            packageName: packageInfo.name,
+            swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description),
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -2229,6 +2231,8 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         productName: String,
         moduleName: String,
+        packageName: String,
+        swiftToolsVersion: XcodeGraph.Version,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -2431,6 +2435,15 @@ extension ProjectDescription.Settings {
             )
         }
 
+        if swiftToolsVersion >= Version(5, 9, 0) {
+            result.base.ensurePackageName(packageName)
+            for index in result.configurations.indices
+                where result.configurations[index].settings["OTHER_SWIFT_FLAGS"] != nil
+            {
+                result.configurations[index].settings.ensurePackageName(packageName)
+            }
+        }
+
         return result
     }
 
@@ -2518,6 +2531,28 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+
+    fileprivate mutating func ensurePackageName(_ packageName: String) {
+        let packageName = packageName.quotedIfContainsSpaces
+        var swiftFlags: [String] = switch self["OTHER_SWIFT_FLAGS"] {
+        case let .array(values):
+            values
+        case let .string(value):
+            value.split(separator: " ").map(String.init)
+        case nil:
+            ["$(inherited)"]
+        @unknown default:
+            ["$(inherited)"]
+        }
+
+        let containsPackageName = swiftFlags.indices.dropLast().contains { index in
+            swiftFlags[index] == "-package-name" && swiftFlags[index + 1] == packageName
+        }
+        guard !containsPackageName else { return }
+
+        swiftFlags.append(contentsOf: ["-package-name", packageName])
+        self["OTHER_SWIFT_FLAGS"] = .array(swiftFlags)
     }
 }
 
@@ -2648,18 +2683,6 @@ extension PackageInfo {
         ]
 
         settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
-
-        if toolsVersion >= Version(5, 9, 0) {
-            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
-            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
-            case let .array(swiftFlags):
-                .array(swiftFlags + packageNameValues)
-            case let .string(swiftFlags):
-                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
-            case .none:
-                .array(packageNameValues)
-            }
-        }
 
         if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
