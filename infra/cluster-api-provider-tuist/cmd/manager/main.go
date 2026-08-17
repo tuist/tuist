@@ -76,6 +76,9 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
+		logShipperBinaryPath         string
+		logShipURL                   string
+		logShipEnv                   string
 		tailscaleAuthKeySecretName   string
 		tailscaleTagsRaw             string
 		tailscaleAcceptRoutes        bool
@@ -83,6 +86,7 @@ func main() {
 		vmClusterDNSIP               string
 		vmCachePNName                string
 		vmCachePNCIDR                string
+		sshIngressAllowRaw           string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -147,6 +151,31 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
+		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
+			"image (/opt/log-shipper/tuist-log-shipper-darwin-arm64 by default). "+
+			"Empty disables the host-log step. The agent tails "+
+			"/var/log/tart-kubelet.log — the launchd sink for everything the "+
+			"reconciler, node agent and volume manager log — and pushes it to "+
+			"--log-ship-url. A DaemonSet cannot do this job: Pods on a macOS Node "+
+			"are Tart VMs, so an in-cluster collector has no view of the host "+
+			"filesystem.")
+	flag.StringVar(&logShipURL, "log-ship-url",
+		envOrDefault("CAPI_LOG_SHIP_URL", ""),
+		"Loki push endpoint (including /loki/api/v1/push) each Mac mini POSTs its "+
+			"host logs to. Points at the tailnet hostname of the Tailscale-operator "+
+			"proxy in front of the k8s-monitoring chart's alloy-receiver, which "+
+			"already serves this endpoint for the xcresult processor's Tart guests. "+
+			"Pushing there rather than to Grafana Cloud keeps every ingest "+
+			"credential off the fleet: the tailnet ACL is the access control and "+
+			"Alloy forwards with the token it already holds. Empty disables the "+
+			"host-log step. Flows from the chart's macosFleet.hostLogs.url.")
+	flag.StringVar(&logShipEnv, "log-ship-env",
+		envOrDefault("CAPI_LOG_SHIP_ENV", ""),
+		"Value of the `env` stream label on shipped host logs (staging / canary / "+
+			"production), mirroring the label the server's own Loki handler sets. "+
+			"Flows from the chart's macosFleet.hostLogs.env.")
 	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
 		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
 		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
@@ -203,6 +232,17 @@ func main() {
 			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
 			"range only. Flows from the chart's "+
 			"macosFleet.vmCachePrivateNetwork.cidr.")
+	flag.StringVar(&sshIngressAllowRaw, "ssh-ingress-allow-cidrs",
+		envOrDefault("CAPI_SSH_INGRESS_ALLOW_CIDRS", ""),
+		"Comma-separated IPv4 CIDRs, beyond the tailnet and loopback, allowed to "+
+			"reach :22 on each Mac mini. Everything else is dropped by a pf anchor so "+
+			"internet SSH scan traffic can't exhaust launchd's ssh listen backlog and "+
+			"lock the operator out on the public and tailnet paths at once. Put this "+
+			"operator's SSH egress address here to keep the public-IP dial path (the "+
+			"only one that can update Tailscale itself) working; without it the drift "+
+			"loop still converges over the tailnet fallback. The guard is skipped "+
+			"entirely when Tailscale isn't wired. Flows from the chart's "+
+			"macosFleet.sshIngressAllowCIDRs.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
 			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
@@ -294,10 +334,10 @@ func main() {
 	flag.StringVar(&defaultAdoptPoolPrefix, "default-adopt-pool-prefix",
 		envOrDefault("CAPI_DEFAULT_ADOPT_POOL_PREFIX", ""),
 		"Pool prefix the controller falls back to when a CR's adoptPoolPrefix is "+
-			"empty (legacy CRs), used both to release such CRs on delete and as the "+
+			"empty, used to adopt and to release such CRs and as the "+
 			"orphan-reclaim sweep's pool prefix. Setting it enables the orphan-reclaim "+
 			"sweep (report-only until --orphan-reclaim-claim-name-prefix is also set). "+
-			"Empty disables both — bare legacy CRs skip release and no sweep runs.")
+			"Empty disables both — bare CRs refuse to adopt, skip release, and no sweep runs.")
 	flag.StringVar(&orphanReclaimClaimNamePrefix, "orphan-reclaim-claim-name-prefix",
 		envOrDefault("CAPI_ORPHAN_RECLAIM_CLAIM_NAME_PREFIX", ""),
 		"Claimed-name namespace this cluster owns within the Scaleway project (e.g. "+
@@ -369,6 +409,15 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+	var logShipperBinary []byte
+	if logShipperBinaryPath != "" {
+		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read log shipper binary", "path", logShipperBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded log shipper binary", "path", logShipperBinaryPath, "bytes", len(logShipperBinary), "sha", sha256Hex(logShipperBinary))
+	}
 
 	// Canonical host-config hash: a single fleet-wide fingerprint over
 	// everything the operator pushes (rendered install scripts +
@@ -386,11 +435,15 @@ func main() {
 		TartKubeletBinary:       tartKubeletBinary,
 		TailscaleBinaries:       tailscaleBinaries,
 		NodeExporterBinary:      nodeExporterBinary,
+		LogShipperBinary:        logShipperBinary,
+		LogShipURL:              logShipURL,
+		LogShipEnv:              logShipEnv,
 		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
 		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
 		VMKuraEgressCIDR:        vmKuraEgressCIDR,
 		VMClusterDNSIP:          vmClusterDNSIP,
 		VMCachePNCIDR:           vmCachePNCIDR,
+		SSHIngressAllowCIDRs:    parseCommaList(sshIngressAllowRaw),
 		HostCPU:                 tartKubeletHostCPU,
 		HostMemoryMB:            tartKubeletHostMemory,
 		MaxPods:                 tartKubeletMaxPods,
@@ -497,6 +550,9 @@ func main() {
 		TartTarball:          tartTarball,
 		TailscaleBinaries:    tailscaleBinaries,
 		NodeExporterBinary:   nodeExporterBinary,
+		LogShipperBinary:     logShipperBinary,
+		LogShipURL:           logShipURL,
+		LogShipEnv:           logShipEnv,
 		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
 		// Flows in from the Helm chart's macosFleet.tailscale.tags
 		// via --tailscale-tags. ACL grants the matching env's
@@ -509,6 +565,7 @@ func main() {
 		VMClusterDNSIP:                vmClusterDNSIP,
 		VMCachePNName:                 vmCachePNName,
 		VMCachePNCIDR:                 vmCachePNCIDR,
+		SSHIngressAllowCIDRs:          parseCommaList(sshIngressAllowRaw),
 		VPC:                           vpcClient,
 		TartKubeletHostCPU:            tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:       tartKubeletHostMemory,

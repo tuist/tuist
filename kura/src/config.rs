@@ -7,11 +7,11 @@ use crate::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
         DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
-        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
-        default_backfill_ready_ring_percent,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+        DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+        MAX_INLINE_REPLICATION_BODY_BYTES, default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -77,12 +77,9 @@ const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -93,6 +90,7 @@ const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
+const KURA_REPLICATION_UPLOAD_STALL_MS: &str = "KURA_REPLICATION_UPLOAD_STALL_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
@@ -179,6 +177,11 @@ pub struct Config {
     pub outbox_max_depth: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
+    /// How long an outbox artifact upload may produce no body chunk before the
+    /// attempt is abandoned. This is the only deadline on that path — the
+    /// upload client carries no read timeout — so it is tunable without a
+    /// rollout, like `bootstrap_timeout_ms`.
+    pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub multipart_max_active_uploads: usize,
@@ -973,6 +976,22 @@ impl Config {
             },
         )
         .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
+        let replication_upload_stall_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_UPLOAD_STALL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_REPLICATION_UPLOAD_STALL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
+        if replication_upload_stall_ms == 0 {
+            invalid.push(format!(
+                "{KURA_REPLICATION_UPLOAD_STALL_MS} must be greater than 0"
+            ));
+        }
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -1333,17 +1352,26 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
-        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
-            .map(|value| value.trim().trim_end_matches('/').to_owned())
-            .filter(|value| !value.is_empty());
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        // Usage reporting and authorization address the same server, so a node
+        // given credentials and only the authorization URL has still said where
+        // to report. On its own that URL says where to authorize and nothing
+        // more: reading it as a usage URL would half-configure the tuple below
+        // and stop a node that only authorizes from booting at all.
+        let has_credentials =
+            control_plane_client_id.is_some() && control_plane_client_secret.is_some();
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| {
+                has_credentials
+                    .then(|| lookup(KURA_AUTH_TUIST_URL))
+                    .flatten()
+            })
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
         let usage = match (
             control_plane_url,
@@ -1544,6 +1572,7 @@ impl Config {
             outbox_max_depth,
             replication_bandwidth_limit_bytes_per_second,
             replication_public_latency_target_ms,
+            replication_upload_stall_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             multipart_max_active_uploads,
@@ -1802,6 +1831,61 @@ mod tests {
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
     }
 
+    // The authorization URL on its own says where to authorize, not that usage
+    // should be reported. Treating it as a usage URL half-configures the tuple
+    // and stops the node booting, which is what the end-to-end nodes do: they
+    // authorize from a token and have no control-plane credentials at all.
+    #[test]
+    fn the_authorization_url_alone_leaves_usage_reporting_off() {
+        let config = config_from(&[(KURA_AUTH_TUIST_URL, "http://127.0.0.1:1")])
+            .expect("a node that only authorizes must still start");
+
+        assert!(config.usage.is_none());
+    }
+
+    // The configuration the self-hosting guides tell operators to write: the
+    // authorization URL plus control-plane credentials, and no
+    // KURA_CONTROL_PLANE_URL. Usage reporting reads the same server, so this
+    // has to resolve rather than trip the all-or-nothing check.
+    #[test]
+    fn usage_reporting_accepts_the_authorization_url_as_its_control_plane_url() {
+        let config = config_from(&[
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("the documented self-hosted configuration must start");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://tuist.acme.internal");
+    }
+
+    #[test]
+    fn an_explicit_control_plane_url_still_wins() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://usage.acme.internal"),
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("config should build");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://usage.acme.internal");
+    }
+
+    // Credentials without any URL at all is still a half-configured node.
+    #[test]
+    fn credentials_without_any_server_url_are_still_rejected() {
+        let error = config_from(&[
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect_err("credentials with no server URL must fail");
+
+        assert!(error.contains(KURA_CONTROL_PLANE_URL));
+    }
+
     #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
@@ -1869,6 +1953,10 @@ mod tests {
         );
         assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.replication_upload_stall_ms,
+            DEFAULT_REPLICATION_UPLOAD_STALL_MS
+        );
         assert_eq!(
             config.accelerated_file_serving,
             AcceleratedFileServingConfig {
@@ -2000,6 +2088,7 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "90000"),
             (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
             (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
@@ -2057,6 +2146,7 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.replication_upload_stall_ms, 90_000);
         assert_eq!(config.multipart_max_active_uploads, 64);
         assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
@@ -2263,6 +2353,7 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -2296,6 +2387,14 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_replication_upload_stall_ms() {
+        let error = config_from(&[(KURA_REPLICATION_UPLOAD_STALL_MS, "0")])
+            .expect_err("expected a zero upload stall window to fail");
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
     }
 
     #[test]

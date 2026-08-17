@@ -98,6 +98,15 @@ http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/tra
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
+### The macOS fleet pushes logs to `alloy-receiver:3100`
+
+The same receiver serves a `loki.source.api` on 3100 for everything running on a Mac mini, because none of it can be tailed from the cluster:
+
+- The **Tart guests** (xcresult processor) — Alloy cannot read a VM's filesystem, and `kubectl logs` cannot resolve their tailnet-only kubelet hostnames.
+- The **Mac mini hosts themselves** — a Pod scheduled to a macOS Node *is* a Tart VM, so a DaemonSet-shaped collector lands inside a guest and never sees `/var/log/tart-kubelet.log`. The host runs [`infra/macos-log-shipper`](../../macos-log-shipper) instead, installed by the CAPI provider's bootstrap alongside `node_exporter`. Query it as `{job="tuist-macos-tart-kubelet"}`.
+
+Both reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini carries one and the tailnet ACL is the access control.
+
 ## What gets deployed
 
 Six Alloy instances, split by role (managed by the upstream `alloy-operator`):

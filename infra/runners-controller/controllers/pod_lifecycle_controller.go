@@ -296,6 +296,23 @@ func (r *PodLifecycleReconciler) fetchRunnerLog(ctx context.Context, namespace, 
 	return string(body), nil
 }
 
+// Terminated reasons tart-kubelet publishes when the exit code it has
+// is the VM process's rather than the runner's own: the guest never
+// wrote its report, either because it was killed before it could or
+// because the host has no status share to write into (that share rides
+// on the cache-volume feature). Wire contract with
+// `infra/tart-kubelet`'s podagent; matched by value because the two are
+// separate Go modules.
+//
+// Deliberately matched by exact reason rather than by "anything that
+// isn't Completed": a container runtime that leaves Reason empty on a
+// clean exit would otherwise be reclassified as abnormal, which would
+// mean fetching a log for every healthy Linux runner.
+const (
+	tartUnreportedExitReason = "TartRunExited"
+	tartFailedExitReason     = "TartRunFailed"
+)
+
 // abnormalEnd reports whether the runner container ended in a way
 // worth preserving its log for. A clean ephemeral run exits 0 (job
 // done, or no JIT claimed) and is skipped — note a workflow that fails
@@ -304,9 +321,22 @@ func (r *PodLifecycleReconciler) fetchRunnerLog(ctx context.Context, namespace, 
 // killed exit, or a Pod reaped while the runner never recorded a clean
 // exit (the "lost communication" / torn-down-microVM shape), is
 // abnormal.
+//
+// An exit code that cannot be attributed to the runner is abnormal too.
+// Reading it as clean is what made every macOS runner death invisible
+// here: the guest halts the VM on every path, so the VM process exits
+// zero whether the job finished or the runner died on boot, and "we do
+// not know how this ended" is exactly the case worth a log.
 func abnormalEnd(pod *corev1.Pod) bool {
 	if rs := runnerContainerStatus(pod); rs != nil && rs.State.Terminated != nil {
-		return rs.State.Terminated.ExitCode != 0
+		if rs.State.Terminated.ExitCode != 0 {
+			return true
+		}
+		switch rs.State.Terminated.Reason {
+		case tartUnreportedExitReason, tartFailedExitReason:
+			return true
+		}
+		return false
 	}
 	return pod.Status.Phase == corev1.PodFailed || !pod.DeletionTimestamp.IsZero()
 }

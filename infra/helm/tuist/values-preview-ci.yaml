@@ -18,7 +18,3 @@ kuraRuntime:
   instance:
     name: preview-validation-kura
     publicHost: kura-preview-validation.preview.tuist.dev
-    extensionScript: |
-      function authenticate()
-        return { deny = { status = 401, message = "Validation only" } }
-      end

@@ -203,6 +203,31 @@ ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The 
 > **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
 > `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
 
+## 5c. Tailscale fleet credential (Mac-mini fleets only)
+
+Skip this alongside 5b for clusters without a Mac-mini fleet.
+
+Every Mac mini joins the tailnet at bootstrap, and so does every Tart VM the processor Deployment schedules where the xcresult processor runs. Both read one credential: the `auth-key` field of the `TAILSCALE` item in this env's `tuist-k8s-<env>` vault, which ESO syncs into `<release>-capi-scaleway-applesilicon-tailscale`.
+
+**Store an OAuth client secret here, never a pre-auth key.** Tailscale caps pre-auth keys at 90 days and there is no way to extend one, so a fleet joining with a pre-auth key has an outage on the calendar with nothing but a human remembering the date in the way. On 2026-08-12 that key lapsed and the `:process_xcresult` queue ran with zero consumers for ~13h: the Mac mini hosts were fine (they join once and keep their identity) but every processor Pod roll creates a fresh VM that has to join again, and its launchd chain refuses to start the release without a tailnet identity. OAuth clients don't expire, and `tailscale up` accepts the client secret wherever an auth key goes, minting a fresh key per join.
+
+In the Tailscale admin console, create one client per env under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials): select **Credential**, then **OAuth**, then **Generate credential**. Note this is not the **Keys** page, which holds only auth keys and API access tokens; there is no "OAuth clients" page.
+
+- Scope: **Keys → Auth Keys → Write**, nothing else. This credential only mints join keys.
+- Tags: this env's `tag:tuist-macmini-<env>` only. The write scope requires at least one tag, and it is what the minted key applies to the joining device. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+
+The secret is shown once, and starts with `tskey-client-`. That prefix is load-bearing: both consumers detect it to decide whether to annotate the credential, so a value stored without it is treated as a legacy pre-auth key.
+
+The tag must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json). Keys minted through an OAuth client are always tagged and carry no default, so the consumers name the tag at join time from `macosFleet.tailscale.tags`. Set that in the env's values file or the fleet cannot join at all (the CAPI operator rejects the config before it pushes anything, and the VM's `tailscale-up.sh` exits before `tailscale up`).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE "auth-key[password]=tskey-client-..."
+```
+
+The consumers pin `ephemeral=true&preauthorized=true` on the minted key themselves; don't append query parameters to the stored value.
+
+> **ESO health is not credential health.** The ExternalSecret reports `SecretSynced` / `Ready=True` whatever the value's validity; it says only that 1Password answered. A fleet that can't join looks identical from the ESO side, so don't use it to rule the credential out. Detection for the failure class lives in [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md), keyed on queue age.
+
 ## 6. First deploy
 
 ### Manual smoke test

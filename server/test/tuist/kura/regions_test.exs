@@ -70,26 +70,28 @@ defmodule Tuist.Kura.RegionsTest do
              }
     end
 
-    test "does not size the managed regions per tier until the floor is kernel-enforced" do
-      # Tiering drops the floor well below the ceiling, which is what lets a pod
-      # take memory a quieter neighbour was promised. Nothing stops it until the
-      # kubelet runs with MemoryQoS, so per-tier sizing lands with that change
-      # rather than ahead of it. Until then every managed instance takes the
-      # controller's default profile, whose ceiling already carries the burst
-      # headroom the admission pools size from.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
-        refute Regions.memory_governed?(Regions.get(id))
+    test "sizes the managed regions per tier" do
+      # Safe here and not before: a tiered floor sits far below its ceiling, so
+      # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
+      # it the pod's cgroup memory.min. That gate ships in this same change.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_governed?(Regions.get(id))
       end
+
+      refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
     end
 
-    test "does not bin-pack memory ceilings until a node budget is advertised" do
-      # Pods request tuist.dev/memory-ceiling-mib only once the CAPI provider
-      # that supplies the matching node capacity has rolled. Requesting it first
-      # leaves every cache pod Pending, and the provider deploys to the
-      # management cluster on its own cadence rather than with the server.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
-        refute Regions.memory_ceiling_bin_packed?(Regions.get(id))
+    test "bin-packs memory ceilings only where a node budget is advertised" do
+      # Every managed region runs on a bare-metal pool the CAPI provider patches
+      # with a tuist.dev/memory-ceiling-mib budget.
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
       end
+
+      # The private runner-cache pool runs on Elastic Metal, which the provider
+      # does not patch; requesting the extended resource there would leave every
+      # cache pod Pending.
+      refute Regions.memory_ceiling_bin_packed?(Regions.get("scw-fr-par-runners"))
     end
 
     test "keeps every memory ceiling above its floor" do

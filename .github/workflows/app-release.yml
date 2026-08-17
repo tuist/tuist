@@ -90,8 +90,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Install create-dmg
-        run: brew install create-dmg
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -126,10 +124,12 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          # +10000 offset ensures build numbers stay above 9127, the last value produced by
-          # the previous scheme before github.run_number was adopted (the run counter reset
-          # to ~3200 when the workflow was recreated, going below the old high-water mark).
-          BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
+          # Epoch seconds, not a run counter with an offset. The counter has reset
+          # twice when the workflow was recreated, and a build number below the newest
+          # appcast entry makes generate_appcast file the release as an old update:
+          # it writes no entry and moves the DMG into old_updates, out from under the
+          # artifact upload, so the release ships without its DMG (app@0.25.5).
+          BUILD_NUMBER=$(date +%s)
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
 
       - name: Update CHANGELOG.md
@@ -144,7 +144,13 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
-        run: op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+        # generate_appcast mutates the directory it reads: archives it considers old
+        # are moved into old_updates. Point it at a copy so that decision can never
+        # remove the DMG the release is about to upload.
+        run: |
+          mkdir -p app/build/appcast-input
+          cp app/build/artifacts/Tuist.dmg app/build/appcast-input/
+          op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/appcast-input --ed-key-file -
 
       - name: Upload App artifacts
         id: upload
@@ -155,7 +161,6 @@ jobs:
             app/CHANGELOG.md
             app/Project.swift
             app/appcast.xml
-            app/build/artifacts/Tuist.zip
             app/build/artifacts/Tuist.dmg
             app/build/artifacts/SHASUMS256.txt
             app/build/artifacts/SHASUMS512.txt
@@ -166,7 +171,12 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: tuist-macos
-    timeout-minutes: 30
+    # Matches release-app. `app:upload-ios` archives before it uploads,
+    # and `tuist generate` runs with --no-binary-cache, so a cold
+    # compilation cache (any runner image roll invalidates it) makes
+    # this a full build of the app. 30 minutes fit only while the
+    # cache was warm; it cancelled mid-`xcodebuild` on run 31618151811.
+    timeout-minutes: 50
     permissions:
       contents: write
       id-token: write
@@ -197,7 +207,11 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
+          # App Store Connect rejects a build number that does not exceed the ones
+          # already uploaded for the version, so this cannot ride a run counter that
+          # resets when the workflow is recreated.
+          BUILD_NUMBER=$(date +%s)
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
       - name: Generate TuistApp

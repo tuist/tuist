@@ -21,9 +21,9 @@ use tracing::{Instrument, info, warn};
 use crate::{
     accelerated_file_serving,
     analytics::Analytics,
+    auth::AuthEngine,
     bandwidth::BandwidthLimiter,
     config::Config,
-    extension::ExtensionEngine,
     geoip::GeoIp,
     http,
     io::IoController,
@@ -127,9 +127,8 @@ async fn run_with_config(
         .ensure_directories(&data_dir_lock)
         .await
         .map_err(|error| format!("failed to create directories: {error}"))?;
-    let extension = ExtensionEngine::from_env(metrics.clone())
-        .await
-        .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
+    let auth = AuthEngine::from_env(metrics.clone())
+        .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
@@ -162,6 +161,7 @@ async fn run_with_config(
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
+    let upload_client = peer_client_factory.build_upload()?;
     let internal_tls = match &config.peer_tls {
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
@@ -191,11 +191,12 @@ async fn run_with_config(
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
         usage,
         geoip,
         client: arc_swap::ArcSwap::from_pointee(client),
+        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
@@ -777,11 +778,11 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         .record_memory_action("segment_handle_cache_trim");
                 }
                 if pressure == MemoryPressure::Critical
-                    && let Some(extension) = &state.extension
+                    && let Some(auth) = &state.auth
                 {
-                    let evicted = extension.clear_caches().await;
+                    let evicted = auth.clear_caches().await;
                     if evicted > 0 {
-                        state.metrics.record_memory_action("extension_cache_trim");
+                        state.metrics.record_memory_action("auth_cache_trim");
                     }
                 }
                 state.metrics.update_background_work_paused(
@@ -1169,6 +1170,8 @@ pub(crate) async fn apply_renewed_enrollment(
         .await?;
     let new_client = state.peer_client_factory.build()?;
     state.client.store(Arc::new(new_client));
+    let new_upload_client = state.peer_client_factory.build_upload()?;
+    state.upload_client.store(Arc::new(new_upload_client));
 
     // Inbound: rebuild the internal mTLS server config (preserving the client
     // verifier) and hot-swap the leaf.

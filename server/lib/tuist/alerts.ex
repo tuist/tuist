@@ -125,15 +125,17 @@ defmodule Tuist.Alerts do
   end
 
   def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
-    current_opts = maybe_add_environment([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.environment)
+    current_opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_environment(alert_rule.environment)
+      |> maybe_add_git_branch(alert_rule.git_branch)
 
     current = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, current_opts)
 
     previous_opts =
-      maybe_add_environment(
-        [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size],
-        alert_rule.environment
-      )
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_environment(alert_rule.environment)
+      |> maybe_add_git_branch(alert_rule.git_branch)
 
     previous = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
@@ -173,6 +175,10 @@ defmodule Tuist.Alerts do
 
   defp maybe_add_scheme(opts, ""), do: opts
   defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
+
+  defp maybe_add_git_branch(opts, nil), do: opts
+  defp maybe_add_git_branch(opts, ""), do: opts
+  defp maybe_add_git_branch(opts, git_branch), do: Keyword.put(opts, :git_branch, git_branch)
 
   defp maybe_add_environment(opts, :ci), do: Keyword.put(opts, :is_ci, true)
   defp maybe_add_environment(opts, :local), do: Keyword.put(opts, :is_ci, false)

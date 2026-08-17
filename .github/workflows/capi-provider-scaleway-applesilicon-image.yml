@@ -6,12 +6,14 @@ on:
     paths:
       - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
+      - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
     paths:
       - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
+      - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   workflow_dispatch: {}
@@ -97,8 +99,44 @@ jobs:
         working-directory: infra/tart-kubelet
         run: go vet ./...
 
+  test-macos-log-shipper:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-log-shipper/go.mod
+          # Stdlib-only module: no go.sum to key a module cache on, and
+          # setup-go errors on a cache-dependency-path that resolves to
+          # nothing. Keep it dependency-free — the whole argument for a
+          # purpose-built shipper is that it stays small enough to ride
+          # every SSH drift roll.
+          cache: false
+      - name: Check formatting (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: go test ./...
+      - name: Vet (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: go vet ./...
+      # The binary only ever runs on a Mac mini, so a Linux-only test pass
+      # would not catch a darwin build break (the tailer reads syscall.Stat_t
+      # for the inode). Cross-compile it here rather than discovering it in
+      # the image build.
+      - name: Cross-build for the fleet (darwin/arm64)
+        working-directory: infra/macos-log-shipper
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-log-shipper
+
   build:
-    needs: [test, test-macos-host-bootstrap, test-tart-kubelet]
+    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-tart-kubelet]
     if: github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:

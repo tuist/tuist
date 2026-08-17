@@ -190,7 +190,18 @@ jobs:
           echo "::group::observability-namespace.yaml diff"
           kubectl diff -f infra/k8s/mgmt/observability-namespace.yaml || true
           echo "::endgroup::"
-      - name: Apply ClusterClass first (Cluster CRs reference it)
+          echo "::group::machinedrainrules.yaml diff"
+          kubectl diff -f infra/k8s/clusters/machinedrainrules.yaml || true
+          echo "::endgroup::"
+      - name: Apply runner drain rules before anything can roll Machines
+        # Ordered ahead of the ClusterClass on purpose. The ClusterClass
+        # carries the bare-metal rollout strategy, and applying it can
+        # start a Machine replacement; without the drain rule already in
+        # place that replacement evicts runner Pods and kills in-flight
+        # CI jobs.
+        run: |
+          kubectl apply -f infra/k8s/clusters/machinedrainrules.yaml
+      - name: Apply ClusterClass (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply bare-metal substrate
@@ -384,6 +395,7 @@ jobs:
             esac
           }
 
+          assert_no_drift infra/k8s/clusters/machinedrainrules.yaml
           assert_no_drift infra/k8s/clusters/clusterclass-tuist.yaml
           for f in infra/k8s/clusters/bare-metal*.yaml; do
             [ -e "$f" ] || continue

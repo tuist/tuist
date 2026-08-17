@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,6 +44,10 @@ type fakeBackend struct {
 	notMounted bool
 	// mountErr, when set, is returned from isMounted to model a stat failure.
 	mountErr error
+	// digestErr, when set, is returned from imageInventoryDigest to model a
+	// LOCAL failure to measure an image (the read-only attach failed), which is
+	// not evidence about the image's contents.
+	digestErr error
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -73,6 +79,9 @@ func (f *fakeBackend) createImage(path string, sizeGiB int) error {
 // imageInventoryDigest stands in for a read-through attach: the digest is
 // sha1(content) of the opaque image bytes.
 func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
+	if f.digestErr != nil {
+		return "", f.digestErr
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -1127,6 +1136,138 @@ func TestReadPromoteResult(t *testing.T) {
 	}
 }
 
+func TestReadUploadMillis(t *testing.T) {
+	if got := readUploadMillis(""); got != -1 {
+		t.Fatalf("empty status dir = %d; want -1", got)
+	}
+	dir := t.TempDir()
+	// Absent marker: no promote, or a promote the server pre-empted before the
+	// transfer. Either way there is no duration to observe.
+	if got := readUploadMillis(dir); got != -1 {
+		t.Fatalf("missing file = %d; want -1 (nothing was uploaded)", got)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, uploadMillisFile), []byte("4200\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readUploadMillis(dir); got != 4200 {
+		t.Fatalf("upload millis = %d; want 4200", got)
+	}
+
+	// Unparseable reads as absent rather than as a zero-second upload, which
+	// would understate the tail this histogram exists to watch.
+	if err := os.WriteFile(filepath.Join(dir, uploadMillisFile), []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readUploadMillis(dir); got != -1 {
+		t.Fatalf("garbage = %d; want -1", got)
+	}
+}
+
+// uploadSampleCount is the number of observations in the upload histogram — what
+// tart_kubelet_cache_volume_upload_seconds_count exposes. Sample count, not
+// series count, so a test can assert that a given finalize did or did not
+// observe an upload.
+func uploadSampleCount(t *testing.T) uint64 {
+	t.Helper()
+	var m dto.Metric
+	if err := cacheVolumeUploadSeconds.Write(&m); err != nil {
+		t.Fatalf("collect upload histogram: %v", err)
+	}
+	return m.GetHistogram().GetSampleCount()
+}
+
+// finalizeVolume's promote accounting, driven through the real function rather
+// than by re-asserting the calls a test made itself.
+//
+// A promote the server pre-empts at mint time reports a conflict WITHOUT ever
+// uploading: it must still count as contention, and must contribute no sample to
+// the upload histogram — the whole point of the pre-flight is that a doomed
+// promote stops holding the slot open for a transfer. The same conflict WITH an
+// upload marker (it lost the race after paying for the transfer, which is what
+// happens whenever another host wins during the upload) must still be counted
+// and still observe its duration, so the gate is pinned in both directions.
+func TestFinalizeVolumePromoteAccounting(t *testing.T) {
+	// finalize takes a job that did cache-changing work for its own account —
+	// the only shape that is promote-eligible — and runs it to completion with
+	// the guest-relayed status the given promote produced.
+	finalize := func(t *testing.T, vm, promoteResult string, uploadMillis string) {
+		t.Helper()
+		m, _ := newTestManager(t, 100)
+		seedMasterGen(t, m, "42", "existing-master", 5)
+
+		att := mustAllocate(t, m, vm)
+		if _, _, err := m.Materialize(att, "42"); err != nil {
+			t.Fatalf("Materialize: %v", err)
+		}
+		att.SourceAccount = "42"
+		writeBranchCache(t, m, att, "branch")
+
+		statusDir := t.TempDir()
+		// "1": the runner exited 0 AND the cache changed, so the job is eligible.
+		if err := os.WriteFile(filepath.Join(statusDir, dirtyMarkerFile), []byte("1"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(statusDir, promoteResultFile), []byte(promoteResult), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if uploadMillis != "" {
+			if err := os.WriteFile(filepath.Join(statusDir, uploadMillisFile), []byte(uploadMillis), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		r := &Reconciler{Volumes: m}
+		r.finalizeVolume(&Entry{VMName: vm, Volume: att, VolumeStatusDir: statusDir}, "42", true)
+	}
+
+	t.Run("pre-empted at mint: rejected, no upload observed", func(t *testing.T) {
+		rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-preempted", "conflict", "")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+1 {
+			t.Fatalf("rejected promotes = %v; want %v (a conflict is contention, not an error)", got, rejectedBefore+1)
+		}
+		if got := uploadSampleCount(t); got != uploadsBefore {
+			t.Fatalf("upload samples = %d; want %d (a pre-empted promote uploads nothing)", got, uploadsBefore)
+		}
+	})
+
+	t.Run("lost the race after uploading: rejected, upload observed", func(t *testing.T) {
+		rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-uploaded", "conflict", "4200")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+1 {
+			t.Fatalf("rejected promotes = %v; want %v", got, rejectedBefore+1)
+		}
+		if got := uploadSampleCount(t); got != uploadsBefore+1 {
+			t.Fatalf("upload samples = %d; want %d (the transfer still happened)", got, uploadsBefore+1)
+		}
+	})
+
+	t.Run("accepted promotes also observe their upload", func(t *testing.T) {
+		acceptedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted"))
+		uploadsBefore := uploadSampleCount(t)
+
+		finalize(t, "vm-accepted", "accepted 6", "5100")
+
+		if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted")); got != acceptedBefore+1 {
+			t.Fatalf("accepted promotes = %v; want %v", got, acceptedBefore+1)
+		}
+		// The upload sample is recorded outside the switch on the promote result,
+		// so accepts contribute to this histogram too — which is why the
+		// pre-flight's effect reads as upload_count MINUS accepted promotes, not
+		// against rejected ones.
+		if got := uploadSampleCount(t); got != uploadsBefore+1 {
+			t.Fatalf("upload samples = %d; want %d (an accept uploaded too)", got, uploadsBefore+1)
+		}
+	})
+}
+
 func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 
@@ -1227,5 +1368,84 @@ func seedMasterGen(t *testing.T, m *VolumeManager, account, content string, gene
 	}
 	if err := os.WriteFile(m.masterGenerationPath(account, ReservedTuistCacheVolume), []byte(strconv.Itoa(generation)), 0o644); err != nil {
 		t.Fatalf("seed master generation: %v", err)
+	}
+}
+
+// The host advertises exactly the accounts whose masters are on disk, so the
+// server can prefer a queued job whose cache is already here instead of
+// modelling residency from its own dispatch history.
+func TestCacheMasterNodeLabels(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	seedMaster(t, m, "7")
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	want := map[string]string{
+		"tuist.dev/cache-master-42": "true",
+		"tuist.dev/cache-master-7":  "true",
+	}
+	if !reflect.DeepEqual(labels, want) {
+		t.Fatalf("labels = %v; want %v", labels, want)
+	}
+}
+
+// Eviction is what makes residency finite, so an evicted account must stop
+// being advertised. The maintainer prunes tuist.dev/* labels it no longer owns,
+// so dropping the key here is what retires it from the Node.
+func TestCacheMasterNodeLabelsDropsEvictedAccount(t *testing.T) {
+	// 3 GiB total, 1 GiB cap: the watermark leaves room for one master, so
+	// seeding three forces the evictor to drop the two oldest.
+	m, _ := newTestManager(t, 3)
+	for i, account := range []string{"42", "7", "9"} {
+		seedMaster(t, m, account)
+		setMtime(t, m.masterImage(account, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+	}
+	if _, err := m.EvictToWatermark(); err != nil {
+		t.Fatalf("EvictToWatermark: %v", err)
+	}
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	// Only the surviving master is advertised. This is the case the server's
+	// old dispatch-history model could not see at all: the accounts still ran
+	// here most recently, but their masters are gone.
+	want := map[string]string{"tuist.dev/cache-master-9": "true"}
+	if !reflect.DeepEqual(labels, want) {
+		t.Fatalf("labels after eviction = %v; want %v", labels, want)
+	}
+}
+
+// A disabled manager (no runner-cache root) holds no masters, so it advertises
+// nothing and the server has no residency preference for the host.
+func TestCacheMasterNodeLabelsDisabled(t *testing.T) {
+	m := NewVolumeManager("", 0, nil)
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil || len(labels) != 0 {
+		t.Fatalf("CacheMasterNodeLabels on a disabled manager = %v, %v; want empty, nil", labels, err)
+	}
+}
+
+// A directory that is not an account id cannot have come from Materialize.
+// Emitting it could produce an invalid label key, and one bad key fails the
+// whole Node update — taking every other account's advertisement down with it.
+func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	seedMaster(t, m, "not-an-account")
+
+	labels, err := m.CacheMasterNodeLabels()
+	if err != nil {
+		t.Fatalf("CacheMasterNodeLabels: %v", err)
+	}
+	if _, ok := labels["tuist.dev/cache-master-42"]; !ok {
+		t.Fatalf("account 42 should be advertised: %v", labels)
+	}
+	if len(labels) != 1 {
+		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
 	}
 }

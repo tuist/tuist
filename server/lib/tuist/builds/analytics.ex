@@ -2416,6 +2416,8 @@ defmodule Tuist.Builds.Analytics do
     * `opts` - Options:
       * `:limit` - Number of builds to consider (default: 100)
       * `:offset` - Number of builds to skip (default: 0)
+      * `:git_branch` - Only consider builds run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) builds
 
   ## Returns
     The calculated metric value (as a ratio 0.0-1.0), or `nil` if no data available.
@@ -2423,6 +2425,7 @@ defmodule Tuist.Builds.Analytics do
   def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
@@ -2441,6 +2444,13 @@ defmodule Tuist.Builds.Analytics do
             b.cacheable_tasks_count
           )
       )
+
+    query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [b], b.git_branch == ^git_branch)
+      else
+        query
+      end
 
     query =
       case is_ci do

@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -732,6 +733,7 @@ func TestReconcileTailscaleEgressService_IdempotentAndPreservesOperatorRewrite(t
 // is loud in test output rather than silently doing nothing.
 type scalewayAPIStub struct {
 	servers        []*applesilicon.Server
+	listCalls      int
 	updateCalls    int
 	updatedNames   []string
 	reinstalledIDs []string
@@ -739,10 +741,22 @@ type scalewayAPIStub struct {
 	rebootedIDs    []string
 	rebootCalls    int
 	rebootError    error
+	// osCatalog is what ListOS returns; nil means "every image any
+	// fixture server is running", which is what a release path pinned
+	// to a live host's own image needs.
+	osCatalog        []*applesilicon.OS
+	reinstalledOsIDs []*string
 }
 
+// ListServers returns the whole fixture as one page. AdoptFromPool
+// treats a short page as the end of the listing, so a single call is
+// enough as long as the fixture stays under the client's page size.
 func (f *scalewayAPIStub) ListServers(*applesilicon.ListServersRequest, ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
-	return nil, errors.New("ListServers not implemented in stub")
+	f.listCalls++
+	return &applesilicon.ListServersResponse{
+		Servers:    f.servers,
+		TotalCount: uint32(len(f.servers)),
+	}, nil
 }
 
 func (f *scalewayAPIStub) GetServer(req *applesilicon.GetServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -773,10 +787,26 @@ func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerReque
 	for _, s := range f.servers {
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			f.reinstalledOsIDs = append(f.reinstalledOsIDs, req.OsID)
 			return s, nil
 		}
 	}
 	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	catalog := f.osCatalog
+	if catalog == nil {
+		seen := map[string]bool{}
+		for _, s := range f.servers {
+			if s.Os == nil || seen[s.Os.Name] {
+				continue
+			}
+			seen[s.Os.Name] = true
+			catalog = append(catalog, &applesilicon.OS{ID: "os-" + s.Os.Name, Name: s.Os.Name})
+		}
+	}
+	return &applesilicon.ListOSResponse{Os: catalog, TotalCount: uint32(len(catalog))}, nil
 }
 
 func (f *scalewayAPIStub) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -846,7 +876,7 @@ func TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease(t *testing.T) {
 			Finalizers: []string{MachineFinalizer},
 		},
 		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
-			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Zone: "fr-par-1",
 		},
 		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
@@ -888,7 +918,7 @@ func TestReconcileDelete_LegacyCRUsesDefaultPrefix(t *testing.T) {
 			Finalizers: []string{MachineFinalizer},
 		},
 		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
-			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
 			Zone: "fr-par-1",
 		},
 		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
@@ -915,6 +945,89 @@ func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
+// --- adopt-pool-prefix resolution ------------------------------------------
+
+// poolServer is a pre-ordered host in the shape AdoptFromPool accepts:
+// delivered, Ready, and matching the requested SKU + OS.
+func poolServer(id, name string) *applesilicon.Server {
+	return &applesilicon.Server{
+		ID:        id,
+		Name:      name,
+		Type:      "M2-L",
+		Delivered: true,
+		Status:    applesilicon.ServerStatusReady,
+		Os:        &applesilicon.OS{Name: "macos-tahoe-26.3"},
+	}
+}
+
+func newAdoptMachine(name string) *infrav1.ScalewayAppleSiliconMachine {
+	return &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns"},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			// Empty AdoptPoolPrefix — a drifted MachineTemplate clones this shape.
+			Type: "M2-L",
+			Zone: "fr-par-1",
+			OS:   "Tahoe",
+		},
+	}
+}
+
+// A CR cloned from a MachineTemplate that never received
+// `adoptPoolPrefix` must still adopt, against the operator-global
+// default. This is the path that keeps a MachineSet scale-up working
+// on a drifted template instead of failing the clone outright.
+func TestAcquireServer_FallsBackToControllerDefaultPrefix(t *testing.T) {
+	api := &scalewayAPIStub{servers: []*applesilicon.Server{poolServer("srv-pool-1", "tuist-pool-001")}}
+	machine := newAdoptMachine("macos-fleet-abc12")
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+	r.DefaultAdoptPoolPrefix = "tuist-pool-"
+
+	srv, requeue, err := r.acquireServer(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("acquireServer: %v", err)
+	}
+	if requeue != 0 {
+		t.Fatalf("a successful adopt must not requeue; got %v", requeue)
+	}
+	if srv == nil || srv.ID != "srv-pool-1" {
+		t.Fatalf("expected to claim srv-pool-1; got %+v", srv)
+	}
+	if got := api.servers[0].Name; got != machine.Name {
+		t.Fatalf("claim must promote the server name to the Machine name; got %q", got)
+	}
+}
+
+// With neither a spec prefix nor an operator default there is no pool
+// to scan, and an unprefixed scan would claim a server belonging to
+// another fleet. Refuse and requeue rather than adopting something
+// arbitrary — the operator fixes this by setting either value, neither
+// of which needs the CR recreated.
+func TestAcquireServer_NoPrefixAnywhereRefusesToScan(t *testing.T) {
+	api := &scalewayAPIStub{servers: []*applesilicon.Server{poolServer("srv-pool-1", "tuist-pool-001")}}
+	machine := newAdoptMachine("macos-fleet-abc12")
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	srv, requeue, err := r.acquireServer(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("acquireServer must not return a hard error; got %v", err)
+	}
+	if srv != nil {
+		t.Fatalf("must not claim a host without a pool prefix; got %+v", srv)
+	}
+	if requeue == 0 {
+		t.Fatal("expected a requeue so the fix lands without recreating the CR")
+	}
+	if api.listCalls != 0 {
+		t.Fatalf("must not scan Scaleway at all; got %d ListServers calls", api.listCalls)
+	}
+	cond := conditions.Get(machine, shared.ProvisionedCondition)
+	if cond == nil || cond.Reason != "NoAdoptPoolPrefix" {
+		t.Fatalf("expected a NoAdoptPoolPrefix condition; got %+v", cond)
+	}
+}
+
 // --- handleBootstrapFailure ------------------------------------------------
 //
 // Tiered host recovery contract:
@@ -937,6 +1050,10 @@ type recoveryStub struct {
 	rebootErr    error
 	releaseCalls []recoveryReleaseCall
 	releaseErr   error
+	// unpublishedOS models Scaleway having retired an image: a
+	// release pinned to it comes back as ErrOSNotPublished, an
+	// unpinned one succeeds.
+	unpublishedOS string
 }
 
 type recoveryCall struct {
@@ -948,6 +1065,7 @@ type recoveryReleaseCall struct {
 	id         string
 	zone       string
 	poolPrefix string
+	osName     string
 }
 
 func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
@@ -958,8 +1076,11 @@ func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
 	return nil
 }
 
-func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string) error {
-	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix})
+func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error {
+	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix, osName: pin.Family})
+	if s.unpublishedOS != "" && pin.Family == s.unpublishedOS {
+		return fmt.Errorf("%w: %q not listed", scaleway.ErrOSNotPublished, pin.Family)
+	}
 	if s.releaseErr != nil {
 		return s.releaseErr
 	}
@@ -996,7 +1117,7 @@ func newBootstrapFailureMachine(serverID, poolPrefix string) *infrav1.ScalewayAp
 func TestHandleBootstrapFailure_IncrementsAttempts(t *testing.T) {
 	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
 	stub := &recoveryStub{}
-	res := handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if machine.Status.BootstrapAttempts != 1 {
 		t.Fatalf("expected attempts=1, got %d", machine.Status.BootstrapAttempts)
@@ -1021,7 +1142,7 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	machine.Status.BootstrapAttempts = 2 // next call lands at 3
 	stub := &recoveryStub{}
 
-	res := handleBootstrapFailure(context.Background(), machine, errors.New("sudo locked"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("sudo locked"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue, got %v", res.RequeueAfter)
 	}
@@ -1037,7 +1158,7 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 
 	// Drive attempts past the threshold without crossing maxAttempts.
 	// The reboot must not fire again because BootstrapRebootIssued is set.
-	res = handleBootstrapFailure(context.Background(), machine, errors.New("still wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	res = handleBootstrapFailure(context.Background(), machine, errors.New("still wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("reboot must be one-shot per host; got %d calls", len(stub.rebootCalls))
 	}
@@ -1046,6 +1167,38 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 	}
 	if res.RequeueAfter != 60*time.Second {
 		t.Fatalf("expected 60s requeue on post-reboot retry, got %v", res.RequeueAfter)
+	}
+}
+
+func TestHandleBootstrapFailure_RetiredOSPinStillReleases(t *testing.T) {
+	// Every Machine created before an operator repoints its fleet
+	// carries the retired pin in its own spec. If an unsatisfiable pin
+	// failed the release, those Machines would wedge on delete — host
+	// still claimed and billing, finalizer never clearing — and the
+	// fleet could never shed one to get a correctly-pinned
+	// replacement. Release must fall through to the server type
+	// default instead.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Spec.OS = "macos-tahoe-26.3"
+	machine.Status.BootstrapAttempts = 7
+	machine.Status.BootstrapRebootIssued = true
+
+	stub := &recoveryStub{unpublishedOS: "macos-tahoe-26.3"}
+	secrets := &secretCleanerStub{}
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
+
+	if len(stub.releaseCalls) != 2 {
+		t.Fatalf("expected the pinned release to be retried unpinned, got %d call(s): %+v",
+			len(stub.releaseCalls), stub.releaseCalls)
+	}
+	if stub.releaseCalls[0].osName != "macos-tahoe-26.3" {
+		t.Fatalf("first release should honour the fleet pin, got %q", stub.releaseCalls[0].osName)
+	}
+	if stub.releaseCalls[1].osName != "" {
+		t.Fatalf("retry should be unpinned so Scaleway picks the type default, got %q", stub.releaseCalls[1].osName)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("host must be considered released so the Machine can finalize, got %q", machine.Status.ServerID)
 	}
 }
 
@@ -1078,7 +1231,7 @@ func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 
 	stub := &recoveryStub{}
 	secrets := &secretCleanerStub{}
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 1 {
 		t.Fatalf("expected one release call at max attempts, got %d", len(stub.releaseCalls))
@@ -1123,7 +1276,7 @@ func TestHandleBootstrapFailure_RebootRetriesAfterAPIError(t *testing.T) {
 	machine.Status.BootstrapAttempts = 2 // next call lands at 3
 	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("expected one reboot attempt on attempt 3, got %d", len(stub.rebootCalls))
 	}
@@ -1135,7 +1288,7 @@ func TestHandleBootstrapFailure_RebootRetriesAfterAPIError(t *testing.T) {
 	// The reboot tier should fire again — that's the whole point of
 	// not consuming the one-shot flag on the prior error.
 	stub.rebootErr = nil
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged again"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged again"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 	if len(stub.rebootCalls) != 2 {
 		t.Fatalf("expected retry-after-error to fire a second reboot at attempt 4, got %d total calls", len(stub.rebootCalls))
 	}
@@ -1158,7 +1311,7 @@ func TestHandleBootstrapFailure_ReleaseSwallowsSecretDeleteError(t *testing.T) {
 	stub := &recoveryStub{}
 	secrets := &secretCleanerStub{deleteErr: errors.New("api server unreachable")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, secrets, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 1 {
 		t.Fatalf("Scaleway release must still happen even when Secret delete errors; got %d release calls", len(stub.releaseCalls))
@@ -1178,7 +1331,7 @@ func TestHandleBootstrapFailure_ReleaseAPIErrorKeepsState(t *testing.T) {
 	machine.Status.BootstrapAttempts = 7
 	stub := &recoveryStub{releaseErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if machine.Status.ServerID != "srv-1" {
 		t.Fatalf("ServerID must persist when release fails; got %q", machine.Status.ServerID)
@@ -1197,7 +1350,7 @@ func TestHandleBootstrapFailure_RebootAPIErrorDoesNotConsumeOneShot(t *testing.T
 	machine.Status.BootstrapAttempts = 2
 	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("expected one reboot attempt despite error, got %d", len(stub.rebootCalls))
@@ -1218,7 +1371,7 @@ func TestHandleBootstrapFailure_LegacyCRWithoutPoolPrefixNeverReleases(t *testin
 	machine.Status.BootstrapAttempts = 7
 
 	stub := &recoveryStub{}
-	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8)
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 3, 8, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.releaseCalls) != 0 {
 		t.Fatalf("legacy CR (no pool prefix) must not trigger release; got %+v", stub.releaseCalls)
@@ -1236,7 +1389,7 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 	machine.Status.BootstrapAttempts = 100
 	stub := &recoveryStub{}
 
-	handleBootstrapFailure(context.Background(), machine, errors.New("boom"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 0, 0)
+	handleBootstrapFailure(context.Background(), machine, errors.New("boom"), stub, &secretCleanerStub{}, fakeRecorder(), logr.Discard(), 0, 0, machine.Spec.AdoptPoolPrefix)
 
 	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
 		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",

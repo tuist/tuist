@@ -220,6 +220,41 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
 
+# OCI registry. Reuses a staging object-storage bucket under an `oci`
+# prefix, alongside the Docker mirror below. Reachable at
+# tuist-oci-staging.<tailnet>.ts.net; nothing points at it yet, so it
+# is inert until the build workflows and fleet image pins move.
+ociRegistry:
+  enabled: true
+  s3:
+    # Not the default `tuist-stag-storage` bucket the Docker mirror uses:
+    # an object miss there resolves against a shadow-bucket configuration
+    # whose source no longer exists, so the store answers "NoSuchBucket"
+    # instead of a not-found. A registry turns that into a 500 on the
+    # "is this layer already present?" check every push starts with.
+    # Revisit once that bucket's shadow configuration is cleared.
+    bucket: tuist-xcode-cache-staging
+    rootDirectory: oci
+  auth:
+    enabled: true
+  externalSecret:
+    enabled: true
+  tailscale:
+    enabled: true
+    hostname: tuist-oci-staging
+    tags: tag:tuist-k8s-staging
+  # 443 so image references carry no port: `oci-staging.tuist.dev/<repo>`.
+  # The reference is embedded in every pushed tag and chart pin, so the
+  # port is expensive to change later.
+  service:
+    port: 443
+  tls:
+    enabled: true
+    host: oci-staging.tuist.dev
+    dns:
+      enabled: true
+      tailnet: taild6d7bb.ts.net
+
 # Docker Hub pull-through cache. Reuses the staging object-storage bucket
 # under a `docker-mirror` prefix.
 registryCache:
@@ -341,6 +376,21 @@ swiftRegistrySync:
       value: stag
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Unlike canary, staging sets no syncAllowlist, so it walks the same full
+  # catalog production does while inheriting the 512Mi/1Gi common default
+  # that was only ever meant for an allowlisted env. That is the exact
+  # condition production hit after #12136 - idle working set 750-850Mi,
+  # per-release peaks 930-995Mi - and staging reproduces the same OOMKill
+  # loop across every replacement pod. Matching production's sizing rather
+  # than allowlisting staging keeps it a real rehearsal of the production
+  # sync path. See the extended rationale in values-managed-production.yaml.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "4Gi"
 
 xcresultProcessor:
   # Single replica in staging, matching macosFleet.replicas=1.
@@ -474,6 +524,17 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # The minis drop inbound :22 from everything except the tailnet, loopback
+  # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
+  # listen backlog. That socket binds *:22, so an exhausted backlog takes the
+  # operator's tailnet fallback down with the public path and the host stops
+  # accepting config pushes entirely. This is the cluster's stable egress
+  # Floating IP, which the capi entry in the platform chart's
+  # ciliumEgressGateway routes the operator through; keep the two in lockstep.
+  # Dropping it here is safe (the drift loop falls back to the tailnet) but
+  # costs the public dial path, the only one that can update Tailscale itself.
+  sshIngressAllowCIDRs:
+    - 78.47.186.71/32
   # Per-account cache volumes, validated on staging first. The quota is an
   # APFS ceiling (shares the container's free space, not a reservation)
   # fenced by admission + watermark eviction. A real Tuist cache master is
@@ -517,6 +578,14 @@ macosFleet:
     # is the single advertiser of 10.128.0.0/12 on the shared tailnet
     # — keep it that way until per-env CIDRs (or 4via6) land.
     acceptRoutes: true
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-staging.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="staging"}; every line also carries
+  # `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:3100/loki/api/v1/push
+    env: staging
   # Firewall half of the runner-cache path: allow VM egress to the
   # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
   # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's
