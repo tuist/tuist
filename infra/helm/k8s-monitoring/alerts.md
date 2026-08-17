@@ -1407,7 +1407,7 @@ sum by (cluster) (
 ### Runner host log shipper not delivering
 
 ```promql
-max by (cluster, env, instance, job) (
+max by (cluster, env, instance, source_job) (
   tuist_log_shipper_consecutive_failures
 ) > 10
 ```
@@ -1416,7 +1416,14 @@ max by (cluster, env, instance, job) (
 - Severity: warning
 - Summary: `Host log shipper on {{ $labels.instance }} has failed
   {{ $value | printf "%.0f" }} consecutive attempts for
-  {{ $labels.job }}; host logs from that mini are not reaching Loki`
+  {{ $labels.source_job }}; host logs from that mini are not reaching Loki`
+
+The label is `source_job`, not `job`. The agent deliberately avoids `job` in its
+exposition: it is a reserved target label, and with `honor_labels=false` (the
+default, which this scrape does not override) it would be overwritten with
+`tuist-macos-node-exporter` and the agent's value pushed to `exported_job`.
+Grouping by `job` would then collapse every tailed source into one series and
+label it with the scrape job.
 
 The agent is the thing that reports host logs, so when it breaks nothing
 reports and no absence of log lines distinguishes "installed but failing"
@@ -1467,7 +1474,58 @@ the basename — verified against node_exporter 1.8.2 on a production mini.
 
 The series disappears rather than freezing when host logging is turned off,
 because the uninstall removes the `.prom` file. That is deliberate: a rule that
-kept firing for a host carrying no agent would train everyone to ignore it.
+kept firing for a host carrying no agent would train everyone to ignore it. It
+also means this rule cannot see an agent that never wrote a file at all, which
+is what the next one is for.
+
+### Runner host log shipper absent
+
+```promql
+count by (cluster, env, instance) (
+  up{job="tuist-macos-node-exporter"} == 1
+)
+unless
+count by (cluster, env, instance) (
+  node_textfile_mtime_seconds{
+    file="/var/lib/node_exporter/textfile/tuist-log-shipper.prom"
+  }
+)
+```
+
+- Pending period: 20 minutes
+- Severity: warning
+- Summary: `Mac mini {{ $labels.instance }} is scrapeable but publishes no log
+  shipper health file; the agent is not installed or never started`
+
+The gap both rules above leave open, and the one that matters most given the
+history: an agent that fails *before its first write* produces no series for
+either of them. `node_textfile_mtime_seconds` exists only for files the collector
+successfully read, and `tuist_log_shipper_*` only once the agent has written, so
+a failed install, a launchd job that never loaded, or a binary the kernel refuses
+(`OS_REASON_CODESIGNING` after an in-place overwrite) is invisible to a threshold
+rule. Per **How to create these rules** item 6, threshold rules run with
+**No Data: Normal**, so "no series" reads as healthy.
+
+The `unless` form is what makes this work under that convention rather than
+needing `No Data: Alerting`: the healthy case is an empty result, while the
+unhealthy case produces a real series from the left-hand side, so the rule has
+data exactly when something is wrong. It anchors on node_exporter's own `up`,
+which exists for every mini from the moment the CAPI provider creates its egress
+Service, whether or not anything else on that host works.
+
+Two scoping notes:
+
+- It reports every host in an environment where `macosFleet.hostLogs.enabled` is
+  false, because the uninstall removes the file by design. All three managed
+  environments are on; pause the rule for an environment that is turned off.
+- 20 minutes is deliberate. `installNodeExporter` runs several steps before
+  `installLogShipper` (which is last on purpose, so the logging path cannot block
+  a tart-kubelet roll), so a freshly bootstrapped host legitimately serves
+  `:9100` for minutes before the agent's first write.
+
+Seeding a placeholder file at install time was the alternative. It was rejected
+because it cannot cover a host the install step never reached at all, which is
+one of the states this is meant to catch.
 
 ### Runner host textfile metrics unparseable
 
@@ -1479,15 +1537,27 @@ max by (cluster, env, instance) (
 
 - Pending period: 5 minutes
 - Severity: warning
-- Summary: `A metrics textfile on {{ $labels.instance }} failed to parse;
-  that host's node_* series are incomplete`
+- Summary: `A metrics textfile on {{ $labels.instance }} failed to parse; some
+  host-agent health is missing from this scrape`
 
-node_exporter parses the whole collector directory on every scrape, so one
-malformed file is a parse error for the DIRECTORY — it takes the host's
-`node_*` series with it rather than costing one metric. The writers rename
-a fully written temp file into place specifically so a scrape can never land
+Measured against node_exporter 1.8.2 on a production mini: a parse failure is
+isolated to the file it happened in. That file's metrics are dropped and no
+`node_textfile_mtime_seconds` is emitted for it, while every other file and
+collector is unaffected (`node_scrape_collector_success{collector="textfile"}`
+even stays 1). So this is not a host-wide outage, but it does mean a host agent's
+health is absent from the scrape, which is the state those agents exist to make
+visible.
+
+The writers rename a fully written temp file into place so a scrape cannot land
 mid-write, so this firing means something is writing into
 `/var/lib/node_exporter/textfile` without that discipline.
+
+Worth knowing about the case this rule *cannot* see: two files holding the same
+series with different values produce no error at all. The collector serves
+whichever the directory walk reaches first, silently drops the other, and leaves
+`node_textfile_scrape_error` at 0. A stale duplicate can therefore pin an agent's
+health at a healthy-looking value indefinitely. Writers keep their pre-rename
+files out of the `.prom` namespace precisely so they cannot become one.
 
 ## Useful investigation queries
 

@@ -144,10 +144,10 @@ func TestFirstSightTakesAPositionWithoutPushingAndOnlyAnAppendReportsSuccess(t *
 		t.Fatal("first sight must not push; an offset that equals the file size is not evidence of a push")
 	}
 	metrics := readMetrics(t, agent.opts.Health.path)
-	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{job="tuist-macos-tart-kubelet"}`]; got != 0 {
+	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{source_job="tuist-macos-tart-kubelet"}`]; got != 0 {
 		t.Fatalf("last_success_timestamp_seconds = %v after first sight, want 0 — nothing was pushed", got)
 	}
-	if got := metrics[`tuist_log_shipper_position_offset_bytes{job="tuist-macos-tart-kubelet"}`]; got != float64(firstSight.Offset) {
+	if got := metrics[`tuist_log_shipper_position_offset_bytes{source_job="tuist-macos-tart-kubelet"}`]; got != float64(firstSight.Offset) {
 		t.Fatalf("position_offset_bytes = %v, want the persisted first-sight offset %d", got, firstSight.Offset)
 	}
 
@@ -164,13 +164,13 @@ func TestFirstSightTakesAPositionWithoutPushingAndOnlyAnAppendReportsSuccess(t *
 		t.Fatalf("expected exactly one push, got %d", len(loki.all()))
 	}
 	metrics = readMetrics(t, agent.opts.Health.path)
-	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{job="tuist-macos-tart-kubelet"}`]; got != 1_770_000_000 {
+	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{source_job="tuist-macos-tart-kubelet"}`]; got != 1_770_000_000 {
 		t.Fatalf("last_success_timestamp_seconds = %v, want the push time 1770000000", got)
 	}
-	if got := metrics[`tuist_log_shipper_consecutive_failures{job="tuist-macos-tart-kubelet"}`]; got != 0 {
+	if got := metrics[`tuist_log_shipper_consecutive_failures{source_job="tuist-macos-tart-kubelet"}`]; got != 0 {
 		t.Fatalf("consecutive_failures = %v after a successful push, want 0", got)
 	}
-	if got := metrics[`tuist_log_shipper_position_offset_bytes{job="tuist-macos-tart-kubelet"}`]; got != float64(after.Offset) {
+	if got := metrics[`tuist_log_shipper_position_offset_bytes{source_job="tuist-macos-tart-kubelet"}`]; got != float64(after.Offset) {
 		t.Fatalf("position_offset_bytes = %v, want %d", got, after.Offset)
 	}
 }
@@ -213,16 +213,16 @@ func TestHealthCountsPushAttemptsWhileTheOffsetStaysPut(t *testing.T) {
 	<-done
 
 	metrics := readMetrics(t, health.path)
-	if got := metrics[`tuist_log_shipper_consecutive_failures{job="job"}`]; got < 3 {
+	if got := metrics[`tuist_log_shipper_consecutive_failures{source_job="job"}`]; got < 3 {
 		t.Fatalf("consecutive_failures = %v, want the retry loop's attempts to be visible", got)
 	}
-	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{job="job"}`]; got != 0 {
+	if got := metrics[`tuist_log_shipper_last_success_timestamp_seconds{source_job="job"}`]; got != 0 {
 		t.Fatalf("last_success_timestamp_seconds = %v, want 0 — nothing ever landed", got)
 	}
 	// Lag is visible because the offset is frozen at first sight while the file
 	// grew past it.
-	offset := metrics[`tuist_log_shipper_position_offset_bytes{job="job"}`]
-	size := metrics[`tuist_log_shipper_source_size_bytes{job="job"}`]
+	offset := metrics[`tuist_log_shipper_position_offset_bytes{source_job="job"}`]
+	size := metrics[`tuist_log_shipper_source_size_bytes{source_job="job"}`]
 	if offset != float64(firstSight.Offset) || size <= offset {
 		t.Fatalf("offset = %v, size = %v; want the offset frozen at %d with the file grown past it", offset, size, firstSight.Offset)
 	}

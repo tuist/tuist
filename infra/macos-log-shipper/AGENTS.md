@@ -87,7 +87,8 @@ while `:9100` answered instantly, every time. So the health signal rides `:9100`
 It goes out as a Prometheus textfile at
 `/var/lib/node_exporter/textfile/tuist-log-shipper.prom`
 (`shipper.DefaultHealthPath`, `--metrics` to override), which node_exporter's
-textfile collector reads on every scrape. Per tailed source (`job` label):
+textfile collector reads on every scrape. Per tailed source, labelled
+`source_job` and **not** `job` (see below):
 
 | Metric | What it answers |
 | --- | --- |
@@ -97,12 +98,25 @@ textfile collector reads on every scrape. Per tailed source (`job` label):
 | `tuist_log_shipper_source_size_bytes` | The source file's size right now. The gap to the offset is the lag. |
 | `tuist_log_shipper_build_info` | `binary_sha256` of the on-host executable and the Go version. Which binary a host carries was itself an open question during the last incident, and the place that answers it (`HostConfigHash` on the Machine) sits behind the kubectl gateway that did not answer. |
 
-Four things about the implementation are load-bearing:
+Six things about the implementation are load-bearing:
 
-- **The write is atomic** — temp file in the same directory, then `os.Rename`.
-  node_exporter parses the whole directory on every scrape, so a partially
-  written file is a parse error for the DIRECTORY. Getting this wrong would take
-  the host's `node_*` series down with it and make the change a net loss.
+- **The source label is `source_job`, not `job`.** `job` is a reserved target
+  label. The scrape runs with `honor_labels=false` (the default; the fleet's
+  scrape does not override it), so a `job` in the exposition collides with the
+  scrape's own `job_name`: the sample would arrive carrying
+  `job="tuist-macos-node-exporter"` with our value silently moved to
+  `exported_job`, and every query grouping by `job` would collapse all sources
+  into one and label them with the scrape job. The *value* is still the Loki
+  `job` label the source's lines carry, so it joins straight against
+  `{job="tuist-macos-tart-kubelet"}` in Loki.
+- **The write is atomic** — temp file in the same directory, then `os.Rename` —
+  so a scrape landing mid-write reads the previous complete document instead of a
+  half-written one. What that protects is narrower than it first appears: see the
+  measurements below.
+- **The temp file must not end in `.prom`** (it is `.tmp`). node_exporter selects
+  files by that suffix, so a `.prom` temp is parsed too and the rename stops
+  being atomic from the collector's point of view. Stale temps from an earlier
+  crash are swept at construction.
 - **The count comes from inside the push retry loop, not from poll boundaries.**
   `push` retries a retryable failure forever, so during a receiver outage `poll`
   never returns. A poll-boundary-only writer would publish nothing for the
@@ -114,6 +128,27 @@ Four things about the implementation are load-bearing:
   Losing the logs to keep the metric would be strictly worse than not having the
   metric.
 
+### What the collector actually does with a bad file
+
+Measured against node_exporter 1.8.2 on a production mini, because the intuitive
+answers are wrong in both directions:
+
+| Situation | What happens |
+| --- | --- |
+| A file fails to parse (a partial write) | Only that file is lost. `node_textfile_scrape_error` goes to 1, no `node_textfile_mtime_seconds` is emitted for it, the parse error is logged per file, and **every other file and collector is unaffected** — `node_scrape_collector_success{collector="textfile"}` even stays 1. |
+| Two files hold the same series with **different** values | The collector serves whichever the directory walk reaches first and **silently drops the other**, with `node_textfile_scrape_error` staying **0**. |
+
+So a malformed file does *not* take the host's `node_*` series down with it, which
+is a claim worth not repeating. The severe case is the second row: a `.prom` temp
+abandoned by a crash is a complete document with stale values, so a leftover
+sorting before the real file pins this agent's health at whatever it said —
+including a healthy-looking zero — with no error metric anywhere. A lost scrape is
+a gap; a leftover is a lie. That is why the suffix matters more than the
+atomicity, and why the sweep exists.
+
+One useful consequence: a permanently corrupt `.prom` emits no mtime series, so
+it does not merely stall the heartbeat rule, it trips the absence rule instead.
+
 Two node_exporter metrics complete the picture without costing us anything:
 `node_textfile_mtime_seconds` is a heartbeat (the file is rewritten on every poll
 outcome, so a dead agent stops advancing it), and `node_textfile_scrape_error`
@@ -121,7 +156,9 @@ catches a malformed file. Both, plus `tuist_log_shipper_.*`, are in the Alloy
 keep-list in [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s
 `values.yaml` — a series not named there is dropped before Grafana Cloud, so
 adding a metric here means adding it there. Recommended alert rules are in that
-chart's `alerts.md` under *Runner host log shipper*.
+chart's `alerts.md` under *Runner host log shipper*; note that neither the
+failure-count rule nor the heartbeat rule can see an agent that died before its
+first write, which is what *Runner host log shipper absent* is for.
 
 The uninstall removes the `.prom` file along with the binary. node_exporter keeps
 reading the directory whether or not the agent exists, so a left-behind file

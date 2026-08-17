@@ -61,13 +61,55 @@ type Health struct {
 	logged bool
 }
 
+// tempPattern is the name os.CreateTemp gives the pre-rename file.
+//
+// The suffix is NOT .prom, and that is the whole point: node_exporter selects
+// the files it parses by that suffix, so a .prom temp is parsed too and the
+// rename stops being atomic from the collector's point of view. Both outcomes
+// were measured against node_exporter 1.8.2 on a production mini:
+//
+//   - Read mid-write, the partial file fails to parse. Only that file is lost
+//     (node_textfile_scrape_error goes to 1 and no mtime series is emitted for
+//     it); other files and other collectors are unaffected.
+//   - Left behind by a crash between create and rename, it parses fine and
+//     holds a COMPLETE copy of every series, with stale values. The collector
+//     then serves whichever file the directory walk reaches first and silently
+//     drops the duplicate from the other, with node_textfile_scrape_error
+//     staying 0. A leftover sorting before the real file therefore pins this
+//     agent's health at whatever it said — including a healthy-looking zero —
+//     for as long as it exists, with no error metric anywhere.
+//
+// The second case is why the suffix matters more than the atomicity: a lost
+// scrape is a gap, while a leftover is a lie that defeats the whole signal.
+const tempPattern = ".tuist-log-shipper-*.tmp"
+
 // NewHealth returns a writer publishing to path.
 func NewHealth(path string, logf func(format string, args ...any)) *Health {
-	return &Health{
+	h := &Health{
 		path:     path,
 		build:    buildInfoLine(),
 		bySource: map[string]*sourceHealth{},
 		logf:     logf,
+	}
+	h.removeStaleTemps()
+	return h
+}
+
+// removeStaleTemps clears temp files an earlier run died holding.
+//
+// They are invisible to the collector, so this is about the disk rather than
+// correctness: a launchd job with KeepAlive that crashes in that window on every
+// start would otherwise accumulate them on hosts whose free space already
+// warrants a golden-image GC. Construction is the safe moment for it, because
+// this process has not opened one yet, and only one agent ever owns a given
+// path.
+func (h *Health) removeStaleTemps() {
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(h.path), tempPattern))
+	if err != nil {
+		return
+	}
+	for _, match := range matches {
+		_ = os.Remove(match)
 	}
 }
 
@@ -129,17 +171,18 @@ func (h *Health) record(job string, mutate func(*sourceHealth)) {
 
 // write renders every source and publishes the document atomically.
 //
-// The temp file goes in the target's own directory and is renamed into place.
-// node_exporter reads the whole directory on every scrape, and a partially
-// written file is a parse error for the DIRECTORY, not a missing metric — it
-// would take the host's node_* series down with it, breaking more observability
-// than it adds. Callers hold h.mu.
+// The temp file goes in the target's own directory and is renamed into place, so
+// a scrape landing mid-write reads the previous complete document rather than a
+// half-written one. node_exporter isolates a parse failure to the file it
+// happened in (measured, 1.8.2), so the cost of getting this wrong is not the
+// host's other metrics: it is this agent's own health disappearing from the
+// scrape exactly while something is wrong with it. Callers hold h.mu.
 func (h *Health) write() error {
 	dir := filepath.Dir(h.path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir textfile dir: %w", err)
 	}
-	tmp, err := os.CreateTemp(dir, ".tuist-log-shipper-*.prom")
+	tmp, err := os.CreateTemp(dir, tempPattern)
 	if err != nil {
 		return fmt.Errorf("create textfile temp: %w", err)
 	}
@@ -170,13 +213,24 @@ func (h *Health) write() error {
 	return nil
 }
 
+// sourceLabel names the tailed source a sample belongs to.
+//
+// Deliberately NOT `job`, even though the value IS the Loki `job` label the
+// source's lines carry. `job` is a reserved target label: Prometheus scrapes
+// with honor_labels=false (the default, and the macOS fleet's scrape does not
+// override it), so a `job` in the exposition collides with the scrape's own
+// job_name. The sample would arrive carrying job="tuist-macos-node-exporter"
+// with our value silently moved to `exported_job`, and every query grouping by
+// `job` would collapse all sources into one and label them with the scrape job.
+const sourceLabel = "source_job"
+
 // render builds the exposition document. Callers hold h.mu.
 func (h *Health) render() string {
-	jobs := make([]string, 0, len(h.bySource))
-	for job := range h.bySource {
-		jobs = append(jobs, job)
+	sources := make([]string, 0, len(h.bySource))
+	for source := range h.bySource {
+		sources = append(sources, source)
 	}
-	sort.Strings(jobs)
+	sort.Strings(sources)
 
 	var b strings.Builder
 	if h.build != "" {
@@ -212,9 +266,10 @@ func (h *Health) render() string {
 		},
 	} {
 		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s gauge\n", family.name, family.help, family.name)
-		for _, job := range jobs {
-			fmt.Fprintf(&b, "%s{job=\"%s\"} %s\n",
-				family.name, escapeLabelValue(job), strconv.FormatInt(family.value(h.bySource[job]), 10))
+		for _, source := range sources {
+			fmt.Fprintf(&b, "%s{%s=\"%s\"} %s\n",
+				family.name, sourceLabel, escapeLabelValue(source),
+				strconv.FormatInt(family.value(h.bySource[source]), 10))
 		}
 	}
 	return b.String()
