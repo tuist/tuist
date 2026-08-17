@@ -1,0 +1,111 @@
+name: OCI Mirror Copy
+
+# Copies OCI artifacts from GHCR to the Tuist registry, on a bare-metal
+# builder rather than from a laptop.
+#
+# This exists because moving the image builds to our own registry moved
+# the *reads* with the writes, but not the artifacts already published.
+# `macos-xcode-image.yml` clones its .xip from `<registry>/xcode-xips`,
+# and until the .xips are copied across, every dispatch of it fails at
+# its first step.
+#
+# It runs on the builder for a practical reason: the registry is
+# tailnet-only and an operator laptop reaches it at around 1 MB/s, which
+# is not enough to hold a single connection open for a multi-gigabyte
+# blob — uploads there die mid-body with `client disconnected during blob
+# PUT`. The builders sit on a datacenter link and are the same host class
+# that pushes the images, so a copy here also exercises the path the
+# image workflows actually use.
+#
+# Expected to be deleted once the mirror is populated. `oras copy` skips
+# blobs the destination already has, so re-running is cheap and safe.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Repository to copy, e.g. `xcode-xips`"
+        required: true
+        default: xcode-xips
+      tags:
+        description: "Space-separated tags. Empty copies every tag GHCR holds."
+        required: false
+        default: ""
+
+concurrency:
+  # Copies are idempotent but not concurrency-safe against themselves —
+  # two runs pushing the same blob race on the same upload session.
+  group: oci-mirror-copy-${{ inputs.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  copy:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Both hosts coexist in ~/.docker/config.json; the login above
+          # wrote its own entry and this one does not disturb it.
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
+
+      - name: Copy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ inputs.repository }}
+          TAGS: ${{ inputs.tags }}
+          REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
+        run: |
+          set -euo pipefail
+
+          tags="$TAGS"
+          if [ -z "$tags" ]; then
+            echo "No tags given; enumerating what GHCR holds for ${REPOSITORY}..."
+            tags=$(gh api "orgs/tuist/packages/container/${REPOSITORY}/versions" \
+                     --jq '[.[].metadata.container.tags[]?] | unique | .[]' | tr '\n' ' ')
+          fi
+          if [ -z "$tags" ]; then
+            echo "::error::No tags to copy for ${REPOSITORY}"
+            exit 1
+          fi
+          echo "Copying: ${tags}"
+
+          failed=""
+          for tag in $tags; do
+            echo "::group::${REPOSITORY}:${tag}"
+            # Not `set -e`-fatal per tag: one unreachable artifact should
+            # not strand the rest, and the summary below is what decides
+            # the job's outcome.
+            if oras copy "ghcr.io/tuist/${REPOSITORY}:${tag}" "${REGISTRY_HOST}/${REPOSITORY}:${tag}"; then
+              echo "ok: ${tag}"
+            else
+              echo "::warning::failed to copy ${tag}"
+              failed="${failed} ${tag}"
+            fi
+            echo "::endgroup::"
+          done
+
+          echo "--- verifying against the destination ---"
+          present=$(oras repo tags "${REGISTRY_HOST}/${REPOSITORY}" 2>/dev/null | tr '\n' ' ' || true)
+          echo "destination now holds: ${present:-<none>}"
+
+          if [ -n "$failed" ]; then
+            echo "::error::Copy failed for:${failed}"
+            exit 1
+          fi
