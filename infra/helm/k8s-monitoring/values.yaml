@@ -993,10 +993,28 @@ k8s-monitoring:
           }
         }
 
+        // The keep-list is also what admits the host-side agents' own health.
+        // They publish through node_exporter's textfile collector (see
+        // macos-host-bootstrap's nodeExporterTextfileDir), so their series arrive
+        // on this scrape and are dropped here unless named:
+        //
+        //   - tuist_log_shipper_.* — the log shipper's last successful push,
+        //     consecutive failed attempts, offset and source size. The agent is
+        //     the thing that reports host logs, so when it breaks nothing
+        //     reports; these are what make "installed but failing" different
+        //     from "not installed" when SSH hangs and kubectl does not return.
+        //   - node_textfile_mtime_seconds — the collector's view of each .prom
+        //     file's mtime. The agents rewrite theirs on every poll, so this is
+        //     liveness for free: an agent that died stops advancing it, and no
+        //     agent needs a heartbeat metric of its own.
+        //   - node_textfile_scrape_error — 1 when a file in the directory failed
+        //     to parse. A half-written file is a parse error for the whole
+        //     DIRECTORY, so this is the signal that an agent is taking the
+        //     host's node_* series down with it.
         prometheus.relabel "tuist_macos_node_exporter" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|node_textfile_(mtime_seconds|scrape_error)|tuist_log_shipper_.*|process_cpu_seconds_total|process_resident_memory_bytes"
             action = "keep"
           }
           // Top-level extraConfig sits OUTSIDE the chart's `declare`

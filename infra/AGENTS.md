@@ -72,7 +72,10 @@ straight to Grafana Cloud keeps every ingest credential off nine
 internet-facing minis — the tailnet ACL is the access control and Alloy
 forwards with the token it already holds. Installed and drift-rolled by
 `macos-host-bootstrap` exactly like `node_exporter`. Per-env gate:
-`macosFleet.hostLogs.enabled`. See
+`macosFleet.hostLogs.enabled`. Its own health goes the other way — out through
+node_exporter's textfile collector as `tuist_log_shipper_*` on `:9100` — because
+an agent that pushes is invisible when it fails, being the thing that reports.
+See
 [`macos-log-shipper/AGENTS.md`](macos-log-shipper/AGENTS.md).
 
 ### `registry-router/` — Cloudflare Worker for the Tuist registry path

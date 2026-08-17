@@ -734,6 +734,82 @@ func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
 	}
 }
 
+// The log shipper's health signal is only reachable if node_exporter is told to
+// read the directory it writes into. Without the collector flags the .prom file
+// is written on every poll and scraped by nobody, which is the same blind spot
+// the agent's own failures had.
+func TestRenderNodeExporterScript_ReadsTheTextfileCollectorDirectory(t *testing.T) {
+	out := renderNodeExporterScript()
+	for _, want := range []string{
+		"--collector.textfile \\",
+		"--collector.textfile.directory=" + nodeExporterTextfileDir + " \\",
+		// --collector.disable-defaults means textfile is off unless named, and the
+		// directory has to exist before node_exporter starts or the collector
+		// reports a scrape error rather than an empty set.
+		"mkdir -p " + nodeExporterTextfileDir,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("node_exporter wrapper missing %q\n%s", want, out)
+		}
+	}
+}
+
+// The wrapper rides a heredoc inside the install script, so a syntax error in
+// either is invisible until node_exporter stops coming up — which takes :9100
+// with it, the one channel that stayed answerable through both host-logging
+// outages.
+func TestRenderNodeExporterScript_IsValidSh(t *testing.T) {
+	body := renderNodeExporterScript()
+	script := filepath.Join(t.TempDir(), "install-node-exporter")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("node_exporter script is not valid sh: %v\n%s", err, combined)
+	}
+
+	const open = "<<'WRAPPER'\n"
+	start := strings.Index(body, open)
+	if start < 0 {
+		t.Fatalf("no WRAPPER heredoc in rendered script\n%s", body)
+	}
+	wrapper := body[start+len(open):]
+	end := strings.Index(wrapper, "\nWRAPPER\n")
+	if end < 0 {
+		t.Fatalf("unterminated WRAPPER heredoc\n%s", body)
+	}
+	wrapperPath := filepath.Join(t.TempDir(), "tuist-node-exporter-wrapper")
+	if err := os.WriteFile(wrapperPath, []byte(wrapper[:end]), 0o600); err != nil {
+		t.Fatalf("write wrapper: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", wrapperPath).CombinedOutput(); err != nil {
+		t.Fatalf("wrapper is not valid sh: %v\n%s\n---\n%s", err, combined, wrapper[:end])
+	}
+}
+
+// The shipper writes the file as root under launchd; node_exporter reads it from
+// its own job. A directory only the writer can traverse is a file the collector
+// silently skips, which looks exactly like an agent that is not running.
+func TestRenderNodeExporterScript_MakesTheTextfileDirectoryTraversable(t *testing.T) {
+	out := renderNodeExporterScript()
+	// Both levels: mkdir -p creates /var/lib/node_exporter with the process
+	// umask, so chmod'ing only the leaf leaves the collector unable to traverse
+	// into it.
+	if !strings.Contains(out, "chmod 0755 "+filepath.Dir(nodeExporterTextfileDir)+" "+nodeExporterTextfileDir) {
+		t.Fatalf("textfile directory is not made traversable by the collector\n%s", out)
+	}
+}
+
+// The two sides agree on the path by convention, not by a shared constant — they
+// are separate Go modules. The uninstall is the one place the bootstrap names the
+// file itself, so it has to sit inside the directory the wrapper hands the
+// collector.
+func TestLogShipperTextfileLivesInTheCollectorDirectory(t *testing.T) {
+	if !strings.HasPrefix(logShipperTextfilePath, nodeExporterTextfileDir+"/") {
+		t.Fatalf("%s is not inside the collector directory %s", logShipperTextfilePath, nodeExporterTextfileDir)
+	}
+}
+
 func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T) {
 	out := renderLogShipperInstallScript(Config{
 		NodeName:   "tuist-tuist-runners-fleet-abc12",
@@ -831,6 +907,10 @@ func TestRenderLogShipperScript_UninstallsWhenDisabled(t *testing.T) {
 		// growing while the agent was off, so resuming from it would replay the
 		// whole disabled window — the exact cost the flag was flipped to avoid.
 		"rm -rf /var/lib/tuist-log-shipper",
+		// And the health textfile: node_exporter keeps reading the directory, so
+		// a left-behind .prom would report a frozen last_success forever — a
+		// phantom agent that alerts on a host carrying no agent at all.
+		"rm -f " + logShipperTextfilePath,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("disabled render missing %q\n%s", want, out)
@@ -865,7 +945,7 @@ func TestRenderLogShipperUninstallScript_IsIdempotentAndValidSh(t *testing.T) {
 	if !strings.Contains(body, "2>/dev/null || true") {
 		t.Fatalf("bootout of an absent job must not fail the script\n%s", body)
 	}
-	for _, removal := range []string{"rm -f \"$PLIST\"", "rm -f /usr/local/bin/tuist-log-shipper", "rm -rf /var/lib/tuist-log-shipper"} {
+	for _, removal := range []string{"rm -f \"$PLIST\"", "rm -f /usr/local/bin/tuist-log-shipper", "rm -rf /var/lib/tuist-log-shipper", "rm -f " + logShipperTextfilePath} {
 		if !strings.Contains(body, removal) {
 			t.Fatalf("missing %q\n%s", removal, body)
 		}

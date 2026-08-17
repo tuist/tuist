@@ -1404,6 +1404,91 @@ sum by (cluster) (
 - Pending period: 2 minutes
 - Summary: `Stable outbound controller reconciliation is failing in {{ $labels.cluster }}`
 
+### Runner host log shipper not delivering
+
+```promql
+max by (cluster, env, instance, job) (
+  tuist_log_shipper_consecutive_failures
+) > 10
+```
+
+- Pending period: 15 minutes
+- Severity: warning
+- Summary: `Host log shipper on {{ $labels.instance }} has failed
+  {{ $value | printf "%.0f" }} consecutive attempts for
+  {{ $labels.job }}; host logs from that mini are not reaching Loki`
+
+The agent is the thing that reports host logs, so when it breaks nothing
+reports and no absence of log lines distinguishes "installed but failing"
+from "not installed". This is the counter that does: it is incremented per
+push attempt from inside the retry loop, which retries a retryable failure
+forever, so an unreachable receiver climbs steadily rather than freezing.
+Ten attempts with the capped backoff is several minutes of real failure,
+past any single receiver restart.
+
+Read it together with `tuist_log_shipper_last_success_timestamp_seconds`:
+`0` means the agent has never delivered a line since it was installed,
+which is the shape both host-logging outages had. `tuist_log_shipper_build_info`
+carries a `binary_sha256` label, so hosts running different builds are
+distinguishable without reaching `HostConfigHash` through the kubectl
+gateway — which is the channel that did not answer during those
+investigations, while `:9100` answered every time.
+
+### Runner host log shipper stalled
+
+```promql
+(
+  time()
+  -
+  max by (cluster, env, instance, file) (
+    node_textfile_mtime_seconds{
+      file="/var/lib/node_exporter/textfile/tuist-log-shipper.prom"
+    }
+  )
+) > 900
+```
+
+- Pending period: 10 minutes
+- Severity: warning
+- Summary: `Host log shipper on {{ $labels.instance }} has stopped
+  publishing its own health`
+
+The companion to the rule above, covering the case it cannot see: a process
+that is gone, wedged, or blocked somewhere that records no outcome at all.
+The agent rewrites its textfile on every poll outcome, so the file's mtime
+is a heartbeat that costs no metric of its own. A launchd job with
+`KeepAlive` that keeps dying also shows here, because each restart's first
+write is followed by silence.
+
+Note the `file` label rather than a metric of ours: `node_textfile_mtime_seconds`
+comes from node_exporter's own collector, so it is published even when the
+agent has written nothing since boot. The label carries the **full path**, not
+the basename — verified against node_exporter 1.8.2 on a production mini.
+
+The series disappears rather than freezing when host logging is turned off,
+because the uninstall removes the `.prom` file. That is deliberate: a rule that
+kept firing for a host carrying no agent would train everyone to ignore it.
+
+### Runner host textfile metrics unparseable
+
+```promql
+max by (cluster, env, instance) (
+  node_textfile_scrape_error
+) > 0
+```
+
+- Pending period: 5 minutes
+- Severity: warning
+- Summary: `A metrics textfile on {{ $labels.instance }} failed to parse;
+  that host's node_* series are incomplete`
+
+node_exporter parses the whole collector directory on every scrape, so one
+malformed file is a parse error for the DIRECTORY — it takes the host's
+`node_*` series with it rather than costing one metric. The writers rename
+a fully written temp file into place specifically so a scrape can never land
+mid-write, so this firing means something is writing into
+`/var/lib/node_exporter/textfile` without that discipline.
+
 ## Useful investigation queries
 
 Current Kubernetes requests in flight:

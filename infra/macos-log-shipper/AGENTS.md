@@ -73,6 +73,69 @@ path the xcresult processor's Tart guests already use for their own logs.
   `/var/log/tuist-log-shipper.log`). Shipping push failures through the shipper
   turns an outage into a loop.
 
+## The agent publishes its own health through node_exporter
+
+The agent is the thing that reports, so when it breaks nothing reports.
+"Installed but failing" and "not installed" look identical from off-host, and
+that produced two multi-day outages: the agent shipped and never delivered a
+line, while `launchctl print` reported the job `running` with correct arguments
+throughout; the first fix landed on a misread test and production kept failing
+for another day at attempt 494 per host. Through both investigations SSH to the
+minis hung and production `kubectl` through the Pomerium gateway never returned,
+while `:9100` answered instantly, every time. So the health signal rides `:9100`.
+
+It goes out as a Prometheus textfile at
+`/var/lib/node_exporter/textfile/tuist-log-shipper.prom`
+(`shipper.DefaultHealthPath`, `--metrics` to override), which node_exporter's
+textfile collector reads on every scrape. Per tailed source (`job` label):
+
+| Metric | What it answers |
+| --- | --- |
+| `tuist_log_shipper_last_success_timestamp_seconds` | When a push last returned 2xx. **`0` means this source has never delivered a line** — the state both outages were in. |
+| `tuist_log_shipper_consecutive_failures` | Failed read or push attempts since the last accepted push. Counted per attempt from inside the retry loop, so it matches the `attempt N` in the agent's log. |
+| `tuist_log_shipper_position_offset_bytes` | How far the agent has read **and** pushed. |
+| `tuist_log_shipper_source_size_bytes` | The source file's size right now. The gap to the offset is the lag. |
+| `tuist_log_shipper_build_info` | `binary_sha256` of the on-host executable and the Go version. Which binary a host carries was itself an open question during the last incident, and the place that answers it (`HostConfigHash` on the Machine) sits behind the kubectl gateway that did not answer. |
+
+Four things about the implementation are load-bearing:
+
+- **The write is atomic** — temp file in the same directory, then `os.Rename`.
+  node_exporter parses the whole directory on every scrape, so a partially
+  written file is a parse error for the DIRECTORY. Getting this wrong would take
+  the host's `node_*` series down with it and make the change a net loss.
+- **The count comes from inside the push retry loop, not from poll boundaries.**
+  `push` retries a retryable failure forever, so during a receiver outage `poll`
+  never returns. A poll-boundary-only writer would publish nothing for the
+  duration of the exact failure this exists to expose.
+- **The published size is re-stat'd on every failed attempt** (`Shipper.observe`),
+  for the same reason: a size captured when the blocked poll started would report
+  a constant lag through an outage of any length.
+- **A failure to write the textfile does not stop shipping**, and is logged once.
+  Losing the logs to keep the metric would be strictly worse than not having the
+  metric.
+
+Two node_exporter metrics complete the picture without costing us anything:
+`node_textfile_mtime_seconds` is a heartbeat (the file is rewritten on every poll
+outcome, so a dead agent stops advancing it), and `node_textfile_scrape_error`
+catches a malformed file. Both, plus `tuist_log_shipper_.*`, are in the Alloy
+keep-list in [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring)'s
+`values.yaml` — a series not named there is dropped before Grafana Cloud, so
+adding a metric here means adding it there. Recommended alert rules are in that
+chart's `alerts.md` under *Runner host log shipper*.
+
+The uninstall removes the `.prom` file along with the binary. node_exporter keeps
+reading the directory whether or not the agent exists, so a left-behind file
+would publish a frozen `last_success` forever — a phantom agent alerting about a
+host that carries none.
+
+**A positions offset that equals the file size proves nothing shipped.** `poll`
+on first sight of a file calls `ReadNew` with `exists=false`, which returns the
+end-of-file position and zero lines, persists it, and returns without pushing —
+no network call happens. That is what a "successful push" was read from once. The
+test that exercises the network appends a line *after* first sight and checks the
+offset advances past the first-sight mark; confirm any new metric the same way,
+by asserting `last_success_timestamp` moves after an append.
+
 ## Labels
 
 Every line carries `job`, `instance`, `env` and `level`. Nothing else, and

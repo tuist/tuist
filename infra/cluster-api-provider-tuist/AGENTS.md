@@ -148,6 +148,19 @@ Both are gated on Tailscale being wired, for mirrored reasons: without a
 tailnet, the pull agent would have to listen somewhere public, and the push
 agent has no route to its target at all.
 
+The push agent's own health rides the pull agent. `node_exporter` runs with
+`--collector.textfile` over `/var/lib/node_exporter/textfile`
+(`nodeExporterTextfileDir`), and the log shipper publishes
+`tuist_log_shipper_*` there on every poll outcome. The reason is the asymmetry
+above turned against us: an agent that pushes is invisible when it fails,
+because it is the thing that reports. Two multi-day outages came out of that,
+and through both of them SSH to the minis hung and production `kubectl` never
+returned while `:9100` answered every time. Changing the wrapper script moves
+`HostConfigHash`, so enabling the collector rolls the whole fleet — intended.
+`installLogShipper` still runs LAST in both `Run` and `UpdateTartKubelet`, so a
+failure in the observability path cannot block the tart-kubelet roll it travels
+with; keep that ordering.
+
 ### SSH ingress guard
 
 Both dial paths land on the same listener, so both fail together. A Scaleway

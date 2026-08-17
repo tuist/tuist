@@ -2417,6 +2417,25 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.
 `, allow), nil
 }
 
+// nodeExporterTextfileDir is the directory node_exporter's textfile collector
+// reads on every scrape, and where host-side agents publish their own health.
+//
+// It is mirrored in the log shipper's shipper.DefaultHealthPath. They are
+// separate Go modules, so the two sides agree by convention rather than through
+// a shared constant: changing one alone leaves a file written on every poll that
+// nothing scrapes, or a collector reading an empty directory.
+//
+// /var/lib rather than /var/log because the contents are the current state of a
+// gauge, not an append-only record — the file is replaced wholesale on every
+// write and nothing accumulates.
+const nodeExporterTextfileDir = "/var/lib/node_exporter/textfile"
+
+// logShipperTextfilePath is the log shipper's file inside that directory. The
+// bootstrap names it only to remove it on uninstall: node_exporter keeps reading
+// the directory after the agent is gone, so a left-behind file would publish a
+// frozen last_success forever — a phantom agent on a host carrying none.
+const logShipperTextfilePath = nodeExporterTextfileDir + "/tuist-log-shipper.prom"
+
 // renderNodeExporterScript is the static SSH script that installs the
 // node_exporter wrapper + launchd job. The binary rides stdin and its
 // drift is tracked by its own SHA in the host config hash, so this
@@ -2426,6 +2445,14 @@ func renderNodeExporterScript() string {
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/node_exporter >/dev/null
 sudo chmod 0755 /usr/local/bin/node_exporter
+# The textfile collector reads this directory on every scrape and reports a
+# scrape error if it is missing, so it is created here rather than left to
+# whichever agent writes into it first. Traversable and readable by anyone: the
+# writers are root launchd daemons while node_exporter runs from its own job, and
+# a file the collector cannot read is indistinguishable from an agent that is not
+# running.
+sudo mkdir -p ` + nodeExporterTextfileDir + `
+sudo chmod 0755 /var/lib/node_exporter ` + nodeExporterTextfileDir + `
 sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
 #!/bin/sh
 # Resolve the Mac mini's tailnet IPv4 fresh on every (re)start so
@@ -2441,6 +2468,11 @@ if [ -z "$TAILSCALE_IP" ]; then
   echo "tailscale ip -4 returned empty; node_exporter cannot bind safely" >&2
   exit 1
 fi
+# --collector.disable-defaults means every collector below is opt-in, textfile
+# included. It carries the health of the host-side agents that have no scrapeable
+# surface of their own — the log shipper is the first, and its failures were
+# invisible for days precisely because :9100 was the one channel still answering
+# while SSH and kubectl were not.
 exec /usr/local/bin/node_exporter \
   --web.listen-address="${TAILSCALE_IP}:9100" \
   --collector.disable-defaults \
@@ -2451,6 +2483,8 @@ exec /usr/local/bin/node_exporter \
   --collector.meminfo \
   --collector.netdev \
   --collector.os \
+  --collector.textfile \
+  --collector.textfile.directory=` + nodeExporterTextfileDir + ` \
   --collector.time \
   --collector.uname
 WRAPPER
@@ -2514,6 +2548,13 @@ func renderLogShipperScript(cfg Config) string {
 // as too old. Dropping it makes a re-enable start at the end of the file, the
 // same as a first install.
 //
+// The health textfile goes too, and for a sharper reason: node_exporter keeps
+// reading its collector directory whether or not the agent exists, so a
+// left-behind .prom would keep publishing the last values the agent wrote. A
+// frozen last_success and a frozen failure count is exactly the shape of a
+// broken agent, so the file would alert forever about a host carrying no agent
+// at all.
+//
 // /var/log/tuist-log-shipper.log is left in place: it holds the agent's own
 // diagnostics, which are the first thing anyone reads when asking why host
 // logging was turned off.
@@ -2524,6 +2565,7 @@ sudo launchctl bootout system "$PLIST" 2>/dev/null || true
 sudo rm -f "$PLIST"
 sudo rm -f /usr/local/bin/tuist-log-shipper
 sudo rm -rf /var/lib/tuist-log-shipper
+sudo rm -f ` + logShipperTextfilePath + `
 `
 }
 

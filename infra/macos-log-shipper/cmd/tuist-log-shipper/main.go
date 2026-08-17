@@ -47,6 +47,7 @@ func main() {
 		instance  string
 		env       string
 		positions string
+		metrics   string
 	)
 	flag.Var(&files, "file",
 		"Log file to tail, as <job>=<path>. Repeatable. The job name becomes the "+
@@ -65,6 +66,12 @@ func main() {
 	flag.StringVar(&positions, "positions", "/var/lib/tuist-log-shipper/positions.json",
 		"Where read offsets are persisted so a restart resumes instead of "+
 			"re-shipping or skipping.")
+	flag.StringVar(&metrics, "metrics", shipper.DefaultHealthPath,
+		"Where the agent publishes its own health, in Prometheus text format. The "+
+			"default is inside node_exporter's textfile collector directory, so the "+
+			"metrics ride the :9100 scrape that answers when SSH and kubectl do not. "+
+			"Point it elsewhere to validate a binary on a host without clobbering the "+
+			"installed agent's file.")
 	flag.Parse()
 
 	if url == "" {
@@ -90,6 +97,10 @@ func main() {
 		Sources:    files,
 		BaseLabels: labels,
 		Positions:  shipper.LoadPositions(positions),
+		// The agent is the thing that reports, so when it breaks nothing reports.
+		// This is the one channel that stays answerable off-host while it is
+		// broken.
+		Health: shipper.NewHealth(metrics, log.Printf),
 		Client: &shipper.Client{
 			URL: url,
 			// Resolves through tailscaled rather than /etc/resolv.conf, which is

@@ -45,6 +45,11 @@ type Options struct {
 	BaseLabels map[string]string
 	Positions  *Positions
 	Client     *Client
+	// Health publishes the agent's own health where node_exporter's textfile
+	// collector picks it up. Nil disables it, which is the right shape here: the
+	// agent's job is shipping logs, and a host that cannot publish its health
+	// must still ship.
+	Health *Health
 	// PollInterval is how long to wait after a poll that found nothing.
 	PollInterval time.Duration
 	// Backoff paces retries of a push that failed for a retryable reason.
@@ -147,6 +152,7 @@ func (s *Shipper) poll(ctx context.Context, source Source, labels map[string]str
 	stored, known := s.opts.Positions.Get(source.Path)
 	res, err := ReadNew(source.Path, stored, known)
 	if err != nil {
+		s.opts.Health.Failure(source.Job)
 		return false, err
 	}
 	if res.Restarted {
@@ -156,11 +162,17 @@ func (s *Shipper) poll(ctx context.Context, source Source, labels map[string]str
 		// Still record the position: first sight of a file has to persist its
 		// end-of-file start point, or a restart before the first line arrives
 		// would skip to the new end and lose whatever landed in between.
+		//
+		// This branch pushes NOTHING, which is why the health signal reports the
+		// offset and the last successful push separately: an offset that equals
+		// the file size proves only that the agent saw the file.
 		if !known || res.Next != stored {
 			if err := s.opts.Positions.Set(source.Path, res.Next); err != nil {
+				s.opts.Health.Failure(source.Job)
 				return false, err
 			}
 		}
+		s.observe(source)
 		return false, nil
 	}
 
@@ -169,30 +181,66 @@ func (s *Shipper) poll(ctx context.Context, source Source, labels map[string]str
 	for _, line := range res.Lines {
 		entries = append(entries, ParseEntry(line, now))
 	}
-	if err := s.push(ctx, labels, entries); err != nil {
+	if err := s.push(ctx, source, labels, entries); err != nil {
+		// push already recorded every attempt it made.
 		return false, err
 	}
 	if err := s.opts.Positions.Set(source.Path, res.Next); err != nil {
+		s.opts.Health.Failure(source.Job)
 		return true, err
 	}
+	s.observe(source)
 	return true, nil
+}
+
+// observe publishes one source's lag: the offset that has actually landed
+// against the file's size right now.
+//
+// Both halves are read fresh rather than taken from the poll that just ran. The
+// persisted offset is the only one that means "shipped", and a fresh stat is the
+// only size that keeps growing while a push retries — push blocks inside a single
+// poll for as long as the receiver is unreachable, so a size captured when that
+// poll started would report a constant lag through an outage of any length.
+//
+// A stat that fails is not recorded: the failure it represents has already been
+// counted by the caller, and publishing a zero size would read as an empty file.
+func (s *Shipper) observe(source Source) {
+	if s.opts.Health == nil {
+		return
+	}
+	_, size, err := statFile(source.Path)
+	if err != nil {
+		return
+	}
+	stored, _ := s.opts.Positions.Get(source.Path)
+	s.opts.Health.Progress(source.Job, stored.Offset, size)
 }
 
 // push retries a batch until it lands, Loki rejects it outright, or the
 // context ends. It never gives up on a retryable failure: the unread remainder
 // of the file is durable on disk, so waiting costs lag, while skipping ahead
 // would cost exactly the lines someone is looking for.
-func (s *Shipper) push(ctx context.Context, labels map[string]string, entries []Entry) error {
+func (s *Shipper) push(ctx context.Context, source Source, labels map[string]string, entries []Entry) error {
 	for attempt := 0; ctx.Err() == nil; attempt++ {
 		err := s.opts.Client.Push(ctx, labels, entries)
 		if err == nil {
+			s.opts.Health.Success(source.Job, s.opts.Now())
 			return nil
 		}
 		if errors.Is(err, ErrRejected) {
-			s.opts.Logf("dropping %d lines for %s: %v", len(entries), labels["job"], err)
+			// Neither a success nor a transport failure: the receiver answered and
+			// refused the batch, and the agent advances past it. Moving
+			// last_success would claim lines landed that did not; counting it as a
+			// failure would grow a number that is documented to reset on success
+			// while the offset keeps advancing. A batch stream that is entirely
+			// rejected shows up as exactly what it is — the offset climbing while
+			// last_success stays frozen.
+			s.opts.Logf("dropping %d lines for %s: %v", len(entries), source.Job, err)
 			return nil
 		}
-		s.opts.Logf("push %d lines for %s failed (attempt %d): %v", len(entries), labels["job"], attempt+1, err)
+		s.opts.Health.Failure(source.Job)
+		s.observe(source)
+		s.opts.Logf("push %d lines for %s failed (attempt %d): %v", len(entries), source.Job, attempt+1, err)
 		if !sleep(ctx, s.opts.Backoff.Next(attempt)) {
 			break
 		}
