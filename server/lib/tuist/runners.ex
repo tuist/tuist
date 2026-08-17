@@ -266,9 +266,10 @@ defmodule Tuist.Runners do
   entirely instead of paying for it and being rejected.
 
   `unverifiable_digest` is the HEAD digest the promoting host downloaded and could
-  not verify, when it reported one: it makes a cold promote viable against a HEAD
-  nothing can adopt, and must be evaluated here as well as at the bump or the
-  pre-flight would turn away the only promote that can retire it.
+  not verify, when it reported one: it makes a promote viable against a HEAD nothing
+  can adopt, from a cold base or a stale one alike, and must be evaluated here as
+  well as at the bump or the pre-flight would turn away the only promote that can
+  retire it.
 
   Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/4` — the
   compare-and-swap in `report_volume_head/5` remains what decides the HEAD.
@@ -308,10 +309,11 @@ defmodule Tuist.Runners do
   URL — since this is the write that the download key is later derived from.
 
   `unverifiable_digest`, when the runner reports one, is the HEAD digest its host
-  downloaded and found the stored object does not reproduce. It lets a cold promote
-  retire that lineage instead of being rejected against a HEAD no host can adopt
-  (see `Tuist.Runners.VolumeHeads`). Validated like `tree_digest`, since it too
-  reaches a query.
+  downloaded and found the stored object does not reproduce. It lets the promote
+  retire that lineage instead of being rejected against a HEAD no host can adopt —
+  whether this host holds no master or one at an older generation, both of which are
+  wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
+  `tree_digest`, since it too reaches a query.
 
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid

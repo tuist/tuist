@@ -118,14 +118,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   runner (a lingering build service, the compilation cache's own asynchronous store
   flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
   SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
-  names bytes no host can reproduce: convergence verifies the downloaded object,
-  declines, and because a cold promote's base generation 0 is rejected while a HEAD
-  exists, the account is then stuck cold fleet-wide (seen in production: one account
-  on all nine hosts for days). When a host does hit that, it stages the disproved
-  digest as `volume-head-unverifiable` in the `status` share and the guest relays it
-  as `unverifiable_digest` with BOTH promote requests, which is what lets the server
-  retire a HEAD nothing can adopt — it rides the mint request too, or the pre-flight
-  would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
+  names bytes no host can reproduce: convergence verifies the downloaded object and
+  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
+  exists, and a host left at an older generation is rejected for a stale base — and
+  the account is stuck fleet-wide (seen in production: one account cold on all nine
+  hosts for days). When a host does hit that, it stages the disproved digest as
+  `volume-head-unverifiable` in the `status` share and the guest relays it as
+  `unverifiable_digest` with BOTH promote requests, which is what lets the server
+  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
+  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,

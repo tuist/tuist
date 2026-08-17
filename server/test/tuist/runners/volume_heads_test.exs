@@ -124,17 +124,37 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
     end
 
-    test "does not let a report substitute for a stale warm base" do
+    test "lets a stale-warm host retire it too, not just a cold one" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+      VolumeHeads.bump_head(account.id, "mac-02", "poisoned", 1)
+
+      # A host holding generation 1 while a poisoned generation 2 stands is wedged
+      # exactly like a cold one: it can never reach generation 2, because adopting
+      # it is what the verification refuses, so its base stays 1 and its promote is
+      # rejected forever. Once nobody holds the poisoned generation — the state
+      # production was found in — gating the escape on the cold base would leave
+      # every surviving stale-warm host stuck.
+      assert {:ok, 3} =
+               VolumeHeads.bump_head(account.id, "mac-03", "digest-stale-warm", 1, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "poisoned"
+               )
+
+      assert %{generation: 3, tree_digest: "digest-stale-warm"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "still rejects a stale warm base whose report names a superseded digest" do
       account = account_fixture()
       VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
       VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
 
-      # Retirement is the cold-promote escape only. A warm job that built on a base
-      # another host advanced past still loses the fast-forward, report or not —
-      # otherwise the report would become a way around the compare-and-swap.
+      # This is the guard that keeps the report from becoming a way around the
+      # compare-and-swap: it retires only the HEAD standing right now. A report about
+      # generation 1's digest says nothing about generation 2, so the stale promote
+      # loses the fast-forward as before.
       assert :conflict =
                VolumeHeads.bump_head(account.id, "mac-03", "digest-stale", 1, VolumeHeads.reserved_tuist_cache(),
-                 unverifiable_digest: "digest-b"
+                 unverifiable_digest: "digest-a"
                )
 
       assert %{generation: 2, tree_digest: "digest-b"} = VolumeHeads.get_head(account.id)
@@ -191,6 +211,15 @@ defmodule Tuist.Runners.VolumeHeadsTest do
 
       refute VolumeHeads.fast_forward_viable?(account.id, 0, VolumeHeads.reserved_tuist_cache(),
                unverifiable_digest: "another-digest"
+             )
+
+      # And for a stale-warm reporter, whose upload the pre-flight would otherwise
+      # pre-empt on a base it can never advance.
+      VolumeHeads.bump_head(account.id, "mac-02", "poisoned-2", 1)
+      refute VolumeHeads.fast_forward_viable?(account.id, 1)
+
+      assert VolumeHeads.fast_forward_viable?(account.id, 1, VolumeHeads.reserved_tuist_cache(),
+               unverifiable_digest: "poisoned-2"
              )
     end
 

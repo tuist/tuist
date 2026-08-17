@@ -26,12 +26,19 @@ defmodule Tuist.Runners.VolumeHeads do
   rejects because a HEAD exists. The account can neither adopt the HEAD nor
   replace it, on any host, for as long as it stands.
 
-  So a base-0 promote may also take over an existing lineage, on one condition:
-  the promoting host reports the current HEAD's digest as one it downloaded and
-  could not verify. That is evidence about the object, produced by a host that
-  fetched it, and it retires only the exact digest it names — the lineage
+  So a promote that loses the rule above may still take over the lineage, on one
+  condition: the promoting host reports the current HEAD's digest as one it
+  downloaded and could not verify. That is evidence about the object, produced by a
+  host that fetched it, and it retires only the exact digest it names — the lineage
   continues at `generation + 1` rather than resetting, so local masters elsewhere
   in the fleet stay comparable against one monotonic counter.
+
+  The reporter may be cold OR stale-warm, because both are wedged identically. A
+  host holding generation 5 while a poisoned generation 6 stands proves the
+  mismatch just as well, and its promote is rejected just as permanently: it can
+  never reach generation 6, since adopting it is exactly what the verification
+  refuses. Once no host holds the poisoned generation — the state production was
+  found in — a cold-only escape would leave every surviving stale-warm host stuck.
   """
   import Ecto.Query
 
@@ -54,12 +61,15 @@ defmodule Tuist.Runners.VolumeHeads do
 
     * base 0 (a cold job, no local master) succeeds when the account has NO HEAD
       yet, establishing generation 1. If a HEAD already exists, the cold job built
-      on nothing while the fleet moved on, so it is rejected — unless
-      `opts[:unverifiable_digest]` names that HEAD's digest, which retires it (see
-      the moduledoc).
+      on nothing while the fleet moved on, so it is rejected.
     * base N > 0 succeeds only when the current HEAD is exactly generation N,
       advancing it to N+1. Any other current generation means another host already
       advanced past this job's base, so it is rejected.
+
+  Either rejection then falls through to the retirement escape:
+  `opts[:unverifiable_digest]` naming the HEAD that stands right now takes the
+  lineage over instead (see the moduledoc). Both bases reach it, because both get
+  stuck the same way.
 
   Returns `{:ok, new_generation}` on a successful fast-forward, or `:conflict`
   when the base is stale. Upserts on (account_id, volume_name).
@@ -68,23 +78,28 @@ defmodule Tuist.Runners.VolumeHeads do
 
   def bump_head(account_id, node_name, tree_digest, 0, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" do
-    establish_first_head(account_id, node_name, tree_digest, volume_name, Keyword.get(opts, :unverifiable_digest))
+    case establish_first_head(account_id, node_name, tree_digest, volume_name) do
+      :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
+      accepted -> accepted
+    end
   end
 
-  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name, _opts)
+  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" and is_integer(base_generation) and
              base_generation > 0 do
-    fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name)
+    case fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name) do
+      :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
+      accepted -> accepted
+    end
   end
 
   # No digest to record (empty/absent) or an invalid base: nothing to publish.
   def bump_head(_account_id, _node_name, _tree_digest, _base_generation, _volume_name, _opts), do: :conflict
 
   # Cold job: establish generation 1 iff no HEAD exists. A conflict (a HEAD is
-  # already there) falls through to the retirement rule, which rejects unless the
-  # promoting host proved that HEAD's object cannot be verified — a cold branch
-  # must not otherwise clobber an existing lineage.
-  defp establish_first_head(account_id, node_name, tree_digest, volume_name, unverifiable_digest) do
+  # already there) means the cold job built on nothing while the fleet moved on,
+  # and must not clobber an existing lineage on its own.
+  defp establish_first_head(account_id, node_name, tree_digest, volume_name) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     {count, _} =
@@ -105,20 +120,25 @@ defmodule Tuist.Runners.VolumeHeads do
         conflict_target: [:account_id, :volume_name]
       )
 
-    if count == 1 do
-      {:ok, 1}
-    else
-      retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, unverifiable_digest)
-    end
+    if count == 1, do: {:ok, 1}, else: :conflict
   end
 
-  # Take over a lineage whose object the promoting host proved unverifiable. The
-  # WHERE pins BOTH the generation and the digest that was disproved, so this stays
-  # a compare-and-swap: if another host advanced the HEAD (or retired the same
+  # Take over a lineage whose object the promoting host proved unverifiable, after
+  # the promote lost the ordinary rule. Reached from BOTH bases: whether the
+  # reporting host holds no master (cold) or one at an older generation
+  # (stale-warm), it is wedged identically — convergence declines the HEAD, so its
+  # base never reaches the HEAD's generation and its promote is rejected forever.
+  # Gating this on the cold base alone would leave every stale-warm host stuck the
+  # moment the generation that poisoned the lineage is held by nobody, which is the
+  # state production was actually found in.
+  #
+  # The WHERE pins BOTH the generation and the digest that was disproved, so this
+  # stays a compare-and-swap: if another host advanced the HEAD (or retired the same
   # digest first) between the read and the write, it matches nothing and rejects.
   # The generation advances rather than resetting, so a host still holding an older
   # master keeps comparing against one monotonic counter.
-  defp retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, unverifiable_digest) do
+  defp retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts) do
+    unverifiable_digest = Keyword.get(opts, :unverifiable_digest)
     head = get_head(account_id, volume_name)
 
     if retires_head?(head, unverifiable_digest) do
@@ -208,8 +228,8 @@ defmodule Tuist.Runners.VolumeHeads do
   the pre-flight the runner makes BEFORE uploading its image.
 
   Mirrors `bump_head/6`'s acceptance rule: base 0 is viable while the account has
-  no HEAD or while `opts[:unverifiable_digest]` retires the one it has, base N > 0
-  only while the HEAD is exactly at N.
+  no HEAD, base N > 0 only while the HEAD is exactly at N, and either is viable
+  while `opts[:unverifiable_digest]` retires the HEAD that stands right now.
 
   Mirroring the retirement rule here is load-bearing, not tidiness: this runs
   BEFORE the upload, so a pre-flight that ignored the report would 409 every
@@ -231,8 +251,7 @@ defmodule Tuist.Runners.VolumeHeads do
         base_generation == 0
 
       %{generation: generation} = head ->
-        generation == base_generation or
-          (base_generation == 0 and retires_head?(head, Keyword.get(opts, :unverifiable_digest)))
+        generation == base_generation or retires_head?(head, Keyword.get(opts, :unverifiable_digest))
     end
   end
 

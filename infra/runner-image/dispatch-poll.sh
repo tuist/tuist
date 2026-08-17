@@ -549,9 +549,10 @@ CACHE_VERIFY_MOUNTPOINT="/Users/runner/.tuist-cache-verify"
 # so busiest for the largest caches), and every ~cas/ line carries a file SIZE, so
 # a single late append is enough to move the digest. A HEAD published from a
 # pre-detach snapshot then names bytes no host can reproduce: convergence
-# downloads the object, computes a different digest, and declines — and since a
-# cold promote's base generation 0 is rejected while a HEAD exists, the account
-# can then neither adopt that HEAD nor replace it, on any host, indefinitely.
+# downloads the object, computes a different digest, and declines — and no promote
+# can build on that HEAD either (base 0 is rejected while a HEAD exists, and a host
+# left at an older generation is rejected for a stale base), so the account can
+# neither adopt it nor replace it, on any host, indefinitely.
 #
 # Read-only, so measuring cannot alter what it measures, and an image too torn to
 # mount read-only fails HERE instead of becoming every host's master. A non-zero
@@ -646,9 +647,10 @@ read_base_generation() {
 # case).
 #
 # It rides the promote report because a HEAD that no host can verify is otherwise
-# permanent: convergence declines it, and a cold promote's base generation 0 is
-# rejected while it exists, so the account is stuck on both sides. The server
-# takes it as the evidence that lets a cold promote retire that lineage.
+# permanent: convergence declines it, and no promote can build on it either — this
+# host's base is 0 if it holds no master and stale if it holds an older one, and
+# both lose the fast-forward. The server takes this as the evidence that lets the
+# promote retire that lineage instead.
 #
 # Sanitised to the digest alphabet and length the server expects, so nothing from
 # the share can escape into the request body.
@@ -712,8 +714,9 @@ report_volume_head() {
   # One body for both requests: the mint's pre-flight has to evaluate the same
   # inputs as the bump it precedes, or a promote the bump would accept gets a 409
   # here and never reaches it. That matters most for exactly the case the
-  # unverifiable digest exists for — a cold (base 0) promote retiring a HEAD no
-  # host can adopt, which the pre-flight would otherwise turn away forever.
+  # unverifiable digest exists for — a promote retiring a HEAD no host can adopt,
+  # which the pre-flight would otherwise turn away forever on a base (cold or
+  # stale) that can never catch up.
   unverifiable=$(read_unverifiable_head)
   promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\"}"
   if [ -n "${unverifiable}" ]; then
