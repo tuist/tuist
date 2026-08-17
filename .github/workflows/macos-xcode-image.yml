@@ -79,12 +79,17 @@ jobs:
       # the upload task locally and re-triggers this workflow.
       #
       # This mirror stays on GHCR while the images this job publishes
-      # do not, because its only writer is that laptop task. A laptop
-      # sustains about 1 MB/s to the tailnet-only registry, which
-      # cannot hold one connection open long enough for a 2.3 GB blob.
-      # GHCR's limits were never the problem for a single-blob
-      # artifact; they were the problem for the ~50 GB images, which
-      # are pushed from this builder and go to our registry below.
+      # do not, because its only writer is that laptop task. Measured
+      # from one, with the same 512 MB blob: 136s to GHCR against 481s
+      # to the tailnet-only registry, so the same .xip is a ten-minute
+      # upload one way and closer to forty the other. Worse, Tailscale
+      # starts a session on a DERP relay and only upgrades to a direct
+      # path once NAT traversal succeeds — over the relay these uploads
+      # fail outright rather than merely crawl, which is what a fresh
+      # session gets. GHCR's limits were never the problem for a
+      # single-blob artifact; they were the problem for the ~50 GB
+      # images, which are pushed from this builder over a datacenter
+      # link and go to our registry below.
       - name: Pull Xcode .xip from mirror
         id: xcode_xip
         env:
