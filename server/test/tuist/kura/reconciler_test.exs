@@ -691,6 +691,28 @@ defmodule Tuist.Kura.ReconcilerTest do
     refute Repo.reload!(server).status in [:destroying, :destroyed]
   end
 
+  # A rollout that ran against a draining or archived row would drag it back to
+  # `:active` outside the lifecycle's transitions, or recreate a resource
+  # archival had already reclaimed. `begin_drain/1` closes open deployments, so
+  # this is the second line of defence against one arriving another way.
+  test "cancels a deployment rather than rolling a server out of the demand-driven lifecycle" do
+    for status <- [:drain_pending, :archived] do
+      {_account, server, deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(%{status: status})
+      |> Repo.update!()
+
+      reject(&Provisioner.current_image_tag/1)
+      reject(&Provisioner.rollout/2)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: ^status} = Repo.get!(Server, server.id)
+    end
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)

@@ -885,6 +885,7 @@ defmodule Tuist.Kura do
   def begin_drain(%Server{status: :active} = server) do
     case Repo.transaction(fn ->
            with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+                :ok <- cancel_open_deployments(server),
                 :ok <- remove_cache_endpoint(server) do
              server
            else
@@ -898,6 +899,26 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  # An open deployment outlives the status change unless it is closed here, and
+  # the rollout fast path would keep driving it: activation would flip a
+  # draining server back to `:active` behind the lifecycle's back, leaving its
+  # drain clock set and its endpoint republished, and a re-apply would recreate
+  # the backing resource teardown had just removed. Closing them in the same
+  # transaction as the status change is what makes drain-pending a state no
+  # rollout can act on. It also leaves the row with no open deployment, which
+  # is the precondition a cold return checks.
+  defp cancel_open_deployments(%Server{id: server_id}) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_cancelled(deployment, "server entered drain-pending; skipping rollout") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   def begin_drain(%Server{}), do: {:error, :not_drainable}

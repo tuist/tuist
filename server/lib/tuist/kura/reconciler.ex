@@ -265,8 +265,15 @@ defmodule Tuist.Kura.Reconciler do
     |> Enum.uniq_by(& &1.kura_server_id)
   end
 
+  # No rollout may act on a server that is being torn down. `:destroying` and
+  # `:destroyed` are operator teardown; `:drain_pending` and `:archived` are the
+  # demand-driven lifecycle's equivalents, and are just as unsafe to roll: an
+  # activation would drag a draining server back to `:active` outside the
+  # lifecycle's own transitions, and a re-apply would recreate the resource an
+  # archival has already reclaimed. A cold return is not affected, because it
+  # leaves the row `:provisioning` before scheduling its deployment.
   defp reconcile_deployment(%Deployment{kura_server: %Server{status: status} = server} = deployment)
-       when status in [:destroying, :destroyed] do
+       when status in [:destroying, :destroyed, :drain_pending, :archived] do
     cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
   end
 

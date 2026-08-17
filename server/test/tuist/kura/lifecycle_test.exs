@@ -394,6 +394,39 @@ defmodule Tuist.Kura.LifecycleTest do
       assert_received {[:tuist, :kura, :lifecycle, :archive_cancelled], ^ref, %{count: 1}, %{region: @region}}
     end
 
+    test "returns a draining instance to service when archival is disabled mid-drain" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      # The incident rollback has to reach a drain already in flight: the sweep
+      # selected this instance minutes before teardown is due.
+      stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> false end)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :active
+      assert reload_lifecycle(account).drain_started_at == nil
+      reject(&Provisioner.destroy/1)
+    end
+
+    test "does not tear down when the drain clock is missing" do
+      account = account()
+      server = active_instance(account)
+      lifecycle = start_drain(account, server)
+
+      # A drain-pending row with no clock has not waited out its window,
+      # whatever left it that way.
+      lifecycle |> Ecto.Changeset.change(%{drain_started_at: nil}) |> Repo.update!()
+      reject(&Provisioner.destroy/1)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).teardown_started_at == nil
+      assert reload_lifecycle(account).drain_started_at
+    end
+
     test "does not cancel once teardown has been issued" do
       stub(Provisioner, :destroy, fn _server -> :ok end)
       stub(Provisioner, :current_image_tag, fn _server -> {:ok, @image_tag} end)
@@ -615,6 +648,50 @@ defmodule Tuist.Kura.LifecycleTest do
       })
 
       assert Kura.replication_source?(reload(server))
+    end
+  end
+
+  describe "open rollouts" do
+    test "are cancelled when an instance enters drain, so no rollout can act on it" do
+      account = account()
+      server = active_instance(account)
+
+      deployment =
+        Repo.insert!(%Deployment{
+          cluster_id: "us-east-1",
+          image_tag: @image_tag,
+          status: :running,
+          kura_server_id: server.id
+        })
+
+      start_drain(account, server)
+
+      assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "leave the row able to cold-return, which requires no open deployment" do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+
+      account = account()
+      server = active_instance(account)
+
+      Repo.insert!(%Deployment{
+        cluster_id: "us-east-1",
+        image_tag: @image_tag,
+        status: :pending,
+        kura_server_id: server.id
+      })
+
+      start_drain(account, server)
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      Demand.record(account.id)
+      Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
     end
   end
 

@@ -98,6 +98,12 @@ defmodule Tuist.Kura.Lifecycle do
   @max_provisions_per_pass 20
   @max_archival_transitions_per_pass 100
 
+  # Under capacity pressure, eligibility depends on each account's plan and so
+  # is decided after the query. These bound the scan that looks past ineligible
+  # rows for eligible ones: at most 1000 rows examined per region per pass.
+  @provision_scan_page_size 100
+  @max_provision_scan_pages 10
+
   @doc """
   Converges account-region instances with cache demand: provisions where
   demand has no instance, resolves drains that are due, and finishes
@@ -183,15 +189,48 @@ defmodule Tuist.Kura.Lifecycle do
   # immediately re-provisioned by the demand that failed to save it.
   defp reconcile_provisions(region_id, pressure?, image_tag) do
     region_id
-    |> account_regions_needing_instance()
-    |> Enum.filter(&demand_inside_window?(&1, pressure?))
-    |> Enum.take(@max_provisions_per_pass)
+    |> eligible_account_regions(pressure?)
     |> Enum.map(&provision(&1, region_id, image_tag))
     |> Enum.filter(&match?({:refused, _details}, &1))
     |> report_capacity_event(region_id)
   end
 
-  defp account_regions_needing_instance(region_id) do
+  # Without pressure the query returns only eligible rows, so one page fills
+  # the pass. Under pressure the Air rows between 60 and 90 days are dropped
+  # after the query, by a rule that needs each account's plan, and taking the
+  # page limit before that filter would let a page of those rows consume the
+  # whole pass on every tick, indefinitely hiding an older paid account that is
+  # still inside its own 90-day window. So keep paging until the pass is full.
+  defp eligible_account_regions(region_id, false = _pressure?) do
+    account_regions_needing_instance(region_id, @max_provisions_per_pass, 0)
+  end
+
+  defp eligible_account_regions(region_id, true = _pressure?) do
+    collect_eligible(region_id, 0, [])
+  end
+
+  defp collect_eligible(region_id, page, acc) when page < @max_provision_scan_pages do
+    candidates = account_regions_needing_instance(region_id, @provision_scan_page_size, page * @provision_scan_page_size)
+    acc = acc ++ Enum.filter(candidates, &demand_inside_window?(&1, true))
+
+    cond do
+      length(acc) >= @max_provisions_per_pass -> Enum.take(acc, @max_provisions_per_pass)
+      length(candidates) < @provision_scan_page_size -> acc
+      true -> collect_eligible(region_id, page + 1, acc)
+    end
+  end
+
+  defp collect_eligible(region_id, _page, acc) do
+    Logger.info(
+      "[Kura.Lifecycle] provisioning scan for #{region_id} hit the page ceiling with #{length(acc)} eligible account-regions; the rest wait for the next pass"
+    )
+
+    Enum.take(acc, @max_provisions_per_pass)
+  end
+
+  # `id` breaks ties so paging is a total order: without it, rows sharing a
+  # demand second could repeat or be skipped across pages.
+  defp account_regions_needing_instance(region_id, limit, offset) do
     live_server_exists =
       from(s in Server,
         where: s.account_id == parent_as(:lifecycle).account_id,
@@ -208,8 +247,9 @@ defmodule Tuist.Kura.Lifecycle do
         where: l.service_region == ^region_id,
         where: l.last_cache_demand_at >= ^default_cutoff,
         where: not exists(live_server_exists),
-        order_by: [desc: l.last_cache_demand_at],
-        limit: ^@max_provisions_per_pass,
+        order_by: [desc: l.last_cache_demand_at, asc: l.id],
+        limit: ^limit,
+        offset: ^offset,
         preload: [account: :subscriptions]
       )
     )
@@ -441,14 +481,23 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
+  # The status change and the drain clock are committed together. Split across
+  # two transactions, a crash between them would leave a drain-pending row with
+  # no clock, and the drain window it is supposed to wait out would have no
+  # start to be measured from.
   defp enter_drain(%Server{} = server, %AccountRegionLifecycle{} = lifecycle, plan, reason) do
-    case Kura.begin_drain(server) do
+    case Repo.transaction(fn ->
+           with {:ok, drained} <- Kura.begin_drain(server),
+                {:ok, _lifecycle} <-
+                  lifecycle
+                  |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), teardown_started_at: nil})
+                  |> Repo.update() do
+             drained
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
       {:ok, _server} ->
-        {:ok, _lifecycle} =
-          lifecycle
-          |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now(), teardown_started_at: nil})
-          |> Repo.update()
-
         Telemetry.drain_pending(plan, server.region, reason)
         Logger.info("[Kura.Lifecycle] draining instance #{server.id} (#{reason})")
         :ok
@@ -491,8 +540,26 @@ defmodule Tuist.Kura.Lifecycle do
     plan = Billing.effective_plan(server.account)
 
     cond do
+      # The flag is re-read here, not just where the sweep selected this
+      # instance. Selection and teardown are minutes apart, so a kill switch
+      # that only gated selection could not stop an archival already in
+      # flight, which is exactly the case the incident rollback exists for.
+      # Turning archival off returns the instance to service rather than
+      # parking it mid-drain with its endpoint unpublished.
+      not archival_enabled?(server.account) ->
+        Logger.info("[Kura.Lifecycle] archival disabled for account #{server.account_id}; returning instance to service")
+
+        cancel_drain(server, lifecycle, plan)
+
       lifecycle.keep_warm or demand_returned?(lifecycle) ->
         cancel_drain(server, lifecycle, plan)
+
+      # A drain-pending row with no clock cannot have waited out its window,
+      # whatever the reason the clock is missing. Start it and wait: the
+      # alternative reading destroys a workload that never got its safety
+      # margin.
+      is_nil(lifecycle.drain_started_at) ->
+        start_drain_clock(lifecycle)
 
       drain_window_elapsed?(lifecycle, drain_cutoff) ->
         start_teardown(server, lifecycle)
@@ -500,6 +567,15 @@ defmodule Tuist.Kura.Lifecycle do
       true ->
         :ok
     end
+  end
+
+  defp start_drain_clock(%AccountRegionLifecycle{} = lifecycle) do
+    {:ok, _lifecycle} =
+      lifecycle
+      |> AccountRegionLifecycle.phase_changeset(%{drain_started_at: now()})
+      |> Repo.update()
+
+    :ok
   end
 
   # Any cache demand recorded after the drain began cancels archival. Entering
@@ -515,7 +591,7 @@ defmodule Tuist.Kura.Lifecycle do
     DateTime.compare(demand_at, started_at) != :lt
   end
 
-  defp drain_window_elapsed?(%AccountRegionLifecycle{drain_started_at: nil}, _cutoff), do: true
+  defp drain_window_elapsed?(%AccountRegionLifecycle{drain_started_at: nil}, _cutoff), do: false
 
   defp drain_window_elapsed?(%AccountRegionLifecycle{drain_started_at: started_at}, cutoff) do
     DateTime.compare(started_at, cutoff) != :gt
@@ -558,6 +634,12 @@ defmodule Tuist.Kura.Lifecycle do
   # only becomes archived once the resource is observably gone, which is what
   # makes "delete the pod and directory only after the drain succeeds" true
   # rather than assumed.
+  #
+  # The archival flag is deliberately not consulted here. Past `teardown_started_at`
+  # the resource is already being deleted, and abandoning the row mid-delete
+  # would strand it in drain-pending with no workload behind it. The kill
+  # switch stops everything up to that point, so what it cannot stop is bounded
+  # by the instances that crossed it within one tick.
   defp reconcile_teardowns(%Regions{id: region_id} = region) do
     region_id
     |> tearing_down_instances()

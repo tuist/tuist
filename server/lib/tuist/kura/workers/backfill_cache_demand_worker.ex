@@ -11,6 +11,10 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
   this worker writes is inert until the live hook has had a full window to
   correct it.
 
+  Every live account-region is seeded first, at the lookback boundary, so an
+  instance whose account has been silent for longer than the window still gets
+  a row. Observed demand is then overlaid on top, keeping the later timestamp.
+
   Four sources, unioned to the latest timestamp per account:
 
     * `kura_usage_events` — already account-and-region scoped, and the most
@@ -36,6 +40,8 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
   alias Tuist.ClickHouseRepo
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -53,6 +59,8 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
       |> DateTime.add(-lookback_days * 86_400, :second)
       |> DateTime.truncate(:second)
 
+    seeded_floors = seed_live_instance_floors(since)
+
     demand_by_account =
       Enum.reduce(
         [kura_usage_demand(since), cas_event_demand(since), gradle_cache_demand(since), command_event_demand(since)],
@@ -68,9 +76,47 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
         seeded + seed_batch(account_ids, demand_by_account)
       end)
 
-    Logger.info("[Kura.BackfillCacheDemand] seeded #{seeded} account-region lifecycles over #{lookback_days} days")
+    Logger.info(
+      "[Kura.BackfillCacheDemand] seeded #{seeded_floors} live account-region floors and #{seeded} observed demand timestamps over #{lookback_days} days"
+    )
 
     :ok
+  end
+
+  # Every live account-region gets a row first, stamped at the lookback
+  # boundary, before the observed timestamps are overlaid on top of it.
+  #
+  # Without this the backfill covers only accounts with an analytics event
+  # inside the window, so an instance whose account has been silent for longer
+  # than the lookback gets no row at all. The sweep refuses to archive an
+  # account-region with no row, so exactly the coldest instances — the ones the
+  # whole lifecycle exists to reclaim — would be the ones it could never touch.
+  #
+  # The boundary is the most recent timestamp consistent with the evidence: no
+  # qualifying request was observed after it. Overlaying is safe in either
+  # order because the upsert keeps the later of the two, and the row still has
+  # to clear the sweep's tracking grace period before it can be acted on, which
+  # is the window the live request-boundary hook has to correct it.
+  defp seed_live_instance_floors(since) do
+    lifecycle_region_ids =
+      Regions.available()
+      |> Enum.reject(&Regions.private?/1)
+      |> Enum.map(& &1.id)
+
+    if lifecycle_region_ids == [] do
+      0
+    else
+      Server
+      |> where([s], s.region in ^lifecycle_region_ids)
+      |> where([s], s.status not in [:destroyed, :archived])
+      |> select([s], {s.account_id, s.region})
+      |> Repo.all()
+      |> Enum.uniq()
+      |> Enum.reduce(0, fn {account_id, region}, seeded ->
+        {:ok, _count} = Demand.upsert(account_id, region, since)
+        seeded + 1
+      end)
+    end
   end
 
   defp merge_latest(source, acc) do

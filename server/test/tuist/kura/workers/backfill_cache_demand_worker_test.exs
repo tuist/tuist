@@ -1,16 +1,22 @@
 defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Cache.CASEvent
+  alias Tuist.Environment
   alias Tuist.Gradle.CacheEvent
   alias Tuist.IngestRepo
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Server
   alias Tuist.Kura.UsageEvent
   alias Tuist.Kura.Workers.BackfillCacheDemandWorker
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  setup :set_mimic_from_context
 
   defp account_with_project do
     user = AccountsFixtures.user_fixture()
@@ -140,6 +146,71 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
 
     assert Demand.get(account.id, "eu-central")
     refute Demand.get(account.id, "us-east")
+  end
+
+  describe "live instances with no event in the lookback window" do
+    setup do
+      stub(Environment, :env, fn -> :prod end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east"] end)
+      :ok
+    end
+
+    defp instance(account, region, status \\ :active) do
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: region,
+        status: status,
+        provisioner_node_ref: "kura-#{account.id}-#{region}"
+      })
+    end
+
+    test "are seeded at the lookback boundary, so the coldest instances are still archivable" do
+      # The whole point of the lifecycle is reclaiming instances like this one:
+      # provisioned, and silent for longer than any analytics source covers.
+      {account, _project} = account_with_project()
+      instance(account, "us-east")
+
+      assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
+
+      assert %{last_cache_demand_at: at} = Demand.get(account.id, "us-east")
+      assert DateTime.diff(DateTime.utc_now(), at, :day) == 90
+    end
+
+    test "keep observed demand when it is more recent than the floor" do
+      {account, project} = account_with_project()
+      instance(account, "us-east")
+      insert_cas_event(project.id, days_ago(10))
+
+      assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
+
+      assert DateTime.diff(DateTime.utc_now(), Demand.get(account.id, "us-east").last_cache_demand_at, :day) == 10
+    end
+
+    test "are not seeded for archived or destroyed instances, which hold nothing" do
+      {archived, _} = account_with_project()
+      instance(archived, "us-east", :archived)
+
+      {destroyed, _} = account_with_project()
+      instance(destroyed, "us-east", :destroyed)
+
+      assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
+
+      refute Demand.get(archived.id, "us-east")
+      refute Demand.get(destroyed.id, "us-east")
+    end
+
+    test "are not seeded for private runner-cache regions, which the lifecycle does not own" do
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "scw-fr-par-runners"] end)
+
+      {account, _project} = account_with_project()
+      instance(account, "scw-fr-par-runners")
+
+      assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
+
+      refute Demand.get(account.id, "scw-fr-par-runners")
+    end
   end
 
   test "skips accounts with no resolvable service region" do
