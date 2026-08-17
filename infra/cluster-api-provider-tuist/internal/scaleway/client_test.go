@@ -257,11 +257,13 @@ type fakeAppleSiliconAPI struct {
 	osCatalog        []*applesilicon.OS
 	osListCalls      int
 	osListErr        error
+	osListServerType *string
 	reinstalledOsIDs []*string
 }
 
-func (f *fakeAppleSiliconAPI) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+func (f *fakeAppleSiliconAPI) ListOS(req *applesilicon.ListOSRequest, _ ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
 	f.osListCalls++
+	f.osListServerType = req.ServerType
 	if f.osListErr != nil {
 		return nil, f.osListErr
 	}
@@ -714,7 +716,7 @@ func TestReleaseToPool_HappyPathRenamesAndReinstalls(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{}); err != nil {
 		t.Fatalf("ReleaseToPool: %v", err)
 	}
 	if got := api.servers[0].Name; !strings.HasPrefix(got, "tuist-pool-") {
@@ -735,7 +737,7 @@ func TestReleaseToPool_RejectsEmptyPoolPrefix(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "", ""); err == nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "", ReleasePin{}); err == nil {
 		t.Fatal("expected ReleaseToPool to refuse empty poolPrefix")
 	}
 	if api.updateCalls != 0 || api.reinstallCalls != 0 {
@@ -759,7 +761,7 @@ func TestReleaseToPool_SwallowsTransientStateOnReinstall(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{}); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil on TransientStateError, got %v", err)
 	}
 }
@@ -776,7 +778,7 @@ func TestReleaseToPool_TreatsRename404AsAlreadyGone(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-", ""); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-", ReleasePin{}); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil when rename sees 404, got %v", err)
 	}
 	if api.reinstallCalls != 0 {
@@ -795,7 +797,7 @@ func TestReleaseToPool_TreatsReinstall404AsAlreadyGone(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-", ""); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-", ReleasePin{}); err != nil {
 		t.Fatalf("ReleaseToPool: expected nil when reinstall sees 404, got %v", err)
 	}
 }
@@ -809,7 +811,7 @@ func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-", "")
+	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-", ReleasePin{})
 	if err == nil {
 		t.Fatal("expected non-recoverable reinstall error to surface")
 	}
@@ -839,7 +841,7 @@ func TestReleaseToPool_ReinstallsOntoNewestImageInPinnedFamily(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "Tahoe"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{Family: "Tahoe"}); err != nil {
 		t.Fatalf("ReleaseToPool: %v", err)
 	}
 	got := api.reinstalledOsIDs[0]
@@ -860,7 +862,7 @@ func TestReleaseToPool_LegacyExactPinResolvesToItsFamily(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.3"); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{Family: "macos-tahoe-26.3"}); err != nil {
 		t.Fatalf("a retired point release must still resolve via its family, got %v", err)
 	}
 	got := api.reinstalledOsIDs[0]
@@ -881,7 +883,7 @@ func TestReleaseToPool_UnpublishedFamilyFailsBeforeParkingHost(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-bigsur-11.0")
+	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{Family: "macos-bigsur-11.0"})
 	if !errors.Is(err, ErrOSNotPublished) {
 		t.Fatalf("expected ErrOSNotPublished for an unpublished family, got %v", err)
 	}
@@ -899,7 +901,7 @@ func TestReleaseToPool_EmptyPinKeepsServerTypeDefault(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ""); err != nil {
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{}); err != nil {
 		t.Fatalf("ReleaseToPool: %v", err)
 	}
 	if len(api.reinstalledOsIDs) != 1 || api.reinstalledOsIDs[0] != nil {
@@ -910,43 +912,125 @@ func TestReleaseToPool_EmptyPinKeepsServerTypeDefault(t *testing.T) {
 	}
 }
 
-func TestReleaseToPool_CachesResolvedOSAcrossReleases(t *testing.T) {
+func TestReleaseToPool_ReResolvesEveryRelease(t *testing.T) {
+	// No caching, on purpose. A cached UUID outliving its image would
+	// fail ReinstallServer with a generic API error rather than
+	// ErrOSNotPublished, so releaseHostToPool's downgrade would never
+	// fire and every release would retry the same dead UUID until the
+	// process restarted — the outage this path exists to prevent, one
+	// layer down.
 	api := &fakeAppleSiliconAPI{
 		servers: []*applesilicon.Server{
 			readyServer("srv-1", "tuist-tuist-runners-fleet-0"),
 			readyServer("srv-2", "tuist-tuist-runners-fleet-1"),
 		},
-		osCatalog: []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}},
+		osCatalog: []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"}},
 	}
 	c := newTestClient(api)
 
 	for _, id := range []string{"srv-1", "srv-2"} {
-		if err := c.ReleaseToPool(context.Background(), id, "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err != nil {
+		if err := c.ReleaseToPool(context.Background(), id, "fr-par-1", "tuist-pool-", ReleasePin{Family: "Tahoe"}); err != nil {
 			t.Fatalf("ReleaseToPool(%s): %v", id, err)
 		}
 	}
-	if api.osListCalls != 1 {
-		t.Fatalf("expected the catalog to be listed once and cached, got %d calls", api.osListCalls)
+	if api.osListCalls != 2 {
+		t.Fatalf("expected the catalog re-listed per release, got %d call(s)", api.osListCalls)
+	}
+
+	// Scaleway retires the family out from under us. Because nothing is
+	// cached, the very next release sees it and returns the sentinel the
+	// caller knows how to downgrade.
+	api.osCatalog = nil
+	err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", ReleasePin{Family: "Tahoe"})
+	if !errors.Is(err, ErrOSNotPublished) {
+		t.Fatalf("a retirement must surface as ErrOSNotPublished, got %v", err)
 	}
 }
 
-func TestReleaseToPool_DoesNotCacheUnresolvedPin(t *testing.T) {
-	// A pin that fails to resolve must stay unresolved-but-retryable:
-	// the operator repoints the fleet and the very next reconcile has
-	// to pick it up without a controller restart.
-	api := &fakeAppleSiliconAPI{
-		servers:   []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-runners-fleet-0")},
-		osCatalog: []*applesilicon.OS{},
-	}
+func TestResolveOSID_PrefersPublishedOverBeta(t *testing.T) {
+	// Scaleway does publish betas, and one can hold the highest version
+	// in its family. Picking purely on version would silently reimage
+	// production hosts onto a pre-release OS.
+	api := &fakeAppleSiliconAPI{osCatalog: []*applesilicon.OS{
+		{ID: "os-270b", Name: "macos-tahoe-27.0", Family: "Tahoe", Version: "27.0", IsBeta: true},
+		{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+	}}
 	c := newTestClient(api)
 
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err == nil {
-		t.Fatal("expected an empty catalog to fail the release")
+	got, err := c.resolveOSID(context.Background(), "fr-par-1", "Tahoe", "")
+	if err != nil {
+		t.Fatalf("resolveOSID: %v", err)
 	}
+	if got != "os-2661" {
+		t.Fatalf("expected the newest non-beta (os-2661), got %q", got)
+	}
+}
 
-	api.osCatalog = []*applesilicon.OS{{ID: "os-2661", Name: "macos-tahoe-26.6.1"}}
-	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-", "macos-tahoe-26.6.1"); err != nil {
-		t.Fatalf("expected the retry to resolve once Scaleway lists the image, got %v", err)
+func TestResolveOSID_FallsBackToBetaWhenNothingElsePublished(t *testing.T) {
+	api := &fakeAppleSiliconAPI{osCatalog: []*applesilicon.OS{
+		{ID: "os-270b", Name: "macos-tahoe-27.0", Family: "Tahoe", Version: "27.0", IsBeta: true},
+	}}
+	c := newTestClient(api)
+
+	got, err := c.resolveOSID(context.Background(), "fr-par-1", "Tahoe", "")
+	if err != nil {
+		t.Fatalf("a beta is better than stranding the fleet, got %v", err)
+	}
+	if got != "os-270b" {
+		t.Fatalf("expected the beta as last resort, got %q", got)
+	}
+}
+
+func TestResolveOSID_ScopesCatalogToServerType(t *testing.T) {
+	// A family's newest image published only for newer hardware would
+	// otherwise be chosen for an older host and fail the reinstall.
+	api := &fakeAppleSiliconAPI{osCatalog: []*applesilicon.OS{
+		{ID: "os-2661", Name: "macos-tahoe-26.6.1", Family: "Tahoe", Version: "26.6.1"},
+	}}
+	c := newTestClient(api)
+
+	if _, err := c.resolveOSID(context.Background(), "fr-par-1", "Tahoe", "M2-L"); err != nil {
+		t.Fatalf("resolveOSID: %v", err)
+	}
+	if api.osListServerType == nil || *api.osListServerType != "M2-L" {
+		t.Fatalf("expected ListOS scoped to M2-L, got %v", api.osListServerType)
+	}
+}
+
+func TestCompareOSVersions_PreReleaseRanksBelowItsRelease(t *testing.T) {
+	// A plain string fallback gets this backwards — the longer string
+	// compares greater — which would hand a pre-release the top slot.
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"26.7", "26.7-beta", 1},
+		{"26.7-beta", "26.7", -1},
+		{"26.6.1", "26.6", 1},
+		{"26.6", "26.5", 1},
+		{"26.6.1", "26.6.1", 0},
+	}
+	for _, tc := range cases {
+		if got := compareOSVersions(tc.a, tc.b); got != tc.want {
+			t.Errorf("compareOSVersions(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestOSFamilyMatches_FallsBackToNameWhenFamilyIsSurprising(t *testing.T) {
+	// The vendored SDK documents Family as numeric ("eg. 13 or 14")
+	// while both live endpoints return names. Accepting a name-derived
+	// match too means a surprising Family degrades to name matching
+	// instead of silently mismatching a whole fleet.
+	if !osFamilyMatches(&applesilicon.OS{Name: "macos-tahoe-26.6.1", Family: "26"}, "Tahoe") {
+		t.Fatal("a numeric Family should fall back to the image name")
+	}
+	if !osFamilyMatches(&applesilicon.OS{Name: "macos-tahoe-26.6.1"}, "Tahoe") {
+		t.Fatal("an empty Family should fall back to the image name")
+	}
+	// The fallback must not open a cross-family hole.
+	if osFamilyMatches(&applesilicon.OS{Name: "devos-tahoe-2026.06.30", Family: "DevOS"}, "Tahoe") {
+		t.Fatal("devos-tahoe must not satisfy a Tahoe fleet by either surface")
 	}
 }
 

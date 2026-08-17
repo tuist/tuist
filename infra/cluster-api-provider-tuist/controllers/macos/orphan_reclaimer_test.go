@@ -28,8 +28,8 @@ func (f *fakePool) ListServers(_ context.Context, zone string) ([]scaleway.Serve
 	return f.byZone[zone], nil
 }
 
-func (f *fakePool) ReleaseToPool(_ context.Context, id, _, _, osName string) error {
-	f.releasedOsNames = append(f.releasedOsNames, osName)
+func (f *fakePool) ReleaseToPool(_ context.Context, id, _, _ string, pin scaleway.ReleasePin) error {
+	f.releasedOsNames = append(f.releasedOsNames, pin.Family)
 	if err := f.releaseErr[id]; err != nil {
 		return err
 	}

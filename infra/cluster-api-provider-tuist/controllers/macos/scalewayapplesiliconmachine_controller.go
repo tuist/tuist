@@ -1326,7 +1326,7 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, reason str
 // full *scaleway.Client on the reconciler and the narrow
 // bootstrapRecoveryClient can go through the same policy.
 type poolReleaser interface {
-	ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName string) error
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error
 }
 
 // releaseHostToPool returns a host to the pool, reinstalling it onto
@@ -1349,14 +1349,15 @@ func releaseHostToPool(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 	poolPrefix string,
 ) error {
-	err := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, machine.Spec.OS)
+	err := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix,
+		scaleway.ReleasePin{Family: machine.Spec.OS, ServerType: machine.Spec.Type})
 	if !errors.Is(err, scaleway.ErrOSNotPublished) {
 		return err
 	}
 	recorder.Eventf(machine, corev1.EventTypeWarning, "OSPinUnavailable",
 		"Fleet os pin %q is no longer published by Scaleway; releasing %s onto the server type default instead. Repoint the fleet's os pin: %v",
 		machine.Spec.OS, machine.Status.ServerID, err)
-	return client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, "")
+	return client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, scaleway.ReleasePin{})
 }
 
 // bootstrapRecoveryClient is the narrow Scaleway surface
@@ -1365,7 +1366,7 @@ func releaseHostToPool(
 // natively.
 type bootstrapRecoveryClient interface {
 	RebootServer(ctx context.Context, id, zone string) error
-	ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName string) error
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error
 }
 
 // bootstrapSecretCleaner wipes the per-machine bootstrap Secret that
@@ -1548,12 +1549,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	// A versioned pin is a configuration error, not absent capacity.
 	// Reporting it as NoAvailableHost would send an operator to
 	// pre-order hosts that could never match. Requeue slowly: nothing
-	// changes until someone edits the fleet's os.
+	// changes on its own.
+	//
+	// The likeliest cause is not a mis-edited fleet but a Machine that
+	// predates the switch to families: its spec carries a versioned pin
+	// that the MachineTemplate no longer has, so editing the fleet
+	// changes nothing for it. Under OnDelete nothing replaces it
+	// either, so the message names deleting the Machine first —
+	// MachineSet re-clones from the current template. This is reachable
+	// without any operator action: handleBootstrapFailure releases the
+	// host at exhaustion and leaves the Machine hostless, so a legacy
+	// Machine sheds its host and lands here on the next reconcile.
 	if errors.Is(err, scaleway.ErrOSPinNotFamily) {
 		conditions.MarkFalse(machine, shared.ProvisionedCondition, "InvalidOSPin",
 			clusterv1.ConditionSeverityError, "%v", err)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "InvalidOSPin",
-			"Fleet os %q pins a specific image; adoption requires a release family. %v",
+			"This Machine's os %q pins a specific image; adoption requires a release family. "+
+				"If the fleet's MachineTemplate already pins a family, this Machine predates it: "+
+				"delete the Machine so its MachineSet re-clones from the template, or patch its spec.os. %v",
 			machine.Spec.OS, err)
 		return nil, 5 * time.Minute, nil
 	}

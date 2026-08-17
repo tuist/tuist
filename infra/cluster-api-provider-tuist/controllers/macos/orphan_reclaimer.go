@@ -36,7 +36,7 @@ func init() {
 // real Scaleway SDK.
 type scalewayPool interface {
 	ListServers(ctx context.Context, zone string) ([]scaleway.Server, error)
-	ReleaseToPool(ctx context.Context, id, zone, poolPrefix, osName string) error
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error
 }
 
 // OrphanReclaimer is a leader-gated periodic sweep that returns
@@ -195,12 +195,12 @@ func (r *OrphanReclaimer) reclaimOnce(ctx context.Context) error {
 		}
 		r.Log.Info("reclaiming stranded Scaleway host to pool",
 			"server", c.id, "name", c.name, "zone", c.zone)
-		// No os pin: a strand has no surviving CR to read one from, so
-		// the reinstall takes the server type's default. The host lands
-		// in the pool adoptable by whichever fleet pins that image, and
-		// a fleet on a different pin simply skips it — same as any other
-		// pool host it doesn't match.
-		if err := r.Scaleway.ReleaseToPool(ctx, c.id, c.zone, r.PoolPrefix, ""); err != nil {
+		// No pin: a strand has no surviving CR to read a family or SKU
+		// from, so the reinstall takes the server type's default. The
+		// host lands in the pool adoptable by any fleet pinning that
+		// image's family, and a fleet on another family simply skips it
+		// — same as any other pool host it doesn't match.
+		if err := r.Scaleway.ReleaseToPool(ctx, c.id, c.zone, r.PoolPrefix, scaleway.ReleasePin{}); err != nil {
 			r.Log.Error(err, "reclaim stranded host failed; retrying next cycle",
 				"server", c.id, "name", c.name, "zone", c.zone)
 			if firstErr == nil {
