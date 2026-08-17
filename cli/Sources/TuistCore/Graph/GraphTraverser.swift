@@ -28,6 +28,15 @@ public class GraphTraverser: GraphTraversing {
     private let conditionCache = ConditionCache()
     private let conditionalTargets: Set<GraphDependency>
     private let precompiledSwiftMacroExecutablesCache = GraphCache<GraphDependency, Set<String>>()
+    private let precompiledDynamicLibrariesAndFrameworksCache = GraphCache<GraphDependency, [GraphDependency]>()
+    private let linkableDependenciesCache = GraphCache<LinkableDependenciesKey, Set<GraphDependencyReference>>()
+    private let searchablePathDependenciesCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
+
+    struct LinkableDependenciesKey: Hashable {
+        let target: GraphDependency
+        let shouldExcludeHostAppDependencies: Bool
+    }
+
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
@@ -530,6 +539,11 @@ public class GraphTraverser: GraphTraversing {
     public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
         GraphDependencyReference
     > {
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = searchablePathDependenciesCache[cacheKey] {
+            return cached
+        }
+
         let staticXCFrameworksBehindDynamic = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
             path: path,
             name: name
@@ -538,10 +552,12 @@ public class GraphTraverser: GraphTraversing {
             dependencyReference(to: $0, from: .target(name: name, path: path))
         }
 
-        return try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+        let references = try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
             .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
             .union(staticReferences)
+        searchablePathDependenciesCache[cacheKey] = references
+        return references
     }
 
     public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
@@ -565,8 +581,16 @@ public class GraphTraverser: GraphTraversing {
     ) throws -> Set<GraphDependencyReference> {
         guard let target = target(path: path, name: name) else { return Set() }
 
-        var references = Set<GraphDependencyReference>()
         let targetGraphDependency = GraphDependency.target(name: name, path: path)
+        let cacheKey = LinkableDependenciesKey(
+            target: targetGraphDependency,
+            shouldExcludeHostAppDependencies: shouldExcludeHostAppDependencies
+        )
+        if let cached = linkableDependenciesCache[cacheKey] {
+            return cached
+        }
+
+        var references = Set<GraphDependencyReference>()
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
@@ -724,6 +748,7 @@ public class GraphTraverser: GraphTraversing {
 
         references.formUnion(dynamicLibrariesAndFrameworks)
 
+        linkableDependenciesCache[cacheKey] = references
         return references
     }
 
@@ -856,16 +881,27 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> [GraphDependency] {
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = precompiledDynamicLibrariesAndFrameworksCache[cacheKey] {
+            return cached
+        }
+
         // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
-            .lazy
-            .filter(\.isPrecompiled)
+        let precompiled = Set(
+            graph.dependencies[.target(name: name, path: path), default: []]
+                .lazy
+                .filter(\.isPrecompiled)
+        )
 
-        let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0) }
+        // Traversed from all roots at once so the closure below them is walked a single time rather than once per
+        // root. On a binary-cache-substituted graph every replaced dependency is precompiled and they largely share
+        // the same closure, which made the per-root walk quadratic.
+        let precompiledDependencies = filterDependencies(from: precompiled)
 
-        return Set(precompiled + precompiledDependencies)
+        let result: [GraphDependency] = precompiled.union(precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
+        precompiledDynamicLibrariesAndFrameworksCache[cacheKey] = result
+        return result
     }
 
     public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
@@ -1961,11 +1997,9 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
 
-        let precompiledDependencies =
-            precompiledStatic
-                .flatMap { filterDependencies(from: $0) }
+        let precompiledDependencies = filterDependencies(from: precompiledStatic)
 
-        return Set(precompiledStatic + precompiledDependencies)
+        return precompiledStatic.union(precompiledDependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
     }
 
