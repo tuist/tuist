@@ -44,9 +44,9 @@ fn reachable_connect_timeout_ms(connect_timeout_ms: u64, request_timeout_ms: u64
 
     warn!(
         "{} ({}ms) is not below {} ({}ms), which spans it; using {}ms for the connect.",
-        CONNECT_TIMEOUT_MS[0],
+        CONNECT_TIMEOUT_MS,
         connect_timeout_ms,
-        REQUEST_TIMEOUT_MS[0],
+        REQUEST_TIMEOUT_MS,
         request_timeout_ms,
         request_timeout_ms
     );
