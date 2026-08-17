@@ -12,6 +12,7 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 - `Sources/TuistErrorHandling` - Shared error handling
 - `Sources/TuistAppStorage` - Shared storage utilities
 - `Sources/TuistAuthentication` - Shared authentication
+- `Sources/TuistAppLogging` - Persistent application logging and support exports
 
 ## Building and Testing
 - Generate the project: `tuist generate --no-open` (from `app/` directory)

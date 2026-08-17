@@ -1,4 +1,5 @@
 import SwiftUI
+import TuistAppLogging
 import TuistAuthentication
 import TuistServer
 
@@ -62,6 +63,10 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        init() {
+            ApplicationLogStore.bootstrap()
+        }
+
         var body: some Scene {
             WindowGroup {
                 RootView()

@@ -57,12 +57,7 @@ public final class AuthenticationService: ObservableObject {
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
         Logger.current.notice(
-            "Initialized authentication service with state: \(authenticationState.logDescription)"
-        )
-        ApplicationLogStore.shared.record(
-            level: .notice,
-            category: "authentication",
-            message: "state_initialized state=\(authenticationState.logDescription)"
+            "Authentication state initialized state=\(authenticationState.logDescription)"
         )
 
         startCredentialsListener()
@@ -77,15 +72,9 @@ public final class AuthenticationService: ObservableObject {
             for await credentials in ServerCredentialsStore.current.credentialsChanged {
                 await MainActor.run {
                     do {
-                        Logger.current.notice(
-                            "Received credentials change: hasCredentials=\(credentials != nil)"
-                        )
                         let expirationDates = tokenExpirationDates(credentials)
-                        ApplicationLogStore.shared.record(
-                            level: .notice,
-                            category: "authentication",
-                            message: "credentials_changed has_credentials=\(credentials != nil) "
-                                + expirationDescription(expirationDates)
+                        Logger.current.notice(
+                            "Credentials changed has_credentials=\(credentials != nil) \(expirationDescription(expirationDates))"
                         )
                         try updateAuthenticationState(with: credentials)
                     } catch {
@@ -126,11 +115,6 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
-        ApplicationLogStore.shared.record(
-            level: .notice,
-            category: "authentication",
-            message: "user_initiated_sign_out"
-        )
         Logger.current.notice(
             "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
         )
@@ -406,12 +390,9 @@ public final class AuthenticationService: ObservableObject {
         let expirationDates = tokenExpirationDates(
             ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
         )
-        ApplicationLogStore.shared.record(
-            level: .notice,
-            category: "authentication",
-            message: "credentials_stored_after_sign_in " + expirationDescription(expirationDates)
+        Logger.current.notice(
+            "Stored authentication credentials from token response \(expirationDescription(expirationDates))"
         )
-        Logger.current.notice("Stored authentication credentials from token response")
     }
 
     private func tokenExpirationDates(_ credentials: ServerCredentials?) -> (

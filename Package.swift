@@ -1881,6 +1881,8 @@ let package = Package(
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
         .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
+        .package(url: "https://github.com/kean/Pulse.git", from: "5.2.3"),
+        .package(url: "https://github.com/kean/PulseLogHandler.git", from: "5.1.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra",
             .upToNextMajor(from: "1.1.0")

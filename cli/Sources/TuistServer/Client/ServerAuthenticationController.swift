@@ -315,11 +315,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 let refreshTokenAfterAction = try? await ServerCredentialsStore.current
                     .read(serverURL: serverURL)?.refreshToken
                 let credentialsChangedDuringRefresh = refreshTokenBeforeAction != refreshTokenAfterAction
-                ApplicationLogStore.shared.record(
-                    level: .warning,
-                    category: "authentication",
-                    message: "unauthorized_refresh_handled "
-                        + "credentials_changed_during_refresh=\(credentialsChangedDuringRefresh)"
+                Logger.current.warning(
+                    "Unauthorized refresh handled credentials_changed_during_refresh=\(credentialsChangedDuringRefresh)"
                 )
                 if credentialsChangedDuringRefresh {
                     #if canImport(TuistSupport)
@@ -594,11 +591,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         accessToken: JWT? = nil,
         refreshToken: JWT? = nil
     ) {
-        ApplicationLogStore.shared.record(
-            level: .debug,
-            category: "authentication",
-            message: "token_status_evaluated status=\(status) "
-                + expirationDescription(accessToken: accessToken, refreshToken: refreshToken)
+        Logger.current.debug(
+            "Token status evaluated status=\(status) \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
         )
     }
 
@@ -640,15 +634,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     }
                 #endif
                 if refresh {
-                    ApplicationLogStore.shared.record(
-                        level: .notice,
-                        category: "authentication",
-                        message: "token_refresh_started "
-                            + expirationDescription(accessToken: accessToken, refreshToken: refreshToken)
+                    Logger.current.notice(
+                        "Token refresh started \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
                     )
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Refreshing access token for \(serverURL)")
-                    #endif
                     let tokens = try await refreshTokens(
                         serverURL: serverURL, refreshToken: refreshToken
                     )
@@ -786,36 +774,26 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             let accessToken = try? JWT.parse(newTokens.accessToken)
             let refreshToken = try? JWT.parse(newTokens.refreshToken)
-            ApplicationLogStore.shared.record(
-                level: .notice,
-                category: "authentication",
-                message: "token_refresh_succeeded "
-                    + expirationDescription(accessToken: accessToken, refreshToken: refreshToken)
+            Logger.current.notice(
+                "Token refresh succeeded \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
             )
             return newTokens
         } catch let error as ClientError {
-            ApplicationLogStore.shared.record(
-                level: .error,
-                category: "authentication",
-                message: "token_refresh_failed "
-                    + "error_type=\(String(reflecting: type(of: error.underlyingError)))"
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error.underlyingError)))"
             )
             if ServerErrorClassifier.isTransient(error) {
                 throw error
             }
             throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
-            ApplicationLogStore.shared.record(
-                level: .error,
-                category: "authentication",
-                message: "token_refresh_failed error_type=\(String(reflecting: type(of: error)))"
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
             )
             throw error
         } catch {
-            ApplicationLogStore.shared.record(
-                level: .error,
-                category: "authentication",
-                message: "token_refresh_failed error_type=\(String(reflecting: type(of: error)))"
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
             )
             throw ClientAuthenticationError.notAuthenticated
         }

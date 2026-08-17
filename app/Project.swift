@@ -131,6 +131,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistAppLogging"),
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
@@ -229,7 +230,21 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
+                .target(name: "TuistAppLogging"),
                 .external(name: "OpenAPIRuntime"),
+            ]
+        ),
+        .target(
+            name: "TuistAppLogging",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "dev.tuist.app-logging",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
+            sources: ["Sources/TuistAppLogging/**"],
+            dependencies: [
+                .project(target: "TuistLogging", path: "../"),
+                .external(name: "Pulse"),
+                .external(name: "PulseLogHandler"),
             ]
         ),
         .target(
@@ -283,6 +298,18 @@ let project = Project(
                 .project(target: "TuistConstants", path: "../"),
             ]
         ),
+        .target(
+            name: "TuistAppLoggingTests",
+            destinations: [.mac, .iPhone],
+            product: .unitTests,
+            bundleId: "dev.tuist.app-logging-tests",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
+            sources: ["Tests/TuistAppLoggingTests/**"],
+            dependencies: [
+                .target(name: "TuistAppLogging"),
+                .external(name: "Pulse"),
+            ]
+        ),
     ],
     schemes: [
         .scheme(
@@ -316,6 +343,14 @@ let project = Project(
                         "TUIST_URL": serverURLEnvironmentVariable,
                     ]
                 )
+            )
+        ),
+        .scheme(
+            name: "TuistAppLogging",
+            buildAction: .buildAction(targets: [.target("TuistAppLogging")]),
+            testAction: .targets(
+                [.testableTarget(target: "TuistAppLoggingTests")],
+                options: .options(language: "en")
             )
         ),
     ]
