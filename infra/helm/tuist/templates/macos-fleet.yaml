@@ -33,7 +33,7 @@ a new object instead always writes the full spec.
 {{- $machineSpec := dict
       "type" (.Values.macosFleet.machine.type | default "M2-L")
       "zone" (.Values.macosFleet.machine.zone | default "fr-par-1")
-      "os" (.Values.macosFleet.machine.os | default "macos-tahoe-26.3")
+      "os" (.Values.macosFleet.machine.os | default "Tahoe")
       "fleetName" $fleetName
       "adoptPoolPrefix" (required "macosFleet.adoptPoolPrefix is required" .Values.macosFleet.adoptPoolPrefix)
 }}

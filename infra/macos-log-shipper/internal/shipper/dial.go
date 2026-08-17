@@ -2,6 +2,7 @@ package shipper
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -31,11 +32,19 @@ func dialContextVia(resolver *net.Resolver, timeout time.Duration) func(context.
 	primary := &net.Dialer{Timeout: timeout, Resolver: resolver}
 	system := &net.Dialer{Timeout: timeout}
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := primary.DialContext(ctx, network, addr)
-		if err == nil {
+		conn, primaryErr := primary.DialContext(ctx, network, addr)
+		if primaryErr == nil {
 			return conn, nil
 		}
-		return system.DialContext(ctx, network, addr)
+		conn, systemErr := system.DialContext(ctx, network, addr)
+		if systemErr == nil {
+			return conn, nil
+		}
+		// Both, not just the fallback's. Returning only the system resolver's
+		// "no such host" hid the fact that MagicDNS was answering and refusing
+		// the name — the push log named the symptom every minute for hours
+		// while saying nothing about the half that mattered.
+		return nil, fmt.Errorf("magicdns: %w; system resolver: %w", primaryErr, systemErr)
 	}
 }
 

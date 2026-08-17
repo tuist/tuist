@@ -584,7 +584,7 @@ macosFleet:
   # `instance` (the Machine/Node name) and `level`.
   hostLogs:
     enabled: true
-    url: http://tuist-alloy-receiver-staging:3100/loki/api/v1/push
+    url: http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:3100/loki/api/v1/push
     env: staging
   # Firewall half of the runner-cache path: allow VM egress to the
   # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
