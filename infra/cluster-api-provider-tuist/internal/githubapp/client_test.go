@@ -194,3 +194,53 @@ func newRSAKey(t *testing.T) ([]byte, *rsa.PrivateKey) {
 	})
 	return pemBytes, key
 }
+
+// TestRunnerBusy wires a fake GitHub API and checks the three answers
+// that matter to the caller: busy, idle, and "I could not tell you".
+// The last one must be an error rather than a false, because the only
+// caller reboots a Mac mini on a positive idle answer.
+func TestRunnerBusy(t *testing.T) {
+	keyPEM, _ := newRSAKey(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/installations/98765432/access_tokens":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"token": "ghs_installation_token"})
+		case "/orgs/tuist/actions/runners":
+			if got := r.Header.Get("Authorization"); got != "Bearer ghs_installation_token" {
+				t.Errorf("runner listing auth = %q, want the installation token", got)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"runners": []map[string]any{
+				{"name": "builder-baking", "busy": true},
+				{"name": "builder-idle", "busy": false},
+			}})
+		default:
+			t.Errorf("unexpected request to %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := &Client{BaseURL: server.URL}
+	creds := Credentials{AppID: "1234567", InstallationID: "98765432", PrivateKey: keyPEM}
+
+	for _, tc := range []struct {
+		runner string
+		want   bool
+	}{{"builder-baking", true}, {"builder-idle", false}} {
+		got, err := client.RunnerBusy(context.Background(), creds, "tuist", tc.runner)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.runner, err)
+		}
+		if got != tc.want {
+			t.Fatalf("%s: busy = %v, want %v", tc.runner, got, tc.want)
+		}
+	}
+
+	// An unregistered runner means we are reasoning about the wrong
+	// host; answering "not busy" would authorise a reboot on no
+	// evidence at all.
+	if _, err := client.RunnerBusy(context.Background(), creds, "tuist", "ghost"); err == nil {
+		t.Fatal("expected an error for a runner GitHub does not list, not a not-busy verdict")
+	}
+}

@@ -297,7 +297,27 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// `cmd/manager/main.go`; tests inject a stub that returns a
 	// canned config without dialing GitHub or reading a Secret.
 	RunnerResolver runner.Resolver
+
+	// RunnerBusyChecker answers whether a builder host is mid-job, so
+	// the drift recovery never reboots one through an image bake. Nil
+	// on clusters with no builder fleet — and treated as "cannot tell",
+	// so a mis-wired manager defers the reboot rather than taking the
+	// risk.
+	RunnerBusyChecker runner.BusyChecker
+
+	// APIReader is an uncached reader used for the one Pod query the
+	// drift recovery makes. Deliberately not the cached client: a
+	// cached List by field would force the manager to watch and hold
+	// every Pod in the cluster to answer a question asked only when a
+	// host has already failed five times. The apiserver indexes
+	// spec.nodeName natively, so the direct read is cheap and, being
+	// uncached, cannot be stale about work that started moments ago.
+	APIReader client.Reader
 }
+
+// podNodeNameField is the apiserver-native field selector used to scope
+// the recovery's Pod query to one node.
+const podNodeNameField = "spec.nodeName"
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines/status,verbs=get;update;patch
@@ -305,7 +325,8 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch;update;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,resourceNames=cluster-info,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -943,7 +964,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				if unreachable {
-					rebootUnreachableHost(ctx, machine, r.ScalewayClient, r.Recorder, logger)
+					rebootUnreachableHost(ctx, machine, r.ScalewayClient, r.hostWork(ctx, machine, logger), r.Recorder, logger)
 				}
 				return ctrl.Result{}, nil
 			}
@@ -956,6 +977,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// could be rebooted once in its lifetime and would sit terminal
 		// through every later backlog exhaustion.
 		machine.Status.UpdateRebootIssued = false
+		// The host is converged and reachable again, so it can take work.
+		r.uncordonNode(ctx, machine, logger)
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA,
@@ -1346,9 +1369,29 @@ type hostRebootClient interface {
 	RebootServer(ctx context.Context, id, zone string) error
 }
 
+// hostWorkState is what the recovery knows about a host's running work.
+// Only workIdle authorises a reboot; the other two both mean "leave it
+// alone", kept distinct so the Event says which.
+type hostWorkState int
+
+const (
+	// workUnknown is the fail-closed default: no trustworthy answer, so
+	// the host is treated as busy.
+	workUnknown hostWorkState = iota
+	workBusy
+	workIdle
+)
+
 // rebootUnreachableHost is the drift-loop counterpart to
 // handleBootstrapFailure's tier 1: at an exhausted update budget it asks
 // Scaleway to reboot the mini once to clear volatile host state.
+//
+// Unlike that tier it must first prove the host is idle. A bootstrapping
+// host runs nothing by definition; a drift-wedged one is Ready,
+// schedulable and typically mid-job, because the wedge takes out only
+// the SSH accept path — tart-kubelet keeps talking to the apiserver and
+// keeps booting VMs. Rebooting on the bootstrap tier's terms would kill
+// customer CI to deliver a config push.
 //
 // Why the cooldown alone was not enough. A terminal update failure is
 // almost always a verdict on REACHABILITY rather than on the config, and
@@ -1382,10 +1425,25 @@ func rebootUnreachableHost(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 	client hostRebootClient,
+	work hostWorkState,
 	recorder record.EventRecorder,
 	logger logr.Logger,
 ) {
 	if machine.Status.UpdateRebootIssued || machine.Status.ServerID == "" {
+		return
+	}
+	if work != workIdle {
+		// Not a failure: the host keeps working on a stale config until
+		// it drains, and the next exhausted budget re-checks. The
+		// one-shot stays unconsumed so nothing is spent on a deferral.
+		reason := "its running work has not drained"
+		if work == workUnknown {
+			reason = "its running work could not be determined"
+		}
+		logger.Info("deferring recovery reboot of unreachable host", "server", machine.Status.ServerID, "cause", reason)
+		recorder.Eventf(machine, corev1.EventTypeNormal, "RebootDeferredHostBusy",
+			"Not rebooting %s to recover a wedged :22 because %s; will re-check after the retry cooldown",
+			machine.Status.ServerID, reason)
 		return
 	}
 	attempts := machine.Status.TartKubeletUpdateAttempts
@@ -1406,6 +1464,122 @@ func rebootUnreachableHost(
 	recorder.Eventf(machine, corev1.EventTypeNormal, "RebootingForRecovery",
 		"Rebooting %s after %d tart-kubelet update attempts found :22 unreachable on every transport",
 		machine.Status.ServerID, attempts)
+}
+
+// hostWork establishes whether the machine is running work, fail-closed:
+// anything it cannot positively determine comes back workUnknown, which
+// rebootUnreachableHost treats as busy.
+//
+// The two fleet shapes need different evidence, and neither answer is
+// valid for the other kind of host:
+//
+//   - Builder hosts (Spec.GHActionsRunner set) run image bakes under a
+//     launchd LaunchAgent. No Pod ever selects the builder fleet, so a
+//     Pod query returns empty whether the host is idle or halfway
+//     through a `tart push`. GitHub is the only authority, and being
+//     unable to ask it is workUnknown, not idle.
+//   - Pod fleets run customer CI as Pods. Those go through the default
+//     scheduler, so cordoning first closes the window where a job lands
+//     between the check and the reboot; without the cordon the answer
+//     would be stale the moment it was read.
+func (r *ScalewayAppleSiliconMachineReconciler) hostWork(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	logger logr.Logger,
+) hostWorkState {
+	if machine.Spec.GHActionsRunner != nil {
+		if r.RunnerBusyChecker == nil {
+			logger.Info("no RunnerBusyChecker wired; cannot establish whether the builder host is mid-bake")
+			return workUnknown
+		}
+		busy, err := r.RunnerBusyChecker.RunnerBusy(ctx, machine.Namespace, machine.Spec.GHActionsRunner, machine.Name)
+		if err != nil {
+			logger.Error(err, "query GitHub for runner busy state; treating the host as busy")
+			return workUnknown
+		}
+		if busy {
+			return workBusy
+		}
+		return workIdle
+	}
+
+	// Cordon before counting. An uncordoned Ready node can be given a
+	// job between the count and the reboot, so the count only means
+	// something once nothing new can land.
+	if err := r.cordonNode(ctx, machine); err != nil {
+		logger.Error(err, "cordon node before recovery reboot; treating the host as busy")
+		return workUnknown
+	}
+	if r.APIReader == nil {
+		logger.Info("no APIReader wired; cannot establish whether the node is running Pods")
+		return workUnknown
+	}
+	pods := &corev1.PodList{}
+	if err := r.APIReader.List(ctx, pods, client.MatchingFields{podNodeNameField: machine.Name}); err != nil {
+		logger.Error(err, "list pods on the node; treating the host as busy")
+		return workUnknown
+	}
+	for _, pod := range pods.Items {
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		return workBusy
+	}
+	return workIdle
+}
+
+// cordonNode marks the machine's Node unschedulable and records that
+// this recovery is the one that did it, so uncordonNode can put back
+// only what it took. A Node that is already unschedulable for someone
+// else's reason is left flagged as ours-to-restore=false.
+func (r *ScalewayAppleSiliconMachineReconciler) cordonNode(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) error {
+	node := &corev1.Node{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: machine.Name}, node); err != nil {
+		return err
+	}
+	if node.Spec.Unschedulable {
+		return nil
+	}
+	patch := client.MergeFrom(node.DeepCopy())
+	node.Spec.Unschedulable = true
+	if err := r.Client.Patch(ctx, node, patch); err != nil {
+		return err
+	}
+	machine.Status.UpdateRebootCordoned = true
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CordonedForRecovery",
+		"Cordoned %s so its running work can drain before the recovery reboot", machine.Name)
+	return nil
+}
+
+// uncordonNode lifts a cordon this recovery placed. No-op when we never
+// cordoned, so a host an operator parked by hand stays parked.
+func (r *ScalewayAppleSiliconMachineReconciler) uncordonNode(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	logger logr.Logger,
+) {
+	if !machine.Status.UpdateRebootCordoned {
+		return
+	}
+	node := &corev1.Node{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: machine.Name}, node); err != nil {
+		logger.Error(err, "get node to lift the recovery cordon; will retry on the next roll")
+		return
+	}
+	if node.Spec.Unschedulable {
+		patch := client.MergeFrom(node.DeepCopy())
+		node.Spec.Unschedulable = false
+		if err := r.Client.Patch(ctx, node, patch); err != nil {
+			logger.Error(err, "lift the recovery cordon; will retry on the next roll")
+			return
+		}
+	}
+	machine.Status.UpdateRebootCordoned = false
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "UncordonedAfterRecovery",
+		"Lifted the recovery cordon on %s after a successful host config roll", machine.Name)
 }
 
 // clearUpdateFailure resets the drift-loop retry counter and lifts the

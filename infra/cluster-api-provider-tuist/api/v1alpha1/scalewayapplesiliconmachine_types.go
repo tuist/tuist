@@ -333,6 +333,20 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// alert to surface.
 	// +optional
 	UpdateRebootIssued bool `json:"updateRebootIssued,omitempty"`
+
+	// UpdateRebootCordoned records that the drift recovery cordoned this
+	// host's Node while waiting for its running work to drain, so the
+	// same recovery can uncordon it afterwards and nothing else has to
+	// guess who owns the taint. Only ever set for pod-scheduled fleets;
+	// builder hosts take no Pods, so cordoning them would signal a
+	// safety we do not actually have.
+	//
+	// Uncordoned (and cleared) on a successful roll. A host that never
+	// converges stays cordoned on purpose: it is running a host config
+	// the operator could not update, so it should not be taking new
+	// work while the stuck-Failed alert waits for a human.
+	// +optional
+	UpdateRebootCordoned bool `json:"updateRebootCordoned,omitempty"`
 }
 
 // +kubebuilder:object:root=true

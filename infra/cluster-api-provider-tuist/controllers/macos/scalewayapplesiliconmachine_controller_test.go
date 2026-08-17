@@ -22,6 +22,7 @@ import (
 
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -310,7 +311,7 @@ func TestRebootUnreachableHost_RebootsOnceAtExhaustion(t *testing.T) {
 	machine.Status.TartKubeletUpdateAttempts = 5
 	stub := &recoveryStub{}
 
-	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("expected one reboot at exhaustion, got %d", len(stub.rebootCalls))
 	}
@@ -325,7 +326,7 @@ func TestRebootUnreachableHost_RebootsOnceAtExhaustion(t *testing.T) {
 	// again on the next exhausted budget: it is not one more boot away
 	// from working, and the terminal state is what the stuck-Failed
 	// alert keys on.
-	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
 	if len(stub.rebootCalls) != 1 {
 		t.Fatalf("reboot must be one-shot per wedge; got %d calls", len(stub.rebootCalls))
 	}
@@ -335,13 +336,13 @@ func TestRebootUnreachableHost_APIErrorDoesNotConsumeOneShot(t *testing.T) {
 	machine := newUpdateRecoveryMachine("srv-1")
 	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
 
-	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
 	if machine.Status.UpdateRebootIssued {
 		t.Fatal("a failed RebootServer must leave the one-shot unconsumed so the next cooldown retries it")
 	}
 
 	stub.rebootErr = nil
-	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
 	if len(stub.rebootCalls) != 2 || !machine.Status.UpdateRebootIssued {
 		t.Fatalf("expected the reboot to be retried and succeed; calls=%d issued=%v",
 			len(stub.rebootCalls), machine.Status.UpdateRebootIssued)
@@ -354,12 +355,48 @@ func TestRebootUnreachableHost_NoServerIDIsNoOp(t *testing.T) {
 	machine := newUpdateRecoveryMachine("")
 	stub := &recoveryStub{}
 
-	rebootUnreachableHost(context.Background(), machine, stub, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
 	if len(stub.rebootCalls) != 0 {
 		t.Fatalf("expected no reboot without a ServerID, got %d", len(stub.rebootCalls))
 	}
 	if machine.Status.UpdateRebootIssued {
 		t.Fatal("no-op must not consume the one-shot")
+	}
+}
+
+func TestRebootUnreachableHost_NeverRebootsABusyHost(t *testing.T) {
+	// The wedge leaves the host Ready, schedulable and typically
+	// mid-job — only the ssh accept path is dead. Rebooting to deliver
+	// a config push would kill customer CI (pod fleets) or an image
+	// bake mid-`tart push` (builders), so a host that is not provably
+	// idle is left alone.
+	for _, work := range []hostWorkState{workBusy, workUnknown} {
+		machine := newUpdateRecoveryMachine("srv-1")
+		machine.Status.TartKubeletUpdateAttempts = 5
+		stub := &recoveryStub{}
+
+		rebootUnreachableHost(context.Background(), machine, stub, work, fakeRecorder(), logr.Discard())
+		if len(stub.rebootCalls) != 0 {
+			t.Fatalf("work=%v must not reboot; got %d call(s)", work, len(stub.rebootCalls))
+		}
+		if machine.Status.UpdateRebootIssued {
+			t.Fatalf("work=%v: a deferral must not consume the one-shot", work)
+		}
+	}
+}
+
+func TestRebootUnreachableHost_DeferralLeavesTheOneShotForLater(t *testing.T) {
+	// A host that is busy now and idle at the next exhausted budget
+	// must still get its reboot; the deferral is not a verdict.
+	machine := newUpdateRecoveryMachine("srv-1")
+	stub := &recoveryStub{}
+
+	rebootUnreachableHost(context.Background(), machine, stub, workBusy, fakeRecorder(), logr.Discard())
+	rebootUnreachableHost(context.Background(), machine, stub, workIdle, fakeRecorder(), logr.Discard())
+
+	if len(stub.rebootCalls) != 1 || !machine.Status.UpdateRebootIssued {
+		t.Fatalf("expected the drained host to reboot; calls=%d issued=%v",
+			len(stub.rebootCalls), machine.Status.UpdateRebootIssued)
 	}
 }
 
@@ -428,6 +465,153 @@ func TestNodeMissingAfterBootstrap_NodeGone(t *testing.T) {
 	}
 }
 
+type busyCheckerStub struct {
+	busy       bool
+	err        error
+	population []string
+}
+
+func (s *busyCheckerStub) RunnerBusy(_ context.Context, _ string, _ *infrav1.GHActionsRunnerConfig, runnerName string) (bool, error) {
+	s.population = append(s.population, runnerName)
+	return s.busy, s.err
+}
+
+func newWorkStateMachine(name string, builder bool) *infrav1.ScalewayAppleSiliconMachine {
+	m := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns"},
+	}
+	m.Status.ServerID = "srv-1"
+	if builder {
+		m.Spec.GHActionsRunner = &infrav1.GHActionsRunnerConfig{GHOrg: "tuist"}
+	}
+	return m
+}
+
+func nodeNamed(name string) *corev1.Node {
+	return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}}
+}
+
+func podOnNode(name, node string, phase corev1.PodPhase) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist-runners"},
+		Spec:       corev1.PodSpec{NodeName: node},
+		Status:     corev1.PodStatus{Phase: phase},
+	}
+}
+
+func TestHostWork_BuilderAsksGitHubNotKubernetes(t *testing.T) {
+	// A builder's image bake runs under launchd, not as a Pod, and no
+	// Pod ever selects the builder fleet. So an empty Pod list is not
+	// evidence of idleness here — GitHub is the only authority, and the
+	// runner is registered under the machine name.
+	r := newReconciler(t, nodeNamed("b1"))
+	r.APIReader = r.Client
+	machine := newWorkStateMachine("b1", true)
+
+	checker := &busyCheckerStub{busy: true}
+	r.RunnerBusyChecker = checker
+	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workBusy {
+		t.Fatalf("mid-bake builder: got %v, want workBusy", got)
+	}
+	if len(checker.population) != 1 || checker.population[0] != "b1" {
+		t.Fatalf("busy check must key on the machine name (the registered runner name); got %+v", checker.population)
+	}
+	// A builder is never cordoned: no Pod schedules there, so a cordon
+	// would imply a protection it does not provide.
+	if machine.Status.UpdateRebootCordoned {
+		t.Fatal("builder hosts must not be cordoned")
+	}
+
+	r.RunnerBusyChecker = &busyCheckerStub{busy: false}
+	if got := r.hostWork(context.Background(), newWorkStateMachine("b1", true), logr.Discard()); got != workIdle {
+		t.Fatalf("idle builder: got %v, want workIdle", got)
+	}
+}
+
+func TestHostWork_BuilderFailsClosed(t *testing.T) {
+	r := newReconciler(t, nodeNamed("b1"))
+	machine := newWorkStateMachine("b1", true)
+
+	// GitHub unreachable, and no checker wired at all: both are
+	// "cannot tell", which must never read as idle.
+	r.RunnerBusyChecker = &busyCheckerStub{err: errors.New("github 503")}
+	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workUnknown {
+		t.Fatalf("github error: got %v, want workUnknown", got)
+	}
+	r.RunnerBusyChecker = nil
+	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workUnknown {
+		t.Fatalf("unwired checker: got %v, want workUnknown", got)
+	}
+}
+
+func TestHostWork_PodFleetCordonsBeforeCounting(t *testing.T) {
+	// Counting an uncordoned node is a race: a job can land between the
+	// count and the reboot. The cordon is what makes "no pods" durable.
+	r := newReconciler(t, nodeNamed("n1"), podOnNode("job", "n1", corev1.PodRunning))
+	r.APIReader = r.Client
+	machine := newWorkStateMachine("n1", false)
+
+	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workBusy {
+		t.Fatalf("node running a job: got %v, want workBusy", got)
+	}
+	if !machine.Status.UpdateRebootCordoned {
+		t.Fatal("expected the node to be cordoned while its work drains")
+	}
+	node := &corev1.Node{}
+	if err := r.Client.Get(context.Background(), types.NamespacedName{Name: "n1"}, node); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	if !node.Spec.Unschedulable {
+		t.Fatal("expected Node.Spec.Unschedulable to be set so no new job lands")
+	}
+}
+
+func TestHostWork_PodFleetIdleIgnoresTerminalPods(t *testing.T) {
+	// Succeeded/Failed pods still linger on a node; they are not work.
+	r := newReconciler(t,
+		nodeNamed("n1"),
+		podOnNode("done", "n1", corev1.PodSucceeded),
+		podOnNode("crashed", "n1", corev1.PodFailed),
+	)
+	r.APIReader = r.Client
+	machine := newWorkStateMachine("n1", false)
+
+	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workIdle {
+		t.Fatalf("only terminal pods remain: got %v, want workIdle", got)
+	}
+}
+
+func TestUncordonNode_OnlyLiftsOurOwnCordon(t *testing.T) {
+	// A host an operator parked by hand must stay parked; we put back
+	// only what this recovery took.
+	node := nodeNamed("n1")
+	node.Spec.Unschedulable = true
+	r := newReconciler(t, node)
+	machine := newWorkStateMachine("n1", false)
+	machine.Status.UpdateRebootCordoned = false
+
+	r.uncordonNode(context.Background(), machine, logr.Discard())
+	got := &corev1.Node{}
+	if err := r.Client.Get(context.Background(), types.NamespacedName{Name: "n1"}, got); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	if !got.Spec.Unschedulable {
+		t.Fatal("a cordon this recovery did not place must not be lifted")
+	}
+
+	machine.Status.UpdateRebootCordoned = true
+	r.uncordonNode(context.Background(), machine, logr.Discard())
+	if err := r.Client.Get(context.Background(), types.NamespacedName{Name: "n1"}, got); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	if got.Spec.Unschedulable {
+		t.Fatal("our own cordon must be lifted once the host converges")
+	}
+	if machine.Status.UpdateRebootCordoned {
+		t.Fatal("UpdateRebootCordoned must clear once lifted")
+	}
+}
+
 func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMachineReconciler {
 	t.Helper()
 	scheme := runtime.NewScheme()
@@ -447,6 +631,12 @@ func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMa
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		// The apiserver indexes spec.nodeName for Pods natively, which
+		// is what the production APIReader relies on; the fake client
+		// has to be told.
+		WithIndex(&corev1.Pod{}, podNodeNameField, func(o client.Object) []string {
+			return []string{o.(*corev1.Pod).Spec.NodeName}
+		}).
 		Build()
 	return &ScalewayAppleSiliconMachineReconciler{
 		Client:   c,

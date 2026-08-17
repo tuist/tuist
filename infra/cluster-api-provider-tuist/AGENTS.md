@@ -218,6 +218,32 @@ host still unreachable after a reboot is not one more boot away from working,
 and re-firing every cooldown would reboot a dead mini forever instead of
 leaving the terminal state for the stuck-Failed alert to surface.
 
+**The reboot is gated on proving the host is idle**, which is the one place
+this tier must NOT copy `handleBootstrapFailure`. A bootstrapping host runs
+nothing by definition; a drift-wedged one is Ready, schedulable and usually
+mid-job, because the wedge takes out only the ssh accept path. `hostWork`
+establishes idleness fail-closed — anything it cannot determine counts as busy
+— and the evidence differs per fleet:
+
+- **Pod fleets** (runners, macos): cordon the Node first, then count its
+  non-terminal Pods. The cordon is not politeness, it is what makes the count
+  durable: these Pods go through the default scheduler with a
+  `tuist.dev/fleet` nodeSelector, so an uncordoned node can be handed a job
+  between the count and the reboot. `Status.UpdateRebootCordoned` records that
+  the cordon is ours, so the successful roll lifts only what this recovery
+  placed and a hand-parked host stays parked.
+- **Builder fleets** (`Spec.GHActionsRunner` set): ask GitHub whether the
+  runner (registered under the machine name) is busy. Bakes run under a
+  launchd LaunchAgent and **no Pod ever selects the builder fleet**, so a Pod
+  query returns empty whether the host is idle or halfway through a
+  `tart push` — Kubernetes has no opinion worth having here. Builders are
+  never cordoned, since a cordon would imply a protection it does not give.
+
+A deferral is not a verdict: it consumes no one-shot, emits
+`RebootDeferredHostBusy`, and the next exhausted budget re-checks. A busy host
+therefore keeps running on a stale config until it drains, which is the correct
+trade against killing a job to deliver a config push.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a

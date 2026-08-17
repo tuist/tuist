@@ -99,7 +99,9 @@ rules:
     verbs: [get, list, watch, delete]
   - apiGroups: [""]
     # The failover-IP controller reads peer-demux pod readiness to drain the IP
-    # off a box whose demux is rolling.
+    # off a box whose demux is rolling. The Apple Silicon drift recovery also
+    # counts a node's Pods before rebooting a mini whose :22 has wedged, so it
+    # never kills a running CI job to deliver a config push.
     resources: [pods]
     verbs: [get, list, watch]
   - apiGroups: [""]
