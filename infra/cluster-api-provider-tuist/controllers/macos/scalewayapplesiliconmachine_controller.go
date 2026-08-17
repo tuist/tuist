@@ -297,14 +297,6 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// `cmd/manager/main.go`; tests inject a stub that returns a
 	// canned config without dialing GitHub or reading a Secret.
 	RunnerResolver runner.Resolver
-
-	// RunnerBusyChecker answers whether a builder host is mid-job, so
-	// the drift recovery never reboots one through an image bake. Nil
-	// on clusters with no builder fleet — and treated as "cannot tell",
-	// so a mis-wired manager defers the reboot rather than taking the
-	// risk.
-	RunnerBusyChecker runner.BusyChecker
-
 	// APIReader is an uncached reader used for the one Pod query the
 	// drift recovery makes. Deliberately not the cached client: a
 	// cached List by field would force the manager to watch and hold
@@ -318,6 +310,19 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // podNodeNameField is the apiserver-native field selector used to scope
 // the recovery's Pod query to one node.
 const podNodeNameField = "spec.nodeName"
+
+// tartKubeletHostBusyCondition is the Node condition tart-kubelet
+// publishes each heartbeat to say whether the host is running work.
+// Mirrors nodeagent.NodeHostBusy; duplicated as a string rather than
+// imported so the CAPI provider keeps no build dependency on the
+// kubelet module.
+const tartKubeletHostBusyCondition corev1.NodeConditionType = "TartKubeletHostBusy"
+
+// hostBusyConditionMaxAge is how stale the host-busy condition may be
+// and still be trusted. tart-kubelet heartbeats every 30s, so anything
+// past a few missed beats means the kubelet is not reporting and its
+// last verdict describes some earlier moment — not a basis for rebooting.
+const hostBusyConditionMaxAge = 5 * time.Minute
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines/status,verbs=get;update;patch
@@ -1488,19 +1493,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) hostWork(
 	logger logr.Logger,
 ) hostWorkState {
 	if machine.Spec.GHActionsRunner != nil {
-		if r.RunnerBusyChecker == nil {
-			logger.Info("no RunnerBusyChecker wired; cannot establish whether the builder host is mid-bake")
-			return workUnknown
-		}
-		busy, err := r.RunnerBusyChecker.RunnerBusy(ctx, machine.Namespace, machine.Spec.GHActionsRunner, machine.Name)
-		if err != nil {
-			logger.Error(err, "query GitHub for runner busy state; treating the host as busy")
-			return workUnknown
-		}
-		if busy {
-			return workBusy
-		}
-		return workIdle
+		return r.hostBusyCondition(ctx, machine, logger)
 	}
 
 	// Cordon before counting. An uncordoned Ready node can be given a
@@ -1526,6 +1519,58 @@ func (r *ScalewayAppleSiliconMachineReconciler) hostWork(
 		return workBusy
 	}
 	return workIdle
+}
+
+// hostBusyCondition reads the TartKubeletHostBusy condition tart-kubelet
+// publishes on its own Node each heartbeat.
+//
+// This is how a builder host answers a question Kubernetes otherwise
+// cannot. Its image bakes run under a launchd LaunchAgent and no Pod
+// ever selects the builder fleet, so a Pod count reports idle whether or
+// not a bake is halfway through `tart push`. The host can see both its
+// Tart VMs and its Actions worker process, so it makes the judgement and
+// publishes the verdict; the operator reads the Node it already watches
+// rather than calling out to whichever CI system owns the workload.
+//
+// Three readings, and only one authorises a reboot:
+//
+//   - absent — the host runs a tart-kubelet from before the condition
+//     existed, so nothing has asserted anything. Unknown, never idle.
+//     This is the case that cannot self-heal: the binary carrying the
+//     condition ships over the same SSH push that is wedged, so a host
+//     wedged before it shipped stays terminal for a human. Accepted
+//     deliberately over inferring idleness we cannot support.
+//   - stale — the kubelet stopped heartbeating, so a False here is a
+//     verdict about some earlier moment. A bake that outlived its
+//     kubelet would read idle forever.
+//   - fresh — trusted as reported.
+func (r *ScalewayAppleSiliconMachineReconciler) hostBusyCondition(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	logger logr.Logger,
+) hostWorkState {
+	node := &corev1.Node{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: machine.Name}, node); err != nil {
+		logger.Error(err, "get node for the host-busy condition; treating the host as busy")
+		return workUnknown
+	}
+	for _, cond := range node.Status.Conditions {
+		if cond.Type != tartKubeletHostBusyCondition {
+			continue
+		}
+		if age := time.Since(cond.LastHeartbeatTime.Time); age > hostBusyConditionMaxAge {
+			logger.Info("host-busy condition is stale; treating the host as busy",
+				"node", machine.Name, "age", age.String())
+			return workUnknown
+		}
+		if cond.Status == corev1.ConditionFalse {
+			return workIdle
+		}
+		return workBusy
+	}
+	logger.Info("node publishes no host-busy condition (tart-kubelet predates it); treating the host as busy",
+		"node", machine.Name)
+	return workUnknown
 }
 
 // cordonNode marks the machine's Node unschedulable and records that

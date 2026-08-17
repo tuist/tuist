@@ -386,3 +386,66 @@ func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
 		t.Fatalf("merged labels = %v; want %v", labels, want)
 	}
 }
+
+func TestApplyHostBusyPublishesBothVerdicts(t *testing.T) {
+	for _, tc := range []struct {
+		busy       bool
+		wantStatus corev1.ConditionStatus
+		wantReason string
+	}{
+		{true, corev1.ConditionTrue, "TartKubeletHostHasRunningWork"},
+		{false, corev1.ConditionFalse, "TartKubeletHostIdle"},
+	} {
+		m := &Maintainer{
+			HostBusy: func(context.Context) (bool, string, error) {
+				return tc.busy, "detail", nil
+			},
+		}
+		node := &corev1.Node{}
+		m.configureNode(node, nil)
+		m.applyHostBusy(context.Background(), node)
+
+		cond, ok := conditionByType(node.Status.Conditions, NodeHostBusy)
+		if !ok {
+			t.Fatalf("busy=%v: expected the %s condition to be published", tc.busy, NodeHostBusy)
+		}
+		if cond.Status != tc.wantStatus {
+			t.Fatalf("busy=%v: status = %q, want %q", tc.busy, cond.Status, tc.wantStatus)
+		}
+		if cond.Reason != tc.wantReason {
+			t.Fatalf("busy=%v: reason = %q, want %q", tc.busy, cond.Reason, tc.wantReason)
+		}
+	}
+}
+
+func TestApplyHostBusyLeavesTheLastVerdictOnProbeError(t *testing.T) {
+	// Publishing False off a probe that failed would tell a controller
+	// the host is safe to reboot on the strength of no evidence.
+	m := &Maintainer{
+		HostBusy: func(context.Context) (bool, string, error) {
+			return false, "", errors.New("pgrep unavailable")
+		},
+	}
+	node := &corev1.Node{}
+	m.configureNode(node, nil)
+	setCondition(&node.Status.Conditions, NodeHostBusy, corev1.ConditionTrue, "TartKubeletHostHasRunningWork", "a bake is running")
+
+	m.applyHostBusy(context.Background(), node)
+
+	cond, _ := conditionByType(node.Status.Conditions, NodeHostBusy)
+	if cond.Status != corev1.ConditionTrue {
+		t.Fatalf("a failed probe must not overwrite the last verdict; got %q", cond.Status)
+	}
+}
+
+func TestApplyHostBusyAbsentWhenUnwired(t *testing.T) {
+	// Absent is distinct from False and consumers read it as unknown.
+	m := &Maintainer{}
+	node := &corev1.Node{}
+	m.configureNode(node, nil)
+	m.applyHostBusy(context.Background(), node)
+
+	if _, ok := conditionByType(node.Status.Conditions, NodeHostBusy); ok {
+		t.Fatal("an unwired probe must publish no condition at all, not a False one")
+	}
+}

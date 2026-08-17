@@ -664,6 +664,30 @@ func (c *Client) IsRunning(ctx context.Context, name string) (bool, error) {
 	return true, nil
 }
 
+// AnyRunning reports whether any `tart run` process is executing on
+// this host, regardless of who started it or what the VM is called.
+//
+// IsRunning answers "is this VM up?" for a VM we named. This answers
+// "is this host running any VM at all?", which is the question a
+// host-disruptive action has to ask — the VM may belong to a workload
+// tart-kubelet never created, such as a Packer image bake driving the
+// host's own Tart daemon.
+//
+// Same reasoning as IsRunning for using pgrep over `tart list`: the
+// State field is unreliable for backgrounded VMs, and only the process
+// flips the moment a VM exits. No name anchor here on purpose — any
+// match is a running VM, which is exactly the signal.
+func (c *Client) AnyRunning(ctx context.Context) (bool, error) {
+	cmd := exec.CommandContext(ctx, "pgrep", "-f", `tart run `)
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, fmt.Errorf("pgrep for running tart VMs: %w", err)
+	}
+	return true, nil
+}
+
 // StageEnvFile writes a Pod's resolved env into
 // <UserDataDir>/<vm>/tuist.env, ready to be shared into the guest as
 // the `env` directory. The directory is created with 0o700; the file

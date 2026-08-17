@@ -465,17 +465,6 @@ func TestNodeMissingAfterBootstrap_NodeGone(t *testing.T) {
 	}
 }
 
-type busyCheckerStub struct {
-	busy       bool
-	err        error
-	population []string
-}
-
-func (s *busyCheckerStub) RunnerBusy(_ context.Context, _ string, _ *infrav1.GHActionsRunnerConfig, runnerName string) (bool, error) {
-	s.population = append(s.population, runnerName)
-	return s.busy, s.err
-}
-
 func newWorkStateMachine(name string, builder bool) *infrav1.ScalewayAppleSiliconMachine {
 	m := &infrav1.ScalewayAppleSiliconMachine{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "ns"},
@@ -499,48 +488,64 @@ func podOnNode(name, node string, phase corev1.PodPhase) *corev1.Pod {
 	}
 }
 
-func TestHostWork_BuilderAsksGitHubNotKubernetes(t *testing.T) {
-	// A builder's image bake runs under launchd, not as a Pod, and no
-	// Pod ever selects the builder fleet. So an empty Pod list is not
-	// evidence of idleness here — GitHub is the only authority, and the
-	// runner is registered under the machine name.
-	r := newReconciler(t, nodeNamed("b1"))
-	r.APIReader = r.Client
-	machine := newWorkStateMachine("b1", true)
+func nodeWithHostBusy(name string, status corev1.ConditionStatus, age time.Duration) *corev1.Node {
+	n := nodeNamed(name)
+	n.Status.Conditions = []corev1.NodeCondition{{
+		Type:              tartKubeletHostBusyCondition,
+		Status:            status,
+		LastHeartbeatTime: metav1.NewTime(time.Now().Add(-age)),
+	}}
+	return n
+}
 
-	checker := &busyCheckerStub{busy: true}
-	r.RunnerBusyChecker = checker
-	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workBusy {
-		t.Fatalf("mid-bake builder: got %v, want workBusy", got)
-	}
-	if len(checker.population) != 1 || checker.population[0] != "b1" {
-		t.Fatalf("busy check must key on the machine name (the registered runner name); got %+v", checker.population)
-	}
-	// A builder is never cordoned: no Pod schedules there, so a cordon
-	// would imply a protection it does not provide.
-	if machine.Status.UpdateRebootCordoned {
-		t.Fatal("builder hosts must not be cordoned")
-	}
+func TestHostWork_BuilderReadsTheNodeCondition(t *testing.T) {
+	// A builder's bake runs under launchd, not as a Pod, and no Pod
+	// ever selects the builder fleet — so an empty Pod list is not
+	// evidence of idleness. tart-kubelet sees both its Tart VMs and its
+	// Actions worker and publishes the verdict on its own Node.
+	for _, tc := range []struct {
+		name   string
+		status corev1.ConditionStatus
+		want   hostWorkState
+	}{
+		{"mid-bake", corev1.ConditionTrue, workBusy},
+		{"drained", corev1.ConditionFalse, workIdle},
+	} {
+		r := newReconciler(t, nodeWithHostBusy("b1", tc.status, 10*time.Second))
+		r.APIReader = r.Client
+		machine := newWorkStateMachine("b1", true)
 
-	r.RunnerBusyChecker = &busyCheckerStub{busy: false}
-	if got := r.hostWork(context.Background(), newWorkStateMachine("b1", true), logr.Discard()); got != workIdle {
-		t.Fatalf("idle builder: got %v, want workIdle", got)
+		if got := r.hostWork(context.Background(), machine, logr.Discard()); got != tc.want {
+			t.Fatalf("%s builder: got %v, want %v", tc.name, got, tc.want)
+		}
+		// A builder is never cordoned: no Pod schedules there, so a
+		// cordon would imply a protection it does not provide.
+		if machine.Status.UpdateRebootCordoned {
+			t.Fatalf("%s: builder hosts must not be cordoned", tc.name)
+		}
 	}
 }
 
 func TestHostWork_BuilderFailsClosed(t *testing.T) {
-	r := newReconciler(t, nodeNamed("b1"))
-	machine := newWorkStateMachine("b1", true)
+	// Absent condition (a tart-kubelet predating it), a stale one (the
+	// kubelet stopped reporting, so its last verdict describes some
+	// earlier moment), and a missing Node all mean "cannot tell". None
+	// may read as idle, because the only consumer reboots the host.
+	for _, tc := range []struct {
+		name string
+		objs []runtime.Object
+	}{
+		{"condition absent", []runtime.Object{nodeNamed("b1")}},
+		{"condition stale", []runtime.Object{nodeWithHostBusy("b1", corev1.ConditionFalse, time.Hour)}},
+		{"node missing", nil},
+	} {
+		r := newReconciler(t, tc.objs...)
+		r.APIReader = r.Client
+		machine := newWorkStateMachine("b1", true)
 
-	// GitHub unreachable, and no checker wired at all: both are
-	// "cannot tell", which must never read as idle.
-	r.RunnerBusyChecker = &busyCheckerStub{err: errors.New("github 503")}
-	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workUnknown {
-		t.Fatalf("github error: got %v, want workUnknown", got)
-	}
-	r.RunnerBusyChecker = nil
-	if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workUnknown {
-		t.Fatalf("unwired checker: got %v, want workUnknown", got)
+		if got := r.hostWork(context.Background(), machine, logr.Discard()); got != workUnknown {
+			t.Fatalf("%s: got %v, want workUnknown", tc.name, got)
+		}
 	}
 }
 

@@ -68,6 +68,12 @@ type Maintainer struct {
 	// the condition at its False default.
 	DiskPressure DiskPressureProbe
 
+	// HostBusy, when non-nil, is evaluated each heartbeat to publish the
+	// TartKubeletHostBusy condition. nil leaves the condition absent,
+	// which consumers read as "unknown" — the safe reading, since the
+	// only thing acting on it is a host reboot.
+	HostBusy HostBusyProbe
+
 	// DynamicLabels are the agent-owned label sets that change at runtime,
 	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
 	// advertisements of which golden base VMs this host holds, and the
@@ -106,6 +112,29 @@ type DynamicLabelProvider func(ctx context.Context) (map[string]string, error)
 // the maintainer then leaves the existing condition untouched rather
 // than flapping it to False on a transient failure.
 type DiskPressureProbe func(ctx context.Context) (pressured bool, detail string, err error)
+
+// HostBusyProbe reports whether the host is running work a
+// host-disruptive action must not interrupt, plus a detail for the
+// condition message. Same error contract as DiskPressureProbe: a failed
+// probe leaves the existing condition alone rather than flapping it to
+// False, because a wrong False here authorises a reboot.
+type HostBusyProbe func(ctx context.Context) (busy bool, detail string, err error)
+
+// NodeHostBusy is published so a controller can tell "this host is
+// running work" from "this host has no Pods". The two are the same
+// thing on a pod fleet and nothing alike on the builder fleet, whose
+// image bakes run under launchd and are invisible to the apiserver.
+//
+// The condition is the whole point of the probe: it turns a host-local
+// fact into cluster state, so a controller deciding whether to reboot a
+// mini reads the Node it already watches instead of calling out to
+// whichever CI system happens to own the host's workload.
+//
+// Absent is meaningful and distinct from False — it means this host
+// runs a tart-kubelet from before the condition existed, so nothing has
+// asserted anything. Consumers must treat absent as unknown, never as
+// idle.
+const NodeHostBusy corev1.NodeConditionType = "TartKubeletHostBusy"
 
 // operatorOwnedLabelPrefix is the prefix tart-kubelet treats as
 // "I own this label." Labels with this prefix that aren't in the
@@ -198,6 +227,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	node.Status = *desiredStatus
 
 	m.applyDiskPressure(ctx, node)
+	m.applyHostBusy(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
@@ -250,6 +280,25 @@ func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", detail)
 	} else {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", detail)
+	}
+}
+
+func (m *Maintainer) applyHostBusy(ctx context.Context, node *corev1.Node) {
+	if m.HostBusy == nil {
+		return
+	}
+	busy, detail, err := m.HostBusy(ctx)
+	if err != nil {
+		// Leave the last verdict standing. Publishing False on a failed
+		// probe would tell a controller the host is safe to reboot on
+		// the strength of a probe that did not run.
+		log.FromContext(ctx).Error(err, "host busy probe")
+		return
+	}
+	if busy {
+		setCondition(&node.Status.Conditions, NodeHostBusy, corev1.ConditionTrue, "TartKubeletHostHasRunningWork", detail)
+	} else {
+		setCondition(&node.Status.Conditions, NodeHostBusy, corev1.ConditionFalse, "TartKubeletHostIdle", detail)
 	}
 }
 

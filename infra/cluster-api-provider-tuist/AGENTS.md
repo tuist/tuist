@@ -232,12 +232,24 @@ establishes idleness fail-closed — anything it cannot determine counts as busy
   between the count and the reboot. `Status.UpdateRebootCordoned` records that
   the cordon is ours, so the successful roll lifts only what this recovery
   placed and a hand-parked host stays parked.
-- **Builder fleets** (`Spec.GHActionsRunner` set): ask GitHub whether the
-  runner (registered under the machine name) is busy. Bakes run under a
-  launchd LaunchAgent and **no Pod ever selects the builder fleet**, so a Pod
-  query returns empty whether the host is idle or halfway through a
-  `tart push` — Kubernetes has no opinion worth having here. Builders are
-  never cordoned, since a cordon would imply a protection it does not give.
+- **Builder fleets** (`Spec.GHActionsRunner` set): read the
+  `TartKubeletHostBusy` condition tart-kubelet publishes on its own Node each
+  heartbeat. Bakes run under a launchd LaunchAgent and **no Pod ever selects
+  the builder fleet**, so a Pod query returns empty whether the host is idle or
+  halfway through a `tart push`. The host can see both its Tart VMs and its
+  Actions worker process, so it makes the judgement and publishes the verdict;
+  the operator reads the Node it already watches rather than calling out to
+  whichever CI system owns the workload. Builders are never cordoned, since a
+  cordon would imply a protection it does not give.
+
+  Three readings, one of which authorises a reboot: **absent** (the host runs a
+  tart-kubelet from before the condition existed — nothing has asserted
+  anything), **stale** (`LastHeartbeatTime` older than 5 min, so a `False` is a
+  verdict about some earlier moment), and **fresh**, trusted as reported. The
+  absent case is the one that cannot self-heal: the binary carrying the
+  condition ships over the same SSH push that is wedged, so a host wedged
+  before it shipped stays terminal for a human. That is accepted deliberately,
+  over inferring an idleness nothing on the host supports.
 
 A deferral is not a verdict: it consumes no one-shot, emits
 `RebootDeferredHostBusy`, and the next exhausted budget re-checks. A busy host

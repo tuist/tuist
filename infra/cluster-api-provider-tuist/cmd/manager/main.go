@@ -525,9 +525,8 @@ func main() {
 	// every host.
 	ghAppClient := &githubapp.Client{}
 	runnerResolver := &runner.GitHubAppResolver{
-		Client:  mgr.GetClient(),
-		Minter:  ghAppClient,
-		Runners: ghAppClient,
+		Client: mgr.GetClient(),
+		Minter: ghAppClient,
 	}
 
 	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
@@ -584,7 +583,6 @@ func main() {
 		EgressProxyGroup:              egressProxyGroup,
 		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
 		RunnerResolver:                runnerResolver,
-		RunnerBusyChecker:             runnerResolver,
 		APIReader:                     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")

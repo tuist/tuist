@@ -55,11 +55,6 @@ const defaultAPIBase = "https://api.github.com"
 // round-trip.
 const jwtLifetime = 9 * time.Minute
 
-// maxRunnerPages bounds the runner listing so a paging bug can't spin
-// against the API. 100 per page covers any plausible fleet many times
-// over.
-const maxRunnerPages = 10
-
 // Credentials carries the GitHub App identity the controller reads
 // from the operator-managed K8s Secret. AppID and InstallationID
 // are not secrets in the strict sense — they're printed in the
@@ -129,87 +124,6 @@ func (c *Client) MintRunnerRegistrationToken(ctx context.Context, creds Credenti
 		return "", fmt.Errorf("exchange registration token: %w", err)
 	}
 	return regToken, nil
-}
-
-// RunnerBusy reports whether the org-scope self-hosted runner named
-// runnerName is currently executing a job.
-//
-// This is the only authority on whether a builder mini is safe to
-// reboot. Its image-bake jobs run under a launchd LaunchAgent, not as
-// Pods — no Pod ever selects the builder fleet, so the host looks idle
-// to Kubernetes whether or not a bake is halfway through `tart push`.
-// Asking GitHub is the difference between "no evidence of work" and
-// "evidence of no work".
-//
-// A runner that GitHub does not list is an error rather than "not
-// busy": the caller reboots only on a positive idle answer, and a
-// missing runner means we are reasoning about the wrong host.
-func (c *Client) RunnerBusy(ctx context.Context, creds Credentials, org, runnerName string) (bool, error) {
-	if org == "" {
-		return false, fmt.Errorf("github app: org is empty")
-	}
-	if runnerName == "" {
-		return false, fmt.Errorf("github app: runner name is empty")
-	}
-	jwt, err := signAppJWT(creds.AppID, creds.PrivateKey, c.timeNow())
-	if err != nil {
-		return false, fmt.Errorf("sign app jwt: %w", err)
-	}
-	installationToken, err := c.exchangeInstallationToken(ctx, creds.InstallationID, jwt)
-	if err != nil {
-		return false, fmt.Errorf("exchange installation token: %w", err)
-	}
-
-	// Page rather than filtering server-side: the runners endpoint has
-	// no name filter, and a fleet large enough to need one is far off.
-	for page := 1; page <= maxRunnerPages; page++ {
-		url := fmt.Sprintf("%s/orgs/%s/actions/runners?per_page=100&page=%d", c.baseURL(), org, page)
-		runners, err := c.getRunnerPage(ctx, url, installationToken)
-		if err != nil {
-			return false, err
-		}
-		for _, runner := range runners {
-			if runner.Name == runnerName {
-				return runner.Busy, nil
-			}
-		}
-		if len(runners) < 100 {
-			break
-		}
-	}
-	return false, fmt.Errorf("runner %q not registered in org %s", runnerName, org)
-}
-
-func (c *Client) getRunnerPage(ctx context.Context, url, installationToken string) ([]runnerStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("Authorization", "Bearer "+installationToken)
-
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("github returned %s listing runners: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-	var payload struct {
-		Runners []runnerStatus `json:"runners"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("decode runners response: %w", err)
-	}
-	return payload.Runners, nil
-}
-
-type runnerStatus struct {
-	Name string `json:"name"`
-	Busy bool   `json:"busy"`
 }
 
 func (c *Client) httpClient() *http.Client {

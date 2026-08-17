@@ -39,6 +39,7 @@ import (
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostwork"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -398,6 +399,14 @@ func main() {
 		MemoryMB:   hostMemoryMB,
 		MaxPods:    maxPods,
 		Heartbeat:  30 * time.Second,
+		// Publishes whether this host is running work, so a controller
+		// weighing a host-disruptive action (today: the CAPI provider's
+		// recovery reboot for a wedged :22) can read it off the Node
+		// instead of inferring it from Pods — which say nothing on a
+		// builder, where bakes run under launchd.
+		HostBusy: func(ctx context.Context) (bool, string, error) {
+			return hostwork.Probe(ctx, tartClient)
+		},
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config
