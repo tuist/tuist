@@ -12,7 +12,6 @@ base64 = "0.22.1"
 bazel-remote-apis = "0.27.0"
 bytes = "1.11.0"
 deadpool = { version = "0.13.0", default-features = false, features = ["unmanaged"] }
-flate2 = "1.0.35"
 futures-util = "0.3.31"
 hex = "0.4.3"
 hmac = "0.12.1"
@@ -23,7 +22,6 @@ hyper = "1.7.0"
 hyper-util = "0.1.20"
 libc = "0.2.177"
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
-maxminddb = "0.27.0"
 memmap2 = "0.9.10"
 moka = { version = "0.12.16", features = ["future"] }
 opentelemetry = "0.31.0"

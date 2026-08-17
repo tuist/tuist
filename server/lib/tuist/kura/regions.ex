@@ -133,7 +133,10 @@ defmodule Tuist.Kura.Regions do
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
       # ceiling (~half the NIC) every tenant gets.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
-      egress_burst_mbps: 1500
+      egress_burst_mbps: 1500,
+      # OVH Vint Hill, Virginia.
+      country: "US",
+      subdivision: "US-VA"
     },
     %{
       id: "us-west",
@@ -150,7 +153,10 @@ defmodule Tuist.Kura.Regions do
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
       # ceiling (~half the NIC) every tenant gets.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
-      egress_burst_mbps: 1500
+      egress_burst_mbps: 1500,
+      # OVH Hillsboro, Oregon.
+      country: "US",
+      subdivision: "US-OR"
     },
     # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
@@ -176,7 +182,12 @@ defmodule Tuist.Kura.Regions do
       # per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
-      egress_burst_mbps: 500
+      egress_burst_mbps: 500,
+      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both
+      # sit in the Paris region, so the region's location is the same
+      # everywhere despite the id reading `eu-central`.
+      country: "FR",
+      subdivision: "FR-IDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
@@ -199,7 +210,10 @@ defmodule Tuist.Kura.Regions do
       # enterprise per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
-      egress_burst_mbps: 500
+      egress_burst_mbps: 500,
+      # OVHcloud BHS, Beauharnois, Quebec.
+      country: "CA",
+      subdivision: "CA-QC"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -266,7 +280,10 @@ defmodule Tuist.Kura.Regions do
       # here). Matches the `tuist.dev/macos` / `runner-tier` taint pattern.
       tolerations: [
         %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
-      ]
+      ],
+      # Scaleway Elastic Metal fr-par-1, Paris.
+      country: "FR",
+      subdivision: "FR-IDF"
     },
     # A catalog tombstone for runner-cache rows created before the staging
     # Hetzner runner pool was retired. It is never offered for provisioning,
@@ -369,6 +386,22 @@ defmodule Tuist.Kura.Regions do
   def memory_ceiling_bin_packed?(%__MODULE__{provisioner_config: config}), do: config[:memory_ceiling_bin_packed] == true
 
   def memory_ceiling_bin_packed?(_), do: false
+
+  @doc """
+  Where the region's nodes physically are, as `%{country:, subdivision:}` ISO
+  3166-1 alpha-2 / 3166-2 codes, or `nil` when the region declares no location.
+
+  This is deployment configuration derived from the datacenter each fleet was
+  ordered in, not something a node discovers about itself: Kura stamps the pair
+  onto its OTel Resource verbatim. A region that moves datacenter must be
+  updated here, because nothing downstream can detect the move.
+  """
+  def node_location(%__MODULE__{provisioner_config: %{country: country, subdivision: subdivision}})
+      when is_binary(country) or is_binary(subdivision) do
+    %{country: country, subdivision: subdivision}
+  end
+
+  def node_location(_region), do: nil
 
   @doc "True iff the region remains in the catalog only to clean up stored resources."
   def retired?(%__MODULE__{retired: retired}), do: retired
@@ -514,6 +547,8 @@ defmodule Tuist.Kura.Regions do
         # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
         egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
+        country: Map.get(spec, :country),
+        subdivision: Map.get(spec, :subdivision),
         # Packing density is what constrains the shared bare-metal boxes, so
         # their instances are sized per tier rather than taking the controller
         # default, and their ceilings are bin-packed against the node budget the
@@ -576,6 +611,8 @@ defmodule Tuist.Kura.Regions do
         pod_annotations: Map.get(spec, :pod_annotations, %{}),
         tolerations: Map.get(spec, :tolerations, []),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        country: Map.get(spec, :country),
+        subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
         disk_envelope_size: Map.get(spec, :disk_envelope_size),

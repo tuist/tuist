@@ -67,6 +67,14 @@ spec:
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION
               value: {{ .Values.config.region | quote }}
+            {{- if .Values.config.node.country }}
+            - name: KURA_NODE_COUNTRY
+              value: {{ .Values.config.node.country | quote }}
+            {{- end }}
+            {{- if .Values.config.node.subdivision }}
+            - name: KURA_NODE_SUBDIVISION
+              value: {{ .Values.config.node.subdivision | quote }}
+            {{- end }}
             - name: KURA_TMP_DIR
               value: /var/cache/kura/tmp
             - name: KURA_TMP_DIR_MAX_BYTES
@@ -159,8 +167,6 @@ spec:
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
             {{- end }}
-            - name: KURA_GEOIP_REFRESH_INTERVAL_SECS
-              value: {{ printf "%d" (int64 .Values.config.geoip.refreshIntervalSecs) | quote }}
             - name: KURA_OTEL_SERVICE_NAME
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
