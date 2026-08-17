@@ -262,6 +262,42 @@ the field onto a live template (it patches these CRs manifest-to-manifest,
 so a field the live object never received is never added). Prefer an
 optional field with a controller-side default over a required one.
 
+### MachineTemplate lifecycle
+
+[`macos-fleet.yaml`](../helm/tuist/templates/macos-fleet.yaml) works around
+that manifest-to-manifest patching by naming its
+`ScalewayAppleSiliconMachineTemplate` after a hash of its own spec, so an OS
+or SKU change renders a new object that receives the full spec instead of a
+patch. The other fleets use a stable name and are patched in place.
+
+A hash-named template must never carry `helm.sh/resource-policy: keep`. It
+leaves the rendered manifest the moment the hash moves, so keeping it strands
+an object that is on the cluster but absent from the manifest Helm baselines
+its patches on. Helm answers that by falling back to cluster state as the
+baseline, and for a custom resource the patch is a JSON merge from the live
+object to the manifest, which nulls `metadata.resourceVersion`; the apiserver
+rejects that as an update. Whichever operation hits it fails, and when that
+operation is the `--atomic` rollback of a failed upgrade, the release cannot
+return to its previous revision and stays half-applied.
+
+`helm upgrade` baselines on the last *deployed* revision and `helm rollback`
+on the *latest* one, and those diverge exactly when a deploy has already
+failed, so the deploy workflow reconciles the fleet's templates against both
+before it runs either. It drops leftover `keep` annotations (Helm reads that
+annotation off the live object when deleting resources a new revision no
+longer declares, so a template still carrying one survives the upgrade that
+supersedes it) and deletes templates neither manifest names. Helm re-creates
+from the target manifest whatever it still needs.
+
+Deleting a template does not disturb running Machines: the per-replica
+`ScalewayAppleSiliconMachine` is a clone owned by its Machine, so nothing
+cascades. It only blocks the MachineSet that references it from scaling up,
+reported as `ScalingUp=False` with
+`Scaling up would be blocked because ScalewayAppleSiliconMachineTemplate does not exist`.
+A MachineSet still holding replicas therefore keeps its template even when
+the baseline has lost track of it; one at `spec.replicas=0` is a superseded
+revision that `OnDelete` only ever scales further down.
+
 ## Node extended resources
 
 The Linux machine controllers patch two integer extended resources onto the

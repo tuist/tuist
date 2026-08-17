@@ -791,6 +791,122 @@ jobs:
         # schema changes ship the same way code changes do; no
         # operator-side manual step.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
+      - name: Reconcile Mac mini MachineTemplates with the Helm baseline
+        # macos-fleet.yaml names its ScalewayAppleSiliconMachineTemplate
+        # after a hash of its own spec, so an OS or SKU change renders a
+        # new object and the previous one leaves the manifest.
+        #
+        # Helm cannot patch such an object once it is on the cluster but
+        # absent from the manifest it is using as the patch baseline. It
+        # falls back to cluster state as the baseline, and for a custom
+        # resource the patch is a JSON merge from the live object to the
+        # manifest, which nulls `metadata.resourceVersion`; the apiserver
+        # rejects that as an update. Whichever operation hits it fails, so
+        # a failed upgrade cannot roll back and stays half-applied.
+        #
+        # Two things are needed to keep every template on a path Helm can
+        # take, and both are convergence work that no-ops once the fleets
+        # have deployed cleanly once.
+        #
+        # 1. Drop any leftover `helm.sh/resource-policy: keep`. The chart
+        #    no longer renders it, but Helm reads that annotation off the
+        #    *live* object when it deletes resources a new revision no
+        #    longer declares. A template still carrying it survives the
+        #    upgrade that supersedes it and lands outside every recorded
+        #    manifest, which is how these strand in the first place.
+        #
+        # 2. Delete templates the baseline does not name. `helm upgrade`
+        #    baselines on the last *deployed* revision and `helm rollback`
+        #    on the *latest* one, and those diverge precisely when a
+        #    deploy has already failed, so only a template both manifests
+        #    name is safe to leave in place. Helm re-creates from the
+        #    target manifest whatever it needs, on either path. This has
+        #    to run before the recovery step below as well as the upgrade,
+        #    because that step's `helm rollback` hits the same path.
+        #
+        # Deleting a template does not disturb running Machines: the
+        # per-replica ScalewayAppleSiliconMachine is a clone owned by its
+        # Machine, so nothing cascades. It only blocks the MachineSet that
+        # references it from scaling up, which is why a MachineSet still
+        # holding replicas keeps its template even when the baseline has
+        # lost track of it: that MachineSet may need it to replace a
+        # Machine. One at `spec.replicas=0` is a superseded revision that
+        # OnDelete only ever scales further down. Machines are not checked
+        # because a Machine references its own clone, never the template.
+        run: |
+          set -euo pipefail
+
+          templates="$(
+            kubectl -n "$NAMESPACE" get scalewayapplesiliconmachinetemplates \
+              -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=macos-fleet \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              sed '/^$/d'
+          )"
+
+          if [ -z "$templates" ]; then
+            echo "No release-owned Mac mini MachineTemplates in $NAMESPACE."
+            exit 0
+          fi
+
+          # One call per template: `kubectl annotate` rejects an annotation
+          # key that precedes the resource names, and xargs appends.
+          printf '%s\n' "$templates" | xargs -r -I{} kubectl -n "$NAMESPACE" \
+            annotate scalewayapplesiliconmachinetemplate {} helm.sh/resource-policy-
+
+          if ! helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+            echo "Release $HELM_RELEASE_NAME is not installed; no baseline to reconcile against."
+            exit 0
+          fi
+
+          latest_manifest="$(helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE")"
+
+          deployed_revision="$(
+            helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+              awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+          )"
+
+          if [ -n "$deployed_revision" ]; then
+            deployed_manifest="$(
+              helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" --revision "$deployed_revision"
+            )"
+          else
+            # With no revision recorded as deployed, helm upgrade baselines
+            # on the latest one instead.
+            echo "No deployed revision recorded; the latest revision is the only baseline."
+            deployed_manifest="$latest_manifest"
+          fi
+
+          # An empty `spec.replicas` reads as non-zero here, which keeps
+          # the template rather than deleting it.
+          scaling_refs="$(
+            kubectl -n "$NAMESPACE" get machinesets \
+              -o jsonpath='{range .items[*]}{.spec.template.spec.infrastructureRef.kind}{"\t"}{.spec.template.spec.infrastructureRef.name}{"\t"}{.spec.replicas}{"\n"}{end}' |
+              awk -F'\t' '$1 == "ScalewayAppleSiliconMachineTemplate" && $3 != "0" { print $2 }' |
+              sort -u
+          )"
+
+          named_by() { printf '%s\n' "$1" | grep -q "^ *name: ${2}\$"; }
+
+          stranded=""
+          while IFS= read -r template; do
+            if named_by "$latest_manifest" "$template" && named_by "$deployed_manifest" "$template"; then
+              echo "Keeping $template: named by every baseline helm can use."
+            elif printf '%s\n' "$scaling_refs" | grep -qxF "$template"; then
+              echo "Keeping $template: a MachineSet holding replicas still clones from it."
+            else
+              stranded="${stranded}${template}"$'\n'
+            fi
+          done <<< "$templates"
+
+          if [ -z "$stranded" ]; then
+            echo "Every Mac mini MachineTemplate is on a path helm can take."
+            exit 0
+          fi
+
+          echo "Deleting Mac mini MachineTemplates outside the baseline:"
+          printf '%s' "$stranded"
+          printf '%s' "$stranded" | xargs -r kubectl -n "$NAMESPACE" \
+            delete scalewayapplesiliconmachinetemplate --ignore-not-found --timeout=2m
       - name: Recover interrupted Helm release
         run: |
           set -euo pipefail
