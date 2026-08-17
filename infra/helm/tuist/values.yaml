@@ -829,6 +829,11 @@ registry:
     runAsUser: 990
   extraEnv: []
   extraEnvFrom: []
+  # Off by default so a single-replica self-hosted install can still drain a
+  # node. Enable it wherever replicaCount is raised above 1.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   podAnnotations: {}
   podLabels: {}
   affinity: {}
