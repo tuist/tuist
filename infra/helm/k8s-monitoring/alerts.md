@@ -377,14 +377,14 @@ sum by (cluster, node) (
   rate(cilium_drop_count_total{
     direction="INGRESS",
     reason="Policy denied"
-  }[10m])
+  }[5m])
   * on (cluster, pod) group_left(node)
   kube_pod_info{
     namespace="kube-system",
     pod=~"cilium-.*",
     node=~".*-kura-fleet-.*"
   }
-) > 0
+) > 0.5
 ```
 
 - Pending period: 10 minutes
@@ -395,8 +395,8 @@ sum by (cluster, node) (
   at the cache.
 - The metric carries no `node` label, hence the `kube_pod_info` join on the
   Cilium agent pod. The `node=~".*-kura-fleet-.*"` matcher restricts this to the
-  co-located runner-cache nodes, whose steady-state rate is exactly zero; other
-  pools carry background policy drops and would make it noisy.
+  co-located runner-cache nodes; other pools carry far heavier background policy
+  drops (one dedibox node holds a flat ~0.42/s indefinitely) and would swamp it.
 - Summary: `Kura cache on {{ $labels.node }} is dropping runner traffic at the
   NetworkPolicy ({{ $labels.cluster }}) — builds on the affected runner will
   hang until their client timeouts`
@@ -405,6 +405,31 @@ sum by (cluster, node) (
   traffic never reaches the kura node and this counter stays at zero while the
   build hangs identically.
 
+**The threshold is `> 0.5`, not `> 0`, and the window is `[5m]`, not `[10m]`.**
+Both matter, and an earlier version of this rule had neither:
+
+- These nodes do **not** sit at exactly zero. Over any given week the production
+  node logs dozens of Policy-denied episodes, and roughly a fifth of all 30-minute
+  buckets are non-zero. A `> 0` threshold treats every one of them as a critical
+  page.
+- A **kura-controller rollout** produces a small burst of Policy-denied ingress on
+  *all four* kura-hosting nodes at once, within seconds of the new ReplicaSet
+  appearing. Roughly half of rollouts do it, and since every merge to `main` rolls
+  the controller, that is a recurring false page. Observed magnitudes are 0.02 to
+  0.10 packets/s, an order of magnitude below the ~1-2/s of a genuinely stuck job,
+  so a 0.5 floor separates them cleanly. The mechanism is unproven: the policy
+  object is patched, never recreated (`reconcileNetworkPolicy` uses
+  `controllerutil.CreateOrUpdate`), so the suspect is transient identity resolution
+  on the `PodSelector` rules rather than a default-deny gap.
+- `rate(...[10m])` stays non-zero for a full 10 minutes after the *last* dropped
+  packet. Paired with a 10-minute pending period that let a ~4-minute burst hold the
+  condition for ~14 minutes and page as critical. `[5m]` keeps the pending period
+  meaning "still dropping" rather than "dropped recently".
+
+Before concluding a Mac mini is mis-sourced, check that the drops are confined to
+**one** node. A runner VM talks to a single regional cache, so simultaneous drops
+across regions are never a mis-sourced host.
+
 A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
 and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
 is not masqueraded to its host's PN VLAN address arrives from outside that block,
@@ -412,14 +437,32 @@ so Cilium drops it at ingress — silently, with no RST. The client sees no
 connection at all and every cache request hangs until its own timeout, which has
 turned 8-minute CI jobs into 6-hour ones while every dashboard showed kura
 healthy and idle. The drop counter is the only signal that fires, and it tracks
-the stuck job almost exactly: zero before it starts, a steady ~2/s SYN-retransmit
-trickle for its whole life, zero again within a scrape of it being cancelled.
+the stuck job closely: a steady ~1-2/s SYN-retransmit trickle for its whole life,
+falling back to baseline within a scrape of it being cancelled. Note that baseline
+is low but not zero, which is why the rule needs a magnitude floor rather than a
+bare `> 0`.
 
 Note the counter carries no source address, so it says *that* a host is
 mis-sourced but not *which* one. Correlating it back to a Mac mini currently
 needs Hubble flow metrics with source labels on the cache node, or catching the
 job live (`kubectl get pod -o wide`) and checking
 `pfctl -a com.apple/tuist.vmnat -s nat` plus `ifconfig vlan0` on that host.
+
+A mis-sourced host can also be found from metrics alone, because none of its cache
+traffic completes and its PN VLAN goes nearly silent:
+
+```promql
+sort_desc(max_over_time((sum by (instance) (rate(
+  node_network_receive_bytes_total{job="tuist-macos-node-exporter",
+  device="vlan0"}[30m])))[7d:30m]))
+```
+
+Healthy runner hosts peak in the hundreds of kB/s; the mis-sourced host in the
+August 2026 incident sat ~1600x below its peers. Use a **7-day peak**: a shorter
+window makes a merely idle host look broken, and a floor or minimum does not
+separate them because every host, healthy or not, has quiet stretches. Scope this
+to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
+hundred B/s legitimately, since they run no cache-using VMs.
 
 ### Runner host PN VLAN missing
 
