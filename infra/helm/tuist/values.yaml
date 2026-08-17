@@ -2257,16 +2257,52 @@ ociRegistry:
           cpu: "1"
           memory: 256Mi
   tailscale:
-    # Expose the Service on the tailnet instead of a public ingress. Every
+    # Put the registry on the tailnet instead of a public ingress. Every
     # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
-    # Stays an L4 proxy: an HTTP one would impose a request-body limit
-    # that 512 MiB layer uploads would run into, and TLS terminates in
-    # the Pod rather than at the proxy anyway.
+    #
+    # The Pod joins as a node in its own right rather than being fronted
+    # by an operator-managed proxy, because it has to own the tailnet
+    # name: only the node a name belongs to can obtain a certificate for
+    # it, and clients reach this registry by that name. Letting the proxy
+    # terminate TLS instead would put the registry's Basic credential on
+    # the proxy-to-Pod hop, which crosses the cluster network in the
+    # clear.
     enabled: false
     # Tailnet node name; the registry is reachable at
-    # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
+    # `<hostname>.<tailnet>.ts.net`, which is also the certificate's
+    # name. Must be unique per environment — a collision is not an error,
+    # Tailscale appends a suffix and the certificate then follows the name
+    # actually assigned rather than the one configured here.
     hostname: ""
     tags: ""
+    image:
+      repository: tailscale/tailscale
+      # renovate: datasource=docker depName=tailscale/tailscale versioning=docker
+      tag: "v1.96.5"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    # The cert sidecar is idle almost always: one `tailscale cert` call,
+    # then a day's sleep.
+    certResources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    externalSecret:
+      # The environment's shared Tailscale item, not one of this
+      # registry's own fields — the same credential the Mac fleet joins
+      # with, so there is one thing to rotate rather than two.
+      item: TAILSCALE
+      fields:
+        authKey: auth-key
   tls:
     # Serve HTTPS from the proxy. Off by default so a self-hoster on a
     # trusted network isn't forced into certificate plumbing; on, clients
