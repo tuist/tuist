@@ -69,22 +69,6 @@ spec:
         # to install. Hetzner mounts an NFS share at /root/.oldroot/nfs
         # inside the rescue system with images for each supported
         # distribution.
-        #
-        # `.tar.zst`, not `.tar.gz`: Hetzner re-compressed the archives
-        # with zstd from 2026-06-12 and removed the gzip variants. The
-        # extension is the whole of the contract. Get it wrong and
-        # installimage fails `Error: Image not found!` about two seconds
-        # in, caph reboots into rescue and retries forever, and the host
-        # never registers. Nothing surfaces it as an image problem: the
-        # HetznerBareMetalHost sits in `registering` with
-        # `StillProvisioning`, and the reason appears only in the caph
-        # controller log's `Reconciler error`.
-        #
-        # It stayed latent for two months because a pinned path is read
-        # only when a host is reinstalled, and nothing reinstalled
-        # between the migration and 2026-08-14, when this pool's roll
-        # deleted a Machine and left the production Linux fleet on one
-        # node for three days.
         image:
           path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.zst
         # Software RAID 1 mirror across both NVMes. caph silently
