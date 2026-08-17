@@ -244,7 +244,6 @@
         </div>
         <div data-part="widgets">
           <.widget
-            :if={!@flakiness_rate.ok? || (@flakiness_rate.result && @flakiness_rate.result > 0)}
             loading={!@flakiness_rate.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             description={
@@ -255,6 +254,8 @@
             }
             value={if @flakiness_rate.ok?, do: "#{@flakiness_rate.result}%"}
             id="widget-flakiness-rate"
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
+            empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.widget
             loading={!@reliability.ok?}

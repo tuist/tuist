@@ -1391,13 +1391,18 @@ defmodule Tuist.Tests.Analytics do
     |> apply_end_datetime_filter(Keyword.get(opts, :end_datetime))
   end
 
+  # Bounds `ran_at`, not `inserted_at`: xcresult processing is asynchronous, so
+  # ingestion time can trail execution by hours. The time-bucketed series bound
+  # `inserted_at` instead, which keeps a rendered series from being rewritten by
+  # late arrivals, but a scalar over a user-picked window has to agree with the
+  # "Ran at" column shown beside it.
   defp apply_start_datetime_filter(query, nil), do: query
 
-  defp apply_start_datetime_filter(query, start_datetime), do: where(query, [tcr], tcr.inserted_at >= ^start_datetime)
+  defp apply_start_datetime_filter(query, start_datetime), do: where(query, [tcr], tcr.ran_at >= ^start_datetime)
 
   defp apply_end_datetime_filter(query, nil), do: query
 
-  defp apply_end_datetime_filter(query, end_datetime), do: where(query, [tcr], tcr.inserted_at <= ^end_datetime)
+  defp apply_end_datetime_filter(query, end_datetime), do: where(query, [tcr], tcr.ran_at <= ^end_datetime)
 
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)

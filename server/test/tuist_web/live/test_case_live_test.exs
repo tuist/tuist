@@ -76,7 +76,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       render_async(lv)
 
       # Then - the run from 40 days ago is excluded
-      assert widget_value(lv, "widget-test-case-runs") =~ "2"
+      assert widget_value(lv, "widget-test-case-runs") == "2"
     end
 
     test "scopes the summary widgets to the selected period", %{
@@ -97,7 +97,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       render_async(lv)
 
       # Then - only the run from today falls inside the period
-      assert widget_value(lv, "widget-test-case-runs") =~ "1"
+      assert widget_value(lv, "widget-test-case-runs") == "1"
     end
 
     test "renders the reliability widget as empty when no runs fall in the period", %{
@@ -123,6 +123,26 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       # Then
       assert has_element?(lv, "#widget-test-reliability[data-empty='true']")
+      assert has_element?(lv, "#widget-flakiness-rate[data-empty='true']")
+    end
+
+    test "keeps the flakiness widget in place when no runs were flaky", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs exist in the period, none of them flaky
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - 0% is an answer, so the tile stays rather than dropping out of the row
+      assert widget_value(lv, "widget-flakiness-rate") == "0.0%"
+      refute has_element?(lv, "#widget-flakiness-rate[data-empty='true']")
     end
 
     test "changing the period patches the date range into the query", %{
@@ -152,7 +172,7 @@ defmodule TuistWeb.TestCaseLiveTest do
         ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?analytics-date-range=last-7-days"
       )
 
-      assert widget_value(lv, "widget-test-case-runs") =~ "2"
+      assert widget_value(lv, "widget-test-case-runs") == "2"
     end
 
     test "muting a test case via set-state", %{
@@ -300,10 +320,13 @@ defmodule TuistWeb.TestCaseLiveTest do
     [test_case_run | _] = test_run.test_case_runs
 
     for days_ago <- [3, 40] do
+      ran_at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
         test_case_id: test_case_run.test_case_id,
-        inserted_at: DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.to_naive()
+        ran_at: ran_at,
+        inserted_at: ran_at
       )
     end
 
@@ -311,6 +334,11 @@ defmodule TuistWeb.TestCaseLiveTest do
   end
 
   defp widget_value(lv, widget_id) do
-    lv |> element("##{widget_id} [data-part='value']") |> render()
+    lv
+    |> element("##{widget_id} [data-part='value']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> String.trim()
   end
 end
