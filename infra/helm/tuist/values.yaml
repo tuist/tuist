@@ -2214,12 +2214,16 @@ ociRegistry:
         cpu: 200m
         memory: 128Mi
     externalSecret:
-      # The environment's shared Tailscale item, not one of this
-      # registry's own fields — the same credential the Mac fleet joins
-      # with, so there is one thing to rotate rather than two.
-      item: TAILSCALE
+      # The operator's OAuth client, not the Mac fleet's. Tailscale
+      # scopes an OAuth client to the tags it may mint, and the fleet's
+      # covers `tag:tuist-macmini-*` only — asking it for the tag this
+      # Pod advertises fails the join with `requested tags ... are
+      # invalid or not permitted`. This client already mints
+      # `tag:tuist-k8s-<env>`, which is what the operator stamps on the
+      # proxies it creates in this namespace.
+      item: TAILSCALE_OPERATOR
       fields:
-        authKey: auth-key
+        authKey: client-secret
   tls:
     # Serve HTTPS from the proxy. Off by default so a self-hoster on a
     # trusted network isn't forced into certificate plumbing; on, clients
