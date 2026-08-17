@@ -5,6 +5,11 @@ defmodule TuistCommon.PromExPhoenixPlugin do
   It mirrors `PromEx.Plugins.Phoenix` but excludes the `host` label from HTTP
   metrics by default to avoid high-cardinality series from arbitrary request
   hosts and preview/custom domains.
+
+  The `path` label is one series per router entry, so a router that generates
+  the same page under many prefixes multiplies every HTTP metric by that many.
+  Pass `:normalize_path`, a 1-arity function, to rewrite the resolved route
+  before it becomes a label and fold those variants back together.
   """
 
   use PromEx.Plugin
@@ -136,6 +141,10 @@ defmodule TuistCommon.PromExPhoenixPlugin do
 
     duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
     duration_unit_plural = Utils.make_plural_atom(duration_unit)
+    normalize_path = Keyword.get(opts, :normalize_path, & &1)
+
+    conn_tags =
+      get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag, normalize_path)
 
     Event.build(
       :phoenix_http_event_metrics,
@@ -148,7 +157,7 @@ defmodule TuistCommon.PromExPhoenixPlugin do
           reporter_options: [
             buckets: [10, 100, 500, 1_000, 5_000, 10_000, 30_000]
           ],
-          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tag_values: conn_tags,
           tags: http_metrics_tags,
           unit: {:native, duration_unit}
         ),
@@ -165,7 +174,7 @@ defmodule TuistCommon.PromExPhoenixPlugin do
               _ -> :erlang.iolist_size(metadata.conn.resp_body)
             end
           end,
-          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tag_values: conn_tags,
           tags: http_metrics_tags,
           unit: :byte
         ),
@@ -173,7 +182,7 @@ defmodule TuistCommon.PromExPhoenixPlugin do
           metric_prefix ++ [:http, :requests, :total],
           event_name: @stop_event,
           description: "The number of requests have been serviced.",
-          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tag_values: conn_tags,
           tags: http_metrics_tags
         )
       ]
@@ -252,13 +261,14 @@ defmodule TuistCommon.PromExPhoenixPlugin do
     )
   end
 
-  defp get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag) do
+  defp get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag, normalize_path) do
     fn
       %{conn: %Conn{} = conn} ->
         default_route_tags = default_route_tags(conn, additional_routes)
 
         conn
         |> do_get_router_info(routers, default_route_tags)
+        |> Map.update!(:path, normalize_path)
         |> Map.merge(http_status_tags(conn.status, status_tag))
         |> Map.put(:method, conn.method)
         |> maybe_put_host(conn.host, http_metrics_tags)

@@ -211,10 +211,12 @@ Every Mac mini joins the tailnet at bootstrap, and so does every Tart VM the pro
 
 **Store an OAuth client secret here, never a pre-auth key.** Tailscale caps pre-auth keys at 90 days and there is no way to extend one, so a fleet joining with a pre-auth key has an outage on the calendar with nothing but a human remembering the date in the way. On 2026-08-12 that key lapsed and the `:process_xcresult` queue ran with zero consumers for ~13h: the Mac mini hosts were fine (they join once and keep their identity) but every processor Pod roll creates a fresh VM that has to join again, and its launchd chain refuses to start the release without a tailnet identity. OAuth clients don't expire, and `tailscale up` accepts the client secret wherever an auth key goes, minting a fresh key per join.
 
-In the Tailscale admin console, under **Settings → OAuth clients**, create one client per env:
+In the Tailscale admin console, create one client per env under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials): select **Credential**, then **OAuth**, then **Generate credential**. Note this is not the **Keys** page, which holds only auth keys and API access tokens; there is no "OAuth clients" page.
 
-- Scope: `auth_keys` (write). Nothing else: this credential only mints join keys.
-- Tags: this env's `tag:tuist-macmini-<env>` only. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+- Scope: **Keys → Auth Keys → Write**, nothing else. This credential only mints join keys.
+- Tags: this env's `tag:tuist-macmini-<env>` only. The write scope requires at least one tag, and it is what the minted key applies to the joining device. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+
+The secret is shown once, and starts with `tskey-client-`. That prefix is load-bearing: both consumers detect it to decide whether to annotate the credential, so a value stored without it is treated as a legacy pre-auth key.
 
 The tag must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json). Keys minted through an OAuth client are always tagged and carry no default, so the consumers name the tag at join time from `macosFleet.tailscale.tags`. Set that in the env's values file or the fleet cannot join at all (the CAPI operator rejects the config before it pushes anything, and the VM's `tailscale-up.sh` exits before `tailscale up`).
 

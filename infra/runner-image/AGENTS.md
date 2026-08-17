@@ -104,10 +104,29 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: snapshot the post-job inventory while still
-  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
-  its absence is what tells the host to discard, the safe default for any teardown
-  that never reaches a clean detach). Promotion is a **fast-forward
+  Teardown order is load-bearing: sample the signals that need a live mount (fill
+  %), then **detach**, then measure the SETTLED image for the digest this job
+  publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
+  the same view the verifying host uses), then write `cache-dirty` (only after both
+  a clean detach and a successful measurement — its absence is what tells the host
+  to discard, the safe default for any teardown that reaches neither). The digest
+  must NOT be read through the job's own read-write mount, which is what this
+  replaced: it is both the HEAD's `tree_digest` and the immutable object key, so it
+  is a claim about the bytes the upload sends, and anything writing to the image
+  between the measurement and the detach breaks that claim permanently. The window
+  is why `detach_cache_image` polls and then forces at all — processes outlive the
+  runner (a lingering build service, the compilation cache's own asynchronous store
+  flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
+  SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
+  names bytes no host can reproduce: convergence verifies the downloaded object and
+  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
+  exists, and a host left at an older generation is rejected for a stale base — and
+  the account is stuck fleet-wide (seen in production: one account cold on all nine
+  hosts for days). When a host does hit that, it stages the disproved digest as
+  `volume-head-unverifiable` in the `status` share and the guest relays it as
+  `unverifiable_digest` with BOTH promote requests, which is what lets the server
+  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
+  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,
@@ -395,6 +414,24 @@ customer-facing profile selection.
    Succeeded, the RunnerPoolReconciler reaps the Pod + sibling
    SA and boots a replacement to keep the pool at
    `spec.replicas`.
+
+   The trap writes its exit code to `runner-rc` in the `status`
+   share on its way out, and tart-kubelet publishes that as the
+   Pod's terminated container state. Nothing else carries it off
+   the guest: the trap halts the VM on *every* path, so `tart run`
+   exits zero whether the job finished or the runner died on boot,
+   and a macOS runner death otherwise reaches the cluster as a
+   bare `Succeeded` with no exit code, no reason and no log. Three
+   consumers in the runners-controller read that field — the
+   `runner pod terminated` forensics line, the abnormal-end
+   death-log capture, and the `finishedAt` that dates the billing
+   session — and all three were Linux-only until the guest started
+   reporting. Written from inside the trap rather than after the
+   runner exits, so it also covers the aborts that never reach a
+   runner. Absent on hosts with no `status` share (it rides on the
+   cache-volume feature), which the host reports as
+   `TartRunExited` rather than laundering tart's zero into a clean
+   runner exit.
 
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`

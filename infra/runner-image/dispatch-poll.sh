@@ -31,6 +31,38 @@ set -uo pipefail
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
 
+# Host-shared status directory. A fixed mount path, so it is defined
+# here rather than beside the cache-volume code that also uses it: the
+# EXIT trap below reports through it, and the aborts worth reporting
+# (missing /etc/tuist.env, missing or empty SA token) all run before
+# that code is reached. Defined before the trap is armed for the same
+# reason.
+STATUS_SHARE="/Volumes/My Shared Files/status"
+
+# report_runner_exit hands this script's exit code to the host through
+# the writable status share, for tart-kubelet to publish as the Pod's
+# terminated container state.
+#
+# It is the ONLY way that code leaves the guest. The EXIT trap below
+# halts the VM on every path, clean or not, so `tart run` always exits
+# zero and the host cannot otherwise tell a finished job from a runner
+# that died on boot — every macOS runner death reads as Succeeded with
+# no exit code, no reason, and no log. (Linux runners get this for free:
+# the container runtime records the real terminated state.)
+#
+# Reported from inside the trap rather than after `wait` on the runner
+# so it also covers the paths that never reach a runner at all: the auth
+# aborts, the missing-file exits, an errexit anywhere above. Those are
+# exactly the deaths that are hardest to explain after the fact.
+#
+# Guarded on the share being mounted, which it is not on hosts with the
+# cache-volume feature off; an unreported exit degrades to a Pod with no
+# exit code rather than failing the halt.
+report_runner_exit() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  printf '%s' "${1}" >"${STATUS_SHARE}/runner-rc" 2>/dev/null || true
+}
+
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
@@ -39,7 +71,7 @@ exec >>"${LOG}" 2>&1
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; report_runner_exit "${_rc}"; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -175,7 +207,9 @@ CACHE_INVENTORY_BEFORE=""
 # The post-job inventory, captured while the image is still mounted so the HEAD
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
-STATUS_SHARE="/Volumes/My Shared Files/status"
+# STATUS_SHARE is defined near the EXIT trap at the top of this script,
+# which reports the runner's exit code through it before this section is
+# ever reached.
 # The Xcode compilation cache (CAS) is FOLDED into the cache image: a top-level
 # store dir beside `tuist/` inside the one mounted image. It works because it
 # lives on the attached block-device APFS image, not the virtio-fs share (llcas
@@ -201,10 +235,16 @@ VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 # hits only bump mtimes (they don't add/remove entries), so they don't move
 # this hash — matching the reconciler's rule that mtime-only deltas are not
 # dirty and must not trigger a promote that could clobber a concurrent writer.
+#
+# It takes the mountpoint to measure rather than reading CACHE_MOUNT, because the
+# two snapshots are read through DIFFERENT mounts: the pre-job one through the
+# live read-write mount, and the published one through a read-only re-attach of
+# the already-detached image (see capture_settled_inventory).
 cache_inventory() {
-  [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
-  local root="${CACHE_MOUNT}/tuist"
-  local cas="${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  local mount="$1"
+  [ -n "${mount}" ] || { echo "none"; return 0; }
+  local root="${mount}/tuist"
+  local cas="${mount}/${CAS_STORE_DIR}"
   # One `~cas/<relpath>\t<size>` line per regular file in the folded CAS store — a
   # content identity, not a size proxy. It catches growth (llcas appends to fixed
   # files, so a compile-only job that only grew the CAS still flips the digest and
@@ -499,7 +539,7 @@ wait_for_cache_ready() {
         use_local_cold_cache "cannot attach ${CACHE_IMAGE}"
         return 0
       fi
-      CACHE_INVENTORY_BEFORE=$(cache_inventory)
+      CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
       return 0
     fi
     sleep 1
@@ -508,24 +548,66 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
-# capture_cache_state snapshots the post-job inventory while the image is still
-# MOUNTED — after the detach nothing inside it is readable — into
-# CACHE_INVENTORY_AFTER, used by report_cache_dirty (to detect a change) and by
-# report_volume_head (as the new HEAD's tree_digest). The host tracks a promoted
-# master by its GENERATION, not this digest, so nothing is staged to the share
-# here; the digest travels to the server in the HEAD report instead.
-capture_cache_state() {
+# sample_cache_fill records the image's post-job fill % (binary cache + CAS +
+# overhead) for the host's fill histogram — the signal for whether the reserve is
+# holding or the volume is running near ENOSPC. Must run while the image is still
+# MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
+# format; column 5 is Use%.
+sample_cache_fill() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
-  CACHE_INVENTORY_AFTER=$(cache_inventory)
-  # Sample the image's post-job fill % (binary cache + CAS + overhead) while it's
-  # still mounted, for the host's fill histogram — the signal for whether the
-  # reserve is holding or the volume is running near ENOSPC. `df -P` for the
-  # portable one-line format; column 5 is Use%.
   local fill
   fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
   [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+}
+
+# Where the detached image is re-attached to be measured. Deliberately not
+# CACHE_MOUNTPOINT: that one is the job's read-write mount, and reusing it would
+# make a leaked read-only attach indistinguishable from a live cache.
+CACHE_VERIFY_MOUNTPOINT="/Users/runner/.tuist-cache-verify"
+
+# capture_settled_inventory computes the digest this job publishes, measured on
+# the image as it will be UPLOADED: it re-attaches the already-detached file
+# READ-ONLY and reads that, into CACHE_INVENTORY_AFTER — used by
+# report_cache_dirty (to detect a change) and report_volume_head (as the new
+# HEAD's tree_digest and the master object's key).
+#
+# It must NOT be measured through the job's live mount, which is what this
+# replaced. The digest is a claim about the bytes the upload sends — it is both
+# the HEAD's tree_digest and the immutable object key — so anything that writes to
+# the image between measuring and detaching breaks that claim permanently. The
+# window is real rather than theoretical: detach_cache_image polls and then FORCES
+# exactly because processes outlive the runner (a lingering build service, or the
+# compilation cache's own asynchronous store flush/prune, which is size-capped and
+# so busiest for the largest caches), and every ~cas/ line carries a file SIZE, so
+# a single late append is enough to move the digest. A HEAD published from a
+# pre-detach snapshot then names bytes no host can reproduce: convergence
+# downloads the object, computes a different digest, and declines — and no promote
+# can build on that HEAD either (base 0 is rejected while a HEAD exists, and a host
+# left at an older generation is rejected for a stale base), so the account can
+# neither adopt it nor replace it, on any host, indefinitely.
+#
+# Read-only, so measuring cannot alter what it measures, and an image too torn to
+# mount read-only fails HERE instead of becoming every host's master. A non-zero
+# return withdraws the branch from both promotion and publication.
+capture_settled_inventory() {
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
+  mkdir -p "${CACHE_VERIFY_MOUNTPOINT}" 2>/dev/null || true
+  local err
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify -quiet \
+    -mountpoint "${CACHE_VERIFY_MOUNTPOINT}" 2>&1); then
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING settled cache image would not attach read-only: ${err}"
+    return 1
+  fi
+  CACHE_INVENTORY_AFTER=$(cache_inventory "${CACHE_VERIFY_MOUNTPOINT}")
+  # Detach before the upload reads the file: a read-only attach cannot corrupt it,
+  # but leaving one pinned serves no purpose once the digest is taken.
+  hdiutil detach "${CACHE_VERIFY_MOUNTPOINT}" -quiet 2>/dev/null ||
+    hdiutil detach "${CACHE_VERIFY_MOUNTPOINT}" -force -quiet 2>/dev/null || true
+  [ -n "${CACHE_INVENTORY_AFTER}" ] || return 1
+  echo "$(date -u +%FT%TZ) dispatch-poll: settled cache inventory digest=${CACHE_INVENTORY_AFTER}"
+  return 0
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -541,8 +623,8 @@ capture_cache_state() {
 # a mounted, un-detached, or failed-to-detach image is left with NO cache-dirty
 # marker at all, and absence makes the reconciler discard the branch — the safe
 # default for every teardown that does not reach a clean detach (early exit,
-# detach failure). It reads the inventory captured pre-detach by
-# capture_cache_state, since the image is gone by now.
+# detach failure). It reads the inventory capture_settled_inventory took off the
+# detached image, so "dirty" describes the bytes that would actually be promoted.
 #
 # Gating on rc carries the job result to the host so a failed run never promotes
 # its branch to the account's master — the host's own `tart run` clean-exit
@@ -593,6 +675,28 @@ read_base_generation() {
   printf '%s' "${gen:-0}"
 }
 
+# read_unverifiable_head returns the HEAD digest this host downloaded during the
+# job and found the stored object does not reproduce — staged by the host's
+# background convergence, empty when convergence had nothing to report (the usual
+# case).
+#
+# It rides the promote report because a HEAD that no host can verify is otherwise
+# permanent: convergence declines it, and no promote can build on it either — this
+# host's base is 0 if it holds no master and stale if it holds an older one, and
+# both lose the fast-forward. The server takes this as the evidence that lets the
+# promote retire that lineage instead.
+#
+# Sanitised to the digest alphabet and length the server expects, so nothing from
+# the share can escape into the request body.
+read_unverifiable_head() {
+  local digest=""
+  if [ -r "${STATUS_SHARE}/volume-head-unverifiable" ]; then
+    digest=$(tr -cd 'a-f0-9' < "${STATUS_SHARE}/volume-head-unverifiable" 2>/dev/null)
+  fi
+  [ "${#digest}" = "40" ] || digest=""
+  printf '%s' "${digest}"
+}
+
 # write_promote_result relays the promote outcome to the host so it can tell a
 # genuine fast-forward REJECTION (409 — a stale base another host advanced past,
 # real cross-host contention) apart from an upload/network/control-plane FAILURE.
@@ -639,8 +743,19 @@ report_volume_head() {
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
 
-  local base_generation
+  local base_generation unverifiable promote_body
   base_generation=$(read_base_generation)
+  # One body for both requests: the mint's pre-flight has to evaluate the same
+  # inputs as the bump it precedes, or a promote the bump would accept gets a 409
+  # here and never reaches it. That matters most for exactly the case the
+  # unverifiable digest exists for — a promote retiring a HEAD no host can adopt,
+  # which the pre-flight would otherwise turn away forever on a base (cold or
+  # stale) that can never catch up.
+  unverifiable=$(read_unverifiable_head)
+  promote_body="{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation},\"unverifiable_digest\":\"${unverifiable}\"}"
+  if [ -n "${unverifiable}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: reporting HEAD ${unverifiable} as unverifiable on this host"
+  fi
 
   # Mint the content-addressed upload URL for this digest. The server binds it to
   # the account this Pod ran (server-stamped label) and rejects a non-hex digest,
@@ -661,7 +776,7 @@ report_volume_head() {
   mint_body=$(mktemp 2>/dev/null || echo "/tmp/volhead-mint.$$")
   mint_http=$(curl -sS --connect-timeout 10 --max-time 30 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    --data "${promote_body}" \
     -o "${mint_body}" -w '%{http_code}' \
     "${VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT}" 2>/dev/null)
   if [ "${mint_http}" = "409" ]; then
@@ -722,7 +837,7 @@ report_volume_head() {
   body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
   http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    --data "${promote_body}" \
     -o "${body}" -w '%{http_code}' \
     "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
   case "${http_code}" in
@@ -926,26 +1041,31 @@ HOOK
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Cache teardown. The order here is load-bearing:
-      #   1. capture the inventory + digest, which only works while the image is
-      #      still MOUNTED, but withhold the promotion-authorizing dirty marker;
+      #   1. sample the signals that need a live mount (fill %), but withhold the
+      #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
       #      snapshot — the host clones this file to promote it and cannot tell
       #      the two apart, so letting the VM halt tear the mount down would
       #      poison the account's master and every job that later clones it;
-      #   3. ONLY after a clean detach, authorize promotion (dirty marker) and
-      #      upload the settled image as the account's new HEAD. A detach failure
-      #      or an early exit leaves no dirty marker, so the host discards.
+      #   3. measure the SETTLED image (read-only re-attach) for the digest this
+      #      job publishes, so the HEAD names the bytes that get uploaded and not
+      #      a state a straggler wrote past;
+      #   4. ONLY then authorize promotion (dirty marker) and upload the settled
+      #      image as the account's new HEAD. A detach failure, an unmeasurable
+      #      image, or an early exit leaves no dirty marker, so the host discards.
       # rc gates promotion — a failed run never advances the master.
       # If the CAS feature was turned off, drop its stale store from the image
-      # BEFORE snapshotting the post-job inventory, so the removal promotes a
-      # cleaned master instead of masters carrying dead CAS bytes forever.
+      # BEFORE the image is measured, so the removal promotes a cleaned master
+      # instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
-      capture_cache_state
-      if detach_cache_image; then
+      sample_cache_fill
+      if ! detach_cache_image; then
+        mark_cache_not_promotable "detach failed"
+      elif ! capture_settled_inventory; then
+        mark_cache_not_promotable "settled image could not be measured"
+      else
         report_cache_dirty "${rc}"
         report_volume_head "${rc}"
-      else
-        mark_cache_not_promotable "detach failed"
       fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
