@@ -1,15 +1,9 @@
 {{- if .Values.ociRegistry.enabled }}
-# `loadBalancerClass: tailscale` makes the operator front this Service
-# with a tailnet node, so builders and the Mac fleet reach the registry
-# with no public ingress. The proxy is L4, which matters here: an HTTP
-# proxy in the path would impose a request-body limit that 512 MiB layer
-# uploads would run into.
-#
-# LoadBalancer rather than the `tailscale.com/expose` annotation because
-# only this form reports the tailnet address back in the Service status,
-# and that address is what has to reach DNS. The annotation form leaves
-# the status empty, which left external-dns with nothing to publish but
-# the MagicDNS name.
+# `tailscale.com/expose` makes the operator front this Service with a
+# tailnet node, so builders and the Mac fleet reach the registry by its
+# tailnet name with no public ingress. The proxy is L4, which matters
+# here: an HTTP proxy in the path would impose a request-body limit that
+# 512 MiB layer uploads would run into.
 apiVersion: v1
 kind: Service
 metadata:
@@ -19,30 +13,22 @@ metadata:
     app.kubernetes.io/component: oci-registry
   {{- if .Values.ociRegistry.tailscale.enabled }}
   annotations:
+    tailscale.com/expose: "true"
     tailscale.com/hostname: {{ required "ociRegistry.tailscale.hostname is required when ociRegistry.tailscale.enabled is true" .Values.ociRegistry.tailscale.hostname | quote }}
     {{- with .Values.ociRegistry.tailscale.tags }}
     tailscale.com/tags: {{ . | quote }}
     {{- end }}
     {{- if and .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.dns.enabled }}
-    # An A record onto the tailnet address, which external-dns reads from
-    # the Service status and re-syncs when the operator reassigns it —
-    # so this survives the node being recreated without pinning anything.
-    #
-    # It is deliberately not a CNAME onto the MagicDNS name. That name
-    # resolves only through Tailscale's own resolver, and the Mac hosts
-    # do not resolve through it: `tailscaled` there never reconfigures
-    # system DNS, so anything using ordinary OS resolution — crane, oras,
-    # tart — gets NXDOMAIN. The address answers for them because routing
-    # over the tailnet does not depend on MagicDNS, and publishing it
-    # costs nothing since it is only reachable from the tailnet anyway.
+    # A CNAME onto the MagicDNS name, not an A record: the tailnet
+    # address is reassigned when the node is recreated, and the name is
+    # not. It only resolves for tailnet members, so publishing it costs
+    # nothing and the certificate can be issued for a name we own.
     external-dns.alpha.kubernetes.io/hostname: {{ .Values.ociRegistry.tls.host | quote }}
+    external-dns.alpha.kubernetes.io/target: {{ printf "%s.%s" .Values.ociRegistry.tailscale.hostname (required "ociRegistry.tls.dns.tailnet is required to build the CNAME target" .Values.ociRegistry.tls.dns.tailnet) | quote }}
     {{- end }}
   {{- end }}
 spec:
   type: {{ .Values.ociRegistry.service.type }}
-  {{- if and .Values.ociRegistry.tailscale.enabled (eq .Values.ociRegistry.service.type "LoadBalancer") }}
-  loadBalancerClass: tailscale
-  {{- end }}
   selector:
     {{- include "tuist.componentLabels" (dict "root" . "component" "oci-registry") | nindent 4 }}
   ports:
