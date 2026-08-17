@@ -2128,7 +2128,12 @@ ociRegistry:
     tag: "3"
     pullPolicy: IfNotPresent
   service:
-    type: ClusterIP
+    # LoadBalancer so the Tailscale operator reports the tailnet address
+    # back in the Service status, which is what external-dns publishes.
+    # `loadBalancerClass: tailscale` is set by the template whenever
+    # `tailscale.enabled` is on, so nothing external is provisioned.
+    # Self-hosters not fronting this with a tailnet want ClusterIP.
+    type: LoadBalancer
     port: 5000
   logLevel: info
   s3:
