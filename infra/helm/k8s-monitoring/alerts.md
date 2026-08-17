@@ -438,9 +438,23 @@ an earlier version of this note claimed. Two distinct populations show up:
   through a NodePort/LoadBalancer. Note the `peer` rule already had to open
   `0.0.0.0/0` for exactly that reason, while `http` has no equivalent escape hatch
   beyond per-instance `ClientCIDRs`.
-- **Sustained episodes, 0.8 to 5 packets/s, lasting 30 to 90 minutes.** These are
-  the real thing and the rule *should* page on them. The production node logs them
-  regularly. Treat a firing alert as a genuine mis-sourced host, not as noise.
+- **Sustained episodes, 0.8 to 5 packets/s, lasting 30 minutes to 6 hours.** These
+  are the real thing and the rule *should* page on them. Treat a firing alert as a
+  genuine mis-sourced host, not as noise. The impact is now measured rather than
+  assumed: across 2026-08-10 to 2026-08-14 the production node had 20 such
+  episodes, and **every one of the 17 macOS runner sessions that exceeded 40
+  minutes in that window started inside one of them**, 17 for 17. Outside those
+  episodes not a single macOS session passed 40 minutes (max 30.2 min over 650
+  sessions). Linux pools show no effect either way, which is the control: they do
+  not use the PN/pf NAT path. Three sessions hit exactly 361 minutes, the 6-hour
+  ceiling. Total burned wall-clock was ~34 hours across two accounts.
+
+  Those episodes stopped on 2026-08-14 once `b4ce0dba49` fixed the duplicated
+  `/etc/pf.conf` anchor block that made `pfctl` reject the whole ruleset (see
+  "Runner host PN VLAN missing" below for the companion failure). In the three days
+  after, 255 macOS sessions ran with **zero** over 40 minutes and a 27-minute max,
+  and the node logged no sustained episode at all. If this class reappears, the pf
+  anchor is the first thing to check.
 
 Before concluding a Mac mini is mis-sourced, check that the drops are confined to
 **one** node. A runner VM talks to a single regional cache, so simultaneous drops
