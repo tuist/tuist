@@ -54,6 +54,9 @@ spec:
       {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
+      {{- if .Values.ociRegistry.tailscale.enabled }}
+      serviceAccountName: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry") }}
+      {{- end }}
       containers:
         - name: oci-registry
           image: "{{ .Values.ociRegistry.image.repository }}:{{ .Values.ociRegistry.image.tag }}"
@@ -153,6 +156,26 @@ spec:
               mountPath: /etc/nginx/registry-tls
               readOnly: true
             {{- end }}
+          {{- if .Values.ociRegistry.tailscale.enabled }}
+          # The certificate is fetched at runtime by the cert sidecar, not
+          # mounted from a Secret, so on a cold start it does not exist
+          # when this container is created. nginx exits immediately if its
+          # `ssl_certificate` is missing, which would crash-loop the Pod
+          # until the fetch happened to win the race. Wait for the file
+          # instead, and let the readiness probe below govern traffic.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              for i in $(seq 1 120); do
+                if [ -s /etc/nginx/registry-tls/tls.crt ] && [ -s /etc/nginx/registry-tls/tls.key ]; then
+                  exec nginx -g 'daemon off;'
+                fi
+                sleep 5
+              done
+              echo "no certificate at /etc/nginx/registry-tls after 10m; the tailscale-cert sidecar never produced one" >&2
+              exit 1
+          {{- end }}
           readinessProbe:
             # The unauthenticated health path, since every registry path
             # now needs a credential a probe cannot carry. It still
@@ -167,8 +190,98 @@ spec:
           resources:
             {{- toYaml .Values.ociRegistry.auth.proxy.resources | nindent 12 }}
         {{- end }}
-      {{- if .Values.ociRegistry.auth.enabled }}
+        {{- if .Values.ociRegistry.tailscale.enabled }}
+        # The Pod joins the tailnet itself rather than being fronted by an
+        # operator-managed proxy, because it needs to *own* the tailnet
+        # name: only the node a name belongs to can obtain a certificate
+        # for it, and that certificate is what lets the Mac hosts reach
+        # this registry over TLS by a name they can resolve.
+        #
+        # The alternative was to let the Tailscale proxy terminate TLS. It
+        # would have been less machinery, but the hop from that proxy into
+        # this Pod crosses the cluster network, which carries no transparent
+        # encryption — and that hop would be carrying the registry's Basic
+        # credential.
+        - name: tailscale
+          image: "{{ .Values.ociRegistry.tailscale.image.repository }}:{{ .Values.ociRegistry.tailscale.image.tag }}"
+          imagePullPolicy: {{ .Values.ociRegistry.tailscale.image.pullPolicy }}
+          env:
+            - name: TS_HOSTNAME
+              value: {{ required "ociRegistry.tailscale.hostname is required" .Values.ociRegistry.tailscale.hostname | quote }}
+            # Kubernetes Secret rather than a volume: the node identity has
+            # to survive a restart. On ephemeral state Tailscale would mint
+            # a new node each time, the name would come back as
+            # `<hostname>-1`, and the certificate — which follows the name
+            # actually assigned — would stop matching what clients dial.
+            - name: TS_KUBE_SECRET
+              value: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale-state") | quote }}
+            - name: TS_USERSPACE
+              value: "false"
+            # An OAuth client secret, not a static auth key. The same
+            # credential the fleet moved to in #12312 after an expired key
+            # took the xcresult processors down: `tailscale up
+            # --auth-key=<oauth-client-secret>` mints a fresh key on every
+            # join, so there is nothing with an expiry date to rotate.
+            # Keys minted this way carry no tags of their own, which is why
+            # the tag below is not optional.
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-secrets") }}
+                  key: tailscaleAuthKey
+            - name: TS_EXTRA_ARGS
+              value: "--advertise-tags={{ required "ociRegistry.tailscale.tags is required when the Pod joins the tailnet" .Values.ociRegistry.tailscale.tags }}"
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: tailscale-socket
+              mountPath: /var/run/tailscale
+          resources:
+            {{- toYaml .Values.ociRegistry.tailscale.resources | nindent 12 }}
+
+        # Separate from the container above because `tailscale cert` is a
+        # client call against the daemon, and the daemon's own container
+        # runs containerboot as PID 1. Sharing the socket directory is
+        # enough to reach it.
+        - name: tailscale-cert
+          image: "{{ .Values.ociRegistry.tailscale.image.repository }}:{{ .Values.ociRegistry.tailscale.image.tag }}"
+          imagePullPolicy: {{ .Values.ociRegistry.tailscale.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              FQDN="{{ .Values.ociRegistry.tailscale.hostname }}.{{ required "ociRegistry.tls.dns.tailnet is required for the certificate name" .Values.ociRegistry.tls.dns.tailnet }}"
+              # Tailscale issues 90-day certificates and renews on request
+              # rather than on a schedule, so this has to keep asking. A
+              # one-shot fetch works for three months and then takes the
+              # registry down on a day nobody changed anything.
+              while true; do
+                if tailscale --socket=/var/run/tailscale/tailscaled.sock cert \
+                     --cert-file /certs/tls.crt \
+                     --key-file /certs/tls.key \
+                     "$FQDN"; then
+                  echo "certificate for $FQDN written"
+                  sleep 24h
+                else
+                  # Early on this is just the daemon not having finished
+                  # joining; later it is worth retrying quickly because the
+                  # existing certificate is still on disk and still valid.
+                  echo "cert fetch for $FQDN failed; retrying" >&2
+                  sleep 60
+                fi
+              done
+          volumeMounts:
+            - name: tailscale-socket
+              mountPath: /var/run/tailscale
+            - name: registry-tls
+              mountPath: /certs
+          resources:
+            {{- toYaml .Values.ociRegistry.tailscale.certResources | nindent 12 }}
+        {{- end }}
+      {{- if or .Values.ociRegistry.auth.enabled .Values.ociRegistry.tailscale.enabled }}
       volumes:
+        {{- if .Values.ociRegistry.auth.enabled }}
         - name: auth-proxy-config
           configMap:
             name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-proxy") }}
@@ -186,10 +299,22 @@ spec:
                 path: readers
               - key: htpasswdWriters
                 path: writers
+        {{- end }}
         {{- if .Values.ociRegistry.tls.enabled }}
         - name: registry-tls
+          {{- if .Values.ociRegistry.tailscale.enabled }}
+          # Written by the cert sidecar, not mounted from cert-manager: the
+          # certificate is for a `.ts.net` name, and only Tailscale can
+          # issue for a zone we do not control.
+          emptyDir: {}
+          {{- else }}
           secret:
             secretName: {{ .Values.ociRegistry.tls.existingSecret | default (include "tuist.componentName" (dict "root" . "component" "oci-registry-tls")) }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.ociRegistry.tailscale.enabled }}
+        - name: tailscale-socket
+          emptyDir: {}
         {{- end }}
       {{- end }}
 {{- end }}
