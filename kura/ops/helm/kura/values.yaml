@@ -192,18 +192,14 @@ config:
     deploymentEnvironment: production
   discovery:
     enabled: true
-  # Where this node runs, as ISO 3166-1 alpha-2 (`country`) and ISO 3166-2
-  # (`subdivision`) codes taken from the datacenter it is deployed in. They
-  # are stamped onto the OTel Resource as `geo.country.iso_code` and
-  # `geo.region.iso_code`, so every span the node exports carries them.
-  # Kura never derives these at runtime; leaving them empty just leaves the
-  # attributes off, except that a region name beginning with a country code
-  # (`fr-par`) still answers for `country`.
-  node:
-    country: ""
-    subdivision: ""
 
-# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
+# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN,
+# or optional settings such as KURA_NODE_COUNTRY / KURA_NODE_SUBDIVISION, the ISO
+# 3166-1 alpha-2 and ISO 3166-2 codes of the datacenter this node runs in. Kura
+# stamps those onto the OTel Resource as `geo.country.iso_code` and
+# `geo.region.iso_code` and never derives them at runtime, so leaving them unset
+# just leaves the attributes off, except that a region name beginning with a
+# country code (`fr-par`) still answers for the country.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

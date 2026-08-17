@@ -160,8 +160,8 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_OTEL_SERVICE_NAME` | OpenTelemetry service name. | Yes | No default | Pod name in Helm |
 | `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | OpenTelemetry deployment environment. | Yes | No default | `config.telemetry.deploymentEnvironment` |
 | `KURA_SENTRY_DSN` | Sentry DSN for panic and error reporting. | No | Disabled | `extraEnv` or `extraEnvFrom` |
-| `KURA_NODE_COUNTRY` | ISO 3166-1 alpha-2 country of the datacenter the node runs in, stamped on exported traces as `geo.country.iso_code`. | No | Derived from `KURA_REGION` when its prefix is a country code | `config.node.country` |
-| `KURA_NODE_SUBDIVISION` | ISO 3166-2 subdivision of that datacenter (e.g. `US-CA`), stamped as `geo.region.iso_code`. | No | Unset | `config.node.subdivision` |
+| `KURA_NODE_COUNTRY` | ISO 3166-1 alpha-2 country of the datacenter the node runs in, stamped on exported traces as `geo.country.iso_code`. | No | Derived from `KURA_REGION` when its prefix is a country code | `extraEnv` |
+| `KURA_NODE_SUBDIVISION` | ISO 3166-2 subdivision of that datacenter (e.g. `US-CA`), stamped as `geo.region.iso_code`. | No | Unset | `extraEnv` |
 | `KURA_AUTH_ENABLED` | Requires callers to present a valid Tuist token. Setting `KURA_AUTH_TUIST_URL` enables authorization on its own, and setting this to `false` does not turn it back off — unset the URL to run a node without authorization. | No | Disabled | `auth.enabled` |
 | `KURA_AUTH_TUIST_URL` | Tuist server the node authorizes against. Enables authorization on its own. | Required when authorization is enabled | No default | `auth.tuistUrl` |
 | `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | Connect timeout for calls to that server. | No | `500` | `extraEnv` |

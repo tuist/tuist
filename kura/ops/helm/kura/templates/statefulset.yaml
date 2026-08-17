@@ -67,14 +67,6 @@ spec:
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION
               value: {{ .Values.config.region | quote }}
-            {{- if .Values.config.node.country }}
-            - name: KURA_NODE_COUNTRY
-              value: {{ .Values.config.node.country | quote }}
-            {{- end }}
-            {{- if .Values.config.node.subdivision }}
-            - name: KURA_NODE_SUBDIVISION
-              value: {{ .Values.config.node.subdivision | quote }}
-            {{- end }}
             - name: KURA_TMP_DIR
               value: /var/cache/kura/tmp
             - name: KURA_TMP_DIR_MAX_BYTES
