@@ -417,10 +417,17 @@ Both matter, and an earlier version of this rule had neither:
   appearing. Roughly half of rollouts do it, and since every merge to `main` rolls
   the controller, that is a recurring false page. Observed magnitudes are 0.02 to
   0.10 packets/s, an order of magnitude below the ~1-2/s of a genuinely stuck job,
-  so a 0.5 floor separates them cleanly. The mechanism is unproven: the policy
-  object is patched, never recreated (`reconcileNetworkPolicy` uses
-  `controllerutil.CreateOrUpdate`), so the suspect is transient identity resolution
-  on the `PodSelector` rules rather than a default-deny gap.
+  so a 0.5 floor separates them cleanly. The mechanism is not yet proven, but the
+  obvious suspects are ruled out: the policy object is patched, never recreated
+  (`reconcileNetworkPolicy` uses `controllerutil.CreateOrUpdate`, and the live
+  objects are still `generation: 1`), no Cilium agent restarts, and a rolling
+  update reuses the same pod labels so no new security identity has to propagate.
+  Cilium runs `routing-mode: tunnel`, which carries the source identity in the
+  VXLAN header, so ordinary in-cluster pod-to-pod traffic is matched by
+  `namespaceSelector: {}` and allowed. That leaves a path where the pod identity
+  is *lost*: from outside the cluster, or SNATed through a NodePort/LoadBalancer.
+  Note the `peer` rule already had to open `0.0.0.0/0` for exactly that reason,
+  while `http` has no equivalent escape hatch beyond per-instance `ClientCIDRs`.
 - `rate(...[10m])` stays non-zero for a full 10 minutes after the *last* dropped
   packet. Paired with a 10-minute pending period that let a ~4-minute burst hold the
   condition for ~14 minutes and page as critical. `[5m]` keeps the pending period
@@ -442,11 +449,24 @@ falling back to baseline within a scrape of it being cancelled. Note that baseli
 is low but not zero, which is why the rule needs a magnitude floor rather than a
 bare `> 0`.
 
-Note the counter carries no source address, so it says *that* a host is
-mis-sourced but not *which* one. Correlating it back to a Mac mini currently
-needs Hubble flow metrics with source labels on the cache node, or catching the
-job live (`kubectl get pod -o wide`) and checking
-`pfctl -a com.apple/tuist.vmnat -s nat` plus `ifconfig vlan0` on that host.
+Note `cilium_drop_count_total` carries no source address, so on its own it says
+*that* a host is mis-sourced but not *which* one. Use `hubble_drop_total`, which
+carries `source` and `destination`:
+
+```promql
+topk(10, sum by (source, destination) (
+  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP"}[5m])
+))
+```
+
+An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
+path resolves to a bare IP, which is the distinction that matters here. Those
+labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+that has not had that Cilium value applied still reports `hubble_drop_total`
+aggregated to `(protocol, reason)` only, and needs the job caught live
+(`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus
+`ifconfig vlan0` checked on the host instead.
 
 A mis-sourced host can also be found from metrics alone, because none of its cache
 traffic completes and its PN VLAN goes nearly silent:
