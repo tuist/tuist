@@ -507,12 +507,51 @@ kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
 CAPI core picks the most-recently-created Machines for deletion. The
 controller renames the host back into the pool namespace
-(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall; the
-host stays alive, returns to factory-default state, and becomes
-eligible for the next adoption once Scaleway flips it back to
-`Delivered + Ready`. The 24h Apple licensing floor stays in
-operator-owned territory — you keep paying for capacity you already
-pre-ordered until you decide to release it via the Scaleway console.
+(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall onto the
+Machine's own `spec.os`; the host stays alive, returns to
+factory-default state, and becomes eligible for the next adoption
+once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
+licensing floor stays in operator-owned territory — you keep paying
+for capacity you already pre-ordered until you decide to release it
+via the Scaleway console.
+
+`spec.os` names a macOS release **family** — `Tahoe`, `Sequoia`,
+`Sonoma` — not a point release. Adoption accepts any pool host in the
+family, and release reinstalls onto the family's newest published
+image the host's SKU can boot, so a fleet tracks Scaleway's point
+releases instead of chasing them.
+
+Do not put an image name there. Scaleway retires point releases
+without notice and reimages released hosts onto the server type's
+current default, so an exact pin drifts out from under its fleet and
+nothing in the pool can satisfy it again — staging lost its whole
+runner pool that way in Aug 2026 while pinned to `macos-tahoe-26.3`.
+Adoption therefore refuses a versioned pin outright with an
+`InvalidOSPin` condition rather than quietly widening it. The values
+to set are
+`{macosFleet,runnersFleet,buildersFleet}.machine.os`; `OnDelete`
+means live hosts are not churned by the change.
+
+### A Machine stuck on `InvalidOSPin`
+
+The pin lives on each Machine's own spec, cloned from the template at
+creation and never re-synced, so a Machine created before the family
+switch keeps its versioned pin. That is inert while it holds a host,
+but the moment it goes hostless — bootstrap exhaustion releases the
+host and leaves the Machine hostless, or it was already pending — its
+next adoption is refused and it loops on `InvalidOSPin` every 5
+minutes. Editing the fleet's values does nothing for it: the template
+is already correct.
+
+```bash
+kubectl delete machine <machine-name>
+```
+
+The MachineSet re-clones from the current template and the
+replacement carries the family. Safe when the Machine holds no host
+(`status.serverID` empty) — there is nothing to release. Patching
+`spec.os` to the family on the existing CR works too and skips the
+re-clone.
 
 ### Replace a wedged host
 ```bash
