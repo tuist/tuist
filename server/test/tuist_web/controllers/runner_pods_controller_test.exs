@@ -124,7 +124,10 @@ defmodule TuistWeb.RunnerPodsControllerTest do
         })
 
       assert response(conn, 204)
-      assert_enqueued(worker: OrphanedRunnersWorker, args: %{workflow_job_id: 99_501})
+
+      # `pod_name` binds the recovery to this attempt: a delayed run must
+      # not act on a row a replacement Pod has since claimed.
+      assert_enqueued(worker: OrphanedRunnersWorker, args: %{workflow_job_id: 99_501, pod_name: pod_name})
     end
 
     test "schedules no recovery when the stopped pod held no claim", %{conn: conn} do

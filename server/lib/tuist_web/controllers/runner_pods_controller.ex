@@ -127,7 +127,9 @@ defmodule TuistWeb.RunnerPodsController do
   # one id to re-check now. It still asks GitHub before re-queueing, so
   # this shortens the wait without widening what we act on.
   defp schedule_orphan_recovery(workflow_job_id, pod_name) do
-    %{workflow_job_id: workflow_job_id}
+    # `pod_name` binds the recovery to this attempt: a delayed run must
+    # not act on a row that a replacement Pod has since claimed.
+    %{workflow_job_id: workflow_job_id, pod_name: pod_name}
     |> OrphanedRunnersWorker.new()
     |> Oban.insert()
     |> case do

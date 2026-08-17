@@ -629,3 +629,62 @@ func TestRunnerTerminationAcceptsSignalledExitCode(t *testing.T) {
 		t.Fatalf("expected 143/%q, got %d/%q", runnerExitReasonError, code, reason)
 	}
 }
+
+func TestPodStatusDatesFinishFromTheGuestReportNotTheReconcile(t *testing.T) {
+	// Running Pods are polled every 30s, so the reconcile that notices
+	// the stop can be up to that plus teardown after the process ended.
+	// Stamping FinishedAt here would date the billing session from when
+	// we looked rather than from when the runner exited.
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "faketart")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Under a real UserDataDir, so the teardown inside podStatus actually
+	// removes the share. A temp dir outside it would let the read succeed
+	// after cleanup and hide an ordering bug.
+	userData := filepath.Join(dir, "userdata")
+	statusDir := filepath.Join(userData, "vm-finish", "status")
+	if err := os.MkdirAll(statusDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rc := filepath.Join(statusDir, runnerExitFile)
+	if err := os.WriteFile(rc, []byte("0"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The guest wrote its report as it halted, five minutes before this
+	// reconcile observed the VM gone.
+	exited := time.Now().Add(-5 * time.Minute).Truncate(time.Second)
+	if err := os.Chtimes(rc, exited, exited); err != nil {
+		t.Fatal(err)
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-finish"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "runner", Image: "img"}},
+		},
+	}
+	store := NewStore()
+	store.Put("tuist-runners", "runner-finish", &Entry{
+		VMName:          "vm-finish",
+		StartTS:         metav1.NewTime(time.Now().Add(-30 * time.Minute)),
+		VolumeStatusDir: statusDir,
+	})
+	r := &Reconciler{Tart: &tart.Client{Binary: bin, UserDataDir: userData}, Store: store, NodeName: "mini-1"}
+
+	status, err := r.podStatus(context.Background(), pod)
+	if err != nil {
+		t.Fatalf("podStatus: %v", err)
+	}
+	if _, err := os.Stat(statusDir); !os.IsNotExist(err) {
+		t.Fatalf("expected the status share to be torn down by the reconcile, stat err = %v", err)
+	}
+	if len(status.ContainerStatuses) != 1 {
+		t.Fatalf("expected a container status, got %d", len(status.ContainerStatuses))
+	}
+	got := status.ContainerStatuses[0].State.Terminated.FinishedAt.Time
+	if drift := got.Sub(exited); drift < -2*time.Second || drift > 2*time.Second {
+		t.Fatalf("FinishedAt = %v, want the guest's report time %v (drift %v)", got, exited, drift)
+	}
+}

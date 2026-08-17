@@ -215,7 +215,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       expect(Claims, :release, fn _wfid, _handle -> :ok end)
 
-      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => orphan.workflow_job_id}})
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => orphan.pod_name}
+               })
     end
 
     test "still defers to GitHub before re-queueing" do
@@ -238,7 +241,40 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
-      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => orphan.workflow_job_id}})
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => orphan.workflow_job_id, "pod_name" => orphan.pod_name}
+               })
+    end
+
+    test "leaves a replacement attempt alone when the job was re-claimed before this ran" do
+      # The targeted run can be delayed long enough for the job to be
+      # re-queued and picked up by a fresh Pod. Acting on the row then
+      # would release the REPLACEMENT's claim using the replacement's own
+      # `claimed_at` (GitHub still reports `queued` while its runner
+      # registers), killing a live attempt. The stale-claim handle guard
+      # in `Claims.release/2` cannot catch it, because re-reading the row
+      # hands us the new handle rather than the old one.
+      account = account_fixture()
+
+      replacement =
+        candidate(
+          account_id: account.id,
+          pod_name: "pod-replacement",
+          claimed_at: DateTime.utc_now()
+        )
+
+      expect(Jobs, :get_orphaned_running, fn _wfid -> Map.delete(replacement, :status) end)
+
+      reject(&Tuist.VCS.get_github_app_installation_for_account/1)
+      reject(&GitHubClient.get_workflow_job/3)
+      reject(&Jobs.record_queued/1)
+      reject(&Claims.release/2)
+
+      assert :ok =
+               OrphanedRunnersWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => replacement.workflow_job_id, "pod_name" => "pod-that-stopped"}
+               })
     end
 
     test "is a no-op when the job already left the running state" do
@@ -249,7 +285,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
 
-      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => 42}})
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{args: %{"workflow_job_id" => 42, "pod_name" => "pod-gone"}})
     end
   end
 end

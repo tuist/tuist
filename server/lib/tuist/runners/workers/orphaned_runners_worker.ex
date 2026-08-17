@@ -95,9 +95,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   a `running` row is overwhelmingly the former. That reasoning does
   not apply once we have direct evidence the Pod is gone: the
   controller's `pods/stopped` report releases the claim and passes
-  the released `workflow_job_id` here as
-  `%{"workflow_job_id" => id}`, which re-checks that one job
-  immediately.
+  the released job here as
+  `%{"workflow_job_id" => id, "pod_name" => name}`, which re-checks
+  that one job immediately.
+
+  Both keys are load-bearing. The Pod name binds the run to the
+  attempt that actually stopped, because a queued Oban job can be
+  delayed past a re-queue and a fresh claim. Recovering the row
+  then would release the *replacement's* claim: GitHub still
+  reports `queued` while the new runner registers, and the
+  stale-handle guard in `Claims.release/2` does not catch it either,
+  since re-reading the row hands us the replacement's `claimed_at`
+  rather than the stale one the sweep would have been holding.
 
   Without it the released job is stranded for the full 5 minutes.
   Releasing the PG claim does not make the job dispatchable — the
@@ -137,18 +146,49 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   @stale_after_seconds 300
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id}}) when is_integer(workflow_job_id) do
+  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}})
+      when is_integer(workflow_job_id) and is_binary(pod_name) and pod_name != "" do
     case Jobs.get_orphaned_running(workflow_job_id) do
       nil ->
         # The row moved on between the release and this run: the
-        # executor's `completed` webhook landed, or another Pod
-        # re-claimed the job. Either way there is nothing orphaned.
+        # executor's `completed` webhook landed, or the job was
+        # re-queued. Either way there is nothing orphaned.
         :ok
 
-      orphan ->
+      %{pod_name: ^pod_name} = orphan ->
         recover_one(orphan)
         :ok
+
+      %{pod_name: current_pod} ->
+        # The row is `running` again, but for a DIFFERENT Pod: the job
+        # was re-queued and re-claimed while this run sat in the queue.
+        # Recovering it here would release the replacement's claim using
+        # the replacement's own `claimed_at` — GitHub still reports
+        # `queued` while its runner registers, so the GH check does not
+        # save us, and the stale-handle guard in `Claims.release/2`
+        # cannot either, because re-reading the row hands us the new
+        # handle rather than the old one. Only the Pod we were told
+        # stopped is ours to act on.
+        Logger.info("runners: targeted orphan recovery skipped — job re-claimed by another pod",
+          workflow_job_id: workflow_job_id,
+          stopped_pod: pod_name,
+          current_pod: current_pod
+        )
+
+        :ok
     end
+  end
+
+  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id}}) do
+    # Targeted recovery is only safe when it can prove the row still
+    # belongs to the attempt that stopped, so a job without the Pod
+    # binding is dropped rather than run unbound or widened into a full
+    # sweep. The 1-minute sweep still covers the row.
+    Logger.warning("runners: targeted orphan recovery missing pod_name; leaving it to the sweep",
+      workflow_job_id: workflow_job_id
+    )
+
+    :ok
   end
 
   def perform(_job) do

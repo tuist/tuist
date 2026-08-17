@@ -110,6 +110,20 @@ func readRunnerExit(statusDir string) (int32, bool) {
 	return int32(code), true
 }
 
+// readRunnerExitTime returns when the guest wrote its exit report, which
+// is the moment it halted. Used to date a stop on the recovered path,
+// where no `tart run` handle survived to have observed the exit itself.
+func readRunnerExitTime(statusDir string) (time.Time, bool) {
+	if statusDir == "" {
+		return time.Time{}, false
+	}
+	fi, err := os.Stat(filepath.Join(statusDir, runnerExitFile))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return fi.ModTime(), true
+}
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).

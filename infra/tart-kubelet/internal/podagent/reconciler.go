@@ -285,10 +285,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// dirty marker it promotes the branch to the account's new
 			// master. A crash (exitErr != nil) or a read-only/clean job
 			// discards it.
-			// Resolve the runner's exit before deleteByKey, which
-			// cleans up the VM's user data and takes the status share
-			// (and the guest's report in it) with it.
+			// Resolve the runner's exit and the time it happened before
+			// deleteByKey, which removes <UserDataDir>/<vm> and takes the
+			// status share (and the guest's report in it) with it.
 			exitCode, exitReason := r.runnerTermination(entry, exitErr)
+			finishedAt := runnerFinishedAt(entry)
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
@@ -308,7 +309,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 			status.StartTime = &entry.StartTS
 			status.ContainerStatuses = terminatedContainerStatuses(
-				pod, entry.VMName, entry.StartTS, metav1.NewTime(time.Now()), exitCode, exitReason,
+				pod, entry.VMName, entry.StartTS, finishedAt, exitCode, exitReason,
 			)
 
 			_ = r.publishStatus(ctx, pod, status)
@@ -1227,11 +1228,13 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// safety-net finalize (empty account, cleanExit=false) would discard a
 		// successfully completed dirty branch instead of promoting it. Idempotent
 		// with the terminal path: finalize no-ops once the branch is consumed.
-		// Read the guest's exit report before deleteByKey removes the
-		// status share it lives in. No `tart run` error is available on
-		// this path — the process is simply gone — so the guest's own
-		// report is the only exit code there will ever be.
+		// Read the guest's exit report, and the time it was written,
+		// before deleteByKey removes the status share they live in. No
+		// `tart run` error is available on this path — the process is
+		// simply gone — so the guest's own report is the only exit code
+		// and the only exit time there will ever be.
 		exitCode, exitReason := r.runnerTermination(entry, nil)
+		finishedAt := runnerFinishedAt(entry)
 		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so
@@ -1240,7 +1243,7 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		status.Phase = corev1.PodSucceeded
 		status.Reason = "TartRunExited"
 		status.ContainerStatuses = terminatedContainerStatuses(
-			pod, entry.VMName, entry.StartTS, metav1.NewTime(time.Now()), exitCode, exitReason,
+			pod, entry.VMName, entry.StartTS, finishedAt, exitCode, exitReason,
 		)
 		return status, nil
 	}
@@ -1429,6 +1432,34 @@ func (r *Reconciler) runnerTermination(entry *Entry, runErr error) (int32, strin
 		return 1, runnerExitReasonTartFailed
 	}
 	return 0, runnerExitReasonUnreported
+}
+
+// runnerFinishedAt resolves when the VM actually stopped, preferring
+// observed exit times over the reconcile's own clock.
+//
+// The reconcile that notices a stop runs up to a poll interval (30s)
+// plus teardown after the process ended, and this timestamp dates the
+// billing session, so falling back to `now` bills that gap. Preference
+// order:
+//
+//  1. The `tart run` handle's own exit stamp, taken beside `cmd.Wait`.
+//     Exact, and available whenever the process died under this
+//     kubelet.
+//  2. The mtime of the guest's exit report, written as it halted. The
+//     recovered path (`Run == nil` after a kubelet restart) has no
+//     handle, and this is the closest thing to an exit time that
+//     survives on disk.
+//  3. Now. No evidence either way, so do not invent a bound.
+func runnerFinishedAt(entry *Entry) metav1.Time {
+	if entry.Run != nil {
+		if at, ok := entry.Run.ExitedAt(); ok && !at.IsZero() {
+			return metav1.NewTime(at)
+		}
+	}
+	if at, ok := readRunnerExitTime(entry.VolumeStatusDir); ok {
+		return metav1.NewTime(at)
+	}
+	return metav1.NewTime(time.Now())
 }
 
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
