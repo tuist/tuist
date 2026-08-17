@@ -137,6 +137,35 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenLocalSwiftPackageObjcStaticFrameworkHasResources() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let project = Project.test(
+            settings: Settings(
+                base: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "SWIFT_PACKAGE=1"]],
+                configurations: [:]
+            ),
+            targets: [target],
+            type: .local
+        )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotSideEffects: gotSideEffects,
+            project: project
+        )
+    }
+
+    @Test
     func mapWhenDisableBundleAccessorsIsTrueDoesNotGenerateAccessors() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]

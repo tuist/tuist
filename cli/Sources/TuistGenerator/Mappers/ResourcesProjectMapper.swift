@@ -14,7 +14,8 @@ import XcodeGraph
 ///      cannot host their own resources).
 ///   2. Writes a `TuistBundle+<Target>.swift` accessor into the target's Derived directory so
 ///      that user code can call `Bundle.module`.
-///   3. For external Obj-C targets, also emits SwiftPM-shaped C bridging files.
+///   3. For Objective-C targets generated from Swift packages, also emits
+///      Swift Package Manager-shaped C bridging files.
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
@@ -120,7 +121,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
     }
 
     private func targetNeedsObjcAccessor(_ target: Target, project: Project) -> Bool {
-        guard case .external = project.type else { return false }
+        guard projectUsesSwiftPackageBuildSettings(project) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
         }
@@ -129,6 +130,21 @@ public struct ResourcesProjectMapper: ProjectMapping {
             .isEmpty
         let needsBundle = !target.supportsResources || target.product == .staticFramework
         return containsObjc && hasBundleResources && needsBundle
+    }
+
+    private func projectUsesSwiftPackageBuildSettings(_ project: Project) -> Bool {
+        if case .external = project.type { return true }
+
+        guard let definitions = project.settings.base["GCC_PREPROCESSOR_DEFINITIONS"] else {
+            return false
+        }
+        let values: [String] = switch definitions {
+        case let .array(values):
+            values
+        case let .string(value):
+            value.split(whereSeparator: \.isWhitespace).map(String.init)
+        }
+        return values.contains { $0 == "SWIFT_PACKAGE" || $0.hasPrefix("SWIFT_PACKAGE=") }
     }
 
     /// Files inside buildable folders that should trip bundle synthesis but aren't caught by
