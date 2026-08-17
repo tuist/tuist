@@ -70,7 +70,7 @@ spec:
         # inside the rescue system with images for each supported
         # distribution.
         image:
-          path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.gz
+          path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.zst
         # Software RAID 1 mirror across both NVMes. caph silently
         # rewrites `swraidLevel: 0` → `SWRAIDLEVEL 1` in the
         # installimage wrapper (RAID 0 isn't supported via its API),
