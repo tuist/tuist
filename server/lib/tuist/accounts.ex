@@ -27,6 +27,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Kura.Demand
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -2523,14 +2524,36 @@ defmodule Tuist.Accounts do
   end
 
   defp cache_endpoint_urls(%Account{} = account, :kura) do
+    # A Kura-capable client asking where to send cache traffic is the request
+    # boundary the demand-driven lifecycle measures: it covers the Xcode,
+    # Module, and Gradle lanes uniformly, and it is the same call whether the
+    # client is a developer machine or a runner. The write is buffered in
+    # memory and flushed periodically, so this stays one ETS insert.
+    Demand.record(account.id)
+
     case kura_cache_endpoint_urls(account) do
-      [] -> custom_cache_endpoint_urls(account)
+      [] -> absent_kura_endpoint_urls(account)
       endpoints -> endpoints
     end
   end
 
   defp cache_endpoint_urls(%Account{} = account, :default) do
     custom_cache_endpoint_urls(account)
+  end
+
+  # What to answer while the account has no Kura instance serving — archived,
+  # provisioning, draining, or refused for capacity. For an account under the
+  # demand-driven lifecycle that has to be authoritative object storage: if
+  # archival handed these accounts back to the legacy custom-endpoint path
+  # instead, archiving an account would be what keeps that path alive, and the
+  # legacy teardown the migration is aiming at could never complete. Accounts
+  # that have never routed through Kura keep the custom-endpoint behaviour.
+  defp absent_kura_endpoint_urls(%Account{} = account) do
+    if Demand.lifecycle_managed?(account) do
+      CacheEndpoints.active_endpoint_urls()
+    else
+      custom_cache_endpoint_urls(account)
+    end
   end
 
   defp custom_cache_endpoint_urls(%Account{} = account) do

@@ -8,8 +8,12 @@ defmodule Tuist.Kura.Server do
   Lifecycle:
 
       provisioning ⇄ failed
-            ↓         ↑
-            └→ active ┘
+            ↑         ↑
+            │  └→ active ┘
+            │       ↓ ↑
+            │  drain_pending
+            │       ↓
+            └── archived
                       ↓
                   destroying → destroyed
 
@@ -34,6 +38,12 @@ defmodule Tuist.Kura.Server do
   appended to the same row so the failure history stays attached.
   `:destroyed` is reserved for operator-driven teardown.
 
+  `:drain_pending` and `:archived` are the demand-driven lifecycle
+  (`Tuist.Kura.Lifecycle`) and are outside the observation projection:
+  neither has an endpoint to probe, and an archived row has no backing
+  workload at all. They are driven only by the archival sweep, which owns
+  its own clocks on `kura_account_region_lifecycles`.
+
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
 
@@ -53,16 +63,37 @@ defmodule Tuist.Kura.Server do
   alias Tuist.Accounts.Account
   alias Tuist.Kura.Deployment
 
-  @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4, replicating: 5]
+  @status_mappings [
+    provisioning: 0,
+    active: 1,
+    failed: 2,
+    destroying: 3,
+    destroyed: 4,
+    replicating: 5,
+    drain_pending: 6,
+    archived: 7
+  ]
   @statuses Keyword.keys(@status_mappings)
   # `:replicating` sits between `:provisioning` and `:active`: the workload is up
   # on the desired image but its public endpoint is not serving yet because the
   # pod is still replicating from mesh peers behind the bootstrap gate.
+  #
+  # `:drain_pending` and `:archived` are the demand-driven lifecycle's two
+  # states (see `Tuist.Kura.Lifecycle`). An active instance whose account has
+  # not asked for cache in its inactivity window enters `:drain_pending`, which
+  # unpublishes the endpoint and waits out the drain window; if demand returns
+  # before teardown it goes straight back to `:active`, otherwise it reaches
+  # `:archived`. Archival is not destruction: `:archived -> :provisioning` is
+  # the cold return the next cache demand triggers, on the same row, because
+  # the partial uniqueness index still counts an archived row as owning
+  # `(account, region)`.
   @allowed_status_transitions %{
     provisioning: [:provisioning, :replicating, :active, :failed, :destroying],
     replicating: [:replicating, :provisioning, :active, :failed, :destroying],
-    active: [:active, :replicating, :failed, :destroying],
+    active: [:active, :replicating, :failed, :destroying, :drain_pending],
     failed: [:failed, :provisioning, :replicating, :active, :destroying],
+    drain_pending: [:drain_pending, :active, :archived, :destroying],
+    archived: [:archived, :provisioning, :destroying],
     destroying: [:destroying, :destroyed],
     destroyed: [:destroyed]
   }
@@ -187,6 +218,26 @@ defmodule Tuist.Kura.Server do
     else
       add_error(changeset, :move_phase, "cannot transition from #{from} to #{to}")
     end
+  end
+
+  @doc """
+  Changeset for the demand-driven lifecycle transitions
+  (`Tuist.Kura.Lifecycle`). Archival has to clear the observation columns
+  alongside the status — an archived row has no pod to have observed — and a
+  cold return has to clear `current_image_tag` so the projection treats the
+  returning instance as a first install rather than as drift.
+  """
+  def lifecycle_changeset(server, attrs) do
+    server
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :observed_image_tag,
+      :last_observed_at,
+      :last_ready_at
+    ])
+    |> validate_status_and_image()
   end
 
   @doc """

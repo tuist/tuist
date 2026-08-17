@@ -49,4 +49,24 @@ defmodule Tuist.FeatureFlagsTest do
 
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
+
+  test "gates Kura archival on its own flag" do
+    account = %Account{id: 42, name: "tuist"}
+
+    expect(FunWithFlags, :enabled?, fn :kura_archival, [for: ^account] -> false end)
+
+    refute FeatureFlags.kura_archival_enabled?(account)
+  end
+
+  describe "account groups" do
+    test "resolve to the account's effective billing plan so a flag can be gated per tier" do
+      account = %Account{id: 42, name: "tuist"}
+
+      stub(Tuist.Billing, :effective_plan, fn ^account -> :air end)
+
+      assert FunWithFlags.Group.in?(account, :air)
+      assert FunWithFlags.Group.in?(account, "air")
+      refute FunWithFlags.Group.in?(account, :enterprise)
+    end
+  end
 end

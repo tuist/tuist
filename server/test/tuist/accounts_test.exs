@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -4720,6 +4721,60 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "serves authoritative object storage while a lifecycle-managed account has no Kura instance" do
+      # Given
+      # An archived account must not fall back to the legacy custom-endpoint
+      # path: that would make archiving accounts the thing that keeps the
+      # legacy path alive.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true, region: :usa})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "records cache demand for the account when a Kura client resolves endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      Demand.flush()
+
+      # Then
+      assert Demand.get(account.id, "us-east")
+    end
+
+    test "does not record cache demand when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_endpoints_for_handle(account.name)
+      Demand.flush()
+
+      # Then
+      refute Demand.get(account.id, "us-east")
     end
 
     test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do

@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -55,6 +56,19 @@ defmodule Tuist.Kura do
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+
+  # How long a server that has stopped receiving new traffic keeps serving
+  # before its resources are torn down, so persistent gRPC channels and
+  # in-flight builds finish. Shared by the warm-handoff move (where the
+  # promoted target is already caught up) and by the demand-driven lifecycle's
+  # drain-pending wait (where authoritative object storage is already
+  # answering, since the endpoint is unpublished on entry). In both cases the
+  # cache the drain protects has a correct alternative, so this is a safety
+  # margin rather than a correctness requirement.
+  @drain_seconds 120
+
+  @doc "Seconds a draining server keeps serving before teardown."
+  def drain_seconds, do: @drain_seconds
 
   ## Versions
 
@@ -339,14 +353,17 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  The regions of the account's non-destroyed steady-state servers (the same
-  rows as `list_servers_for_account/1`). The slim variant for hot paths —
-  mesh heartbeats run this every minute per enrolled node and only need the
-  region strings, not the ever-growing deployment-history preload.
+  The regions of the account's live steady-state servers. The slim variant for
+  hot paths — mesh heartbeats run this every minute per enrolled node and only
+  need the region strings, not the ever-growing deployment-history preload.
+
+  Archived rows are excluded even though they are not destroyed: they have no
+  workload behind them, so advertising their region as a mesh peer would hand
+  self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> select([s], s.region)
     |> Repo.all()
@@ -547,6 +564,13 @@ defmodule Tuist.Kura do
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
   def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    # A runner build resolving its cache endpoint is cache demand for the
+    # account just as a developer machine's resolution is, and it is recorded
+    # at the same boundary. The account's service-region instance is what the
+    # demand keeps warm; the private runner-cache node this call may return is
+    # a separate identity rule (`Tuist.Kura.RunnerCache`).
+    Demand.record(account.id)
+
     private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
   end
 
@@ -846,6 +870,173 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Enters drain-pending: unpublishes the account's cache endpoint so no new
+  cache traffic is routed here, and leaves the workload running so in-flight
+  work finishes. Requests fall back to authoritative object storage from this
+  moment, which is why the endpoint comes down first and teardown waits out
+  `drain_seconds/0`.
+
+  The server keeps its `url`, so cancelling the drain only has to republish
+  the endpoint rather than rediscover it.
+  """
+  def begin_drain(%Server{status: :active} = server) do
+    case Repo.transaction(fn ->
+           with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+                :ok <- remove_cache_endpoint(server) do
+             server
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def begin_drain(%Server{}), do: {:error, :not_drainable}
+
+  @doc """
+  Cancels a drain and returns the instance to service: republishes the cache
+  endpoint the drain unpublished and flips the status back to `:active`.
+
+  Only valid before teardown has been issued. Once the backing resource is
+  being deleted there is nothing to return to, and the next cache demand cold
+  provisions instead.
+  """
+  def cancel_drain(%Server{status: :drain_pending} = server) do
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         {:ok, server} <- cancel_drain_transaction(server, account) do
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def cancel_drain(%Server{}), do: {:error, :not_draining}
+
+  defp cancel_drain_transaction(server, account) do
+    Repo.transaction(fn ->
+      with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update(),
+           :ok <- ensure_cache_endpoint_for_region(account, server) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  # Private regions never mirror their URL into `account_cache_endpoints` (the
+  # CLI cannot reach an in-cluster endpoint), so republishing has to respect
+  # the same rule activation does.
+  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id, url: url} = server) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, url)
+
+      {:error, _reason} ->
+        {:error, {:unknown_region, server.region}}
+    end
+  end
+
+  @doc """
+  Marks a drained server archived once its backing resource is gone.
+
+  Archival is not destruction: the row stays, still owning `(account,
+  region)`, and `return_from_archive/2` is what the next cache demand runs on
+  it. Every field describing a running instance is cleared, because an
+  archived instance has no pod, no endpoint, and no local directory left to
+  describe.
+  """
+  def archive_server(%Server{status: :drain_pending} = server) do
+    {:ok, server} =
+      server
+      |> Server.lifecycle_changeset(%{
+        status: :archived,
+        url: nil,
+        current_image_tag: nil,
+        observed_image_tag: nil,
+        last_ready_at: nil
+      })
+      |> Repo.update()
+
+    broadcast_server(server, :updated)
+    {:ok, server}
+  end
+
+  def archive_server(%Server{}), do: {:error, :not_archivable}
+
+  @doc """
+  Cold-provisions an archived instance back into service on the same row.
+
+  A returning account takes exactly the path a new one takes: a fresh
+  deployment onto an empty directory, with no expectation of prior content.
+  `current_image_tag` is cleared so the reconciler treats this as a first
+  install rather than as drift against whatever the instance ran before it
+  was archived.
+  """
+  def return_from_archive(%Server{status: :archived} = server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, server} <- return_from_archive_transaction(server, region, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
+    end
+  end
+
+  def return_from_archive(%Server{}, _image_tag), do: {:error, :not_archived}
+
+  defp return_from_archive_transaction(server, region, image_tag) do
+    Repo.transaction(fn ->
+      locked_server =
+        case lock_server(server.id, server.account_id) do
+          %Server{status: :archived} = locked_server -> locked_server
+          %Server{} -> Repo.rollback(:not_archived)
+          nil -> Repo.rollback(:not_found)
+        end
+
+      with :ok <- ensure_no_open_deployment(locked_server.id),
+           {:ok, locked_server} <-
+             locked_server
+             |> Server.lifecycle_changeset(%{status: :provisioning, current_image_tag: nil, url: nil})
+             |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
+        locked_server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  Whether the server has anything to replicate from: another live instance of
+  the same account, or an enrolled self-hosted peer.
+
+  A cold return has neither. Projecting `:replicating` onto an instance with
+  no peers would leave it waiting on a bootstrap that can never complete, so
+  the reconciler consults this before surfacing that status.
+  """
+  def replication_source?(%Server{id: id, account_id: account_id} = server) do
+    peer_server_exists?(id, account_id) or self_hosted_peer_exists?(server)
+  end
+
+  defp peer_server_exists?(id, account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.id != ^id)
+    |> where([s], s.status in [:active, :replicating, :drain_pending])
+    |> Repo.exists?()
+  end
+
+  defp self_hosted_peer_exists?(%Server{account_id: account_id}) do
+    AccountCacheEndpoint
+    |> where([e], e.account_id == ^account_id and e.technology == :kura_self_hosted_peer)
+    |> where([e], is_nil(e.deactivated_at))
+    |> Repo.exists?()
   end
 
   @doc """

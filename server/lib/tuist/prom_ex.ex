@@ -78,6 +78,7 @@ defmodule Tuist.PromEx do
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,
+        Tuist.Kura.PromExPlugin,
         Tuist.Runners.PromExPlugin,
         TuistCommon.HTTP.TransportPromExPlugin,
         TuistCommon.GitHub.PromExPlugin

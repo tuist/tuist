@@ -351,6 +351,46 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  @doc """
+  How many machines a Kura region has installed, or `nil` when the region is
+  not listed. Read from `TUIST_KURA_REGION_MACHINES` as a `region=count` comma
+  list (e.g. `us-east=4,eu-central=2`).
+
+  Capacity admission and the Air pressure rule both size a region from this
+  (see `Tuist.Kura.Capacity`). Leaving a region out means its capacity is
+  unknown, which admits provisioning and never pressure-archives.
+  """
+  def kura_region_machines(region_id) when is_binary(region_id) do
+    "TUIST_KURA_REGION_MACHINES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.find_value(fn pair ->
+      with [^region_id, count] <- pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1),
+           {machines, ""} <- Integer.parse(count) do
+        machines
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  def kura_region_machines(_region_id), do: nil
+
+  @doc """
+  Whether Kura cache-demand records bypass the in-memory buffer and are
+  written straight through the caller's repo connection.
+
+  False in every deployed environment: buffering is what keeps the demand hook
+  off the database on the cache-endpoint hot path. Tests turn it on so a
+  process-wide buffer cannot carry one test's demand into another's
+  transaction, the same way `Tuist.Ingestion.Bufferable` does.
+  """
+  def kura_demand_write_through_repo? do
+    :tuist
+    |> Application.get_env(Tuist.Kura.Demand, [])
+    |> Keyword.get(:write_through_repo, false)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
