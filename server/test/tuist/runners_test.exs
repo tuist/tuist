@@ -1142,6 +1142,40 @@ defmodule Tuist.RunnersTest do
       assert {:ok, 2} = Runners.report_volume_head(account.id, "node-3", digest, 1)
       refute VolumeMasterOrphans.exists?(account.id, digest)
     end
+
+    test "lets a cold promote retire a HEAD a host reported unverifiable, and reclaims its object" do
+      account = account_fixture()
+      poisoned = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", poisoned, 0)
+
+      # A host downloaded the HEAD's object and proved its inventory is not the
+      # digest the HEAD advertises. Nothing in the fleet can adopt that generation,
+      # so this cold promote takes the lineage over instead of being rejected.
+      cold = String.duplicate("d", 40)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-2", cold, 0, poisoned)
+
+      # And the object nothing can use is now superseded, so it is reclaimed on the
+      # ordinary supersession path rather than lingering forever.
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, tree_digest: poisoned}
+      )
+    end
+
+    test "ignores a malformed unverifiable digest rather than retiring on it" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
+
+      # The value reaches a query, so it is validated like tree_digest. Anything
+      # that is not a runner inventory digest reads as no report at all, which
+      # leaves the HEAD standing — the conservative direction.
+      for bad <- ["", "not-a-digest", String.duplicate("a", 39), String.upcase(digest), nil, 42] do
+        assert :conflict = Runners.report_volume_head(account.id, "node-2", String.duplicate("e", 40), 0, bad)
+      end
+
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+    end
   end
 
   describe "prune_orphan_volume_master/2" do

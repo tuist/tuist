@@ -465,10 +465,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// the one the HEAD advertised. On mismatch, stay on the local master (status
 	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
 	// presigned URL or a partial download can still surface one.
+	//
+	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
+	// apart. The first is a local fault (the read-only attach failed, the disk is
+	// unhappy) and says nothing about the object, so it declines quietly. The
+	// second is proof about the object itself, reproducible on every host that
+	// fetches it — and since the account cannot promote past a HEAD it cannot
+	// adopt, that proof is the only thing that can unwedge it, so it is staged for
+	// the guest to report (see stageUnverifiableHead).
 	if head.Digest != "" {
-		if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+		got, err := r.Volumes.ImageDigest(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
+			return
+		case got != head.Digest:
 			logger.Info("converge: image digest does not match HEAD; keeping local master",
 				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
 			return
 		}
 	}
@@ -490,6 +505,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	}
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+}
+
+// unverifiableHeadFile carries, into the writable status share, the HEAD digest
+// this host downloaded and found the object does not reproduce. The guest relays
+// it with its promote report, which is what lets the server retire a HEAD nothing
+// can adopt.
+//
+// The status share is the established host→guest direction (cache-ready, the
+// branch budget, the base generation all travel this way) and the host has no
+// server credentials of its own, so this is how host-observed evidence reaches
+// the control plane. Best-effort: an account that stays wedged one more job is
+// the status quo, whereas failing the convergence here would cost the job.
+const unverifiableHeadFile = "volume-head-unverifiable"
+
+func stageUnverifiableHead(statusDir, digest string) {
+	if statusDir == "" || digest == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, unverifiableHeadFile), []byte(digest), 0o644)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the

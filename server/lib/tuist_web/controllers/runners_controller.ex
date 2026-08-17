@@ -115,7 +115,7 @@ defmodule TuistWeb.RunnersController do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest, base_generation) do
+      case Runners.report_volume_head(account_id, node, digest, base_generation, unverifiable_digest(params)) do
         {:ok, generation} ->
           json(conn, %{generation: generation})
 
@@ -150,6 +150,17 @@ defmodule TuistWeb.RunnersController do
   end
 
   defp parse_base_generation(_), do: 0
+
+  # The HEAD digest the runner's host downloaded during this job and found the
+  # stored object does not reproduce, when it reported one. Whatever the body
+  # carries is passed through as-is for `Runners` to validate against the digest
+  # format; a non-binary reads as no report.
+  defp unverifiable_digest(params) do
+    case Map.get(params, "unverifiable_digest") do
+      digest when is_binary(digest) -> digest
+      _ -> nil
+    end
+  end
 
   # A runner requests the presigned PUT URL for the master object keyed by the
   # inventory digest it is about to promote, then PUTs its image there and calls
@@ -202,8 +213,11 @@ defmodule TuistWeb.RunnersController do
   # cold-job promote is stale.
   defp doomed_fast_forward?(account_id, params) do
     case Map.fetch(params, "base_generation") do
-      {:ok, value} -> not Runners.fast_forward_viable?(account_id, parse_base_generation(value))
-      :error -> false
+      {:ok, value} ->
+        not Runners.fast_forward_viable?(account_id, parse_base_generation(value), unverifiable_digest(params))
+
+      :error ->
+        false
     end
   end
 

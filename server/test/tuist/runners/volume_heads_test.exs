@@ -74,6 +74,87 @@ defmodule Tuist.Runners.VolumeHeadsTest do
     end
   end
 
+  # Without this, a HEAD whose stored object does not reproduce its digest is
+  # permanent: converging hosts verify the object and decline, so nobody holds that
+  # generation, and every promote is then a cold one the fast-forward rejects. The
+  # account can neither adopt the HEAD nor replace it — observed in production as
+  # one account stuck cold on all nine hosts for days.
+  describe "bump_head/6 retiring a HEAD reported unverifiable" do
+    test "lets a cold promote take over the lineage it disproved" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "poisoned", 0)
+
+      assert {:ok, 2} =
+               VolumeHeads.bump_head(account.id, "mac-02", "digest-cold", 0, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "poisoned"
+               )
+
+      # The generation ADVANCES rather than resetting to 1: hosts still holding an
+      # older master compare against one monotonic counter, so a reset would leave
+      # them refusing to install the newer master forever.
+      assert %{generation: 2, tree_digest: "digest-cold"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "keeps rejecting a cold promote that reports nothing" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+
+      assert :conflict = VolumeHeads.bump_head(account.id, "mac-02", "digest-cold", 0)
+
+      assert :conflict =
+               VolumeHeads.bump_head(account.id, "mac-02", "digest-cold", 0, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: nil
+               )
+
+      assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "retires only the digest the report names" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+
+      # A report about a digest the HEAD has already moved off proves nothing about
+      # the HEAD standing now, so the cold promote stays rejected. This is also the
+      # race: another host advanced the HEAD between the download and this bump.
+      assert :conflict =
+               VolumeHeads.bump_head(account.id, "mac-02", "digest-cold", 0, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "some-older-digest"
+               )
+
+      assert %{generation: 1, tree_digest: "digest-a"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "does not let a report substitute for a stale warm base" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+      VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
+
+      # Retirement is the cold-promote escape only. A warm job that built on a base
+      # another host advanced past still loses the fast-forward, report or not —
+      # otherwise the report would become a way around the compare-and-swap.
+      assert :conflict =
+               VolumeHeads.bump_head(account.id, "mac-03", "digest-stale", 1, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "digest-b"
+               )
+
+      assert %{generation: 2, tree_digest: "digest-b"} = VolumeHeads.get_head(account.id)
+    end
+
+    test "leaves other accounts' heads alone" do
+      a = account_fixture()
+      b = account_fixture()
+      VolumeHeads.bump_head(a.id, "mac-01", "shared-digest", 0)
+      VolumeHeads.bump_head(b.id, "mac-02", "shared-digest", 0)
+
+      assert {:ok, 2} =
+               VolumeHeads.bump_head(a.id, "mac-03", "a-cold", 0, VolumeHeads.reserved_tuist_cache(),
+                 unverifiable_digest: "shared-digest"
+               )
+
+      assert %{generation: 1, tree_digest: "shared-digest"} = VolumeHeads.get_head(b.id)
+    end
+  end
+
   describe "fast_forward_viable?/3" do
     test "agrees with bump_head on every base, so it only ever skips doomed work" do
       account = account_fixture()
@@ -93,6 +174,24 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       # And what it calls viable, bump_head accepts.
       assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
       refute VolumeHeads.fast_forward_viable?(account.id, 1)
+    end
+
+    test "mirrors the retirement rule, so the pre-flight cannot 409 the promote that unwedges an account" do
+      account = account_fixture()
+      VolumeHeads.bump_head(account.id, "mac-01", "poisoned", 0)
+
+      # The pre-flight runs BEFORE the upload. If it ignored the report it would
+      # turn away every cold promote that could retire a poisoned HEAD, and the
+      # bump — the actual authority — would never be reached.
+      refute VolumeHeads.fast_forward_viable?(account.id, 0)
+
+      assert VolumeHeads.fast_forward_viable?(account.id, 0, VolumeHeads.reserved_tuist_cache(),
+               unverifiable_digest: "poisoned"
+             )
+
+      refute VolumeHeads.fast_forward_viable?(account.id, 0, VolumeHeads.reserved_tuist_cache(),
+               unverifiable_digest: "another-digest"
+             )
     end
 
     test "reads as viable for anything it cannot evaluate" do
