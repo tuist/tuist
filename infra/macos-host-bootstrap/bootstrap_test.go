@@ -630,6 +630,38 @@ func TestRenderSSHIngressGuardScript(t *testing.T) {
 	}
 }
 
+// A Tart VM's egress arrives inbound on the vmnet bridge before it is routed
+// and NAT'd out, so a bare `to any port 22` block also drops every SSH the
+// customer workload makes — private git dependencies, ssh:// submodules, deploy
+// steps — as a silent timeout rather than a refusal. The guard exists to keep
+// scan traffic off the host's own listener, so it must pass VM egress while
+// still denying a VM the host's and a sibling's :22.
+func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state",
+		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// pf is first-match-wins across `quick` rules. The VM pass has to render
+	// above the catch-all block or VM egress stays dropped, and the VM→VM block
+	// has to render above that pass or a VM reaches the host's :22.
+	vmPass := strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22")
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") < vmPass {
+		t.Error("catch-all block renders before the VM pass; VM egress to :22 stays dropped")
+	}
+	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
+		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
+	}
+}
+
 // A malformed allow CIDR must fail closed rather than render a creative
 // ruleset onto a host we can only reach through the port it governs.
 func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
