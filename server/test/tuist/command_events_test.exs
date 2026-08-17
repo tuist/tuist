@@ -1965,6 +1965,50 @@ defmodule Tuist.CommandEventsTest do
       # Then
       assert got == 0.5
     end
+
+    test "returns nil when the window holds fewer events than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..11 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..12 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == 0.5
+    end
   end
 
   describe "get_project_last_interaction_data/1" do
