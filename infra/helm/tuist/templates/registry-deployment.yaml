@@ -158,6 +158,12 @@ spec:
             periodSeconds: {{ .Values.registry.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.registry.probes.liveness.timeoutSeconds }}
             failureThreshold: {{ .Values.registry.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              exec:
+                # Give the ingress time to stop routing new traffic before the
+                # release shuts down — avoids 502s during a rolling deploy.
+                command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.registry.resources | nindent 12 }}
           volumeMounts:
