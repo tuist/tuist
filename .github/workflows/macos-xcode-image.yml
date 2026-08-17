@@ -15,7 +15,7 @@ name: macOS + Xcode Image
 # (`runs-on: tuist-macos-xcode-26-5`, etc.) once that wiring lands.
 # For now, the chart pins one image at a time as the default.
 #
-# .xip source: pulled from `<registry>/xcode-xips:<version>`,
+# .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
 # our in-house mirror populated by `mise run xcode-mirror:upload`
 # on a maintainer's Mac (Apple's SRP-only signin + `xcodes`'s
 # per-process cookie storage rule out an in-cluster auto-mirror).
@@ -77,35 +77,39 @@ jobs:
       # pre-requirement to SSH into the builder.
       # If the .xip isn't in the mirror yet, the operator runs
       # the upload task locally and re-triggers this workflow.
-      # The .xip lives on the same registry as the images, so this needs
-      # a credential before the pull. The login is repeated before the
-      # push at the end of the job: `Build image` moves
-      # ~/.docker/config.json aside for Packer's anonymous clone of the
-      # public Cirrus base and restores it afterwards, and repeating the
-      # login costs nothing next to depending on that restore.
-      - name: Log in to the Tuist OCI registry
-        uses: ./.github/actions/oci-registry-login
-        with:
-          host: ${{ vars.OCI_REGISTRY_HOST }}
-          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-
+      #
+      # This mirror stays on GHCR while the images this job publishes
+      # do not, because its only writer is that laptop task. Measured
+      # from one, with the same 512 MB blob: 136s to GHCR against 481s
+      # to the tailnet-only registry, so the same .xip is a ten-minute
+      # upload one way and closer to forty the other. Worse, Tailscale
+      # starts a session on a DERP relay and only upgrades to a direct
+      # path once NAT traversal succeeds — over the relay these uploads
+      # fail outright rather than merely crawl, which is what a fresh
+      # session gets. GHCR's limits were never the problem for a
+      # single-blob artifact; they were the problem for the ~50 GB
+      # images, which are pushed from this builder over a datacenter
+      # link and go to our registry below.
       - name: Pull Xcode .xip from mirror
         id: xcode_xip
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
-          REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
           mkdir -p "$XCODE_XIP_DIR"
-          if ! oras pull "${REGISTRY_HOST}/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
+          # Explicit oras login here (not at workflow top) because
+          # oras' login persists to ~/.docker/config.json, which
+          # Packer's anonymous-pull dance later toggles back to
+          # anonymous for the public Cirrus base.
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username tuist-bot --password-stdin
+          if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
             {
               echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
-              echo "${REGISTRY_HOST}/xcode-xips:${XCODE_VERSION}."
+              echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
               echo ""
-              echo "Populate the mirror from a maintainer Mac, connected"
-              echo "to the tailnet:"
+              echo "Populate the mirror from a maintainer Mac:"
               echo ""
               echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
               echo ""

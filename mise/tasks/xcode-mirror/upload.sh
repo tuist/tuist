@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-#MISE description "Download an Xcode .xip from Apple via xcodes and push it to the Tuist OCI registry."
+#MISE description "Download an Xcode .xip from Apple via xcodes and push it to ghcr.io/tuist/xcode-xips."
 #USAGE arg "<version>" help="Xcode version to publish (e.g. 26.4.1, 26.5)."
 
 # Local maintainer task — populates the in-house Xcode .xip mirror
-# at `<registry>/xcode-xips:<version>` that the
+# at `ghcr.io/tuist/xcode-xips:<version>` that the
 # `.github/workflows/macos-xcode-image.yml` workflow pulls from.
 #
 # Run this when an xcodereleases.com RSS notification lands in
@@ -11,11 +11,12 @@
 # `infra/macos-xcode-image/AGENTS.md` for the architecture and the
 # RSS subscription command.
 #
-# Tools come from the repo-root mise.toml (xcodes, oras, jq).
-# Registry credentials come from the environment (see below).
-# xcodes prompts for Apple ID password + 2FA the first time per
-# ~30-day window and caches the session in the local keychain
-# afterwards.
+# Tools come from the repo-root mise.toml (xcodes, oras, jq, gh).
+# Beyond that the task self-bootstraps: it uses the operator's
+# existing `gh` token to log oras into ghcr.io so they don't have
+# to remember the manual login command. xcodes prompts for Apple
+# ID password + 2FA the first time per ~30-day window and caches
+# the session in the local keychain afterwards.
 
 set -euo pipefail
 
@@ -30,29 +31,62 @@ fi
 # Running this task via `mise run xcode-mirror:upload` auto-installs
 # anything missing.
 
-# === Registry credentials ==================================================
+# === Auto-login to GHCR via gh ============================================
 
-# The mirror now lives on the Tuist OCI registry rather than GHCR, so the
-# `gh`-token bootstrap this task used to do no longer applies: the
-# registry has its own credentials and does not know about GitHub.
-#
-# It is also reachable on the tailnet only, so this task needs the
-# operator connected. That is the usual state on a maintainer Mac, and
-# the failure is legible if not.
-: "${TUIST_OCI_REGISTRY_HOST:?set TUIST_OCI_REGISTRY_HOST (e.g. oci.tuist.dev)}"
-: "${TUIST_OCI_REGISTRY_USERNAME:?set TUIST_OCI_REGISTRY_USERNAME (OCI_REGISTRY_CREDENTIALS in the env vault)}"
-: "${TUIST_OCI_REGISTRY_PASSWORD:?set TUIST_OCI_REGISTRY_PASSWORD (OCI_REGISTRY_CREDENTIALS in the env vault)}"
+# oras has no `whoami` so the cheapest reliable auth check is a
+# manifest fetch. Either outcome — success (image exists) or a
+# "not found" / 404 response — proves we authenticated; only an
+# auth error (401/403) means we need to log in. Capture-then-check
+# instead of piping so `set -o pipefail` doesn't shadow oras's exit.
+needs_login=true
+if probe_output=$(oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ 2>&1); then
+  needs_login=false
+elif printf '%s' "$probe_output" | grep -qiE "not found|404"; then
+  needs_login=false
+fi
 
-echo "Logging oras into ${TUIST_OCI_REGISTRY_HOST}..."
-if ! printf '%s' "$TUIST_OCI_REGISTRY_PASSWORD" | oras login "$TUIST_OCI_REGISTRY_HOST" \
-    --username "$TUIST_OCI_REGISTRY_USERNAME" --password-stdin >/dev/null; then
-  cat >&2 <<EOF
-Error: could not log in to ${TUIST_OCI_REGISTRY_HOST}.
+if [ "$needs_login" = "true" ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+Error: gh CLI not installed, and oras can't authenticate against
+ghcr.io/tuist. Install gh (`brew install gh && gh auth login`) or
+log oras in manually:
 
-The registry is reachable on the tailnet only. Check that Tailscale is
-up on this machine, then retry.
+  echo $TOKEN | oras login ghcr.io --username <gh-user> --password-stdin
 EOF
-  exit 1
+    exit 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Signing in to gh (needed for ghcr.io push)..."
+    gh auth login
+  fi
+
+  # GHCR distinguishes login (any token does) from push (needs
+  # write:packages on the org). `gh auth login` defaults to repo +
+  # workflow scopes, so a fresh operator session almost never has
+  # write:packages. Probe `gh auth status` for it now and fail
+  # fast — better than burning a 2 GB upload before the registry
+  # returns "permission_denied: token does not match expected
+  # scopes" on the manifest PUT.
+  #
+  # `gh auth status` quotes each scope (`'write:packages'`),
+  # which a bare substring match handles without us having to
+  # care about gh's quoting changes between releases.
+  if ! gh auth status 2>&1 | grep -q "write:packages"; then
+    cat >&2 <<'EOF'
+Error: your gh token doesn't include the write:packages scope.
+
+Refresh it (this won't force a full re-login):
+  gh auth refresh -s write:packages,read:packages
+
+Then re-run this task.
+EOF
+    exit 1
+  fi
+
+  gh_user=$(gh api user --jq .login 2>/dev/null || echo "tuist-bot")
+  echo "Logging oras into ghcr.io as $gh_user..."
+  gh auth token | oras login ghcr.io --username "$gh_user" --password-stdin >/dev/null
 fi
 
 # === Cache & download ======================================================
@@ -81,7 +115,7 @@ fi
 
 # === Push ================================================================
 
-echo "Pushing $(basename "$XIP") → ${TUIST_OCI_REGISTRY_HOST}/xcode-xips:${VERSION}..."
+echo "Pushing $(basename "$XIP") → ghcr.io/tuist/xcode-xips:${VERSION}..."
 # `--artifact-type` advertises the media type for the manifest so
 # the build workflow (and future tooling) can verify the tag
 # points at a real .xip. The blob's own media type is
@@ -99,12 +133,12 @@ xip_filename="$(basename "$XIP")"
   oras push \
     --artifact-type "application/vnd.tuist.xcode-xip" \
     --annotation "org.opencontainers.image.title=${xip_filename}" \
-    "${TUIST_OCI_REGISTRY_HOST}/xcode-xips:${VERSION}" \
+    "ghcr.io/tuist/xcode-xips:${VERSION}" \
     "${xip_filename}:application/x-pkcs7-mime"
 )
 
 echo
-echo "Published ${TUIST_OCI_REGISTRY_HOST}/xcode-xips:${VERSION}"
+echo "Published ghcr.io/tuist/xcode-xips:${VERSION}"
 echo
 echo "Next:"
 echo "  gh workflow run macos-xcode-image.yml -f xcode_version=${VERSION}"
