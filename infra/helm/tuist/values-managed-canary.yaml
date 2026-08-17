@@ -9,6 +9,14 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and staging run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-canary
+    - tag:tuist-k8s-canary
+
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev

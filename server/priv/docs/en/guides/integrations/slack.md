@@ -56,6 +56,8 @@ For example, you might create an alert that triggers when the p90 build duration
 
 Scoping a cache hit rate alert to your default branch is useful when only that branch populates the cache. Pull request branches that touch a low-level module legitimately miss the cache, and including them would make the alert fire on expected regressions.
 
+A cache hit rate alert only compares windows it can compare fairly. Both windows have to hold as many runs as the rolling window size, and a source of cache data that only appears in one of the two windows is left out of both. A branch that hasn't accumulated twice the rolling window size in runs yet, or a branch name that matches nothing, therefore never triggers the rule. If you scope a rule to a low-traffic branch, keep the rolling window small enough that the branch fills it.
+
 When an alert triggers, you'll receive a message like this in your Slack channel:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
