@@ -232,16 +232,23 @@ two replicas (three instances). At two instances the demoted old primary is
 covered by no PDB at all, so the drain proceeds. At three the replica PDB
 allows one disruption, which also works. One is the only broken count.
 
-Verify a cluster is drain-safe without touching the CR:
+Audit the fleet by counting instance pods. Any cluster with a count of 1 is a
+latent drain deadlock:
 
 ```bash
-kubectl -n <ns> get pdb -o custom-columns=\
-NAME:.metadata.name,ROLE:.spec.selector.matchLabels.cnpg\\.io/instanceRole,\
-ALLOWED:.status.disruptionsAllowed
+kubectl get pods -A -l cnpg.io/podRole=instance \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.labels.cnpg\.io/cluster}{"\n"}{end}' \
+  | sort | uniq -c
 ```
 
-A `<cluster>-primary` row showing `ALLOWED=0` with no sibling row is a
-single-instance cluster and a latent drain deadlock.
+Count pods (or read `spec.instances`), **not** PDBs. The PDB shape does not
+distinguish the broken case: a healthy two-instance cluster also has only a
+`<cluster>-primary` row with `ALLOWED=0`, because the replica-scoped PDB does
+not appear until three instances. `ALLOWED=0` on the primary budget is normal
+at every instance count and is not by itself a fault.
+
+Reading the `Cluster` CR needs JIT elevation (`clusters.postgresql.cnpg.io` is
+forbidden to the normal kubectl identity); the pod count above does not.
 
 ## Backup: Barman Cloud Plugin
 

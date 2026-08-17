@@ -988,22 +988,36 @@ kube_customresource_machinedeployment_spec_replicas{
 }
 ```
 
-- Pending period: 4 hours
+- Pending period: 8 hours
 - Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has a Machine it cannot delete`
 
-The pending period is set against a healthy surge. Only the `hcloud-worker`
-class surges at all. `bare-metal-worker` runs `maxSurge: 0`, so its `replicas`
-never exceeds `spec` and it cannot produce a false positive here.
-On an hcloud pool the surplus Machine exists from the moment the replacement
-provisions until the old node finishes draining, and the slowest legitimate
-term in that drain is CNPG's `terminationGracePeriodSeconds: 1800`. A
-three-node pool rolling sequentially can therefore hold a surplus Machine for
-close to two hours on the expected path; four clears it with margin.
+Two healthy paths put `replicas` above `spec`, and the pending period has to
+clear the slower of them.
 
-This is deliberately much tighter than the 24 hours on "stuck mid-rollout".
-That rule has to sit above a bare-metal roll dominated by waiting up to six
-hours for in-flight CI jobs. This one never applies to those pools, so it does
-not have to pay for their worst case.
+A **rollout** surges a replacement before deleting the old Machine, but only on
+the `hcloud-worker` class: `bare-metal-worker` runs `maxSurge: 0` and never
+surges. On an hcloud pool the slowest legitimate term is CNPG's
+`terminationGracePeriodSeconds: 1800`, so a three-node pool rolling
+sequentially holds a surplus Machine for close to two hours.
+
+A **scale-down** is the binding case, and it is the reason this is not a
+four-hour rule. `maxSurge` governs rollouts only. Lowering `spec.replicas`
+puts `replicas` above `spec` immediately, on every class including bare metal,
+and the gap stays open for the whole drain of the Machine being removed.
+Cluster API drains a scale-down exactly like a rollout, so on a runner pool
+that means `WaitCompleted` waiting on an in-flight CI job, legitimately up to
+six hours. Scaling `runners-linux` from two replicas to one would otherwise
+page at four hours every time. Eight clears the six-hour job ceiling with
+margin.
+
+Excluding the runner pools by name and keeping four hours was the alternative.
+Rejected: it hardcodes pool names that rot, and it would leave a wedged drain
+on exactly the pools where drains are slowest with no coverage at all. One
+rule that fires late on every pool beats a fast rule with a hole in it.
+
+Still far tighter than the 24 hours on "stuck mid-rollout", which additionally
+has to sit above a *whole* multi-node bare-metal roll rather than a single
+Machine's drain.
 
 ### Kubernetes request latency
 
