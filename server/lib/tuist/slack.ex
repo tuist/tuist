@@ -508,7 +508,7 @@ defmodule Tuist.Slack do
   defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric, scheme: scheme}} = alert) do
     deviation = calculate_increase_deviation(alert)
 
-    "*#{scheme} build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+    "*#{escape_mrkdwn(scheme)} build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
@@ -524,7 +524,7 @@ defmodule Tuist.Slack do
   defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric, scheme: scheme}} = alert) do
     deviation = calculate_increase_deviation(alert)
 
-    "*#{scheme} test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+    "*#{escape_mrkdwn(scheme)} test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
@@ -534,7 +534,7 @@ defmodule Tuist.Slack do
        ) do
     deviation = calculate_decrease_deviation(alert)
 
-    branch_suffix = if is_binary(git_branch) and git_branch != "", do: " on `#{git_branch}`", else: ""
+    branch_suffix = if is_binary(git_branch) and git_branch != "", do: " on #{escape_mrkdwn(git_branch)}", else: ""
 
     "*Cache hit rate #{alert_metric_label(metric)} decreased by #{deviation}%#{branch_suffix}*\n" <>
       "Previous: #{format_alert_percentage(alert.previous_value)}\n" <>
@@ -554,9 +554,19 @@ defmodule Tuist.Slack do
        ) do
     deviation = calculate_increase_deviation(alert)
 
-    "*#{bundle_name} bundle #{bundle_size_metric_label(metric)} increased by #{deviation}%*\n" <>
+    "*#{escape_mrkdwn(bundle_name)} bundle #{bundle_size_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>
       "Current: #{format_alert_bytes(alert.current_value)}"
+  end
+
+  # Slack parses `<url|label>` inside mrkdwn section text, so a rule-authored
+  # scheme, branch or bundle name could otherwise place an arbitrary link in an
+  # alert going to the whole channel.
+  defp escape_mrkdwn(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
   end
 
   defp calculate_increase_deviation(%Alert{current_value: current, previous_value: previous}) do
