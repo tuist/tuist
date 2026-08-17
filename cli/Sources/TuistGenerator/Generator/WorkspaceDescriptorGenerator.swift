@@ -4,6 +4,7 @@ import Path
 import TuistCore
 import TuistLogging
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum WorkspaceDescriptorGeneratorError: FatalError {
@@ -146,7 +147,10 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         let structure = try await workspaceStructureGenerator.generateStructure(
             path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
             workspace: graphTraverser.workspace,
-            xcodeProjPaths: generatedProjects.keys.map { $0 },
+            xcodeProjPaths: orderedXcodeProjPaths(
+                projects: projects,
+                workspace: graphTraverser.workspace
+            ),
             fileSystem: fileSystem
         )
 
@@ -157,7 +161,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             try recursiveChildElement(
                 generatedProjects: generatedProjects,
                 element: $0,
-                path: graphTraverser.workspace.xcWorkspacePath.parentDirectory
+                path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
+                projectsOrder: graphTraverser.workspace.generationOptions.projectsOrder
             )
         }
 
@@ -188,6 +193,26 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         let location = XCWorkspaceDataElementLocationType.group(path.pathString)
         let fileRef = XCWorkspaceDataFileRef(location: location)
         return .file(fileRef)
+    }
+
+    private func orderedXcodeProjPaths(
+        projects: [ProjectDescriptor],
+        workspace: Workspace
+    ) -> [AbsolutePath] {
+        switch workspace.generationOptions.projectsOrder {
+        case .alphabetical:
+            return projects.map(\.xcodeprojPath)
+        case .manifestOrder:
+            let projectsByPath = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0.xcodeprojPath) })
+            let manifestProjects = workspace.manifestProjectPaths
+                .compactMap { projectsByPath[$0] }
+                .uniqued()
+            let manifestProjectsSet = Set(manifestProjects)
+            let graphOnlyProjects = projects
+                .map(\.xcodeprojPath)
+                .filter { !manifestProjectsSet.contains($0) }
+            return manifestProjects + graphOnlyProjects
+        }
     }
 
     /// Sorting function for workspace data elements. It applies the following sorting criteria:
@@ -243,7 +268,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private func recursiveChildElement(
         generatedProjects: [AbsolutePath: GeneratedProject],
         element: WorkspaceStructure.Element,
-        path: AbsolutePath
+        path: AbsolutePath,
+        projectsOrder: Workspace.GenerationOptions.ProjectsOrder
     ) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
@@ -255,28 +281,36 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         case let .group(name: name, path: groupPath, contents: contents):
             let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).pathString)
 
+            let children = try contents.map {
+                try recursiveChildElement(
+                    generatedProjects: generatedProjects,
+                    element: $0,
+                    path: groupPath,
+                    projectsOrder: projectsOrder
+                )
+            }
             let groupReference = XCWorkspaceDataGroup(
                 location: location,
                 name: name,
-                children: try contents.map {
-                    try recursiveChildElement(
-                        generatedProjects: generatedProjects,
-                        element: $0,
-                        path: groupPath
-                    )
-                }.sorted(by: workspaceDataElementSort)
+                children: orderedWorkspaceDataElements(children, projectsOrder: projectsOrder)
             )
 
             return .group(groupReference)
 
         case let .virtualGroup(name, contents):
-            return .group(.init(location: .container(""), name: name, children: try contents.map {
+            let children = try contents.map {
                 try recursiveChildElement(
                     generatedProjects: generatedProjects,
                     element: $0,
-                    path: path
+                    path: path,
+                    projectsOrder: projectsOrder
                 )
-            }.sorted(by: workspaceDataElementSort)))
+            }
+            return .group(.init(
+                location: .container(""),
+                name: name,
+                children: orderedWorkspaceDataElements(children, projectsOrder: projectsOrder)
+            ))
 
         case let .project(path: projectPath):
             guard generatedProjects[projectPath] != nil else {
@@ -284,6 +318,18 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             }
             let relativePath = projectPath.relative(to: path)
             return workspaceFileElement(path: relativePath)
+        }
+    }
+
+    private func orderedWorkspaceDataElements(
+        _ elements: [XCWorkspaceDataElement],
+        projectsOrder: Workspace.GenerationOptions.ProjectsOrder
+    ) -> [XCWorkspaceDataElement] {
+        switch projectsOrder {
+        case .alphabetical:
+            return elements.sorted(by: workspaceDataElementSort)
+        case .manifestOrder:
+            return elements
         }
     }
 }

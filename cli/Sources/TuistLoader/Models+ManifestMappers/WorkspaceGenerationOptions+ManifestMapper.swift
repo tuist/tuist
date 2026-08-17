@@ -19,8 +19,22 @@ extension XcodeGraph.Workspace.GenerationOptions {
             ),
             lastXcodeUpgradeCheck: manifest.lastXcodeUpgradeCheck.map { .init($0.major, $0.minor, $0.patch) },
             renderMarkdownReadme: manifest.renderMarkdownReadme,
-            derivedDataPath: try .from(manifest: manifest.derivedDataPath, generatorPaths: generatorPaths)
+            derivedDataPath: try .from(manifest: manifest.derivedDataPath, generatorPaths: generatorPaths),
+            projectsOrder: .from(manifest: manifest.projectsOrder)
         )
+    }
+}
+
+extension XcodeGraph.Workspace.GenerationOptions.ProjectsOrder {
+    static func from(
+        manifest: ProjectDescription.Workspace.GenerationOptions.ProjectsOrder
+    ) -> Self {
+        switch manifest {
+        case .alphabetical:
+            return .alphabetical
+        case .manifestOrder:
+            return .manifestOrder
+        }
     }
 }
 
