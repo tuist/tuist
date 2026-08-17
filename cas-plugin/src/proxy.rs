@@ -3878,18 +3878,43 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                     return write_response(&mut stream, STATUS_ERROR, b"unprimed instance");
                 };
+                // A project that does not upload keeps its results off the
+                // remote on purpose, so a remote miss says nothing about whether
+                // its associations dangle and vetoing them would recompile the
+                // whole build, every build. Read the policy HERE and not from
+                // the plugin's own `upload` flag, for the same reason
+                // `upload_enabled` exists at all: that flag comes from a
+                // compiler option that reaches Swift, while swift-build's Clang
+                // caching runs against a CAS created with a plugin path and no
+                // options, so the Clang lane reads as uploading even under an
+                // explicit opt-out — and the Clang lane is the one that fails
+                // the build. Deciding this client-side would have left exactly
+                // that lane recompiling forever.
+                if !self.upload_enabled(&instance) {
+                    return write_response(&mut stream, STATUS_ERROR, b"uploads disabled");
+                }
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                // Without a Ready snapshot a miss proves nothing — the instance
-                // may simply not have been looked at yet — and answering
-                // `unbacked` on that would turn every offline or prefetch-off
-                // build fully cold. Decline instead; the plugin keeps serving
-                // the hit exactly as it does today.
-                let Some(snapshot) = self.snapshot_ready(&instance) else {
-                    return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
-                };
+                // Whatever the snapshot's state, answer from the per-key lookup
+                // when it is not Ready rather than declining. Declining looks
+                // safe and is not: the proxy and the build start together on CI,
+                // so the FIRST build's gets land while the snapshot is still
+                // fetching, and that is precisely the cold, freshly-promoted
+                // cache volume where an inherited association is most likely to
+                // be hollow. A per-key `get_action` is authoritative with or
+                // without a snapshot; the snapshot only makes it free. So the
+                // startup window costs round trips, which is what
+                // `TUIST_CAS_PREFETCH=0` already pays by design, instead of
+                // costing the exact build failure this check exists to prevent.
+                let snapshot = self.snapshot_ready(&instance);
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, &instance, state, &request.payload, Some(&snapshot))
+                    self.resolve(
+                        &remote,
+                        &instance,
+                        state,
+                        &request.payload,
+                        snapshot.as_deref(),
+                    )
                 });
                 match outcome {
                     // The value digest goes back with the verdict: the
@@ -5702,6 +5727,64 @@ mod tests {
         let remote = proxy.remote_for("tuist/writer");
         proxy.queue_view_refresh(&remote, "tuist/writer", b"key-2", &manifest);
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The backing check must read the upload policy from HERE, for the reason
+    /// `upload_enabled` exists: the plugin's own flag comes from a compiler
+    /// option that reaches Swift, and swift-build's Clang caching runs against a
+    /// CAS created with a plugin path and no options, so the Clang lane reads as
+    /// uploading even under an explicit opt-out.
+    ///
+    /// Deciding it client-side therefore looks correct on the Swift lane and is
+    /// wrong on the one that fails builds: a read-only project keeps every
+    /// result off the remote by design, so a per-key lookup calls all of its
+    /// associations unbacked, and the Clang lane would recompile the whole
+    /// project on every build forever. Declining is what prevents that.
+    #[test]
+    fn a_read_only_project_is_never_told_its_association_is_unbacked() {
+        use crate::proxy_proto::{read_response, write_request, PROTOCOL_VERSION};
+
+        let dir = std::env::temp_dir().join(format!("tuist-backed-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/reader":{"trunk":"main","upload":false}}"#,
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+
+        let (mut client, server) = UnixStream::pair().expect("socketpair");
+        write_request(
+            &mut client,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_BACKED,
+                cas_path: "/cas".into(),
+                instance: "tuist/reader".into(),
+                payload: b"some-action-key".to_vec(),
+            },
+        )
+        .expect("send");
+        proxy.handle(server).expect("handle");
+        let (status, body) = read_response(&mut client).expect("recv");
+
+        assert_eq!(
+            status, STATUS_ERROR,
+            "a read-only project must be declined, not answered `unbacked`: only a MISS \
+             withholds the hit, and every one of its keys would miss"
+        );
+        assert_eq!(body, b"uploads disabled");
 
         std::fs::remove_dir_all(&dir).ok();
     }
