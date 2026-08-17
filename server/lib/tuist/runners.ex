@@ -265,12 +265,34 @@ defmodule Tuist.Runners do
   runner whose base another host has already advanced past skip the transfer
   entirely instead of paying for it and being rejected.
 
-  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/3` — the
-  compare-and-swap in `report_volume_head/4` remains what decides the HEAD.
+  `unverifiable_digest` is the HEAD digest the promoting host downloaded and could
+  not verify, when it reported one: it makes a promote viable against a HEAD nothing
+  can adopt, from a cold base or a stale one alike, and must be evaluated here as
+  well as at the bump or the pre-flight would turn away the only promote that can
+  retire it.
+
+  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/4` — the
+  compare-and-swap in `report_volume_head/5` remains what decides the HEAD.
   """
-  defdelegate fast_forward_viable?(account_id, base_generation), to: VolumeHeads
+  def fast_forward_viable?(account_id, base_generation, unverifiable_digest \\ nil) do
+    VolumeHeads.fast_forward_viable?(
+      account_id,
+      base_generation,
+      VolumeHeads.reserved_tuist_cache(),
+      unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+    )
+  end
 
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
+
+  # A reported unverifiable digest is honored only in the guest's own digest
+  # format. An absent or malformed one reads as no report at all, which simply
+  # leaves the HEAD standing — the conservative direction.
+  defp reported_unverifiable_digest(digest) when is_binary(digest) do
+    if valid_inventory_digest?(digest), do: digest
+  end
+
+  defp reported_unverifiable_digest(_digest), do: nil
 
   @doc """
   Records a runner's promote of `account_id`'s cache volume: fast-forwards the
@@ -286,15 +308,29 @@ defmodule Tuist.Runners do
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
 
+  `unverifiable_digest`, when the runner reports one, is the HEAD digest its host
+  downloaded and found the stored object does not reproduce. It lets the promote
+  retire that lineage instead of being rejected against a HEAD no host can adopt —
+  whether this host holds no master or one at an older generation, both of which are
+  wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
+  `tree_digest`, since it too reaches a query.
+
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid
   digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
+  def report_volume_head(account_id, node_name, tree_digest, base_generation, unverifiable_digest \\ nil) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
 
-      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+      case VolumeHeads.bump_head(
+             account_id,
+             node_name,
+             tree_digest,
+             base_generation,
+             VolumeHeads.reserved_tuist_cache(),
+             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+           ) do
         {:ok, generation} ->
           # This digest is now HEAD, so it is no longer an orphan candidate even if
           # an earlier job's promote of the same inventory was rejected — forget it
