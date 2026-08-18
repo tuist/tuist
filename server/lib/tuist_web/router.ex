@@ -18,7 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
-  @public_robots_txt [train_ai: true, search: true]
+  @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
 
