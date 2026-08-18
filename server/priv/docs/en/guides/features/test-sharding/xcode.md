@@ -135,12 +135,6 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-#### Building more than one shard plan per run {#github-actions-matrix-builds}
-
-A job's outputs are shared by every leg of its matrix, so a matrixed build job overwrites `outputs.matrix` leg by leg and `needs.build.outputs.matrix` ends up holding whichever leg finished last. Every shard job then runs that leg's plan, including the shards meant for the others, and the mismatch is silent.
-
-Keep each plan's shards fed by their own build. Either declare the builds as separate jobs, so each has its own `outputs.matrix` and its own downstream shard job, or have one job merge the legs' matrices into a single matrix whose entries carry `shard_plan_id` alongside `shard`.
-
 ### GitLab CI {#gitlab-ci}
 
 Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
