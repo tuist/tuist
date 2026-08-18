@@ -20,10 +20,10 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # Trigger windows are served by `test_case_runs_recent_packed_per_case`, whose
-  # 2000-slot state holds 1000 distinct runs even when every run in the window
-  # carries a flaky correction row. Triggers and recovery therefore share one
-  # ceiling.
+  # Trigger windows are served by `test_case_runs_recent_window_per_case`, whose
+  # aggregate de-duplicates on the run key, so its 1000-slot state holds 1000
+  # distinct runs however often they were re-inserted. Triggers and recovery
+  # therefore share one ceiling.
   @max_rolling_trigger_window_size 1000
 
   # Recovery counts read raw runs rather than the rolling aggregate tables.

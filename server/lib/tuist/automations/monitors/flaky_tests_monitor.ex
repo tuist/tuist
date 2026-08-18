@@ -30,19 +30,30 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   `(test_run_id, …)` and would have to filter `project_id` after reading
   every granule in the relevant monthly partitions).
 
-  The `rolling` mode reads `test_case_runs_recent_packed_per_case`, whose single
-  `groupArraySorted(2000)` state packs each run into one `Int64`
-  (`-ran_at_micros * 4 + is_flaky * 2 + is_success`). One column therefore serves
-  flakiness, flaky-run-count, and reliability, since each monitor just reads a
-  different bit.
+  The `rolling` mode reads `test_case_runs_recent_window_per_case`, which keeps
+  three `groupArraySortedDistinct(1000)` states of `-ran_at_micros` run keys per
+  test case: every run, the flaky ones, and the successful ones. A monitor
+  intersects the window with whichever flag column it measures.
 
   The encoding is what makes a large window affordable. Holding the same runs as
   `(-ran_at_micros, flag)` tuples puts `groupArraySorted` on ClickHouse's generic
-  comparator and needs a second parallel column for the other flag: merging a
-  1000-entry tuple state across a 2000-test-case range costs 650 MiB against this
-  module's 1 GiB ceiling, where the packed state serves a 1000-run window in
-  61 MiB. The bucket holds twice the window cap so the correction rows that flaky
-  detection re-inserts cannot push a distinct run out of the window.
+  comparator: merging a 1000-entry tuple state across a 2000-test-case range
+  costs 650 MiB against this module's 1 GiB ceiling, where plain run keys serve a
+  1000-run window in 186 MiB.
+
+  `Distinct` is what makes the window exact. `test_case_runs` is a
+  ReplacingMergeTree and flaky detection re-inserts a run to set `is_flaky`, so
+  one logical run reaches the view as several physical rows. The combinator
+  collapses them on the run key, and the collapse survives state merges, so a run
+  occupies one slot however often it was re-inserted. The bucket is therefore the
+  window cap rather than a multiple of it, and nothing has to be de-duplicated at
+  read time.
+
+  Flag membership replaces flag reconciliation. Because `flaky_runs` and
+  `successful_runs` hold the most recent keys of their kind, and a run inside the
+  window is among the most recent runs overall, a flagged run in the window is
+  always present in its flag column. Counting the flag is therefore counting the
+  flag keys that fall inside the window's range.
 
   A window is evaluated only once the aggregate holds that many distinct runs.
   A rolling window measures the last N runs, so it means nothing until N runs
@@ -68,10 +79,9 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   @max_rolling_window_size 1000
   @default_rolling_window_size 100
 
-  # Sized at twice the window cap so a window is exact even when every run in it
-  # was corrected, given the at-most-two physical rows per logical run that
-  # `Tests.report_test_case_run_multiplicity/3` enforces.
-  @recent_runs_bucket_size 2000
+  # The aggregate de-duplicates on the run key, so the bucket is the window cap
+  # rather than a multiple of it.
+  @recent_runs_bucket_size 1000
   @max_active_rolling_window_size 1000
 
   # Merging the rolling aggregate states is memory-heavy and memory grows with
@@ -352,11 +362,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # `rolling_triggered_test_case_ids_from_recent_runs` collapses the array to
   # one entry per run (keyed on `ran_at`) before computing a rate.
   #
-  # `monitor_type`, `comparison`, `table`, `ordered_runs_expr`,
-  # `matching_flag_expr`, `window_filled_expr`, and `deduplicated_runs_expr` are
-  # interpolated because they are chosen from fixed in-module allowlists (or are
-  # validated integers via `size`), so there is no query-injection vector.
-  # `project_id` and `threshold` flow through bound parameters.
+  # `monitor_type`, `comparison`, `table`, `window_expr`, `flag_expr`, and
+  # `window_filled_expr` are interpolated because they are chosen from fixed
+  # in-module allowlists (or are validated integers via `size`), so there is no
+  # query-injection vector. `project_id` and `threshold` flow through bound
+  # parameters.
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
     source = recent_runs_source(matching_flag(monitor_type), size)
 
@@ -378,31 +388,21 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     rolling_measurements_from_recent_runs(source, project_id, size, test_case_ids)
   end
 
-  defp rolling_measurements_from_recent_runs({table, ordered_runs_expr, flag}, project_id, size, test_case_ids) do
-    deduplicated_runs_expr = deduplicated_runs_expr()
-
+  defp rolling_measurements_from_recent_runs({table, window_expr, flag_expr}, project_id, size, test_case_ids) do
     sql = """
     SELECT
       test_case_id,
-      arraySum(#{matching_flag_expr(flag)}, recent_runs) AS matching_run_count,
+      #{matching_run_count_expr()} AS matching_run_count,
       length(recent_runs) AS run_count
     FROM (
       SELECT
         test_case_id,
-        arraySlice(
-          #{deduplicated_runs_expr},
-          1,
-          #{size}
-        ) AS recent_runs
-      FROM (
-        SELECT
-          test_case_id,
-          #{ordered_runs_expr} AS ordered_runs
-        FROM #{table}
-        WHERE project_id = {project_id:Int64}
-          AND test_case_id IN {test_case_ids:Array(UUID)}
-        GROUP BY test_case_id
-      )
+        arraySlice(#{window_expr}, 1, #{size}) AS recent_runs,
+        #{flag_expr} AS flag_runs
+      FROM #{table}
+      WHERE project_id = {project_id:Int64}
+        AND test_case_id IN {test_case_ids:Array(UUID)}
+      GROUP BY test_case_id
     )
     WHERE #{window_filled_expr(size)}
     """
@@ -459,30 +459,30 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp matching_flag("reliability_rate"), do: :success
   defp matching_flag(_monitor_type), do: :flaky
 
-  # Returns `{table, ordered_runs_expr, flag}`. `ordered_runs_expr` merges the
-  # full per-test-case aggregate in latest-first order. The bucket negates the
-  # run timestamp in its sorted state, so the reader only needs a linear pass to
-  # collapse duplicates. `flag` selects which of the two bits packed into each
-  # entry the monitor measures.
+  # Returns `{table, window_expr, flag_expr}`. Both merge the per-test-case
+  # states; the run keys are negated timestamps, so ascending order is
+  # latest-first and the window is a plain prefix.
   defp recent_runs_source(_flag, size) when size > @max_active_rolling_window_size do
     raise ArgumentError, "rolling trigger windows must be at most #{@max_active_rolling_window_size}"
   end
 
   defp recent_runs_source(flag, _size) do
     {
-      "test_case_runs_recent_packed_per_case",
-      "groupArraySortedMerge(#{@recent_runs_bucket_size})(recent_runs)",
-      flag
+      "test_case_runs_recent_window_per_case",
+      "groupArraySortedDistinctMerge(#{@recent_runs_bucket_size})(recent_runs)",
+      "groupArraySortedDistinctMerge(#{@recent_runs_bucket_size})(#{flag_column(flag)})"
     }
   end
 
-  # Each entry keeps `is_flaky` in bit 1 and `is_success` in bit 0, below the
-  # scaled timestamp. `reinterpretAsUInt64` is what makes the bit reads
-  # well-defined: entries are negative, and neither `intDiv` nor a signed shift
-  # is consistent across the sign boundary.
-  defp matching_flag_expr(:success), do: "entry -> bitAnd(reinterpretAsUInt64(entry), 1)"
+  defp flag_column(:success), do: "successful_runs"
+  defp flag_column(:flaky), do: "flaky_runs"
 
-  defp matching_flag_expr(:flaky), do: "entry -> bitAnd(bitShiftRight(reinterpretAsUInt64(entry), 1), 1)"
+  # The window holds every run key at or below its oldest entry, and a flagged
+  # run in the window is always present in its flag column, so counting the flag
+  # keys that reach back no further than the window's oldest run counts exactly
+  # the flagged runs inside it. That is a linear pass over an already sorted
+  # array rather than a set intersection.
+  defp matching_run_count_expr, do: "arrayCount(entry -> entry <= recent_runs[-1], flag_runs)"
 
   # A rolling window measures the last N runs, so it is only meaningful once N
   # distinct runs exist to measure. Reporting a rate off whatever has accrued so
@@ -491,7 +491,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp window_filled_expr(size), do: "length(recent_runs) >= #{size}"
 
   defp rolling_triggered_test_case_ids_from_recent_runs(
-         {table, ordered_runs_expr, flag},
+         {table, window_expr, flag_expr},
          project_id,
          monitor_type,
          size,
@@ -505,38 +505,20 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         _test_case_ids -> "AND test_case_id IN {test_case_ids:Array(UUID)}"
       end
 
-    deduplicated_runs_expr = deduplicated_runs_expr()
-
-    # Collapse the bounded per-test-case array to one entry per run, keyed on
-    # the run's `ran_at` in microseconds and keeping the largest flag so a run
-    # that was ever re-marked flaky / ever succeeded is represented once with
-    # the right flag. Then keep the latest `size` distinct runs and compute the
-    # rate over those, so a re-inserted run can no longer be counted more than
-    # once. Keeping the work inside arrays avoids the expensive
-    # ARRAY JOIN + GROUP BY + LIMIT BY shape that multiplied each active test
-    # case into hundreds of rows.
     sql = """
     SELECT test_case_id
     FROM (
       SELECT
         test_case_id,
-        arraySlice(
-          #{deduplicated_runs_expr},
-          1,
-          #{size}
-        ) AS recent_runs
-      FROM (
-        SELECT
-          test_case_id,
-          #{ordered_runs_expr} AS ordered_runs
-        FROM #{table}
-        WHERE project_id = {project_id:Int64}
-          #{test_case_filter}
-        GROUP BY test_case_id
-      )
+        arraySlice(#{window_expr}, 1, #{size}) AS recent_runs,
+        #{flag_expr} AS flag_runs
+      FROM #{table}
+      WHERE project_id = {project_id:Int64}
+        #{test_case_filter}
+      GROUP BY test_case_id
     )
     WHERE #{window_filled_expr(size)}
-      AND #{rolling_having_expr(monitor_type, matching_flag_expr(flag))} #{rolling_comparison_op(comparison)} {threshold:Float64}
+      AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
     params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)
@@ -555,40 +537,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
-  # Bucket states are sorted ascending on a negated run timestamp, so runs are
-  # newest-first and the entries of one logical run are adjacent, with the
-  # largest flag last. Comparing every entry's run key with the next entry's
-  # keeps that last entry in a linear pass. The positive sentinel cannot collide
-  # with the negative timestamp keys stored in either bucket.
-  # Entries are sorted ascending on a negated run timestamp, so runs are
-  # newest-first and the entries of one logical run are adjacent, with the
-  # largest flag last. An entry's run key is everything above the two flag bits,
-  # so a correction row and the run it corrects differ only below the shift.
-  # Comparing every entry's run key with the next entry's keeps that last entry
-  # in a linear pass. The positive sentinel cannot collide with the negative
-  # timestamp keys stored in the bucket.
-  defp deduplicated_runs_expr do
-    """
-    arrayFilter(
-      (entry, next_entry) ->
-        bitShiftRight(reinterpretAsUInt64(entry), 2) != bitShiftRight(reinterpretAsUInt64(next_entry), 2),
-      ordered_runs,
-      arrayShiftLeft(
-        ordered_runs,
-        1,
-        toInt64(9223372036854775807)
-      )
-    )
-    """
-  end
+  defp rolling_having_expr("flakiness_rate"), do: "#{matching_run_count_expr()} * 100.0 / length(recent_runs)"
 
-  defp rolling_having_expr("flakiness_rate", flag_expr),
-    do: "arraySum(#{flag_expr}, recent_runs) * 100.0 / length(recent_runs)"
+  defp rolling_having_expr("flaky_run_count"), do: matching_run_count_expr()
 
-  defp rolling_having_expr("flaky_run_count", flag_expr), do: "arraySum(#{flag_expr}, recent_runs)"
-
-  defp rolling_having_expr("reliability_rate", flag_expr),
-    do: "arraySum(#{flag_expr}, recent_runs) * 100.0 / length(recent_runs)"
+  defp rolling_having_expr("reliability_rate"), do: "#{matching_run_count_expr()} * 100.0 / length(recent_runs)"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
