@@ -91,6 +91,18 @@ const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 // stopped. That is reachable rather than theoretical: refreshes are held off on
 // a loaded machine and while a build is active, and CI runners are both.
 const SNAPSHOT_SERVE_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
+// How stale a snapshot may be and still answer a BACKED check. Measured from
+// the last FULL fetch, never the last delta: deltas only ADD, so only the full
+// fetch re-applies the server's eviction gate, and a view refreshed by deltas
+// alone keeps advertising keys the remote has already dropped.
+//
+// Twice the full cadence, so healthy operation never trips it — a scheduled
+// refresh lands well inside this — and what it does catch is a refresh loop
+// that stopped running. That is reachable: refreshes are held off on a loaded
+// machine and while a build is active, and CI runners are both. A snapshot
+// left un-gated for hours is exactly the one whose `yes` should not be taken
+// on trust.
+const SNAPSHOT_BACKING_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
 // hostile length prefix cannot drive an unbounded allocation. Comfortably
@@ -3716,6 +3728,17 @@ impl Proxy {
         }
     }
 
+    /// Whether a snapshot that old may answer a BACKED check. Pure, and split out
+    /// from `handle` so the policy is testable without a CAS on disk or a remote
+    /// to talk to.
+    ///
+    /// `None` (no Ready snapshot) is not fresh: there is nothing to answer from.
+    /// That is a separate outcome from the durably-snapshotless decline, which
+    /// `handle` decides before this runs.
+    fn snapshot_may_answer_backing(full_fetch_age: Option<Duration>) -> bool {
+        full_fetch_age.is_some_and(|age| age <= SNAPSHOT_BACKING_MAX_AGE)
+    }
+
     /// How long ago this instance's snapshot last had a FULL fetch, which is the
     /// only refresh that re-applies the server's eviction gate. `None` when
     /// there is no Ready snapshot to age.
@@ -3926,6 +3949,20 @@ impl Proxy {
                 {
                     return write_response(&mut stream, STATUS_ERROR, b"no snapshot");
                 }
+                // A snapshot answers this check from a copy of the remote's
+                // keyspace, so its `yes` is a claim about whenever that copy was
+                // last gated. Past `SNAPSHOT_BACKING_MAX_AGE` stop taking it:
+                // drop to the per-key lookup, which asks the remote now.
+                //
+                // Only the BACKED path needs this. A RESOLVE served from a stale
+                // snapshot goes on to FETCH the blobs, so a key the remote has
+                // dropped fails materialization, withholds its root and is
+                // counted — the answer checks itself. BACKED authorises serving
+                // a graph that is ALREADY local, so nothing is fetched and
+                // nothing would ever discover the entry was gone.
+                let snapshot = snapshot.filter(|_| {
+                    Self::snapshot_may_answer_backing(self.snapshot_full_fetch_age(&instance))
+                });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
                     self.resolve(
                         &remote,
@@ -5804,6 +5841,91 @@ mod tests {
              withholds the hit, and every one of its keys would miss"
         );
         assert_eq!(body, b"uploads disabled");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A snapshot's `yes` is a claim about the last time its copy of the remote's
+    /// keyspace was gated, and only a FULL fetch re-gates it — deltas add and
+    /// never remove. So a view kept alive by deltas alone, or one whose refresh
+    /// loop stopped (refreshes are held off on loaded machines and during
+    /// builds, and CI runners are both), goes on advertising keys the remote has
+    /// already evicted. Past the bound the check stops trusting it and falls to
+    /// the per-key lookup, which asks the remote now.
+    #[test]
+    fn a_stale_snapshot_does_not_get_to_answer_the_backing_check() {
+        assert!(Proxy::snapshot_may_answer_backing(Some(Duration::from_secs(0))));
+        assert!(Proxy::snapshot_may_answer_backing(Some(
+            SNAPSHOT_BACKING_MAX_AGE
+        )));
+        assert!(!Proxy::snapshot_may_answer_backing(Some(
+            SNAPSHOT_BACKING_MAX_AGE + Duration::from_secs(1)
+        )));
+        // No Ready snapshot is not "fresh" — there is nothing to answer from.
+        // Whether that declines or falls through to a per-key lookup is decided
+        // separately, by how durable the absence is.
+        assert!(!Proxy::snapshot_may_answer_backing(None));
+        // A scheduled full refresh lands at SNAPSHOT_FULL_INTERVAL, so healthy
+        // operation must never trip this. If someone tightens the bound below
+        // the cadence, every build starts paying per-key round trips.
+        assert!(
+            SNAPSHOT_BACKING_MAX_AGE > SNAPSHOT_FULL_INTERVAL,
+            "the bound must leave room for the refresh cadence that is supposed to keep it fresh"
+        );
+    }
+
+    /// The field choice is the whole point, and it is the easy one to get wrong:
+    /// age is measured from the last FULL fetch, never the last delta. Deltas
+    /// only ADD, so a view refreshed by deltas alone looks continuously fresh
+    /// while never re-applying the server's eviction gate.
+    #[test]
+    fn snapshot_age_is_measured_from_the_full_fetch_not_the_delta() {
+        let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+
+        // What a held-off refresh loop leaves behind: deltas kept arriving, the
+        // full re-gate did not.
+        let stale = Instant::now()
+            .checked_sub(SNAPSHOT_BACKING_MAX_AGE + Duration::from_secs(60))
+            .expect("clock has enough history");
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Ready {
+                snapshot: Arc::new(Snapshot {
+                    nodes: Vec::new(),
+                    node_index: HashMap::new(),
+                    keys: HashMap::new(),
+                    key_order: Vec::new(),
+                    watermark: 0,
+                }),
+                full_at: stale,
+                refreshed_at: Instant::now(),
+                last_used: Instant::now(),
+            },
+        );
+
+        let age = proxy
+            .snapshot_full_fetch_age("tuist/writer")
+            .expect("a Ready snapshot has an age");
+        assert!(
+            age > SNAPSHOT_BACKING_MAX_AGE,
+            "reading `refreshed_at` instead of `full_at` would have called this fresh"
+        );
+        assert!(!Proxy::snapshot_may_answer_backing(Some(age)));
 
         std::fs::remove_dir_all(&dir).ok();
     }
