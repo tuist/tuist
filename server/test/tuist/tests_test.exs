@@ -3393,26 +3393,71 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_test_cases/2 duration statistic" do
-    test "reports the median rather than a mean a single outlier decides" do
+  describe "list_test_cases/2 durations" do
+    test "reports a median a single outlier cannot move, beside the mean it moves" do
       # Given
       project = ProjectsFixtures.project_fixture()
       run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
 
       # When
-      {[test_case], _meta} =
-        Tests.list_test_cases(project.id, %{}, duration_statistic: :p50)
-
-      {[with_avg], _meta} =
-        Tests.list_test_cases(project.id, %{}, duration_statistic: :avg)
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
 
       # Then
-      assert test_case.duration_ms == 100.0
+      assert test_case.duration_p50_ms == 100.0
+      assert test_case.duration_avg_ms == 125_088.0
       assert test_case.duration_sample_count == 8
-      assert with_avg.duration_ms == 125_088.0
     end
 
-    test "computes no duration for callers that ask for none" do
+    test "reports the distribution of a test case with a heavy tail" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testHeavyTail", [500, 500, 500, 500, 500, 500, 500, 500, 9000, 9000])
+
+      # When
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+
+      # Then - the tail is what the percentiles are for
+      assert test_case.duration_p50_ms == 500.0
+      assert test_case.duration_p99_ms > test_case.duration_p50_ms
+      assert test_case.duration_p99_ms >= test_case.duration_p90_ms
+    end
+
+    test "reports no durations for a test case below the sample floor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testRare", [100, 200, 300])
+
+      # When
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+
+      # Then
+      assert is_nil(test_case.duration_p50_ms)
+      assert is_nil(test_case.duration_p90_ms)
+      assert is_nil(test_case.duration_p99_ms)
+      assert is_nil(test_case.duration_avg_ms)
+      assert test_case.duration_sample_count == 3
+    end
+
+    test "scopes the durations to the selected environment" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testBoth", [1000, 1000, 1000, 1000, 1000], is_ci: true)
+      run_test_case(project, "testBoth", [50, 50, 50, 50, 50], is_ci: false)
+
+      # When
+      {[on_ci], _meta} = Tests.list_test_cases(project.id, %{}, is_ci: true, with_durations: true)
+
+      {[locally], _meta} =
+        Tests.list_test_cases(project.id, %{}, is_ci: false, with_durations: true)
+
+      # Then
+      assert on_ci.duration_p50_ms == 1000.0
+      assert on_ci.duration_sample_count == 5
+      assert locally.duration_p50_ms == 50.0
+      assert locally.duration_sample_count == 5
+    end
+
+    test "computes no durations for callers that ask for none" do
       # Given
       project = ProjectsFixtures.project_fixture()
       run_test_case(project, "testPlain", [100, 100, 100, 100, 100])
@@ -3421,11 +3466,11 @@ defmodule Tuist.TestsTest do
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
 
       # Then
-      assert is_nil(test_case.duration_ms)
+      assert is_nil(test_case.duration_p50_ms)
       assert is_nil(test_case.duration_sample_count)
     end
 
-    test "defaults to the median for a caller that orders by duration" do
+    test "computes durations for a caller that only orders by one" do
       # Given
       project = ProjectsFixtures.project_fixture()
       run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
@@ -3433,50 +3478,15 @@ defmodule Tuist.TestsTest do
       # When
       {[test_case], _meta} =
         Tests.list_test_cases(project.id, %{
-          order_by: [:duration, :id],
+          order_by: [:duration_p50, :id],
           order_directions: [:desc_nulls_last, :asc]
         })
 
       # Then
-      assert Tests.default_duration_statistic() == :p50
-      assert test_case.duration_ms == 100.0
+      assert test_case.duration_p50_ms == 100.0
     end
 
-    test "reports no duration for a test case below the sample floor" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      run_test_case(project, "testRare", [100, 200, 300])
-
-      # When
-      {[test_case], _meta} =
-        Tests.list_test_cases(project.id, %{}, duration_statistic: :p50)
-
-      # Then
-      assert is_nil(test_case.duration_ms)
-      assert test_case.duration_sample_count == 3
-    end
-
-    test "scopes the duration to the selected environment" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      run_test_case(project, "testBoth", [1000, 1000, 1000, 1000, 1000], is_ci: true)
-      run_test_case(project, "testBoth", [50, 50, 50, 50, 50], is_ci: false)
-
-      # When
-      {[on_ci], _meta} =
-        Tests.list_test_cases(project.id, %{}, is_ci: true, duration_statistic: :p50)
-
-      {[locally], _meta} =
-        Tests.list_test_cases(project.id, %{}, is_ci: false, duration_statistic: :p50)
-
-      # Then
-      assert on_ci.duration_ms == 1000.0
-      assert on_ci.duration_sample_count == 5
-      assert locally.duration_ms == 50.0
-      assert locally.duration_sample_count == 5
-    end
-
-    test "sorts unranked test cases last whichever way the column is sorted" do
+    test "sorts unranked test cases last whichever way a column is sorted" do
       # Given
       project = ProjectsFixtures.project_fixture()
       run_test_case(project, "testFast", [100, 100, 100, 100, 100])
@@ -3486,13 +3496,13 @@ defmodule Tuist.TestsTest do
       # When
       {slowest_first, _meta} =
         Tests.list_test_cases(project.id, %{
-          order_by: [:duration, :id],
+          order_by: [:duration_p50, :id],
           order_directions: [:desc_nulls_last, :asc]
         })
 
       {fastest_first, _meta} =
         Tests.list_test_cases(project.id, %{
-          order_by: [:duration, :id],
+          order_by: [:duration_p50, :id],
           order_directions: [:asc_nulls_last, :asc]
         })
 
@@ -3501,35 +3511,25 @@ defmodule Tuist.TestsTest do
       assert Enum.map(fastest_first, & &1.name) == ["testFast", "testSlow", "testUnranked"]
     end
 
-    test "sorts by the selected statistic" do
+    test "each duration column sorts on its own statistic" do
       # Given
       project = ProjectsFixtures.project_fixture()
       run_test_case(project, "testSteady", [900, 900, 900, 900, 900, 900, 900, 900])
       run_test_case(project, "testSpiky", [10, 10, 10, 10, 10, 10, 10, 100_000])
 
-      order = %{order_by: [:duration, :id], order_directions: [:desc_nulls_last, :asc]}
+      order = fn field ->
+        %{order_by: [field, :id], order_directions: [:desc_nulls_last, :asc]}
+      end
 
       # When
-      {by_median, _meta} = Tests.list_test_cases(project.id, order)
-      {by_avg, _meta} = Tests.list_test_cases(project.id, order, duration_statistic: :avg)
-      {by_p99, _meta} = Tests.list_test_cases(project.id, order, duration_statistic: :p99)
+      {by_median, _meta} = Tests.list_test_cases(project.id, order.(:duration_p50))
+      {by_avg, _meta} = Tests.list_test_cases(project.id, order.(:duration_avg))
+      {by_p99, _meta} = Tests.list_test_cases(project.id, order.(:duration_p99))
 
-      # Then
+      # Then - the steady test is slower by median, the spiky one by mean and tail
       assert Enum.map(by_median, & &1.name) == ["testSteady", "testSpiky"]
       assert Enum.map(by_avg, & &1.name) == ["testSpiky", "testSteady"]
       assert Enum.map(by_p99, & &1.name) == ["testSpiky", "testSteady"]
-    end
-
-    test "falls back to the default statistic for an unknown one" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
-
-      # When
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, duration_statistic: :p42)
-
-      # Then
-      assert test_case.duration_ms == 100.0
     end
 
     defp run_test_case(project, name, durations, opts \\ []) do

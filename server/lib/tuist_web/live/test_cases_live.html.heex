@@ -493,7 +493,10 @@
           label={
             case @test_cases_sort_by do
               "name" -> dgettext("dashboard_tests", "Test Case")
-              "duration" -> dgettext("dashboard_tests", "Duration")
+              "duration_p50" -> duration_field_label(:duration_p50)
+              "duration_p90" -> duration_field_label(:duration_p90)
+              "duration_p99" -> duration_field_label(:duration_p99)
+              "duration_avg" -> duration_field_label(:duration_avg)
               _ -> dgettext("dashboard_tests", "Last ran at")
             end
           }
@@ -516,10 +519,11 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
           <.dropdown_item
-            value="duration"
-            label={dgettext("dashboard_tests", "Duration")}
-            patch={sort_by_patch(@uri, "duration")}
-            data-selected={@test_cases_sort_by == "duration"}
+            :for={field <- Tests.duration_fields()}
+            value={to_string(field)}
+            label={duration_field_label(field)}
+            patch={sort_by_patch(@uri, to_string(field))}
+            data-selected={@test_cases_sort_by == to_string(field)}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -609,30 +613,23 @@
           </:col>
           <:col
             :let={test_case}
-            label={duration_statistic_label(@test_cases_duration_statistic)}
-            header_action={
-              duration_statistic_dropdown(%{
-                uri: @uri,
-                statistic: @test_cases_duration_statistic
-              })
-            }
-            patch={
-              @test_cases_sort_by == "duration" &&
-                column_sort_patch(assigns, "duration")
-            }
-            sort_order={@test_cases_sort_by == "duration" && @test_cases_sort_order}
+            label={duration_field_label(:duration_p50)}
+            patch={column_sort_patch(assigns, "duration_p50")}
+            sort_order={@test_cases_sort_by == "duration_p50" && @test_cases_sort_order}
           >
             <.text_cell
-              :if={not is_nil(test_case.duration_ms)}
+              :if={not is_nil(test_case.duration_p50_ms)}
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.duration_ms
+                  test_case.duration_p50_ms
                 )
               }
-              icon="history"
             />
+            <%!-- Only this column carries the explanation: every duration cell in
+            an under-sampled row is empty for the same reason, and repeating the
+            tooltip four times would mount four hooks per row to say it. --%>
             <.tooltip
-              :if={is_nil(test_case.duration_ms)}
+              :if={is_nil(test_case.duration_p50_ms)}
               id={"test-case-duration-#{test_case.id}"}
               size="large"
               title={dgettext("dashboard_tests", "Not enough runs")}
@@ -648,10 +645,34 @@
             >
               <:trigger :let={attrs}>
                 <span {attrs}>
-                  <.text_cell label={dgettext("dashboard_tests", "N/A")} icon="history" />
+                  <.text_cell label={dgettext("dashboard_tests", "N/A")} />
                 </span>
               </:trigger>
             </.tooltip>
+          </:col>
+          <:col
+            :let={test_case}
+            label={duration_field_label(:duration_p90)}
+            patch={column_sort_patch(assigns, "duration_p90")}
+            sort_order={@test_cases_sort_by == "duration_p90" && @test_cases_sort_order}
+          >
+            <.text_cell label={duration_cell_label(test_case.duration_p90_ms)} />
+          </:col>
+          <:col
+            :let={test_case}
+            label={duration_field_label(:duration_p99)}
+            patch={column_sort_patch(assigns, "duration_p99")}
+            sort_order={@test_cases_sort_by == "duration_p99" && @test_cases_sort_order}
+          >
+            <.text_cell label={duration_cell_label(test_case.duration_p99_ms)} />
+          </:col>
+          <:col
+            :let={test_case}
+            label={duration_field_label(:duration_avg)}
+            patch={column_sort_patch(assigns, "duration_avg")}
+            sort_order={@test_cases_sort_by == "duration_avg" && @test_cases_sort_order}
+          >
+            <.text_cell label={duration_cell_label(test_case.duration_avg_ms)} />
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
             <%= case test_case.last_status do %>

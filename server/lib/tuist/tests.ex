@@ -72,21 +72,18 @@ defmodule Tuist.Tests do
   # identifiers stay comfortably below its default one-mebibyte limit while
   # still covering the small explicit-state sets this path is designed for.
   @max_preloaded_test_case_states 10_000
-  # Statistics the Test Cases listing can show and sort by in its duration
-  # column, each backed by a matching aggregate state on
-  # `test_case_duration_daily_stats_per_case`.
-  @duration_statistics [:avg, :p50, :p90, :p99]
-  # Default statistic for the listing's duration column. The median, not the
-  # mean: the column is one number standing in for "how long this test usually
-  # takes", and a per-test mean over a window this small is decided by its
-  # worst sample. A single paused local debugger produced a 10-minute
-  # "average" against a 978 ms median on production. The mean is still
-  # selectable.
-  @default_duration_statistic :p50
-  # Runs a test case needs inside the active window before its duration
-  # statistic is shown or ranked. Below it the listing has no opinion: the
-  # column renders empty and the row sorts last in either direction, rather
-  # than letting one recorded run place a test at the top of "slowest".
+  # Sortable duration fields the listing exposes, each backed by a matching
+  # aggregate state on `test_case_duration_daily_stats_per_case`. They are
+  # shown side by side rather than one at a time: the useful question about a
+  # test case is usually the shape of its durations, not a single number, and
+  # the median beside the p99 answers "slow always or slow sometimes" without
+  # reloading the table. Reading all four costs one extra merge each over the
+  # groups the scan already builds.
+  @duration_fields [:duration_p50, :duration_p90, :duration_p99, :duration_avg]
+  # Runs a test case needs inside the active window before its durations are
+  # shown or ranked. Below it the listing has no opinion: the cells render
+  # empty and the row sorts last in either direction, rather than letting one
+  # recorded run place a test at the top of "slowest".
   @min_duration_samples 5
   # `test_case_duration_daily_stats_per_case` is sorted by `test_case_id` ahead
   # of `date` precisely so the listing's per-test-case grouping runs in sorted
@@ -2386,24 +2383,23 @@ defmodule Tuist.Tests do
       column on `test_cases`; the duration comes from the matching `is_ci`
       slice of `test_case_duration_daily_stats_per_case`. `nil` (the default)
       means "any environment".
-    * `:duration_statistic`: which statistic the duration carries, one of
-      `#{inspect(@duration_statistics)}`.
+    * `:with_durations`: compute the duration distribution.
 
-  When a duration statistic is in play, each returned test case carries
-  `:duration_ms` (that statistic over the active window) and
-  `:duration_sample_count` (the runs it was computed from). `:duration_ms` is
-  `nil` when that count is below `#{@min_duration_samples}`. Sort by it with
-  the `:duration` field, which orders on the same value. Together they replace
+  With durations on, each returned test case carries `:duration_p50_ms`,
+  `:duration_p90_ms`, `:duration_p99_ms` and `:duration_avg_ms` over the active
+  window, plus `:duration_sample_count` (the runs they were computed from).
+  Each is `nil` when that count is below `#{@min_duration_samples}`. Sort by
+  them with the matching `:duration_p50` / `:duration_p90` / `:duration_p99` /
+  `:duration_avg` fields, which order on the same values. Together they replace
   `:avg_duration`, the denormalized mean of the last 50 runs that is unbounded
   in time and blind to environment, as what the dashboard shows and ranks by.
   `:avg_duration` is still populated for the public API and MCP tool, which
   expose the column by name.
 
   Computing them costs an aggregate read across the project's whole active
-  suite, so it is opt-in: pass `:duration_statistic`, or order by `:duration`
-  and get `#{inspect(@default_duration_statistic)}`. Callers that do neither,
-  namely the public API and the MCP tool, run exactly the query they ran before
-  and get `nil` for both fields.
+  suite, so it is opt-in: pass `:with_durations`, or order by one of the
+  duration fields. Callers that do neither, namely the public API and the MCP
+  tool, run exactly the query they ran before and get `nil` for all of them.
 
   The listing intentionally has no date-window option. Callers that take a
   user-controlled date picker on the same page (e.g. the Test Cases LiveView)
@@ -2419,7 +2415,7 @@ defmodule Tuist.Tests do
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
-    duration_statistic = duration_statistic(Keyword.get(opts, :duration_statistic), attrs)
+    with_durations? = with_durations?(Keyword.get(opts, :with_durations), attrs)
 
     # `state` / `is_flaky` are resolved from `test_case_states`, not from the
     # legacy columns on `test_cases`, so they are pulled out of the Flop filter
@@ -2496,7 +2492,7 @@ defmodule Tuist.Tests do
       :joined ->
         base_query
         |> select_resolved_test_case_state()
-        |> select_duration_statistic(project_id, duration_statistic, is_ci)
+        |> select_durations(project_id, with_durations?, is_ci)
         |> Tuist.ClickHouseFlop.run(flop,
           for: TestCase,
           count: total_count,
@@ -2506,7 +2502,7 @@ defmodule Tuist.Tests do
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_duration_statistic(project_id, duration_statistic, is_ci)
+          |> select_durations(project_id, with_durations?, is_ci)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
@@ -2527,67 +2523,52 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Statistics `list_test_cases/3` can compute for its duration column.
+  Duration fields `list_test_cases/3` can compute and sort by.
   """
-  def duration_statistics, do: @duration_statistics
-
-  @doc """
-  Default statistic for `list_test_cases/3`'s duration column.
-  """
-  def default_duration_statistic, do: @default_duration_statistic
+  def duration_fields, do: @duration_fields
 
   @doc """
   Runs a test case needs inside the active window before `list_test_cases/3`
-  reports a duration statistic for it.
+  reports durations for it.
   """
   def min_duration_samples, do: @min_duration_samples
 
-  # Flop accepts both atom and string params, so an order on `duration` can
-  # arrive either way. Missing the string form would leave the alias out of the
-  # SELECT and make ClickHouse reject the ORDER BY that referenced it.
-  defp duration_statistic(nil, attrs) do
-    order_by = Map.get(attrs, :order_by) || Map.get(attrs, "order_by")
+  # Flop accepts both atom and string params, so an order on a duration field
+  # can arrive either way. Missing the string form would leave the aliases out
+  # of the SELECT and make ClickHouse reject the ORDER BY that referenced one.
+  defp with_durations?(true, _attrs), do: true
 
-    if Enum.any?(List.wrap(order_by), &(to_string(&1) == "duration")) do
-      @default_duration_statistic
-    end
+  defp with_durations?(_flag, attrs) do
+    order_by = Map.get(attrs, :order_by) || Map.get(attrs, "order_by")
+    ordered = MapSet.new(List.wrap(order_by), &to_string/1)
+
+    Enum.any?(duration_fields(), &MapSet.member?(ordered, to_string(&1)))
   end
 
-  defp duration_statistic(statistic, _attrs) when statistic in @duration_statistics, do: statistic
-  defp duration_statistic(_invalid, _attrs), do: @default_duration_statistic
-
-  # `duration` is a Flop alias field: it is aliased with `selected_as/2` here so
-  # `Tuist.ClickHouseFlop` can order by it even though it lives in a different
-  # table than `test_cases`. `NULL` below the sample floor is what makes the
-  # unranked rows sortable: `:asc_nulls_last` / `:desc_nulls_last` then keeps
-  # them at the bottom whichever way the column is sorted, instead of a
-  # sentinel that would put them first in one direction.
+  # Each statistic is aliased with `selected_as/2` so `Tuist.ClickHouseFlop` can
+  # order by it even though it lives in a different table than `test_cases`.
+  # `NULL` below the sample floor is what makes the unranked rows sortable:
+  # `:asc_nulls_last` / `:desc_nulls_last` then keeps them at the bottom
+  # whichever column and direction is chosen, instead of a sentinel that would
+  # put them first in one direction.
   #
-  # The join is `left_join`: a test case is in the listing because it ran
-  # inside the active window in the selected environment, which does not
-  # guarantee it cleared the sample floor, and an inner join would drop those
-  # rows from the table entirely rather than showing them unranked.
-  defp select_duration_statistic(query, _project_id, nil, _is_ci), do: query
+  # The join is `left_join`: a test case is in the listing because it ran inside
+  # the active window in the selected environment, which does not guarantee it
+  # cleared the sample floor, and an inner join would drop those rows from the
+  # table entirely rather than showing them unranked.
+  defp select_durations(query, _project_id, false, _is_ci), do: query
 
-  defp select_duration_statistic(query, project_id, statistic, is_ci) do
-    stats = test_case_duration_stats_subquery(project_id, statistic, is_ci)
+  defp select_durations(query, project_id, true, is_ci) do
+    stats = test_case_duration_stats_subquery(project_id, is_ci)
 
-    fields = %{
-      duration_ms:
-        dynamic(
-          [duration_stats: duration_stats],
-          selected_as(
-            fragment(
-              "if(? >= ?, ?, NULL)",
-              duration_stats.run_count,
-              ^@min_duration_samples,
-              duration_stats.duration
-            ),
-            :duration
-          )
-        ),
-      duration_sample_count: dynamic([duration_stats: duration_stats], duration_stats.run_count)
-    }
+    fields = Map.new(@duration_fields, &{:"#{&1}_ms", guarded_duration_dynamic(&1)})
+
+    fields =
+      Map.put(
+        fields,
+        :duration_sample_count,
+        dynamic([duration_stats: duration_stats], duration_stats.run_count)
+      )
 
     from(test_case in query,
       left_join: duration_stats in subquery(stats),
@@ -2597,18 +2578,45 @@ defmodule Tuist.Tests do
     )
   end
 
+  defp guarded_duration_dynamic(field) do
+    dynamic(
+      [duration_stats: duration_stats],
+      selected_as(
+        fragment(
+          "if(? >= ?, ?, NULL)",
+          duration_stats.run_count,
+          ^@min_duration_samples,
+          field(duration_stats, ^field)
+        ),
+        ^field
+      )
+    )
+  end
+
+  # One clause per statistic rather than an interpolated expression: a fragment
+  # takes SQL at compile time, and `literal/1` would render the whole call as a
+  # quoted identifier.
+  defp duration_merge_dynamic(:duration_p50), do: dynamic(fragment("round(quantileMerge(0.5)(p50_duration))"))
+
+  defp duration_merge_dynamic(:duration_p90), do: dynamic(fragment("round(quantileMerge(0.9)(p90_duration))"))
+
+  defp duration_merge_dynamic(:duration_p99), do: dynamic(fragment("round(quantileMerge(0.99)(p99_duration))"))
+
+  defp duration_merge_dynamic(:duration_avg), do: dynamic(fragment("round(avgMerge(avg_duration))"))
+
   # ClickHouse fills the missing side of a LEFT JOIN with each type's default
   # rather than NULL, so a test case with no rows here arrives as
   # `run_count = 0` and is handled by the sample floor like any other
   # under-sampled row.
-  defp test_case_duration_stats_subquery(project_id, statistic, is_ci) do
+  defp test_case_duration_stats_subquery(project_id, is_ci) do
     window_start = Date.add(Date.utc_today(), -@active_window_days)
 
-    fields = %{
-      test_case_id: dynamic([stats], stats.test_case_id),
-      run_count: dynamic(fragment("countMerge(run_count)")),
-      duration: duration_statistic_expression(statistic)
-    }
+    fields = Map.new(@duration_fields, &{&1, duration_merge_dynamic(&1)})
+
+    fields =
+      fields
+      |> Map.put(:test_case_id, dynamic([stats], stats.test_case_id))
+      |> Map.put(:run_count, dynamic(fragment("countMerge(run_count)")))
 
     query =
       from(stats in TestCaseDurationDailyStatsPerCase,
@@ -2620,14 +2628,6 @@ defmodule Tuist.Tests do
 
     apply_duration_environment_filter(query, is_ci)
   end
-
-  defp duration_statistic_expression(:avg), do: dynamic(fragment("round(avgMerge(avg_duration))"))
-
-  defp duration_statistic_expression(:p50), do: dynamic(fragment("round(quantileMerge(0.5)(p50_duration))"))
-
-  defp duration_statistic_expression(:p90), do: dynamic(fragment("round(quantileMerge(0.9)(p90_duration))"))
-
-  defp duration_statistic_expression(:p99), do: dynamic(fragment("round(quantileMerge(0.99)(p99_duration))"))
 
   defp apply_duration_environment_filter(query, nil), do: query
 

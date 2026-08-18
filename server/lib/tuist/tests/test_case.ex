@@ -9,11 +9,12 @@ defmodule Tuist.Tests.TestCase do
 
   import Ecto.Changeset
 
-  # `duration` is an alias field, not a column: `Tuist.Tests.list_test_cases/3`
-  # computes it with `selected_as/2` from the per-case duration aggregates so
-  # the listing can sort by the statistic the caller picked. `avg_duration`
-  # stays sortable for the public API and MCP tool, which expose the
-  # denormalized column by name.
+  # The `duration_*` fields are alias fields, not columns:
+  # `Tuist.Tests.list_test_cases/3` computes them with `selected_as/2` from the
+  # per-case duration aggregates so the listing can sort by any of them.
+  # `avg_duration` stays sortable for the public API and MCP tool, which expose
+  # the denormalized column by name, and is why the aliases carry a
+  # `duration_` prefix rather than colliding with it.
   #
   # `state` and `is_flaky` are deliberately absent from `filterable`. They live
   # in `test_case_states` (the columns of the same name here are legacy and no
@@ -32,9 +33,19 @@ defmodule Tuist.Tests.TestCase do
       :last_ran_at_ci,
       :last_ran_at_local
     ],
-    sortable: [:name, :last_duration, :avg_duration, :duration, :last_ran_at, :id],
+    sortable: [
+      :name,
+      :last_duration,
+      :avg_duration,
+      :duration_p50,
+      :duration_p90,
+      :duration_p99,
+      :duration_avg,
+      :last_ran_at,
+      :id
+    ],
     default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]},
-    adapter_opts: [alias_fields: [:duration]]
+    adapter_opts: [alias_fields: [:duration_p50, :duration_p90, :duration_p99, :duration_avg]]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -56,13 +67,16 @@ defmodule Tuist.Tests.TestCase do
     field :avg_duration, Ch, type: "Int64"
 
     # Populated by `Tuist.Tests.list_test_cases/3` from
-    # `test_case_duration_daily_stats_per_case`. `duration_ms` is the selected
-    # statistic over the listing's active window in the selected environment,
-    # and is `nil` when `duration_sample_count` is below the minimum the
-    # listing requires for the statistic to mean anything. It is the value
-    # behind the `:duration` alias field, and carries a distinct name so it
-    # doesn't shadow it in the derived `Flop.Schema` field list.
-    field :duration_ms, :float, virtual: true
+    # `test_case_duration_daily_stats_per_case`: the duration distribution over
+    # the listing's active window in the selected environment. Each is `nil`
+    # when `duration_sample_count` is below the minimum the listing requires for
+    # them to mean anything. Each carries the value behind the alias field of
+    # the same name minus `_ms`, named apart so it doesn't shadow the alias in
+    # the derived `Flop.Schema` field list.
+    field :duration_p50_ms, :float, virtual: true
+    field :duration_p90_ms, :float, virtual: true
+    field :duration_p99_ms, :float, virtual: true
+    field :duration_avg_ms, :float, virtual: true
     field :duration_sample_count, :integer, virtual: true
   end
 

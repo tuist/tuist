@@ -261,12 +261,6 @@ export default {
     for (const node of clonedThead.querySelectorAll("[id]")) {
       node.removeAttribute("id");
     }
-    // Header actions configure what a column shows. The clone is inert, so a cloned one would
-    // render a control that looks live and does nothing — worse than a cloned sort link, which
-    // at least restates the state it cannot change. Drop them and leave the label behind.
-    for (const node of clonedThead.querySelectorAll('[data-part="header-action"]')) {
-      node.remove();
-    }
     table.appendChild(clonedThead);
     this.header.replaceChildren(table);
     this.headerTable = table;

@@ -361,7 +361,7 @@ defmodule TuistWeb.TestsLive do
         Tests.list_test_cases(project.id, %{
           page: 1,
           page_size: 5,
-          order_by: [:duration, :id],
+          order_by: [:duration_p50, :id],
           order_directions: [:desc_nulls_last, :asc]
         })
 
