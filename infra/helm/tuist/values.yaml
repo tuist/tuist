@@ -2245,7 +2245,12 @@ ociRegistry:
         repository: public.ecr.aws/nginx/nginx
         tag: "1.29"
         pullPolicy: IfNotPresent
-      port: 8080
+      # 443 so a tailnet client reaches the registry without a port in
+      # the reference. When the Pod is a tailnet node, clients dial the
+      # container port directly — the Service's 443 -> proxy mapping only
+      # applies to in-cluster traffic — so this port ends up in every
+      # image tag and chart pin if it is not the default one.
+      port: 443
       # Generous enough to cover a part being flushed to the object
       # store mid-upload.
       timeoutSeconds: 900
@@ -2257,16 +2262,56 @@ ociRegistry:
           cpu: "1"
           memory: 256Mi
   tailscale:
-    # Expose the Service on the tailnet instead of a public ingress. Every
+    # Put the registry on the tailnet instead of a public ingress. Every
     # puller (build hosts, fleet Macs) joins the tailnet at bootstrap.
-    # Stays an L4 proxy: an HTTP one would impose a request-body limit
-    # that 512 MiB layer uploads would run into, and TLS terminates in
-    # the Pod rather than at the proxy anyway.
+    #
+    # The Pod joins as a node in its own right rather than being fronted
+    # by an operator-managed proxy, because it has to own the tailnet
+    # name: only the node a name belongs to can obtain a certificate for
+    # it, and clients reach this registry by that name. Letting the proxy
+    # terminate TLS instead would put the registry's Basic credential on
+    # the proxy-to-Pod hop, which crosses the cluster network in the
+    # clear.
     enabled: false
     # Tailnet node name; the registry is reachable at
-    # `<hostname>.<tailnet>.ts.net`. Must be unique per environment.
+    # `<hostname>.<tailnet>.ts.net`, which is also the certificate's
+    # name. Must be unique per environment — a collision is not an error,
+    # Tailscale appends a suffix and the certificate then follows the name
+    # actually assigned rather than the one configured here.
     hostname: ""
     tags: ""
+    image:
+      repository: tailscale/tailscale
+      # renovate: datasource=docker depName=tailscale/tailscale versioning=docker
+      tag: "v1.96.5"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    # The cert sidecar is idle almost always: one `tailscale cert` call,
+    # then a day's sleep.
+    certResources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    externalSecret:
+      # The operator's OAuth client, not the Mac fleet's. Tailscale
+      # scopes an OAuth client to the tags it may mint, and the fleet's
+      # covers `tag:tuist-macmini-*` only — asking it for the tag this
+      # Pod advertises fails the join with `requested tags ... are
+      # invalid or not permitted`. This client already mints
+      # `tag:tuist-k8s-<env>`, which is what the operator stamps on the
+      # proxies it creates in this namespace.
+      item: TAILSCALE_OPERATOR
+      fields:
+        authKey: client-secret
   tls:
     # Serve HTTPS from the proxy. Off by default so a self-hoster on a
     # trusted network isn't forced into certificate plumbing; on, clients

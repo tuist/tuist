@@ -46,7 +46,7 @@ use crate::{
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
-    store::{StagedArtifactPath, is_outbox_full_error},
+    store::{RefreshTrigger, StagedArtifactPath, is_outbox_full_error},
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
@@ -1129,16 +1129,17 @@ impl ActionCache for ReapiService {
         // files, stdout/stderr, and each output directory's tree plus the files
         // it lists — not just output files, so an REAPI client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
-        if let Some(missing) = first_evicted_output(
+        let presence = first_evicted_output(
             &self.state,
             namespace_id,
             &action_result,
+            self.state.store.segment_ring_is_aging(),
             materialization_budget
                 .get_mut()
                 .expect("action-cache materialization budget lock poisoned"),
         )
-        .await
-        {
+        .await;
+        if let Some(missing) = presence.evicted {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
             // the next publish recreates it instead of every reader paying
@@ -1166,6 +1167,20 @@ impl ActionCache for ReapiService {
                 "action result references evicted output blobs",
             ));
         }
+        // The gate passed, so this response vouches for every blob it
+        // references. REAPI asks that those blobs be available "at the time of
+        // returning the ActionResult and will be for some period of time
+        // afterwards", with their lifetimes increased where applicable. The
+        // gate above answers from metadata alone, so nothing on this path has
+        // kept them alive. Without this, eviction between here and the
+        // client's BatchReadBlobs hands it a missing object, which clang treats
+        // as a hard build failure rather than a recompile.
+        self.state.store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &presence.present,
+            RefreshTrigger::ActionCache,
+        );
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -1411,6 +1426,17 @@ impl ContentAddressableStorage for ReapiService {
         };
         self.authorize_request(&request, auth.clone()).await?;
         let mut missing = Vec::new();
+        // "Servers SHOULD increase the lifetimes of the referenced blobs if
+        // necessary and applicable": a client told a blob is present skips
+        // uploading it and relies on it staying present, so the answer has to
+        // keep it alive the same way a served action result does. The request's
+        // digest count is client-controlled up to the 64 MiB decode ceiling, so
+        // extension happens inside the presence lookup rather than over a
+        // collected key set: no per-digest allocation is retained, and a
+        // present blob costs one manifest lookup rather than two. When no
+        // segment has aged there is nothing to promote, so the plain existence
+        // check keeps its existence-cache short-circuit.
+        let aging = self.state.store.segment_ring_is_aging();
         for digest in &request.get_ref().blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
@@ -1419,14 +1445,23 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             let key = blob_key(&digest_key(digest)?);
-            let exists = self
-                .state
-                .store
-                .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
-                .await
-                .map_err(|error| {
-                    Status::internal(format!("failed to inspect CAS blob: {error}"))
-                })?;
+            let exists = if aging {
+                self.state
+                    .store
+                    .artifact_exists_extending_lifetime(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &key,
+                        RefreshTrigger::FindMissing,
+                    )
+                    .await
+            } else {
+                self.state
+                    .store
+                    .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
+                    .await
+            }
+            .map_err(|error| Status::internal(format!("failed to inspect CAS blob: {error}")))?;
             if !exists {
                 missing.push(digest.clone());
             }
@@ -1972,8 +2007,10 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
-/// The hash of the first blob this action result references that is no longer
-/// present in the CAS, or `None` when every referenced blob is present.
+/// Whether every blob this action result references is still present, and, when
+/// `collecting`, the keys of the ones confirmed present so their lifetimes can
+/// be extended. Callers pass [`Store::segment_ring_is_aging`]: with nothing aged
+/// into the Old generation nothing is promotable, so the keys are not retained.
 ///
 /// The original per-key gate (PR #11793) checked `output_files` only; this
 /// covers the rest of what a client fetches when it replays a hit: `stdout` and
@@ -1997,39 +2034,29 @@ async fn first_evicted_output(
     state: &SharedState,
     namespace_id: &str,
     action_result: &reapi::ActionResult,
+    collecting: bool,
     materialization_budget: &mut MaterializationBudget<'_>,
-) -> Option<String> {
-    let missing = |digest: &reapi::Digest| {
-        !is_empty_blob(digest)
-            && digest_key(digest).is_ok_and(|key| {
-                !state
-                    .store
-                    .artifact_manifest_exists(
-                        ArtifactProducer::Reapi,
-                        namespace_id,
-                        &blob_key(&key),
-                    )
-                    .unwrap_or(true)
-            })
-    };
+) -> OutputPresence {
+    let mut present = Vec::new();
 
-    let stream_evicted = action_result
+    for digest in action_result
         .output_files
         .iter()
         .filter_map(|file| file.digest.as_ref())
         .chain(action_result.stdout_digest.as_ref())
         .chain(action_result.stderr_digest.as_ref())
-        .find(|&digest| missing(digest));
-    if let Some(digest) = stream_evicted {
-        return Some(digest.hash.clone());
+    {
+        if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
+            return OutputPresence::evicted(&digest.hash);
+        }
     }
 
     for directory in &action_result.output_directories {
         let Some(tree_digest) = directory.tree_digest.as_ref() else {
             continue;
         };
-        if missing(tree_digest) {
-            return Some(tree_digest.hash.clone());
+        if blob_evicted(state, namespace_id, tree_digest, collecting, &mut present) {
+            return OutputPresence::evicted(&tree_digest.hash);
         }
         // The tree blob survives; a client next fetches every file it lists, so
         // an evicted leaf poisons the replay just as a missing tree would. This
@@ -2049,18 +2076,75 @@ async fn first_evicted_output(
         let Ok(tree) = reapi::Tree::decode(bytes.as_slice()) else {
             continue;
         };
-        let leaf_evicted = tree
+        for digest in tree
             .root
             .iter()
             .chain(&tree.children)
             .flat_map(|directory| &directory.files)
             .filter_map(|file| file.digest.as_ref())
-            .find(|&digest| missing(digest));
-        if let Some(digest) = leaf_evicted {
-            return Some(digest.hash.clone());
+        {
+            if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
+                return OutputPresence::evicted(&digest.hash);
+            }
         }
     }
-    None
+
+    OutputPresence {
+        evicted: None,
+        present,
+    }
+}
+
+/// The presence gate's verdict for one action result.
+struct OutputPresence {
+    /// The hash of the first referenced blob found evicted, if any.
+    evicted: Option<String>,
+    /// Blob keys confirmed present while checking, collected so a served entry
+    /// can extend their lifetimes. Left empty when `evicted` is set: that entry
+    /// is not served and is usually deleted, so refreshing its surviving blobs
+    /// on its behalf would be pure write amplification.
+    present: Vec<String>,
+}
+
+impl OutputPresence {
+    fn evicted(hash: &str) -> Self {
+        Self {
+            evicted: Some(hash.to_owned()),
+            present: Vec::new(),
+        }
+    }
+}
+
+/// Whether one referenced blob has been evicted, recording its key when it is
+/// still present and `collecting` says a promotable segment exists. A digest
+/// with no stored artifact of its own (the canonical empty blob, or one whose
+/// key cannot be derived) is neither evicted nor worth refreshing, so it is
+/// skipped on both counts.
+fn blob_evicted(
+    state: &SharedState,
+    namespace_id: &str,
+    digest: &reapi::Digest,
+    collecting: bool,
+    present: &mut Vec<String>,
+) -> bool {
+    if is_empty_blob(digest) {
+        return false;
+    }
+    let Ok(key) = digest_key(digest) else {
+        return false;
+    };
+    let key = blob_key(&key);
+    let exists = state
+        .store
+        .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &key)
+        .unwrap_or(true);
+    if exists {
+        if collecting {
+            present.push(key);
+        }
+        return false;
+    }
+    true
 }
 
 // Persists a CAS blob and returns whether it was newly stored (`true`) or was
@@ -2282,7 +2366,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     // uploaded bytes against it, but update_action_result stores the digest as a
     // key with no body to check against — so without this an authenticated client
     // could persist an arbitrarily long "hash", inflating the manifest key until a
-    // bootstrap page overflows the receiver's MAX_BOOTSTRAP_PAGE_BYTES ceiling and
+    // backfill index page overflows the receiver's MAX_PEER_PAGE_BYTES ceiling and
     // wedges a joining node. Pin it to the fixed width a conforming client sends.
     if digest.hash.len() != 64 || !digest.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(Status::invalid_argument(
@@ -3042,8 +3126,8 @@ mod tests {
             format!("{}/10", hex::encode([0xabu8; 32]))
         );
 
-        // An unbounded hash is what inflates the manifest key past the bootstrap
-        // page ceiling; update_action_result has no body to verify it against, so
+        // An unbounded hash is what inflates the manifest key past the backfill
+        // index page ceiling; update_action_result has no body to verify it against, so
         // the width check is the only thing keeping the key fixed-size.
         for bad in [
             String::new(),
@@ -3469,6 +3553,149 @@ mod tests {
         assert!(
             exists(&young_dead_key),
             "a young dead entry is kept — its blobs may still be mid-replication"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_served_entry_reports_every_blob_whose_lifetime_must_be_extended() {
+        let context = test_context(|_| {}).await;
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    crate::utils::now_ms(),
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn digest(hash: [u8; 32], size_bytes: i64) -> reapi::Digest {
+            reapi::Digest {
+                hash: hex::encode(hash),
+                size_bytes,
+            }
+        }
+
+        let out_file = [0x11u8; 32];
+        let stdout = [0x12u8; 32];
+        let stderr = [0x13u8; 32];
+        let tree_hash = [0x14u8; 32];
+        let leaf = [0x15u8; 32];
+        let tree = reapi::Tree {
+            root: Some(reapi::Directory {
+                files: vec![reapi::FileNode {
+                    name: "out".into(),
+                    digest: Some(digest(leaf, 7)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+
+        for hash in [out_file, stdout, stderr, leaf] {
+            write_artifact(
+                store,
+                &uploads,
+                &blob_key(&format!("{}/7", hex::encode(hash))),
+                b"payload",
+            )
+            .await;
+        }
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            &tree,
+        )
+        .await;
+
+        let serveable = reapi::ActionResult {
+            output_files: vec![
+                reapi::OutputFile {
+                    path: "out".into(),
+                    digest: Some(digest(out_file, 7)),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "empty".into(),
+                    digest: Some(reapi::Digest {
+                        hash: EMPTY_BLOB_SHA256.to_string(),
+                        size_bytes: 0,
+                    }),
+                    ..Default::default()
+                },
+            ],
+            stdout_digest: Some(digest(stdout, 7)),
+            stderr_digest: Some(digest(stderr, 7)),
+            output_directories: vec![reapi::OutputDirectory {
+                path: "outdir".into(),
+                tree_digest: Some(digest(tree_hash, tree.len() as i64)),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let mut budget = MaterializationBudget::new(&context.state);
+        let presence =
+            first_evicted_output(&context.state, "ios", &serveable, true, &mut budget).await;
+
+        assert!(
+            presence.evicted.is_none(),
+            "every referenced blob is present"
+        );
+        let mut extended = presence.present.clone();
+        extended.sort();
+        let mut expected = vec![
+            blob_key(&format!("{}/7", hex::encode(out_file))),
+            blob_key(&format!("{}/7", hex::encode(stdout))),
+            blob_key(&format!("{}/7", hex::encode(stderr))),
+            blob_key(&format!("{}/{}", hex::encode(tree_hash), tree.len())),
+            blob_key(&format!("{}/7", hex::encode(leaf))),
+        ];
+        expected.sort();
+        assert_eq!(
+            extended, expected,
+            "a replay fetches the streams and the tree's leaves too, so the whole set \
+             needs its lifetime extended, while the canonical empty blob, which is \
+             never stored, is not part of it"
+        );
+
+        // An entry that fails the gate is not served and is usually deleted, so
+        // its surviving blobs are not refreshed on its behalf.
+        let doomed = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: "out".into(),
+                digest: Some(digest(out_file, 7)),
+                ..Default::default()
+            }],
+            stderr_digest: Some(digest([0x99u8; 32], 7)),
+            ..Default::default()
+        };
+        let presence =
+            first_evicted_output(&context.state, "ios", &doomed, true, &mut budget).await;
+        assert_eq!(
+            presence.evicted.as_deref(),
+            Some(hex::encode([0x99u8; 32]).as_str())
+        );
+        assert!(
+            presence.present.is_empty(),
+            "nothing is refreshed for an entry that will not be served"
         );
     }
 

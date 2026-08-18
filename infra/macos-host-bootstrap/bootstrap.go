@@ -423,6 +423,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the resolver points at the daemon this
+	// installs, so writing it first would leave a window where `.ts.net`
+	// resolves nowhere rather than resolving publicly.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -533,6 +539,16 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// Re-run on the drift path because the resolver is part of
+	// HostConfigHash: without this step a roll converges the stamped hash
+	// while the host still has no /etc/resolver/ts.net, so the fleet reads
+	// as correct while crane, oras and tart keep getting NXDOMAIN on every
+	// tailnet name. Unconditional, unlike installTailscale above: writing
+	// the file restarts nothing, so it is safe on the tailnet fallback that
+	// sets SkipTailscaleInstall.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh ingress guard: %w", err)
 	}
@@ -557,6 +573,69 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	return hk.Observed(), nil
 }
 
+// PerHost carries every Config field whose value belongs to one specific Mac
+// mini rather than to the fleet. It exists so that split has exactly one
+// definition in the codebase.
+//
+// It used to have two, written far apart: an assignment list in the operator's
+// drift-update path naming the fleet-wide fields, and the zeroing list in
+// HostConfigHash naming the per-host ones. Nothing tied them together, so a
+// field added to Config and wired into only one of them left the operator
+// pushing a config that did not match the hash it then stamped on the host --
+// the host was recorded as converged to a config it had never received, and
+// the skew stayed invisible until something downstream needed the dropped
+// field. node_exporter, the log shipper and the cache-volume flags were each
+// lost that way. The fourth, the Tailscale tags, froze the production Mac mini
+// fleet on 2026-08-18: once the shared credential became a Tailscale OAuth
+// client secret, an untagged join was no longer possible at all.
+//
+// With one definition the failure cannot recur. WithPerHost applies these
+// fields on top of a fleet config, and HostConfigHash strips them by applying
+// an empty PerHost, so the two lists are the same list.
+type PerHost struct {
+	IP                   string
+	SSHUser              string
+	UserPassword         string
+	SSHPrivateKey        []byte
+	NodeName             string
+	ProviderID           string
+	Kubeconfig           string
+	TailscaleAuthKey     string
+	VNCRelayHost         string
+	VMCachePNVLAN        uint32
+	KnownHostFingerprint string
+	NodeLabels           map[string]string
+	GHActionsRunner      *GHActionsRunnerConfig
+	// DisableVMGC is a per-host role signal (builder hosts set it); the
+	// launchd plist renderer keys --disable-vm-gc off it.
+	DisableVMGC bool
+	// SkipTailscaleInstall is transport-only: it gates whether
+	// installTailscale runs and changes no rendered output.
+	SkipTailscaleInstall bool
+}
+
+// WithPerHost returns a copy of c with the per-host fields replaced by p.
+// The receiver is a fleet config, identical across the fleet; the result is
+// what one host actually receives.
+func (c Config) WithPerHost(p PerHost) Config {
+	c.IP = p.IP
+	c.SSHUser = p.SSHUser
+	c.UserPassword = p.UserPassword
+	c.SSHPrivateKey = p.SSHPrivateKey
+	c.NodeName = p.NodeName
+	c.ProviderID = p.ProviderID
+	c.Kubeconfig = p.Kubeconfig
+	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.VNCRelayHost = p.VNCRelayHost
+	c.VMCachePNVLAN = p.VMCachePNVLAN
+	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.NodeLabels = p.NodeLabels
+	c.GHActionsRunner = p.GHActionsRunner
+	c.DisableVMGC = p.DisableVMGC
+	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	return c
+}
+
 // HostConfigHash is a fleet-wide canonical fingerprint of everything the
 // operator pushes to a host: the rendered install scripts (firewall +
 // vmnat, PN interface, launchd job + plist, Tailscale, node_exporter,
@@ -579,26 +658,10 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 func HostConfigHash(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
-	// and the embedded binaries are kept.
-	cfg.IP = ""
-	cfg.SSHUser = ""
-	cfg.UserPassword = ""
-	cfg.SSHPrivateKey = nil
-	cfg.NodeName = ""
-	cfg.ProviderID = ""
-	cfg.Kubeconfig = ""
-	cfg.TailscaleAuthKey = ""
-	cfg.VNCRelayHost = ""
-	cfg.VMCachePNVLAN = 0
-	cfg.KnownHostFingerprint = ""
-	cfg.GHActionsRunner = nil
-	cfg.NodeLabels = nil
-	// Per-host role signal (builder hosts set it); the launchd plist
-	// renderer keys --disable-vm-gc off it, so neutralize it too.
-	cfg.DisableVMGC = false
-	// Transport-only: gates whether installTailscale runs, changes no
-	// rendered output. Neutralized so it can never perturb the hash.
-	cfg.SkipTailscaleInstall = false
+	// and the embedded binaries are kept. Stripping is an empty overlay
+	// rather than its own zeroing list, so the set of per-host fields is
+	// defined once, in PerHost, and cannot drift from what callers apply.
+	cfg = cfg.WithPerHost(PerHost{})
 
 	var b strings.Builder
 
@@ -626,6 +689,7 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -2443,6 +2507,46 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.
 // node_exporter wrapper + launchd job. The binary rides stdin and its
 // drift is tracked by its own SHA in the host config hash, so this
 // script carries no per-host or per-binary input.
+// installTailnetResolver teaches the host OS to resolve `.ts.net` names
+// through MagicDNS.
+//
+// tailscaled is running here, and answers MagicDNS on 100.100.100.100 like
+// anywhere else — but the open-source daemon on macOS never rewrites the
+// system resolver configuration, so nothing that uses ordinary OS
+// resolution can see tailnet names. That is why the log shipper resolves
+// through tailscaled itself rather than through the OS, and why a Tart VM
+// guest resolves these names while its host does not.
+//
+// Programs we do not control cannot do that. `crane`, `oras` and `tart`
+// all resolve through the OS, so on a builder every tailnet name is
+// NXDOMAIN — which is what broke image publishing when the workflows moved
+// to the tailnet-hosted registry.
+//
+// A scoped resolver supplies exactly what the daemon cannot, and nothing
+// more: only `.ts.net` is redirected, so public DNS keeps answering for
+// everything else, including the rest of tuist.dev.
+func installTailnetResolver(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderTailnetResolverScript())
+}
+
+func renderTailnetResolverScript() string {
+	return `set -euo pipefail
+sudo mkdir -p /etc/resolver
+# 100.100.100.100 is Tailscale's fixed MagicDNS address, not a per-host
+# value, so this file is identical fleet-wide and stays inside the
+# fleet-wide config hash.
+sudo tee /etc/resolver/ts.net >/dev/null <<'RESOLVER'
+nameserver 100.100.100.100
+RESOLVER
+sudo chmod 0644 /etc/resolver/ts.net
+# macOS caches negative answers, and these names have been NXDOMAIN on
+# this host until now, so without a flush the first lookups keep failing
+# for as long as the cache holds them.
+sudo dscacheutil -flushcache || true
+sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
 func renderNodeExporterScript() string {
 	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin

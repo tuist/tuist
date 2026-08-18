@@ -10503,10 +10503,17 @@ defmodule Tuist.TestsTest do
     test_pid = self()
     handler_id = "clickhouse-queries-#{System.unique_integer([:positive])}"
 
+    # `:telemetry` handlers are global, so an async test running alongside this
+    # one would otherwise land its queries in the captured list and shift the
+    # positions the ordering assertions read.
     :telemetry.attach_many(
       handler_id,
       [[:tuist, :click_house_repo, :query], [:tuist, :ingest_repo, :query]],
-      fn _event, _measurements, %{query: query}, _config -> send(test_pid, {:clickhouse_query, query}) end,
+      fn _event, _measurements, %{query: query}, _config ->
+        if test_pid == self() or test_pid in Process.get(:"$callers", []) do
+          send(test_pid, {:clickhouse_query, query})
+        end
+      end,
       nil
     )
 

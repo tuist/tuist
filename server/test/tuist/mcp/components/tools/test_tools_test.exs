@@ -16,6 +16,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Xcode
@@ -506,8 +507,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   end
 
   describe "get_test_run" do
-    test "returns test run with metrics" do
-      project = %{id: 1, name: "app"}
+    test "returns test run with metrics and artifact download URLs" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
 
       stub(Tests, :get_test, fn "run-1" ->
         {:ok,
@@ -532,6 +533,15 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 
+      # Signed rather than checked for existence, so the caller pays no storage
+      # round trip for metrics they may only want the numbers from.
+      stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
+        assert Keyword.fetch!(opts, :expires_in) == 900
+        "https://storage.test/#{object_key}"
+      end)
+
+      reject(&Storage.get_object_size/2)
+
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
@@ -541,6 +551,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["id"] == "run-1"
       assert result["total_test_count"] == 50
       assert result["failed_test_count"] == 2
+      assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
+      assert result["session_url"] == "https://storage.test/acme/app/runs/run-1/session.zip"
     end
 
     test "requires :test_read authorization" do
@@ -656,7 +668,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
 
       stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
 
-      stub(Tuist.Storage, :generate_download_url, fn _key, _account, _opts ->
+      stub(Storage, :generate_download_url, fn _key, _account, _opts ->
         "https://s3.example.com/presigned-url"
       end)
 
