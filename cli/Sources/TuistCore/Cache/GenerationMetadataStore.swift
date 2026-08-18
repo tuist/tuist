@@ -29,41 +29,54 @@ public struct GenerationMetadataStore: GenerationMetadataStoring {
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
+    private let cacheDirectoryLock: CacheDirectoryLocking
 
     private static let retention: TimeInterval = 60 * 60 * 24 * 30
 
     public init(
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         contentHasher: ContentHashing = ContentHasher(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        cacheDirectoryLock: CacheDirectoryLocking = CacheDirectoryLock()
     ) {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.contentHasher = contentHasher
         self.fileSystem = fileSystem
+        self.cacheDirectoryLock = cacheDirectoryLock
     }
 
     public func store(generationId: String, for projectPath: AbsolutePath) async throws {
         let path = try metadataPath(for: projectPath)
-        let directory = path.parentDirectory
-        if try await !fileSystem.exists(directory) {
-            try await fileSystem.makeDirectory(at: directory)
+        try await cacheDirectoryLock.whileUsing(.generationMetadata) {
+            let directory = path.parentDirectory
+            if try await !fileSystem.exists(directory) {
+                try await fileSystem.makeDirectory(at: directory)
+            }
+            if try await fileSystem.exists(path) {
+                try await fileSystem.remove(path)
+            }
+            let metadata = GenerationMetadata(generationId: generationId, generatedAt: Date())
+            try await fileSystem.writeAsJSON(metadata, at: path)
         }
-        if try await fileSystem.exists(path) {
-            try await fileSystem.remove(path)
-        }
-        let metadata = GenerationMetadata(generationId: generationId, generatedAt: Date())
-        try await fileSystem.writeAsJSON(metadata, at: path)
     }
 
     public func read(for projectPath: AbsolutePath) async throws -> String? {
         let path = try metadataPath(for: projectPath)
-        guard try await fileSystem.exists(path) else { return nil }
-        let metadata: GenerationMetadata = try await fileSystem.readJSONFile(at: path)
-        return metadata.generationId
+        return try await cacheDirectoryLock.whileUsing(.generationMetadata) {
+            guard try await fileSystem.exists(path) else { return String?.none }
+            let metadata: GenerationMetadata = try await fileSystem.readJSONFile(at: path)
+            return metadata.generationId
+        }
     }
 
     public func prune() async throws {
         let directory = try cacheDirectoriesProvider.cacheDirectory(for: .generationMetadata)
+        try await cacheDirectoryLock.whileUsing(.generationMetadata) {
+            try await prune(in: directory)
+        }
+    }
+
+    private func prune(in directory: AbsolutePath) async throws {
         guard try await fileSystem.exists(directory) else { return }
         let cutoff = Date().addingTimeInterval(-Self.retention)
         let files = try await fileSystem.glob(directory: directory, include: ["*.json"]).collect()

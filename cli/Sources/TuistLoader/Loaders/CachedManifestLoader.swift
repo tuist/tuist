@@ -22,6 +22,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileSystem: FileSysteming
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private let cacheDirectoryLock: CacheDirectoryLocking
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
@@ -46,13 +47,15 @@ public class CachedManifestLoader: ManifestLoading {
         helpersDirectoryLocator: HelpersDirectoryLocating,
         fileSystem: FileSysteming,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
-        tuistVersion: String
+        tuistVersion: String,
+        cacheDirectoryLock: CacheDirectoryLocking = CacheDirectoryLock()
     ) {
         self.manifestLoader = manifestLoader
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileSystem = fileSystem
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.cacheDirectoryLock = cacheDirectoryLock
         self.tuistVersion = tuistVersion
         cacheDirectory = ThrowableCaching {
             try cacheDirectoriesProvider.cacheDirectory(for: .manifests)
@@ -253,11 +256,10 @@ public class CachedManifestLoader: ManifestLoading {
         at cachedManifestPath: AbsolutePath,
         hashes: Hashes
     ) async throws -> T? {
-        guard try await fileSystem.exists(cachedManifestPath) else {
-            return nil
-        }
-
-        guard let data = try? await fileSystem.readFile(at: cachedManifestPath) else {
+        guard let data = try await cacheDirectoryLock.whileUsing(.manifests, {
+            guard try await fileSystem.exists(cachedManifestPath) else { return Data?.none }
+            return try? await fileSystem.readFile(at: cachedManifestPath)
+        }) else {
             return nil
         }
 
@@ -298,11 +300,13 @@ public class CachedManifestLoader: ManifestLoading {
         // concurrent clean can remove it between the call that creates it and the write, which is
         // how this surfaced: a `tuist install` reporting a failed rename into `Manifests`.
         do {
-            try await fileSystem.makeDirectory(
-                at: cachedManifestPath.parentDirectory,
-                options: [.createTargetParentDirectories]
-            )
-            try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
+            try await cacheDirectoryLock.whileUsing(.manifests) {
+                try await fileSystem.makeDirectory(
+                    at: cachedManifestPath.parentDirectory,
+                    options: [.createTargetParentDirectories]
+                )
+                try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
+            }
         } catch {
             Logger.current.debug(
                 "Couldn't cache the \(manifest) manifest at \(cachedManifestPath.pathString): \(error)"

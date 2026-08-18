@@ -58,6 +58,7 @@ struct CleanService {
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
+    private let cacheDirectoryLock: CacheDirectoryLocking
     private let fileSystem: FileSystem
 
     init(
@@ -72,6 +73,7 @@ struct CleanService {
         serverAuthenticationController: ServerAuthenticationControlling,
         swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
             SwiftPackageManagerScratchDirectoryLocator(),
+        cacheDirectoryLock: CacheDirectoryLocking,
         fileSystem: FileSystem
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -84,6 +86,7 @@ struct CleanService {
         self.getCacheEndpointsService = getCacheEndpointsService
         self.serverAuthenticationController = serverAuthenticationController
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
+        self.cacheDirectoryLock = cacheDirectoryLock
         self.fileSystem = fileSystem
     }
 
@@ -99,6 +102,7 @@ struct CleanService {
             getCacheEndpointsService: GetCacheEndpointsService(),
             serverAuthenticationController: ServerAuthenticationController(),
             swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator(),
+            cacheDirectoryLock: CacheDirectoryLock(),
             fileSystem: FileSystem()
         )
     }
@@ -117,35 +121,10 @@ struct CleanService {
         )
 
         for category in categories {
-            let cleaned: Bool
-            let directory: AbsolutePath?
-            switch category {
-            case let .global(category):
-                let globalDirectory = try cacheDirectoriesProvider.cacheDirectory(for: category)
-                directory = globalDirectory
-                cleaned = try await emptyShared(globalDirectory)
-            case .dependencies:
-                directory = swiftPackageManagerScratchDirectory
-                // Not emptied through `emptyShared`: the scratch directory belongs to a single
-                // checkout, so no other process on the host resolves paths inside it, and the
-                // staging directory that method leaves behind while it deletes would sit in the
-                // user's project rather than in a directory Tuist owns.
-                if let scratchDirectory = swiftPackageManagerScratchDirectory,
-                   try await fileSystem.exists(scratchDirectory)
-                {
-                    try await fileSystem.remove(scratchDirectory)
-                    try await fileSystem.makeDirectory(at: scratchDirectory)
-                    cleaned = true
-                } else {
-                    cleaned = false
-                }
-            }
-            if cleaned, let directory {
-                AlertController.current
-                    .success(.alert("Successfully cleaned artifacts at path \(directory.pathString)"))
-            } else {
-                Logger.current.notice("There's nothing to clean for \(category.defaultValueDescription)")
-            }
+            try await clean(
+                category,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+            )
         }
 
         if remote {
@@ -187,6 +166,43 @@ struct CleanService {
             }
 
             Logger.current.notice("Successfully cleaned the remote storage.")
+        }
+    }
+
+    private func clean(
+        _ category: TuistCleanCategory,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws {
+        let cleaned: Bool
+        let directory: AbsolutePath?
+        switch category {
+        case let .global(category):
+            let globalDirectory = try cacheDirectoriesProvider.cacheDirectory(for: category)
+            directory = globalDirectory
+            cleaned = try await cacheDirectoryLock.whileEmptying(category) {
+                try await emptyShared(globalDirectory)
+            }
+        case .dependencies:
+            directory = swiftPackageManagerScratchDirectory
+            // Neither locked nor emptied through `emptyShared`: the scratch directory belongs to a
+            // single checkout, so no other process on the host resolves paths inside it, and the
+            // staging directory `emptyShared` leaves behind while it deletes would sit in the
+            // user's project rather than in a directory Tuist owns.
+            if let scratchDirectory = swiftPackageManagerScratchDirectory,
+               try await fileSystem.exists(scratchDirectory)
+            {
+                try await fileSystem.remove(scratchDirectory)
+                try await fileSystem.makeDirectory(at: scratchDirectory)
+                cleaned = true
+            } else {
+                cleaned = false
+            }
+        }
+        if cleaned, let directory {
+            AlertController.current
+                .success(.alert("Successfully cleaned artifacts at path \(directory.pathString)"))
+        } else {
+            Logger.current.notice("There's nothing to clean for \(category.defaultValueDescription)")
         }
     }
 

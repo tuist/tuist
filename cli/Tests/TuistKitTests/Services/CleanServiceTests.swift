@@ -56,6 +56,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             cleanProjectCacheService: cleanProjectCacheService,
             getCacheEndpointsService: getCacheEndpointsService,
             serverAuthenticationController: serverAuthenticationController,
+            cacheDirectoryLock: CacheDirectoryLock(cacheDirectory: try temporaryPath()),
             fileSystem: FileSystem()
         )
     }
@@ -74,7 +75,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func makeSubject(configLoader: MockConfigLoading? = nil) -> CleanService {
+    private func makeSubject(configLoader: MockConfigLoading? = nil) throws -> CleanService {
         CleanService(
             rootDirectoryLocator: rootDirectoryLocator,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
@@ -85,6 +86,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             cleanProjectCacheService: cleanProjectCacheService,
             getCacheEndpointsService: getCacheEndpointsService,
             serverAuthenticationController: serverAuthenticationController,
+            cacheDirectoryLock: CacheDirectoryLock(cacheDirectory: try temporaryPath()),
             fileSystem: FileSystem()
         )
     }
@@ -295,7 +297,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                     )
                 )
             )
-        let subject = makeSubject(configLoader: customConfigLoader)
+        let subject = try makeSubject(configLoader: customConfigLoader)
 
         // When
         try await subject.run(
@@ -392,7 +394,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
-                let subject = makeSubject(configLoader: customConfigLoader)
+                let subject = try makeSubject(configLoader: customConfigLoader)
 
                 // When
                 try await subject.run(
@@ -460,7 +462,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
-                let subject = makeSubject(configLoader: customConfigLoader)
+                let subject = try makeSubject(configLoader: customConfigLoader)
 
                 // When
                 try await subject.run(
