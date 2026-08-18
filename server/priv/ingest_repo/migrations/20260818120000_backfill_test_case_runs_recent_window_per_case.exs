@@ -2,6 +2,34 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   @moduledoc """
   Seeds the packed rolling aggregate from the 100-entry tuple bucket.
 
+  **`up/0` no longer runs this.** It records the version and returns; `backfill!/0`
+  does the work when an operator calls it. Everything below still describes that
+  work and is still accurate.
+
+  ## Why it does not run in the deploy
+
+  This is a helm `pre-upgrade` hook, so while it fails nothing ships. It failed
+  four production deploys on 2026-08-18: twice on `SIZES_OF_ARRAYS_DONT_MATCH`
+  (see Reconstruction) and then repeatedly on `MEMORY_LIMIT_EXCEEDED` at the
+  first projects whose parts are large enough to strain the reader. That last one
+  does not have a fix by constant: project 1059 succeeded once and failed three
+  times on identical data within six minutes, because the 1.86 GiB per-query
+  ceiling is shared with whatever else the replica is doing. Project 1078 fails
+  every time, on every retry.
+
+  What that was blocking is out of proportion to what it buys. The packed table
+  serves `window_type: "rolling"` alerts only; `last_days` reads
+  `test_case_run_daily_stats_per_case` and never touches this. In production that
+  is 2 rolling alerts in 1 project, against 4072 `last_days` alerts across 4070
+  projects. And an unseeded window degrades closed rather than wrong: the monitor
+  evaluates a rolling window only once the aggregate holds that many distinct
+  runs, so the alerts stay dormant until the view fills forward past their
+  75-run window instead of reporting a rate off partial history.
+
+  So the seeding is worth doing deliberately, and not worth holding every server
+  release for. Re-running is safe (see Overlap below), so calling `backfill!/0`
+  later costs nothing that running it here would have saved.
+
   `20260817120000` created `test_case_runs_recent_window_per_case` forward-only,
   which left the monitor reading two different aggregates: the tuple bucket for
   windows it already served, and the packed one only above them. That split
@@ -107,7 +135,22 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   @chunk_throttle_ms 100
   @flag_sentinel "(toInt64(9223372036854775807), toUInt8(0))"
 
+  # Records without seeding. `backfill!/0` below is the same work, run
+  # deliberately rather than inside a deploy.
   def up do
+    Logger.info(
+      "Skipping the #{@target_table} backfill; run #{inspect(__MODULE__)}.backfill!/0 " <>
+        "against the target environment to seed it. See the module doc."
+    )
+
+    :ok
+  end
+
+  # The seeding pass, unchanged. Kept whole rather than deleted: the reasoning
+  # about reconstruction, memory and the packed encoding is worth more than the
+  # few lines it costs to carry, and the decision to skip is about *when* this
+  # runs, not whether the approach is right.
+  def backfill! do
     project_ids = source_project_ids()
     packed_view_boundary = packed_view_boundary()
 
