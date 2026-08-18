@@ -543,6 +543,32 @@ k8s-monitoring:
   #   - Note: exactly one series per machine (recordMachinePhase clears the
   #     prior phase on transition), so a recovered machine stops matching.
   #
+  # Alert to create in Grafana Cloud (PromQL) — fleet short of its replicas.
+  # The gauge above is per-CR, so it cannot see a machine that was never
+  # created: a MachineSet whose infrastructure clone is rejected by the
+  # apiserver (`InfrastructureTemplateCloningFailed`, e.g. a MachineTemplate
+  # missing a field the schema requires) retries forever and emits no series
+  # at all. That is how a fleet ran at half capacity unnoticed — every
+  # remaining machine was Ready, so the Failed alert above stayed green.
+  # Count the fleet instead and compare against its chart replica count:
+  #
+  #   count by (cluster, fleet) (
+  #     capt_scaleway_applesilicon_machine_phase{fleet="tuist-tuist-macos-fleet"}
+  #   ) < 2
+  #
+  # Recommended config:
+  #   - For: 1h    (an adopt legitimately takes ~50 min end to end, and a
+  #                 planned roll deletes a Machine before its replacement
+  #                 finishes bootstrapping)
+  #   - Severity: warning
+  #   - Summary: "Fleet {{ $labels.fleet }} is short of its replicas — check
+  #              `kubectl -n tuist describe machineset` for a cloning error
+  #              before assuming the pool is empty."
+  #   - Note: the threshold is the fleet's `replicas` in
+  #     values-managed-<env>.yaml; bump both together when a fleet grows.
+  #     One alert per fleet whose replicas > 1 — a single-replica fleet is
+  #     already covered by the workload's own availability alerting.
+  #
   # metricsPortName narrows the discovery output to a single target per
   # pod when the pod declares more than one container port. Without it,
   # Kubernetes pod-role discovery emits one target per declared port
@@ -650,6 +676,22 @@ k8s-monitoring:
       # running (and reporting) exactly when a node is unhealthy, instead of
       # being the thing that gets reaped and wedges the whole pipeline.
       priorityClassName: system-node-critical
+      # Enable the `cgroups` collector (off by default upstream). It reads
+      # /proc/cgroups and exports `node_cgroups_cgroups{subsys_name}` — the
+      # live cgroup count per controller.
+      #
+      # This exists because a cgroup leak has no other signal. On 2026-08-13
+      # a kata-qemu cgroup-driver mismatch leaked one root-level cgroup per
+      # container start on the Linux runner nodes. After 85 days one node
+      # began failing every Pod sandbox with ENOSPC on cgroup mkdir while
+      # still reporting Ready with no pressure condition, and its sibling was
+      # measured at the same magnitude (~130k cgroups, growing ~2/min). The
+      # driver bug is fixed in `infra/k8s/clusters/bare-metal.yaml`, but the
+      # failure mode — a slow unbounded kernel-resource leak that no node
+      # condition reports — deserves a standing gauge rather than trusting
+      # that this was the only way to produce it.
+      extraArgs:
+        - --collector.cgroups
 
   # ───── Service integrations ─────
   #

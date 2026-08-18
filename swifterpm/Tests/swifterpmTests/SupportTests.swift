@@ -324,4 +324,23 @@ struct SupportTests {
             ) == nil
         )
     }
+
+    @Test
+    func realpathFollowsSymlinksAndKeepsThePathWhenItCannotResolve() async throws {
+        try await withTemporaryDirectory { directory in
+            let target = directory.appendingPathComponent("Target")
+            try await fileSystem.makeDirectory(
+                at: target.absolutePath, options: [.createTargetParentDirectories])
+            let link = directory.appendingPathComponent("Link")
+            try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
+            let absent = directory.appendingPathComponent("Absent/Deep")
+
+            #expect(
+                PathCanonicalizer.realpath(link).path
+                    == PathCanonicalizer.realpath(directory).appendingPathComponent("Target").path)
+            // Nothing to resolve: the caller still needs the path it asked about, not a
+            // truncated prefix of it.
+            #expect(PathCanonicalizer.realpath(absent).path == absent.standardizedFileURL.path)
+        }
+    }
 }

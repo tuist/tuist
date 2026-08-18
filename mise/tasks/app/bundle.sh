@@ -11,7 +11,6 @@ APP_DIRECTORY=$MISE_PROJECT_ROOT/app/app-binary
 DERIVED_DATA_PATH=$BUILD_DIRECTORY/app/derived
 BUILD_DIRECTORY_BINARY=$DERIVED_DATA_PATH/Build/Products/Release/Tuist.app
 BUILD_ARTIFACTS_DIRECTORY=$BUILD_DIRECTORY/artifacts
-BUILD_ZIP_PATH=$BUILD_ARTIFACTS_DIRECTORY/app.zip
 SHASUMS256_FILE=$BUILD_ARTIFACTS_DIRECTORY/SHASUMS256.txt
 SHASUMS512_FILE=$BUILD_ARTIFACTS_DIRECTORY/SHASUMS512.txt
 TEAM_ID='U6LC622NKF'
@@ -60,21 +59,20 @@ mkdir -p $BUILD_ARTIFACTS_DIRECTORY
 BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
 
 print_status "Creating DMG..."
-# create-dmg uses Finder via AppleScript to style the DMG window, which
-# periodically fails on CI with "AppleEvent timed out. (-1712)". Retry a few
-# times before giving up.
-max_attempts=5
-attempt=1
-until create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"; do
-    if [ $attempt -ge $max_attempts ]; then
-        echo "create-dmg failed after $attempt attempts" >&2
-        exit 1
-    fi
-    echo "create-dmg attempt $attempt failed; retrying..." >&2
-    rm -f "$BUILD_DMG_PATH"
-    attempt=$((attempt + 1))
-    sleep 5
-done
+# The window layout is written straight into the image's .DS_Store. The
+# previous tool, create-dmg, styled it by telling Finder where to put the icons
+# over AppleScript, and the fleet's VMs have no Finder that answers: every send
+# waited out the 120 second AppleEvent timeout, so all five attempts failed
+# with "Finder got an error: AppleEvent timed out. (-1712)" and no release
+# could produce a DMG. Layout lives in app/dmg-settings.py.
+DMGBUILD_VENV=$TMP_DIR/dmgbuild
+python3 -m venv "$DMGBUILD_VENV"
+"$DMGBUILD_VENV/bin/pip" install --quiet --disable-pip-version-check dmgbuild==1.6.7
+"$DMGBUILD_VENV/bin/dmgbuild" \
+    --settings "$MISE_PROJECT_ROOT/app/dmg-settings.py" \
+    -D app="$BUILD_DIRECTORY_BINARY" \
+    -D background="$MISE_PROJECT_ROOT/assets/dmg-background.png" \
+    "Tuist App" "$BUILD_DMG_PATH"
 
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 

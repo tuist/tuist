@@ -135,6 +135,17 @@ unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut
     *error_out = adopt_upstream_string(up, error_in);
 }
 
+/// Like `adopt_error`, but for the paths that must INSPECT the failure rather than
+/// forward it.
+unsafe fn take_upstream_error(up: &Upstream, error: *mut c_char) -> String {
+    if error.is_null() {
+        return String::new();
+    }
+    let message = CStr::from_ptr(error).to_string_lossy().into_owned();
+    (up.llcas_string_dispose)(error);
+    message
+}
+
 // --- Handles -------------------------------------------------------------------
 
 struct OptionsState {
@@ -270,6 +281,15 @@ struct CasState {
     known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
+    // Both count keys that stay uncacheable for the life of the store generation
+    // (tuist/tuist#12245).
+    stats_unbacked_local_hits: AtomicU64,
+    stats_poisoned_puts: AtomicU64,
+    // Resolve hits whose association was NOT recorded because the graph had not
+    // materialized yet. Not a degradation: the key resolves again next build and
+    // is recorded then. A count that stays high across builds means graphs are
+    // not landing at all, which is a materialization problem, not a cache one.
+    stats_deferred_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
     // above the local-replay floor due to fetching, as opposed to overheads.
@@ -532,6 +552,9 @@ pub unsafe extern "C" fn llcas_cas_create(
         known_local: Mutex::new(std::collections::HashSet::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
+        stats_unbacked_local_hits: AtomicU64::new(0),
+        stats_poisoned_puts: AtomicU64::new(0),
+        stats_deferred_puts: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
         stats_client_store: OpStats::default(),
         stats_client_store_bytes: AtomicU64::new(0),
@@ -578,6 +601,26 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
         // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
+
+        // A summary only: most compiler processes exit without disposing (see the
+        // PublishRecord note above), so the per-event lines are the real signal.
+        // This does cover the build system's own instance, which issues the gets.
+        let unbacked = state.stats_unbacked_local_hits.load(Ordering::Relaxed);
+        let poisoned = state.stats_poisoned_puts.load(Ordering::Relaxed);
+        if unbacked > 0 || poisoned > 0 {
+            log_line(&format!(
+                "degraded: unbacked_local_hits={unbacked} poisoned_puts={poisoned}"
+            ));
+        }
+        // Deliberately NOT part of `degraded:`. A deferral is the expected
+        // outcome whenever a resolve outruns its materialization, so a cold build
+        // defers routinely and reporting that as degradation would train the
+        // reader to ignore the line that does mean something. What matters is the
+        // trend across builds, not its presence in one.
+        let deferred = state.stats_deferred_puts.load(Ordering::Relaxed);
+        if deferred > 0 {
+            log_line(&format!("deferred_puts={deferred}"));
+        }
         // Ingestion counters, logged whether or not this build reached the
         // proxy, so a floor build produces the same accounting as a warm one.
         if state.stats_client_store.count.load(Ordering::Relaxed) > 0
@@ -797,6 +840,28 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 
 // --- Read-through: object loads -----------------------------------------------
 
+/// Printed form (`0~...`), so a log line can be matched against the
+/// `missing object '0~...'` a build reports.
+unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
+    let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+    let mut printed: *mut c_char = std::ptr::null_mut();
+    let mut print_error: *mut c_char = std::ptr::null_mut();
+    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut printed, &mut print_error);
+    if !print_error.is_null() {
+        (state.up.llcas_string_dispose)(print_error);
+    }
+    if failed || printed.is_null() {
+        return hex(&digest_bytes(state, id));
+    }
+    let text = CStr::from_ptr(printed).to_string_lossy().into_owned();
+    (state.up.llcas_string_dispose)(printed);
+    text
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
     if digest.data.is_null() || digest.size == 0 {
@@ -839,7 +904,19 @@ unsafe fn load_object_impl(
                 adopt_error(state.up, upstream_error, error);
                 return retried;
             }
-            Ok(false) => {}
+            // The PROXY cannot produce it: not present, not pending, and not
+            // nameable from the snapshot's node table. Not the same as gone —
+            // kura may still hold the blob under a key we cannot name, which is
+            // what a resolve recovers and this cannot. Clang fails the build
+            // here. Correlate with the unbacked-hit line: a digest logged here
+            // that no such line names is an interior node, invisible to the
+            // root probe.
+            Ok(false) => {
+                log_line(&format!(
+                    "proxy fetch_object could not produce {}",
+                    printed_digest(state, id)
+                ));
+            }
             Err(message) => {
                 log_line(&format!("proxy fetch_object error: {message}"));
             }
@@ -965,15 +1042,9 @@ unsafe fn actioncache_get_impl(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let key_digest = llcas_digest_t { data: key.as_ptr(), size: key.len() };
-    let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
+    let result = verified_local_get(state, key_digest, globally, p_value, error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
-        adopt_error(state.up, upstream_error, error);
         return result;
-    }
-    if !upstream_error.is_null() {
-        (state.up.llcas_string_dispose)(upstream_error);
     }
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
@@ -1005,18 +1076,36 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // The local association outlives the value graph (the build
-            // system prunes the store several times per build), so a later
-            // get can hit it locally with the objects gone. That is safe
-            // ONLY because the load path self-heals: a local load miss
-            // consults the proxy (FETCH_OBJECT), whose fetch instructions
-            // are retained after materialization and also cover locally
-            // published nodes — clang fails the build outright on a
-            // missing object, it does not recompile.
-            let mut put_error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
-                adopt_error(state.up, put_error, error);
-                return LLCAS_LOOKUP_RESULT_ERROR;
+            // Record the association ONLY once the graph it names is actually
+            // here. A resolve replies before materialization finishes (protocol
+            // v2 is non-blocking on purpose — this runs on the serial task-setup
+            // path), so putting unconditionally writes `key -> value` for a graph
+            // that may never arrive, and NOTHING can retract it: the ABI has no
+            // delete and a re-put with a different value is refused. That made
+            // this function an author of the very state `verified_local_get`
+            // exists to catch, with no prune involved — measured on a real build
+            // over an EMPTY store, which ended it holding 9 dangling roots.
+            //
+            // Skipping costs one extra resolve for this key, ONCE: the
+            // materialized root persists on disk, so the next build's resolve
+            // finds it present and records the association then. On the warm
+            // snapshot path the graph is already materialized, the probe passes,
+            // and nothing changes. The same ROOT-only probe as the read guard —
+            // an interior node still needs the load path's FETCH_OBJECT.
+            if value_graph_is_available(state, value_id) {
+                let mut put_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                    // Reachable BECAUSE of the verification: a stale association sends
+                    // its key here and the remote may answer a different digest, which
+                    // the store then refuses to cache. The resolve itself succeeded, so
+                    // failing would trade `missing object` for `cache poisoned`.
+                    let message = take_upstream_error(state.up, put_error);
+                    if adopt_put_failure(state, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
+                }
+            } else {
+                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
             }
             if !p_value.is_null() {
                 *p_value = value_id;
@@ -1033,6 +1122,114 @@ unsafe fn actioncache_get_impl(
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
     }
+}
+
+/// The ROOT only, and a probe rather than a load: this runs on the thread that
+/// schedules every task in the build, so its cost is multiplied by every lookup
+/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
+/// write-through ordering, not to a graph walk here.
+///
+/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
+/// condition. A probe that errors counts as unavailable — falling through costs a
+/// resolve, serving an unbacked hit costs a build.
+unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
+    let mut probe_error: *mut c_char = std::ptr::null_mut();
+    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
+    if !probe_error.is_null() {
+        (state.up.llcas_string_dispose)(probe_error);
+    }
+    result == LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// The upstream local lookup, with a hit verified before it is served.
+///
+/// A local association does NOT imply its value graph is present — a prune can
+/// strand it — and nothing can retract it once it dangles (the ABI has no delete;
+/// a re-put with a different value is refused). Serving one hands the compiler an
+/// id that names nothing, permanently, because the local hit is what shadows the
+/// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
+///
+/// The write-side invariants keep this guard from being the only defense: an
+/// association is recorded only once its root is present, and materialization
+/// publishes a root only over a complete closure. This still runs, because a
+/// prune remains an author no writer controls.
+///
+/// So an unverifiable hit is reported as NOTFOUND and the caller's remote path
+/// takes over, which is also what repairs it.
+unsafe fn verified_local_get(
+    state: &CasState,
+    key_digest: llcas_digest_t,
+    globally: bool,
+    p_value: *mut llcas_objectid_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    // Every path must leave the slot defined: a client that passes an uninitialised
+    // `char **error` and reads it on SUCCESS must not see an indeterminate pointer.
+    if !error.is_null() {
+        *error = std::ptr::null_mut();
+    }
+    // Never the caller's slot: `p_value` is nullable and the verification needs
+    // an id to probe. Apple's plugin dereferences the pointer it is handed.
+    let mut value = llcas_objectid_t { opaque: 0 };
+    let mut upstream_error: *mut c_char = std::ptr::null_mut();
+    let result =
+        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut upstream_error);
+    if result == LLCAS_LOOKUP_RESULT_ERROR {
+        adopt_error(state.up, upstream_error, error);
+        return result;
+    }
+    if !upstream_error.is_null() {
+        (state.up.llcas_string_dispose)(upstream_error);
+    }
+    if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+        return result;
+    }
+    if !value_graph_is_available(state, value) {
+        state.stats_unbacked_local_hits.fetch_add(1, Ordering::Relaxed);
+        log_line(&format!(
+            "unbacked local hit, falling through to the remote: value={}",
+            printed_digest(state, value)
+        ));
+        return LLCAS_LOOKUP_RESULT_NOTFOUND;
+    }
+    if !p_value.is_null() {
+        *p_value = value;
+    }
+    LLCAS_LOOKUP_RESULT_SUCCESS
+}
+
+/// Whether a put failure is the store declining to CHANGE an existing
+/// association, rather than a real storage error.
+///
+/// An association is immutable for the life of the store generation, and the
+/// verification above drives recompiles on exactly the stale keys, so a
+/// non-reproducible recompile reaches this often. Surfacing it would only trade a
+/// `missing object` build failure for a `cache poisoned` one.
+///
+/// Matched on the message because the ABI reports every put failure identically.
+/// Apple's wording is not a contract, so `adopt_put_failure` logs EVERY failure and
+/// a missed variant shows up in TUIST_CAS_LOG rather than failing a build. Both
+/// words are required: a false positive also publishes the value remotely. Two
+/// substrings, not the exact phrase, to survive rewording.
+fn is_cache_poisoned(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    message.contains("poison") && message.contains("cache")
+}
+
+/// A refused association is not fatal: the store keeps what it already had and the
+/// caller carries on.
+unsafe fn adopt_put_failure(state: &CasState, message: &str, error: *mut *mut c_char) -> bool {
+    log_line(&format!("actioncache put failed: {message}"));
+    if is_cache_poisoned(message) {
+        state.stats_poisoned_puts.fetch_add(1, Ordering::Relaxed);
+        // Reported as a success, so the slot must not be left carrying an error.
+        if !error.is_null() {
+            *error = std::ptr::null_mut();
+        }
+        return false;
+    }
+    set_error(error, message);
+    true
 }
 
 #[no_mangle]
@@ -1061,25 +1258,12 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 ) {
     let state = cas_state(cas);
     let key_bytes = std::slice::from_raw_parts(key.data, key.size).to_vec();
-
-    // Fast path: answer local hits synchronously.
-    let mut value = llcas_objectid_t { opaque: 0 };
-    let key_digest = llcas_digest_t { data: key_bytes.as_ptr(), size: key_bytes.len() };
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result =
-        (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
-        let _ = ours_cancel_token(cancel_tok);
-        let error = adopt_upstream_string(state.up, probe_error);
-        callback(ctx_cb, result, value, error);
-        return;
-    }
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
-    }
-
     let _ = ours_cancel_token(cancel_tok);
-    // Answered on the caller's thread; see llcas_cas_load_object_async.
+
+    // Answered on the caller's thread; see llcas_cas_load_object_async. Do not
+    // reintroduce a local "fast path" here: it saves nothing (this is synchronous
+    // either way), and a second home for the local decision is how this entry point
+    // came to be missing the verification the sync one had.
     let mut value = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1136,12 +1320,21 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
 ) -> bool {
     let state = cas_state(cas);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    adopt_error(state.up, upstream_error, error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        adopt_put_failure(state, &message, error)
+    } else {
+        adopt_error(state.up, upstream_error, error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: a panic here must neither fail the
         // already-succeeded local put nor unwind across the extern "C" boundary.
+        // A downgraded poisoned put publishes too, deliberately: the local
+        // association can never be changed, so the remote becomes the healed truth
+        // that later builds resolve to.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             actioncache_put_remote(state, &key, value)
         }));
@@ -1162,8 +1355,15 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let state = cas_state(cas);
     let _ = ours_cancel_token(cancel_tok);
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
-    let error = adopt_upstream_string(state.up, upstream_error);
+    let rejected = (state.up.llcas_actioncache_put_for_digest)(state.cas, key, value, globally, &mut upstream_error);
+    let mut error: *mut c_char = std::ptr::null_mut();
+    let failed = if rejected {
+        let message = take_upstream_error(state.up, upstream_error);
+        adopt_put_failure(state, &message, &mut error)
+    } else {
+        adopt_error(state.up, upstream_error, &mut error);
+        false
+    };
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
         // Best-effort remote publish: swallow panics so they cannot fail the
@@ -1173,4 +1373,25 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
         }));
     }
     callback(ctx_cb, failed, error);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // tests/unbacked_local_hit.rs covers the behaviour end to end against Apple's
+    // plugin. What it cannot reach is the other branch: a real storage error must
+    // stay a failure, or the downgrade would swallow every problem the store hits.
+    #[test]
+    fn only_a_refused_association_counts_as_poisoning() {
+        // The wording observed on Xcode 26.3, plus rewordings it should survive.
+        assert!(is_cache_poisoned("ERROR : cache poisoned"));
+        assert!(is_cache_poisoned("Cache Poisoned"));
+        assert!(is_cache_poisoned("the cache is poisoned"));
+
+        assert!(!is_cache_poisoned(""));
+        assert!(!is_cache_poisoned("No space left on device"));
+        assert!(!is_cache_poisoned("failed to open the action cache"));
+        assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
 }

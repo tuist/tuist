@@ -57,9 +57,6 @@ rust_test(
 rust_test(
     name = "kura_lib_test",
     aliases = aliases(),
-    # A #[cfg(test)] block include_str!s this file relative to src/extension/; it lives outside the
-    # srcs glob, so the test compile needs it as a sandbox input.
-    compile_data = ["ops/helm/kura/hooks/tuist.lua"],
     crate = ":kura_lib",
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,

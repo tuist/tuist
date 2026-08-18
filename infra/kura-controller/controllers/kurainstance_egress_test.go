@@ -13,7 +13,7 @@ import (
 func TestDefaultResourcesEgressFloor(t *testing.T) {
 	withFloor := defaultResources(&kurav1alpha1.KuraInstance{
 		Spec: kurav1alpha1.KuraInstanceSpec{EgressGuaranteedMbps: 750},
-	})
+	}, false)
 	req, ok := withFloor.Requests[egressMbpsResource]
 	if !ok {
 		t.Fatalf("expected a request for %s", egressMbpsResource)
@@ -31,7 +31,7 @@ func TestDefaultResourcesEgressFloor(t *testing.T) {
 // request the extended resource, or every cache pod would be unschedulable on a
 // node that advertises no egress capacity.
 func TestDefaultResourcesNoEgressFloorWhenZero(t *testing.T) {
-	r := defaultResources(&kurav1alpha1.KuraInstance{})
+	r := defaultResources(&kurav1alpha1.KuraInstance{}, false)
 	if _, ok := r.Requests[egressMbpsResource]; ok {
 		t.Fatalf("did not expect an egress request when EgressGuaranteedMbps is 0")
 	}

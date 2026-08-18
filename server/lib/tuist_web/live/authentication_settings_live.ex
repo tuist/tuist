@@ -10,6 +10,13 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   alias Tuist.Environment
   alias Tuist.SCIM
 
+  # Form-level providers. "entra" is a preset over the generic `:oauth2`
+  # provider: it derives Entra's endpoints from a directory (tenant)
+  # identifier and persists as `:oauth2`, so no new `sso_provider` value,
+  # callback route, or identity migration is involved.
+  @oauth2_form_providers ["okta", "oauth2", "entra"]
+  @form_providers ["google" | @oauth2_form_providers]
+
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
@@ -107,7 +114,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     end
   end
 
-  def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in ["google", "okta", "oauth2"] do
+  def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in @form_providers do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
     verified_domain? =
@@ -164,7 +171,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       )
 
     custom_provider_without_verified_domain? =
-      socket.assigns.selected_provider in ["okta", "oauth2"] and not verified_domain?
+      socket.assigns.selected_provider in @oauth2_form_providers and not verified_domain?
 
     legacy_enforcement? =
       legacy_sso_enforcement?(
@@ -210,7 +217,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       :ok ->
         case socket.assigns.selected_provider do
           "google" -> save_google_sso(socket, params)
-          provider when provider in ["okta", "oauth2"] -> save_oauth2_sso(socket, params)
+          provider when provider in @oauth2_form_providers -> save_oauth2_sso(socket, params)
         end
 
       {:error, message} ->
@@ -391,7 +398,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp save_oauth2_sso(%{assigns: %{organization: organization, selected_provider: selected_provider}} = socket, params) do
     form_params = params["sso"] || %{}
-    sso_provider = String.to_existing_atom(selected_provider)
+    sso_provider = provider_atom(selected_provider)
 
     attrs =
       build_oauth2_attrs(
@@ -428,7 +435,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   @changeset_to_form_field %{
-    sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site"},
+    sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site", "entra" => "entra_tenant_id"},
     sso_login_domain: "sso_login_domain",
     oauth2_authorize_url: "oauth2_authorize_url",
     oauth2_token_url: "oauth2_token_url",
@@ -480,9 +487,20 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     {domain, Accounts.okta_authorize_url(domain), Accounts.okta_token_url(domain), Accounts.okta_userinfo_url(domain)}
   end
 
+  defp extract_oauth2_urls("entra", form) do
+    tenant = entra_tenant_from_form(form)
+
+    {Accounts.entra_site_url(tenant), Accounts.entra_authorize_url(tenant), Accounts.entra_token_url(tenant),
+     Accounts.entra_userinfo_url()}
+  end
+
   defp extract_oauth2_urls("oauth2", form) do
     {String.trim(form["oauth2_site"] || ""), String.trim(form["oauth2_authorize_url"] || ""),
      String.trim(form["oauth2_token_url"] || ""), String.trim(form["oauth2_user_info_url"] || "")}
+  end
+
+  defp entra_tenant_from_form(form) do
+    (form["entra_tenant_id"] || "") |> String.trim() |> String.trim("/")
   end
 
   defp validate_sso_enforcement(%{assigns: %{sso_enforced: false}}), do: :ok
@@ -495,6 +513,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         "google" -> String.trim(socket.assigns.current_form_params["google_domain"] || "")
         "okta" -> String.trim(socket.assigns.current_form_params["okta_domain"] || "")
         "oauth2" -> String.trim(socket.assigns.current_form_params["oauth2_site"] || "")
+        "entra" -> Accounts.entra_site_url(entra_tenant_from_form(socket.assigns.current_form_params))
       end
 
     has_identity =
@@ -518,6 +537,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   defp provider_atom("google"), do: :google
   defp provider_atom("okta"), do: :okta
   defp provider_atom("oauth2"), do: :oauth2
+  defp provider_atom("entra"), do: :oauth2
 
   defp validate_google_sso(domain, current_user) do
     if is_nil(
@@ -536,7 +556,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp assign_form_from_organization(socket, organization) do
-    provider = if organization.sso_provider, do: Atom.to_string(organization.sso_provider), else: "google"
+    provider = form_provider(organization)
     form_data = build_form_data(provider, organization)
 
     socket
@@ -594,6 +614,11 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       ])
   end
 
+  defp form_fields_valid?("entra", params, organization) do
+    Accounts.valid_entra_tenant?(entra_tenant_from_form(params)) and
+      oauth2_credentials_valid?(params, organization)
+  end
+
   defp form_fields_valid?(_provider, _params, _organization), do: true
 
   defp oauth2_credentials_valid?(params, organization) do
@@ -641,6 +666,16 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     })
   end
 
+  defp build_form_data("entra", organization) do
+    Map.merge(default_form_data(), %{
+      "provider" => "entra",
+      "entra_tenant_id" => Accounts.entra_tenant(organization) || "",
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => "",
+      "sso_login_domain" => organization.sso_login_domain || ""
+    })
+  end
+
   defp build_form_data("oauth2", organization) do
     Map.merge(default_form_data(), %{
       "provider" => "oauth2",
@@ -663,6 +698,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       "provider" => "google",
       "google_domain" => "",
       "okta_domain" => "",
+      "entra_tenant_id" => "",
       "oauth2_client_id" => "",
       "oauth2_client_secret" => "",
       "oauth2_site" => "",
@@ -691,7 +727,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp automatic_enrollment_toggle_disabled?(selected_provider, organization, form_params, automatic_enrollment) do
-    selected_provider in ["okta", "oauth2"] and
+    selected_provider in @oauth2_form_providers and
       not verified_login_domain_selected?(selected_provider, organization, form_params) and
       not automatic_enrollment
   end
@@ -699,27 +735,27 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   defp sso_enforcement_toggle_disabled?(selected_provider, organization, form_params, enforced) do
     legacy_enforcement? = legacy_sso_enforcement?(selected_provider, organization)
 
-    selected_provider in ["okta", "oauth2"] and
+    selected_provider in @oauth2_form_providers and
       not verified_login_domain_selected?(selected_provider, organization, form_params) and
       not legacy_enforcement? and
       not enforced
   end
 
   defp verified_login_domain_selected?(selected_provider, organization, form_params) do
-    selected_provider in ["okta", "oauth2"] and
+    selected_provider in @oauth2_form_providers and
       not is_nil(organization.sso_login_domain_verified_at) and
       normalize_domain(form_params["sso_login_domain"]) == organization.sso_login_domain
   end
 
   defp legacy_sso_enforcement?(selected_provider, organization) do
     organization.sso_legacy_email_domain_fallback and
-      selected_provider == provider_name(organization.sso_provider)
+      selected_provider == form_provider(organization)
   end
 
   defp legacy_sso_automatic_enrollment?(selected_provider, organization) do
     organization.sso_legacy_email_domain_fallback and
       organization.sso_automatic_enrollment and
-      selected_provider == provider_name(organization.sso_provider)
+      selected_provider == form_provider(organization)
   end
 
   defp automatic_enrollment_for_provider_selection(
@@ -732,7 +768,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
        when previous_provider != "google", do: true
 
   defp automatic_enrollment_for_provider_selection(provider, _previous_provider, false, false, _automatic_enrollment)
-       when provider in ["okta", "oauth2"], do: false
+       when provider in @oauth2_form_providers, do: false
 
   defp automatic_enrollment_for_provider_selection(
          _provider,
@@ -742,11 +778,21 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          automatic_enrollment
        ), do: automatic_enrollment
 
-  defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in ["okta", "oauth2"],
+  defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in @oauth2_form_providers,
     do: false
 
   defp enforcement_for_provider_selection(_provider, _verified_domain?, _legacy_enforcement?, enforced), do: enforced
 
-  defp provider_name(nil), do: nil
-  defp provider_name(provider), do: Atom.to_string(provider)
+  # The form provider is not always the stored `sso_provider`: an organization
+  # whose `:oauth2` configuration matches the Entra preset exactly is shown as
+  # "entra" so it gets the tenant field instead of four URL fields.
+  defp form_provider(%{sso_provider: nil}), do: "google"
+
+  defp form_provider(%{sso_provider: :oauth2} = organization) do
+    if Accounts.entra_tenant(organization), do: "entra", else: "oauth2"
+  end
+
+  defp form_provider(%{sso_provider: provider}), do: Atom.to_string(provider)
+
+  defp oauth2_form_provider?(provider), do: provider in @oauth2_form_providers
 end

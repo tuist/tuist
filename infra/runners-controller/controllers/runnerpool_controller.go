@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -110,6 +111,7 @@ func (r *RunnerPoolReconciler) now() time.Time {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -165,6 +167,20 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
 	); err != nil {
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
+	}
+
+	// Graceful node drain. This runs before any accounting below so a
+	// Pod retired here is never counted as capacity the pool still has.
+	// See reapIdlePodsOnCordonedNodes for why the drain cannot converge
+	// without it.
+	survivors, cordonReaped, err := r.reapIdlePodsOnCordonedNodes(ctx, pods.Items)
+	if err != nil {
+		logger.Error(err, "retire idle pods on draining nodes; will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	pods.Items = survivors
+	if cordonReaped > 0 {
+		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
 	}
 
 	// Warm capacity is counted here, in the one pass with no early
@@ -237,6 +253,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		if unschedulableTimedOut(p, pool, r.now()) {
+			rejectedAt, _ := unschedulableSince(p)
+			logger.Info("reap runner pod the scheduler could not place",
+				"pod", p.Name,
+				"bound", false,
+				"age", r.now().Sub(rejectedAt).String(),
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodUnschedulable",
+					"No node could accommodate this Pod for %d seconds; releasing its fleet provisioning slot",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault())
+			}
+			metrics.RecordPodStartTimeout(pool.Name, unschedulableTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap unschedulable runner pod; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 			phaseReplicas.remove(p)
@@ -848,6 +886,12 @@ func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&tuistv1.RunnerPool{}).
 		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
 		Owns(&corev1.ServiceAccount{}).
+		// Cordoned nodes drive the graceful-drain reap. See
+		// reapIdlePodsOnCordonedNodes.
+		Watches(&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllRunnerPools),
+			builder.WithPredicates(drainingNodePredicate()),
+		).
 		// The shared provisioning admission reads the fleet count and then
 		// creates Pods. Keep that decision serial within the elected manager;
 		// raising this requires an atomic cross-reconcile reservation step.

@@ -18,6 +18,7 @@ const (
 	provisioningRequeueAfter      = 5 * time.Second
 	creationReservationLifetime   = 30 * time.Second
 	pollerNotStartedTimeoutReason = "poller_not_started"
+	unschedulableTimeoutReason    = "unschedulable"
 )
 
 type creationReservation struct {
@@ -96,6 +97,27 @@ func isLinuxProvisioningPod(pod *corev1.Pod) bool {
 	return isAlive(pod) && isIdle(pod) && !pollerRunning(pod)
 }
 
+// unschedulableSince reports when the scheduler last rejected the Pod. Only an
+// explicit Unschedulable condition counts: a freshly created Pod carries no
+// PodScheduled condition at all and is merely waiting its turn.
+func unschedulableSince(pod *corev1.Pod) (time.Time, bool) {
+	if pod.Spec.NodeName != "" {
+		return time.Time{}, false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type != corev1.PodScheduled {
+			continue
+		}
+		if condition.Status != corev1.ConditionFalse ||
+			condition.Reason != corev1.PodReasonUnschedulable ||
+			condition.LastTransitionTime.IsZero() {
+			return time.Time{}, false
+		}
+		return condition.LastTransitionTime.Time, true
+	}
+	return time.Time{}, false
+}
+
 func (r *RunnerPoolReconciler) provisioningAdmission(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -126,6 +148,13 @@ func (r *RunnerPoolReconciler) provisioningAdmission(
 		return provisioningAdmission{}, fmt.Errorf("list fleet runner pods: %w", err)
 	}
 
+	// Every provisioning Pod counts, bound or not. An unbound Pod is one
+	// the scheduler may bind at any moment, with no further admission
+	// check in between, so excluding it would let a backlog accumulate and
+	// then start together the instant capacity returns — exactly the
+	// simultaneous-sandbox-start burst this ceiling exists to prevent.
+	// Pods that can never bind are released by unschedulableTimedOut
+	// rather than by being discounted here.
 	observed := make(map[string]struct{}, len(pods.Items))
 	pendingForFleet := 0
 	pendingForPool := 0
@@ -192,6 +221,27 @@ func startTimedOut(pod *corev1.Pod, pool *tuistv1.RunnerPool, now time.Time) boo
 	}
 	startedAt, ok := linuxProvisioningStartedAt(pod)
 	return ok && now.Sub(startedAt) >= time.Duration(timeoutSeconds)*time.Second
+}
+
+// unschedulableTimedOut is true once the scheduler has been rejecting a Pod for
+// longer than the start timeout. Recreating it cannot conjure capacity, so the
+// point is not recovery: an unschedulable Pod holds a slot in the fleet-wide
+// provisioning ceiling that it will never convert into a running sandbox, and
+// nothing else ever releases it (the bound-Pod start timeout cannot fire on a
+// Pod with no node). Left in place it starves every sibling shape sharing the
+// FleetSelector of creations. Reaping hands the slot back; the pool's replica
+// gap is untouched, so it retries and simply goes unschedulable again while the
+// shortfall lasts, at a rate the timeout bounds.
+func unschedulableTimedOut(pod *corev1.Pod, pool *tuistv1.RunnerPool, now time.Time) bool {
+	if !isLinuxKataPool(pool) || !isLinuxProvisioningPod(pod) {
+		return false
+	}
+	timeoutSeconds := pool.Spec.Provisioning.StartTimeoutSecondsOrDefault()
+	if timeoutSeconds <= 0 {
+		return false
+	}
+	rejectedAt, ok := unschedulableSince(pod)
+	return ok && now.Sub(rejectedAt) >= time.Duration(timeoutSeconds)*time.Second
 }
 
 // linuxProvisioningStartedAt uses the scheduler's transition timestamp rather

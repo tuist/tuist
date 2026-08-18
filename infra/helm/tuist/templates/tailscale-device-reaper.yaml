@@ -1,0 +1,378 @@
+{{- if .Values.tailscaleDeviceReaper.enabled }}
+{{- /*
+Grace-period garbage collector for abandoned tagged Tailscale devices.
+
+A tailnet device registration has no garbage collector. Tagged devices have key
+expiry disabled by default, so a registration outlives whatever created it until
+something deletes it explicitly, and every producer we run registers a device
+named after a Pod:
+
+  * xcresult-processor Tart VMs join with TAILSCALE_HOSTNAME = the Pod name (see
+    the Deployment template and infra/xcresult-processor-image/tailscale-up.sh),
+    so every image roll mints a brand-new device and abandons the old one. The
+    `ephemeral=true` flag on the minted key only reaps VMs that stay online less
+    than four hours, and these Pods live for days between releases, so they are
+    converted to standard tagged devices and kept.
+  * The Tailscale K8s operator's proxy Pods (macmini-egress-*, the cluster
+    routers, the pg-pooler and OCI egress proxies) re-register when their state
+    Secret is recreated, stranding the previous device under the same hostname.
+
+Measured on 2026-08-17: 67 tagged devices on the tailnet, 44 of them online. Of
+the 23 dead ones, 17 were xcresult-processor rolls from the preceding four days
+and 6 were operator proxies stale for 6-70 days. That is a third of the tailnet
+billed as tagged resources for nothing, and it grows by roughly 10-15 devices a
+week -- the plan's included allowance is 50.
+
+Why a reaper rather than only fixing the hostname: stabilising the
+xcresult-processor identity (a StatefulSet ordinal, or the Node name, which is
+1:1 with the Pod here) would fix the largest producer but not the operator's,
+and not the next one. Registrations are an ungarbage-collected resource on a
+shared tailnet, so the sweep is the general answer and the hostname fix is a
+worthwhile narrowing on top of it.
+
+One reaper per environment, each sweeping only its own env's devices. All envs
+share a single tailnet, so `tags` is what keeps three reapers from colliding on
+one device list: a run only ever considers devices carrying one of the tags
+named here, and the OAuth client backing it is scoped to those same tags. Both
+halves matter. Without the predicate a reaper would list devices it has no
+authority over and fail on the first 403; without the client scope the predicate
+would be the only thing standing between a bug and another env's fleet.
+
+Why this is safe:
+  * Two independent scopes have to agree before anything is deleted. The
+    predicate only selects devices whose tags intersect this env's `tags`, and
+    Tailscale itself refuses a write from a client scoped elsewhere. Neither
+    user devices (which carry no tags at all) nor another env's devices can pass
+    both.
+  * An empty `tags` list is a hard error rather than a silent no-op. A reaper
+    that quietly sweeps nothing is worse than one that fails: the bill keeps
+    growing while the CronJob reports success.
+  * `lastSeen` older than graceHours is the liveness test. A device that is up
+    reports lastSeen within minutes, so a week-stale device is off by
+    definition; and the grace window is the recovery window for a host that is
+    merely down for maintenance.
+  * A device missing lastSeen is skipped, never assumed old.
+  * Each candidate is re-fetched and re-validated immediately before deletion,
+    so a device that came back between the scan and the delete is left alone.
+  * maxDeletions caps a single run, so a wrong predicate cannot empty the
+    tailnet before anyone reads the logs.
+  * Deletion is not destructive to a live workload even when wrong: our joiners
+    re-authenticate from the OAuth client on next boot and simply register
+    again.
+  * dryRun only logs what it would reap.
+
+There is intentionally no PrometheusRule here: managed clusters have no
+Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
+reaper's log lines in Grafana Cloud instead.
+*/ -}}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "tailscale-device-reaper") }}
+{{- /*
+Also gated on oauthSecretName being empty: pointing the CronJob at a
+hand-managed Secret is how you opt out of the chart's 1Password sync, so
+rendering the ExternalSecret anyway would keep syncing an item nothing reads and
+fail the sync outright when that item does not exist in the vault.
+*/ -}}
+{{- if and .Values.tailscaleDeviceReaper.externalSecrets.enabled (not .Values.tailscaleDeviceReaper.oauthSecretName) }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tailscale-device-reaper
+spec:
+  refreshInterval: {{ .Values.tailscaleDeviceReaper.externalSecrets.refreshInterval | quote }}
+  secretStoreRef:
+    name: {{ .Values.tailscaleDeviceReaper.externalSecrets.storeRef.name }}
+    kind: {{ .Values.tailscaleDeviceReaper.externalSecrets.storeRef.kind }}
+  target:
+    name: {{ $name }}
+    creationPolicy: Owner
+  # Provisioning, once per env: create an OAuth client in the Tailscale admin
+  # console under Settings > Trust credentials with the `devices:core` WRITE
+  # scope -- read alone lists devices but cannot delete them -- restricted to
+  # exactly the tags in this env's `tailscaleDeviceReaper.tags`, which must
+  # already exist under tagOwners in infra/tailscale/acls.json.
+  #
+  # Same per-env convention, and the same reason, as the macOS-fleet credential:
+  # the client is confined to one env's tags so a leaked staging credential
+  # cannot delete a production device. Note the item title is identical in every
+  # env -- the ClusterSecretStore is bound to `tuist-k8s-<env>` per cluster, so
+  # one name resolves to a different vault and a different client per env.
+  #
+  # Rotation is a 1Password edit; ESO resyncs within refreshInterval and the
+  # next run picks it up.
+  data:
+    - secretKey: client-id
+      remoteRef:
+        key: "{{ .Values.tailscaleDeviceReaper.externalSecrets.item }}/{{ .Values.tailscaleDeviceReaper.externalSecrets.fields.clientID }}"
+    - secretKey: client-secret
+      remoteRef:
+        key: "{{ .Values.tailscaleDeviceReaper.externalSecrets.item }}/{{ .Values.tailscaleDeviceReaper.externalSecrets.fields.clientSecret }}"
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tailscale-device-reaper
+data:
+  reap.sh: |-
+    #!/usr/bin/env bash
+    # pipefail so a failed curl in a pipeline aborts the run instead of feeding
+    # jq empty input and logging a healthy-looking "0 device(s)" -- the logs are
+    # this job's only observability channel.
+    set -euo pipefail
+
+    api="https://api.tailscale.com/api/v2"
+    grace_seconds=$(( GRACE_HOURS * 3600 ))
+    disposable_seconds=$(( DISPOSABLE_GRACE_HOURS * 3600 ))
+
+    # This env's tags, as a JSON array for jq. Validated after parsing rather
+    # than on the raw string, so a value that is technically non-empty but
+    # carries no tags (a stray comma, whitespace) is caught too.
+    #
+    # Refuse to run on an empty list rather than treating it as "match nothing":
+    # a reaper that sweeps nothing looks healthy in every signal we have -- the
+    # Job succeeds, the log reads "0 devices" -- while the tailnet keeps growing,
+    # so the misconfiguration would survive exactly as long as it took someone to
+    # question the bill.
+    # -n with --arg rather than piping: an empty ALLOWED_TAGS would give `jq -R`
+    # no input line at all, which is a usage error rather than the empty list we
+    # want to fall through to the check below.
+    allowed=$(jq -nc --arg s "${ALLOWED_TAGS:-}" \
+      '$s | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
+    if [ "$(printf '%s' "$allowed" | jq -r 'length')" -eq 0 ]; then
+      echo "tailscale-device-reaper: tailscaleDeviceReaper.tags names no tags; refusing to run without a tag scope" >&2
+      exit 1
+    fi
+
+    echo "tailscale-device-reaper: tailnet=${TAILNET} tags=${ALLOWED_TAGS} graceHours=${GRACE_HOURS} disposableGraceHours=${DISPOSABLE_GRACE_HOURS} disposablePattern='${DISPOSABLE_PATTERN}' maxDeletions=${MAX_DELETIONS} dryRun=${DRY_RUN}"
+
+    # An OAuth client secret is exchanged for a short-lived bearer token; the
+    # secret itself is not accepted on the REST endpoints (unlike `tailscale
+    # up`, which takes it directly and mints a join key behind the scenes).
+    token=$(curl -sS -f -X POST "${api}/oauth/token" \
+      --data-urlencode "client_id=${CLIENT_ID}" \
+      --data-urlencode "client_secret=${CLIENT_SECRET}" \
+      | jq -r '.access_token')
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+      echo "tailscale-device-reaper: could not exchange the OAuth client secret for a token" >&2
+      exit 1
+    fi
+
+    # A device is reapable only if one of its tags is in this env's scope and it
+    # has not been seen for longer than its grace window. A device with no
+    # lastSeen is skipped, never assumed old. The same predicate is applied
+    # twice: once to pick candidates, once to re-validate each device
+    # immediately before deleting it.
+    #
+    # The tag intersection is what makes three reapers on one tailnet safe:
+    # `?fields=all` returns the whole tailnet regardless of how the credential is
+    # scoped, so without this filter each env's reaper would walk every other
+    # env's devices and die on the first 403 from a write it was never
+    # authorised to make. It also excludes user devices for free -- they carry no
+    # tags, so the intersection is always empty.
+    #
+    # Two windows, because the devices are not equally disposable:
+    #
+    #   * Devices whose hostname matches DISPOSABLE_PATTERN re-derive their
+    #     identity on every boot. The xcresult-processor Tart VMs are booted
+    #     from an image with no persisted tailscaled state, so each one joins
+    #     with a fresh node key and gets a fresh device; deleting a dead one
+    #     costs nothing, because nothing will ever try to reuse it. These get
+    #     the short window -- long enough to cover a slow rollout many times
+    #     over (progressDeadlineSeconds on the Deployment is 1800s), short
+    #     enough that a week of releases cannot outrun the sweep.
+    #
+    #   * Everything else gets the long window. The Mac mini hosts are the
+    #     reason: unlike the VMs they join once at bootstrap and keep that
+    #     identity for the life of the machine, so reaping one while its host
+    #     is merely down strands the host off the tailnet until it is
+    #     re-bootstrapped. The long window is that recovery margin.
+    #
+    # An empty DISPOSABLE_PATTERN disables the short window entirely rather
+    # than matching every device, which is what an unguarded test("") would do.
+    #
+    # lastSeen is RFC3339. Parsing it is the fiddliest part of the predicate and
+    # every failure mode here defaults to skipping the device, never to reaping
+    # it early:
+    #
+    #   * fromdateiso8601 rejects fractional seconds, which the API does emit
+    #     (".1Z" appears on live devices), so strip them first.
+    #   * Anything else it cannot parse -- a numeric offset instead of Z, a
+    #     shape we have not seen -- is caught by `try` and skipped. Without the
+    #     catch a single odd timestamp aborts the entire sweep, which is the
+    #     failure the strip above exists to prevent in the first place.
+    #   * Go's zero time marshals to "0001-01-01T00:00:00Z", which parses fine
+    #     but to a large negative epoch, so it is older than every grace window
+    #     and sorts ahead of genuinely stale devices. `tailscale status --json`
+    #     emits exactly that for peers with no recorded lastSeen, so treat any
+    #     non-positive epoch as "no timestamp" and skip it, the same as an
+    #     absent field. Never assume old.
+    #
+    # Binding the parsed value once also keeps the sort key below honest: it
+    # reuses $seen rather than re-deriving it with a second, separately-escaped
+    # copy of the same expression.
+    predicate='
+      select(any((.tags // [])[]; IN($allowed[])))
+      | select(.lastSeen != null and .lastSeen != "")
+      | (.lastSeen | sub("\\.[0-9]+Z$"; "Z") | try fromdateiso8601 catch null) as $seen
+      | select($seen != null and $seen > 0)
+      | select(
+          $seen
+          < (now - (if ($pattern != "" and ((.hostname // "") | test($pattern)))
+                    then $disposable else $grace end))
+        )'
+    jq_args=(--argjson grace "$grace_seconds" --argjson disposable "$disposable_seconds" --arg pattern "$DISPOSABLE_PATTERN" --argjson allowed "$allowed")
+
+    devices=$(curl -sS -f -H "Authorization: Bearer ${token}" "${api}/tailnet/${TAILNET}/devices?fields=all")
+    total=$(printf '%s' "$devices" | jq -r '.devices | length')
+    # In-scope count separately from the candidate count, so a run that reaps
+    # nothing still distinguishes "this env has no stale devices" from "the tag
+    # scope matches nothing at all", which is the shape a mistyped tag takes.
+    in_scope=$(printf '%s' "$devices" | jq -r --argjson allowed "$allowed" \
+      '[.devices[] | select(any((.tags // [])[]; IN($allowed[])))] | length')
+
+    # Oldest first, so when the cap bites it reaps the deadest devices and the
+    # next run picks up where this one stopped.
+    candidates=$(printf '%s' "$devices" | jq -r "${jq_args[@]}" \
+      ".devices[] | ${predicate} | [\$seen, .id, .hostname] | @tsv" \
+      | sort -n | cut -f2-)
+    count=$(printf '%s\n' "$candidates" | grep -c . || true)
+    echo "tailscale-device-reaper: ${count} of ${in_scope} in-scope device(s) past their grace window (${total} on the tailnet)"
+    if [ "$count" -eq 0 ]; then
+      exit 0
+    fi
+
+    reaped=0
+    failed=0
+    while IFS=$'\t' read -r id hostname; do
+      [ -z "$id" ] && continue
+      if [ "$reaped" -ge "$MAX_DELETIONS" ]; then
+        echo "tailscale-device-reaper: hit maxDeletions=${MAX_DELETIONS}; $(( count - reaped )) device(s) left for the next run"
+        break
+      fi
+      # Re-fetch and re-validate right before acting. A device that reconnected
+      # since the scan reports a fresh lastSeen and drops out of the predicate,
+      # so it is skipped rather than deleted out from under a live workload.
+      current=$(curl -sS -f -H "Authorization: Bearer ${token}" "${api}/device/${id}?fields=all" 2>/dev/null || true)
+      if [ -z "$current" ]; then
+        echo "tailscale-device-reaper: skip ${hostname} (${id}, gone since scan)"
+        continue
+      fi
+      still=$(printf '%s' "$current" | jq -r "${jq_args[@]}" \
+        "${predicate} | .id" 2>/dev/null || true)
+      if [ "$still" != "$id" ]; then
+        echo "tailscale-device-reaper: skip ${hostname} (${id}, reconnected since scan)"
+        continue
+      fi
+      last_seen=$(printf '%s' "$current" | jq -r '.lastSeen')
+      tags=$(printf '%s' "$current" | jq -r '(.tags // []) | join(",")')
+      # Anything other than the exact string "false" stays in dry-run. Arming is
+      # a hand-edit of a per-env values file, which is where someone writes
+      # `dryRun: "yes"` -- bare True/yes/on coerce to a boolean and render
+      # "true", but the quoted forms reach the container verbatim. Comparing
+      # against "false" means an unrecognised value fails toward not deleting,
+      # which is the direction every other guard here points.
+      if [ "$DRY_RUN" != "false" ]; then
+        echo "tailscale-device-reaper: [dry-run] would reap ${hostname} (${id}, ${tags}, last seen ${last_seen})"
+      else
+        echo "tailscale-device-reaper: reaping ${hostname} (${id}, ${tags}, last seen ${last_seen})"
+        # Non-fatal per device. Under `set -e` an unguarded failure here would
+        # abort the run, and because candidates are ordered oldest-first, one
+        # undeletable device would sit at the head of the queue and block every
+        # sweep behind it forever -- a 403 from a tag scope that has drifted out
+        # of agreement with `tags` does exactly that, and so does a transient
+        # 5xx. Record it, move on, and fail the Job at the end so the run is
+        # still loud without being useless.
+        if ! curl -sS -f -X DELETE -H "Authorization: Bearer ${token}" "${api}/device/${id}" >/dev/null; then
+          echo "tailscale-device-reaper: FAILED to delete ${hostname} (${id}, ${tags}); continuing" >&2
+          failed=$(( failed + 1 ))
+          continue
+        fi
+      fi
+      reaped=$(( reaped + 1 ))
+    done <<< "$candidates"
+
+    echo "tailscale-device-reaper: done (${reaped} device(s) $([ "$DRY_RUN" != "false" ] && echo 'would be reaped' || echo reaped), ${failed} failed)"
+    if [ "$failed" -gt 0 ]; then
+      echo "tailscale-device-reaper: ${failed} device(s) could not be deleted; check the tag scope on this env's OAuth client" >&2
+      exit 1
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tailscale-device-reaper
+spec:
+  schedule: {{ .Values.tailscaleDeviceReaper.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            {{- include "tuist.labels" . | nindent 12 }}
+            app.kubernetes.io/component: tailscale-device-reaper
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: reaper
+              image: {{ .Values.tailscaleDeviceReaper.image | quote }}
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "/scripts/reap.sh"]
+              env:
+                - name: TAILNET
+                  value: {{ .Values.tailscaleDeviceReaper.tailnet | quote }}
+                - name: ALLOWED_TAGS
+                  value: {{ join "," .Values.tailscaleDeviceReaper.tags | quote }}
+                - name: GRACE_HOURS
+                  value: {{ .Values.tailscaleDeviceReaper.graceHours | quote }}
+                - name: DISPOSABLE_GRACE_HOURS
+                  value: {{ .Values.tailscaleDeviceReaper.disposable.graceHours | quote }}
+                - name: DISPOSABLE_PATTERN
+                  value: {{ .Values.tailscaleDeviceReaper.disposable.hostnamePattern | quote }}
+                - name: MAX_DELETIONS
+                  value: {{ .Values.tailscaleDeviceReaper.maxDeletions | quote }}
+                - name: DRY_RUN
+                  value: {{ .Values.tailscaleDeviceReaper.dryRun | quote }}
+                - name: CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.tailscaleDeviceReaper.oauthSecretName | default $name }}
+                      key: {{ .Values.tailscaleDeviceReaper.oauthSecretClientIDKey }}
+                - name: CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.tailscaleDeviceReaper.oauthSecretName | default $name }}
+                      key: {{ .Values.tailscaleDeviceReaper.oauthSecretClientSecretKey }}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                {{- toYaml .Values.tailscaleDeviceReaper.resources | nindent 16 }}
+          volumes:
+            - name: script
+              configMap:
+                name: {{ $name }}
+{{- end }}

@@ -716,6 +716,7 @@ defmodule TuistWeb.Router do
     scope "/cache" do
       get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
+      post "/token", CacheController, :token
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 

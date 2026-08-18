@@ -2,6 +2,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
+  alias Tuist.Cache
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -186,6 +187,59 @@ defmodule Tuist.OAuth.IntrospectionTest do
     test "returns inactive for unknown tokens" do
       account = AccountsFixtures.organization_fixture().account
       assert Introspection.token_response("unknown-token", account) == %{active: false}
+    end
+
+    # A self-hosted node holds no verifier secret, so an exchanged cache token
+    # reaches it as something only we can read. Reporting it inactive makes the
+    # node deny every request the CLI exchanged a token for.
+    test "answers a cache token from the grants it carries" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "cache-token-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+
+      assert %{
+               active: true,
+               cache_grants: %{
+                 "project" => %{"read" => project_reads}
+               }
+             } = Introspection.token_response(token, organization.account)
+
+      assert "#{organization.account.name}/#{project.name}" in project_reads
+    end
+
+    test "reports a cache token inactive when its grants do not touch the account" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "granted-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      ProjectsFixtures.project_fixture(account: organization.account)
+      unrelated = AccountsFixtures.organization_fixture(name: "unrelated-org")
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+
+      assert Introspection.token_response(token, unrelated.account) == %{active: false}
+    end
+
+    test "reports a tampered cache token inactive" do
+      account = AccountsFixtures.organization_fixture().account
+
+      assert Introspection.token_response("not.a.jwt", account) == %{active: false}
+    end
+
+    # The whole reason a cache token needs answering here rather than resolving
+    # through Guardian: resolving one would make it valid on every API endpoint,
+    # and its `sub` is a project id that the user lookup would read as a user id.
+    test "a cache token still resolves to no API subject" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "no-api-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+
+      assert Tuist.Authentication.authenticated_subject(token) == nil
     end
 
     test "constrains grants to the given account and drops other tenants" do

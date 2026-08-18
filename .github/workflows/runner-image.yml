@@ -12,7 +12,7 @@ name: Runner Image
 # `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
 # by the chart.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
 # live in the base; this build just adds the GitHub Actions runner
 # agent and dispatch loop on top, so a rebuild is ~2 min instead of
@@ -29,9 +29,8 @@ on:
         description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
         required: true
       runner_version:
-        description: "GitHub Actions runner version"
+        description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
         required: false
-        default: "2.334.0"
 
 concurrency:
   group: runner-image
@@ -53,15 +52,9 @@ jobs:
           go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both pull (this build's clone of the base) and the push
-      # at the end of the job. Bypasses both the macOS keychain
-      # (which `tart login` would use, and which gates on a Tahoe-
-      # LaunchAgent-incompatible "User interaction" prompt) and
-      # Tart 2.32.1's env-var-only push path (which hangs with
-      # "Error: The request timed out").
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail
@@ -85,6 +78,7 @@ jobs:
         working-directory: infra/runner-image
         env:
           XCODE: ${{ inputs.xcode_version }}
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
         run: |
           set -euo pipefail
           # Single-profile dispatch. The multi-profile rebuild loop
@@ -95,10 +89,14 @@ jobs:
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
+          # `runner_version` is passed only when the dispatch input is
+          # non-empty; otherwise packer falls back to the Renovate-tracked
+          # default in runner.pkr.hcl. Duplicating that default here is how
+          # the pin silently went stale before, so there is no literal.
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
-            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
+            ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 

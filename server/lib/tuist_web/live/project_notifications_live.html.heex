@@ -360,7 +360,10 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <div :if={@create_alert_form_category == :bundle_size} data-part="schedule-row">
+              <div
+                :if={@create_alert_form_category in [:bundle_size, :cache_hit_rate]}
+                data-part="schedule-row"
+              >
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Branch")}
                 </label>
@@ -370,7 +373,7 @@
                   name="git_branch"
                   value={@create_alert_form_git_branch}
                   error={@create_alert_form_branch_error}
-                  placeholder={dgettext("dashboard_projects", "e.g. main")}
+                  placeholder={branch_placeholder(@create_alert_form_category)}
                   phx-keyup="update_create_alert_form_git_branch"
                   phx-debounce="300"
                 />
@@ -677,7 +680,7 @@
                       </.dropdown>
                     </div>
                     <div
-                      :if={(form[:category] || rule.category) == :bundle_size}
+                      :if={(form[:category] || rule.category) in [:bundle_size, :cache_hit_rate]}
                       data-part="schedule-row"
                     >
                       <label data-part="schedule-label">
@@ -689,7 +692,7 @@
                         name="git_branch"
                         value={form[:git_branch] || rule.git_branch || ""}
                         error={form[:branch_error]}
-                        placeholder={dgettext("dashboard_projects", "e.g. main")}
+                        placeholder={branch_placeholder(form[:category] || rule.category)}
                         phx-keyup="update_edit_alert_form_git_branch"
                         phx-value-id={rule.id}
                         phx-debounce="300"

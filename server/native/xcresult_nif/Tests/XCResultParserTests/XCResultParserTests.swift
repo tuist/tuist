@@ -409,4 +409,121 @@ struct XCResultParserTests {
 
         #expect(summary.status == .failed)
     }
+
+    @Test
+    func parse_liftsUnattributedSwiftTestingIssuesIntoErrorsWithoutFailingTheRun() async throws {
+        // Swift Testing issues recorded when no test is running (a leaked task,
+        // a callback that outlives its test) land in a synthetic
+        // "Issues recorded without an associated test or suite" case. xcodebuild
+        // gates on tests and this belongs to none, so it exits 0; the node must
+        // not become a test case nor drag the run red, or the dashboard shows a
+        // failed run for a green CI job. The issues are kept as target-keyed
+        // errors, deduped across the repetitions that re-record them.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ChatTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "Issues recorded without an associated test or suite",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }"
+                        },
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }"
+                        },
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:153: response.0.contains { $0.numberOfNewMessages == 1 }"
+                        }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "sendsMessage()",
+                      "nodeIdentifier": "ChatTests/sendsMessage()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let lifted = Set(summary.errors.map { "\($0.target ?? "")|\($0.message)" })
+        #expect(lifted == [
+            "ChatTests|Issue recorded without an associated test: ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }",
+            "ChatTests|Issue recorded without an associated test: ChatTests.swift:153: response.0.contains { $0.numberOfNewMessages == 1 }",
+        ])
+
+        #expect(summary.testCases.map(\.name) == ["sendsMessage()"])
+
+        // Unlike a runner error, these do not fail the run: xcodebuild exited 0.
+        #expect(summary.status == .passed)
+    }
+
+    @Test
+    func parse_keepsRealTestNamedLikeTheUnattributedIssuesNode() async throws {
+        // A real Swift Testing case can be displayed with that exact name; it
+        // carries a "Suite/method" identifier, so it stays a test case and still
+        // fails the run.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ReporterTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "Issues recorded without an associated test or suite",
+                      "nodeIdentifier": "ReporterTests/issuesRecordedWithoutATest()",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "Reporter.swift:12: Expectation failed" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        #expect(summary.errors.isEmpty)
+        #expect(summary.testCases.map(\.name) == ["Issues recorded without an associated test or suite"])
+        #expect(summary.status == .failed)
+    }
 }

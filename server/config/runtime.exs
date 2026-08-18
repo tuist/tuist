@@ -821,15 +821,6 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     region: registry_s3_region
 end
 
-# Kura controller rollout assets. Each env is enumerated explicitly so a
-# new one fails loudly rather than silently picking the wrong hook path.
-kura_hook_path =
-  case env do
-    e when e in [:prod, :stag, :can, :preview] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
-    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
-    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
-  end
-
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
@@ -841,13 +832,14 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  ets_flush_interval: 20_000,
+  # `PromEx.ETSCronFlusher` renders the whole metric set and discards it on
+  # this interval. `Tuist.PromEx.StripedPeep` frees nothing on read, so the
+  # only thing a short interval buys is CPU spent on exports nobody reads.
+  ets_flush_interval: to_timeout(minute: 30),
   metrics_server: [
     port: 9091,
     auth_strategy: :none
   ]
-
-config :tuist, :kura_hook_path, kura_hook_path
 
 if otel_endpoint do
   config :opentelemetry,

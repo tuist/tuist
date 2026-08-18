@@ -7,6 +7,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Entry points: `src/main.rs`, `src/app.rs`
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
+- Backfill peer catch-up walker (replaces legacy bootstrap, flag-gated by `KURA_BACKFILL_ENABLED`): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-bootstrap): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
@@ -14,7 +15,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps + `patches/`, applied to rules_rs's pinned rules_rust); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
