@@ -11,7 +11,6 @@ mod constants;
 mod enrollment;
 mod failpoints;
 mod file_cache;
-mod geoip;
 mod http;
 mod io;
 mod memory;

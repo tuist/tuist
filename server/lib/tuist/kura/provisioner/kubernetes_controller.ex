@@ -21,7 +21,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-08-12-native-authorization-v1"
+  @manifest_revision "2026-08-17-node-location-config-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
@@ -548,7 +548,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cas_capacity_env(region) ++
       mesh_peers_sync_env(region, entitlements) ++
       backfill_env(entitlements) ++
+      node_location_env(region) ++
       telemetry_env(region)
+  end
+
+  # Where the node runs, straight from the region's datacenter. Kura stamps it
+  # on its OTel Resource as-is; it has no way to work the location out for
+  # itself, so a region without one exports spans with no geography rather than
+  # a guess. Adding either variable changes every managed instance's manifest,
+  # so @manifest_revision moves with it or the reconciler never re-applies.
+  defp node_location_env(%Regions{} = region) do
+    case Regions.node_location(region) do
+      nil ->
+        []
+
+      %{country: country, subdivision: subdivision} ->
+        maybe_env_var("KURA_NODE_COUNTRY", country) ++
+          maybe_env_var("KURA_NODE_SUBDIVISION", subdivision)
+    end
   end
 
   # The per-account Release AB switch: gated accounts render

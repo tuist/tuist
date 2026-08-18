@@ -34,6 +34,89 @@ pvReaper:
     limits:
       memory: "64Mi"
 
+# Grace-period garbage collector for abandoned tagged Tailscale devices. Tagged
+# devices never expire on their own, and both the xcresult-processor VMs and the
+# Tailscale operator's proxy Pods register a device per Pod, so dead
+# registrations accumulate until something deletes them. See the template for
+# the full failure mode and the safety argument.
+#
+# One reaper per environment, each sweeping only its own env's devices. Off by
+# default; managed envs enable it and set `tags`.
+tailscaleDeviceReaper:
+  enabled: false
+  # ACL tags this env's reaper is allowed to delete, and exactly the tags its
+  # OAuth client must be scoped to. Required: the job refuses to run on an empty
+  # list rather than sweeping nothing while reporting success.
+  #
+  # This is what makes three reapers on one shared tailnet safe. The devices
+  # listing returns the whole tailnet however the credential is scoped, so
+  # without the filter each env's reaper would walk every other env's devices
+  # and die on the first 403. Keep it to the env's own tags: widening it to
+  # another env's would be a credential error, not just a config one.
+  tags: []
+  # dryRun logs the devices it would reap without deleting anything. Flip to
+  # false once a run's logs look right.
+  dryRun: true
+  schedule: "30 3 * * *"
+  # `-` is the default tailnet of the authenticated OAuth client, so the tailnet
+  # name is not pinned in the chart.
+  tailnet: "-"
+  # Default window: only reap devices unseen for longer than this. A live device
+  # reports lastSeen within minutes, so the window is really the recovery margin
+  # for a device that is merely down. Sized for the Mac mini hosts, which join
+  # once at bootstrap and keep that identity for the life of the machine --
+  # reaping one while its host is down strands it off the tailnet until it is
+  # re-bootstrapped (default 7 days).
+  graceHours: 168
+  # Short window for devices that re-derive their tailnet identity on every
+  # boot, so a dead registration can never be reused and is pure garbage. The
+  # xcresult-processor Tart VMs boot from an image with no persisted tailscaled
+  # state: each boot means a new node key, and a new node key always means a new
+  # device -- the hostname has nothing to do with it. Two devices sharing a
+  # hostname AND a tag are visible on the tailnet today, which is what that
+  # looks like in practice.
+  #
+  # This tier is what keeps the tailnet under the plan's included allowance.
+  # Releases add roughly 10-15 devices a week, so parking them behind the 7-day
+  # default would leave a week of debris standing at all times.
+  #
+  # An empty hostnamePattern disables the short window (everything falls back to
+  # graceHours) rather than matching every device.
+  disposable:
+    hostnamePattern: "xcresult-processor"
+    # 12h is ~24x the Deployment's 1800s progressDeadlineSeconds, so a slow
+    # rollout cannot have its own in-flight VM reaped out from under it.
+    graceHours: 12
+  # Ceiling on a single run, so a wrong predicate cannot empty the tailnet
+  # before anyone reads the logs. Candidates are reaped oldest-first and the
+  # remainder rolls into the next run.
+  maxDeletions: 25
+  # curl + jq in one image; same image the PV reaper uses.
+  image: alpine/k8s:1.31.1
+  # Secret holding the tag-scoped OAuth client. Empty falls back to the
+  # ExternalSecret this chart syncs from 1Password. Setting a name opts out of
+  # that sync entirely: the CronJob reads the named Secret and no ExternalSecret
+  # is rendered, so nothing tries to pull a 1Password item you are not using.
+  oauthSecretName: ""
+  oauthSecretClientIDKey: client-id
+  oauthSecretClientSecretKey: client-secret
+  externalSecrets:
+    enabled: true
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: TAILSCALE_DEVICE_REAPER
+    fields:
+      clientID: client-id
+      clientSecret: client-secret
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
 # Grafana Cloud Private Data source Connect (PDC) agent. Off by default: it only
 # makes sense on the managed envs whose Grafana Cloud stack has a PDC network,
 # and self-hosters have no Grafana Cloud stack at all.
@@ -829,6 +912,11 @@ registry:
     runAsUser: 990
   extraEnv: []
   extraEnvFrom: []
+  # Off by default so a single-replica self-hosted install can still drain a
+  # node. Enable it wherever replicaCount is raised above 1.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   podAnnotations: {}
   podLabels: {}
   affinity: {}
@@ -2128,12 +2216,7 @@ ociRegistry:
     tag: "3"
     pullPolicy: IfNotPresent
   service:
-    # LoadBalancer so the Tailscale operator reports the tailnet address
-    # back in the Service status, which is what external-dns publishes.
-    # `loadBalancerClass: tailscale` is set by the template whenever
-    # `tailscale.enabled` is on, so nothing external is provisioned.
-    # Self-hosters not fronting this with a tailnet want ClusterIP.
-    type: LoadBalancer
+    type: ClusterIP
     port: 5000
   logLevel: info
   s3:

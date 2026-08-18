@@ -2,6 +2,9 @@ package podagent
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +69,78 @@ func stageHead(t *testing.T, statusDir string, head volumeHead) {
 	}
 	if err := os.WriteFile(filepath.Join(statusDir, volumeHeadFile), b, 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A HEAD whose stored object does not reproduce its advertised digest cannot be
+// adopted by anyone, and a cold promote's base generation 0 is rejected while a
+// HEAD exists — so declining is correct but, on its own, permanent. The host is
+// the only party that has the evidence (it downloaded the object and measured
+// it), and it has no server credentials, so it stages the disproved digest for
+// the guest to report. Production ran one account cold on all nine hosts for days
+// with nothing but a log line, which is what this staging is for.
+func TestConvergeMasterReportsAHeadItCannotVerify(t *testing.T) {
+	served := []byte("bytes-that-are-not-the-advertised-head")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(served)
+	}))
+	defer srv.Close()
+
+	for _, tc := range []struct {
+		name       string
+		digestErr  error
+		wantStaged bool
+	}{
+		{
+			// Measured, and it is a different image: reproducible on every host
+			// that fetches it, so it is worth reporting.
+			name:       "measured a different image",
+			wantStaged: true,
+		},
+		{
+			// Could not measure it at all — a local fault (the read-only attach
+			// failed, the disk is unhappy). That says nothing about the object, and
+			// reporting it would retire a HEAD the rest of the fleet may be using
+			// perfectly well.
+			name:       "could not measure the image",
+			digestErr:  errors.New("attach image read-only: resource busy"),
+			wantStaged: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, be := newTestManager(t, 100)
+			be.digestErr = tc.digestErr
+			statusDir := t.TempDir()
+			stageHead(t, statusDir, volumeHead{
+				Generation:  4,
+				Digest:      "0000000000000000000000000000000000000000",
+				DownloadURL: srv.URL,
+			})
+			r := &Reconciler{
+				Volumes:                  m,
+				ConvergeHeadWaitInterval: time.Millisecond,
+				ConvergeHeadWaitAttempts: 2,
+			}
+
+			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+
+			// Either way the local master is untouched: the digest check is the guard
+			// that stops a corrupt master propagating fleet-wide, and reporting does
+			// not soften it.
+			if masterExists(m, "42") {
+				t.Fatal("adopted a master whose digest did not match the HEAD")
+			}
+
+			staged, err := os.ReadFile(filepath.Join(statusDir, unverifiableHeadFile))
+			switch {
+			case tc.wantStaged && err != nil:
+				t.Fatalf("no unverifiable-HEAD report staged for the guest: %v", err)
+			case tc.wantStaged && string(staged) != "0000000000000000000000000000000000000000":
+				t.Fatalf("staged the wrong digest: %q", staged)
+			case !tc.wantStaged && err == nil:
+				t.Fatalf("staged %q from a local measurement failure", staged)
+			}
+		})
 	}
 }
 

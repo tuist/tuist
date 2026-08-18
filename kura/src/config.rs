@@ -105,8 +105,6 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
-const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
-const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
@@ -216,17 +214,13 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
-    /// How often the in-process GeoIP database is refreshed against the
-    /// upstream DB-IP Lite dump. `0` disables background refresh — the
-    /// container-image copy is then used for the pod's lifetime.
-    pub geoip_refresh_interval_secs: u64,
-    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
-    /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `geo.country.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
+    /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
+    /// the datacenter the node runs in; there is no runtime discovery behind
+    /// it, so an unset value simply leaves the attribute off.
     pub node_country_override: Option<String>,
-    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
-    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `geo.region.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`), stamped as `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 
@@ -1407,17 +1401,6 @@ impl Config {
                 None
             }
         };
-        let geoip_refresh_interval_secs = optional_parsed_value(
-            &mut lookup,
-            KURA_GEOIP_REFRESH_INTERVAL_SECS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1592,7 +1575,6 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
-            geoip_refresh_interval_secs,
             node_country_override,
             node_subdivision_override,
         })
@@ -2157,10 +2139,6 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-        assert_eq!(
-            config.geoip_refresh_interval_secs,
-            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
-        );
     }
 
     #[test]
@@ -2245,29 +2223,6 @@ mod tests {
                 .expect_err("an out-of-range backfill batch threshold must fail");
             assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
         }
-    }
-
-    #[test]
-    fn from_lookup_parses_geoip_refresh_interval_override() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected geoip config to parse");
-
-        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
     }
 
     #[test]

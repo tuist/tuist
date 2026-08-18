@@ -44,6 +44,10 @@ type fakeBackend struct {
 	notMounted bool
 	// mountErr, when set, is returned from isMounted to model a stat failure.
 	mountErr error
+	// digestErr, when set, is returned from imageInventoryDigest to model a
+	// LOCAL failure to measure an image (the read-only attach failed), which is
+	// not evidence about the image's contents.
+	digestErr error
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -75,6 +79,9 @@ func (f *fakeBackend) createImage(path string, sizeGiB int) error {
 // imageInventoryDigest stands in for a read-through attach: the digest is
 // sha1(content) of the opaque image bytes.
 func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
+	if f.digestErr != nil {
+		return "", f.digestErr
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

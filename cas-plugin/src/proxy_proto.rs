@@ -23,7 +23,13 @@
 //! object is on disk (fetching it from the remote if the background
 //! materializer has not stored it yet). status 1 = present, status 0 = the
 //! proxy has no way to produce it (treat as not found).
-//! BACKED (op 5): payload = action key digest bytes. Asks whether the proxy
+//! DRAIN (op 5): payload = u32 big-endian milliseconds the caller will wait
+//! (absent/zero = the proxy's default). Blocks until every publication this
+//! machine recorded for `cas_path` has reached the remote. status 1 = drained,
+//! status 0 = records remain (body = how many), status 2 = the proxy could not
+//! run it. Asked by a runner's teardown before the CAS store it covers is
+//! promoted as an account's cache master; see `Proxy::drain_publications`.
+//! BACKED (op 6): payload = action key digest bytes. Asks whether the proxy
 //! can produce the key's whole closure, for a hit the plugin already has
 //! locally. status 1 = yes (fetch instructions are now registered), status 0 =
 //! the remote definitively does not hold this key, status 2 = cannot tell.
@@ -56,11 +62,25 @@ pub const OP_INVALIDATE: u8 = 3;
 /// yet (or that a prune removed). Runs on compiler worker threads, never on the
 /// build engine's serial task-setup path, so it may block on the remote.
 pub const OP_FETCH_OBJECT: u8 = 4;
+/// Wait for this path's spooled publications to reach the remote. Added WITHOUT
+/// a `PROTOCOL_VERSION` bump, deliberately: the frame layout is untouched, and a
+/// proxy that predates the op answers `bad op` through the STATUS_ERROR its
+/// caller already has to handle — which the caller reads as "cannot ask" and
+/// falls back to watching the spool directory itself. Bumping the version
+/// instead would make a stale launchd proxy reject every request, from every
+/// build on the machine, until it restarts.
+pub const OP_DRAIN: u8 = 5;
 /// Backing check for an action-cache hit the plugin found in the local store.
 /// Runs on the build engine's serial task-setup path, so the proxy answers it
 /// from the instance snapshot wherever it can and only pays a per-key lookup
 /// for keys the snapshot lacks.
-pub const OP_BACKED: u8 = 5;
+///
+/// 6 rather than 5: DRAIN landed on main first and shipped with that number.
+/// Two additive ops sharing a value is the one merge outcome the `bad op`
+/// fallback cannot save — a proxy would read one as the other and answer with
+/// a status the caller trusts, so the numbers must stay distinct even though
+/// neither op needed a version bump on its own.
+pub const OP_BACKED: u8 = 6;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -160,10 +180,19 @@ pub struct ProxyClient {
     pub socket_path: String,
 }
 
+/// How much longer than the drain it asked for a client waits on the reply, so
+/// a proxy that spends its whole budget still gets to answer instead of the
+/// read timing out on a drain that IS running.
+const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
+
 impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
+        self.connect_with_read_timeout(Duration::from_secs(120))
+    }
+
+    fn connect_with_read_timeout(&self, read_timeout: Duration) -> std::io::Result<UnixStream> {
         let stream = UnixStream::connect(&self.socket_path)?;
-        stream.set_read_timeout(Some(Duration::from_secs(120)))?;
+        stream.set_read_timeout(Some(read_timeout))?;
         stream.set_write_timeout(Some(Duration::from_secs(10)))?;
         Ok(stream)
     }
@@ -271,6 +300,44 @@ impl ProxyClient {
         }
     }
 
+    /// Blocks until the proxy reports every publication it holds for `cas_path`
+    /// has reached the remote, or until it gives up at `timeout`.
+    ///
+    /// `Ok(0)` is drained; `Ok(n)` is n records the remote never received; an
+    /// `Err` is a proxy that could not answer at all (nothing listening, or one
+    /// old enough not to know the op). The caller must keep those three apart:
+    /// only the first says the local store's associations are backed.
+    pub fn drain(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        timeout: Duration,
+    ) -> Result<usize, String> {
+        let mut stream = self
+            .connect_with_read_timeout(timeout + DRAIN_READ_GRACE)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        let millis = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_DRAIN,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: millis.to_be_bytes().to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            STATUS_HIT => Ok(0),
+            // An unparseable count still means something is owed, so it must not
+            // round down to drained.
+            STATUS_MISS => Ok(String::from_utf8_lossy(&body).parse().unwrap_or(1)),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
     pub fn publish(&self, cas_path: &str, instance: &str, record_path: &str) -> Result<(), String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
@@ -297,6 +364,39 @@ impl ProxyClient {
 mod tests {
     use super::*;
 
+    /// Every op must have its own number, and this is not the pedantry it looks
+    /// like: DRAIN and BACKED were written on separate branches, both reasoned
+    /// correctly that a purely additive op needs no `PROTOCOL_VERSION` bump, and
+    /// both took 5. The merge that brought them together auto-resolved cleanly —
+    /// two constants with different names on different lines — and compiled.
+    ///
+    /// That is the one collision the `bad op` fallback cannot absorb. A proxy
+    /// reads the number, not the name, so it would have answered a BACKED with a
+    /// DRAIN's result and vice versa, both through a status the caller trusts.
+    /// The version byte would not have caught it either, since neither op
+    /// changed the frame layout. So the guard belongs here, in a test, rather
+    /// than in the reviewer's attention.
+    #[test]
+    fn every_op_has_a_distinct_number() {
+        let ops = [
+            ("RESOLVE", OP_RESOLVE),
+            ("PUBLISH", OP_PUBLISH),
+            ("INVALIDATE", OP_INVALIDATE),
+            ("FETCH_OBJECT", OP_FETCH_OBJECT),
+            ("DRAIN", OP_DRAIN),
+            ("BACKED", OP_BACKED),
+        ];
+        for (i, (name, op)) in ops.iter().enumerate() {
+            for (other_name, other_op) in &ops[i + 1..] {
+                assert_ne!(
+                    op, other_op,
+                    "{name} and {other_name} share op {op}: a proxy dispatches on the \
+                     number, so one would be served as the other"
+                );
+            }
+        }
+    }
+
     fn round_trip(request: &Request) -> Request {
         let (mut writer, mut reader) = UnixStream::pair().unwrap();
         write_request(&mut writer, request).unwrap();
@@ -317,6 +417,26 @@ mod tests {
         assert_eq!(read.cas_path, "/dd/App-abc/CompilationCache.noindex/plugin");
         assert_eq!(read.instance, "acme/app");
         assert_eq!(read.payload, vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    /// The drain rides the SAME frame layout every other op uses, which is what
+    /// let it be added without a `PROTOCOL_VERSION` bump: a proxy that does not
+    /// know op 5 parses the request fine and answers `bad op`.
+    #[test]
+    fn a_drain_request_is_an_ordinary_frame_carrying_its_budget() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_DRAIN,
+            cas_path: "/Volumes/cache/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: 120_000u32.to_be_bytes().to_vec(),
+        });
+        assert_eq!(read.op, OP_DRAIN);
+        assert_eq!(
+            read.cas_path,
+            "/Volumes/cache/CompilationCache.noindex/plugin"
+        );
+        assert_eq!(read.payload, vec![0x00, 0x01, 0xD4, 0xC0]);
     }
 
     #[test]

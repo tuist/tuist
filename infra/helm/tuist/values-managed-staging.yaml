@@ -8,6 +8,14 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and canary run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-staging
+    - tag:tuist-k8s-staging
+
 # Grafana Cloud PDC agent — on in staging first. The signing token lives in this
 # env's vault as PDC_AGENT/password; cluster + hostedGrafanaId come from
 # values-managed-common.yaml. Gives Grafana Cloud a tunnel to the in-cluster CNPG
