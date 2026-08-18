@@ -89,6 +89,8 @@ defmodule Tuist.Runners.DispatchTest do
           "head_branch" => "main",
           "head_sha" => "abc",
           "conclusion" => Keyword.get(opts, :conclusion, "success"),
+          "started_at" => Keyword.get(opts, :job_started_at),
+          "completed_at" => Keyword.get(opts, :job_completed_at),
           "steps" => Keyword.get(opts, :steps, [])
         },
         "runner_name",
@@ -525,8 +527,8 @@ defmodule Tuist.Runners.DispatchTest do
       test_pid = self()
       account_id = account.id
 
-      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id ->
-        send(test_pid, {:session_exec, "runner-late", 4800})
+      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id, job_window ->
+        send(test_pid, {:session_exec, "runner-late", 4800, job_window})
         :matched
       end)
 
@@ -540,7 +542,40 @@ defmodule Tuist.Runners.DispatchTest do
                  1
                )
 
-      assert_receive {:session_exec, "runner-late", 4800}
+      assert_receive {:session_exec, "runner-late", 4800, _job_window}
+    end
+
+    test "passes GitHub's job window through to the billing session", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn "runner-window", 4801, ^account_id, job_window ->
+        send(test_pid, {:job_window, job_window})
+        :matched
+      end)
+
+      stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id -> 1 end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(
+                   id: 4801,
+                   runner_name: "runner-window",
+                   steps: [],
+                   job_started_at: "2026-08-18T13:50:02Z",
+                   job_completed_at: "2026-08-18T13:50:08Z"
+                 ),
+                 1
+               )
+
+      # This window, not the Pod's, is what the customer is billed for.
+      assert_receive {:job_window,
+                      %{
+                        started_at: ~U[2026-08-18 13:50:02.000000Z],
+                        ended_at: ~U[2026-08-18 13:50:08.000000Z]
+                      }}
     end
 
     test "releases the executor's claim, scoped to the webhook's account", %{account: account} do

@@ -8,7 +8,13 @@ defmodule Tuist.Runners.BillingTest do
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
+  # Billing measures the job window, not the Pod window. Most cases here
+  # only care about the interval maths, so the job window defaults to the
+  # Pod window; a test that cares about the difference passes
+  # `job_started_at` / `job_ended_at` (or nil) explicitly.
   defp session_fixture(account, attrs) do
+    attrs = Map.new(attrs)
+
     defaults = %{
       account_id: account.id,
       workflow_job_id: System.unique_integer([:positive]),
@@ -17,11 +23,13 @@ defmodule Tuist.Runners.BillingTest do
       runner_name: "",
       started_at: nil,
       ended_at: nil,
+      job_started_at: Map.get(attrs, :started_at),
+      job_ended_at: Map.get(attrs, :ended_at),
       inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
       updated_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
 
-    Repo.insert!(struct(RunnerSession, Map.merge(defaults, Map.new(attrs))))
+    Repo.insert!(struct(RunnerSession, Map.merge(defaults, attrs)))
   end
 
   describe "compute_milliseconds/3" do
@@ -60,24 +68,57 @@ defmodule Tuist.Runners.BillingTest do
       assert Billing.compute_milliseconds(account.id, period_start, period_end) == 60 * 60 * 1_000
     end
 
-    test "open sessions clamp to now() when period_end is in the future" do
+    test "bills nothing for a job still in flight" do
       account = account_fixture()
       now = DateTime.utc_now()
       period_start = DateTime.add(now, -1, :day)
       period_end = DateTime.add(now, 30, :day)
 
-      # Session started 5 minutes ago with no ended_at. Billing
-      # bills started_at → now(), not forever.
+      # Pod claimed 5 minutes ago, job still running: no completion
+      # webhook has landed, so there is no evidenced window yet.
       session_fixture(account,
         started_at: DateTime.add(now, -5, :minute),
-        ended_at: nil
+        ended_at: nil,
+        job_started_at: nil,
+        job_ended_at: nil
       )
 
-      result = Billing.compute_milliseconds(account.id, period_start, period_end)
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
+    end
 
-      # 5 minutes ± a generous tolerance for clock drift between
-      # the fixture insert and the billing query.
-      assert_in_delta result, 5 * 60 * 1_000, 2_000
+    test "bills nothing when the Pod ran but no job window was ever recorded" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-31 23:59:59.999999Z]
+
+      # A completed Pod whose `workflow_job.completed` webhook never
+      # arrived. The Pod's wall clock is not evidence the customer's
+      # work ran, so it bills nothing rather than falling back to it.
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:30:00.000000Z],
+        job_started_at: nil,
+        job_ended_at: nil
+      )
+
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
+    end
+
+    test "bills the job window, not the Pod's boot and teardown around it" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-31 23:59:59.999999Z]
+
+      # Pod held the host for 20 minutes; the customer's job ran for 5
+      # of them. The other 15 are VM boot and teardown, which are ours.
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:20:00.000000Z],
+        job_started_at: ~U[2026-05-10 12:10:00.000000Z],
+        job_ended_at: ~U[2026-05-10 12:15:00.000000Z]
+      )
+
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 5 * 60 * 1_000
     end
 
     test "excludes sessions that ended before the window" do
@@ -112,26 +153,25 @@ defmodule Tuist.Runners.BillingTest do
       assert Billing.compute_milliseconds(mine.id, period_start, period_end) == 5 * 60 * 1_000
     end
 
-    test "caps an open session at the max-lifetime safety clamp (6 hours)" do
+    test "an orphaned Pod cannot run away with the bill" do
       account = account_fixture()
       now = DateTime.utc_now()
 
-      # Session opened 12 hours ago, never closed (lost `stopped`
-      # event). Without the clamp this would bill 12 hours; with
-      # the clamp it bills at most 6 hours.
+      # Pod opened 12 hours ago and never closed (lost `stopped`
+      # event). Under the Pod-clock window this needed a six-hour
+      # safety clamp; billing the job window makes it structurally
+      # impossible, because no job window was ever recorded.
       session_fixture(account,
         started_at: DateTime.add(now, -12, :hour),
-        ended_at: nil
+        ended_at: nil,
+        job_started_at: nil,
+        job_ended_at: nil
       )
 
       period_start = DateTime.add(now, -1, :day)
       period_end = DateTime.add(now, 1, :day)
 
-      ms = Billing.compute_milliseconds(account.id, period_start, period_end)
-      six_hours_ms = 6 * 60 * 60 * 1_000
-
-      assert ms <= six_hours_ms
-      assert ms >= six_hours_ms - 5_000
+      assert Billing.compute_milliseconds(account.id, period_start, period_end) == 0
     end
 
     test "retries bill for every Pod the customer actually held" do

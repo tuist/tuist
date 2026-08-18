@@ -315,12 +315,29 @@ defmodule Tuist.Runners.Dispatch do
       # cancelled while still queued (no runner ever ran it), so this
       # is a no-op for that class.
       if runner_name != "" and account_id,
-        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+        do:
+          RunnerSessions.record_execution(
+            runner_name,
+            workflow_job_id,
+            account_id,
+            job_execution_window(job)
+          )
 
       mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
+  end
+
+  # GitHub's own bounds for the job, which is what the customer is
+  # charged for. The Pod that ran it boots before this window and tears
+  # down after it, and that overhead is ours rather than theirs. Missing
+  # or unparseable timestamps yield an empty window, which bills nothing.
+  defp job_execution_window(job) do
+    %{
+      started_at: parse_step_time(Map.get(job, "started_at")),
+      ended_at: parse_step_time(Map.get(job, "completed_at"))
+    }
   end
 
   defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do

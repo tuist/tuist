@@ -356,16 +356,18 @@ defmodule Tuist.Runners.RunnerSessions do
   Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
   mirroring `Claims.record_execution/3`.
   """
-  def record_execution(runner_name, executed_workflow_job_id, account_id)
+  def record_execution(runner_name, executed_workflow_job_id, account_id, job_window \\ %{})
+
+  def record_execution(runner_name, executed_workflow_job_id, account_id, job_window)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
              is_integer(account_id) do
     case session_for_runner(runner_name, account_id) do
       nil -> :unknown_runner
-      %RunnerSession{} = session -> bind_execution(session, executed_workflow_job_id)
+      %RunnerSession{} = session -> bind_execution(session, executed_workflow_job_id, job_window)
     end
   end
 
-  def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id, _job_window), do: :unknown_runner
 
   # Prefer the open session; fall back to the most recent closed one so a
   # `completed` backstop can still bind after a fast job's pod is gone.
@@ -378,6 +380,19 @@ defmodule Tuist.Runners.RunnerSessions do
     |> Repo.one()
   end
 
+  # Only a complete, forward-ordered window is billable. A partial pair
+  # (one timestamp present) or an inverted one is treated as no evidence
+  # of execution at all rather than half a window.
+  defp billable_job_window(%{started_at: %DateTime{} = started_at, ended_at: %DateTime{} = ended_at}) do
+    if DateTime.before?(ended_at, started_at) do
+      %{}
+    else
+      %{job_started_at: started_at, job_ended_at: ended_at}
+    end
+  end
+
+  defp billable_job_window(_job_window), do: %{}
+
   # "Prefer the row still open, else the most recent closed one." Both the
   # runner_name and pod_name lookups want exactly this ordering.
   defp prefer_open_then_latest(query) do
@@ -386,15 +401,24 @@ defmodule Tuist.Runners.RunnerSessions do
     |> limit(1)
   end
 
-  defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id) do
+  # GitHub's own `started_at` / `completed_at` for the job, when the
+  # completion payload carried both. This is the billable window: the
+  # session's own bounds include VM boot before the job and teardown
+  # after it, neither of which is the customer's to pay for. Absent or
+  # partial timestamps are left NULL and bill nothing rather than
+  # falling back to the Pod's wall clock.
+  defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id, job_window) do
+    attrs =
+      Map.merge(
+        %{
+          executed_workflow_job_id: executed_workflow_job_id,
+          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        },
+        billable_job_window(job_window)
+      )
+
     session
-    |> Ecto.Changeset.cast(
-      %{
-        executed_workflow_job_id: executed_workflow_job_id,
-        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-      },
-      [:executed_workflow_job_id, :updated_at]
-    )
+    |> Ecto.Changeset.cast(attrs, [:executed_workflow_job_id, :updated_at, :job_started_at, :job_ended_at])
     |> Repo.update()
     |> case do
       {:ok, _updated} ->

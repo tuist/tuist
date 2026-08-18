@@ -365,6 +365,54 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8001
     end
 
+    test "records the job window GitHub reported, which is what bills" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-window", workflow_job_id: 8010)
+
+      assert :matched =
+               RunnerSessions.record_execution("runner-window", 8010, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:08.000000Z]
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert stored.job_started_at == ~U[2026-08-18 13:50:02.000000Z]
+      assert stored.job_ended_at == ~U[2026-08-18 13:50:08.000000Z]
+    end
+
+    test "leaves the job window null when the payload carried only one bound" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-partial", workflow_job_id: 8011)
+
+      # Half a window is no window: billing charges nothing rather than
+      # inventing an end from the Pod's clock.
+      assert :matched =
+               RunnerSessions.record_execution("runner-partial", 8011, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: nil
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert is_nil(stored.job_started_at)
+      assert is_nil(stored.job_ended_at)
+      assert stored.executed_workflow_job_id == 8011
+    end
+
+    test "ignores an inverted job window" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-inverted", workflow_job_id: 8012)
+
+      assert :matched =
+               RunnerSessions.record_execution("runner-inverted", 8012, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:08.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:02.000000Z]
+               })
+
+      stored = Repo.get!(RunnerSession, session.id)
+      assert is_nil(stored.job_started_at)
+      assert is_nil(stored.job_ended_at)
+    end
+
     test "reports :mismatch and binds the real job GitHub ran" do
       account = account_fixture()
       session = session_fixture(account, runner_name: "runner-b", workflow_job_id: 8002)
