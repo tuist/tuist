@@ -15,14 +15,27 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
 
   ## Reconstruction
 
-  Both materialized views read the same `test_case_runs` rows, and
-  `groupArraySorted` truncates on the sort key before the flag, so both
-  aggregates always retain the same run keys per test case. De-duplicating each
-  to one entry per key therefore yields two arrays aligned element for element,
-  which zip in a single pass. Zipping by key lookup instead is quadratic, and in
-  a vectorised engine that materialises `entries x keys` intermediates for the
-  whole block: it allocated in 625 MiB chunks and exceeded the memory limit on
-  its own.
+  Both materialized views read the same `test_case_runs` rows, so de-duplicating
+  each aggregate to one entry per run key yields two arrays that zip in a single
+  pass. Zipping by key lookup instead is quadratic, and in a vectorised engine
+  that materialises `entries x keys` intermediates for the whole block: it
+  allocated in 625 MiB chunks and exceeded the memory limit on its own.
+
+  Alignment is not free, though, and assuming it is what failed this migration
+  in production. `groupArraySorted` orders on the whole tuple, so the flag
+  breaks ties on the run key rather than being ignored after it. A run key
+  carrying two physical entries can straddle the source's 100-entry ceiling and
+  be cut on different sides of it in the two aggregates, which retain key sets
+  differing by their largest key. Measured on production, that is every test
+  case that is both at the ceiling and holds a duplicate key: 9 of 4108 in a
+  20,000-case sample, and none at all in the three groups missing either
+  condition. ClickHouse compares the lengths before it evaluates anything, so
+  one such test case aborts the insert for its whole range.
+
+  Equal largest keys mean identical key sets, because truncation keeps the
+  smallest tuples and a key below both maxima cannot be missing from either.
+  Unequal maxima are resolved by dropping the larger from both, which costs the
+  single oldest run of the test cases that diverge and nothing anywhere else.
 
   Depth is inherited, not extended. The source holds 100 physical entries, so a
   logical run re-inserted to set `is_flaky` consumes two of them and a test case
@@ -215,16 +228,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
                 tupleElement(flaky_entry, 1) * 4
                 + toInt64(tupleElement(flaky_entry, 2)) * 2
                 + toInt64(tupleElement(successful_entry, 2)),
-              arrayFilter(
-                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
-                flaky_runs,
-                arrayShiftLeft(flaky_runs, 1, #{@flag_sentinel})
-              ),
-              arrayFilter(
-                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
-                successful_runs,
-                arrayShiftLeft(successful_runs, 1, #{@flag_sentinel})
-              )
+              arrayFilter(entry -> tupleElement(entry, 1) <= keep_through, flaky_keyed),
+              arrayFilter(entry -> tupleElement(entry, 1) <= keep_through, successful_keyed)
             )
           )
         ) AS recent_runs
@@ -232,12 +237,58 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
         SELECT
           project_id,
           test_case_id,
-          finalizeAggregation(recent_runs) AS flaky_runs,
-          finalizeAggregation(recent_successful_runs) AS successful_runs
-        FROM #{@source_table} FINAL
-        WHERE project_id = {project_id:Int64}
-          AND test_case_id >= {lower:UUID}
-          #{upper_clause}
+          flaky_keyed,
+          successful_keyed,
+          -- Both aggregates see the same runs, but `groupArraySorted` orders on
+          -- the whole tuple, so the flag breaks ties on the run key. A run key
+          -- carrying two physical entries can therefore straddle the source's
+          -- 100-entry ceiling and be cut on different sides of it in the two
+          -- aggregates, leaving key sets that differ by their largest key.
+          -- Zipping those positionally pairs a run against a different run, and
+          -- ClickHouse rejects the unequal lengths outright.
+          --
+          -- Equal largest keys mean identical key sets: truncation keeps the
+          -- smallest tuples, so a key below both maxima cannot be missing from
+          -- either. Unequal maxima are resolved by dropping the larger, which
+          -- costs the single oldest run of the test cases that actually
+          -- diverge. Key lookup would pair them exactly, and is what the
+          -- earlier attempt measured at 625 MiB chunks; this stays a single
+          -- pass over arrays already in hand.
+          if(
+            arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)) =
+              arrayMax(arrayMap(entry -> tupleElement(entry, 1), successful_keyed)),
+            arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)),
+            least(
+              arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)),
+              arrayMax(arrayMap(entry -> tupleElement(entry, 1), successful_keyed))
+            ) - 1
+          ) AS keep_through
+        FROM (
+          SELECT
+            project_id,
+            test_case_id,
+            arrayFilter(
+              (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+              flaky_runs,
+              arrayShiftLeft(flaky_runs, 1, #{@flag_sentinel})
+            ) AS flaky_keyed,
+            arrayFilter(
+              (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+              successful_runs,
+              arrayShiftLeft(successful_runs, 1, #{@flag_sentinel})
+            ) AS successful_keyed
+          FROM (
+            SELECT
+              project_id,
+              test_case_id,
+              finalizeAggregation(recent_runs) AS flaky_runs,
+              finalizeAggregation(recent_successful_runs) AS successful_runs
+            FROM #{@source_table} FINAL
+            WHERE project_id = {project_id:Int64}
+              AND test_case_id >= {lower:UUID}
+              #{upper_clause}
+          )
+        )
       )
       SETTINGS
         max_threads = 2,
