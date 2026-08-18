@@ -2,8 +2,8 @@ defmodule Tuist.Kura.Lifecycle do
   @moduledoc """
   Converges account-region Kura instances with cache demand.
 
-  Every plan follows the same default 90-day lifecycle, and the identity rule
-  converges in both directions:
+  Every plan that is archived at all follows the same default 90-day lifecycle,
+  and the identity rule converges in both directions:
 
     * an account with cache demand inside its inactivity window should have
       exactly one live instance in its service region, and
@@ -64,6 +64,13 @@ defmodule Tuist.Kura.Lifecycle do
       an operator turns it on. Provisioning is not gated by it, so archival
       can be switched off for a plan or for one account during an incident
       without also stopping accounts from getting instances back.
+
+  ## Plans
+
+  Enterprise is never archived. Air and Pro follow the 90-day window, and Air
+  alone can shorten to 60 under capacity pressure. Open-source accounts are
+  outside the lifecycle entirely: `Tuist.Kura.AccountPolicies` resolves no
+  service region for them, so they are never provisioned and never archived.
 
   ## Air pressure
 
@@ -445,6 +452,9 @@ defmodule Tuist.Kura.Lifecycle do
     plan = Billing.effective_plan(server.account)
 
     cond do
+      not archivable_plan?(plan) ->
+        []
+
       not archival_enabled?(server.account) ->
         []
 
@@ -552,6 +562,14 @@ defmodule Tuist.Kura.Lifecycle do
     plan = Billing.effective_plan(server.account)
 
     cond do
+      # Re-read at resolution, not only at selection: an account that upgrades
+      # to a plan that is never archived while its instance is mid-drain gets
+      # it back, rather than being reclaimed under the plan it just left.
+      not archivable_plan?(plan) ->
+        Logger.info("[Kura.Lifecycle] instance #{server.id} is on a plan that is never archived; returning it to service")
+
+        cancel_drain(server, lifecycle, plan)
+
       # The flag is re-read here, not just where the sweep selected this
       # instance. Selection and teardown are minutes apart, so a kill switch
       # that only gated selection could not stop an archival already in
@@ -776,6 +794,15 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   ## Gates
+
+  # Enterprise instances are never reclaimed. The population makes the trade
+  # one-sided: paid accounts are almost entirely active (58 with cache demand
+  # at 90 days against 55 at 30), so archiving them frees a fraction of a
+  # machine while handing the accounts with the highest support expectations
+  # two cold builds on their return. A policy rather than a setting, so it does
+  # not depend on anyone remembering to set the `:kura_archival` plan gate.
+  defp archivable_plan?(:enterprise), do: false
+  defp archivable_plan?(_plan), do: true
 
   @doc """
   Whether archival may run for an account.

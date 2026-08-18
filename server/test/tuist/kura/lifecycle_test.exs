@@ -250,6 +250,28 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :active
     end
 
+    test "never archives an Enterprise instance, however long it has been inactive" do
+      account = account(plan: :enterprise, region: :usa)
+      server = active_instance(account)
+      with_demand(account, 400)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :active
+    end
+
+    test "still archives Air and Pro" do
+      for {plan, region} <- [{nil, nil}, {:pro, :usa}] do
+        account = account(plan: plan, region: region)
+        server = active_instance(account)
+        with_demand(account, 91)
+
+        assert :ok = Lifecycle.sweep()
+
+        assert reload(server).status == :drain_pending
+      end
+    end
+
     test "keeps provisioning while archival is disabled" do
       stub(FunWithFlags, :enabled?, fn :kura_archival, [for: _account] -> false end)
 
@@ -407,6 +429,21 @@ defmodule Tuist.Kura.LifecycleTest do
 
       assert reload(server).status == :active
       assert reload_lifecycle(account).drain_started_at == nil
+      reject(&Provisioner.destroy/1)
+    end
+
+    test "returns a draining instance to service when the account upgrades to Enterprise" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      # Mid-drain upgrade: the instance must not be reclaimed under the plan the
+      # account has just left.
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert :ok = Lifecycle.reconcile()
+
+      assert reload(server).status == :active
       reject(&Provisioner.destroy/1)
     end
 
@@ -575,8 +612,8 @@ defmodule Tuist.Kura.LifecycleTest do
       assert returned.current_image_tag == nil
     end
 
-    test "takes the cold-provision path for every plan" do
-      for {plan, region} <- [{nil, nil}, {:pro, :usa}, {:enterprise, :usa}] do
+    test "takes the cold-provision path for every archivable plan" do
+      for {plan, region} <- [{nil, nil}, {:pro, :usa}] do
         account = account(plan: plan, region: region)
         archive(account)
 
@@ -597,6 +634,26 @@ defmodule Tuist.Kura.LifecycleTest do
 
       assert [%Deployment{status: :pending, image_tag: @image_tag}] =
                Repo.all(from(d in Deployment, where: d.kura_server_id == ^server.id))
+    end
+
+    test "returns an Enterprise instance archived before the plan was excluded" do
+      # The exclusion is on the archival side only. A row archived while the
+      # policy still allowed it must still come back on demand, otherwise the
+      # account would be stranded with no instance and no way to earn one.
+      account = account(plan: :enterprise, region: :usa)
+
+      server =
+        Repo.insert!(%Server{
+          account_id: account.id,
+          region: @region,
+          status: :archived,
+          provisioner_node_ref: "kura-#{account.id}-us-east"
+        })
+
+      Demand.record(account.id)
+      Lifecycle.reconcile()
+
+      assert reload(server).status == :provisioning
     end
 
     test "reports the return as a cold provision" do
