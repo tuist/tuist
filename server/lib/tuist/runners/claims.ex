@@ -461,18 +461,26 @@ defmodule Tuist.Runners.Claims do
   the job `in_progress`, so it's left alone) will free — until the
   Pod stops.
 
-  Freeing the budget is only half the recovery: the ClickHouse row
+  Freeing the budget is only half the recovery: the lifecycle row
   stays at `running`, which `pick_queued/2` skips, so the released
   job is invisible to dispatch until something moves it back to
   `queued`. GitHub does not do that for us. A runner that never
   registered leaves the workflow_job `queued` on GitHub's side for
   its whole life, so there is no state change for GitHub to
   announce and no second `queued` webhook ever arrives — the job
-  only moved through `claimed → running` in *our* store. The
-  caller is therefore expected to schedule recovery for each
-  returned id; `OrphanedRunnersWorker` re-checks GitHub's own view
-  before re-queueing, so the released ids are candidates, not
-  verdicts.
+  only moved through `claimed → running` in *our* store. Whether it
+  should run again is GitHub's call (it may be executing on a
+  sibling runner), so a `running` row is left for the caller to
+  schedule recovery on; `OrphanedRunnersWorker` re-checks GitHub's
+  own view before re-queueing, so the released ids are candidates,
+  not verdicts.
+
+  A claim still in `claimed` is different: the Pod stopped before the
+  JIT was minted, so nothing can be running for that job anywhere and
+  no cross-check is needed. Its lifecycle row is re-queued here, in
+  the same transaction as the delete — otherwise a `claimed` row with
+  no claim behind it would be invisible to dispatch (not `queued`) and
+  to every recovery scan (no claim to list, not `running`).
 
   Returns the released `workflow_job_id`s (empty in the common case
   where the job's `completed` webhook already freed the claim
@@ -480,10 +488,24 @@ defmodule Tuist.Runners.Claims do
   crashed-mid-job Pod).
   """
   def release_by_pod_name(pod_name) when is_binary(pod_name) and pod_name != "" do
-    {_count, released} =
-      Repo.delete_all(from(c in Claim, where: c.pod_name == ^pod_name, select: c.workflow_job_id))
+    {:ok, released} =
+      Repo.transaction(fn ->
+        {_count, released} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.pod_name == ^pod_name,
+              select: {c.workflow_job_id, c.lifecycle_state, c.claimed_at}
+            )
+          )
 
-    released || []
+        for {workflow_job_id, "claimed", claimed_at} <- released || [] do
+          WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+        end
+
+        Enum.map(released || [], &elem(&1, 0))
+      end)
+
+    released
   end
 
   def release_by_pod_name(_pod_name), do: []

@@ -385,6 +385,40 @@ defmodule Tuist.Runners.ClaimsTest do
       assert [9002] == Claims.release_by_pod_name("pod-2")
     end
 
+    test "re-queues the lifecycle row of a claim released before the mint" do
+      # The Pod stopped between claim and JIT mint: nothing can be running
+      # for the job, and without this the row would sit `claimed` with no
+      # claim behind it — invisible to dispatch and every recovery scan.
+      account = account_fixture()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{workflow_job_id: 9003, account_id: account.id, fleet_name: "fleet-a"})
+
+      {:ok, _} = Claims.attempt(9003, account.id, "fleet-a", "pod-3", @linux_resources)
+      assert Repo.get!(WorkflowJob, 9003).status == "claimed"
+
+      assert [9003] == Claims.release_by_pod_name("pod-3")
+
+      row = Repo.get!(WorkflowJob, 9003)
+      assert row.status == "queued"
+      assert row.pod_name == nil
+    end
+
+    test "leaves the lifecycle row of a running claim for the orphan cross-check" do
+      # Once minted, the runner may have taken a sibling's job; whether
+      # to re-queue is GitHub's call, made by OrphanedRunnersWorker.
+      account = account_fixture()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{workflow_job_id: 9004, account_id: account.id, fleet_name: "fleet-a"})
+
+      {:ok, _} = Claims.attempt(9004, account.id, "fleet-a", "pod-4", @linux_resources)
+      :ok = Claims.mark_running(9004, "runner-4")
+
+      assert [9004] == Claims.release_by_pod_name("pod-4")
+      assert Repo.get!(WorkflowJob, 9004).status == "running"
+    end
+
     test "returns no jobs when the pod holds no claim (already completed before stop)" do
       assert [] == Claims.release_by_pod_name("idle-pod")
     end
