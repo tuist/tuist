@@ -474,15 +474,14 @@ defmodule TuistWeb.TestCasesLive do
   @doc """
   Column header and sort-menu label for each of the listing's duration columns.
   """
-  def duration_field_label(:duration_p50), do: dgettext("dashboard_tests", "Median")
+  def duration_field_label(:duration_p50), do: dgettext("dashboard_tests", "p50")
   def duration_field_label(:duration_p90), do: dgettext("dashboard_tests", "p90")
   def duration_field_label(:duration_p99), do: dgettext("dashboard_tests", "p99")
   def duration_field_label(:duration_avg), do: dgettext("dashboard_tests", "Avg.")
 
   @doc """
   Cell label for a duration the listing has, or a placeholder for one it does
-  not. The reason it is missing is spelled out once per row, on the median
-  column.
+  not. The reason it is missing is spelled out once per row, on the p50 column.
   """
   def duration_cell_label(nil), do: dgettext("dashboard_tests", "N/A")
 

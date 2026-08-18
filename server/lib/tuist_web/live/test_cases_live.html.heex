@@ -624,6 +624,7 @@
                   test_case.duration_p50_ms
                 )
               }
+              icon="history"
             />
             <%!-- Only this column carries the explanation: every duration cell in
             an under-sampled row is empty for the same reason, and repeating the
@@ -645,7 +646,7 @@
             >
               <:trigger :let={attrs}>
                 <span {attrs}>
-                  <.text_cell label={dgettext("dashboard_tests", "N/A")} />
+                  <.text_cell label={dgettext("dashboard_tests", "N/A")} icon="history" />
                 </span>
               </:trigger>
             </.tooltip>
