@@ -286,10 +286,10 @@ let project = Project(
         ),
         .target(
             name: "TuistApplicationLoggingTests",
-            destinations: [.mac, .iPhone],
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "dev.tuist.application-logging-tests",
-            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
+            deploymentTargets: .iOS("18.0"),
             sources: ["Tests/TuistApplicationLoggingTests/**"],
             dependencies: [
                 .project(target: "TuistLogging", path: "../"),

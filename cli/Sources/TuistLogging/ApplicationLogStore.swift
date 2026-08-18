@@ -1,4 +1,4 @@
-#if os(iOS) || os(macOS)
+#if os(iOS)
     import Foundation
 
     public protocol ApplicationLogStoring: Sendable {
@@ -106,7 +106,8 @@
                 label: "dev.tuist.app",
                 fileURL: fileURL,
                 maximumFileSize: Self.maximumSessionSize,
-                lineTransformer: Self.redacted
+                lineTransformer: Self.redacted,
+                shouldLog: Self.shouldStore
             )
             try removeExpiredSessions(generatedAt: generatedAt)
             return handler
@@ -131,6 +132,11 @@
                     options: .regularExpression
                 )
             }
+        }
+
+        private static func shouldStore(_: Logger.Level, _ message: Logger.Message, _: String) -> Bool {
+            !message.description.hasPrefix("Sending HTTP request to ")
+                && !message.description.hasPrefix("Received HTTP response from ")
         }
 
         private func recentSessionFiles(generatedAt: Date) throws -> [URL] {

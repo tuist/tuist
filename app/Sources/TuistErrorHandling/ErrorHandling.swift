@@ -9,7 +9,7 @@ import UIKit
 struct ErrorAlert: Identifiable {
     var id = UUID()
     var message: String
-    var logExportURL: URL?
+    var allowsLogSharing = false
     var dismissAction: (() -> Void)?
 }
 
@@ -65,15 +65,7 @@ public final class ErrorHandling: ObservableObject {
             return
         }
 
-        Task {
-            do {
-                let logExportURL = try await ApplicationLogStore.current.plainTextExport()
-                currentAlert = ErrorAlert(message: message, logExportURL: logExportURL)
-            } catch {
-                Logger.current.error("Failed to prepare application logs for sharing: \(error.localizedDescription)")
-                currentAlert = ErrorAlert(message: message)
-            }
-        }
+        currentAlert = ErrorAlert(message: message, allowsLogSharing: true)
     }
 }
 
@@ -90,17 +82,26 @@ struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
             .background(
                 EmptyView()
                     .alert(item: $errorHandling.currentAlert) { currentAlert in
-                        if let logExportURL = currentAlert.logExportURL {
+                        if currentAlert.allowsLogSharing {
                             return Alert(
                                 title: Text("Error"),
                                 message: Text(currentAlert.message),
                                 primaryButton: .default(Text("Share logs")) {
                                     currentAlert.dismissAction?()
-                                    logsToShare = LogsToShare(fileURL: logExportURL)
+                                    Task {
+                                        do {
+                                            let logExportURL = try await ApplicationLogStore.current.plainTextExport()
+                                            logsToShare = LogsToShare(fileURL: logExportURL)
+                                        } catch {
+                                            Logger.current
+                                                .error(
+                                                    "Failed to prepare application logs for sharing: \(error.localizedDescription)"
+                                                )
+                                        }
+                                    }
                                 },
                                 secondaryButton: .cancel(Text("Ok")) {
                                     currentAlert.dismissAction?()
-                                    try? FileManager.default.removeItem(at: logExportURL)
                                 }
                             )
                         } else {
@@ -117,8 +118,15 @@ struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
             .sheet(item: $logsToShare) { logsToShare in
                 ActivityView(
                     activityItems: [logsToShare.fileURL],
-                    completion: { try? FileManager.default.removeItem(at: logsToShare.fileURL) }
+                    completion: {
+                        try? FileManager.default.removeItem(at: logsToShare.fileURL)
+                        self.logsToShare = nil
+                    }
                 )
+                .onDisappear {
+                    try? FileManager.default.removeItem(at: logsToShare.fileURL)
+                    self.logsToShare = nil
+                }
             }
     }
 }

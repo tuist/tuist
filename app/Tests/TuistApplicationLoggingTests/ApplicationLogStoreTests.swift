@@ -63,6 +63,21 @@ struct ApplicationLogStoreTests {
 
     @Test(.inTemporaryDirectory)
     @MainActor
+    func verbose_http_bodies_are_not_stored() throws {
+        let logsDirectory = try temporaryLogsDirectory()
+        let subject = ApplicationLogStore(logsDirectory: logsDirectory)
+        var handler = try subject.makeFileLogHandler()
+        handler.logLevel = .debug
+        let logger = Logger(label: "dev.tuist.app", factory: { _ in handler })
+        let presignedURL = "https://storage.example.com/build?X-Amz-Credential=credential&X-Amz-Signature=signature"
+
+        logger.debug("Received HTTP response from Tuist:\n  - Body: \(presignedURL)")
+
+        #expect(try handler.contents().isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
+    @MainActor
     func only_the_two_most_recent_launches_are_retained() throws {
         let logsDirectory = try temporaryLogsDirectory()
         let date = Date(timeIntervalSince1970: 1_700_000_000)

@@ -315,7 +315,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 let refreshTokenAfterAction = try? await ServerCredentialsStore.current
                     .read(serverURL: serverURL)?.refreshToken
                 let credentialsChangedDuringRefresh = refreshTokenBeforeAction != refreshTokenAfterAction
-                Logger.current.warning(
+                Logger.current.debug(
                     "Unauthorized refresh handled credentials_changed_during_refresh=\(credentialsChangedDuringRefresh)"
                 )
                 if credentialsChangedDuringRefresh {
@@ -634,7 +634,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     }
                 #endif
                 if refresh {
-                    Logger.current.notice(
+                    Logger.current.debug(
                         "Token refresh started \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
                     )
                     let tokens = try await refreshTokens(
@@ -774,17 +774,20 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             let accessToken = try? JWT.parse(newTokens.accessToken)
             let refreshToken = try? JWT.parse(newTokens.refreshToken)
-            Logger.current.notice(
+            Logger.current.debug(
                 "Token refresh succeeded \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
             )
             return newTokens
         } catch let error as ClientError {
+            if ServerErrorClassifier.isTransient(error) {
+                Logger.current.debug(
+                    "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error.underlyingError)))"
+                )
+                throw error
+            }
             Logger.current.error(
                 "Token refresh failed error_type=\(String(reflecting: type(of: error.underlyingError)))"
             )
-            if ServerErrorClassifier.isTransient(error) {
-                throw error
-            }
             throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
             Logger.current.error(

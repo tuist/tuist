@@ -54,6 +54,7 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
     private let storage: SimpleFileLogStorage
     private let label: String
     private let lineTransformer: @Sendable (String) -> String
+    private let shouldLog: @Sendable (Logger.Level, Logger.Message, String) -> Bool
     public var metadata: Logger.Metadata = [:]
     public var logLevel: Logger.Level = .info
 
@@ -61,11 +62,13 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         label: String,
         fileURL: URL,
         maximumFileSize: UInt64? = nil,
-        lineTransformer: @escaping @Sendable (String) -> String = { $0 }
+        lineTransformer: @escaping @Sendable (String) -> String = { $0 },
+        shouldLog: @escaping @Sendable (Logger.Level, Logger.Message, String) -> Bool = { _, _, _ in true }
     ) throws {
         self.label = label
         storage = try SimpleFileLogStorage(fileURL: fileURL, maximumFileSize: maximumFileSize)
         self.lineTransformer = lineTransformer
+        self.shouldLog = shouldLog
     }
 
     public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
@@ -82,6 +85,7 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         function _: String,
         line _: UInt
     ) {
+        guard shouldLog(level, message, source) else { return }
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
         let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
