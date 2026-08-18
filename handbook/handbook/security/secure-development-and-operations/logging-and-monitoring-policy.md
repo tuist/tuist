@@ -16,9 +16,9 @@ To ensure that activity across Tuist GmbH systems and applications is logged at 
 
 ## Scope
 
-This policy applies to all Tuist GmbH production systems, internal systems, and third-party services that store, process, or transmit Confidential or Restricted data as defined in the Data Management Policy. It applies to all employees, contractors, and third parties with access to those systems.
+This policy applies to all Tuist GmbH production systems, internal systems, and third-party services that store, process, or transmit Confidential or Restricted data as defined in the [Data Management Policy](/pdfs/security/business-continuity-and-data-protection/data-management-policy-bsi.pdf). It applies to all employees, contractors, and third parties with access to those systems.
 
-Because Tuist GmbH runs on managed cloud infrastructure, logging responsibility is shared with our providers as described in the [Shared Responsibility Model](/security/shared-responsibility-model). Providers are responsible for logging at the physical, hypervisor, and platform layers. Tuist GmbH is responsible for logging at the application, data, and identity layers.
+Logging responsibility is shared with infrastructure providers, but not along the line a fully managed platform would draw. Tuist GmbH operates its own Kubernetes clusters and its own database on rented hardware, and buys managed services for object storage, edge delivery, and log storage. Providers are therefore responsible for logging at the physical and hardware layers and within the managed services they themselves run. Everything above that, including the cluster and platform layer as well as the application, data, and identity layers, is Tuist GmbH's responsibility. The [Shared Responsibility Model](/security/shared-responsibility-model) records the division per provider.
 
 ## 1. Logging requirements
 
@@ -152,11 +152,11 @@ To demonstrate compliance, Tuist GmbH shall maintain:
 
 ## Exceptions
 
-Systems that cannot meet the requirements of this policy shall have the limitation documented, a compensating control identified, and an exception approved by the security lead. Exceptions shall be reviewed at least annually.
+Systems that cannot meet the requirements of this policy shall have the limitation documented, a compensating control identified, and an exception approved by the IT Manager. Exceptions shall be reviewed at least annually.
 
 ## Violations and enforcement
 
-Any known violations of this policy should be reported to the security lead. Violations can result in immediate withdrawal or suspension of system and network privileges and disciplinary action in accordance with company procedures up to and including termination of employment.
+Any known violations of this policy should be reported to the IT Manager. Violations can result in immediate withdrawal or suspension of system and network privileges and disciplinary action in accordance with company procedures up to and including termination of employment.
 
 ## Review
 
