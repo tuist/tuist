@@ -1240,7 +1240,7 @@ impl Metrics {
         );
         registry.register(
             "kura_promotion_drops_total",
-            "Promotions the queue had no room for, by the trigger that queued them (a nonzero find_missing/action_cache rate means read-triggered lifetime extension is not keeping up and vouched blobs may be evicted before the client's follow-up read)",
+            "Promotions dropped for lack of queue room, by the trigger that queued them",
             promotion_drops.clone(),
         );
         registry.register(
