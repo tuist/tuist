@@ -28,8 +28,27 @@ defmodule Tuist.Accounts.DormancyTest do
     end
   end
 
-  defp disable(user) do
-    Repo.update_all(from(u in User, where: u.id == ^user.id), set: [active: false])
+  # Disabling with a clock start far enough back that the account has served
+  # the checkpoint. `disabled_days_ago: 0` models an account disabled just
+  # now, which is what an interrupted run leaves behind.
+  defp disable(user, opts \\ []) do
+    days = Keyword.get(opts, :disabled_days_ago, 400)
+    at = DateTime.add(DateTime.utc_now(:second), -days * 24 * 60 * 60, :second)
+
+    Repo.update_all(
+      from(u in User, where: u.id == ^user.id),
+      set: [active: false, disabled_at: at]
+    )
+
+    Accounts.get_user_by_id(user.id)
+  end
+
+  defp disable_without_clock(user) do
+    Repo.update_all(
+      from(u in User, where: u.id == ^user.id),
+      set: [active: false, disabled_at: nil]
+    )
+
     Accounts.get_user_by_id(user.id)
   end
 
@@ -114,6 +133,64 @@ defmodule Tuist.Accounts.DormancyTest do
       assert user.id in result.disabled
       refute user.id in result.scrubbed
       assert Accounts.get_user_by_id(user.id).email == user.email
+    end
+
+    test "does not scrub an account disabled by the same sweep on the next run" do
+      # Given a run that disabled the account and then died, the retry must
+      # not treat "currently disabled" as having served the checkpoint.
+      user = operator_fixture(last_sign_in_days_ago: 400)
+      assert user.id in Dormancy.sweep(operator_email_domain: @domain).disabled
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain)
+
+      # Then
+      refute user.id in result.scrubbed
+      assert Accounts.get_user_by_id(user.id).email == user.email
+    end
+
+    test "does not scrub an account that has not served the disabled checkpoint" do
+      # Given
+      user = operator_fixture(last_sign_in_days_ago: 400)
+      disable(user, disabled_days_ago: Dormancy.disabled_grace_days() - 1)
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain)
+
+      # Then
+      refute user.id in result.scrubbed
+      assert Accounts.get_user_by_id(user.id).email == user.email
+    end
+
+    test "starts the checkpoint for a disabled account that has no clock" do
+      # Given
+      user = operator_fixture(last_sign_in_days_ago: 400)
+      disable_without_clock(user)
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain)
+
+      # Then
+      assert user.id in result.clock_started
+      refute user.id in result.scrubbed
+      assert Accounts.get_user_by_id(user.id).disabled_at
+    end
+
+    test "bounds how many accounts one run actions and says work is left" do
+      # Given
+      users = for _ <- 1..3, do: operator_fixture(last_sign_in_days_ago: 200)
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain, limit: 2)
+
+      # Then
+      assert length(result.disabled) == 2
+      assert result.more_pending
+
+      remaining = Dormancy.sweep(operator_email_domain: @domain, limit: 2)
+      refute remaining.more_pending
+
+      for user <- users, do: refute(Accounts.get_user_by_id(user.id).active)
     end
 
     test "a scrubbed account is not reprocessed on the next sweep" do
