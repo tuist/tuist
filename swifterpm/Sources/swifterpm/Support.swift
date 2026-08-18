@@ -158,6 +158,17 @@ enum SystemProcess {
     }
 }
 
+/// Carries the status alongside the message so a caller can tell a rejected request apart
+/// from an unreachable host, which a rendered error string alone does not express.
+struct HTTPStatusError: Error, CustomStringConvertible {
+    let statusCode: Int
+    let url: URL
+
+    var description: String {
+        "HTTP \(statusCode) for \(url.absoluteString)"
+    }
+}
+
 enum HTTPClient {
     // URLSession.shared uses the default configuration, whose 7-day
     // timeoutIntervalForResource lets a stalled transfer (a dead-but-open
@@ -230,7 +241,7 @@ enum HTTPClient {
         if let httpResponse = response as? HTTPURLResponse,
            !(200 ..< 300).contains(httpResponse.statusCode)
         {
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+            throw HTTPStatusError(statusCode: httpResponse.statusCode, url: url)
         }
     }
 
@@ -265,8 +276,6 @@ enum HTTPClient {
 
 enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
-        let environment = Environment.current
-
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
         // `machine api.github.com` entry in a netrc file is a deliberate per-host
         // credential, so it must beat a generic GITHUB_TOKEN /
@@ -274,19 +283,14 @@ enum HTTPAuthorization {
         // repo-scoped CI token shadows the netrc credential that can actually read
         // a private release asset. This mirrors SwiftPM, whose download
         // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
-        if let header = prioritizedHeader(
+        // `GitHubAuth` resolves the ambient token from the environment or `gh` and drops
+        // it when github.com rejects it, so a GitHub Enterprise token exported as
+        // GITHUB_TOKEN does not shadow anonymous access to a public release asset.
+        return prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
-        ) {
-            return header
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
-        }
-
-        return nil
+            gitHubEnvToken: isGitHub(url) ? await GitHubAuth.token() : nil
+        )
     }
 
     static func prioritizedHeader(

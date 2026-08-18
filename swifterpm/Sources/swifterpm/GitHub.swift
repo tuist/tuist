@@ -22,20 +22,31 @@ struct GitHubRepo {
 }
 
 private actor GitHubTokenCache {
-    private var loaded = false
-    private var cachedToken: String?
+    /// Memoises the in-flight resolution rather than a `loaded` flag: resolving awaits
+    /// `gh` and a network probe, and restores run up to 32 tasks at once, so a flag set
+    /// before the first suspension hands every concurrent caller a nil token while the
+    /// first one is still resolving.
+    private var resolution: Task<String?, Never>?
 
     func token() async -> String? {
-        if loaded {
-            return cachedToken
+        if let resolution {
+            return await resolution.value
         }
-        loaded = true
+        let task = Task { await Self.resolveToken() }
+        resolution = task
+        return await task.value
+    }
 
+    private static func resolveToken() async -> String? {
+        guard let token = await discoveredToken() else { return nil }
+        return await GitHubTokenProbe.acceptsGitHubDotCom(token: token) ? token : nil
+    }
+
+    private static func discoveredToken() async -> String? {
         let env = ProcessInfo.processInfo.environment
         if let token = env["GITHUB_TOKEN"] ?? env["GH_TOKEN"],
            !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            cachedToken = token
             return token
         }
 
@@ -44,8 +55,62 @@ private actor GitHubTokenCache {
             return nil
         }
         let token = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        cachedToken = token.isEmpty ? nil : token
-        return cachedToken
+        return token.isEmpty ? nil : token
+    }
+}
+
+/// A token discovered from the environment or from `gh` is not necessarily a github.com
+/// token. An enterprise CI exports its GitHub Enterprise `GITHUB_TOKEN` under the same
+/// name, and github.com answers it with 401. Sending it anyway is worse than sending
+/// nothing: it fails the archive download, and the `extraheader` it puts on the HTTPS git
+/// fallback makes even a public repository unfetchable, so a dependency graph that
+/// anonymous access would have restored fails outright. Probing once tells the two cases
+/// apart. `/rate_limit` is the endpoint to probe with because it does not spend from the
+/// budget it reports.
+enum GitHubTokenProbe {
+    static let url = URL(string: "https://api.github.com/rate_limit")!
+
+    static func acceptsGitHubDotCom(token: String) async -> Bool {
+        do {
+            _ = try await HTTPClient.data(
+                url: url,
+                headers: ["User-Agent": "swifterpm/0.1", "Authorization": "Bearer \(token)"]
+            )
+            return acceptsToken(probeStatus: 200)
+        } catch let error as HTTPStatusError {
+            return acceptsToken(probeStatus: error.statusCode)
+        } catch {
+            return acceptsToken(probeStatus: nil)
+        }
+    }
+
+    /// Only an explicit 401 disqualifies a token. A transport failure (nil) or any other
+    /// status keeps it, so an offline run, a proxy, or a 403 from an org IP allowlist
+    /// never silently downgrades a working credential to anonymous access.
+    static func acceptsToken(probeStatus: Int?) -> Bool {
+        guard let probeStatus else { return true }
+        return probeStatus != 401
+    }
+}
+
+/// Where to download a commit's source archive from.
+///
+/// The REST tarball endpoint spends from the API budget, which is 5,000 requests an hour
+/// with a token but 60 without one, so an anonymous restore of a dependency graph of any
+/// size exhausts it and falls back to git for the remainder. codeload is where that
+/// endpoint redirects and it serves public repositories without touching the budget, so
+/// anonymous restores address it directly. Authenticated restores keep using the REST
+/// endpoint, which is also what reaches private repositories.
+enum GitHubArchiveURL {
+    static func make(repo: GitHubRepo, revision: String, authenticated: Bool) -> URL {
+        if authenticated {
+            return URL(
+                string: "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tarball/\(revision)"
+            )!
+        }
+        return URL(
+            string: "https://codeload.github.com/\(repo.owner)/\(repo.repo)/tar.gz/\(revision)"
+        )!
     }
 }
 

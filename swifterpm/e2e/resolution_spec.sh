@@ -1413,6 +1413,67 @@ Describe "swifterpm resolve against real-world manifests"
   End
 End
 
+
+scenario_restores_public_github_package_with_a_foreign_github_token() {
+  # A GitHub Enterprise CI exports its own token as GITHUB_TOKEN, and github.com
+  # answers that token with 401. Sending it anyway fails the archive download and
+  # puts a rejected `extraheader` on the HTTPS git fallback, so a public package
+  # becomes unfetchable on a runner that has no github.com credentials of its own.
+  # SSH is disabled here to mirror such a runner.
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+
+  local package_dir="${tmp}/package"
+  mkdir -p "${package_dir}"
+  cat >"${package_dir}/Package.swift" <<'MANIFEST'
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "ForeignTokenFixture",
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-log", exact: "1.5.4"),
+    ]
+)
+MANIFEST
+
+  local without_github_credentials=(
+    env
+    GITHUB_TOKEN=ghp_foreignenterprisetokennotvalidongithubdotcom
+    GIT_TERMINAL_PROMPT=0
+    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=/dev/null -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes"
+  )
+
+  scoped_env "${tmp}" "${without_github_credentials[@]}" "${SWIFTERPM_BIN}" \
+    --package-path "${package_dir}" \
+    --scratch-path "${package_dir}/.build" \
+    --cache-path "${tmp}/cache" \
+    --disable-package-info-cache \
+    --quiet \
+    resolve >"${tmp}/resolve.log" 2>&1 || {
+      cat "${tmp}/resolve.log" >&2
+      return 1
+    }
+
+  scoped_env "${tmp}" "${without_github_credentials[@]}" "${SWIFTERPM_BIN}" \
+    --package-path "${package_dir}" \
+    --scratch-path "${package_dir}/.build" \
+    --cache-path "${tmp}/cache" \
+    --disable-package-info-cache \
+    --quiet \
+    restore >"${tmp}/restore.log" 2>&1 || {
+      cat "${tmp}/restore.log" >&2
+      return 1
+    }
+
+  test -f "${package_dir}/.build/checkouts/swift-log/Package.swift" || return 1
+
+  echo "checkout=present"
+  echo "archives=$(find "${tmp}/cache/archives" -type f 2>/dev/null | wc -l | tr -d ' ')"
+}
+
 Describe "swifterpm Bazel Apple rules integration"
   Skip if "requires macOS rules_apple toolchain" not_darwin
 
@@ -1520,6 +1581,15 @@ Describe "swifterpm resolve against SwiftPM dependency graph fixtures"
     The output should include "package-resolved=match"
     The output should include "workspace-state=match"
     The output should include "force-resolve=ok"
+  End
+End
+
+Describe "swifterpm GitHub archive restores"
+  It "restores a public package when the ambient GitHub token is not a github.com token"
+    When call scenario_restores_public_github_package_with_a_foreign_github_token
+    The status should be success
+    The output should include "checkout=present"
+    The output should include "archives=1"
   End
 End
 

@@ -155,4 +155,27 @@ struct GitHubTests {
                 == "https://github.com/Fourthline-com/FourthlineSDK-iOS"
         )
     }
+
+    @Test
+    func gitHubTokenProbeOnlyRejectsUnauthorizedTokens() {
+        #expect(GitHubTokenProbe.acceptsToken(probeStatus: 200))
+        #expect(!GitHubTokenProbe.acceptsToken(probeStatus: 401))
+        #expect(GitHubTokenProbe.acceptsToken(probeStatus: 403))
+        #expect(GitHubTokenProbe.acceptsToken(probeStatus: 500))
+        #expect(GitHubTokenProbe.acceptsToken(probeStatus: nil))
+    }
+
+    @Test
+    func gitHubArchiveURLsAvoidTheAPIBudgetWhenAnonymous() throws {
+        let repo = try GitHubRepo(location: "https://github.com/tuist/swifterpm")
+
+        #expect(
+            GitHubArchiveURL.make(repo: repo, revision: "abc123", authenticated: true)
+                == URL(string: "https://api.github.com/repos/tuist/swifterpm/tarball/abc123")!
+        )
+        #expect(
+            GitHubArchiveURL.make(repo: repo, revision: "abc123", authenticated: false)
+                == URL(string: "https://codeload.github.com/tuist/swifterpm/tar.gz/abc123")!
+        )
+    }
 }

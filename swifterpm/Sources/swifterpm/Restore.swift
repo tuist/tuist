@@ -777,7 +777,12 @@ enum WorkspaceRestorer {
     private static func downloadSourceArchive(cache: Cache, pin: ResolvedPin, destination: URL)
         async throws
     {
-        if (try? GitHubRepo(location: pin.location)) != nil, await GitHubAuth.hasSession() {
+        // Not gated on an authenticated session: a public repository restores from an
+        // anonymous archive, and only when that misses does the pin fall through to a
+        // full git fetch. Gating here degraded every dependency of a token-less CI to
+        // git, which is both far slower and unreachable wherever git has no credentials
+        // for the host.
+        if (try? GitHubRepo(location: pin.location)) != nil {
             try await downloadGitHubArchive(cache: cache, pin: pin, destination: destination)
             return
         }
@@ -803,13 +808,13 @@ enum WorkspaceRestorer {
             _ = lock
             if try !(await fileSystem.exists(archivePath.absolutePath)) {
                 var headers = ["User-Agent": "swifterpm/0.1"]
-                if let token = await GitHubAuth.token() {
+                let token = await GitHubAuth.token()
+                if let token {
                     headers["Authorization"] = "Bearer \(token)"
                 }
-                let url = URL(
-                    string:
-                    "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tarball/\(revision)"
-                )!
+                let url = GitHubArchiveURL.make(
+                    repo: repo, revision: revision, authenticated: token != nil
+                )
                 try await HTTPClient.download(url: url, destination: archivePath, headers: headers)
             }
         }
