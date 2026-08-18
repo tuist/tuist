@@ -4,6 +4,7 @@ defmodule TuistWeb.TestCaseLive do
   use Noora
 
   import Noora.Filter
+  import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
@@ -82,6 +83,16 @@ defmodule TuistWeb.TestCaseLive do
       </.tooltip>
     </div>
     """
+  end
+
+  # A period the test case never ran in has a chart's worth of empty buckets and
+  # nothing to draw, so the card offers an empty state instead of a flat line.
+  defp charted_durations?(%{values: values}), do: Enum.any?(values, &(not is_nil(&1)))
+
+  defp duration_series_points(series, statistic) do
+    series.dates
+    |> Enum.zip(Map.fetch!(series, statistic))
+    |> Enum.map(&Tuple.to_list/1)
   end
 
   defp define_filters(project) do
@@ -419,6 +430,9 @@ defmodule TuistWeb.TestCaseLive do
     end)
     |> assign_async(:analytics, fn ->
       {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)}}
+    end)
+    |> assign_async(:duration_series, fn ->
+      {:ok, %{duration_series: Analytics.test_case_duration_series_by_id(project.id, test_case_id, opts)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)

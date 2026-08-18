@@ -175,6 +175,74 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert widget_value(lv, "widget-test-case-runs") == "2"
     end
 
+    test "charts the duration of the test case over the selected period", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the distribution is on the chart, not only in the widget above it
+      option = chart_option(lv, "test-case-duration-chart")
+
+      assert Enum.map(option["series"], & &1["name"]) == ["Average", "p99", "p90", "p50"]
+    end
+
+    test "breaks the chart line over a day the test case did not run", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given - runs today and three days ago, nothing in between
+      test_case_id = seed_runs_across_time(project)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}")
+
+      render_async(lv)
+
+      # Then - the empty days are gaps, not runs that took no time
+      [average | _] = chart_option(lv, "test-case-duration-chart")["series"]
+      values = Enum.map(average["data"], &List.last/1)
+
+      assert Enum.any?(values, &is_nil/1)
+      refute 0 in values
+    end
+
+    test "replaces the duration chart with an empty state when the period holds no runs", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      # Given
+      test_case_id = seed_runs_across_time(project)
+
+      query =
+        URI.encode_query(%{
+          "analytics-date-range" => "custom",
+          "analytics-start-date" => "2020-01-01T00:00:00Z",
+          "analytics-end-date" => "2020-01-31T00:00:00Z"
+        })
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query}")
+
+      render_async(lv)
+
+      # Then
+      refute has_element?(lv, "#test-case-duration-chart")
+      assert has_element?(lv, "[data-part='test-case-duration-card'] [data-empty]")
+    end
+
     test "muting a test case via set-state", %{
       conn: conn,
       account: account,
@@ -331,6 +399,15 @@ defmodule TuistWeb.TestCaseLiveTest do
     end
 
     test_case_run.test_case_id
+  end
+
+  defp chart_option(lv, chart_id) do
+    lv
+    |> element("##{chart_id} [data-part='data']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.text()
+    |> JSON.decode!()
   end
 
   defp widget_value(lv, widget_id) do

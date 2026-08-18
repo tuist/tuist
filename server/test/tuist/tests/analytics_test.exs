@@ -1656,6 +1656,259 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "test_case_duration_series_by_id/3" do
+    test "buckets the duration of a single test case by day" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for {ran_at, duration} <- [
+            {~N[2024-04-28 09:00:00.000000], 100},
+            {~N[2024-04-28 11:00:00.000000], 300},
+            {~N[2024-04-30 09:00:00.000000], 1000}
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.values == [200, nil, 1000]
+    end
+
+    test "leaves a bucket without runs empty rather than reading it as instant" do
+      # Given - a test case that ran on one day of the window only
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        duration: 500,
+        ran_at: ~N[2024-04-29 09:00:00.000000],
+        inserted_at: ~N[2024-04-29 09:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then - a day the test case did not run says nothing, it does not say 0 ms
+      assert got.values == [nil, 500, nil]
+      assert got.p50_values == [nil, 500, nil]
+      assert got.p90_values == [nil, 500, nil]
+      assert got.p99_values == [nil, 500, nil]
+    end
+
+    test "separates the percentiles from the average within a bucket" do
+      # Given - one stalled run among nine quick ones on the same day
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for duration <- [100, 100, 100, 100, 100, 100, 100, 100, 100, 100_000] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ~N[2024-04-29 09:00:00.000000],
+          inserted_at: ~N[2024-04-29 09:00:00.000000]
+        )
+      end
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then - the average carries the outlier the median does not
+      assert got.values == [nil, 10_090, nil]
+      assert got.p50_values == [nil, 100, nil]
+      assert Enum.at(got.p99_values, 1) > Enum.at(got.p50_values, 1)
+    end
+
+    test "counts only the runs of the given test case in the given project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      ran_at = ~N[2024-04-29 09:00:00.000000]
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        duration: 100,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: UUIDv7.generate(),
+        duration: 9000,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: other_project.id,
+        test_case_id: test_case_id,
+        duration: 9000,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.values == [nil, 100, nil]
+    end
+
+    test "buckets by hour over a period of a day or less" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for {ran_at, duration} <- [
+            {~N[2024-04-29 09:30:00.000000], 100},
+            {~N[2024-04-29 11:30:00.000000], 900}
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-29 09:00:00Z],
+          end_datetime: ~U[2024-04-29 11:59:59Z]
+        )
+
+      # Then
+      assert got.dates == [
+               ~U[2024-04-29 09:00:00Z],
+               ~U[2024-04-29 10:00:00Z],
+               ~U[2024-04-29 11:00:00Z]
+             ]
+
+      assert got.values == [100, nil, 900]
+    end
+
+    test "buckets by month over a period longer than two months" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for {ran_at, duration} <- [
+            {~N[2024-03-15 09:00:00.000000], 100},
+            {~N[2024-05-15 09:00:00.000000], 900}
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-03-01 00:00:00Z],
+          end_datetime: ~U[2024-05-31 23:59:59Z]
+        )
+
+      # Then
+      assert got.dates == [~D[2024-03-01], ~D[2024-04-01], ~D[2024-05-01]]
+      assert got.values == [100, nil, 900]
+    end
+
+    test "excludes runs outside the period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for {ran_at, duration} <- [
+            {~N[2024-04-27 09:00:00.000000], 9000},
+            {~N[2024-04-29 09:00:00.000000], 100}
+          ] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      # When
+      got =
+        Analytics.test_case_duration_series_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.values == [nil, 100, nil]
+    end
+
+    test "agrees with the summary widgets over a single bucket" do
+      # Given - the widgets and the series read the same runs, so they cannot disagree
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      for duration <- [100, 200, 300, 4000] do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          duration: duration,
+          ran_at: ~N[2024-04-29 09:00:00.000000],
+          inserted_at: ~N[2024-04-29 09:00:00.000000]
+        )
+      end
+
+      opts = [start_datetime: ~U[2024-04-29 00:00:00Z], end_datetime: ~U[2024-04-29 23:59:59Z]]
+
+      # When
+      series = Analytics.test_case_duration_series_by_id(project.id, test_case_id, opts)
+      summary = Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)
+
+      # Then - every run sits in one bucket, so that bucket is the whole window
+      assert Enum.reject(series.values, &is_nil/1) == [summary.avg_duration]
+      assert Enum.reject(series.p50_values, &is_nil/1) == [summary.p50_duration]
+      assert Enum.reject(series.p90_values, &is_nil/1) == [summary.p90_duration]
+      assert Enum.reject(series.p99_values, &is_nil/1) == [summary.p99_duration]
+    end
+  end
+
   describe "test_duration_metric_by_count/3" do
     test "returns average duration for last N tests" do
       # Given

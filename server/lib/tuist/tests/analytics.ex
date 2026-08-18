@@ -1365,6 +1365,81 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
+  The duration of a single test case over time, as an average and p50 / p90 /
+  p99 series bucketed to the selected period.
+
+  Reads the same rows as `test_case_analytics_by_id/3`, bucketed rather than
+  aggregated whole, so the chart and the summary widgets above it cannot state
+  two different numbers for one window. The per-case daily aggregate table is
+  not used here for that reason: its quantile states answer a different question
+  (every test case in a project, ranked) and would disagree with the widgets by
+  the width of a reservoir sample.
+
+  Buckets with no runs carry `nil`, not `0`. A single test case runs on the days
+  it is exercised and not on the others, and a zero would draw the line to the
+  floor and read as "this test took no time that day" rather than "this test did
+  not run".
+
+  Options:
+    * `:start_datetime` - start of the window (default: 30 days ago).
+    * `:end_datetime` - end of the window (default: now). Leaving it out keeps
+      the upper bound open, so runs ingested during the current second still
+      count.
+  """
+  def test_case_duration_series_by_id(project_id, test_case_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    date_format =
+      date_period
+      |> time_bucket_for_date_period()
+      |> time_bucket_to_clickhouse_interval()
+      |> get_clickhouse_date_format()
+
+    buckets = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+
+    rows =
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
+            avg: avg(tcr.duration),
+            p50: fragment("quantile(0.5)(?)", tcr.duration),
+            p90: fragment("quantile(0.9)(?)", tcr.duration),
+            p99: fragment("quantile(0.99)(?)", tcr.duration)
+          }
+        ),
+        Keyword.put(opts, :start_datetime, start_datetime)
+      )
+
+    rows = ClickHouseRepo.all(rows)
+
+    %{
+      dates: buckets,
+      values: duration_bucket_series(rows, :avg, buckets, date_period),
+      p50_values: duration_bucket_series(rows, :p50, buckets, date_period),
+      p90_values: duration_bucket_series(rows, :p90, buckets, date_period),
+      p99_values: duration_bucket_series(rows, :p99, buckets, date_period)
+    }
+  end
+
+  defp duration_bucket_series(rows, statistic, buckets, date_period) do
+    durations = Map.new(rows, &{normalise_date(&1.date, date_period), Map.fetch!(&1, statistic)})
+
+    Enum.map(buckets, fn bucket ->
+      case Map.get(durations, normalise_date(bucket, date_period)) do
+        nil -> nil
+        duration -> normalize_duration(duration)
+      end
+    end)
+  end
+
+  @doc """
   Gets the flakiness rate for a specific test case.
   Calculates the ratio of flaky runs to total runs, defaulting to the last 30 days.
   Returns 0.0 if there are no flaky runs or no data.

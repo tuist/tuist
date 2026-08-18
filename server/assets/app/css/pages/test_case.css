@@ -517,6 +517,17 @@
     }
   }
 
+  & [data-part="test-case-duration-card"] {
+    & > [data-part="test-case-duration-section"] {
+      & > [data-part="duration-chart"] {
+        & .noora-chart {
+          height: 200px;
+          padding: var(--noora-spacing-3);
+        }
+      }
+    }
+  }
+
   & [data-part="test-case-runs-card"] {
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
