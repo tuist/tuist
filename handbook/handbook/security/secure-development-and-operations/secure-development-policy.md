@@ -106,6 +106,8 @@ Comprehensive penetration testing shall be performed at least annually on applic
 
 Application-level network traffic shall be monitored, controlled, managed, and periodically evaluated to identify vulnerabilities, anomalies, and capacity issues in accordance with the [Network Traffic Management Policy](/security/business-continuity-and-data-protection/network-traffic-management-policy).
 
+Systems and applications shall log administrative, application, and transaction level user activity, and those logs shall be reviewed and acted upon in accordance with the [Logging and Monitoring Policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
+
 ## Application vulnerability management
 
 Application code and dependencies should be scanned continuously using GitHub Dependabot, Snyk, Sobelow, and Trivy according to the requirements outlined in the [Vulnerability Scanning Policy](../secure-development-and-operations/vulnerability-scanning-policy.md). All Internet-exposed services and remote client applications shall undergo weekly vulnerability scanning. Sobelow shall be used for detecting vulnerabilities in Elixir application code with each commit, and Trivy shall be used for scanning repositories and Docker images before merging into main, both causing CI pipeline failures if security issues are detected. Patches to address application vulnerabilities shall be deployed according to the severity-based timelines defined in the Vulnerability Scanning Policy.
