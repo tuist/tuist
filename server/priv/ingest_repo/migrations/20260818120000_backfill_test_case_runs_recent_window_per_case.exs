@@ -22,20 +22,33 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   allocated in 625 MiB chunks and exceeded the memory limit on its own.
 
   Alignment is not free, though, and assuming it is what failed this migration
-  in production. `groupArraySorted` orders on the whole tuple, so the flag
-  breaks ties on the run key rather than being ignored after it. A run key
-  carrying two physical entries can straddle the source's 100-entry ceiling and
-  be cut on different sides of it in the two aggregates, which retain key sets
-  differing by their largest key. Measured on production, that is every test
-  case that is both at the ceiling and holds a duplicate key: 9 of 4108 in a
-  20,000-case sample, and none at all in the three groups missing either
-  condition. ClickHouse compares the lengths before it evaluates anything, so
-  one such test case aborts the insert for its whole range.
+  in production twice. The key sets diverge for at least three reasons, and each
+  one was found only after the repair aimed at the previous one shipped:
 
-  Equal largest keys mean identical key sets, because truncation keeps the
-  smallest tuples and a key below both maxima cannot be missing from either.
-  Unequal maxima are resolved by dropping the larger from both, which costs the
-  single oldest run of the test cases that diverge and nothing anywhere else.
+    * `groupArraySorted` orders on the whole tuple, so the flag breaks ties on
+      the run key rather than being ignored after it. A run key carrying two
+      physical entries can straddle the source's 100-entry ceiling and be cut on
+      different sides of it in the two aggregates.
+    * `recent_successful_runs` was added later, by `20260702120000`, with its own
+      backfill. Wherever that did not reproduce the older aggregate exactly, keys
+      are missing from the interior rather than the tail. One test case in
+      project 1000 carries 17 such keys starting at position 84 of 100, which is
+      exactly the 17-entry delta the second production failure reported.
+    * A test case can hold one aggregate and not the other at all, which is a
+      zero-length array against a full one.
+
+  So the arrays are restricted to the keys they share rather than repaired
+  cause by cause. `arrayFilter` preserves order, so both sides come out carrying
+  the same keys in the same positions and entry `i` is the same run on both,
+  whatever the inputs looked like. That is correct without enumerating the
+  causes, including the one nobody has found yet, and it is strictly more
+  faithful than trimming: where a boundary repair drops every key above the
+  smaller maximum, this drops only the keys that are genuinely unpaired.
+
+  Cost is a membership test per entry against an array capped at 100. That is
+  not the shape measured at 625 MiB chunks: that one built `entries x keys`
+  intermediates for the whole block through a per-entry lookup inside
+  `arrayMap`. `has` returns a scalar and allocates nothing.
 
   Depth is inherited, not extended. The source holds 100 physical entries, so a
   logical run re-inserted to set `is_flaky` consumes two of them and a test case
@@ -228,8 +241,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
                 tupleElement(flaky_entry, 1) * 4
                 + toInt64(tupleElement(flaky_entry, 2)) * 2
                 + toInt64(tupleElement(successful_entry, 2)),
-              arrayFilter(entry -> tupleElement(entry, 1) <= keep_through, flaky_keyed),
-              arrayFilter(entry -> tupleElement(entry, 1) <= keep_through, successful_keyed)
+              arrayFilter(entry -> has(successful_keys, tupleElement(entry, 1)), flaky_keyed),
+              arrayFilter(entry -> has(flaky_keys, tupleElement(entry, 1)), successful_keyed)
             )
           )
         ) AS recent_runs
@@ -239,30 +252,32 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
           test_case_id,
           flaky_keyed,
           successful_keyed,
-          -- Both aggregates see the same runs, but `groupArraySorted` orders on
-          -- the whole tuple, so the flag breaks ties on the run key. A run key
-          -- carrying two physical entries can therefore straddle the source's
-          -- 100-entry ceiling and be cut on different sides of it in the two
-          -- aggregates, leaving key sets that differ by their largest key.
-          -- Zipping those positionally pairs a run against a different run, and
-          -- ClickHouse rejects the unequal lengths outright.
+          -- Restricting both sides to the keys they share is what makes the
+          -- positional zip below sound. Filtering preserves order, and both
+          -- results carry the same keys, so entry `i` is the same run on both
+          -- sides whatever the inputs looked like.
           --
-          -- Equal largest keys mean identical key sets: truncation keeps the
-          -- smallest tuples, so a key below both maxima cannot be missing from
-          -- either. Unequal maxima are resolved by dropping the larger, which
-          -- costs the single oldest run of the test cases that actually
-          -- diverge. Key lookup would pair them exactly, and is what the
-          -- earlier attempt measured at 625 MiB chunks; this stays a single
-          -- pass over arrays already in hand.
-          if(
-            arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)) =
-              arrayMax(arrayMap(entry -> tupleElement(entry, 1), successful_keyed)),
-            arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)),
-            least(
-              arrayMax(arrayMap(entry -> tupleElement(entry, 1), flaky_keyed)),
-              arrayMax(arrayMap(entry -> tupleElement(entry, 1), successful_keyed))
-            ) - 1
-          ) AS keep_through
+          -- The alternative was to reason about *why* the key sets differ and
+          -- repair only that. Two causes are known: `groupArraySorted` orders
+          -- on the whole tuple, so the flag breaks ties on the run key and a
+          -- duplicated key straddling the source's 100-entry ceiling is cut on
+          -- different sides in the two aggregates; and
+          -- `recent_successful_runs` was added later, by `20260702120000`,
+          -- with its own backfill, so wherever that did not reproduce the
+          -- older aggregate exactly, keys are missing from the interior rather
+          -- than the tail. A boundary repair addresses the first and not the
+          -- second, which is how this migration failed twice. Intersecting is
+          -- correct without knowing the cause, including one nobody has found
+          -- yet.
+          --
+          -- The cost is a membership test per entry against an array capped at
+          -- 100. That is not the shape the earlier attempt measured at 625 MiB
+          -- chunks: that one built `entries x keys` intermediates for the whole
+          -- block through a per-entry lookup inside `arrayMap`. `has` returns a
+          -- scalar and allocates nothing, and `max_block_size` bounds what is
+          -- in flight regardless.
+          arrayMap(entry -> tupleElement(entry, 1), flaky_keyed) AS flaky_keys,
+          arrayMap(entry -> tupleElement(entry, 1), successful_keyed) AS successful_keys
         FROM (
           SELECT
             project_id,
