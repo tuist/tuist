@@ -71,14 +71,14 @@ tuist xcodebuild test \
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
-| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value automatically |
+| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value automatically, except Codemagic's, which carries only the shard indexes |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
 > [!IMPORTANT] Bind each shard to its own plan
-> A shard reference identifies the CI run, not the build job inside it. When a workflow builds more than one shard plan per run, every plan is created under the same reference and a shard that resolves its plan by reference gets the most recently created one, which may belong to another build job. Pass `--shard-plan-id` (`TUIST_SHARD_PLAN_ID`) from the shard matrix the build job emitted so each shard runs the plan its own build produced. Tuist warns when a shard falls back to reference resolution.
+> A shard reference identifies the CI run, not the build job inside it. When a workflow builds more than one shard plan per run, every plan is created under the same reference and a shard that resolves its plan by reference gets the most recently created one, which may belong to another build job. Pass `--shard-plan-id` (`TUIST_SHARD_PLAN_ID`) from the shard matrix the build job emitted so each shard runs the plan its own build produced. Both phases log the plan identifier, so a shard that ran a different plan than its build created is visible by comparing the two jobs' logs.
 
 ## Continuous integration {#continuous-integration}
 

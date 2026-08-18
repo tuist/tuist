@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistAlert
 import TuistAppleArchiver
 import TuistCI
 import TuistCore
@@ -104,21 +103,13 @@ public struct ShardService: ShardServicing {
 
         let suites = shard.suites.additionalProperties
         let skipTestIdentifiers = shard.skip ?? []
+        // Naming the plan lets this line be compared against the one the build phase logged: a
+        // reference identifies the CI run rather than the build job inside it, so a workflow that
+        // builds more than one plan per run can resolve a plan another job created.
         Logger.current.notice(
             "Shard \(shardIndex) of plan \(shard.shard_plan_id): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
             metadata: .section
         )
-
-        // A reference names the CI run, not the build job within it, so every build job of a matrix
-        // and every re-run of the run create their plans under the same one and the server can only
-        // answer with the most recent. Binding by plan identifier is what ties a shard to the build
-        // that produced its test products.
-        if shardPlanId == nil {
-            AlertController.current.warning(.alert(
-                "Shard plan \(shard.shard_plan_id) was resolved from the reference '\(reference)', which every build job in this CI run shares",
-                takeaway: "Pass \(.command("--shard-plan-id")) (TUIST_SHARD_PLAN_ID) from the build job's shard matrix to run the plan this job's build created"
-            ))
-        }
 
         let resolvedTestProductsPath: AbsolutePath
 
