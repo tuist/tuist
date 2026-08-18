@@ -884,7 +884,14 @@ defmodule Tuist.BillingTest do
       end)
 
       assert {:ok, %{id: "meter-event"}} =
-               Billing.report_meter_event(customer_id, event_name, 750_125, period_start, period_end)
+               Billing.report_meter_event(
+                 customer_id,
+                 event_name,
+                 750_125,
+                 period_start,
+                 period_end,
+                 ~U[2026-07-17 02:00:00.000000Z]
+               )
     end
 
     test "never stamps an event in the future when the window is still open" do
@@ -894,12 +901,10 @@ defmodule Tuist.BillingTest do
       # Stripe rejects a future-dated meter event outright.
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
-      now = ~U[2026-07-16 15:10:00.000000Z]
-      now_unix = DateTime.to_unix(now)
+      reported_at = ~U[2026-07-16 15:10:00.000000Z]
+      reported_at_unix = DateTime.to_unix(reported_at)
 
-      stub(DateTime, :utc_now, fn -> now end)
-
-      expect(Stripe.Request, :make_request, fn %{params: %{timestamp: ^now_unix}} ->
+      expect(Stripe.Request, :make_request, fn %{params: %{timestamp: ^reported_at_unix}} ->
         {:ok, %{id: "meter-event"}}
       end)
 
@@ -909,8 +914,43 @@ defmodule Tuist.BillingTest do
                  "runner_macos_compute_unit_milliseconds",
                  6_000,
                  period_start,
-                 period_end
+                 period_end,
+                 reported_at
                )
+    end
+
+    test "stamps every retry identically so the idempotency key stays valid" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      reported_at = ~U[2026-07-16 15:10:00.000000Z]
+
+      # Stripe rejects a reused idempotency key whose parameters changed,
+      # and the key covers only the customer, meter, and period. Reading
+      # the clock per attempt would therefore break every retry of a
+      # window that was still open when it was first reported.
+      parent = self()
+
+      stub(Stripe.Request, :make_request, fn %{params: %{timestamp: ts}} ->
+        send(parent, {:timestamp, ts})
+        {:ok, %{id: "meter-event"}}
+      end)
+
+      for _attempt <- 1..2 do
+        assert {:ok, _} =
+                 Billing.report_meter_event(
+                   customer_id,
+                   "runner_macos_compute_unit_milliseconds",
+                   6_000,
+                   period_start,
+                   period_end,
+                   reported_at
+                 )
+      end
+
+      assert_received {:timestamp, first}
+      assert_received {:timestamp, second}
+      assert first == second
     end
 
     test "treats a duplicate rejection as already delivered" do
@@ -931,7 +971,8 @@ defmodule Tuist.BillingTest do
                  "runner_macos_compute_unit_milliseconds",
                  750_125,
                  ~U[2026-07-16 00:00:00.000000Z],
-                 ~U[2026-07-17 00:00:00.000000Z]
+                 ~U[2026-07-17 00:00:00.000000Z],
+                 ~U[2026-07-17 02:00:00.000000Z]
                )
     end
 
@@ -953,7 +994,8 @@ defmodule Tuist.BillingTest do
                  "runner_macos_compute_unit_milliseconds",
                  750_125,
                  ~U[2026-07-16 00:00:00.000000Z],
-                 ~U[2026-07-17 00:00:00.000000Z]
+                 ~U[2026-07-17 00:00:00.000000Z],
+                 ~U[2026-07-17 02:00:00.000000Z]
                )
     end
   end

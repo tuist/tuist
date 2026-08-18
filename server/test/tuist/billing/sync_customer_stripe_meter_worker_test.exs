@@ -13,17 +13,24 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMeterWorkerTest do
     period_start = DateTime.to_unix(period_start_datetime, :microsecond)
     period_end = DateTime.to_unix(period_end_datetime, :microsecond)
 
+    inserted_at = ~N[2026-07-17 02:00:00.000000]
+    reported_at = DateTime.from_naive!(inserted_at, "Etc/UTC")
+
+    # The job's insertion instant is the reporting clock, so every retry
+    # of this job stamps identically and the idempotency key stays valid.
     expect(Billing, :report_meter_event, fn ^customer_id,
                                             ^event_name,
                                             750_125,
                                             ^period_start_datetime,
-                                            ^period_end_datetime ->
+                                            ^period_end_datetime,
+                                            ^reported_at ->
       {:ok, %{id: "meter-event"}}
     end)
 
     assert {:ok, %{id: "meter-event"}} =
              SyncCustomerStripeMeterWorker.perform(%Oban.Job{
                id: 456,
+               inserted_at: inserted_at,
                args: %{
                  "customer_id" => customer_id,
                  "event_name" => event_name,

@@ -270,10 +270,22 @@ defmodule Tuist.Billing do
   finalization grace period (Billing settings, up to 72 hours) has to
   cover the gap between period close and this daily job.
 
+  `reported_at` is the instant the reporting work was enqueued, not the
+  current time. It must be identical on every attempt: the idempotency
+  key covers the customer, meter, and period, and Stripe rejects a reused
+  key whose parameters changed.
+
   Returns `{:ok, :already_reported}` when Stripe rejects the event as a
   duplicate, so the caller treats it as delivered instead of retrying.
   """
-  def report_meter_event(customer_id, event_name, value, %DateTime{} = period_start, %DateTime{} = period_end)
+  def report_meter_event(
+        customer_id,
+        event_name,
+        value,
+        %DateTime{} = period_start,
+        %DateTime{} = period_end,
+        %DateTime{} = reported_at
+      )
       when is_binary(customer_id) and is_binary(event_name) and is_integer(value) and value >= 0 do
     identifier =
       "#{customer_id}-#{event_name}-#{DateTime.to_unix(period_start)}-#{DateTime.to_unix(period_end)}"
@@ -284,7 +296,7 @@ defmodule Tuist.Billing do
     |> Stripe.Request.put_params(%{
       event_name: event_name,
       identifier: identifier,
-      timestamp: DateTime.to_unix(usage_timestamp(period_start, period_end)),
+      timestamp: DateTime.to_unix(usage_timestamp(period_start, period_end, reported_at)),
       payload: %{
         value: value,
         stripe_customer_id: customer_id
@@ -320,12 +332,17 @@ defmodule Tuist.Billing do
   # event outright. A window can still be open when it is reported —
   # reporting the current day rather than waiting for the nightly run, or
   # backfilling a period that has not closed — and `period_end - 1s` is
-  # then still ahead of us. Clamping to now keeps the event inside the
+  # then still ahead of `reported_at`. Clamping keeps the event inside the
   # same service period, so attribution is unchanged.
-  defp usage_timestamp(period_start, period_end) do
-    now = DateTime.utc_now()
+  #
+  # `reported_at` has to be stable across retries rather than read from
+  # the clock here. The idempotency key covers the customer, meter, and
+  # period, so two attempts that sent different timestamps under it would
+  # be rejected as reusing a key with changed parameters. The caller
+  # passes an instant fixed when the work was first enqueued.
+  defp usage_timestamp(period_start, period_end, reported_at) do
     candidate = DateTime.add(period_end, -1, :second)
-    timestamp = if DateTime.after?(candidate, now), do: now, else: candidate
+    timestamp = if DateTime.after?(candidate, reported_at), do: reported_at, else: candidate
 
     if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end

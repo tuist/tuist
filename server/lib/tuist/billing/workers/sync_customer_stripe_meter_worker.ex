@@ -18,6 +18,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMeterWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
+        inserted_at: inserted_at,
         args: %{
           "customer_id" => customer_id,
           "event_name" => event_name,
@@ -38,12 +39,17 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMeterWorker do
       })
     end
 
+    # The job's own insertion instant is the reporting clock. It is fixed
+    # when the job is created and identical on every retry, which is what
+    # the idempotency key requires: a changed timestamp under the same key
+    # is rejected by Stripe as a reused key with different parameters.
     Billing.report_meter_event(
       customer_id,
       event_name,
       value,
       period_start_datetime,
-      period_end_datetime
+      period_end_datetime,
+      DateTime.from_naive!(inserted_at, "Etc/UTC")
     )
   end
 end
