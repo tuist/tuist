@@ -217,6 +217,14 @@ spec:
               value: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale-state") | quote }}
             - name: TS_USERSPACE
               value: "false"
+            # Bind the daemon socket inside the shared volume. The image
+            # otherwise puts it in /tmp and symlinks it here, and that
+            # symlink fails when this path is a mount — leaving the
+            # socket somewhere only this container can see, so the cert
+            # sidecar can never reach the daemon and nginx waits forever
+            # on a certificate that is never written.
+            - name: TS_SOCKET
+              value: /var/run/tailscale/tailscaled.sock
             # An OAuth client secret, not a static auth key. The same
             # credential the fleet moved to in #12312 after an expired key
             # took the xcresult processors down: `tailscale up
