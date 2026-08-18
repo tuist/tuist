@@ -204,13 +204,51 @@ pub struct Store {
     failpoints: Arc<FailpointSet>,
 }
 
-/// Pending read-path promotions: FIFO order plus a membership map so a hot
-/// old artifact read thousands of times enqueues once, carrying the trigger
-/// that queued it.
+/// Pending read-path promotions: two FIFOs plus a membership map so a hot old
+/// artifact read thousands of times enqueues once, carrying the trigger that
+/// queued it.
+///
+/// Vouched work drains ahead of serve-path work rather than sharing one queue.
+/// Reserving admission is not enough on its own: a vouched refresh admitted
+/// behind a long serve backlog still waits for the whole backlog to copy, which
+/// is exactly the window the vouch is supposed to close. `pending` is the
+/// authoritative set, so a deque may hold an id already promoted through the
+/// other lane (the trigger upgrade path pushes into `vouched`); those pop as
+/// misses and are skipped.
 #[derive(Default)]
 struct PromotionQueue {
-    order: VecDeque<String>,
+    vouched: VecDeque<String>,
+    serve: VecDeque<String>,
     pending: HashMap<String, RefreshTrigger>,
+}
+
+impl PromotionQueue {
+    fn depth(&self) -> usize {
+        self.pending.len()
+    }
+
+    fn push(&mut self, artifact_id: &str, trigger: RefreshTrigger) {
+        if trigger.extends_vouched_lifetime() {
+            self.vouched.push_back(artifact_id.to_owned());
+        } else {
+            self.serve.push_back(artifact_id.to_owned());
+        }
+    }
+
+    /// The next artifact to promote, vouched lane first. Ids left behind by a
+    /// lane switch are skipped here rather than removed at switch time, which
+    /// would be a linear scan of the queue.
+    fn pop(&mut self) -> Option<(String, RefreshTrigger)> {
+        loop {
+            let artifact_id = self
+                .vouched
+                .pop_front()
+                .or_else(|| self.serve.pop_front())?;
+            if let Some(trigger) = self.pending.remove(&artifact_id) {
+                return Some((artifact_id, trigger));
+            }
+        }
+    }
 }
 
 /// What drove a segment refresh: the metric label, and the selector for which
@@ -1862,10 +1900,16 @@ impl Store {
         {
             let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
             if let Some(pending) = queue.pending.get_mut(artifact_id) {
-                // Already queued: keep its place in line, but take the
-                // strongest trigger seen so a serve-path enqueue cannot
-                // downgrade a vouched-for blob out of the wider pressure gate.
+                // Already queued: take the strongest trigger seen, so a
+                // serve-path enqueue cannot downgrade a vouched-for blob out of
+                // the wider pressure gate. An upgrade also re-queues it in the
+                // vouched lane, since waiting out the serve backlog would leave
+                // the vouch unbacked for as long as a drop would.
+                let upgraded = trigger > *pending;
                 *pending = (*pending).max(trigger);
+                if upgraded && trigger.extends_vouched_lifetime() {
+                    queue.vouched.push_back(artifact_id.to_owned());
+                }
                 return;
             }
             let ceiling = if trigger.extends_vouched_lifetime() {
@@ -1873,13 +1917,13 @@ impl Store {
             } else {
                 MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE
             };
-            if queue.pending.len() >= ceiling {
+            if queue.depth() >= ceiling {
                 drop(queue);
                 self.io.metrics().record_promotion_drop(trigger.as_str());
                 return;
             }
             queue.pending.insert(artifact_id.to_owned(), trigger);
-            queue.order.push_back(artifact_id.to_owned());
+            queue.push(artifact_id, trigger);
         }
         self.promotion_notify.notify_one();
     }
@@ -1976,16 +2020,11 @@ impl Store {
     /// boot.
     pub async fn run_promotion_worker(&self) {
         loop {
-            let next = {
-                let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
-                queue.order.pop_front().map(|artifact_id| {
-                    let trigger = queue
-                        .pending
-                        .remove(&artifact_id)
-                        .unwrap_or(RefreshTrigger::Serve);
-                    (artifact_id, trigger)
-                })
-            };
+            let next = self
+                .promotion_queue
+                .lock()
+                .expect("promotion queue lock")
+                .pop();
             let Some((artifact_id, trigger)) = next else {
                 self.promotion_notify.notified().await;
                 continue;
@@ -4560,8 +4599,7 @@ impl Store {
             .promotion_queue
             .lock()
             .expect("promotion queue lock")
-            .order
-            .len();
+            .depth();
         let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
             ("old", segment_state.state.old.len()),
@@ -10298,7 +10336,7 @@ mod tests {
         assert_eq!(read_manifest_bytes(&store, &served).await, b"hello");
         {
             let queue = store.promotion_queue.lock().expect("queue lock");
-            assert_eq!(queue.order.len(), 1);
+            assert_eq!(queue.depth(), 1);
             assert!(queue.pending.contains_key(&served.artifact_id));
         }
 
@@ -10308,15 +10346,7 @@ mod tests {
             .await
             .expect("failed to fetch artifact for serving")
             .expect("artifact should still exist");
-        assert_eq!(
-            store
-                .promotion_queue
-                .lock()
-                .expect("queue lock")
-                .order
-                .len(),
-            1
-        );
+        assert_eq!(store.promotion_queue.lock().expect("queue lock").depth(), 1);
 
         // Applying the queued promotion rewrites the artifact into the current
         // segment, exactly like the refresh the read path used to run inline.
@@ -10637,7 +10667,7 @@ mod tests {
 
         let queue = store.promotion_queue.lock().expect("queue lock");
         assert_eq!(
-            queue.order.iter().collect::<Vec<_>>(),
+            queue.serve.iter().chain(&queue.vouched).collect::<Vec<_>>(),
             vec![&aged_id],
             "only a blob whose segment is aging out needs copying forward"
         );
@@ -10655,14 +10685,7 @@ mod tests {
         for index in 0..serve_ceiling {
             store.enqueue_promotion(&format!("serve-{index}"), RefreshTrigger::Serve);
         }
-        let depth = || {
-            store
-                .promotion_queue
-                .lock()
-                .expect("queue lock")
-                .order
-                .len()
-        };
+        let depth = || store.promotion_queue.lock().expect("queue lock").depth();
         assert_eq!(depth(), serve_ceiling);
 
         store.enqueue_promotion("serve-overflow", RefreshTrigger::Serve);
@@ -10677,6 +10700,42 @@ mod tests {
             depth(),
             serve_ceiling + 1,
             "the reserve admits a refresh backing a promise already made to a client"
+        );
+    }
+
+    #[tokio::test]
+    async fn vouched_refreshes_drain_ahead_of_a_serve_backlog() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.enqueue_promotion("shared", RefreshTrigger::Serve);
+        for index in 0..64 {
+            store.enqueue_promotion(&format!("serve-{index}"), RefreshTrigger::Serve);
+        }
+        store.enqueue_promotion("vouched", RefreshTrigger::FindMissing);
+        // Upgrading an entry already queued behind the backlog has to move it
+        // too: admitting it and then making it wait out the backlog leaves the
+        // vouch unbacked for just as long as dropping it would.
+        store.enqueue_promotion("shared", RefreshTrigger::ActionCache);
+
+        let mut queue = store.promotion_queue.lock().expect("queue lock");
+        assert_eq!(
+            queue.pop(),
+            Some(("vouched".to_owned(), RefreshTrigger::FindMissing)),
+            "a vouched refresh does not wait out a serve backlog"
+        );
+        assert_eq!(
+            queue.pop(),
+            Some(("shared".to_owned(), RefreshTrigger::ActionCache)),
+            "an upgraded entry moves to the vouched lane"
+        );
+        assert_eq!(
+            queue.pop().map(|(artifact_id, _)| artifact_id),
+            Some("serve-0".to_owned()),
+            "serve work resumes in order once nothing is vouched"
+        );
+        assert_eq!(
+            queue.depth(),
+            63,
+            "the upgraded entry's stale serve-lane slot is skipped, not promoted twice"
         );
     }
 
@@ -10700,7 +10759,7 @@ mod tests {
         assert!(exists("blob-aged").await);
         {
             let queue = store.promotion_queue.lock().expect("queue lock");
-            assert_eq!(queue.order.len(), 1);
+            assert_eq!(queue.depth(), 1);
             assert_eq!(
                 queue.pending.get(&aged_id),
                 Some(&RefreshTrigger::FindMissing),
@@ -10721,12 +10780,7 @@ mod tests {
             .expect("failed to persist artifact");
         assert!(exists("blob-live").await);
         assert_eq!(
-            store
-                .promotion_queue
-                .lock()
-                .expect("queue lock")
-                .order
-                .len(),
+            store.promotion_queue.lock().expect("queue lock").depth(),
             1,
             "an absent blob and one already in a live segment queue nothing"
         );
@@ -10758,7 +10812,7 @@ mod tests {
                 .promotion_queue
                 .lock()
                 .expect("queue lock")
-                .order
+                .pending
                 .is_empty(),
             "a node holding no Old segments does the whole batch from one state read"
         );
@@ -10792,11 +10846,7 @@ mod tests {
         );
         {
             let queue = store.promotion_queue.lock().expect("queue lock");
-            assert_eq!(
-                queue.order.len(),
-                1,
-                "the entry keeps its single place in line"
-            );
+            assert_eq!(queue.depth(), 1, "the entry is queued exactly once");
             assert_eq!(
                 queue.pending.get(&aged_id),
                 Some(&RefreshTrigger::ActionCache),
