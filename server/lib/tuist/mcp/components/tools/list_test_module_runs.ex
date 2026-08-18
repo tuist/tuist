@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
   use Tuist.MCP.Tool,
     name: "list_test_module_runs",
     title: "List Test Module Runs",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

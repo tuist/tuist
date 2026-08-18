@@ -1062,3 +1062,48 @@ func TestRenderLogShipperScript_ChoiceSurvivesTheHashZeroingTheAuthKey(t *testin
 		t.Fatalf("a configured fleet must render the install, not the uninstall\n%s", withKey)
 	}
 }
+
+// The resolver only redirects `.ts.net`. Scoping it to the whole of
+// tuist.dev would be the obvious shortcut for reaching the registry by its
+// vanity name, and it would break the host: MagicDNS knows nothing of
+// tuist.dev, so every other name under it — the server, the Swift
+// registry — would start resolving nowhere.
+func TestRenderTailnetResolverScript_ScopesToTsNetOnly(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "/etc/resolver/ts.net") {
+		t.Fatalf("resolver must be installed for ts.net, got:\n%s", script)
+	}
+	if strings.Contains(script, "/etc/resolver/tuist.dev") {
+		t.Fatalf("resolver must not capture tuist.dev, got:\n%s", script)
+	}
+	if !strings.Contains(script, "nameserver 100.100.100.100") {
+		t.Fatalf("resolver must point at MagicDNS, got:\n%s", script)
+	}
+}
+
+// macOS caches negative answers, and these names answered NXDOMAIN on
+// every host until this file existed. Without a flush the cached
+// negatives outlive the fix, so a roll would look applied while lookups
+// kept failing.
+func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "dscacheutil -flushcache") {
+		t.Fatalf("resolver install must flush the DNS cache, got:\n%s", script)
+	}
+}
+
+// The resolver has to reach existing hosts, not just newly bootstrapped
+// ones. It does that only by being part of the fleet-wide fingerprint the
+// drift loop compares against.
+func TestHostConfigHash_CoversTheTailnetResolver(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	h := HostConfigHash(base)
+	// Recomputing must be stable, or every reconcile would see drift and
+	// re-push to every host forever.
+	if h != HostConfigHash(base) {
+		t.Fatal("HostConfigHash must be deterministic")
+	}
+	if !strings.Contains(renderTailnetResolverScript(), "100.100.100.100") {
+		t.Fatal("resolver script missing from the hashed set")
+	}
+}

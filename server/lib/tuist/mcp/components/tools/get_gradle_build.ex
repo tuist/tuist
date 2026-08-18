@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   use Tuist.MCP.Tool,
     name: "get_gradle_build",
     title: "Get Gradle Build",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

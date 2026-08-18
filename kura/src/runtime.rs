@@ -113,10 +113,6 @@ impl RuntimeState {
             && !self.peer_view_ready.load(Ordering::SeqCst)
     }
 
-    pub fn clear_serving(&self) -> bool {
-        self.serving.swap(false, Ordering::SeqCst)
-    }
-
     pub fn is_serving(&self) -> bool {
         self.serving.load(Ordering::SeqCst)
     }

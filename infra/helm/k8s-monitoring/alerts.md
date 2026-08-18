@@ -1041,6 +1041,57 @@ muted, and this is the only signal covering a class of failure that
 previously went unnoticed for two months. Twenty-four hours clears the
 worst case with margin and still catches a wedge the next day.
 
+### Pod cannot be scheduled
+
+Catches a Pod the scheduler has given up placing. Nothing else in this
+document covers it, because an unscheduled Pod produces none of the
+signals the other workload rules read: it has no container, so there is
+no waiting reason, no termination reason, and no restart count, and it
+never had a ready endpoint to lose. Its Services keep existing with zero
+endpoints, which reads as "no traffic" rather than "no backend".
+
+That is how `registry/registry-pg-1` — the sole instance of a
+CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
+2026-08-18 without anyone noticing. Its volume had been provisioned
+against a node that was later destroyed, and Hetzner Cloud Volumes are
+location-bound, so the replacement Pod could not satisfy the volume's
+node affinity anywhere in the cluster. All three of that cluster's
+Services served zero endpoints for six weeks.
+
+```promql
+max by (cluster, namespace, pod) (
+  kube_pod_status_unschedulable{namespace!="tuist-runners"}
+) == 1
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+No metric change is needed. The kube-state-metrics tuning in
+[`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
+cluster-wide while dropping the rest of `kube_pod_*` for the runner
+namespace, on the grounds that it is a cheap placement signal — so the
+series for this incident existed in Grafana Cloud the whole time and
+nothing read it.
+
+`tuist-runners` is excluded rather than alerted on. Unschedulable Pods
+are an expected steady state there: the autoscaler deliberately asks for
+more replicas than the fleet can bin-pack, and the surplus stays
+unschedulable until hosts free up. The real runner-side failure is
+already covered by *Runner queue not draining*, which measures queue age
+and does not confuse a capacity ceiling with a fault. Idle Linux runners
+would not have matched this rule in any case — they are `Pending` because
+their dispatch poller runs as an init container, not because the
+scheduler could not place them.
+
+Thirty minutes clears the ordinary path where a Pod waits on the cluster
+autoscaler to add a node, and is short enough that a volume-affinity or
+taint mistake surfaces the same morning instead of six weeks later. This
+is a warning rather than a page because it fires on any workload in any
+namespace: the Pod that motivated it was critical, but most Pods that
+briefly cannot schedule are not.
+
 ### Kubernetes request latency
 
 ```promql

@@ -2,9 +2,7 @@
 //! decides, at membership cadence, which peers need a pass, runs one pass per
 //! peer at a time, cancels on peer loss, retries with bounded backoff under a
 //! non-resetting initial-cycle failure budget, and persists per-peer
-//! watermarks on completion. Selected at boot by `KURA_BACKFILL_ENABLED`; the
-//! legacy bootstrap walker runs untouched when the flag is off, and the two
-//! paths share no state.
+//! watermarks on completion.
 //!
 //! The scheduling rules live in [`LifecycleMachine`], a synchronous state
 //! machine that consumes membership ticks and pass resolutions and emits
@@ -366,6 +364,28 @@ impl LifecycleMachine {
         actions
     }
 
+    /// Marks every peer still in the membership view as needing a pass, so
+    /// the next tick schedules one. Passes are otherwise armed only by a
+    /// membership edge, and an edge is a set difference over the *probed*
+    /// peer set: a peer that stayed reachable across a control-plane outage
+    /// produces none, even though the node was withheld from the mesh for the
+    /// whole outage and its peers pruned the outbox messages queued for it.
+    /// Re-arming on the recovery re-enrollment covers that gap; a peer that
+    /// missed nothing pays one manifest walk down to its watermark.
+    fn rearm_present_peers(&mut self) {
+        for entry in self.peers.values_mut() {
+            if !entry.present {
+                continue;
+            }
+            if entry.in_flight {
+                entry.dirty = true;
+            } else {
+                entry.needed = true;
+                entry.backoff_until = None;
+            }
+        }
+    }
+
     fn on_pass_finished(
         &mut self,
         peer: &str,
@@ -547,7 +567,7 @@ struct ActivePass {
 
 /// The async shell around [`LifecycleMachine`]: owns the per-peer pass tasks
 /// and the node's one shared claim set, and is the surface the membership
-/// loop drives under `KURA_BACKFILL_ENABLED`.
+/// loop drives.
 pub struct BackfillLifecycle {
     machine: Mutex<LifecycleMachine>,
     passes: Mutex<HashMap<String, ActivePass>>,
@@ -632,6 +652,13 @@ impl BackfillLifecycle {
         }
     }
 
+    /// Re-arms a pass for every peer currently in the membership view. Called
+    /// when the node rejoins the mesh through a recovery re-enrollment, which
+    /// is not a membership edge on this side: see `rearm_present_peers`.
+    pub fn rearm_after_mesh_rejoin(&self) {
+        self.lock_machine().rearm_present_peers();
+    }
+
     /// Snapshot of the initial join cycle for the readiness gate and the
     /// rollout report.
     pub fn cycle_snapshot(&self) -> BackfillCycleSnapshot {
@@ -651,6 +678,14 @@ impl BackfillLifecycle {
         let _ = self.lock_machine().on_pass_finished(peer, resolution, now);
     }
 
+    /// Passes are fanned out one per peer in view, with no node-wide
+    /// concurrency cap. That is deliberate and unchanged from how backfill has
+    /// always run: the legacy walker's `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS`
+    /// bounded the legacy walker only, and it went out with it. What bounds a
+    /// pass is per-pass, not per-node — one in-flight request per pass, one
+    /// spool at a time, and the shared staging, tmp and memory budgets every
+    /// pass reserves against — so peer count scales sockets and tasks, not
+    /// bytes in flight.
     fn apply_actions(self: &Arc<Self>, app: &SharedState, actions: Vec<Action>) {
         for action in actions {
             match action {
@@ -1226,6 +1261,57 @@ mod tests {
             machine.snapshot().statuses[&peer_url(1)],
             PeerBackfillStatus::Completed
         );
+    }
+
+    #[test]
+    fn rearming_after_a_mesh_rejoin_starts_a_pass_without_a_membership_edge() {
+        let mut machine = LifecycleMachine::default();
+        let now = Instant::now();
+        let peers = vec![peer_url(1)];
+        machine.evaluate(&tick(&peers, &[]), now);
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, now);
+
+        // The control plane was unreachable, not the peer: it stayed probed
+        // and reachable throughout, so no tick carries it as discovered or
+        // lost and nothing schedules a pass on its own.
+        let actions = machine.evaluate(&tick(&[], &[]), now);
+        assert!(started_peers(&actions).is_empty());
+
+        machine.rearm_present_peers();
+        let actions = machine.evaluate(&tick(&[], &[]), now);
+        assert_eq!(started_peers(&actions), peers);
+    }
+
+    #[test]
+    fn rearming_after_a_mesh_rejoin_queues_behind_a_running_pass() {
+        let mut machine = LifecycleMachine::default();
+        let now = Instant::now();
+        let peers = vec![peer_url(1)];
+        machine.evaluate(&tick(&peers, &[]), now);
+
+        // The pass in flight was started before the node was withheld, so its
+        // window top predates the gap: re-arming must leave a successor
+        // behind it rather than trusting the one already running.
+        machine.rearm_present_peers();
+        let actions = machine.evaluate(&tick(&[], &[]), now);
+        assert!(started_peers(&actions).is_empty());
+
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, now);
+        let actions = machine.evaluate(&tick(&[], &[]), now);
+        assert_eq!(started_peers(&actions), peers);
+    }
+
+    #[test]
+    fn rearming_after_a_mesh_rejoin_skips_peers_that_left_the_view() {
+        let mut machine = LifecycleMachine::default();
+        let now = Instant::now();
+        machine.evaluate(&tick(&[peer_url(1)], &[]), now);
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, now);
+        machine.evaluate(&tick(&[], &[peer_url(1)]), now);
+
+        machine.rearm_present_peers();
+        let actions = machine.evaluate(&tick(&[], &[]), now);
+        assert!(started_peers(&actions).is_empty());
     }
 
     #[test]

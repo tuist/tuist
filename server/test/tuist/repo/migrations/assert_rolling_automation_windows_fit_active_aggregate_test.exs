@@ -14,7 +14,13 @@ defmodule Tuist.Repo.Migrations.AssertRollingAutomationWindowsFitActiveAggregate
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  test "accepts exactly the enabled rolling trigger windows supported at runtime" do
+  # This migration already ran. It asserted a point-in-time invariant: when the
+  # larger rolling aggregates were retired, no enabled alert could sit above the
+  # 75 runs the surviving bucket served. Its ceiling is therefore history and
+  # does not track the runtime cap, which the packed aggregate has since raised
+  # to 1000. What stays coupled to runtime is the shape of a rolling window: a
+  # non-integer, missing, or non-positive size is rejected by both.
+  test "rejects the enabled rolling trigger windows the aggregate could not serve when it ran" do
     project = ProjectsFixtures.project_fixture()
 
     supported = alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 75})
@@ -27,23 +33,30 @@ defmodule Tuist.Repo.Migrations.AssertRollingAutomationWindowsFitActiveAggregate
         false
       )
 
-    incompatible = [
+    malformed = [
       alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => "75"}),
       alert_with_trigger_config(project, %{"window_type" => "rolling"}),
       alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 0}),
-      alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 75.5}),
-      alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 76})
+      alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 75.5})
     ]
+
+    # Above the ceiling the migration enforced, but a size the packed aggregate
+    # serves today.
+    above_historical_ceiling =
+      alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 76})
 
     error =
       assert_raise Ecto.MigrationError, fn ->
         AssertRollingAutomationWindowsFitActiveAggregate.assert_compatible_alerts!(Repo)
       end
 
-    for alert <- incompatible do
+    for alert <- malformed do
       assert error.message =~ alert.id
       refute Alert.trigger_window_supported?(alert)
     end
+
+    assert error.message =~ above_historical_ceiling.id
+    assert Alert.trigger_window_supported?(above_historical_ceiling)
 
     refute error.message =~ supported.id
     refute error.message =~ calendar.id
