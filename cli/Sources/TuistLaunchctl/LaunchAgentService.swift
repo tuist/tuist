@@ -154,13 +154,12 @@ public struct LaunchAgentService: LaunchAgentServicing {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: bootoutTimeout)
 
-        while await isLoadedIgnoringFailures(label: label) {
-            if clock.now >= deadline || Task.isCancelled {
-                Logger.current.debug("\(label) is still loaded after booting it out. Continuing.")
-                return
-            }
+        while clock.now < deadline, !Task.isCancelled {
+            if await !isLoadedIgnoringFailures(label: label) { return }
             try? await Task.sleep(for: .milliseconds(100))
         }
+
+        Logger.current.debug("\(label) is still loaded after booting it out. Continuing.")
     }
 
     private func isLoadedIgnoringFailures(label: String) async -> Bool {

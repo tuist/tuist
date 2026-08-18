@@ -545,12 +545,13 @@ struct LaunchAgentServiceTests {
         let subject = LaunchAgentService(
             fileSystem: fileSystem,
             launchctlController: launchctlController,
-            bootoutTimeout: .zero
+            bootoutTimeout: .milliseconds(250)
         )
         launchctlController.reset()
+        let answers = AnswerSequence(answers: [true])
         given(launchctlController)
             .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .willProduce { _ in answers.next() }
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
             .willReturn()
@@ -564,6 +565,7 @@ struct LaunchAgentServiceTests {
             programArguments: ["test-start"]
         )
 
+        #expect(answers.consumed > 1, "the wait must poll rather than give up on the pre-bootout answer")
         verify(launchctlController)
             .bootstrap(plistPath: .any)
             .called(1)
