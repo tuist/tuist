@@ -44,9 +44,25 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
   evenly, and each range stays a contiguous prefix scan of the
   `(project_id, test_case_id)` sort key.
 
-  Re-running is safe. A run already carried forward by the live materialized
-  view is reinserted with an identical packed value, and the reader collapses
-  entries that share a run key.
+  ## Overlap with the live view
+
+  The materialized view has been carrying runs forward since `20260817120000`
+  created it, so the newest part of the source overlaps what the target already
+  holds. Reinserting those runs stays correct -- the reader collapses entries
+  that share a run key -- but each one would occupy a slot twice, weakening the
+  headroom the bucket is sized for. Runs are therefore bounded to those that ran
+  before that migration recorded itself in `schema_migrations`, which is the
+  point from which the view has been writing and is read per environment rather
+  than assumed.
+
+  The bound is on when a run executed, while the view captures a run when it is
+  inserted, so a run back-dated across the boundary can still be written twice.
+  A flaky correction is exactly that shape. Erring in this direction only costs
+  a slot for corrections that landed during the deploy, where the opposite error
+  would drop runs the view never captured.
+
+  Re-running is safe for the same reason: a run reinserted with an identical
+  packed value collapses on read.
   """
   use Ecto.Migration
 
@@ -57,6 +73,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
+  @packed_view_migration_version 20_260_817_120_000
   @source_table "test_case_runs_recent_100_per_case"
   @target_table "test_case_runs_recent_packed_per_case"
   @target_bucket_size 2000
@@ -66,6 +83,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
 
   def up do
     project_ids = source_project_ids()
+    packed_view_boundary = packed_view_boundary()
 
     Logger.info(
       "Backfilling #{@target_table} from #{@source_table} (#{length(project_ids)} projects)"
@@ -75,10 +93,45 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
       project_id
       |> test_case_id_ranges()
       |> Enum.each(fn range ->
-        retry_on_transient_failure(fn -> backfill_range(project_id, range) end)
+        retry_on_transient_failure(fn ->
+          backfill_range(project_id, range, packed_view_boundary)
+        end)
+
         Process.sleep(@chunk_throttle_ms)
       end)
     end)
+  end
+
+  # Entries key on the negated run timestamp, so a run that predates the view
+  # sorts above this boundary. The comparison happens against packed entries, so
+  # the boundary is scaled into the same space: an entry is `run_key * 4 + flags`
+  # with flags in 0..3, so `run_key * 4 + 3` excludes every flag combination of a
+  # run at the boundary itself while admitting any strictly older run. Falling
+  # back to the current time backfills everything, which is what a target with no
+  # view writes yet needs.
+  defp packed_view_boundary do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    %{rows: rows} =
+      IngestRepo.query!(
+        """
+        SELECT -toUnixTimestamp64Micro(toDateTime64(min(inserted_at), 6)) * 4 + 3
+        FROM schema_migrations
+        WHERE version = {version:Int64}
+        """,
+        %{version: @packed_view_migration_version}
+      )
+
+    case rows do
+      [[boundary]] when is_integer(boundary) ->
+        boundary
+
+      _ ->
+        Logger.warning(
+          "#{@packed_view_migration_version} is not recorded; backfilling every run in the source"
+        )
+
+        -System.os_time(:microsecond) * 4 + 3
+    end
   end
 
   # The rows this wrote are indistinguishable from the ones the materialized
@@ -131,15 +184,13 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
     <<div(index * Bitwise.bsl(1, 128), chunks)::128>> |> binary_part(0, 16) |> Ecto.UUID.load!()
   end
 
-  defp backfill_range(project_id, {lower, upper}) do
+  defp backfill_range(project_id, {lower, upper}, packed_view_boundary) do
+    params = %{project_id: project_id, lower: lower, boundary: packed_view_boundary}
+
     {upper_clause, params} =
       case upper do
-        nil ->
-          {"", %{project_id: project_id, lower: lower}}
-
-        _ ->
-          {"AND test_case_id < {upper:UUID}",
-           %{project_id: project_id, lower: lower, upper: upper}}
+        nil -> {"", params}
+        _ -> {"AND test_case_id < {upper:UUID}", Map.put(params, :upper, upper)}
       end
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
@@ -151,20 +202,23 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentPackedPerCase do
         test_case_id,
         arrayReduce(
           'groupArraySortedState(#{@target_bucket_size})',
-          arrayMap(
-            (flaky_entry, successful_entry) ->
-              tupleElement(flaky_entry, 1) * 4
-              + toInt64(tupleElement(flaky_entry, 2)) * 2
-              + toInt64(tupleElement(successful_entry, 2)),
-            arrayFilter(
-              (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
-              flaky_runs,
-              arrayShiftLeft(flaky_runs, 1, #{@flag_sentinel})
-            ),
-            arrayFilter(
-              (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
-              successful_runs,
-              arrayShiftLeft(successful_runs, 1, #{@flag_sentinel})
+          arrayFilter(
+            entry -> entry > {boundary:Int64},
+            arrayMap(
+              (flaky_entry, successful_entry) ->
+                tupleElement(flaky_entry, 1) * 4
+                + toInt64(tupleElement(flaky_entry, 2)) * 2
+                + toInt64(tupleElement(successful_entry, 2)),
+              arrayFilter(
+                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+                flaky_runs,
+                arrayShiftLeft(flaky_runs, 1, #{@flag_sentinel})
+              ),
+              arrayFilter(
+                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+                successful_runs,
+                arrayShiftLeft(successful_runs, 1, #{@flag_sentinel})
+              )
             )
           )
         ) AS recent_runs
