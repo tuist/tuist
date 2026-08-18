@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    net::IpAddr,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -26,6 +25,7 @@ use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    auth::{AccessDecision, RequestContext},
     bandwidth::BandwidthLimiter,
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
@@ -34,7 +34,6 @@ use crate::{
         MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
         RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
-    extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
     memory::{
         MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
@@ -128,7 +127,7 @@ pub fn public_router(state: SharedState) -> Router {
     public_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -166,7 +165,7 @@ pub fn combined_router(state: SharedState) -> Router {
         .merge(internal_routes())
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            apply_extensions,
+            authorize_request,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1042,16 +1041,6 @@ async fn track_http_metrics(
     let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
-    let client_location = state
-        .geoip
-        .as_ref()
-        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.locate(ip)));
-    let client_country = client_location
-        .as_ref()
-        .and_then(|location| location.country.clone());
-    let client_subdivision = client_location
-        .as_ref()
-        .and_then(|location| location.subdivision.clone());
 
     let request_span = tracing::info_span!(
         "http.request",
@@ -1060,19 +1049,11 @@ async fn track_http_metrics(
         http.request.method = %method,
         http.route = %route,
         url.path = %uri_path,
-        geo.country.iso_code = field::Empty,
-        geo.region.iso_code = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
-    if let Some(country) = client_country.as_deref() {
-        request_span.record("geo.country.iso_code", country);
-    }
-    if let Some(subdivision) = client_subdivision.as_deref() {
-        request_span.record("geo.region.iso_code", subdivision);
-    }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
 
@@ -1088,32 +1069,13 @@ async fn track_http_metrics(
             .runtime
             .record_public_request_latency(&state.metrics, "http", &route, elapsed);
     }
-    state
-        .metrics
-        .record_http(route, response.status(), client_country, elapsed);
+    state.metrics.record_http(route, response.status(), elapsed);
 
     response
 }
 
 fn is_public_load_route(route: &str) -> bool {
     !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
-}
-
-fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
-    if let Some(value) = headers.get("x-forwarded-for")
-        && let Ok(text) = value.to_str()
-        && let Some(first) = text.split(',').next()
-        && let Ok(ip) = first.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-    if let Some(value) = headers.get("x-real-ip")
-        && let Ok(text) = value.to_str()
-        && let Ok(ip) = text.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-    None
 }
 
 async fn reject_draining_public_requests(
@@ -1164,11 +1126,13 @@ async fn reject_overloaded_public_writes(
 
 /// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
 /// DELETE /_internal/replicate/namespace) when the pod is under Critical
-/// memory pressure. Without this guard the pod accepts the TCP connection
-/// but stalls while processing the body, and the source peer's read_timeout
-/// (30 s) fires — surfacing as a TimedOut that wedges the outbox for half
-/// a minute per attempt. Returning 503 lets the source retry immediately
-/// with its normal 2-second backoff. Reads (bootstrap, status) are unaffected.
+/// memory pressure. Without this guard the pod accepts the TCP connection but
+/// stalls while processing the body, so the source peer sees no progress and
+/// abandons the attempt only when its upload stall watchdog expires
+/// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
+/// receiver holding up a drain loop that is serial and node-wide. Returning
+/// 503 lets the source retry immediately with its normal 2-second backoff.
+/// Reads (bootstrap, status) are unaffected.
 async fn reject_overloaded_internal_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1203,15 +1167,15 @@ fn overloaded_response(message: &str) -> Response {
     response
 }
 
-async fn apply_extensions(State(state): State<SharedState>, req: Request, next: Next) -> Response {
-    let Some(extension) = state.extension.as_ref() else {
+async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+    let Some(auth) = state.auth.as_ref() else {
         return next.run(req).await;
     };
 
     let mut req = req;
     let route = request_route(&req);
     let path = req.uri().path().to_owned();
-    if should_skip_extension_route(&route) {
+    if skips_authorization(&route) {
         return next.run(req).await;
     }
 
@@ -1239,9 +1203,9 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         }
     }
 
-    let context = extension_context_from_http(
+    let context = request_context_from_http(
         &state,
-        HttpExtensionRequest {
+        HttpRequestFacts {
             route: &route,
             method: &method,
             path: &path,
@@ -1253,44 +1217,14 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
     )
     .await;
 
-    let principal = match extension.evaluate_access(&context).await {
-        AccessDecision::Allow(principal) => principal,
-        AccessDecision::Deny(deny) => {
-            return error_response(status_from_u16(deny.status), deny.message);
-        }
-    };
-
-    let mut response = next.run(req).await;
-
-    let response_context = extension_context_from_http(
-        &state,
-        HttpExtensionRequest {
-            route: &route,
-            method: &method,
-            path: &path,
-            query: &query,
-            headers: &request_headers,
-            body: request_body.as_deref(),
-            status_code: Some(response.status().as_u16()),
-        },
-    )
-    .await;
-    let headers = extension
-        .response_headers(&response_context, principal.as_ref())
-        .await;
-    for (name, value) in headers.headers {
-        if let (Ok(name), Ok(value)) = (
-            axum::http::header::HeaderName::try_from(name),
-            HeaderValue::from_str(&value),
-        ) {
-            response.headers_mut().insert(name, value);
-        }
+    if let AccessDecision::Deny(deny) = auth.evaluate_access(&context).await {
+        return error_response(status_from_u16(deny.status), deny.message);
     }
 
-    response
+    next.run(req).await
 }
 
-fn should_skip_extension_route(route: &str) -> bool {
+fn skips_authorization(route: &str) -> bool {
     is_probe_route(route) || route.starts_with("/_internal/")
 }
 
@@ -1305,11 +1239,11 @@ fn is_http1(version: Version) -> bool {
     matches!(version, Version::HTTP_10 | Version::HTTP_11)
 }
 
-async fn extension_context_from_http(
+async fn request_context_from_http(
     state: &SharedState,
-    request: HttpExtensionRequest<'_>,
-) -> ExtensionContext {
-    let metadata = http_extension_metadata(
+    request: HttpRequestFacts<'_>,
+) -> RequestContext {
+    let metadata = http_request_metadata(
         state,
         request.route,
         request.method,
@@ -1318,7 +1252,7 @@ async fn extension_context_from_http(
         request.body,
     )
     .await;
-    ExtensionContext {
+    RequestContext {
         transport: "http".into(),
         route: request.route.to_owned(),
         method: request.method.to_owned(),
@@ -1339,7 +1273,7 @@ async fn extension_context_from_http(
     }
 }
 
-struct HttpExtensionRequest<'a> {
+struct HttpRequestFacts<'a> {
     route: &'a str,
     method: &'a str,
     path: &'a str,
@@ -1349,7 +1283,7 @@ struct HttpExtensionRequest<'a> {
     status_code: Option<u16>,
 }
 
-struct HttpExtensionMetadata {
+struct HttpRequestMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
@@ -1358,20 +1292,20 @@ struct HttpExtensionMetadata {
     artifact_hash: Option<String>,
 }
 
-async fn http_extension_metadata(
+async fn http_request_metadata(
     state: &SharedState,
     route: &str,
     method: &str,
     path: &str,
     query: &HashMap<String, String>,
     request_body: Option<&[u8]>,
-) -> HttpExtensionMetadata {
+) -> HttpRequestMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
     let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
-        ROUTE_API_CACHE_KEYVALUE_ID => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE_ID => HttpRequestMetadata {
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
@@ -1379,7 +1313,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_KEYVALUE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE => HttpRequestMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
@@ -1392,7 +1326,7 @@ async fn http_extension_metadata(
                 .map(action_cache_key),
             artifact_hash: None,
         },
-        ROUTE_API_CACHE_CAS => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CAS => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -1405,7 +1339,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_GRADLE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_GRADLE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -1418,7 +1352,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
         },
-        ROUTE_API_CACHE_MODULE => HttpExtensionMetadata {
+        ROUTE_API_CACHE_MODULE => HttpRequestMetadata {
             operation: if method.eq_ignore_ascii_case("HEAD") || method.eq_ignore_ascii_case("GET")
             {
                 "artifact.read"
@@ -1458,7 +1392,7 @@ async fn http_extension_metadata(
                 .cloned()
                 .or_else(|| multipart_upload.map(|u| u.hash));
 
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
@@ -1467,7 +1401,7 @@ async fn http_extension_metadata(
                 artifact_hash,
             }
         }
-        ROUTE_API_CACHE_CLEAN => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CLEAN => HttpRequestMetadata {
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
@@ -1477,7 +1411,7 @@ async fn http_extension_metadata(
         },
         ROUTE_V1_CACHE => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -1493,7 +1427,7 @@ async fn http_extension_metadata(
         }
         ROUTE_API_METRO_CACHE => {
             namespace_id = Some(METRO_NAMESPACE_ID.into());
-            HttpExtensionMetadata {
+            HttpRequestMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
                 } else {
@@ -1507,7 +1441,7 @@ async fn http_extension_metadata(
                 artifact_hash: last_path_segment,
             }
         }
-        _ => HttpExtensionMetadata {
+        _ => HttpRequestMetadata {
             operation: "request".into(),
             tenant_id,
             namespace_id,
@@ -6885,7 +6819,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_resolves_namespace_from_multipart_upload() {
+    async fn request_context_resolves_namespace_from_multipart_upload() {
         let context = test_context(|_| {}).await;
         let upload_id = context
             .state
@@ -6895,9 +6829,9 @@ mod tests {
         let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
         let headers = BTreeMap::new();
 
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_MODULE_PART,
                 method: "POST",
                 path: ROUTE_API_CACHE_MODULE_PART,
@@ -6909,22 +6843,22 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
-        assert_eq!(extension_context.artifact_hash.as_deref(), Some("hash-1"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.artifact_hash.as_deref(), Some("hash-1"));
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("builds/hash-1/Module.framework")
         );
     }
 
     #[tokio::test]
-    async fn extension_context_uses_handle_aliases() {
+    async fn request_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/artifact-1",
@@ -6936,17 +6870,17 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id.as_deref(), Some("ios"));
     }
 
     #[tokio::test]
-    async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
+    async fn request_context_omits_namespace_for_tenant_scoped_requests() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_CAS,
                 method: "GET",
                 path: "/api/cache/cas/account-artifact",
@@ -6958,18 +6892,18 @@ mod tests {
         )
         .await;
 
-        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
-        assert_eq!(extension_context.namespace_id, None);
+        assert_eq!(request_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(request_context.namespace_id, None);
     }
 
     #[tokio::test]
-    async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
+    async fn request_context_uses_keyvalue_cas_id_from_request_body() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
         let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
-        let extension_context = extension_context_from_http(
+        let request_context = request_context_from_http(
             &context.state,
-            HttpExtensionRequest {
+            HttpRequestFacts {
                 route: ROUTE_API_CACHE_KEYVALUE,
                 method: "PUT",
                 path: ROUTE_API_CACHE_KEYVALUE,
@@ -6982,7 +6916,7 @@ mod tests {
         .await;
 
         assert_eq!(
-            extension_context.artifact_key.as_deref(),
+            request_context.artifact_key.as_deref(),
             Some("action_cache/cas-1")
         );
     }
@@ -7179,66 +7113,5 @@ mod tests {
                 body: body.to_vec(),
             });
         StatusCode::ACCEPTED
-    }
-
-    mod client_ip {
-        use axum::http::{HeaderMap, HeaderValue};
-
-        use super::super::client_ip_from_headers;
-
-        #[test]
-        fn returns_first_hop_from_x_forwarded_for() {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "x-forwarded-for",
-                HeaderValue::from_static("203.0.113.5, 10.0.0.1, 198.51.100.7"),
-            );
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("first hop should parse")
-                    .to_string(),
-                "203.0.113.5"
-            );
-        }
-
-        #[test]
-        fn trims_surrounding_whitespace_in_x_forwarded_for() {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "x-forwarded-for",
-                HeaderValue::from_static("  203.0.113.5  , 10.0.0.1"),
-            );
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("trimmed first hop should parse")
-                    .to_string(),
-                "203.0.113.5"
-            );
-        }
-
-        #[test]
-        fn falls_back_to_x_real_ip_when_x_forwarded_for_is_missing() {
-            let mut headers = HeaderMap::new();
-            headers.insert("x-real-ip", HeaderValue::from_static("198.51.100.7"));
-            assert_eq!(
-                client_ip_from_headers(&headers)
-                    .expect("x-real-ip should parse")
-                    .to_string(),
-                "198.51.100.7"
-            );
-        }
-
-        #[test]
-        fn returns_none_when_no_address_headers_are_present() {
-            let headers = HeaderMap::new();
-            assert!(client_ip_from_headers(&headers).is_none());
-        }
-
-        #[test]
-        fn returns_none_when_first_hop_is_malformed() {
-            let mut headers = HeaderMap::new();
-            headers.insert("x-forwarded-for", HeaderValue::from_static("not-an-ip"));
-            assert!(client_ip_from_headers(&headers).is_none());
-        }
     }
 }

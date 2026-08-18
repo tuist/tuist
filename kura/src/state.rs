@@ -18,12 +18,11 @@ use tracing::{info, warn};
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
-    extension::SharedExtension,
-    geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -46,13 +45,15 @@ pub struct AppState {
     pub snapshot_cache: Arc<SnapshotCache>,
     pub metrics: Metrics,
     pub runtime: Arc<RuntimeState>,
-    pub extension: Option<SharedExtension>,
+    pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
-    pub geoip: Option<GeoIp>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
     pub client: ArcSwap<Client>,
+    /// Peer client for streaming request bodies (outbox artifact PUTs): no
+    /// read timeout, paired with the caller's byte-progress stall watchdog.
+    pub upload_client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
     // The inbound internal mTLS server config, retained so cert rotation can
     // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
@@ -147,6 +148,11 @@ impl AppState {
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
+    }
+
+    /// The current outbound peer upload client (picks up rotated certs).
+    pub fn upload_client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.upload_client.load()
     }
 
     /// The bootstrap fetch gate for an artifact. Striped by artifact id so

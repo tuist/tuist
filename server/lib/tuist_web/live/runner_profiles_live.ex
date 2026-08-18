@@ -350,17 +350,22 @@ defmodule TuistWeb.RunnerProfilesLive do
     ]
 
   @doc """
-  Operating system + version the runner image for `platform` ships.
-  Surfaces in the form as a static (non-editable) field so customers
-  know exactly what their workflows execute against — even before the
-  catalog supports multiple OS versions per platform.
+  Operating system the runner image for `platform` ships. Surfaces in
+  the form as a static (non-editable) field so customers know what
+  their workflows execute against.
 
-  Hardcoded today: the runner-image Dockerfile / Packer template pins
-  one OS per platform. When future shape diversity ships, this moves
-  into the chart's per-shape OS catalog.
+  Named at whatever granularity the image actually holds still.
+  Linux pins an exact release (the runner Dockerfile is `FROM
+  ubuntu:22.04`), so the label states it. macOS cannot: the image
+  builds on a floating Tahoe base and the Mac minis hosting it adopt
+  on the family rather than a point release, both by design — Scaleway
+  retires point releases without notice, and pinning one stranded the
+  staging fleet in Aug 2026. So the macOS label names the family only.
+  Claiming a point release here would be telling customers something
+  we don't actually guarantee.
   """
   def os_label_for_form("linux"), do: dgettext("dashboard_runners", "Ubuntu 22.04 LTS")
-  def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe 26.3")
+  def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe")
   def os_label_for_form(_), do: ""
 
   @doc """

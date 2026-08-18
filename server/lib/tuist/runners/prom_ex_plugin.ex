@@ -195,6 +195,22 @@ defmodule Tuist.Runners.PromExPlugin do
             reporter_options: [buckets: @dispatch_duration_buckets],
             tags: [:fleet, :outcome],
             unit: {:native, :millisecond}
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :affinity, :count],
+            event_name: Telemetry.event_name_dispatch_affinity(),
+            measurement: :count,
+            description:
+              "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
+                "One sample per COMMITTED dispatch, so it shares a denominator with the hosts' " <>
+                "materialize counter. `resident` (a likely-resident account's job was preferred) " <>
+                "and `head_resident` are the warm placements; `no_resident_candidate` means " <>
+                "nothing queued matched the node's masters, `head_overdue` means the starvation " <>
+                "bound took precedence, `no_residency` means the node has no recorded masters " <>
+                "yet, and `untrusted` means a fork job the host runs cold by design. A resident " <>
+                "share that tracks the hosts' warm materialize share means the model matches " <>
+                "reality.",
+            tags: [:fleet, :outcome]
           )
         ]
       ),
@@ -231,6 +247,25 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :count,
             description: "Stale or orphaned rows recovered by the recovery workers, by kind.",
             tags: [:kind]
+          ),
+          # Only the orphan re-queue carries `stranded_ms`, so this fires
+          # for that recovery alone even though every worker shares the
+          # event — a measurement key absent from the event is skipped.
+          # This is the ONLY series that sees a job dispatched to a runner
+          # that never registered: the row is `running` for the whole
+          # stall, so `queue_length` and `queue_oldest_age_seconds` both
+          # read zero while the customer watches "waiting for a runner".
+          # Its `_count` doubles as the per-fleet strand rate, which is why
+          # the shared counter above is left untagged.
+          distribution(
+            @metric_prefix ++ [:recovery, :stranded, :time, :milliseconds],
+            event_name: Telemetry.event_name_recovery(),
+            measurement: :stranded_ms,
+            description:
+              "Time a workflow_job sat claimed by a runner that never registered with GitHub, until recovery re-queued it.",
+            reporter_options: [buckets: @long_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
           )
         ]
       )

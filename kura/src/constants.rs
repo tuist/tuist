@@ -26,6 +26,20 @@ pub const MAX_DESIRED_SEGMENTS: usize = 16_384;
 pub const REPLICATION_RETRY_SECS: u64 = 2;
 pub const REPLICATION_BACKOFF_BASE_SECS: u64 = 2;
 pub const REPLICATION_BACKOFF_MAX_SECS: u64 = 60;
+// How long an outbox artifact upload may go without producing another body
+// chunk before the attempt is abandoned. Chunk production tracks socket
+// progress (the next chunk is pulled only when the transport accepts bytes),
+// and the body stream re-arms the window when it terminates, so the response
+// wait gets one whole window of its own — the receiver still has to copy the
+// staged body into a segment and fsync it under a node-wide lock before it
+// answers. A stalled receiver therefore fails fast while a slow-but-
+// progressing transfer of any size completes. The upload client itself
+// carries no read timeout: the response side is silent for the whole upload,
+// so a read timeout there is a hard ceiling on total upload time and
+// permanently strands large artifacts. Tunable per node with
+// KURA_REPLICATION_UPLOAD_STALL_MS, since this is now the only deadline on
+// the path.
+pub const DEFAULT_REPLICATION_UPLOAD_STALL_MS: u64 = 60_000;
 pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 

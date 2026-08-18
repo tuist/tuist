@@ -16,7 +16,7 @@ mod reservation;
 
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
-    container_memory_snapshot,
+    container_memory_protection, container_memory_snapshot,
 };
 pub use pressure::MemoryPressure;
 pub use reservation::{
@@ -80,20 +80,6 @@ struct MemoryControllerInner {
     forced_pressure: Option<MemoryPressure>,
     container_accounting_selected: AtomicBool,
     reclaim_file_cache: AtomicBool,
-    /// Set while the raw cgroup charge (`memory.current`, which includes clean
-    /// file cache) sits at or above the hard watermark. Background work must
-    /// stop in that state because the charge counts against the container limit
-    /// until the kernel actually reclaims it, but it is deliberately kept out of
-    /// the global pressure tier: a warm serving node parks clean artifact pages
-    /// there as a matter of course, and denying foreground admission for that
-    /// would shed customer reads that cost no additional memory.
-    ///
-    /// Replication delivery is the one exception — it drains through this state
-    /// (see `replication::outbox_task_loop`). This arm combined with a
-    /// non-critical tier is precisely where writes are still admitted while the
-    /// drain is held, so stopping it here is what walks the outbox into its
-    /// depth cap and turns memory pressure into rejected cache writes.
-    container_at_hard_limit: AtomicBool,
     working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
@@ -119,6 +105,30 @@ impl MemoryController {
         )
     }
 
+    /// Sizes the anonymous-admission budget from `anon_budget_bytes` (derived
+    /// from the pod's memory floor) instead of from the ceiling. `None` keeps
+    /// the ceiling-derived sizing, which is what a deployment with no published
+    /// floor gets.
+    pub fn with_anon_budget(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        anon_budget_bytes: Option<u64>,
+    ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+            anon_budget_bytes,
+        )
+    }
+
+    /// Ceiling-derived sizing with no published floor. Production goes through
+    /// `with_anon_budget`, which passes `None` for the same effect.
+    #[cfg(test)]
     pub fn with_runtime_limit(
         metrics: Metrics,
         runtime_limit_bytes: u64,
@@ -131,6 +141,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             forced_memory_pressure_for_tests(),
+            None,
         )
     }
 
@@ -154,6 +165,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             Some(forced),
+            None,
         )
     }
 
@@ -163,10 +175,16 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
         forced_pressure: Option<MemoryPressure>,
+        anon_budget_bytes: Option<u64>,
     ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
-        let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
+        let pools = MemoryPools::new(
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            anon_budget_bytes,
+        );
         metrics.update_response_stream_pool_capacity(
             pools.response_streaming_bytes(),
             pools.foreground_response_streaming_bytes(),
@@ -180,7 +198,6 @@ impl MemoryController {
                 forced_pressure,
                 container_accounting_selected: AtomicBool::new(false),
                 reclaim_file_cache: AtomicBool::new(false),
-                container_at_hard_limit: AtomicBool::new(false),
                 working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
@@ -259,29 +276,19 @@ impl MemoryController {
             working_set_reclaim || sample.current_bytes >= self.inner.hard_limit_bytes,
             Ordering::Relaxed,
         );
-        // `memory.current` is charged against the control-group limit even when
-        // most of it is clean file cache. Reclaim alone is not enough once it
-        // reaches the hard watermark: a concurrent bootstrap or database write
-        // can consume the remaining headroom before the kernel reclaims it.
-        // Close every background admission gate on that condition so the node
-        // stops adding charge before the kernel has to kill the process.
-        //
-        // This deliberately does not move the global pressure tier. That tier
-        // also gates foreground admission (public reads and writes, REAPI, and
-        // response-stream reservations), and a warm serving node holds clean
-        // artifact pages at the hard watermark as its normal steady state.
-        // Folding the raw charge into the tier sheds customer traffic that a
-        // single reclaim would have made room for. The tier stays driven by
-        // `pressure_bytes`, which already excludes clean file cache.
-        let at_hard_limit = sample.current_bytes >= self.inner.hard_limit_bytes;
-        if self
-            .inner
-            .container_at_hard_limit
-            .swap(at_hard_limit, Ordering::Release)
-            != at_hard_limit
-        {
-            self.inner.pressure_changed.notify_waiters();
-        }
+        // The raw charge deliberately stops at `reclaim_file_cache` above and
+        // never reaches an admission gate. `memory.current` counts clean file
+        // cache, which on a warm serving node parks at the hard watermark as
+        // its steady state — the kernel reclaims it only under allocation
+        // demand and only as much as the allocation needs, so a raw-charge
+        // admission gate closes shortly after boot and never reopens (#12174's
+        // arm, latched; see the backfill and segment-refresh stalls it
+        // caused). Admission everywhere follows the pressure tier instead,
+        // driven by `pressure_bytes`: the memory that can actually kill the
+        // container (anon, unreclaimable kernel charge, shmem, sock, dirty and
+        // writeback pages). An allocation admitted against a charge-full but
+        // reclaimable cgroup forces the kernel to hand clean cache back, which
+        // trades cache warmth for progress, not safety.
         self.observe(sample.pressure_bytes)
     }
 
@@ -308,20 +315,21 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
-    /// True while the raw cgroup charge sits at or above the hard watermark.
-    /// Background gates consult this alongside the pressure tier; foreground
-    /// admission deliberately does not, because the charge is dominated by
-    /// reclaimable clean file cache on a warm serving node.
-    pub fn container_at_hard_limit(&self) -> bool {
-        self.inner.container_at_hard_limit.load(Ordering::Acquire)
-    }
+    // Every admission gate below follows the pressure tier alone. The raw
+    // cgroup charge (`memory.current`) is deliberately not consulted: it is
+    // dominated by reclaimable clean file cache on a warm serving node, sits
+    // at the hard watermark as steady state, and only recedes under
+    // allocation demand — a gate on it is a latch, not a gate (see
+    // `observe_container`). The raw charge still drives `reclaim_file_cache`,
+    // which selects a serving mode (drop-behind, mmap denial) rather than
+    // blocking work.
 
     pub fn allow_manifest_cache_admission(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
+        self.pressure() == MemoryPressure::Normal
     }
 
     pub fn allow_segment_refresh(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
+        self.pressure() == MemoryPressure::Normal
     }
 
     /// Gates the *usage* (metering) outbox only. Replication delivery is
@@ -331,11 +339,11 @@ impl MemoryController {
     /// availability one. Metering has no such feedback — a delayed usage batch
     /// costs nothing but freshness — so it stays sheddable.
     pub fn pause_usage_outbox(&self) -> bool {
-        self.pressure() == MemoryPressure::Critical || self.container_at_hard_limit()
+        self.pressure() == MemoryPressure::Critical
     }
 
     pub fn allow_background_admission(&self) -> bool {
-        self.pressure() == MemoryPressure::Normal && !self.container_at_hard_limit()
+        self.pressure() == MemoryPressure::Normal
     }
 
     pub async fn wait_for_background_headroom(&self) {
@@ -1005,7 +1013,7 @@ mod tests {
     }
 
     #[test]
-    fn clean_file_cache_at_the_hard_limit_closes_background_admission() {
+    fn clean_file_cache_at_the_hard_limit_keeps_admission_open() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
@@ -1018,17 +1026,20 @@ mod tests {
                 limit_bytes: Some(240),
             }),
             // The tier follows `pressure_bytes`, which excludes the clean file
-            // cache making up the bulk of the charge, so foreground admission
-            // stays open and public reads keep being served.
+            // cache making up the bulk of the charge. The raw charge parks at
+            // the hard watermark for the life of a warm node and the kernel
+            // reclaims it only under allocation demand, so a raw-charge gate
+            // would latch closed here and never reopen. Admission — foreground
+            // and background alike — must stay open; the raw charge only
+            // switches serving into drop-behind mode.
             MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_none());
-        assert!(controller.container_at_hard_limit());
-        assert!(!controller.allow_background_admission());
-        assert!(!controller.allow_segment_refresh());
-        assert!(!controller.allow_manifest_cache_admission());
-        assert!(controller.pause_usage_outbox());
+        assert!(controller.allow_background_admission());
+        assert!(controller.allow_segment_refresh());
+        assert!(controller.allow_manifest_cache_admission());
+        assert!(!controller.pause_usage_outbox());
         assert!(
             controller.allow_transient_admission(AdmissionClass::Foreground),
             "clean file cache at the hard watermark must not shed public reads"
@@ -1046,7 +1057,6 @@ mod tests {
         );
         assert!(!controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_some());
-        assert!(!controller.container_at_hard_limit());
         assert!(controller.allow_background_admission());
     }
 
@@ -1098,15 +1108,12 @@ mod tests {
     }
 
     #[test]
-    fn raw_hard_limit_closes_background_admission_without_hysteresis() {
+    fn admission_follows_the_tier_not_the_raw_charge() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
-        // Container charge at the hard watermark with a low working set must stop
-        // background work immediately. Clean file cache is reclaimable, but it is
-        // still charged against the hard container limit until that reclaim happens.
-        // Foreground serving is left alone: the working set is far below the soft
-        // watermark, so the charge is page cache the kernel can hand back.
+        // Raw charge at the watermark with a low non-reclaimable figure is a
+        // warm node, not an overload: every gate stays open.
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
                 current_bytes: 200,
@@ -1118,33 +1125,114 @@ mod tests {
             MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
-        assert!(controller.container_at_hard_limit());
-        assert!(!controller.allow_background_admission());
+        assert!(controller.allow_background_admission());
         assert!(controller.allow_transient_admission(AdmissionClass::Foreground));
 
-        // The raw arm is un-hysteresed: dropping back below the watermark reopens
-        // background work on the next sample.
+        // Non-reclaimable growth moves the tier, and the tier — not the raw
+        // charge — is what closes background admission. This is the memory
+        // that can actually kill the container.
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
-                current_bytes: 150,
+                current_bytes: 200,
+                pressure_bytes: 150,
+                working_set_bytes: 160,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Constrained
+        );
+        assert!(!controller.allow_background_admission());
+        assert!(!controller.allow_segment_refresh());
+        assert!(!controller.allow_manifest_cache_admission());
+        assert!(!controller.pause_usage_outbox());
+        assert!(controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // Critical is what pauses the usage outbox.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 230,
+                pressure_bytes: 220,
+                working_set_bytes: 225,
+                reclaimable_inactive_file_bytes: 5,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Critical
+        );
+        assert!(controller.pause_usage_outbox());
+        assert!(!controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // Recovery reopens the gates through the tier's own hysteresis; the
+        // raw charge still at the watermark does not hold them closed.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 200,
                 pressure_bytes: 40,
                 working_set_bytes: 40,
-                reclaimable_inactive_file_bytes: 110,
+                reclaimable_inactive_file_bytes: 160,
                 limit_bytes: Some(240),
             }),
             MemoryPressure::Normal
         );
-        assert!(!controller.container_at_hard_limit());
         assert!(controller.allow_background_admission());
+        assert!(!controller.pause_usage_outbox());
     }
 
     #[test]
-    fn a_warm_serving_node_keeps_admitting_public_reads_with_page_cache_at_the_limit() {
+    fn the_anon_budget_bounds_transient_admission_below_the_ceiling_headroom() {
+        // A 4Gi ceiling gives 1Gi of ceiling-derived headroom, but anon above the
+        // pod's floor is memory the kernel can only OOM-kill, so a published
+        // floor has to win. The floor-to-ceiling gap stays available to page
+        // cache and mmap-served segments, which reclaim instead.
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let ceiling_headroom = (hard_limit - soft_limit) as usize;
+
+        let unbounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            None,
+        );
+        assert_eq!(
+            unbounded.transient_capacity_bytes(),
+            ceiling_headroom as u64
+        );
+
+        let anon_budget = 600 * 1024 * 1024_u64;
+        let bounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(anon_budget),
+        );
+        assert_eq!(bounded.transient_capacity_bytes(), anon_budget);
+        assert!(bounded.transient_capacity_bytes() < unbounded.transient_capacity_bytes());
+
+        // A floor roomier than the ceiling allows cannot inflate the budget past
+        // what the ceiling can actually hold.
+        let generous = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(runtime_limit * 4),
+        );
+        assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
+    }
+
+    #[test]
+    fn a_warm_serving_node_keeps_admitting_reads_and_background_work_at_the_limit() {
         // Mirrors a production 2 GiB cache node: the cgroup charge sits just over
         // the 85% hard watermark because the kernel is holding clean artifact
         // pages, while the real working set is a small fraction of the limit.
-        // This is the steady state of a warm node, not an overload, and it must
-        // not shed reads.
+        // This is the steady state of a warm node, not an overload. It must not
+        // shed reads, and it must not latch background work closed either — the
+        // charge never recedes voluntarily, so a raw-charge background gate
+        // starved backfill, segment refresh, and the usage outbox for the life
+        // of the process.
         let metrics = Metrics::new("us-east".into(), "tenant".into());
         let runtime_limit = 2 * 1024 * 1024 * 1024_u64;
         let soft_limit = runtime_limit * 60 / 100;
@@ -1162,9 +1250,10 @@ mod tests {
             }),
             MemoryPressure::Normal
         );
-        assert!(controller.container_at_hard_limit());
         assert!(controller.should_reclaim_file_cache());
-        assert!(!controller.allow_background_admission());
+        assert!(controller.allow_background_admission());
+        assert!(controller.allow_segment_refresh());
+        assert!(!controller.pause_usage_outbox());
         assert!(
             controller
                 .try_acquire_response_stream_memory(

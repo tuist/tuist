@@ -79,13 +79,25 @@ Beyond first bootstrap, a drift loop re-pushes host config to already-Ready
 hosts when the operator's `bootstrap.HostConfigHash` differs from the
 Machine's `Status.HostConfigHash`. That hash is a fleet-wide fingerprint over
 everything the operator pushes — the rendered install scripts plus the
-embedded binaries (tart-kubelet, tailscale, node_exporter) — computed once at
+embedded binaries (tart-kubelet, tailscale, node_exporter, tuist-log-shipper) — computed once at
 startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
 tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
-survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
-`Status.FailureReason` is cleared.
+survive `UpdateTartKubelet`).
+
+Terminal-failed CRs are excluded from the drift loop, but the exclusion
+expires. It lifts on either a new `HostConfigHash` (compared against
+`Status.FailedHostConfigHash`, not the last-applied one — a broken config never
+becomes the applied one) or `--tartkubelet-terminal-retry-after` elapsing since
+`Status.LastUpdateFailureTime` (default 30m). The cooldown exists because the
+hash exit only covers a host that REJECTED the config, while most terminal
+failures are a host the operator could not reach (`dial tcp ...:22: i/o
+timeout`). Those used to stay terminal indefinitely — Ready, schedulable, still
+running jobs — pinned to whatever config was last pushed, so a fleet-wide fix
+could roll and silently miss them. A persistently-broken config still backs off
+to one attempt budget per cooldown rather than per reconcile, so the retry cap
+keeps doing its job.
 
 The drift re-push dials the mini's **public IP first, then falls back to the
 tailnet**. Once a runner mini starts booting Tart VMs its Internet Sharing /
@@ -107,8 +119,76 @@ the operator) never touch the tailnet path, and by the time a mini's public
 path is filtered its egress Service has long existed. cfg.IP is a pure dial
 target on the update path (HostConfigHash strips it), so the fallback re-points
 it without changing what's pushed; the whole transport is controller-side only,
-so `HostConfigHash` is unchanged and already-terminal CRs still need
-`Status.FailureReason` cleared to retry.
+so `HostConfigHash` is unchanged and an already-terminal CR only retries once
+its cooldown elapses (or `Status.FailureReason` is cleared by hand).
+
+### Host observability
+
+Two agents ride the operator image onto every mini, both installed by
+`macos-host-bootstrap` and both re-pushed by the drift loop (their bytes are in
+`HostConfigHash`, so forgetting to thread one through `UpdateTartKubelet` makes
+it silently skip on every roll — which is exactly what happened to
+`node_exporter` once).
+
+They travel in opposite directions, and the asymmetry is not a preference:
+
+- **`node_exporter`** is *pulled*. `alloy-metrics` dials `:9100` through the
+  Tailscale operator's egress ProxyGroup. It binds the tailnet IP specifically
+  so it is never exposed on the mini's public interface.
+- **`tuist-log-shipper`** ([`infra/macos-log-shipper`](../macos-log-shipper))
+  is *pushed*. A file has no scrapeable surface, and nothing in the cluster can
+  tail one on a macOS host: a Pod on a macOS Node is a Tart VM, so a
+  DaemonSet-shaped collector sees a guest filesystem, not the host's. It tails
+  `/var/log/tart-kubelet.log` — the launchd sink for everything the reconciler,
+  node agent and volume manager log — and POSTs to the in-cluster Alloy
+  receiver's `loki.source.api` over the tailnet, so no Grafana Cloud credential
+  is distributed to the fleet. Query `{job="tuist-macos-tart-kubelet"}`.
+
+Both are gated on Tailscale being wired, for mirrored reasons: without a
+tailnet, the pull agent would have to listen somewhere public, and the push
+agent has no route to its target at all.
+
+### SSH ingress guard
+
+Both dial paths land on the same listener, so both fail together. A Scaleway
+Mac mini's public interface is internet-facing and its `:22` absorbs continuous
+SSH brute-force traffic; several hundred half-open connections from scanner
+ranges sit in `SYN_RCVD`, past `SOMAXCONN`, and the kernel drops every new SYN.
+launchd (not sshd) owns that socket and binds it to `*:22`, so an exhausted
+backlog blocks the tailnet fallback exactly as hard as the public path. That is
+how a host stops accepting config pushes on every path at once and drifts on a
+stale tart-kubelet until someone consoles in over VNC.
+
+`installSSHIngressGuard` (bootstrap + drift, right after `installTailscale`)
+drops inbound `:22` at the pf edge from everything except the tailnet
+(`100.64.0.0/10`), loopback, `--ssh-ingress-allow-cidrs`, and the live session's
+own source address. Notes:
+
+- It runs *after* Tailscale so it never narrows `:22` before the fallback path
+  exists, and it no-ops entirely when Tailscale isn't wired: without a second
+  path, a wrong allow list strands the host behind VNC.
+- The rules live in the `com.apple/tuist.sshguard` sub-anchor, the same trick
+  `renderVMNATScript` uses. A top-level `anchor` appended to `/etc/pf.conf` is
+  only read on a full ruleset load (i.e. at boot), so on a running host
+  `pfctl -a` would populate an anchor nothing evaluates while the drift update
+  stamped `HostConfigHash` as converged: the guard would report shipped and
+  filter nothing until a reboot. The stock pf.conf already carries
+  `anchor "com.apple/*"`, so a sub-anchor under it is live the moment it is
+  written. Nothing here edits `/etc/pf.conf`, and a test asserts that.
+  `dev.tuist.pfctl-sshguard` re-loads the anchor file at boot and every 60s, so
+  the rules survive a reboot or an external flush with no SSH round trip.
+- Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
+  probe reads as a permanent wedge and reloads ssh every minute.
+- Folding the live session's source into the table makes the guard
+  self-correcting: if the operator's egress address changes and the configured
+  list goes stale, the public dial is dropped, the drift loop falls back to the
+  tailnet, and that push rewrites the table with the new address.
+- Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
+  public path usable, since a tailnet-transported roll can't update Tailscale
+  itself (`SkipTailscaleInstall`, above).
+- The host-side backlog drain alone can't fix this. It clears a queue the flood
+  refills within seconds, which is why hosts stayed wedged for weeks with the
+  watchdog installed and firing.
 
 Two auxiliary controllers run alongside it:
 
@@ -161,15 +241,102 @@ infra/cluster-api-provider-tuist/
 ├── cmd/manager/    # controller-manager entry point
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
-├── Dockerfile
+├── Dockerfile      # cross-builds the darwin/arm64 host artifacts (tart-kubelet,
+│                   # tuist-log-shipper, tailscale) alongside the linux manager
 └── AGENTS.md (this file)
 ```
 
 CRDs live in [`infra/helm/tuist/crds/`](../helm/tuist/crds/) so Helm
-installs them automatically on first `helm install` (Helm 3 ignores
-the `crds/` directory on upgrades, which is what we want — CRD
-schema changes go through a deliberate `kubectl apply` rather than
-piggybacking on routine deploys).
+installs them on first `helm install`. Helm 3 skips that directory on
+upgrades, so the deploy workflow re-applies it every run
+(`kubectl apply -f "$HELM_CHART_PATH/crds/"` in
+[`server-deployment.yml`](../../.github/workflows/server-deployment.yml)) —
+schema changes ship with the deploy that carries them, no operator step.
+
+A schema change is therefore a live change to what the apiserver accepts,
+including for the CRs **CAPI clones on its own**. Adding a required field
+to a machine spec makes every MachineTemplate that predates it un-clonable,
+which surfaces as `InfrastructureTemplateCloningFailed` on the next
+MachineSet scale-up rather than at deploy time — and Helm does not backfill
+the field onto a live template (it patches these CRs manifest-to-manifest,
+so a field the live object never received is never added). Prefer an
+optional field with a controller-side default over a required one.
+
+## Node extended resources
+
+The Linux machine controllers patch two integer extended resources onto the
+Nodes they own (`controllers/shared/node_egress.go`, `node_memory.go`), both
+re-applied every reconcile so a kubelet re-registration that resets status
+cannot strand them. Each exists because the scheduler's native bin-pack cannot
+see the quantity in question:
+
+- `tuist.dev/egress-mbps` — the box's NIC budget, which Kubernetes has no
+  concept of. Taken from the machine's `EgressBudgetMbps`.
+- `tuist.dev/memory-ceiling-mib` — a bounded multiple
+  (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
+  Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
+  oversubscribe the box while `requests.memory` only bin-packs the floors. This
+  is what bounds that overlap, keeping the worst case within what kernel reclaim
+  can absorb instead of what the OOM killer has to resolve.
+
+Consumers request the matching resource with request == limit (extended
+resources are integer and non-overcommittable). A pod that requests one on a
+node that does not advertise it never schedules, which is why both are opt-in
+on the consumer side.
+
+## Node memory governance
+
+`kubeletMemoryGovernanceBlock` in `controllers/linux/linux_cloudinit.go` carries
+three settings that only make sense together. Read that constant's comment for
+the per-setting reasoning; what matters here is the ordering between them and
+how they reach a running node.
+
+1. **`systemReserved` / `kubeReserved`** carve the daemons that live outside any
+   pod out of allocatable. This has to come first: MemoryQoS derives its
+   protection from pod *requests*, so with allocatable equal to capacity the
+   scheduler can promise pods the whole box and the protection would then
+   squeeze the kubelet itself.
+2. **`evictionHard`** raises `memory.available` off the 100Mi default. On a
+   31GiB box that default leaves so little margin that the kernel OOM killer
+   usually beats the eviction manager, turning contention into a SIGKILL
+   mid-transfer rather than an evicted pod with an event. It **replaces** the
+   kubelet defaults rather than merging, so all four signals are restated.
+3. **`MemoryQoS`** (alpha, off by default upstream — enabled here deliberately)
+   maps requests onto cgroup v2 `memory.min` / `memory.low`, which is what makes
+   the memory floor kernel-enforced instead of advisory. `memoryThrottlingFactor`
+   is pinned to `1.0` so `memory.high` sits at the limit: the default 0.9 would
+   throttle on `memory.current`, which counts the clean artifact page cache a
+   warm cache node is supposed to hold.
+
+**This is version-dependent, and the fleet is on v1.34.** There, MemoryQoS sets
+`memory.min` from requests for Burstable containers too, so a cache pod's floor
+is hard, unreclaimable protection. That is safe only because the reservations
+land first: `memory.min` is memory the kernel may not reclaim, so it OOMs rather
+than reclaims once the protected total approaches capacity. The
+`sum(requests) <= allocatable` invariant with allocatable properly reserved is
+what keeps the protected total clear of the box.
+
+**Upgrading to v1.36+ silently disables it.** v1.36 splits protection out into a
+new `memoryReservationPolicy` field defaulting to `None`, and retiers it so
+`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods the
+softer `memory.low`. With this config unchanged on v1.36 the result is no
+protection at all and no throttling either (the factor is pinned to 1.0) — a
+silent no-op, not a visible failure. Set `memoryReservationPolicy:
+TieredReservation` as part of the version bump, never before it: an unknown
+field fails KubeletConfiguration's strict decode and the kubelet will not start.
+The same warning sits on `linuxCloudInitOptions.K8sMinor`, which is what an
+upgrade actually edits.
+
+**Propagation.** `desiredKubeletConfigHash` fingerprints the rendered config, so
+any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
+node and restarts its kubelet — no machine roll, and running pods survive (the
+re-push never touches containerd, apt, or the `/data` mounts), but it lands on
+all three Linux fleets at once. Prefer a low-traffic window.
+
+**Rollback is not symmetric.** Turning `MemoryQoS` back off does not reliably
+clear the `memory.min` / `memory.low` values already written to existing cgroups
+(kubernetes/kubernetes#138436), so a node may need a kubelet restart or reboot to
+fully shed them. Budget for that rather than assuming a revert is instant.
 
 ## Operator UX: one Secret in 1Password
 
@@ -340,12 +507,51 @@ kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
 CAPI core picks the most-recently-created Machines for deletion. The
 controller renames the host back into the pool namespace
-(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall; the
-host stays alive, returns to factory-default state, and becomes
-eligible for the next adoption once Scaleway flips it back to
-`Delivered + Ready`. The 24h Apple licensing floor stays in
-operator-owned territory — you keep paying for capacity you already
-pre-ordered until you decide to release it via the Scaleway console.
+(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall onto the
+Machine's own `spec.os`; the host stays alive, returns to
+factory-default state, and becomes eligible for the next adoption
+once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
+licensing floor stays in operator-owned territory — you keep paying
+for capacity you already pre-ordered until you decide to release it
+via the Scaleway console.
+
+`spec.os` names a macOS release **family** — `Tahoe`, `Sequoia`,
+`Sonoma` — not a point release. Adoption accepts any pool host in the
+family, and release reinstalls onto the family's newest published
+image the host's SKU can boot, so a fleet tracks Scaleway's point
+releases instead of chasing them.
+
+Do not put an image name there. Scaleway retires point releases
+without notice and reimages released hosts onto the server type's
+current default, so an exact pin drifts out from under its fleet and
+nothing in the pool can satisfy it again — staging lost its whole
+runner pool that way in Aug 2026 while pinned to `macos-tahoe-26.3`.
+Adoption therefore refuses a versioned pin outright with an
+`InvalidOSPin` condition rather than quietly widening it. The values
+to set are
+`{macosFleet,runnersFleet,buildersFleet}.machine.os`; `OnDelete`
+means live hosts are not churned by the change.
+
+### A Machine stuck on `InvalidOSPin`
+
+The pin lives on each Machine's own spec, cloned from the template at
+creation and never re-synced, so a Machine created before the family
+switch keeps its versioned pin. That is inert while it holds a host,
+but the moment it goes hostless — bootstrap exhaustion releases the
+host and leaves the Machine hostless, or it was already pending — its
+next adoption is refused and it loops on `InvalidOSPin` every 5
+minutes. Editing the fleet's values does nothing for it: the template
+is already correct.
+
+```bash
+kubectl delete machine <machine-name>
+```
+
+The MachineSet re-clones from the current template and the
+replacement carries the family. Safe when the Machine holds no host
+(`status.serverID` empty) — there is nothing to release. Patching
+`spec.os` to the family on the existing CR works too and skips the
+re-clone.
 
 ### Replace a wedged host
 ```bash

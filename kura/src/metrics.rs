@@ -31,7 +31,6 @@ pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
-    http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
@@ -129,11 +128,11 @@ pub struct Metrics {
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
-    extension_hooks: Family<ExtensionHookLabels, Counter>,
-    extension_hook_duration: Family<ExtensionHookRouteLabels, Histogram>,
-    extension_cache: Family<ExtensionCacheLabels, Counter>,
-    extension_http_client_requests: Family<ExtensionHttpClientLabels, Counter>,
-    extension_http_client_duration: Family<ExtensionHttpClientRouteLabels, Histogram>,
+    auth_decisions: Family<AuthDecisionLabels, Counter>,
+    auth_decision_duration: Family<AuthDecisionStageLabels, Histogram>,
+    auth_cache: Family<AuthCacheLabels, Counter>,
+    auth_backend_requests: Family<AuthBackendLabels, Counter>,
+    auth_backend_duration: Family<AuthBackendRouteLabels, Histogram>,
     process_resident_memory_bytes: Gauge,
     process_resident_anon_bytes: Gauge,
     process_resident_file_bytes: Gauge,
@@ -167,6 +166,8 @@ pub struct Metrics {
     memory_pressure_state: Gauge,
     memory_soft_limit_bytes: Gauge,
     memory_hard_limit_bytes: Gauge,
+    memory_protection_min_bytes: Gauge,
+    memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
@@ -187,7 +188,6 @@ pub struct Metrics {
     snapshot_cache_entries: Gauge,
     snapshot_cache_nodes: Gauge,
     snapshot_cache_served_full_bytes: Gauge,
-    geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
@@ -220,7 +220,6 @@ impl Metrics {
         let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
-        let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let internal_backfill_request_duration =
             Family::<InternalBackfillRouteLabels, Histogram>::new_with_constructor(|| {
@@ -340,16 +339,15 @@ impl Metrics {
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
         let segment_generation_counts = Family::<SegmentGenerationLabels, Gauge>::default();
-        let extension_hooks = Family::<ExtensionHookLabels, Counter>::default();
-        let extension_hook_duration =
-            Family::<ExtensionHookRouteLabels, Histogram>::new_with_constructor(|| {
+        let auth_decisions = Family::<AuthDecisionLabels, Counter>::default();
+        let auth_decision_duration =
+            Family::<AuthDecisionStageLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
             });
-        let extension_cache = Family::<ExtensionCacheLabels, Counter>::default();
-        let extension_http_client_requests =
-            Family::<ExtensionHttpClientLabels, Counter>::default();
-        let extension_http_client_duration =
-            Family::<ExtensionHttpClientRouteLabels, Histogram>::new_with_constructor(|| {
+        let auth_cache = Family::<AuthCacheLabels, Counter>::default();
+        let auth_backend_requests = Family::<AuthBackendLabels, Counter>::default();
+        let auth_backend_duration =
+            Family::<AuthBackendRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let process_resident_memory_bytes = Gauge::default();
@@ -385,6 +383,8 @@ impl Metrics {
         let memory_pressure_state = Gauge::default();
         let memory_soft_limit_bytes = Gauge::default();
         let memory_hard_limit_bytes = Gauge::default();
+        let memory_protection_min_bytes = Gauge::default();
+        let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
@@ -411,7 +411,6 @@ impl Metrics {
         let snapshot_cache_entries = Gauge::default();
         let snapshot_cache_nodes = Gauge::default();
         let snapshot_cache_served_full_bytes = Gauge::default();
-        let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
@@ -436,11 +435,6 @@ impl Metrics {
             "kura_http_requests_total",
             "HTTP requests by route and status code",
             http_requests.clone(),
-        );
-        registry.register(
-            "kura_http_client_requests_total",
-            "Public HTTP requests by client country",
-            http_client_requests.clone(),
         );
         registry.register(
             "kura_http_request_duration_seconds",
@@ -888,29 +882,29 @@ impl Metrics {
             segment_generation_counts.clone(),
         );
         registry.register(
-            "kura_extension_hooks_total",
-            "Extension hook invocations by hook and result",
-            extension_hooks.clone(),
+            "kura_auth_decisions_total",
+            "Authorization decisions by stage and result",
+            auth_decisions.clone(),
         );
         registry.register(
-            "kura_extension_hook_duration_seconds",
-            "Extension hook execution latency by hook",
-            extension_hook_duration.clone(),
+            "kura_auth_decision_duration_seconds",
+            "Authorization decision latency by stage",
+            auth_decision_duration.clone(),
         );
         registry.register(
-            "kura_extension_cache_total",
-            "Extension cache lookups by cache and result",
-            extension_cache.clone(),
+            "kura_auth_cache_total",
+            "Authorization cache lookups by cache and result",
+            auth_cache.clone(),
         );
         registry.register(
-            "kura_extension_http_client_requests_total",
-            "Extension HTTP client requests by client, route, result, status class, and error kind",
-            extension_http_client_requests.clone(),
+            "kura_auth_backend_requests_total",
+            "Authentication backend requests by route, result, status class, and error kind",
+            auth_backend_requests.clone(),
         );
         registry.register(
-            "kura_extension_http_client_request_duration_seconds",
-            "Extension HTTP client request latency by client and route",
-            extension_http_client_duration.clone(),
+            "kura_auth_backend_request_duration_seconds",
+            "Authentication backend request latency by route",
+            auth_backend_duration.clone(),
         );
         registry.register(
             "kura_process_resident_memory_bytes",
@@ -1078,6 +1072,16 @@ impl Metrics {
             memory_hard_limit_bytes.clone(),
         );
         registry.register(
+            "kura_memory_protection_min_bytes",
+            "Control-group memory.min: memory the kernel will not reclaim from this node. Zero when the orchestrator grants no protection",
+            memory_protection_min_bytes.clone(),
+        );
+        registry.register(
+            "kura_memory_protection_low_bytes",
+            "Control-group memory.low: memory reclaimed from this node only once unprotected memory is exhausted. Zero when the orchestrator grants no protection",
+            memory_protection_low_bytes.clone(),
+        );
+        registry.register(
             "kura_memory_transient_reserved_bytes",
             "Predicted transient bytes reserved by admitted concurrent work",
             memory_transient_reserved_bytes.clone(),
@@ -1178,11 +1182,6 @@ impl Metrics {
             snapshot_cache_served_full_bytes.clone(),
         );
         registry.register(
-            "kura_geoip_refresh_total",
-            "Outcomes of background refreshes of the in-process GeoIP database",
-            geoip_refresh.clone(),
-        );
-        registry.register(
             "kura_traffic_state",
             "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
             traffic_state.clone(),
@@ -1254,7 +1253,6 @@ impl Metrics {
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
-            http_client_requests,
             http_request_duration,
             internal_backfill_request_duration,
             backfill_bodies_peer_requests,
@@ -1345,11 +1343,11 @@ impl Metrics {
             analytics_circuit_state,
             analytics_circuit_transitions,
             segment_generation_counts,
-            extension_hooks,
-            extension_hook_duration,
-            extension_cache,
-            extension_http_client_requests,
-            extension_http_client_duration,
+            auth_decisions,
+            auth_decision_duration,
+            auth_cache,
+            auth_backend_requests,
+            auth_backend_duration,
             process_resident_memory_bytes,
             process_resident_anon_bytes,
             process_resident_file_bytes,
@@ -1383,6 +1381,8 @@ impl Metrics {
             memory_pressure_state,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_protection_min_bytes,
+            memory_protection_low_bytes,
             memory_transient_reserved_bytes,
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
@@ -1403,7 +1403,6 @@ impl Metrics {
             snapshot_cache_entries,
             snapshot_cache_nodes,
             snapshot_cache_served_full_bytes,
-            geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
@@ -1444,26 +1443,14 @@ impl Metrics {
             .set(1);
     }
 
-    pub fn record_http(
-        &self,
-        route: String,
-        status: StatusCode,
-        client_country: Option<String>,
-        duration: Duration,
-    ) {
-        let public_http_metrics = records_public_http_metrics(&route);
+    pub fn record_http(&self, route: String, status: StatusCode, duration: Duration) {
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
                 status: status.as_u16(),
             })
             .inc();
-        if public_http_metrics {
-            self.http_client_requests
-                .get_or_create(&HttpClientCountryLabels {
-                    client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
-                })
-                .inc();
+        if records_public_http_metrics(&route) {
             self.http_request_duration.observe(duration.as_secs_f64());
         }
         // Internal routes are excluded from the public duration histogram, so
@@ -2111,50 +2098,47 @@ impl Metrics {
             .set(count as i64);
     }
 
-    pub fn record_extension_hook(&self, hook: &str, result: &str, duration: Duration) {
-        self.extension_hooks
-            .get_or_create(&ExtensionHookLabels {
-                hook: hook.to_owned(),
+    pub fn record_auth_decision(&self, stage: &str, result: &str, duration: Duration) {
+        self.auth_decisions
+            .get_or_create(&AuthDecisionLabels {
+                stage: stage.to_owned(),
                 result: result.to_owned(),
             })
             .inc();
-        self.extension_hook_duration
-            .get_or_create(&ExtensionHookRouteLabels {
-                hook: hook.to_owned(),
+        self.auth_decision_duration
+            .get_or_create(&AuthDecisionStageLabels {
+                stage: stage.to_owned(),
             })
             .observe(duration.as_secs_f64());
     }
 
-    pub fn record_extension_cache(&self, cache: &str, result: &str) {
-        self.extension_cache
-            .get_or_create(&ExtensionCacheLabels {
+    pub fn record_auth_cache(&self, cache: &str, result: &str) {
+        self.auth_cache
+            .get_or_create(&AuthCacheLabels {
                 cache: cache.to_owned(),
                 result: result.to_owned(),
             })
             .inc();
     }
 
-    pub fn record_extension_http_client(
+    pub fn record_auth_backend(
         &self,
-        client: &str,
         route: &str,
         result: &str,
         status_class: &str,
         error_kind: &str,
         duration: Duration,
     ) {
-        self.extension_http_client_requests
-            .get_or_create(&ExtensionHttpClientLabels {
-                client: client.to_owned(),
+        self.auth_backend_requests
+            .get_or_create(&AuthBackendLabels {
                 route: route.to_owned(),
                 result: result.to_owned(),
                 status_class: status_class.to_owned(),
                 error_kind: error_kind.to_owned(),
             })
             .inc();
-        self.extension_http_client_duration
-            .get_or_create(&ExtensionHttpClientRouteLabels {
-                client: client.to_owned(),
+        self.auth_backend_duration
+            .get_or_create(&AuthBackendRouteLabels {
                 route: route.to_owned(),
             })
             .observe(duration.as_secs_f64());
@@ -2366,6 +2350,14 @@ impl Metrics {
         self.memory_hard_limit_bytes.set(hard_limit_bytes as i64);
     }
 
+    /// Publishes the reclaim protection the orchestrator granted this
+    /// container. Both zero means the node's memory request is a scheduling
+    /// promise only and nothing stops reclaim taking its floor away.
+    pub fn update_memory_protection(&self, min_bytes: u64, low_bytes: u64) {
+        self.memory_protection_min_bytes.set(min_bytes as i64);
+        self.memory_protection_low_bytes.set(low_bytes as i64);
+    }
+
     pub fn record_memory_pressure_transition(&self, from: &str, to: &str) {
         self.memory_pressure_transitions
             .get_or_create(&MemoryPressureTransitionLabels {
@@ -2397,14 +2389,6 @@ impl Metrics {
                 action: action.to_owned(),
             })
             .inc_by(bytes);
-    }
-
-    pub fn record_geoip_refresh(&self, result: &str) {
-        self.geoip_refresh
-            .get_or_create(&GeoIpRefreshLabels {
-                result: result.to_owned(),
-            })
-            .inc();
     }
 
     pub fn update_runtime_state(
@@ -2500,11 +2484,6 @@ fn records_public_http_metrics(route: &str) -> bool {
 struct HttpRequestLabels {
     route: String,
     status: u16,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct HttpClientCountryLabels {
-    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2666,25 +2645,24 @@ struct SegmentGenerationLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHookLabels {
-    hook: String,
+struct AuthDecisionLabels {
+    stage: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHookRouteLabels {
-    hook: String,
+struct AuthDecisionStageLabels {
+    stage: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionCacheLabels {
+struct AuthCacheLabels {
     cache: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHttpClientLabels {
-    client: String,
+struct AuthBackendLabels {
     route: String,
     result: String,
     status_class: String,
@@ -2692,8 +2670,7 @@ struct ExtensionHttpClientLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ExtensionHttpClientRouteLabels {
-    client: String,
+struct AuthBackendRouteLabels {
     route: String,
 }
 
@@ -2762,11 +2739,6 @@ struct ResponseStreamAdmissionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct GeoIpRefreshLabels {
-    result: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct MembershipChangeLabels {
     change: String,
 }
@@ -2817,13 +2789,11 @@ mod tests {
         metrics.record_http(
             "/_internal/backfill/entries".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/_internal/status".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
 
@@ -2846,16 +2816,10 @@ mod tests {
     #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        metrics.record_http(
-            "/up".into(),
-            StatusCode::OK,
-            Some("US".into()),
-            Duration::from_millis(10),
-        );
+        metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
         metrics.record_http(
             "/api/cache/keyvalue".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
-            None,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
@@ -2944,6 +2908,7 @@ mod tests {
         metrics.update_jemalloc_stats(700, 900, 200);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
+        metrics.update_memory_protection(2_048, 1_024);
         metrics.update_memory_pressure_state(1);
         metrics.update_response_stream_pool_capacity(16 * 1024 * 1024, 10 * 1024 * 1024, 32);
         metrics.add_response_stream_reservation("http", 1024 * 1024);
@@ -2968,7 +2933,6 @@ mod tests {
         let rendered = metrics.render();
 
         assert!(rendered.contains("kura_http_requests_total"));
-        assert!(rendered.contains("kura_http_client_requests_total"));
         assert!(rendered.contains("kura_http_exceptions_total"));
         assert!(
             rendered
@@ -2980,15 +2944,8 @@ mod tests {
             rendered
                 .lines()
                 .filter(|line| line.starts_with("kura_http_requests_total"))
-                .all(|line| !line.contains("client_country="))
-        );
-        assert!(
-            rendered
-                .lines()
-                .filter(|line| line.starts_with("kura_http_requests_total"))
                 .all(|line| !line.contains("method="))
         );
-        assert!(rendered.contains("client_country=\"unknown\""));
         assert!(
             rendered
                 .lines()
@@ -3088,6 +3045,11 @@ mod tests {
         assert!(rendered.contains("kura_memory_pressure_state"));
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
         assert!(rendered.contains("kura_memory_transient_reserved_bytes"));
+        // Whether the memory floor is kernel-enforced or a scheduling promise
+        // only is otherwise unobservable, and it changes silently: a kubelet
+        // that stops applying protection surfaces no error anywhere else.
+        assert!(rendered.contains("kura_memory_protection_min_bytes 2048"));
+        assert!(rendered.contains("kura_memory_protection_low_bytes 1024"));
         assert!(rendered.contains("kura_foreground_memory_waiters"));
         assert!(rendered.contains("kura_response_stream_pool_capacity_bytes"));
         assert!(rendered.contains("kura_response_stream_foreground_pool_capacity_bytes"));

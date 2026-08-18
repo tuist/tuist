@@ -7393,6 +7393,7 @@ mod tests {
             memory_limit_bytes: 512 * 1024 * 1024,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
+            memory_floor_bytes: None,
             snapshot_cache_max_bytes: 32 * 1024 * 1024,
             manifest_cache_max_bytes: 8 * 1024 * 1024,
             max_keyvalue_bytes: 512 * 1024,
@@ -7405,6 +7406,7 @@ mod tests {
             outbox_max_depth: 100_000,
             replication_bandwidth_limit_bytes_per_second: 0,
             replication_public_latency_target_ms: 100,
+            replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             multipart_max_active_uploads: 128,
@@ -7421,7 +7423,6 @@ mod tests {
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
             sentry_dsn: None,
-            geoip_refresh_interval_secs: 0,
             node_country_override: None,
             node_subdivision_override: None,
         };

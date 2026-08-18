@@ -545,14 +545,13 @@ defmodule TuistWeb.API.AnalyticsController do
       })
     end
 
-    url =
-      if is_nil(build_run_id) do
-        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
-      else
-        url(
-          ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
-        )
-      end
+    # Always the run page, never the build run's. A `build_run_id` on a command
+    # event says the run relates to that build, not that it produced it: every
+    # `test --without-building` shard reuses the build phase's id to link its
+    # report back. Resolving to the build run therefore sent sharded test
+    # executions to the build's page as their own run report. The build run and
+    # test run have their own URLs, carried separately.
+    url = url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
 
     test_run_url =
       if is_nil(test_run_id) do

@@ -21,10 +21,9 @@ use tracing::{Instrument, info, warn};
 use crate::{
     accelerated_file_serving,
     analytics::Analytics,
+    auth::AuthEngine,
     bandwidth::BandwidthLimiter,
     config::Config,
-    extension::ExtensionEngine,
-    geoip::GeoIp,
     http,
     io::IoController,
     memory::{MemoryController, MemoryPressure},
@@ -53,6 +52,12 @@ const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEN
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+// The kubelet writes memory.min/memory.low once at container creation, so this
+// gauge only has to notice a change across a kubelet restart or upgrade. It
+// rides the pressure loop rather than owning one, and samples far slower than
+// it: two sysfs reads five times a second would add I/O to the loop the
+// watchdog supervises for a value scraped every 15-60s.
+const MEMORY_PROTECTION_SAMPLE_INTERVAL: Duration = Duration::from_secs(60);
 const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
 #[cfg(target_os = "linux")]
 const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
@@ -80,20 +85,17 @@ pub async fn run() -> Result<(), String> {
     let enrollment = crate::enrollment::enroll_on_boot().await?;
 
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let geoip = GeoIp::open();
     let node_location = resolve_node_location(
         config.node_country_override.as_deref(),
         config.node_subdivision_override.as_deref(),
-        geoip.as_ref(),
         &config.region,
-    )
-    .await;
+    );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
         warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip, node_location, enrollment)
+    let result = run_with_config(config, node_location, enrollment)
         .instrument(log_context)
         .await;
 
@@ -103,7 +105,6 @@ pub async fn run() -> Result<(), String> {
 
 async fn run_with_config(
     config: Config,
-    geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
@@ -121,9 +122,8 @@ async fn run_with_config(
         .ensure_directories(&data_dir_lock)
         .await
         .map_err(|error| format!("failed to create directories: {error}"))?;
-    let extension = ExtensionEngine::from_env(metrics.clone())
-        .await
-        .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
+    let auth = AuthEngine::from_env(metrics.clone())
+        .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
@@ -135,11 +135,12 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
-    let memory = MemoryController::with_runtime_limit(
+    let memory = MemoryController::with_anon_budget(
         metrics.clone(),
         config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
+        config.anon_admission_budget_bytes(),
     );
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
@@ -155,6 +156,7 @@ async fn run_with_config(
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
+    let upload_client = peer_client_factory.build_upload()?;
     let internal_tls = match &config.peer_tls {
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
@@ -184,11 +186,11 @@ async fn run_with_config(
         snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
         usage,
-        geoip,
         client: arc_swap::ArcSwap::from_pointee(client),
+        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
@@ -233,7 +235,6 @@ async fn run_with_config(
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
-    spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
@@ -621,6 +622,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
     let watchdog_memory = state.memory.clone();
     let mut sensor = tokio::spawn(
         async move {
+            // Zero-valued so the first pass through the loop publishes the gauge
+            // immediately rather than leaving it unset for the first minute.
+            let mut next_protection_sample_at = tokio::time::Instant::now();
             loop {
                 if let Some(sample) = crate::memory::container_memory_pressure_sample() {
                     if let Err(error) =
@@ -650,6 +654,16 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                     if let Some(snapshot) = process_memory_snapshot() {
                         sensor_state.memory.observe(snapshot.resident_bytes);
                     }
+                }
+                let now = tokio::time::Instant::now();
+                if now >= next_protection_sample_at
+                    && let Some((min_bytes, low_bytes)) =
+                        crate::memory::container_memory_protection()
+                {
+                    next_protection_sample_at = now + MEMORY_PROTECTION_SAMPLE_INTERVAL;
+                    sensor_state
+                        .metrics
+                        .update_memory_protection(min_bytes, low_bytes);
                 }
                 tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
             }
@@ -757,11 +771,11 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                         .record_memory_action("segment_handle_cache_trim");
                 }
                 if pressure == MemoryPressure::Critical
-                    && let Some(extension) = &state.extension
+                    && let Some(auth) = &state.auth
                 {
-                    let evicted = extension.clear_caches().await;
+                    let evicted = auth.clear_caches().await;
                     if evicted > 0 {
-                        state.metrics.record_memory_action("extension_cache_trim");
+                        state.metrics.record_memory_action("auth_cache_trim");
                     }
                 }
                 state.metrics.update_background_work_paused(
@@ -1066,46 +1080,6 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
     );
 }
 
-fn spawn_geoip_refresh_task(state: Arc<AppState>) {
-    if state.geoip.is_none() {
-        return;
-    }
-    let interval_secs = state.config.geoip_refresh_interval_secs;
-    if interval_secs == 0 {
-        info!("GeoIP background refresh disabled");
-        return;
-    }
-    let http = match reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(60))
-        .build()
-    {
-        Ok(client) => client,
-        Err(error) => {
-            warn!("failed to build GeoIP refresh client: {error}");
-            return;
-        }
-    };
-    let interval = Duration::from_secs(interval_secs);
-    tokio::spawn(
-        async move {
-            loop {
-                tokio::time::sleep(interval).await;
-                let geoip = state
-                    .geoip
-                    .as_ref()
-                    .expect("geoip presence checked before spawning the refresh task");
-                let outcome = geoip.refresh(&http).await;
-                state.metrics.record_geoip_refresh(outcome.as_str());
-                if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {
-                    info!("GeoIP database refreshed");
-                }
-            }
-        }
-        .in_current_span(),
-    );
-}
-
 // Re-enrolls before the peer certificate's leaf expires and hot-reloads the new
 // material into both the inbound mTLS server and the outbound peer client, so a
 // short leaf never requires a restart.
@@ -1149,6 +1123,8 @@ pub(crate) async fn apply_renewed_enrollment(
         .await?;
     let new_client = state.peer_client_factory.build()?;
     state.client.store(Arc::new(new_client));
+    let new_upload_client = state.peer_client_factory.build_upload()?;
+    state.upload_client.store(Arc::new(new_upload_client));
 
     // Inbound: rebuild the internal mTLS server config (preserving the client
     // verifier) and hot-swap the leaf.

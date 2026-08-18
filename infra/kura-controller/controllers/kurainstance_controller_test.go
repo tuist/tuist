@@ -156,7 +156,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			IngressClassName: "kura-eu-central",
 			StorageClassName: "hcloud-volumes",
-			ExtensionScript:  "return true",
 		},
 	}
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
@@ -246,12 +245,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected PDB selector to match instance, got %q", got)
 	}
 
+	// The controller used to render a script into a ConfigMap and mount it.
 	configMap := &corev1.ConfigMap{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap); err != nil {
-		t.Fatal(err)
-	}
-	if got := configMap.Data["hooks.lua"]; got != "return true" {
-		t.Fatalf("expected extension script, got %q", got)
+	configMapErr := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap)
+	if !apierrors.IsNotFound(configMapErr) {
+		t.Fatalf("expected no extension ConfigMap, got %v", configMapErr)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -266,8 +264,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	for _, envVar := range container.Env {
 		env[envVar.Name] = envVar.Value
 	}
-	if got := env["KURA_EXTENSION_ENABLED"]; got != "true" {
-		t.Fatalf("expected controller to enable the extension, got %q", got)
+	// Kura authorizes natively and is configured through the instance's
+	// extraEnv, so the controller injects nothing for it of its own.
+	if _, ok := env["KURA_EXTENSION_ENABLED"]; ok {
+		t.Fatal("expected no extension env because Kura authorizes natively")
+	}
+	if _, ok := env["KURA_EXTENSION_SCRIPT_PATH"]; ok {
+		t.Fatal("expected no extension script path because Kura authorizes natively")
 	}
 	if _, ok := env["KURA_PUBLIC_TLS_CERT_PATH"]; ok {
 		t.Fatal("expected public TLS cert env to be absent because regional Kura ingress terminates TLS")
@@ -376,6 +379,31 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
 		t.Fatalf("expected default CPU request, got %q", got)
+	}
+	if got := container.Resources.Requests.Memory().String(); got != "2Gi" {
+		t.Fatalf("expected default memory request, got %q", got)
+	}
+	if got := container.Resources.Limits.Memory().String(); got != "4Gi" {
+		t.Fatalf("expected default memory limit, got %q", got)
+	}
+	// Kura sizes its anonymous-memory admission budget from the floor, so the
+	// floor has to reach the container: requests.memory is not otherwise visible
+	// inside a pod. A resourceFieldRef naming a container the pod does not have
+	// fails admission, and a divisor other than 1 would silently round the value,
+	// so both are pinned.
+	var memoryFloor *corev1.EnvVar
+	for i := range container.Env {
+		if container.Env[i].Name == "KURA_MEMORY_FLOOR_BYTES" {
+			memoryFloor = &container.Env[i]
+		}
+	}
+	if memoryFloor == nil || memoryFloor.ValueFrom == nil || memoryFloor.ValueFrom.ResourceFieldRef == nil {
+		t.Fatal("expected KURA_MEMORY_FLOOR_BYTES from a resourceFieldRef; without it Kura sizes its anon budget from the ceiling")
+	}
+	if ref := memoryFloor.ValueFrom.ResourceFieldRef; ref.ContainerName != kuraContainerName ||
+		ref.Resource != "requests.memory" || ref.Divisor.String() != "1" {
+		t.Fatalf("expected requests.memory of %q with divisor 1, got %q/%q divisor %q",
+			kuraContainerName, ref.ContainerName, ref.Resource, ref.Divisor.String())
 	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
@@ -1784,7 +1812,7 @@ func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAnd
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", ""),
+			Template:             podTemplate(legacyInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -1855,7 +1883,7 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(stsInstance, "", "production", ""),
+			Template:             podTemplate(stsInstance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
 		},
 	}
@@ -2098,7 +2126,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", ""),
+			Template:             podTemplate(instance, "", "production", "", false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2156,7 +2184,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "")
+	stsTemplate := podTemplate(instance, "", "production", "", false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}

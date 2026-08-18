@@ -498,10 +498,14 @@ defmodule Tuist.CommandEvents do
   end
 
   # Multiple rows may share the same build_run_id because the ID is derived
-  # from the `.xcactivitylog`. In a split test run, the test execution event
+  # from the `.xcactivitylog`. In a split test run, every test execution event
   # intentionally reuses the build phase's ID to link its test report to the
   # build. Prefer the event without a test run so build details retain the
-  # command that produced the build.
+  # command that produced the build, then fall back to the earliest event:
+  # whichever command produced the activity log necessarily ran before anything
+  # that reuses its ID. The fallback carries the decision on its own whenever
+  # `test_run_id` is absent, which is the case for a test execution whose
+  # xcresult upload never completed.
   #
   # Pass `project_id:` when known so the lookup hits the
   # `(project_id, name, ran_at)` primary key instead of relying solely on
@@ -512,7 +516,7 @@ defmodule Tuist.CommandEvents do
     Event
     |> scope_to_project(project_id)
     |> where([e], e.build_run_id == ^build_run_id)
-    |> order_by([e], desc: is_nil(e.test_run_id), desc: e.ran_at, desc: e.created_at)
+    |> order_by([e], desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at)
     |> limit(1)
     |> ClickHouseRepo.one()
     |> case do
@@ -736,6 +740,13 @@ defmodule Tuist.CommandEvents do
     * `opts` - Options:
       * `:limit` - Number of events to consider (default: 100)
       * `:offset` - Number of events to skip (default: 0)
+      * `:git_branch` - Only consider events run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) events
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many events. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
 
   ## Returns
     The calculated metric value (0.0-1.0), or `nil` if no data available.
@@ -743,28 +754,51 @@ defmodule Tuist.CommandEvents do
   def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
+    is_ci = Keyword.get(opts, :is_ci)
 
-    hit_rates =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where:
-            e.project_id == ^project_id and
-              e.cacheable_targets_count > 0,
-          order_by: [desc: e.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select:
-            fragment(
-              "(? + ?) / ?",
-              e.local_cache_hits_count,
-              e.remote_cache_hits_count,
-              e.cacheable_targets_count
-            )
-        )
+    query =
+      from(e in Event,
+        where:
+          e.project_id == ^project_id and
+            e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^limit,
+        offset: ^offset,
+        select:
+          fragment(
+            "(? + ?) / ?",
+            e.local_cache_hits_count,
+            e.remote_cache_hits_count,
+            e.cacheable_targets_count
+          )
       )
 
-    calculate_metric_from_values(hit_rates, metric)
+    query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [e], e.git_branch == ^git_branch)
+      else
+        query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+      end
+
+    hit_rates = ClickHouseRepo.all(query)
+
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_metric_from_values(hit_rates, metric)
+    end
   end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
 
   defp calculate_metric_from_values([], _metric), do: nil
 

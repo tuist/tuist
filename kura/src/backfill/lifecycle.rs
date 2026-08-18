@@ -19,7 +19,7 @@ use std::{
     pin::pin,
     sync::{
         Arc, Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -555,6 +555,9 @@ pub struct BackfillLifecycle {
     /// Peers whose watermark-age gauge has been exported, so a lost peer's
     /// series is zeroed instead of freezing at its last value.
     watermark_gauge_peers: Mutex<BTreeSet<String>>,
+    /// Whether the last tick had scheduled work blocked by memory admission,
+    /// so the transition is logged once instead of at membership cadence.
+    admission_gated: AtomicBool,
 }
 
 impl BackfillLifecycle {
@@ -564,6 +567,7 @@ impl BackfillLifecycle {
             passes: Mutex::new(HashMap::new()),
             claims: ClaimSet::new(),
             watermark_gauge_peers: Mutex::new(BTreeSet::new()),
+            admission_gated: AtomicBool::new(false),
         })
     }
 
@@ -603,9 +607,29 @@ impl BackfillLifecycle {
             control_plane_peers: &control_plane_peers,
             admission: app.memory.allow_background_admission(),
         };
+        let admission = tick.admission;
         let actions = self.lock_machine().evaluate(&tick, Instant::now());
         self.apply_actions(app, actions);
         self.refresh_gauges(app);
+        self.observe_admission_gate(admission);
+    }
+
+    /// Logs the transitions into and out of the state where scheduled passes
+    /// are blocked by memory admission. Without this the gated state is
+    /// invisible: nothing runs, so nothing logs, while `backfilling_peers`
+    /// sits pinned and the initial cycle reads `pending` indefinitely.
+    fn observe_admission_gate(&self, admission: bool) {
+        let gated = !admission
+            && self.lock_machine().snapshot().backfilling_peers > 0
+            && self.lock_passes().is_empty();
+        let was_gated = self.admission_gated.swap(gated, Ordering::AcqRel);
+        if gated && !was_gated {
+            warn!(
+                "backfill passes are blocked by memory admission; scheduled work stays queued until admission reopens"
+            );
+        } else if !gated && was_gated {
+            info!("backfill passes are no longer blocked by memory admission");
+        }
     }
 
     /// Snapshot of the initial join cycle for the readiness gate and the
@@ -917,6 +941,16 @@ mod tests {
         tick_with(discovered, lost, &[])
     }
 
+    fn gated_tick<'a>() -> MembershipTick<'a> {
+        MembershipTick {
+            discovered: &[],
+            lost: &[],
+            view_settled: true,
+            control_plane_peers: &[],
+            admission: false,
+        }
+    }
+
     fn started_peers(actions: &[Action]) -> Vec<String> {
         actions
             .iter()
@@ -956,6 +990,41 @@ mod tests {
         PassResolution::Cancelled {
             budget_charge: Some(BudgetChargeKind::Real),
         }
+    }
+
+    /// The production wedge behind this admission change: seam follow-ups
+    /// armed by the first completions must survive an arbitrarily long
+    /// admission outage as queued work — the peer stays backfilling, the
+    /// cycle stays pending — and start on the first admitted tick after it.
+    #[test]
+    fn admission_outage_queues_seam_work_instead_of_dropping_or_starting_it() {
+        let mut machine = LifecycleMachine::default();
+        let now = Instant::now();
+        let peers = vec![peer_url(1)];
+
+        let actions = machine.evaluate(&tick(&peers, &[]), now);
+        assert_eq!(started_peers(&actions), peers);
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, now);
+
+        // Admission closes before the seam timer fires and stays closed
+        // across many ticks. Nothing starts, and the peer keeps gating the
+        // cycle rather than leaking to completed.
+        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        for elapsed_secs in 0..5 {
+            let gated_now = seam + Duration::from_secs(elapsed_secs);
+            let actions = machine.evaluate(&gated_tick(), gated_now);
+            assert!(started_peers(&actions).is_empty());
+        }
+        let snapshot = machine.snapshot();
+        assert!(!snapshot.settled);
+        assert_eq!(snapshot.backfilling_peers, 1);
+
+        // The first admitted tick releases the queued seam pass.
+        let reopened = seam + Duration::from_secs(60);
+        let actions = machine.evaluate(&tick(&[], &[]), reopened);
+        assert_eq!(started_peers(&actions), peers);
+        machine.on_pass_finished(&peer_url(1), PassResolution::Completed, reopened);
+        assert!(machine.snapshot().settled);
     }
 
     #[test]

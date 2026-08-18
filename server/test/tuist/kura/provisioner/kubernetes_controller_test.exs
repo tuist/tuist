@@ -33,8 +33,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert manifest["apiVersion"] == "kura.tuist.dev/v1alpha1"
@@ -58,16 +57,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
       assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura"}
-      assert spec["extensionScript"] == "return true"
+      refute Map.has_key?(spec, "extensionScript")
 
       refute Map.has_key?(spec, "resources")
       refute Map.has_key?(spec, "podAnnotations")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
-      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
+      assert env["KURA_AUTH_TUIST_URL"] == "https://tuist.dev"
+
+      # Paired with the URL on purpose. A node reads a blank URL as no
+      # configuration and starts serving the cache unauthorized; with this set
+      # it refuses to start, so the failure is visible rather than silent.
+      assert env["KURA_AUTH_ENABLED"] == "true"
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
-      refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+      refute Map.has_key?(env, "KURA_CONTROL_PLANE_CLIENT_SECRET")
 
       refute Map.has_key?(env, "KURA_PEERS")
 
@@ -76,7 +80,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # them into the pod. They must NEVER appear in the spec, since
       # anyone with list/watch on KuraInstance would otherwise read the
       # global JWT signing secret.
-      refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
+      refute Map.has_key?(env, "KURA_AUTH_JWT_SECRET")
     end
 
     test "reserves the Egress floor for enterprise accounts" do
@@ -98,8 +102,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             egress_guaranteed_mbps: 25,
             pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
           }),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       spec = manifest["spec"]
@@ -128,8 +131,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             egress_guaranteed_mbps: 25,
             pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
           }),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       spec = manifest["spec"]
@@ -137,6 +139,95 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["egressGuaranteedMbps"] == 0
       # The burst ceiling still applies.
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "sizes the memory profile per tier on a box that governs memory" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      profile = fn plan ->
+        stub(Tuist.Billing, :effective_plan, fn _ -> plan end)
+
+        spec =
+          "kura-tuist-eu-central-1"
+          |> KubernetesController.manifest(
+            "0.5.2",
+            %Account{id: 1, name: "tuist"},
+            eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true}),
+            %Server{},
+            "return true"
+          )
+          |> Map.fetch!("spec")
+
+        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"]}
+      end
+
+      # The floor is the standing reservation, so the tier that gets the larger
+      # one is the tier that pays for a guarantee. The ceiling — how large a
+      # burst Kura admits before shedding — moves with it.
+      assert profile.(:enterprise) == {1024, 4096, true}
+      assert profile.(:pro) == {512, 3072, true}
+      assert profile.(:air) == {256, 768, true}
+    end
+
+    test "sizes a self-hosted deployment off its license rather than a subscription" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # A self-hosted deployment has no subscriptions, so resolving a plan would
+      # put every account on the standard profile. Its Enterprise license is the
+      # entitlement, which is why the plan is never looked up here.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      reject(&Tuist.Billing.effective_plan/1)
+
+      spec =
+        "kura-tuist-eu-central-1"
+        |> KubernetesController.manifest(
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{memory_governed: true}),
+          %Server{},
+          "return true"
+        )
+        |> Map.fetch!("spec")
+
+      assert {spec["memoryFloorMib"], spec["memoryCeilingMib"]} == {1024, 4096}
+    end
+
+    test "leaves the memory profile to the controller default on a box that does not govern memory" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # A pod that requests tuist.dev/memory-ceiling-mib on a node pool the CAPI
+      # provider does not patch never schedules, so an ungoverned region must
+      # emit nothing at all rather than a profile the node cannot satisfy.
+      reject(&Tuist.Billing.effective_plan/1)
+
+      spec =
+        "kura-tuist-eu-central-1"
+        |> KubernetesController.manifest(
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+        |> Map.fetch!("spec")
+
+      refute Map.has_key?(spec, "memoryFloorMib")
+      refute Map.has_key?(spec, "memoryCeilingMib")
+      refute Map.has_key?(spec, "memoryCeilingBinPacked")
     end
 
     test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do
@@ -158,8 +249,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       entitled_env = Map.new(entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -176,8 +266,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -199,8 +288,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       gated_env = Map.new(gated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -218,8 +306,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       ungated_env = Map.new(ungated["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -249,12 +336,53 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           region,
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_BACKFILL_ENABLED"] == "true"
+    end
+
+    test "hands the pod the country and subdivision its region's datacenter sits in" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{country: "FR", subdivision: "FR-IDF"}),
+          %Server{}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_NODE_COUNTRY"] == "FR"
+      assert env["KURA_NODE_SUBDIVISION"] == "FR-IDF"
+    end
+
+    test "omits both location variables for a region that declares no datacenter location" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(env, "KURA_NODE_COUNTRY")
+      refute Map.has_key?(env, "KURA_NODE_SUBDIVISION")
     end
 
     test "does not resolve entitlements when the region has no gated manifest fields" do
@@ -272,8 +400,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -294,8 +421,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert meshed["spec"]["mesh"] == true
@@ -306,8 +432,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       refute Map.has_key?(unmeshed["spec"], "mesh")
@@ -334,7 +459,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           account,
           region,
           %Server{},
-          "return true",
           external_peers
         )
 
@@ -351,7 +475,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           account,
           region,
           %Server{},
-          "return true",
           external_peers
         )
 
@@ -379,7 +502,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           account,
           eu_region(%{mesh: true, egress_guaranteed_mbps: 25}),
           %Server{},
-          "return true",
           ["https://kura.acme.example:7443"]
         )
 
@@ -407,8 +529,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -431,7 +552,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
           %Server{},
-          "return true",
           ["https://kura.acme.example:7443"]
         )
 
@@ -449,8 +569,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       refute Map.has_key?(unbridged["spec"], "meshPublicPeerHost")
@@ -470,8 +589,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true, gateway: :host_network, hetzner_location: nil, failover_ip: "203.0.113.10"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert host_network["spec"]["meshPeerHostNetwork"] == true
@@ -488,8 +606,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       refute Map.has_key?(hetzner["spec"], "meshPeerHostNetwork")
@@ -514,8 +631,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           region,
-          %Server{move_phase: :moving_in, target_node: "box-2"},
-          "return true"
+          %Server{move_phase: :moving_in, target_node: "box-2"}
         )
 
       # A warm-handoff target warms on the peer plane only: no customer host, so
@@ -533,8 +649,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           region,
-          %Server{move_phase: :none},
-          "return true"
+          %Server{move_phase: :none}
         )
 
       # The steady-state (:none) server owns the customer host.
@@ -547,8 +662,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           region,
-          %Server{move_phase: :moving_out},
-          "return true"
+          %Server{move_phase: :moving_out}
         )
 
       assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
@@ -568,7 +682,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           %{name: "tuist"},
           eu_region(%{mesh: true}),
           %Server{},
-          "return true",
           []
         )
 
@@ -591,8 +704,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{tolerations: tolerations}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert tolerated["spec"]["tolerations"] == tolerations
@@ -603,8 +715,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       refute Map.has_key?(untolerated["spec"], "tolerations")
@@ -623,8 +734,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "Bumble"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert manifest["metadata"]["labels"]["tuist.dev/account"] == "bumble"
@@ -649,8 +759,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           us_east_region(%{gateway: :host_network}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert manifest["spec"]["ingressClassName"] == "kura-us-east"
@@ -672,8 +781,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{
             tuist_base_url: "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
           }),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -681,7 +789,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_CONTROL_PLANE_URL"] ==
                "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
 
-      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] ==
+      assert env["KURA_AUTH_TUIST_URL"] ==
                "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
     end
 
@@ -698,14 +806,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
       assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
-      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
+      assert env["KURA_AUTH_TUIST_URL"] == "https://tuist.dev"
     end
 
     test "pins the CAS capacity to the region's declared storage size" do
@@ -718,8 +825,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "50Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -740,8 +846,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "20Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -773,10 +878,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           KubernetesController.manifest(
             "kura-tuist-#{region.id}-1",
             "0.5.2",
-            %{name: "tuist"},
+            # An empty subscription list keeps the plan lookup in memory, and
+            # resolves to :air, which is the profile most regions render.
+            %Account{id: 1, name: "tuist", subscriptions: []},
             region,
-            %Server{},
-            "return true"
+            %Server{}
           )
 
         env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -812,8 +918,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "10Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -831,8 +936,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "12Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -857,8 +961,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "1.5Ti"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
       end
     end
@@ -873,8 +976,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "8Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -892,8 +994,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "50Gi", disk_envelope_size: "200Gi"}),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -917,8 +1018,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
@@ -939,8 +1039,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           local_controller_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       spec = manifest["spec"]
@@ -955,11 +1054,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_CONTROL_PLANE_URL"] == "http://host.docker.internal:8080"
 
-      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] ==
+      assert env["KURA_AUTH_TUIST_URL"] ==
                "http://host.docker.internal:8080"
 
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
-      refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+      refute Map.has_key?(env, "KURA_CONTROL_PLANE_CLIENT_SECRET")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
@@ -997,7 +1096,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           %{name: "tuist"},
           region,
           %Server{},
-          "return true",
           peers
         )
 
@@ -1038,6 +1136,58 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
+    test "crosses a revision boundary on the memory tier so an upgrade re-applies" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      region = eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      # Without the profile in the revision an account changing plan would keep
+      # the memory profile its instance was created with until some unrelated
+      # field happened to move.
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+      air = KubernetesController.manifest_revision(account, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
+      pro = KubernetesController.manifest_revision(account, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      enterprise = KubernetesController.manifest_revision(account, region)
+
+      assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
+      assert String.contains?(air, "+mem256-768")
+      assert String.contains?(pro, "+mem512-3072")
+      assert String.contains?(enterprise, "+mem1024-4096")
+    end
+
+    test "crosses a revision boundary on the bin-pack flag so both flip directions re-apply" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+
+      # memory_ceiling_bin_packed is region config, not a property of the
+      # account, so flipping it alone leaves the profile identical. Without its
+      # own marker the rendered spec would gain or lose the extended-resource
+      # request under an unchanged revision and live instances would never
+      # re-apply — worst of all turning it off, which is the remedy when pods go
+      # Pending because a node stopped advertising the budget.
+      packed =
+        KubernetesController.manifest_revision(
+          account,
+          eu_region(%{memory_governed: true, memory_ceiling_bin_packed: true})
+        )
+
+      unpacked =
+        KubernetesController.manifest_revision(account, eu_region(%{memory_governed: true}))
+
+      assert packed != unpacked
+      assert String.contains?(packed, "+mem1024-4096")
+      assert String.contains?(unpacked, "+mem1024-4096")
+      assert String.ends_with?(packed, "+binpack")
+      refute String.contains?(unpacked, "+binpack")
+    end
+
     test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -1076,8 +1226,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           account,
           region,
-          %Server{},
-          "return true"
+          %Server{}
         )
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
@@ -1113,8 +1262,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
                  server: %Server{},
-                 region: eu_region(),
-                 hook_script: "return true"
+                 region: eu_region()
                })
     end
 
@@ -1136,8 +1284,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
                  server: %Server{},
-                 region: region,
-                 hook_script: "return true"
+                 region: region
                })
     end
 
@@ -1156,8 +1303,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
                  server: %Server{},
-                 region: us_east_region(%{gateway: :host_network}),
-                 hook_script: "return true"
+                 region: us_east_region(%{gateway: :host_network})
                })
 
       assert_receive {:applied, %{"kind" => "KuraInstance"} = instance_manifest}
@@ -1327,8 +1473,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           scaleway_region(),
-          %Server{},
-          "return true"
+          %Server{}
         )["spec"]
 
       assert spec["private"] == true
@@ -1381,8 +1526,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           region,
-          %Server{},
-          "return true"
+          %Server{}
         )["spec"]
 
       refute Map.has_key?(spec, "exposeNodePort")

@@ -1811,6 +1811,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        parallelizable_modules:
+          description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         reference:
           description: A unique shard plan reference, typically derived from CI environment.
           type: string
@@ -4280,6 +4289,26 @@ components:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: GenerationsIndexAfter
       type: string
+      x-struct:
+      x-validate:
+    CacheToken:
+      description: A short-lived token that proves the subject's cache access
+      properties:
+        expires_in:
+          description: Seconds until the token expires.
+          type: integer
+          x-struct:
+          x-validate:
+        token:
+          description: The token to send to cache nodes.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - token
+        - expires_in
+      title: CacheToken
+      type: object
       x-struct:
       x-validate:
     CASOutputType:
@@ -16413,6 +16442,15 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                parallelizable_modules:
+                  description: Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 reference:
                   description: A unique shard plan reference, typically derived from CI environment.
                   type: string
@@ -21287,6 +21325,61 @@ paths:
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/cache/token:
+    post:
+      callbacks: {}
+      description: |
+        Returns a short-lived token that carries the authenticated subject's cache grants.
+
+        Cache nodes verify it themselves and authorize from the grants it carries, so
+        clients holding a credential a cache node cannot verify locally (a CI project
+        token, for example) avoid a server round-trip per cache authorization. Exchange
+        it once and reuse it until it expires. It is only accepted by cache nodes; it is
+        not an API credential.
+      operationId: getCacheToken
+      parameters:
+        - description: 'Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account.'
+          in: query
+          name: full_handle
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A short-lived token that proves the subject's cache access
+                properties:
+                  expires_in:
+                    description: Seconds until the token expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  token:
+                    description: The token to send to cache nodes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - token
+                  - expires_in
+                title: CacheToken
+                type: object
+                x-struct:
+                x-validate:
+          description: A cache token for the authenticated subject
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: Exchange the current credential for a cache token.
+      tags:
+        - Cache
 security:
   - authorization: []
   - cookie: []

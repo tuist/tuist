@@ -717,6 +717,51 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
     end
 
+    test "returns command event URL with runs route when build_run_id is provided", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      build_run_id = UUIDv7.generate()
+
+      # When a test execution reuses the build phase's build_run_id to link its
+      # report back to the build.
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-tuist-cli-version", "4.203.4")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "--without-building"],
+            duration: 100,
+            tuist_version: "4.203.4",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: true,
+            client_id: "client-id",
+            build_run_id: build_run_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert command_event.build_run_id == build_run_id
+      assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+    end
+
     test "returns UUID as id", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)

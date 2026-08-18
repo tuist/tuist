@@ -145,6 +145,55 @@
     icon="chart_arcs"
     data-part="test-case-details"
   >
+    <:actions>
+      <.date_picker
+        id="test-case-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-case-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-case-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
     <.card_section data-part="test-case-details-section">
       <div data-part="summary-main">
         <div data-part="metadata-grid">
@@ -195,17 +244,18 @@
         </div>
         <div data-part="widgets">
           <.widget
-            :if={!@flakiness_rate.ok? || (@flakiness_rate.result && @flakiness_rate.result > 0)}
             loading={!@flakiness_rate.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             description={
               dgettext(
                 "dashboard_tests",
-                "Percentage of test runs that were flaky in the last 30 days."
+                "Percentage of test runs that were flaky in the selected period."
               )
             }
             value={if @flakiness_rate.ok?, do: "#{@flakiness_rate.result}%"}
             id="widget-flakiness-rate"
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
+            empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.widget
             loading={!@reliability.ok?}
@@ -213,11 +263,13 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
+                "Success rate in the selected period, based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
                 branch: @selected_project.default_branch
               )
             }
-            value={if @reliability.ok?, do: format_percent(@reliability.result)}
+            value={
+              if @reliability.ok? && @reliability.result, do: format_percent(@reliability.result)
+            }
             id="widget-test-reliability"
             empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
@@ -228,7 +280,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Total number of times this test case has been executed."
+                "Number of times this test case has been executed in the selected period."
               )
             }
             value={if @analytics.ok?, do: format_number(@analytics.result.total_count)}
@@ -239,7 +291,10 @@
             loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Failed test case runs")}
             description={
-              dgettext("dashboard_tests", "Number of times this test case has failed.")
+              dgettext(
+                "dashboard_tests",
+                "Number of times this test case has failed in the selected period."
+              )
             }
             value={if @analytics.ok?, do: format_number(@analytics.result.failed_count)}
             id="widget-failed-test-case-runs"
@@ -251,7 +306,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Average duration of this test case across the last 50 runs."
+                "Average duration of this test case across the runs in the selected period."
               )
             }
             value={

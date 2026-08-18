@@ -37,9 +37,26 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`
 
-	// OS is the Scaleway-provided macOS image name. The controller
-	// resolves this to an OS UUID via `scw apple-silicon os list`.
-	// +kubebuilder:default=macos-tahoe-26.3
+	// OS is the macOS release family the fleet runs — "Tahoe",
+	// "Sequoia", "Sonoma". Adoption accepts any pool host in the family
+	// and release reinstalls onto the family's newest published image,
+	// so the fleet tracks Scaleway's point releases instead of chasing
+	// them.
+	//
+	// Deliberately not a point release. Scaleway retires point releases
+	// without notice and reimages released hosts onto the server type's
+	// current default, so an exact pin drifts out from under the fleet
+	// and no pool host can satisfy it again — that is how staging lost
+	// its whole runner pool in Aug 2026 while sitting on
+	// macos-tahoe-26.3.
+	//
+	// A value naming a specific image is refused at adoption with an
+	// InvalidOSPin condition rather than widened to its family —
+	// silently granting any Tahoe host to someone who asked for 26.5
+	// would be worse than saying no. Release is deliberately lenient:
+	// Machines predating this carry exact pins in their own specs and
+	// have to be able to drain.
+	// +kubebuilder:default=Tahoe
 	OS string `json:"os,omitempty"`
 
 	// FleetName groups Machines that share an SSH key. Set by the
@@ -77,11 +94,28 @@ type ScalewayAppleSiliconMachineSpec struct {
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
-	// scans when claiming a Mac mini for this Machine. Required:
-	// the controller has no auto-order path. Operators pre-order
-	// capacity in the Scaleway console because Mac mini inventory is
-	// frequently out of stock and Apple's 24h licensing floor makes
-	// speculative ordering expensive.
+	// scans when claiming a Mac mini for this Machine. The controller
+	// has no auto-order path, so a prefix must resolve from somewhere:
+	// this field, or the operator-global `--default-adopt-pool-prefix`
+	// when it is unset. Operators pre-order capacity in the Scaleway
+	// console because Mac mini inventory is frequently out of stock
+	// and Apple's 24h licensing floor makes speculative ordering
+	// expensive.
+	//
+	// Optional on purpose, even though every chart-rendered
+	// MachineTemplate sets it. A required field here is a schema
+	// constraint on a resource CAPI *clones*, so a MachineTemplate
+	// that lacks it fails `InfrastructureTemplateCloningFailed` on
+	// every MachineSet scale-up — and the drift that produces such a
+	// template is invisible until the next scale-up, which is
+	// typically an operator recovering a host by deleting its Machine.
+	// That turned a routine roll into an unrecoverable fleet: the CR
+	// the MachineSet needs to create is the one the apiserver rejects,
+	// and no elevation short of break-glass can repair a
+	// MachineTemplate. Accepting an empty value and resolving the
+	// operator default instead keeps scale-up working on a drifted
+	// template and confines the blast radius to a missing default,
+	// which the controller surfaces as a `NoAdoptPoolPrefix` event.
 	//
 	// Operator workflow:
 	//
@@ -107,8 +141,8 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// scan once Scaleway flips it back to `Delivered + Ready`.
 	// Physical destruction is operator-owned via the Scaleway
 	// console so the 24h billing floor doesn't leak into deploy flows.
-	// +kubebuilder:validation:MinLength=1
-	AdoptPoolPrefix string `json:"adoptPoolPrefix"`
+	// +optional
+	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
 
 // GHActionsRunnerConfig tells the reconciler what GitHub Actions
@@ -248,6 +282,21 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// every 60s indefinitely with no terminal-failure signal.
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
+
+	// LastUpdateFailureTime is when the drift loop last recorded an
+	// update failure for this host. It exists so the terminal Failed
+	// state can expire: FailedHostConfigHash alone only lifts it when a
+	// NEW config ships, which is right for a config the host rejected
+	// but wrong for the far more common verdict — the host was simply
+	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
+	// terminal indefinitely while remaining Ready and schedulable, so
+	// they kept running jobs on a host config frozen at whatever the
+	// operator last managed to push. Re-arming after a cooldown lets a
+	// host that has since come back take the current config on its own,
+	// while a genuinely broken config still backs off to a handful of
+	// attempts per cooldown instead of hammering every reconcile.
+	// +optional
+	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
 
 	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
 	// failures on the currently-adopted host. Reset to zero on a

@@ -876,11 +876,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let version = try Version(versionString: try await SwiftVersionProvider.current.swiftVersion(), usesLenientParsing: true)
-        let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
+        let minDeploymentTargets = try await ProjectDescription.DeploymentTargets.minimumSupportedVersions()
 
-        let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
+        let deploymentTargets = try await ProjectDescription.DeploymentTargets.from(
             minDeploymentTargets: minDeploymentTargets,
+            minMacCatalystDeploymentTarget: ProjectDescription.DeploymentTargets.minimumSupportedMacCatalystVersion(),
             package: packageInfo.platforms,
             destinations: destinations,
             packageName: packageInfo.name
@@ -1028,6 +1028,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             target: target,
             productName: productName,
             moduleName: moduleName,
+            packageName: packageInfo.name,
+            swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description),
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -1788,6 +1790,41 @@ private struct StaticLibraryArtifactBundleSliceIdentifier: Hashable, Comparable 
 }
 
 extension ProjectDescription.DeploymentTargets {
+    /// The oldest version of each platform that packages can be generated for.
+    ///
+    /// The versions come from the SDKs of the selected Xcode, which is what rejects a deployment target that is too
+    /// old at build time. `oldestVersions(for:)` covers the platforms whose SDK can't be read, and every platform
+    /// where Xcode is not available.
+    static func minimumSupportedVersions() async throws -> ProjectDescription.DeploymentTargets {
+        let sdkVersions = await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets()
+        if let iOS = sdkVersions.iOS, let macOS = sdkVersions.macOS, let watchOS = sdkVersions.watchOS,
+           let tvOS = sdkVersions.tvOS, let visionOS = sdkVersions.visionOS
+        {
+            return .multiplatform(iOS: iOS, macOS: macOS, watchOS: watchOS, tvOS: tvOS, visionOS: visionOS)
+        }
+
+        let swiftVersion = try Version(
+            versionString: try await SwiftVersionProvider.current.swiftVersion(),
+            usesLenientParsing: true
+        )
+        let fallback = oldestVersions(for: swiftVersion)
+        return .multiplatform(
+            iOS: sdkVersions.iOS ?? fallback.iOS,
+            macOS: sdkVersions.macOS ?? fallback.macOS,
+            watchOS: sdkVersions.watchOS ?? fallback.watchOS,
+            tvOS: sdkVersions.tvOS ?? fallback.tvOS,
+            visionOS: sdkVersions.visionOS ?? fallback.visionOS
+        )
+    }
+
+    /// The oldest deployment target that a Mac Catalyst build can use, or `nil` when the SDK can't be read.
+    ///
+    /// Catalyst targets carry the iOS deployment target, and the Catalyst variant of the macOS SDK stops
+    /// supporting versions that the iOS SDK still builds for.
+    static func minimumSupportedMacCatalystVersion() async -> String? {
+        await SDKDeploymentTargetsProvider.current.minimumDeploymentTargets().macCatalyst
+    }
+
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
         if swiftVersion < Version(5, 7, 0) {
@@ -1843,6 +1880,7 @@ extension ProjectDescription.DeploymentTargets {
 
     fileprivate static func from(
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
+        minMacCatalystDeploymentTarget: String?,
         package: [PackageInfo.Platform],
         destinations: ProjectDescription.Destinations,
         packageName _: String
@@ -1857,7 +1895,11 @@ extension ProjectDescription.DeploymentTargets {
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
             guard destinationTypes.contains(platform) else { return nil }
-            return try max(minDeploymentTargets[platform], platformInfos[platform])
+            var minimum = minDeploymentTargets[platform]
+            if platform == .iOS, destinations.contains(.macCatalyst) {
+                minimum = try max(minimum, minMacCatalystDeploymentTarget)
+            }
+            return try max(minimum, platformInfos[platform])
         }
 
         return .multiplatform(
@@ -2189,6 +2231,8 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         productName: String,
         moduleName: String,
+        packageName: String,
+        swiftToolsVersion: XcodeGraph.Version,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -2391,6 +2435,15 @@ extension ProjectDescription.Settings {
             )
         }
 
+        if swiftToolsVersion >= Version(5, 9, 0) {
+            result.base.ensurePackageName(packageName)
+            for index in result.configurations.indices
+                where result.configurations[index].settings["OTHER_SWIFT_FLAGS"] != nil
+            {
+                result.configurations[index].settings.ensurePackageName(packageName)
+            }
+        }
+
         return result
     }
 
@@ -2478,6 +2531,28 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+
+    fileprivate mutating func ensurePackageName(_ packageName: String) {
+        let packageName = packageName.quotedIfContainsSpaces
+        var swiftFlags: [String] = switch self["OTHER_SWIFT_FLAGS"] {
+        case let .array(values):
+            values
+        case let .string(value):
+            value.split(separator: " ").map(String.init)
+        case nil:
+            ["$(inherited)"]
+        @unknown default:
+            ["$(inherited)"]
+        }
+
+        let containsPackageName = swiftFlags.indices.dropLast().contains { index in
+            swiftFlags[index] == "-package-name" && swiftFlags[index + 1] == packageName
+        }
+        guard !containsPackageName else { return }
+
+        swiftFlags.append(contentsOf: ["-package-name", packageName])
+        self["OTHER_SWIFT_FLAGS"] = .array(swiftFlags)
     }
 }
 
@@ -2608,18 +2683,6 @@ extension PackageInfo {
         ]
 
         settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
-
-        if toolsVersion >= Version(5, 9, 0) {
-            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
-            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
-            case let .array(swiftFlags):
-                .array(swiftFlags + packageNameValues)
-            case let .string(swiftFlags):
-                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
-            case .none:
-                .array(packageNameValues)
-            }
-        }
 
         if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)

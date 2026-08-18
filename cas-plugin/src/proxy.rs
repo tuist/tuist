@@ -18,7 +18,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
+    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
     OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
@@ -55,6 +55,24 @@ const SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS: u64 = 10 * 60;
 // compiler worker thread, which demand fetches already block on network I/O).
 const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+// How stale a snapshot may be and still answer a resolve from its own copy of
+// the keyspace, measured from the last FULL fetch and never the last delta:
+// deltas only ADD, so only the full fetch re-applies the server's eviction
+// gate, and a view kept current by deltas alone goes on advertising keys the
+// remote has already dropped.
+//
+// It matters here and not on the per-key path because the per-key path is
+// gated at the server on every call — kura refuses to serve an ActionResult
+// whose blobs are gone. The snapshot bypasses that: it is a bulk dump, gated
+// once when the index was built. So the client's copy is the ONLY thing
+// standing between an evicted entry and a compiler that will fail the build on
+// it, and how recently it was gated is the whole of its authority.
+//
+// Twice the full cadence, so healthy operation never trips it — a scheduled
+// refresh lands well inside — and what it catches is a refresh loop that
+// stopped. That is reachable rather than theoretical: refreshes are held off on
+// a loaded machine and while a build is active, and CI runners are both.
+const SNAPSHOT_SERVE_MAX_AGE: Duration = Duration::from_secs(2 * 30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
 // hostile length prefix cannot drive an unbounded allocation. Comfortably
@@ -167,6 +185,57 @@ fn decode_tags(bytes: &[u8]) -> Option<(String, String)> {
     let contents = std::str::from_utf8(bytes).ok()?;
     let (branch, trunk) = contents.split_once('\n')?;
     Some((branch.to_string(), trunk.to_string()))
+}
+
+/// The plugin's write-ahead publication spool for a CAS path. One place, so the
+/// sweep, the drain accounting and the plugin agree on the name.
+fn spool_dir(cas_path: &str) -> std::path::PathBuf {
+    std::path::Path::new(cas_path).join("tuist-spool")
+}
+
+/// How many publication records are still spooled under `cas_path`: what this
+/// machine recorded and has NOT got onto the remote. A record is deleted only
+/// once its publication succeeded (or the policy dropped it), so zero here is
+/// the proof a drain waits for.
+///
+/// Counts exactly what `sweep_path` would try to publish — sidecars are not
+/// records, a claimed record still is — so the two cannot disagree about what
+/// is owed.
+fn spool_records(cas_path: &str) -> usize {
+    let Ok(entries) = std::fs::read_dir(spool_dir(cas_path)) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| !name.ends_with(TAGS_SUFFIX))
+        })
+        .count()
+}
+
+/// How long a drain waits when its caller names no budget of its own.
+const DRAIN_TIMEOUT_DEFAULT: Duration = Duration::from_secs(120);
+/// Ceiling on a caller-named budget. A drain parks a proxy thread and the
+/// request comes from outside this process, so the number is not the caller's
+/// to make unbounded.
+const DRAIN_TIMEOUT_MAX: Duration = Duration::from_secs(600);
+/// Pause between drain attempts. A publication that failed keeps its record and
+/// the periodic sweeper is 10s away, which is most of a caller's budget.
+const DRAIN_RETRY_BACKOFF: Duration = Duration::from_secs(2);
+
+/// The caller's wait budget, as `u32` big-endian milliseconds. Absent or zero
+/// reads as the default, anything above the ceiling is clamped.
+fn drain_timeout(payload: &[u8]) -> Duration {
+    let Ok(bytes) = <[u8; 4]>::try_from(payload) else {
+        return DRAIN_TIMEOUT_DEFAULT;
+    };
+    match u32::from_be_bytes(bytes) {
+        0 => DRAIN_TIMEOUT_DEFAULT,
+        millis => Duration::from_millis(u64::from(millis)).min(DRAIN_TIMEOUT_MAX),
+    }
 }
 
 /// Deletes a spool record and the tags written beside it. A leaked sidecar
@@ -421,6 +490,11 @@ pub struct PathState {
     // through a separate BatchReadBlobs round-trip (kura's
     // `inline_output_files: ["*"]` extension).
     pub stats_blobs_inlined: AtomicU64,
+    // Value graphs whose root was withheld because a node in their closure could
+    // not be stored. Each one is a key that resolves again next build instead of
+    // being served over a hole. Persistently non-zero means the remote is handing
+    // out entries whose blobs it cannot produce.
+    pub stats_incomplete_closures: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -1055,6 +1129,9 @@ pub struct Proxy {
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
     view_refreshed: Mutex<HashSet<RefreshKey>>,
+    // Instances already reported as serving per key because their snapshot aged
+    // out; see `note_stale_snapshot`. One line per instance, not per resolve.
+    stale_snapshot_logged: Mutex<HashSet<String>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
     // concurrent OP_FETCH_OBJECT blob reads into shared BatchReadBlobs calls.
@@ -1103,6 +1180,7 @@ impl Proxy {
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
+            stale_snapshot_logged: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
             analytics,
@@ -1293,6 +1371,7 @@ impl Proxy {
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -1605,7 +1684,51 @@ impl Proxy {
                 .map(|entry| entry.blob.size_bytes)
                 .sum::<i64>()
                 .max(1);
-            for entry in &missing {
+            // The value ROOT goes in LAST, and only if every other node landed.
+            //
+            // Skipping a node below is a DESIGNED outcome (an incomplete graph on
+            // the server, a writer still uploading), so "root present, child
+            // absent" is reachable in normal operation rather than only after a
+            // prune. That shape is invisible to a reader: the get path probes the
+            // ROOT and nothing deeper, because verifying a closure there means a
+            // load per node on the serial task-setup thread. Storing the root
+            // first therefore published a graph we already knew was incomplete.
+            //
+            // Ordering it last stops THIS writer publishing a root over a hole,
+            // which is a property of the materializer and not of the store:
+            // `fetch_object` stores whatever single node it is asked for, and a
+            // withheld root keeps its instruction, so the demand load that
+            // follows the served value puts the root back standalone. After that
+            // the probe passes and the association is recorded. The ordering
+            // buys that this crate stops CREATING the state unconditionally, not
+            // that it cannot be reached. A closure check in `fetch_object` would
+            // cost the transitive walk the root-only probe exists to avoid.
+            //
+            // Repair is per object and on demand: every skipped node keeps its
+            // fetch instructions, and the load that needs one fetches it. The
+            // graph is not re-materialized on the next build, because the
+            // `resolved` fast path counts a value with registered instructions as
+            // present and serves the cached Hit. Latency, not a safety hole.
+            let root_digest = manifest.first().map(|entry| entry.llcas_digest.clone());
+            let is_root = |entry: &ManifestEntry| Some(&entry.llcas_digest) == root_digest.as_ref();
+            let mut ordered: Vec<&ManifestEntry> =
+                missing.iter().copied().filter(|entry| !is_root(entry)).collect();
+            ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
+            // Whether the root is ours to publish at all. A root already present
+            // locally is not in `missing`, and its absence from the loop is not a
+            // withheld closure.
+            let root_pending = missing.iter().any(|entry| is_root(entry));
+            let mut root_stored = false;
+            // Counts the OTHER nodes only. A root that fails on its own is not
+            // evidence about its children, and reporting it as one of them would
+            // misdescribe which side of the graph the remote could not produce.
+            let mut skipped = 0usize;
+
+            for entry in ordered {
+                let entry_is_root = is_root(entry);
+                if entry_is_root && skipped > 0 {
+                    continue;
+                }
                 let (blob, inlined) = match &entry.contents {
                     Some(bytes) => (bytes, true),
                     None => match contents.get(&entry.blob.hash) {
@@ -1615,14 +1738,19 @@ impl Proxy {
                         // instructions registered so the demand load that
                         // needs it retries — and surfaces the failure —
                         // per object.
-                        None => continue,
+                        None => {
+                            skipped += usize::from(!entry_is_root);
+                            continue;
+                        }
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
+                    skipped += usize::from(!entry_is_root);
                     continue;
                 };
                 let codec_elapsed = phase.elapsed();
@@ -1655,6 +1783,7 @@ impl Proxy {
                 }
                 let phase = Instant::now();
                 unsafe { store_node(state, &node)? };
+                root_stored |= entry_is_root;
                 state
                     .ms_store
                     .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
@@ -1681,6 +1810,53 @@ impl Proxy {
                     .get_mut(&entry.llcas_digest)
                 {
                     instruction.contents = None;
+                }
+            }
+            // Reported once, AFTER the pass, in three distinct shapes. Deciding
+            // it at the root's turn in the loop saw only the first: nothing runs
+            // after the root, and a root already on disk never enters the loop at
+            // all. The counts are against `missing`, not `manifest`, because that
+            // is the set this pass was actually responsible for fetching:
+            // measuring against the whole graph reads as `skipped=1 of 40` when
+            // only two nodes were in play, which under-reports the failure rate
+            // this counter exists to trend.
+            let root_already_local = !root_pending;
+            if skipped > 0 || (root_pending && !root_stored) {
+                state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                let root_hex = root_digest
+                    .as_deref()
+                    .map(crate::analytics::hex_upper)
+                    .unwrap_or_default();
+                if root_already_local {
+                    // The one this crate cannot withhold its way out of: the root
+                    // was stored by an earlier pass or a demand load, so it is
+                    // present over a closure this pass just failed to complete.
+                    // The read guard's probe passes and the association gets
+                    // recorded, which is why it is counted rather than treated as
+                    // a non-event.
+                    crate::log_line(&format!(
+                        "incomplete closure, root already local: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        missing.len()
+                    ));
+                } else if skipped > 0 {
+                    crate::log_line(&format!(
+                        "incomplete closure, root withheld: root={} skipped={} of {}",
+                        root_hex,
+                        skipped,
+                        missing.len()
+                    ));
+                } else {
+                    // The remote produced the children but not the root itself,
+                    // so the graph is unusable for a different reason than the
+                    // withhold: retrying it is pointless until the root's blob is
+                    // actually serveable.
+                    crate::log_line(&format!(
+                        "incomplete closure, root unavailable: root={} of {}",
+                        root_hex,
+                        missing.len()
+                    ));
                 }
             }
         }
@@ -2322,35 +2498,115 @@ impl Proxy {
             let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
                 continue;
             };
-            let spool = std::path::Path::new(&cas_path).join("tuist-spool");
-            let Ok(entries) = std::fs::read_dir(&spool) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // A sidecar is not a record. Publishing one would fail to
-                    // decode and delete it, throwing away the tags it exists to
-                    // carry, and the record beside it would then resolve live.
-                    if name.ends_with(TAGS_SUFFIX) {
-                        continue;
-                    }
-                    // Claims are ours alone now; reclaim anything.
-                    let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
-                    let path = match base {
-                        Some(base) => {
-                            let claimed =
-                                spool.join(format!("{base}.claim-{}", std::process::id()));
-                            if std::fs::rename(entry.path(), &claimed).is_err() {
-                                continue;
-                            }
-                            claimed
-                        }
-                        None => entry.path(),
-                    };
-                    self.enqueue_publish(&cas_path, &instance, &path.to_string_lossy());
+            self.sweep_path(&cas_path, &instance);
+        }
+    }
+
+    /// Re-enqueues every publication record still spooled under one CAS path.
+    fn sweep_path(&self, cas_path: &str, instance: &str) {
+        let spool = spool_dir(cas_path);
+        let Ok(entries) = std::fs::read_dir(&spool) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                // A sidecar is not a record. Publishing one would fail to
+                // decode and delete it, throwing away the tags it exists to
+                // carry, and the record beside it would then resolve live.
+                if name.ends_with(TAGS_SUFFIX) {
+                    continue;
                 }
+                // Claims are ours alone now; reclaim anything.
+                let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
+                let path = match base {
+                    Some(base) => {
+                        let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
+                        if std::fs::rename(entry.path(), &claimed).is_err() {
+                            continue;
+                        }
+                        claimed
+                    }
+                    None => entry.path(),
+                };
+                self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
             }
         }
+    }
+
+    /// Waits for everything this machine recorded under `cas_path` to reach the
+    /// remote, and reports how many records are still owed.
+    ///
+    /// Zero is a promote gate's green light. A runner folds its CAS store into
+    /// the cache image it promotes as the account's master, and every host that
+    /// later clones that master inherits its `key -> value` associations while
+    /// its only repair path for an object the store does not hold is the remote.
+    /// So an association whose blobs are still spooled here is one that no host
+    /// can ever satisfy — and nothing retracts it (the llcas ABI has no delete,
+    /// and re-putting the key with another value is refused), so it fails every
+    /// later build of that key until the store generation rolls. An empty spool
+    /// is what rules that out: a record is deleted only by a publication that
+    /// succeeded.
+    ///
+    /// It sweeps before waiting because the plugin writes its record BEFORE
+    /// notifying the proxy — a frontend that died between the two leaves one
+    /// nothing has queued, and waiting on the pool alone would read that spool
+    /// as drained. Then it waits on the publisher pool, which is machine-wide:
+    /// a drain also waits out other instances' publications. That is deliberate
+    /// rather than incidental — per-path accounting would have to track
+    /// in-flight items by path, and the caller this exists for (a runner VM's
+    /// teardown) has exactly one.
+    ///
+    /// `instance` is the already-resolved routing target. `None` means the path
+    /// is unroutable, so nothing CAN be published and whatever is spooled is
+    /// owed — the one case where "nothing queued" must not read as "nothing
+    /// owed".
+    ///
+    /// Best-effort by nature, and no substitute for the read-side guard: a host
+    /// that panics, or a job cancelled mid-upload, promotes without ever
+    /// reaching this.
+    fn drain_publications(
+        &self,
+        cas_path: &str,
+        instance: Option<&str>,
+        timeout: Duration,
+    ) -> usize {
+        let deadline = Instant::now() + timeout;
+        // The common case: the job's publications drained while it was still
+        // building, so teardown owes nothing and waits for nothing.
+        let owed = spool_records(cas_path);
+        if owed == 0 {
+            return 0;
+        }
+        let Some(instance) = instance else {
+            return owed;
+        };
+        loop {
+            self.sweep_path(cas_path, instance);
+            self.publisher
+                .wait_idle(deadline.saturating_duration_since(Instant::now()));
+            let owed = spool_records(cas_path);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if owed == 0 || remaining.is_zero() {
+                return owed;
+            }
+            // A publication that failed keeps its record, and its retry is a
+            // sweep away. Spending what is left of the budget on another attempt
+            // beats parking on it: the alternative for the caller is the account
+            // losing this job's entire warm image over one transient failure.
+            std::thread::sleep(DRAIN_RETRY_BACKOFF.min(remaining));
+        }
+    }
+
+    /// The instance a drain routes to, WITHOUT going through `resolve_instance`.
+    /// That one is the seam where "a project is being built on this machine" is
+    /// known, and it acts on the transition (trunk ingestion, registry persist).
+    /// A drain is the opposite signal — the build is over — so it reads the
+    /// mapping and leaves that machinery alone.
+    fn drain_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        if !declared.is_empty() {
+            return Some(declared.to_string());
+        }
+        self.path_instance.lock().unwrap().get(cas_path).cloned()
     }
 
     /// Refreshes the bearer only when it is within `lead` of its JWT expiry,
@@ -2962,6 +3218,52 @@ impl Proxy {
         }
     }
 
+    /// How long ago this instance's snapshot last had a FULL fetch, which is the
+    /// only refresh that re-applies the server's eviction gate. `None` when
+    /// there is no Ready snapshot to age.
+    fn snapshot_full_fetch_age(&self, instance: &str) -> Option<Duration> {
+        match self.snapshots.lock().unwrap().get(instance) {
+            Some(SnapshotState::Ready { full_at, .. }) => Some(full_at.elapsed()),
+            _ => None,
+        }
+    }
+
+    /// Whether a snapshot that old may still answer resolves. Pure, and split
+    /// out from the serving path so the policy is testable without a store on
+    /// disk or a remote to talk to.
+    ///
+    /// `None` (no Ready snapshot) is not fresh: there is nothing to answer from,
+    /// and the per-key path already handles that case.
+    fn snapshot_may_serve(full_fetch_age: Option<Duration>) -> bool {
+        full_fetch_age.is_some_and(|age| age <= SNAPSHOT_SERVE_MAX_AGE)
+    }
+
+    /// Whether this instance's stale snapshot is worth reporting, and claims the
+    /// report if so. Split from the logging because that is the half a test can
+    /// see: `log_line` writes to a file named by an env var, and mutating the
+    /// environment races every other test in the binary.
+    fn should_report_stale_snapshot(&self, instance: &str) -> bool {
+        self.stale_snapshot_logged
+            .lock()
+            .unwrap()
+            .insert(instance.to_string())
+    }
+
+    /// Says once per instance that its snapshot has aged out of serving. Worth a
+    /// line: the effect is silent otherwise — resolves keep succeeding, just via
+    /// a round trip each — so a refresh loop that stopped would surface only as
+    /// "builds got slower" with nothing naming the cause.
+    fn note_stale_snapshot(&self, instance: &str, age: Duration) {
+        if self.should_report_stale_snapshot(instance) {
+            crate::log_line(&format!(
+                "snapshot for {instance} last fully fetched {}s ago (limit {}s); \
+                 serving resolves per key until it refreshes",
+                age.as_secs(),
+                SNAPSHOT_SERVE_MAX_AGE.as_secs()
+            ));
+        }
+    }
+
     /// Counts (and occasionally logs) a request that could not be routed to an
     /// instance. Logged on the first occurrence and every 1000th after.
     fn note_unprimed(&self, cas_path: &str) {
@@ -2980,7 +3282,7 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
@@ -2991,6 +3293,7 @@ impl Proxy {
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
+                state.stats_incomplete_closures.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
                 state.ms_fetch.load(Ordering::Relaxed),
@@ -3034,7 +3337,23 @@ impl Proxy {
                 };
                 let remote = self.remote_for(&instance);
                 self.ensure_snapshot(&instance, &remote);
-                let snapshot = self.snapshot_ready(&instance);
+                // A snapshot answers from a copy of the remote's keyspace, so
+                // its authority expires. Past the bound, stop serving from it
+                // and let the key take the per-key path, which kura gates on
+                // every call. Dropping it here rather than inside `resolve` also
+                // suppresses the view refresh that a per-key hit would otherwise
+                // queue: that refresh exists to re-rank a key that fell out of a
+                // CURRENT view, which says nothing when the view is stale.
+                let snapshot = self.snapshot_ready(&instance).filter(|_| {
+                    let age = self.snapshot_full_fetch_age(&instance);
+                    let fresh = Self::snapshot_may_serve(age);
+                    if !fresh {
+                        if let Some(age) = age {
+                            self.note_stale_snapshot(&instance, age);
+                        }
+                    }
+                    fresh
+                });
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
                     self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
                 });
@@ -3058,6 +3377,23 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_DRAIN => {
+                let owed = self.drain_publications(
+                    &request.cas_path,
+                    self.drain_instance(&request.cas_path, &request.instance)
+                        .as_deref(),
+                    drain_timeout(&request.payload),
+                );
+                if owed == 0 {
+                    write_response(&mut stream, STATUS_HIT, &[])
+                } else {
+                    crate::log_line(&format!(
+                        "proxy drain: {owed} publication(s) never reached the remote for {}",
+                        request.cas_path
+                    ));
+                    write_response(&mut stream, STATUS_MISS, owed.to_string().as_bytes())
+                }
             }
             OP_INVALIDATE => {
                 // A prune emptied this path's on-disk CAS in place; drop our marks
@@ -3327,6 +3663,119 @@ mod tests {
     /// the one CI runs on and the one this parse exists to keep reachable. A
     /// value that fell through to `Full` here would turn CI's one round trip
     /// into a full closure pull, which is the failure this pins.
+    /// A snapshot's answer is only as good as the last time its copy of the
+    /// remote's keyspace was gated, and only a FULL fetch re-gates it — deltas
+    /// add and never remove. Past the bound it stops serving and keys take the
+    /// per-key path, which kura gates on every call.
+    #[test]
+    fn a_snapshot_stops_serving_once_its_gate_is_stale() {
+        assert!(Proxy::snapshot_may_serve(Some(Duration::from_secs(0))));
+        assert!(Proxy::snapshot_may_serve(Some(SNAPSHOT_SERVE_MAX_AGE)));
+        assert!(!Proxy::snapshot_may_serve(Some(
+            SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(1)
+        )));
+        // Nothing to serve from is not "fresh"; the per-key path covers it.
+        assert!(!Proxy::snapshot_may_serve(None));
+        // A scheduled full refresh lands at SNAPSHOT_FULL_INTERVAL, so healthy
+        // operation must never trip this. Tightening the bound below the cadence
+        // would put every build on per-key round trips.
+        assert!(
+            SNAPSHOT_SERVE_MAX_AGE > SNAPSHOT_FULL_INTERVAL,
+            "the bound must leave room for the refresh cadence meant to keep it fresh"
+        );
+    }
+
+    /// The field choice is the substance, and it is the easy one to get wrong:
+    /// age comes from the last FULL fetch, never the last delta. Deltas only
+    /// ADD, so a view refreshed by deltas alone looks continuously fresh while
+    /// never re-applying the server's eviction gate — which is precisely the
+    /// state that serves keys the remote has dropped.
+    #[test]
+    fn snapshot_age_comes_from_the_full_fetch_not_the_delta() {
+        let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/writer":{"trunk":"main"}}"#,
+        )
+        .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+
+        // What a held-off refresh loop leaves behind: deltas kept landing, the
+        // full re-gate did not.
+        let stale = Instant::now()
+            .checked_sub(SNAPSHOT_SERVE_MAX_AGE + Duration::from_secs(60))
+            .expect("clock has enough history");
+        proxy.snapshots.lock().unwrap().insert(
+            "tuist/writer".to_string(),
+            SnapshotState::Ready {
+                snapshot: Arc::new(Snapshot {
+                    nodes: Vec::new(),
+                    node_index: HashMap::new(),
+                    keys: HashMap::new(),
+                    key_order: Vec::new(),
+                    watermark: 0,
+                }),
+                full_at: stale,
+                refreshed_at: Instant::now(),
+                last_used: Instant::now(),
+            },
+        );
+
+        let age = proxy
+            .snapshot_full_fetch_age("tuist/writer")
+            .expect("a Ready snapshot has an age");
+        assert!(
+            age > SNAPSHOT_SERVE_MAX_AGE,
+            "reading `refreshed_at` instead of `full_at` would have called this fresh"
+        );
+        assert!(!Proxy::snapshot_may_serve(Some(age)));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// One line per instance, not one per resolve: the condition persists for as
+    /// long as the refresh stays stuck, and a warm build issues thousands of
+    /// resolves through it.
+    #[test]
+    fn an_aged_out_snapshot_is_reported_once_per_instance() {
+        let dir = std::env::temp_dir().join(format!("tuist-snaplog-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(dir.join("registry")),
+            None,
+        );
+
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/writer"),
+            "the first resolve through a stale view reports it"
+        );
+        for _ in 0..5 {
+            assert!(
+                !proxy.should_report_stale_snapshot("tuist/writer"),
+                "and the thousands behind it in a warm build do not"
+            );
+        }
+        assert!(
+            proxy.should_report_stale_snapshot("tuist/other"),
+            "a second instance is its own report"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn prefetch_keys_is_its_own_mode_and_not_a_way_of_spelling_off() {
         assert_eq!(prefetch_mode_from(Some("keys")), PrefetchMode::Keys);
@@ -3551,6 +4000,181 @@ mod tests {
 
         drop(items);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Builds a proxy whose publisher, instead of uploading, runs `publish` for
+    /// each queued item — the seam the drain tests use to decide which records
+    /// "reach the remote" and which are left behind.
+    fn proxy_with_publisher<F>(registry: std::path::PathBuf, publish: F) -> &'static Proxy
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        proxy
+    }
+
+    fn drain_fixture(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("tuist-drain-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/mastodon":{"trunk":"main","branch":"main"}}"#,
+        )
+        .expect("write sources");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        (dir, registry)
+    }
+
+    /// The promote gate a runner's teardown stands on: has everything this job
+    /// recorded actually reached the remote? A record is deleted ONLY by a
+    /// successful publish, so an empty spool is the proof, and the drain is what
+    /// waits for it rather than sampling it.
+    #[test]
+    fn a_drain_reports_a_spool_the_publisher_emptied_as_clean() {
+        let (dir, registry) = drain_fixture("clean");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"record").expect("record");
+        std::fs::write(spool.join("1234-1"), b"record").expect("record");
+
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A publication the proxy could not send keeps its record, and the drain has
+    /// to say so. Promoting that image anyway is the whole defect: every host
+    /// that later clones the master inherits associations naming objects no kura
+    /// holds, and nothing can retract them.
+    #[test]
+    fn a_drain_reports_the_records_publication_left_behind() {
+        let (dir, registry) = drain_fixture("dirty");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"published").expect("record");
+        std::fs::write(spool.join("1234-1"), b"stuck").expect("record");
+
+        // The publisher keeps the record whose upload failed, exactly as
+        // `publish_item` does.
+        let proxy = proxy_with_publisher(registry, |record_path| {
+            if record_path.ends_with("1234-0") {
+                remove_record(record_path);
+            }
+        });
+        // A budget of a couple of retries: the drain re-sweeps a failed
+        // publication until the caller's deadline, so a generous one here would
+        // only make this test wait out the backoff.
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_millis(2500),
+        );
+
+        assert_eq!(remaining, 1, "the record that never landed is still counted");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The plugin writes its record BEFORE notifying the proxy, so a frontend
+    /// that exited without reaching the socket leaves one nothing has queued.
+    /// Waiting on the pool alone would call that spool drained while its records
+    /// sit there, so the drain sweeps first.
+    #[test]
+    fn a_drain_sweeps_records_the_proxy_was_never_notified_about() {
+        let (dir, registry) = drain_fixture("unnotified");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"never announced").expect("record");
+
+        let published: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&published);
+        let proxy = proxy_with_publisher(registry, move |record_path| {
+            seen.lock().unwrap().push(record_path.to_string());
+            remove_record(record_path);
+        });
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        assert_eq!(
+            published.lock().unwrap().len(),
+            1,
+            "the drain swept the record and published it"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Without a routable instance there is nothing to publish TO, so records
+    /// cannot have reached the remote — the drain must report them rather than
+    /// read "nothing queued" as "nothing owed".
+    #[test]
+    fn a_drain_of_an_unroutable_path_reports_its_records_as_owed() {
+        let (dir, registry) = drain_fixture("unrouted");
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::write(spool.join("1234-0"), b"record").expect("record");
+
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+        let remaining = proxy.drain_publications(
+            &dir.join("cas").to_string_lossy(),
+            None,
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A path that never published has no spool directory at all, which is the
+    /// common case on a runner whose job used the builtin lane. It has to read as
+    /// drained, or every such job would withhold its promote.
+    #[test]
+    fn a_path_that_never_published_drains_immediately() {
+        let (dir, registry) = drain_fixture("empty");
+        let proxy = proxy_with_publisher(registry, |record_path| remove_record(record_path));
+
+        let remaining = proxy.drain_publications(
+            &dir.join("never-built").to_string_lossy(),
+            Some("tuist/mastodon"),
+            std::time::Duration::from_secs(10),
+        );
+
+        assert_eq!(remaining, 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The wait is the caller's budget: the guest holds a VM (and its warm-pool
+    /// slot) open for it. An absent or absurd value must not turn into an
+    /// unbounded park on a proxy thread.
+    #[test]
+    fn a_drain_request_carries_a_bounded_timeout() {
+        assert_eq!(
+            drain_timeout(&5_000u32.to_be_bytes()),
+            Duration::from_secs(5)
+        );
+        assert_eq!(drain_timeout(&[]), DRAIN_TIMEOUT_DEFAULT);
+        assert_eq!(drain_timeout(&0u32.to_be_bytes()), DRAIN_TIMEOUT_DEFAULT);
+        assert_eq!(drain_timeout(&u32::MAX.to_be_bytes()), DRAIN_TIMEOUT_MAX);
     }
 
     /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
@@ -4122,6 +4746,7 @@ mod tests {
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
+            stats_incomplete_closures: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -4428,6 +5053,196 @@ mod tests {
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The case withholding cannot address: the root is ALREADY on disk, so it
+    /// never enters the loop (`missing` filters out whatever `is_local` answers
+    /// yes for) and there is nothing to withhold. An earlier pass or a demand
+    /// load put it there, and this pass then fails to complete its closure. The
+    /// read guard's probe passes and the association is recorded over the hole,
+    /// which makes this the shape most worth counting, not the least.
+    #[test]
+    fn an_incomplete_closure_under_an_already_local_root_is_counted() {
+        let dir = TempCasDir::new("root-already-local");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/already-local");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let root_entry = ManifestEntry {
+            llcas_digest: root.clone(),
+            blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
+            contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+        };
+
+        // First pass: the root alone, which lands.
+        proxy
+            .materialize_manifest(&remote, state, &[root_entry.clone()], observed)
+            .expect("materialize");
+        assert!(proxy.is_local(state, observed, &root), "the root is on disk now");
+
+        // Second pass over the same key, now with a child that cannot decode.
+        let manifest = vec![
+            root_entry,
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "1b".repeat(32), size_bytes: 5 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(!proxy.is_local(state, observed, &child), "the child still did not land");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "and the root stays present, because this pass never had it to withhold"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "so it must be COUNTED: keying the report off the withhold alone left \
+             the one case the read guard cannot catch as the only silent one"
+        );
+    }
+
+    /// The root can also fail on its own terms, and nothing runs after it: the
+    /// withhold decision is made at its turn in the loop, so deciding there left
+    /// a corrupt root uncounted and unlogged. Its children landing is exactly
+    /// what makes this case distinct, and why it reports a different reason than
+    /// a withhold: retrying is pointless until the remote can serve the root.
+    #[test]
+    fn a_root_that_fails_on_its_own_is_still_reported() {
+        let dir = TempCasDir::new("corrupt-root");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/corrupt-root");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // The child is sound and the ROOT is the undecodable one, which is the
+        // inverse of the case above.
+        let root = vec![0x21];
+        let child = vec![0x22];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "ee".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "ff".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a corrupt root is not an error either, it is the case being handled");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "and the root did not, so no association can be recorded over it"
+        );
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "the root failing on its own must be counted too: it is the store's \
+             most consequential outcome, and deciding this at the root's turn in \
+             the loop reported only the case where a CHILD was skipped"
+        );
+    }
+
+    /// Skipping a node is a designed outcome here, so "root present, child
+    /// absent" is reachable without any prune — and invisible to a reader, whose
+    /// guard probes the ROOT and nothing deeper. Storing the root last, and only
+    /// when the rest of its closure landed, is what makes that probe mean
+    /// "complete". Without it this manifest publishes a root over a hole.
+    #[test]
+    fn an_incomplete_closure_withholds_its_root() {
+        let dir = TempCasDir::new("incomplete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/incomplete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        // Root first, as an ActionResult's output order puts it. Both arrive
+        // inlined, so nothing is fetched and the remote is never consulted; the
+        // child's bytes are not a frame, which is one of the ways a node is
+        // skipped.
+        let root = vec![0x01];
+        let child = vec![0x02];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "aa".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "bb".repeat(32), size_bytes: 4 },
+                contents: Some(b"not a frame".to_vec()),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("a skipped node is not an error, it is the case being handled");
+
+        assert!(
+            !proxy.is_local(state, observed, &root),
+            "the root must NOT be published when a node in its closure was skipped: \
+             a later get probes only the root, so storing it here is what turns an \
+             incomplete graph into a hit that fails at load on the child"
+        );
+        assert!(!proxy.is_local(state, observed, &child), "and the child did not land");
+        assert_eq!(
+            state.stats_incomplete_closures.load(Ordering::Relaxed),
+            1,
+            "and the condition is counted rather than silent -- it was the silence \
+             that let this go undiagnosed"
+        );
+    }
+
+    /// The other half: withholding must be conditional, or no graph would ever
+    /// become locally resolvable and every build would re-resolve every key.
+    #[test]
+    fn a_complete_closure_publishes_its_root() {
+        let dir = TempCasDir::new("complete-closure");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/complete");
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+
+        let root = vec![0x11];
+        let child = vec![0x12];
+        let manifest = vec![
+            ManifestEntry {
+                llcas_digest: root.clone(),
+                blob: reapi::Digest { hash: "cc".repeat(32), size_bytes: 4 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"root"))),
+            },
+            ManifestEntry {
+                llcas_digest: child.clone(),
+                blob: reapi::Digest { hash: "dd".repeat(32), size_bytes: 5 },
+                contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"child"))),
+            },
+        ];
+
+        proxy
+            .materialize_manifest(&remote, state, &manifest, observed)
+            .expect("materialize");
+
+        assert!(proxy.is_local(state, observed, &child), "the child landed");
+        assert!(
+            proxy.is_local(state, observed, &root),
+            "so the root is published and the key resolves locally next build"
+        );
+        assert_eq!(state.stats_incomplete_closures.load(Ordering::Relaxed), 0);
     }
 
     // A demand fetch is a door into the same store, and it does not have to come

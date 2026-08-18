@@ -398,6 +398,20 @@ spec:
             # firewall carve-out below is the policy half.
             - --tailscale-accept-routes=true
             {{- end }}
+            {{- if .Values.macosFleet.hostLogs.enabled }}
+            # Host logs. The operator installs a launchd agent on each
+            # mini that tails /var/log/tart-kubelet.log and pushes the
+            # lines to the in-cluster Alloy receiver over the tailnet.
+            # An in-cluster collector cannot do this: Pods on a macOS
+            # Node are Tart VMs, so a DaemonSet never sees the host
+            # filesystem. Nested under tailscale.enabled because the
+            # receiver only exists on the tailnet.
+            - --log-shipper-binary-path=/opt/log-shipper/tuist-log-shipper-darwin-arm64
+            - --log-ship-url={{ required "macosFleet.hostLogs.url is required when hostLogs.enabled" .Values.macosFleet.hostLogs.url }}
+            {{- with .Values.macosFleet.hostLogs.env }}
+            - --log-ship-env={{ . }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
             # Punch the runner-cache carve-out through the VM egress
@@ -429,6 +443,14 @@ spec:
             {{- end }}
             {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
             - --vm-cache-pn-cidr={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.sshIngressAllowCIDRs }}
+            # Sources allowed to reach :22 on the minis on top of the
+            # tailnet and loopback. A pf anchor drops the rest, so the
+            # continuous internet SSH brute-force traffic a public Mac
+            # mini absorbs can't fill launchd's ssh listen backlog and
+            # wedge the operator out of both dial paths at once.
+            - --ssh-ingress-allow-cidrs={{ join "," . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
