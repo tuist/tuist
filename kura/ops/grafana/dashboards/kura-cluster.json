@@ -951,8 +951,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, producer, result) (rate(kura_segment_refreshes_total[5m]))",
-          "legendFormat": "{{region}} {{producer}} {{result}}",
+          "expr": "sum by (region, producer, result, trigger) (rate(kura_segment_refreshes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}} {{trigger}}",
           "refId": "A"
         }
       ],
