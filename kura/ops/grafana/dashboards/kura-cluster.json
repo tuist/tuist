@@ -951,8 +951,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, producer, result) (rate(kura_segment_refreshes_total[5m]))",
-          "legendFormat": "{{region}} {{producer}} {{result}}",
+          "expr": "sum by (region, producer, result, trigger) (rate(kura_segment_refreshes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}} {{trigger}}",
           "refId": "A"
         }
       ],
@@ -1029,6 +1029,44 @@
       ],
       "title": "Kura Node Logs",
       "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 51
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, trigger) (rate(kura_promotion_drops_total[5m]))",
+          "legendFormat": "{{region}} {{trigger}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Promotion Drops",
+      "type": "timeseries",
+      "description": "Promotions the queue had no room for. A nonzero find_missing or action_cache rate means read-triggered lifetime extension is not keeping up: those RPCs already told a client the blob is present, so a dropped refresh can let the blob be evicted before the client's follow-up read, which surfaces to the build as a missing object. A nonzero serve rate is benign by comparison, since that read already succeeded and the promotion only speeds up later ones. Vouched triggers have reserved queue headroom and their own drain lane, so they should be the last to drop."
     }
   ],
   "refresh": "10s",

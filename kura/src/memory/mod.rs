@@ -16,7 +16,7 @@ mod reservation;
 
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
-    container_memory_snapshot,
+    container_memory_protection, container_memory_snapshot,
 };
 pub use pressure::MemoryPressure;
 pub use reservation::{
@@ -105,6 +105,30 @@ impl MemoryController {
         )
     }
 
+    /// Sizes the anonymous-admission budget from `anon_budget_bytes` (derived
+    /// from the pod's memory floor) instead of from the ceiling. `None` keeps
+    /// the ceiling-derived sizing, which is what a deployment with no published
+    /// floor gets.
+    pub fn with_anon_budget(
+        metrics: Metrics,
+        runtime_limit_bytes: u64,
+        soft_limit_bytes: u64,
+        hard_limit_bytes: u64,
+        anon_budget_bytes: Option<u64>,
+    ) -> Self {
+        Self::with_runtime_limit_and_forced(
+            metrics,
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            forced_memory_pressure_for_tests(),
+            anon_budget_bytes,
+        )
+    }
+
+    /// Ceiling-derived sizing with no published floor. Production goes through
+    /// `with_anon_budget`, which passes `None` for the same effect.
+    #[cfg(test)]
     pub fn with_runtime_limit(
         metrics: Metrics,
         runtime_limit_bytes: u64,
@@ -117,6 +141,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             forced_memory_pressure_for_tests(),
+            None,
         )
     }
 
@@ -140,6 +165,7 @@ impl MemoryController {
             soft_limit_bytes,
             hard_limit_bytes,
             Some(forced),
+            None,
         )
     }
 
@@ -149,10 +175,16 @@ impl MemoryController {
         soft_limit_bytes: u64,
         hard_limit_bytes: u64,
         forced_pressure: Option<MemoryPressure>,
+        anon_budget_bytes: Option<u64>,
     ) -> Self {
         metrics.update_memory_limits(soft_limit_bytes, hard_limit_bytes);
         metrics.update_memory_pressure_state(MemoryPressure::Normal.as_i64());
-        let pools = MemoryPools::new(runtime_limit_bytes, soft_limit_bytes, hard_limit_bytes);
+        let pools = MemoryPools::new(
+            runtime_limit_bytes,
+            soft_limit_bytes,
+            hard_limit_bytes,
+            anon_budget_bytes,
+        );
         metrics.update_response_stream_pool_capacity(
             pools.response_streaming_bytes(),
             pools.foreground_response_streaming_bytes(),
@@ -244,6 +276,19 @@ impl MemoryController {
             working_set_reclaim || sample.current_bytes >= self.inner.hard_limit_bytes,
             Ordering::Relaxed,
         );
+        // The raw charge deliberately stops at `reclaim_file_cache` above and
+        // never reaches an admission gate. `memory.current` counts clean file
+        // cache, which on a warm serving node parks at the hard watermark as
+        // its steady state — the kernel reclaims it only under allocation
+        // demand and only as much as the allocation needs, so a raw-charge
+        // admission gate closes shortly after boot and never reopens (#12174's
+        // arm, latched; see the backfill and segment-refresh stalls it
+        // caused). Admission everywhere follows the pressure tier instead,
+        // driven by `pressure_bytes`: the memory that can actually kill the
+        // container (anon, unreclaimable kernel charge, shmem, sock, dirty and
+        // writeback pages). An allocation admitted against a charge-full but
+        // reclaimable cgroup forces the kernel to hand clean cache back, which
+        // trades cache warmth for progress, not safety.
         self.observe(sample.pressure_bytes)
     }
 
@@ -270,6 +315,15 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
+    // Every admission gate below follows the pressure tier alone. The raw
+    // cgroup charge (`memory.current`) is deliberately not consulted: it is
+    // dominated by reclaimable clean file cache on a warm serving node, sits
+    // at the hard watermark as steady state, and only recedes under
+    // allocation demand — a gate on it is a latch, not a gate (see
+    // `observe_container`). The raw charge still drives `reclaim_file_cache`,
+    // which selects a serving mode (drop-behind, mmap denial) rather than
+    // blocking work.
+
     pub fn allow_manifest_cache_admission(&self) -> bool {
         self.pressure() == MemoryPressure::Normal
     }
@@ -278,7 +332,24 @@ impl MemoryController {
         self.pressure() == MemoryPressure::Normal
     }
 
-    pub fn pause_outbox(&self) -> bool {
+    /// Copy-forward driven by a REAPI read path that vouched for the blob
+    /// (`GetActionResult`, `FindMissingBlobs`) runs one tier deeper than
+    /// serve-path promotion. Those RPCs tell the client the blob will still be
+    /// there for its follow-up fetch, so skipping the refresh at `Constrained`
+    /// withdraws that guarantee in the regime where eviction is most likely to
+    /// collect the blob first. It still stops at `Critical`, where the read
+    /// path's own write would compound the squeeze.
+    pub fn allow_read_triggered_refresh(&self) -> bool {
+        self.pressure() != MemoryPressure::Critical
+    }
+
+    /// Gates the *usage* (metering) outbox only. Replication delivery is
+    /// deliberately never paused: its durable backlog is bounded by
+    /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache
+    /// writes, so pausing it converts a memory problem into a correctness and
+    /// availability one. Metering has no such feedback — a delayed usage batch
+    /// costs nothing but freshness — so it stays sheddable.
+    pub fn pause_usage_outbox(&self) -> bool {
         self.pressure() == MemoryPressure::Critical
     }
 
@@ -335,7 +406,7 @@ impl MemoryController {
         }
     }
 
-    pub fn bootstrap_staging_budget_bytes(&self) -> u64 {
+    pub fn peer_staging_budget_bytes(&self) -> u64 {
         self.inner
             .hard_limit_bytes
             .saturating_sub(self.inner.soft_limit_bytes)
@@ -953,7 +1024,7 @@ mod tests {
     }
 
     #[test]
-    fn clean_file_cache_triggers_reclaim_without_constraining_admission() {
+    fn clean_file_cache_at_the_hard_limit_keeps_admission_open() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
@@ -965,10 +1036,25 @@ mod tests {
                 reclaimable_inactive_file_bytes: 40,
                 limit_bytes: Some(240),
             }),
+            // The tier follows `pressure_bytes`, which excludes the clean file
+            // cache making up the bulk of the charge. The raw charge parks at
+            // the hard watermark for the life of a warm node and the kernel
+            // reclaims it only under allocation demand, so a raw-charge gate
+            // would latch closed here and never reopen. Admission — foreground
+            // and background alike — must stay open; the raw charge only
+            // switches serving into drop-behind mode.
             MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_none());
+        assert!(controller.allow_background_admission());
+        assert!(controller.allow_segment_refresh());
+        assert!(controller.allow_manifest_cache_admission());
+        assert!(!controller.pause_usage_outbox());
+        assert!(
+            controller.allow_transient_admission(AdmissionClass::Foreground),
+            "clean file cache at the hard watermark must not shed public reads"
+        );
 
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
@@ -982,6 +1068,7 @@ mod tests {
         );
         assert!(!controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_some());
+        assert!(controller.allow_background_admission());
     }
 
     #[test]
@@ -1032,12 +1119,12 @@ mod tests {
     }
 
     #[test]
-    fn raw_hard_limit_arm_keeps_reclaim_on_without_hysteresis() {
+    fn admission_follows_the_tier_not_the_raw_charge() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
 
-        // Container charge at the hard watermark with a low working set: the raw arm
-        // holds reclaim on so a warm cache node keeps borrowing from clean file cache.
+        // Raw charge at the watermark with a low non-reclaimable figure is a
+        // warm node, not an overload: every gate stays open.
         assert_eq!(
             controller.observe_container(ContainerMemoryPressureSample {
                 current_bytes: 200,
@@ -1049,6 +1136,144 @@ mod tests {
             MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
+        assert!(controller.allow_background_admission());
+        assert!(controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // Non-reclaimable growth moves the tier, and the tier — not the raw
+        // charge — is what closes background admission. This is the memory
+        // that can actually kill the container.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 200,
+                pressure_bytes: 150,
+                working_set_bytes: 160,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Constrained
+        );
+        assert!(!controller.allow_background_admission());
+        assert!(!controller.allow_segment_refresh());
+        assert!(!controller.allow_manifest_cache_admission());
+        assert!(!controller.pause_usage_outbox());
+        assert!(controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // Critical is what pauses the usage outbox.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 230,
+                pressure_bytes: 220,
+                working_set_bytes: 225,
+                reclaimable_inactive_file_bytes: 5,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Critical
+        );
+        assert!(controller.pause_usage_outbox());
+        assert!(!controller.allow_transient_admission(AdmissionClass::Foreground));
+
+        // Recovery reopens the gates through the tier's own hysteresis; the
+        // raw charge still at the watermark does not hold them closed.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 200,
+                pressure_bytes: 40,
+                working_set_bytes: 40,
+                reclaimable_inactive_file_bytes: 160,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.allow_background_admission());
+        assert!(!controller.pause_usage_outbox());
+    }
+
+    #[test]
+    fn the_anon_budget_bounds_transient_admission_below_the_ceiling_headroom() {
+        // A 4Gi ceiling gives 1Gi of ceiling-derived headroom, but anon above the
+        // pod's floor is memory the kernel can only OOM-kill, so a published
+        // floor has to win. The floor-to-ceiling gap stays available to page
+        // cache and mmap-served segments, which reclaim instead.
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let ceiling_headroom = (hard_limit - soft_limit) as usize;
+
+        let unbounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            None,
+        );
+        assert_eq!(
+            unbounded.transient_capacity_bytes(),
+            ceiling_headroom as u64
+        );
+
+        let anon_budget = 600 * 1024 * 1024_u64;
+        let bounded = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(anon_budget),
+        );
+        assert_eq!(bounded.transient_capacity_bytes(), anon_budget);
+        assert!(bounded.transient_capacity_bytes() < unbounded.transient_capacity_bytes());
+
+        // A floor roomier than the ceiling allows cannot inflate the budget past
+        // what the ceiling can actually hold.
+        let generous = MemoryController::with_anon_budget(
+            Metrics::new("us-east".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            Some(runtime_limit * 4),
+        );
+        assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
+    }
+
+    #[test]
+    fn a_warm_serving_node_keeps_admitting_reads_and_background_work_at_the_limit() {
+        // Mirrors a production 2 GiB cache node: the cgroup charge sits just over
+        // the 85% hard watermark because the kernel is holding clean artifact
+        // pages, while the real working set is a small fraction of the limit.
+        // This is the steady state of a warm node, not an overload. It must not
+        // shed reads, and it must not latch background work closed either — the
+        // charge never recedes voluntarily, so a raw-charge background gate
+        // starved backfill, segment refresh, and the usage outbox for the life
+        // of the process.
+        let metrics = Metrics::new("us-east".into(), "tenant".into());
+        let runtime_limit = 2 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let controller =
+            MemoryController::with_runtime_limit(metrics, runtime_limit, soft_limit, hard_limit);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 1_852_125_184,
+                pressure_bytes: 192_602_112,
+                working_set_bytes: 191_483_904,
+                reclaimable_inactive_file_bytes: 1_600_000_000,
+                limit_bytes: Some(runtime_limit),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+        assert!(controller.allow_background_admission());
+        assert!(controller.allow_segment_refresh());
+        assert!(!controller.pause_usage_outbox());
+        assert!(
+            controller
+                .try_acquire_response_stream_memory(
+                    crate::constants::response_stream_chunk_bytes(4 * 1024 * 1024),
+                    "http"
+                )
+                .is_ok(),
+            "a public artifact read must be admitted while the charge is clean file cache"
+        );
     }
 
     #[test]
@@ -1162,7 +1387,7 @@ mod tests {
     }
 
     #[test]
-    fn small_runtime_keeps_a_full_bootstrap_response_reservation() {
+    fn small_runtime_keeps_a_full_backfill_response_reservation() {
         let controller = MemoryController::with_runtime_limit(
             Metrics::new("eu-west".into(), "tenant".into()),
             128 * 1024 * 1024,
@@ -1176,8 +1401,8 @@ mod tests {
             4 * 1024 * 1024
         );
         controller
-            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
-            .expect("small profiles must bootstrap the largest supported inline artifact");
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "backfill")
+            .expect("small profiles must still serve the largest supported inline artifact");
     }
 
     #[tokio::test]
@@ -1241,7 +1466,7 @@ mod tests {
     }
 
     #[test]
-    fn bootstrap_keeps_a_progress_quantum_without_consuming_public_response_capacity() {
+    fn backfill_keeps_a_progress_quantum_without_consuming_public_response_capacity() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::with_runtime_limit(
             metrics,
@@ -1261,41 +1486,41 @@ mod tests {
             .inner
             .response_stream_waiters
             .store(1, Ordering::Release);
-        let bootstrap_quantum = 6 * 1024 * 1024;
-        let bootstrap = controller
-            .try_acquire_background_response_stream_memory(bootstrap_quantum, "bootstrap")
-            .expect("one maximum bootstrap response must progress despite a public waiter");
+        let backfill_quantum = 6 * 1024 * 1024;
+        let backfill = controller
+            .try_acquire_background_response_stream_memory(backfill_quantum, "backfill")
+            .expect("one maximum backfill response must progress despite a public waiter");
         assert_eq!(
             controller.transient_reserved_bytes(),
-            (foreground_bytes + bootstrap_quantum) as u64
+            (foreground_bytes + backfill_quantum) as u64
         );
         assert!(
             controller
-                .try_acquire_background_response_stream_memory(1, "bootstrap")
+                .try_acquire_background_response_stream_memory(1, "backfill")
                 .is_err(),
             "the shared pool must remain a hard aggregate bound"
         );
-        drop(bootstrap);
+        drop(backfill);
         drop(foreground);
 
         controller
             .inner
             .response_stream_waiters
             .store(0, Ordering::Release);
-        let bootstrap = controller
-            .try_acquire_background_response_stream_memory(bootstrap_quantum, "bootstrap")
-            .expect("the reserved bootstrap quantum should be available");
+        let backfill = controller
+            .try_acquire_background_response_stream_memory(backfill_quantum, "backfill")
+            .expect("the reserved backfill quantum should be available");
         let foreground = controller
             .try_acquire_response_stream_memory(foreground_bytes, "http")
-            .expect("bootstrap must not consume capacity promised to public responses");
+            .expect("backfill must not consume capacity promised to public responses");
         assert!(
             controller
-                .try_acquire_background_response_stream_memory(1, "bootstrap")
+                .try_acquire_background_response_stream_memory(1, "backfill")
                 .is_err(),
-            "bootstrap must remain bounded to its reserved progress quantum"
+            "backfill must remain bounded to its reserved progress quantum"
         );
         drop(foreground);
-        drop(bootstrap);
+        drop(backfill);
     }
 
     #[test]
@@ -1350,7 +1575,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn public_response_burst_uses_elastic_capacity_without_displacing_bootstrap() {
+    async fn public_response_burst_uses_elastic_capacity_without_displacing_backfill() {
         const REQUEST_BYTES: usize = 512 * 1024;
         const EXTRA_REQUESTS: usize = 64;
 
@@ -1360,9 +1585,9 @@ mod tests {
             1200 * 1024 * 1024,
             1700 * 1024 * 1024,
         );
-        let bootstrap = controller
-            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "bootstrap")
-            .expect("the bootstrap progress quantum should be available");
+        let backfill = controller
+            .try_acquire_background_response_stream_memory(6 * 1024 * 1024, "backfill")
+            .expect("the backfill progress quantum should be available");
         let expected_admitted = (controller.foreground_response_streaming_pool_bytes()
             + controller.elastic_foreground_response_streaming_pool_bytes())
             / REQUEST_BYTES;
@@ -1440,7 +1665,7 @@ mod tests {
 
         drop(degraded);
         drop(admitted);
-        drop(bootstrap);
+        drop(backfill);
     }
 
     #[tokio::test]
@@ -1648,14 +1873,14 @@ mod tests {
 
         assert_eq!(controller.observe(700), MemoryPressure::Constrained);
         let permit = controller
-            .try_acquire_background_response_stream_memory(10, "bootstrap")
+            .try_acquire_background_response_stream_memory(10, "backfill")
             .expect("bounded peer responses should remain available while constrained");
         drop(permit);
 
         assert_eq!(controller.observe(850), MemoryPressure::Critical);
         assert!(
             controller
-                .try_acquire_background_response_stream_memory(10, "bootstrap")
+                .try_acquire_background_response_stream_memory(10, "backfill")
                 .is_err(),
             "critical pressure must still shed peer responses"
         );

@@ -219,6 +219,55 @@ ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The 
 > **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
 > `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
 
+## 5c. Tailscale fleet credential (Mac-mini fleets only)
+
+Skip this alongside 5b for clusters without a Mac-mini fleet.
+
+Every Mac mini joins the tailnet at bootstrap, and so does every Tart VM the processor Deployment schedules where the xcresult processor runs. Both read one credential: the `auth-key` field of the `TAILSCALE` item in this env's `tuist-k8s-<env>` vault, which ESO syncs into `<release>-capi-scaleway-applesilicon-tailscale`.
+
+**Store an OAuth client secret here, never a pre-auth key.** Tailscale caps pre-auth keys at 90 days and there is no way to extend one, so a fleet joining with a pre-auth key has an outage on the calendar with nothing but a human remembering the date in the way. On 2026-08-12 that key lapsed and the `:process_xcresult` queue ran with zero consumers for ~13h: the Mac mini hosts were fine (they join once and keep their identity) but every processor Pod roll creates a fresh VM that has to join again, and its launchd chain refuses to start the release without a tailnet identity. OAuth clients don't expire, and `tailscale up` accepts the client secret wherever an auth key goes, minting a fresh key per join.
+
+In the Tailscale admin console, create one client per env under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials): select **Credential**, then **OAuth**, then **Generate credential**. Note this is not the **Keys** page, which holds only auth keys and API access tokens; there is no "OAuth clients" page.
+
+- Scope: **Keys → Auth Keys → Write**, nothing else. This credential only mints join keys.
+- Tags: this env's `tag:tuist-macmini-<env>` only. The write scope requires at least one tag, and it is what the minted key applies to the joining device. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+
+The secret is shown once, and starts with `tskey-client-`. That prefix is load-bearing: both consumers detect it to decide whether to annotate the credential, so a value stored without it is treated as a legacy pre-auth key.
+
+The tag must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json). Keys minted through an OAuth client are always tagged and carry no default, so the consumers name the tag at join time from `macosFleet.tailscale.tags`. Set that in the env's values file or the fleet cannot join at all (the CAPI operator rejects the config before it pushes anything, and the VM's `tailscale-up.sh` exits before `tailscale up`).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE "auth-key[password]=tskey-client-..."
+```
+
+The consumers pin `ephemeral=true&preauthorized=true` on the minted key themselves; don't append query parameters to the stored value.
+
+> **ESO health is not credential health.** The ExternalSecret reports `SecretSynced` / `Ready=True` whatever the value's validity; it says only that 1Password answered. A fleet that can't join looks identical from the ESO side, so don't use it to rule the credential out. Detection for the failure class lives in [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md), keyed on queue age.
+
+## 5d. Tailscale device reaper credential
+
+One client per env, same as 5c, and for the same reason: confined to one env's tags, a leaked staging credential cannot delete a production device.
+
+Nothing garbage-collects a tailnet device. Tagged devices have key expiry disabled, so a registration outlives whatever created it, and both the xcresult-processor VMs and the Tailscale operator's proxy Pods register a device per Pod. Renaming them does not help: identity is the node key, and an image-booted VM has no persisted state to carry one across boots. The `tailscale-device-reaper` CronJob deletes the leftovers; see [`../helm/tuist/templates/tailscale-device-reaper.yaml`](../helm/tuist/templates/tailscale-device-reaper.yaml) for the grace-window design and the full safety argument.
+
+Create the client under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials) exactly as in 5c: **Credential**, then **OAuth**, then **Generate credential**.
+
+- Scope: **Devices → Core → Write**, nothing else. Read alone lists devices but cannot delete them.
+- Tags: this env's two tags only — `tag:tuist-macmini-<env>` and `tag:tuist-k8s-<env>`. Both must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE_DEVICE_REAPER \
+  "client-id[text]=..." "client-secret[password]=tskey-client-..."
+```
+
+Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_REAPER/client-id` and `/client-secret` by label.
+
+**Then set `tailscaleDeviceReaper.tags` in the env's values file to the same two tags.** This is not redundant with the client scope, and it is not optional — the job refuses to start without it. All envs share one tailnet and the devices listing returns every device on it regardless of how the credential is scoped, so the tag list is what stops this env's reaper walking another env's devices and dying on the first 403. The client scope is the second, independent guard: if the two ever disagree, the credential is what prevents a bug in the predicate from deleting someone else's fleet.
+
+`tag:tuist-mgmt` is swept by no reaper, deliberately. It covers a single long-lived device that has never produced a duplicate, and reaping the mgmt cluster's tailnet identity is the one deletion that could cost you the access you would need to undo it.
+
+Each env ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
+
 ## 6. First deploy
 
 ### Manual smoke test

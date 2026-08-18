@@ -53,14 +53,37 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "needed a single revision"
   ]
 
+  @transient_submodule_failure_markers [
+    "rate limit",
+    "too many requests",
+    "temporarily blocked",
+    "try again later"
+  ]
+
+  # Git renders an HTTP failure as the bare status line and only relays the
+  # host's explanation when the error body is `text/plain`, so a throttled host
+  # serving HTML or an empty body matches none of the prose markers above.
+  # Matching the status itself is what covers those.
+  @transient_http_statuses ~w(429 502 503 504)
+
+  # GitHub answers a throttled clone with the same 403 it uses for a repository
+  # the token cannot see, so a 403 from it says nothing durable. Elsewhere a 403
+  # is an access-control decision that will not change on retry, which is how
+  # Gerrit hosts such as review.mlplatform.org refuse anonymous clones. A
+  # private GitHub repository the token cannot see answers 404, which is already
+  # classified permanent, so scoping this away from GitHub loses no coverage.
+  @ambiguous_forbidden_hosts ["github.com"]
+
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
+  def perform(%Oban.Job{
+        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag} = args
+      }) do
     lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
 
     case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          do_sync_release(scope, name, full_handle, tag)
+          do_sync_release(scope, name, full_handle, tag, resync_opts(args))
         after
           Lock.release(lock_key)
         end
@@ -70,7 +93,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp do_sync_release(scope, name, full_handle, tag) do
+  defp resync_opts(args) do
+    %{
+      force?: Map.get(args, "force", false),
+      allow_checksum_change?: Map.get(args, "allow_checksum_change", false),
+      published_checksum: nil
+    }
+  end
+
+  defp do_sync_release(scope, name, full_handle, tag, opts) do
     case Registry.swift_registry_github_token() do
       nil ->
         Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
@@ -84,30 +115,49 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             releases = Map.get(metadata, "releases", %{})
             skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
-            if Map.has_key?(releases, normalized_version) or
-                 Metadata.verified_skip?(Map.get(skipped_releases, normalized_version)) do
+            if not opts.force? and
+                 (Map.has_key?(releases, normalized_version) or
+                    Metadata.verified_skip?(Map.get(skipped_releases, normalized_version))) do
               :ok
             else
-              sync_release(scope, name, full_handle, tag, normalized_version, token)
+              opts = %{opts | published_checksum: published_checksum(releases, normalized_version)}
+              sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
             end
 
           {:error, :not_found} ->
-            sync_release(scope, name, full_handle, tag, normalized_version, token)
+            sync_release(scope, name, full_handle, tag, normalized_version, token, opts)
         end
     end
   end
 
-  defp sync_release(scope, name, full_handle, tag, version, token) do
+  defp published_checksum(releases, version) do
+    case Map.get(releases, version) do
+      %{"checksum" => checksum} when is_binary(checksum) -> checksum
+      _release -> nil
+    end
+  end
+
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
-         :ok <- upload_source_archive(scope, name, version, archive_path),
+         :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, opts),
+         :ok <- upload_source_archive(scope, name, version, archive_path, checksum),
+         :ok <- verify_stored_archive(scope, name, version, checksum),
          {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
+      {:error, {:checksum_change_refused, details} = reason} ->
+        Logger.warning(
+          "Refusing to republish #{scope}/#{name}@#{version}: rebuilding produced #{details.rebuilt} " <>
+            "but #{details.published} is already published. Re-run with allow_checksum_change to override."
+        )
+
+        {:discard, reason}
+
       {:error, reason} ->
         case maybe_skip_release(scope, name, full_handle, version, reason) do
           :ok ->
@@ -146,8 +196,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
-    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-      zip_directory(source_directory, archive_path)
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir),
+         :ok <- zip_directory(source_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -168,17 +219,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
   # This workaround resolves symlinks by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
+  # A single listing answers both questions asked of a downloaded archive, so
+  # the archive it passes through untouched is inspected exactly once. An
+  # archive whose directories are already unreadable is rejected rather than
+  # repacked: extracting it lays the same modes down on disk and `zip` records
+  # them again, so repacking cannot repair it.
   defp normalize_archive(tmp_dir, archive_path) do
-    case archive_has_symlinks?(archive_path) do
-      {:ok, has_symlinks} ->
-        if has_symlinks do
-          repackage_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, listing} <- inspect_archive(archive_path),
+         :ok <- reject_unreadable_directories(listing) do
+      if listing.symlinks?, do: repackage_archive(tmp_dir, archive_path), else: :ok
     end
   end
 
@@ -281,29 +330,78 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @doc false
   def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag} = opts) do
-    git_credentials = Map.get(opts, :git_credentials)
+    context = %{
+      repository_full_handle: full_handle,
+      tag: tag,
+      git_credentials: Map.get(opts, :git_credentials)
+    }
 
-    with {:ok, submodule_paths} <- submodule_paths(destination) do
+    update_submodules_in(destination, nil, context)
+  end
+
+  # `git submodule update --recursive` reports a failure anywhere in the tree as
+  # a failure of the top-level submodule it was reached through, so an
+  # unreachable third-party dependency nested several levels down is
+  # indistinguishable from the package's own submodule being unreachable.
+  # Descending one level at a time attributes every failure to the exact path
+  # that produced it, so a skippable failure drops only that path instead of the
+  # required subtree that happened to lead to it.
+  defp update_submodules_in(repository_directory, path_prefix, context) do
+    with {:ok, submodule_paths} <- submodule_paths(repository_directory, path_prefix) do
       Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
-        case update_submodule(destination, submodule_path, git_credentials) do
-          :ok ->
-            {:cont, :ok}
-
-          {:skip, output} ->
-            handle_skipped_submodule(destination, submodule_path, full_handle, tag, output)
-
-          {:error, reason} ->
-            {:halt, {:error, reason}}
-        end
+        update_submodule_tree(repository_directory, submodule_path, path_prefix, context)
       end)
     end
   end
 
-  defp handle_skipped_submodule(destination, submodule_path, full_handle, tag, output) do
-    case remove_failed_submodule_contents(destination, submodule_path) do
+  defp update_submodule_tree(repository_directory, submodule_path, path_prefix, context) do
+    full_path = join_submodule_path(path_prefix, submodule_path)
+    submodule_directory = Path.join(repository_directory, submodule_path)
+
+    case update_submodule(repository_directory, submodule_path, context.git_credentials) do
+      :ok ->
+        descend_into_submodule(submodule_directory, full_path, context)
+
+      {:skip, output} ->
+        handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output)
+
+      {:throttled, status, output} ->
+        {:halt, {:error, {:git_submodule_update_throttled, full_path, status, output}}}
+
+      {:failed, status, output} ->
+        {:halt, {:error, {:git_submodule_update_failed, full_path, status, output}}}
+    end
+  end
+
+  defp descend_into_submodule(submodule_directory, full_path, context) do
+    if submodule_checkout?(submodule_directory) do
+      case update_submodules_in(submodule_directory, full_path, context) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    else
+      {:cont, :ok}
+    end
+  end
+
+  # A zero exit status does not by itself mean the submodule was populated: a
+  # `.gitmodules` declaring `update = none` makes git report success while
+  # leaving the empty directory the superproject checkout created. Listing that
+  # directory finds the *superproject*, whose repository discovery walks up from
+  # the gitlink and renders the gitlink itself as the relative path `./`, so
+  # descending would re-enter the same directory without ever reaching a fixed
+  # point. Requiring a checkout of its own restores what `--recursive` did here,
+  # which was to skip the submodule and move on.
+  defp submodule_checkout?(directory), do: File.exists?(Path.join(directory, ".git"))
+
+  defp join_submodule_path(nil, submodule_path), do: submodule_path
+  defp join_submodule_path(path_prefix, submodule_path), do: "#{path_prefix}/#{submodule_path}"
+
+  defp handle_skipped_submodule(repository_directory, submodule_path, full_path, context, output) do
+    case remove_failed_submodule_contents(repository_directory, submodule_path) do
       :ok ->
         Logger.warning(
-          "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
+          "Skipping submodule #{full_path} for #{context.repository_full_handle}@#{context.tag} after permanent git submodule update failure: #{output}"
         )
 
         {:cont, :ok}
@@ -313,19 +411,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp update_submodule(destination, submodule_path, git_credentials) do
+  defp update_submodule(repository_directory, submodule_path, git_credentials) do
     case System.cmd(
            "git",
            GitAuthentication.config_args(git_credentials) ++
              [
                "-C",
-               destination,
+               repository_directory,
                "submodule",
                "update",
                "--init",
-               "--recursive",
                "--depth",
                "1",
+               "--",
                submodule_path
              ],
            stderr_to_stdout: true,
@@ -343,70 +441,104 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             trimmed -> trimmed
           end
 
-        nested_submodule_path = nested_submodule_path(output)
-
-        cond do
-          nested_submodule_failure?(output, submodule_path, nested_submodule_path) ->
-            {:error, {:nested_git_submodule_update_failed, submodule_path, nested_submodule_path, status, output}}
-
-          skippable_submodule_failure?(output) ->
-            {:skip, output}
-
-          true ->
-            {:error, {:git_submodule_update_failed, submodule_path, status, output}}
+        case classify_submodule_failure(output) do
+          :permanent -> {:skip, output}
+          :transient -> {:throttled, status, output}
+          :unknown -> {:failed, status, output}
         end
     end
   end
 
-  defp nested_submodule_path(output) do
-    case Regex.run(~r/registered for path '([^']+)'/, output, capture: :all_but_first) ||
-           Regex.run(~r/submodule path '([^']+)'/, output, capture: :all_but_first) do
-      [nested_submodule_path] -> nested_submodule_path
+  @doc false
+  def skippable_submodule_failure?(output), do: classify_submodule_failure(output) == :permanent
+
+  # Skipping is permanent: the release ships an archive that no longer contains
+  # the submodule, so a host that is merely throttling us must not be read as one
+  # that will never serve the repository. GitHub answers a throttled clone with
+  # the same 403 it uses for a repository the token cannot see, and only the
+  # accompanying message tells the two apart. Throttling is kept distinct from an
+  # unclassified failure rather than folded into it, so the release can be
+  # deferred instead of retried against a host that has just asked us to slow
+  # down.
+  defp classify_submodule_failure(output) do
+    downcased_output = String.downcase(output)
+
+    cond do
+      Enum.any?(@transient_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :transient
+
+      http_status(downcased_output) in @transient_http_statuses ->
+        :transient
+
+      Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
+        :permanent
+
+      forbidden_by_policy?(downcased_output) ->
+        :permanent
+
+      true ->
+        :unknown
+    end
+  end
+
+  defp http_status(downcased_output) do
+    case Regex.run(~r/returned error: (\d{3})/, downcased_output, capture: :all_but_first) do
+      [status] -> status
       _ -> nil
     end
   end
 
-  defp nested_submodule_failure?(output, submodule_path, nested_submodule_path) do
-    output =~ "Failed to recurse into submodule path '#{submodule_path}'" and
-      is_binary(nested_submodule_path) and
-      nested_submodule_path != submodule_path and
-      String.starts_with?(nested_submodule_path, submodule_path <> "/")
+  # Git reports the refused URL and its status on one line, so the host that
+  # denied us is read from that line rather than from anywhere else in the
+  # output, which may mention several remotes.
+  defp forbidden_by_policy?(downcased_output) do
+    case Regex.run(~r/unable to access '([^']+)'[^\n]*returned error: 403/, downcased_output, capture: :all_but_first) do
+      [url] -> not ambiguous_forbidden_host?(url)
+      _ -> false
+    end
   end
 
-  @doc false
-  def skippable_submodule_failure?(output) do
-    Enum.any?(
-      @skippable_submodule_failure_markers,
-      &(output |> String.downcase() |> String.contains?(&1))
-    )
+  defp ambiguous_forbidden_host?(url) do
+    host = URI.parse(url).host || ""
+
+    Enum.any?(@ambiguous_forbidden_hosts, &(host == &1 or String.ends_with?(host, "." <> &1)))
   end
 
-  defp remove_failed_submodule_contents(destination, submodule_path) do
-    case File.rm_rf(Path.join(destination, submodule_path)) do
+  defp remove_failed_submodule_contents(repository_directory, submodule_path) do
+    case File.rm_rf(Path.join(repository_directory, submodule_path)) do
       {:ok, _removed_paths} -> :ok
       {:error, reason, path} -> {:error, {:remove_failed_submodule_contents_failed, path, reason}}
     end
   end
 
-  defp submodule_paths(destination) do
-    case System.cmd("git", ["-C", destination, "ls-files", "--stage"], stderr_to_stdout: true) do
+  # `-z` is what keeps the path usable rather than merely readable: without it
+  # git C-quotes any path containing non-ASCII bytes, quotes, backslashes or
+  # control characters, and the quoted rendering (`"caf\303\251"`) is handed
+  # straight back to git as a pathspec that matches nothing and to
+  # `File.rm_rf/1`, where a skip would delete nothing. NUL termination also
+  # means a path may be taken verbatim, since trimming would corrupt the paths
+  # git emits with leading or trailing whitespace.
+  defp submodule_paths(repository_directory, path_prefix) do
+    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage", "-z"], stderr_to_stdout: true) do
       {output, 0} ->
         paths =
           output
-          |> String.split("\n", trim: true)
+          |> String.split(<<0>>, trim: true)
           |> Enum.filter(&String.starts_with?(&1, "160000"))
-          |> Enum.map(fn line ->
-            case String.split(line, "\t", parts: 2) do
-              [_, path] -> String.trim(path)
+          |> Enum.map(fn record ->
+            case String.split(record, "\t", parts: 2) do
+              [_, path] -> path
               _ -> nil
             end
           end)
-          |> Enum.reject(&is_nil/1)
+          # A submodule git left unpopulated lists the superproject's own gitlink
+          # back as `./`, which would walk the tree into itself.
+          |> Enum.reject(&(&1 in [nil, "", ".", "./"]))
 
         {:ok, paths}
 
       {output, status} ->
-        {:error, {:git_list_submodules_failed, status, String.trim(output)}}
+        {:error, {:git_list_submodules_failed, path_prefix || ".", status, String.trim(output)}}
     end
   end
 
@@ -533,8 +665,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
          {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
-         :ok <- remove_archive(archive_path) do
-      zip_directory(top_level_directory, archive_path)
+         :ok <- remove_archive(archive_path),
+         :ok <- zip_directory(top_level_directory, archive_path) do
+      verify_archive_directories(archive_path)
     end
   end
 
@@ -671,23 +804,111 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     path == root_directory or String.starts_with?(path, root_directory <> "/")
   end
 
-  defp archive_has_symlinks?(archive_path) do
+  # Walks the `zipinfo` listing lazily and keeps only the tallies, because a
+  # large package carries tens of thousands of entries and none of them are
+  # needed once counted.
+  defp inspect_archive(archive_path) do
     case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
       {output, 0} ->
-        has_symlinks =
-          output
-          |> String.split("\n")
-          |> Enum.any?(&String.starts_with?(&1, "l"))
-
-        {:ok, has_symlinks}
+        {:ok,
+         output
+         |> String.splitter("\n")
+         |> Enum.reduce(%{symlinks?: false, unreadable_directories: 0, first_unreadable: nil}, &tally_entry/2)}
 
       {output, status} ->
         {:error, {:invalid_archive, status, output}}
     end
   end
 
-  defp upload_source_archive(scope, name, version, archive_path) do
-    S3.upload_file(source_archive_key(scope, name, version), archive_path, content_type: "application/zip")
+  defp tally_entry("l" <> _rest, tally), do: %{tally | symlinks?: true}
+
+  defp tally_entry(line, tally) do
+    if unreadable_directory_line?(line) do
+      %{
+        tally
+        | unreadable_directories: tally.unreadable_directories + 1,
+          first_unreadable: tally.first_unreadable || String.trim(line)
+      }
+    else
+      tally
+    end
+  end
+
+  # A stored directory entry whose recorded mode has no owner-execute bit
+  # extracts into a directory nobody can descend into, so SwiftPM fails with a
+  # permission error on an archive that is otherwise well-formed and whose
+  # checksum matches its metadata. `zipinfo` renders a healthy directory as
+  # `drwxr-xr-x` and the entry this rejects as `?rw-r--r--`, so the
+  # owner-execute column is the whole test and the trailing slash is what
+  # marks a directory. Entries written by non-Unix hosts carry no mode at all
+  # and extractors apply their own defaults, which is why this reads the
+  # rendered permissions rather than the raw external attributes.
+  defp unreadable_directory_line?(line) do
+    String.ends_with?(line, "/") and not traversable_directory?(line)
+  end
+
+  defp traversable_directory?(<<_type, _read, _write, ?x, _rest::binary>>), do: true
+  defp traversable_directory?(_line), do: false
+
+  defp verify_archive_directories(archive_path) do
+    with {:ok, listing} <- inspect_archive(archive_path) do
+      reject_unreadable_directories(listing)
+    end
+  end
+
+  defp reject_unreadable_directories(%{unreadable_directories: 0}), do: :ok
+
+  defp reject_unreadable_directories(listing) do
+    {:error, {:archive_directories_not_traversable, listing.unreadable_directories, listing.first_unreadable}}
+  end
+
+  # Republishing a version with different bytes turns a working pin into
+  # `invalid registry source archive checksum` for every client that already
+  # resolved it, and a precautionary resync is otherwise indistinguishable
+  # from a repair. A resync that would change an already-published checksum
+  # stops here unless the operator asked for that explicitly.
+  defp ensure_checksum_change_allowed(_scope, _name, _version, _checksum, %{allow_checksum_change?: true}), do: :ok
+
+  defp ensure_checksum_change_allowed(scope, name, version, checksum, opts) do
+    case opts.published_checksum do
+      nil ->
+        :ok
+
+      ^checksum ->
+        :ok
+
+      published ->
+        {:error,
+         {:checksum_change_refused,
+          %{scope: scope, name: name, version: version, published: published, rebuilt: checksum}}}
+    end
+  end
+
+  defp upload_source_archive(scope, name, version, archive_path, checksum) do
+    S3.upload_file(source_archive_key(scope, name, version), archive_path,
+      content_type: "application/zip",
+      meta: [{"sha256", checksum}]
+    )
+  end
+
+  # The archive upload runs through the multipart path, whose sub-operations do
+  # not carry the storage consistency header the shared request helper adds to
+  # single requests. Confirming the stored object records the digest we just
+  # uploaded, before the catalog is updated, keeps a catalog entry from
+  # advertising a checksum that object storage does not actually hold.
+  defp verify_stored_archive(scope, name, version, checksum) do
+    key = source_archive_key(scope, name, version)
+
+    case S3.head_object(key) do
+      {:ok, headers} ->
+        case Map.get(headers, "x-amz-meta-sha256") do
+          ^checksum -> :ok
+          stored -> {:error, {:stored_archive_mismatch, key, %{expected: checksum, stored: stored}}}
+        end
+
+      {:error, reason} ->
+        {:error, {:stored_archive_unverifiable, key, reason}}
+    end
   end
 
   defp source_archive_key(scope, name, version) do
@@ -833,6 +1054,25 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp metadata_lock_backoff_ms(attempts_remaining) do
     step = @metadata_lock_max_attempts - attempts_remaining + 1
     @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
+  end
+
+  # Retrying re-clones the repository and every submodule already walked, aimed
+  # at a host that has just asked us to slow down, and reports each attempt
+  # separately. Deferring to the next sync tick is what `SyncWorker` already does
+  # with throttling responses, and the version stays unrecorded so that tick
+  # picks it up again.
+  defp maybe_skip_release(
+         scope,
+         name,
+         _full_handle,
+         version,
+         {:git_submodule_update_throttled, submodule_path, _status, _output} = reason
+       ) do
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version}: the host serving submodule #{submodule_path} is throttling requests"
+    )
+
+    {:discard, reason}
   end
 
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do

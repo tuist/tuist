@@ -159,4 +159,90 @@ impl Prefetcher {
         }
         self.queue.lock().unwrap().drain(..).collect()
     }
+
+    /// Blocks until nothing is queued and no worker is mid-item, for at most
+    /// `timeout`, reporting whether it got there.
+    ///
+    /// Unlike `drain_stop_timeout` this leaves the pool RUNNING. The caller is
+    /// the long-lived proxy answering a drain request, which keeps serving
+    /// after the wait: stopping the workers there would leave every later
+    /// publication on that machine queued behind a pool that never runs again.
+    pub fn wait_idle(&self, timeout: std::time::Duration) -> bool {
+        let deadline = std::time::Instant::now() + timeout;
+        let mut queue = self.queue.lock().unwrap();
+        loop {
+            // A worker pops and increments `inflight` under this same lock, so
+            // the pair is read consistently: there is no window where an item
+            // is in neither the queue nor the counter.
+            if queue.is_empty() && self.inflight.load(Ordering::Acquire) == 0 {
+                return true;
+            }
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            let (guard, _timed_out) = self.cvar.wait_timeout(queue, deadline - now).unwrap();
+            queue = guard;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// Workers fabricate a `'static` reference to the pool and are only joined
+    /// by `drain_stop_timeout`, which `wait_idle` deliberately does not call —
+    /// so a pool waited on this way must outlive the test.
+    fn leaked_pool() -> &'static Prefetcher {
+        Box::leak(Box::new(Prefetcher::new()))
+    }
+
+    #[test]
+    fn wait_idle_returns_when_the_pool_has_caught_up_and_leaves_it_serving() {
+        let pool = leaked_pool();
+        let processed = Arc::new(AtomicU64::new(0));
+        let sink = Arc::clone(&processed);
+        pool.configure(2, move |item| {
+            std::thread::sleep(Duration::from_millis(10));
+            sink.fetch_add(u64::from(item[0]), Ordering::Relaxed);
+        });
+        for item in 1..=4u8 {
+            pool.enqueue(vec![item]);
+        }
+
+        assert!(pool.wait_idle(Duration::from_secs(10)));
+        assert_eq!(processed.load(Ordering::Relaxed), 10);
+
+        // The pool is still live. A `drain_stop_timeout` here would have made
+        // this enqueue unrunnable, which is why the proxy cannot use that one.
+        pool.enqueue(vec![5]);
+        assert!(pool.wait_idle(Duration::from_secs(10)));
+        assert_eq!(processed.load(Ordering::Relaxed), 15);
+    }
+
+    #[test]
+    fn wait_idle_gives_up_at_its_deadline_without_cancelling_the_work() {
+        let pool = leaked_pool();
+        let processed = Arc::new(AtomicU64::new(0));
+        let sink = Arc::clone(&processed);
+        pool.configure(1, move |_| {
+            std::thread::sleep(Duration::from_millis(300));
+            sink.fetch_add(1, Ordering::Relaxed);
+        });
+        pool.enqueue(vec![1]);
+
+        assert!(
+            !pool.wait_idle(Duration::from_millis(20)),
+            "an item still in flight is not quiescence"
+        );
+        assert!(pool.wait_idle(Duration::from_secs(10)));
+        assert_eq!(
+            processed.load(Ordering::Relaxed),
+            1,
+            "the timed-out wait left the item running rather than dropping it"
+        );
+    }
 }

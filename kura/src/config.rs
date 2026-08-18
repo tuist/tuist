@@ -4,12 +4,13 @@ use tokio::fs;
 
 use crate::{
     constants::{
-        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+        BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
-        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+        DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+        MAX_INLINE_REPLICATION_BODY_BYTES, default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -53,6 +54,13 @@ const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
 const KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: &str = "KURA_METADATA_STORE_MAX_BACKGROUND_JOBS";
+// The process's own anonymous footprint outside every tracked cache and pool:
+// stacks, the allocator's retained arenas, and per-connection state. Measured at
+// ~74 MiB on idle instances (a ~150 MiB working set less their cache sizes);
+// rounded up so the derived admission budget errs small rather than committing
+// anon the floor does not cover.
+const PROCESS_ANON_BASELINE_BYTES: u64 = 96 * 1024 * 1024;
+const KURA_MEMORY_FLOOR_BYTES: &str = "KURA_MEMORY_FLOOR_BYTES";
 const KURA_METADATA_STORE_READ_CACHE_BYTES: &str = "KURA_METADATA_STORE_READ_CACHE_BYTES";
 const KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: &str =
     "KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES";
@@ -68,12 +76,9 @@ const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -84,18 +89,18 @@ const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
+const KURA_REPLICATION_UPLOAD_STALL_MS: &str = "KURA_REPLICATION_UPLOAD_STALL_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
-const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
-const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
+const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
+const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
-const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
-const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
@@ -150,6 +155,10 @@ pub struct Config {
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    /// The pod's `requests.memory`, published by the orchestrator. `None` when
+    /// nothing publishes it (self-hosted, local runs, a controller too old to
+    /// set it), which keeps the ceiling-derived sizing.
+    pub memory_floor_bytes: Option<u64>,
     pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
@@ -162,29 +171,44 @@ pub struct Config {
     pub outbox_max_depth: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
+    /// How long an outbox artifact upload may produce no body chunk before the
+    /// attempt is abandoned. This is the only deadline on that path — the
+    /// upload client carries no read timeout — so it is tunable without a
+    /// rollout.
+    pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub multipart_max_active_uploads: usize,
     pub multipart_max_stored_bytes: u64,
-    pub bootstrap_timeout_ms: u64,
-    pub bootstrap_max_concurrent_peers: usize,
+    /// Share of the age-ordered segment ring (counted from the newest) whose
+    /// boundary segment's seal-time stat becomes the backfill horizon; the
+    /// margin's share of the ring's time span is the window's structural
+    /// slack.
+    pub backfill_margin_percent: u64,
+    /// Segment-ring fullness (segment count vs the ring's desired total, as a
+    /// percentage) at which a node still running its initial backfill cycle
+    /// marks itself ready. Defaults to half the backfill margin
+    /// ([`default_backfill_ready_ring_percent`]); an explicit env value
+    /// overrides the derivation.
+    pub backfill_ready_ring_percent: u64,
+    /// Byte threshold a backfill pass composes one bodies batch against, and
+    /// the cutoff above which a listed entry is fetched through the
+    /// per-artifact endpoint instead of riding a batch. Never exceeds the
+    /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
+    pub backfill_batch_bytes: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
-    /// How often the in-process GeoIP database is refreshed against the
-    /// upstream DB-IP Lite dump. `0` disables background refresh — the
-    /// container-image copy is then used for the pod's lifetime.
-    pub geoip_refresh_interval_secs: u64,
-    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
-    /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `geo.country.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
+    /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
+    /// the datacenter the node runs in; there is no runtime discovery behind
+    /// it, so an unset value simply leaves the attribute off.
     pub node_country_override: Option<String>,
-    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
-    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `geo.region.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`), stamped as `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 
@@ -353,6 +377,38 @@ impl DerivedRuntimeDefaults {
 }
 
 impl Config {
+    /// The anonymous-memory budget admission may commit, derived from the pod's
+    /// memory floor.
+    ///
+    /// Anything above the floor is memory the pod was never guaranteed. The
+    /// kernel can take reclaimable pages back under contention, but anonymous
+    /// memory it can only OOM-kill, so committing anon above the floor trades a
+    /// retryable `503` for a dead pod. Bounding admission by the floor keeps the
+    /// floor-to-ceiling gap for page cache and mmap-served segments, which is
+    /// memory the kernel *can* reclaim.
+    ///
+    /// Subtracts the anon this process holds outside admission: the metadata
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
+    ///
+    /// `None` when nothing published a floor, which leaves the ceiling-derived
+    /// sizing in place.
+    pub fn anon_admission_budget_bytes(&self) -> Option<u64> {
+        let untracked = (self.rocksdb_block_cache_bytes as u64)
+            .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        Some(self.memory_floor_bytes?.saturating_sub(untracked))
+    }
+
     pub fn from_env() -> Result<Self, String> {
         Self::from_lookup_with_resources(|key| std::env::var(key).ok(), HostResources::detect())
     }
@@ -647,6 +703,17 @@ impl Config {
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
+        let memory_floor_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MEMORY_FLOOR_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MEMORY_FLOOR_BYTES} must be a valid u64"))
+            },
+        )
+        .filter(|floor| *floor > 0);
         let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
@@ -898,6 +965,22 @@ impl Config {
             },
         )
         .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
+        let replication_upload_stall_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_UPLOAD_STALL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_REPLICATION_UPLOAD_STALL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_UPLOAD_STALL_MS);
+        if replication_upload_stall_ms == 0 {
+            invalid.push(format!(
+                "{KURA_REPLICATION_UPLOAD_STALL_MS} must be greater than 0"
+            ));
+        }
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -962,36 +1045,52 @@ impl Config {
                 "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
             ));
         }
-        let bootstrap_timeout_ms = optional_parsed_value(
+        let backfill_margin_percent = optional_parsed_value(
             &mut lookup,
-            KURA_BOOTSTRAP_TIMEOUT_MS,
+            KURA_BACKFILL_MARGIN_PERCENT,
             &mut invalid,
             |value| {
                 value
                     .parse::<u64>()
-                    .map_err(|_| format!("{KURA_BOOTSTRAP_TIMEOUT_MS} must be a valid u64"))
+                    .map_err(|_| format!("{KURA_BACKFILL_MARGIN_PERCENT} must be a valid u64"))
             },
         )
-        .unwrap_or(DEFAULT_BOOTSTRAP_TIMEOUT_MS);
-        if bootstrap_timeout_ms == 0 {
+        .unwrap_or(DEFAULT_BACKFILL_MARGIN_PERCENT);
+        if backfill_margin_percent == 0 || backfill_margin_percent > 100 {
             invalid.push(format!(
-                "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
+                "{KURA_BACKFILL_MARGIN_PERCENT} must be between 1 and 100"
             ));
         }
-        let bootstrap_max_concurrent_peers = optional_parsed_value(
+        let backfill_ready_ring_percent = optional_parsed_value(
             &mut lookup,
-            KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS,
+            KURA_BACKFILL_READY_RING_PERCENT,
             &mut invalid,
             |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be a valid usize")
-                })
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_READY_RING_PERCENT} must be a valid u64"))
             },
         )
-        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS);
-        if bootstrap_max_concurrent_peers == 0 {
+        .unwrap_or_else(|| default_backfill_ready_ring_percent(backfill_margin_percent));
+        if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
             invalid.push(format!(
-                "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
+                "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let backfill_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_BACKFILL_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BACKFILL_BATCH_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BACKFILL_BATCH_BYTES);
+        if backfill_batch_bytes == 0 || backfill_batch_bytes > BACKFILL_BODIES_BATCH_BYTES {
+            invalid.push(format!(
+                "{KURA_BACKFILL_BATCH_BYTES} must be between 1 and {BACKFILL_BODIES_BATCH_BYTES}"
             ));
         }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
@@ -1203,17 +1302,26 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
-        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
-            .map(|value| value.trim().trim_end_matches('/').to_owned())
-            .filter(|value| !value.is_empty());
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        // Usage reporting and authorization address the same server, so a node
+        // given credentials and only the authorization URL has still said where
+        // to report. On its own that URL says where to authorize and nothing
+        // more: reading it as a usage URL would half-configure the tuple below
+        // and stop a node that only authorizes from booting at all.
+        let has_credentials =
+            control_plane_client_id.is_some() && control_plane_client_secret.is_some();
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| {
+                has_credentials
+                    .then(|| lookup(KURA_AUTH_TUIST_URL))
+                    .flatten()
+            })
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
         let usage = match (
             control_plane_url,
@@ -1249,17 +1357,6 @@ impl Config {
                 None
             }
         };
-        let geoip_refresh_interval_secs = optional_parsed_value(
-            &mut lookup,
-            KURA_GEOIP_REFRESH_INTERVAL_SECS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1401,6 +1498,7 @@ impl Config {
             memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_floor_bytes,
             snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
@@ -1413,12 +1511,14 @@ impl Config {
             outbox_max_depth,
             replication_bandwidth_limit_bytes_per_second,
             replication_public_latency_target_ms,
+            replication_upload_stall_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             multipart_max_active_uploads,
             multipart_max_stored_bytes,
-            bootstrap_timeout_ms,
-            bootstrap_max_concurrent_peers,
+            backfill_margin_percent,
+            backfill_ready_ring_percent,
+            backfill_batch_bytes,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1428,7 +1528,6 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
-            geoip_refresh_interval_secs,
             node_country_override,
             node_subdivision_override,
         })
@@ -1443,14 +1542,16 @@ impl Config {
         _data_dir_lock: &DataDirLock,
     ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
-        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
-        // staging) is dead once the process restarts, and a failed transfer can
-        // leave a partial file behind. Left to accumulate they fill the data disk
-        // and RocksDB then fails to open with "No space left on device", wedging
-        // the pod in a crash loop. Clearing them here — before Store::open — lets
-        // such a pod free space and recover on the next start instead of staying
-        // stuck out-of-space.
-        for staging in ["uploads", "parts", "bootstrap"] {
+        // Everything under tmp_dir (in-flight uploads, multipart parts, peer
+        // catch-up staging) is dead once the process restarts, and a failed
+        // transfer can leave a partial file behind. Left to accumulate they fill
+        // the data disk and RocksDB then fails to open with "No space left on
+        // device", wedging the pod in a crash loop. Clearing them here — before
+        // Store::open — lets such a pod free space and recover on the next start
+        // instead of staying stuck out-of-space. `bootstrap` is the retired
+        // legacy walker's staging directory: still swept (an upgrading node can
+        // carry its leftovers in) but no longer recreated.
+        for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
                 Ok(()) => {}
@@ -1460,7 +1561,7 @@ impl Config {
         }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
-        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
+        fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -1666,6 +1767,61 @@ mod tests {
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
     }
 
+    // The authorization URL on its own says where to authorize, not that usage
+    // should be reported. Treating it as a usage URL half-configures the tuple
+    // and stops the node booting, which is what the end-to-end nodes do: they
+    // authorize from a token and have no control-plane credentials at all.
+    #[test]
+    fn the_authorization_url_alone_leaves_usage_reporting_off() {
+        let config = config_from(&[(KURA_AUTH_TUIST_URL, "http://127.0.0.1:1")])
+            .expect("a node that only authorizes must still start");
+
+        assert!(config.usage.is_none());
+    }
+
+    // The configuration the self-hosting guides tell operators to write: the
+    // authorization URL plus control-plane credentials, and no
+    // KURA_CONTROL_PLANE_URL. Usage reporting reads the same server, so this
+    // has to resolve rather than trip the all-or-nothing check.
+    #[test]
+    fn usage_reporting_accepts_the_authorization_url_as_its_control_plane_url() {
+        let config = config_from(&[
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("the documented self-hosted configuration must start");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://tuist.acme.internal");
+    }
+
+    #[test]
+    fn an_explicit_control_plane_url_still_wins() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://usage.acme.internal"),
+            (KURA_AUTH_TUIST_URL, "https://tuist.acme.internal"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect("config should build");
+
+        let usage = config.usage.expect("usage reporting should be configured");
+        assert_eq!(usage.control_plane_url, "https://usage.acme.internal");
+    }
+
+    // Credentials without any URL at all is still a half-configured node.
+    #[test]
+    fn credentials_without_any_server_url_are_still_rejected() {
+        let error = config_from(&[
+            (KURA_CONTROL_PLANE_CLIENT_ID, "client-id"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "client-secret"),
+        ])
+        .expect_err("credentials with no server URL must fail");
+
+        assert!(error.contains(KURA_CONTROL_PLANE_URL));
+    }
+
     #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
@@ -1733,6 +1889,10 @@ mod tests {
         );
         assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.replication_upload_stall_ms,
+            DEFAULT_REPLICATION_UPLOAD_STALL_MS
+        );
         assert_eq!(
             config.accelerated_file_serving,
             AcceleratedFileServingConfig {
@@ -1810,6 +1970,38 @@ mod tests {
     }
 
     #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
+    }
+
+    #[test]
     fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
         let mut values = base_values();
         values.insert(
@@ -1864,6 +2056,7 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "90000"),
             (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
             (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
@@ -1921,6 +2114,7 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.replication_upload_stall_ms, 90_000);
         assert_eq!(config.multipart_max_active_uploads, 64);
         assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
@@ -1931,33 +2125,76 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-        assert_eq!(
-            config.geoip_refresh_interval_secs,
-            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
-        );
     }
 
     #[test]
-    fn from_lookup_parses_geoip_refresh_interval_override() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected geoip config to parse");
+    fn from_lookup_parses_backfill_margin_percent() {
+        let config = config_from(&[]).expect("default backfill margin should be valid");
+        assert_eq!(
+            config.backfill_margin_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT
+        );
 
-        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "25")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_margin_percent, 25);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill margin must fail");
+            assert!(error.contains(KURA_BACKFILL_MARGIN_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_ready_ring_percent() {
+        let config = config_from(&[]).expect("default backfill ready percent should be valid");
+        assert_eq!(
+            config.backfill_ready_ring_percent,
+            DEFAULT_BACKFILL_MARGIN_PERCENT / 2,
+            "the default derives from the margin, not a fixed value"
+        );
+
+        // The derivation follows an overridden margin.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "30")])
+            .expect("an in-range backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 15);
+
+        // A 1% margin derives the 1 floor rather than 0.
+        let config = config_from(&[(KURA_BACKFILL_MARGIN_PERCENT, "1")])
+            .expect("a 1% backfill margin should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 1);
+
+        // An explicit value overrides the derivation.
+        let config = config_from(&[
+            (KURA_BACKFILL_MARGIN_PERCENT, "30"),
+            (KURA_BACKFILL_READY_RING_PERCENT, "60"),
+        ])
+        .expect("an in-range backfill ready percent should be valid");
+        assert_eq!(config.backfill_ready_ring_percent, 60);
+
+        for out_of_range in ["0", "101"] {
+            let error = config_from(&[(KURA_BACKFILL_READY_RING_PERCENT, out_of_range)])
+                .expect_err("an out-of-range backfill ready percent must fail");
+            assert!(error.contains(KURA_BACKFILL_READY_RING_PERCENT));
+        }
+    }
+
+    #[test]
+    fn from_lookup_parses_backfill_batch_bytes() {
+        let config = config_from(&[]).expect("default backfill batch bytes should be valid");
+        assert_eq!(config.backfill_batch_bytes, DEFAULT_BACKFILL_BATCH_BYTES);
+
+        let config = config_from(&[(KURA_BACKFILL_BATCH_BYTES, "1048576")])
+            .expect("an in-range backfill batch threshold should be valid");
+        assert_eq!(config.backfill_batch_bytes, 1_048_576);
+
+        let above_ceiling = (BACKFILL_BODIES_BATCH_BYTES + 1).to_string();
+        for out_of_range in ["0", above_ceiling.as_str()] {
+            let error = config_from(&[(KURA_BACKFILL_BATCH_BYTES, out_of_range)])
+                .expect_err("an out-of-range backfill batch threshold must fail");
+            assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
+        }
     }
 
     #[test]
@@ -2043,6 +2280,7 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
+            (KURA_REPLICATION_UPLOAD_STALL_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -2076,6 +2314,14 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_replication_upload_stall_ms() {
+        let error = config_from(&[(KURA_REPLICATION_UPLOAD_STALL_MS, "0")])
+            .expect_err("expected a zero upload stall window to fail");
+        assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));
     }
 
     #[test]
@@ -2609,10 +2855,15 @@ mod tests {
         // real data file, to prove ensure_directories reclaims the former without
         // touching the latter.
         let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let stale_backfill = config.tmp_dir.join("backfill").join("bodies-leftover");
         let kept = config.data_dir.join("rocksdb").join("CURRENT");
         fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(stale_backfill.parent().unwrap())
+            .await
+            .unwrap();
         fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
         fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&stale_backfill, b"stale").await.unwrap();
         fs::write(&kept, b"keep").await.unwrap();
 
         config
@@ -2628,7 +2879,11 @@ mod tests {
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
-        assert!(config.tmp_dir.join("bootstrap").exists());
+        assert!(config.tmp_dir.join("backfill").exists());
+        assert!(
+            !config.tmp_dir.join("bootstrap").exists(),
+            "the retired legacy walker's staging directory must not be recreated"
+        );
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
@@ -2637,6 +2892,10 @@ mod tests {
         assert!(
             !stale.exists(),
             "stale staging must be reclaimed on startup"
+        );
+        assert!(
+            !stale_backfill.exists(),
+            "stale backfill spool must be reclaimed on startup"
         );
         assert!(kept.exists(), "persistent data must be preserved");
 

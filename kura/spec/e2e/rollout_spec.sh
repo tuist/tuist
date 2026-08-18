@@ -101,3 +101,89 @@ Describe 'warm rollout lifecycle'
     The variable second_writer_output should include 'exit_status=1'
   End
 End
+
+# The 2026-07-24 incident class: under the retired bootstrap walker, a peer
+# flap or a recovery re-enrollment after a node became Ready cleared its
+# serving state and re-gated readiness, which let a readiness-gated rolling
+# update kill a just-Ready pod mid-catch-up. Readiness now LATCHES for the
+# process lifetime: nothing on the backfill path may take a node out of
+# rotation once it served, so this suite flaps the only peer and asserts
+# /ready never regresses through loss, rediscovery, and the rejoin pass.
+Describe 'backfill readiness latch survives peer flaps'
+  Include spec/e2e/support.sh
+
+  setup_suite() {
+    COMPOSE_FILES=(
+      -f "${PROJECT_ROOT}/docker-compose.yml"
+      -f "${PROJECT_ROOT}/test/e2e/docker-compose.discovery.yml"
+      -f "${PROJECT_ROOT}/spec/e2e/docker-compose.backfill.yml"
+    )
+    setup_suite_tmpdir
+
+    suite_env COMPOSE_PROJECT_NAME kura-rollout-backfill
+    ephemeral_ports KURA_US_PORT KURA_US_2_PORT TEMPO_PORT OTLP_PORT
+
+    dc down -v --remove-orphans >/dev/null 2>&1 || true
+    if [ "${KURA_E2E_SKIP_BUILD:-0}" != "1" ]; then
+      dc build kura-us kura-us-2 >/dev/null 2>&1
+    fi
+    dc up -d kura-us >/dev/null 2>&1
+    resolve_http_node KURA_US kura-us
+    wait_for_http "${KURA_US_URL}/up"
+    capture_into us_ready wait_for_contains "${KURA_US_URL}/ready" '"state":"serving"' || return 1
+    [[ "${us_ready}" == *'"ready":true'* ]]
+  }
+
+  teardown_suite() {
+    compose_teardown
+  }
+
+  BeforeAll 'setup_suite'
+  AfterAll 'teardown_suite'
+
+  It 'never regresses readiness after the latch through peer loss and recovery'
+    artifact_status="$(status_only -X POST \
+      "${KURA_US_URL}/api/cache/cas/latch-artifact?tenant_id=acme&namespace_id=ios" \
+      -H "content-type: application/octet-stream" \
+      --data-binary "latch-binary")"
+    The variable artifact_status should eq 204
+
+    dc up -d kura-us-2 >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US_2 kura-us-2
+    wait_for_http "${KURA_US_2_URL}/up" || return 1
+    capture_into us2_ready wait_for_contains "${KURA_US_2_URL}/ready" '"state":"serving"' || return 1
+    The variable us2_ready should include '"ready":true'
+    capture_into us2_rollout \
+      wait_for_contains "${KURA_US_2_URL}/status/rollout" \
+      '"backfill_initial_cycle":"complete"' || return 1
+    The variable us2_rollout should include '"backfill_initial_cycle":"complete"'
+
+    # Peer loss: the latched node must stay Ready with its only peer gone.
+    dc stop kura-us >/dev/null 2>&1 || return 1
+    loss_regressions="$(count_status_regressions "${KURA_US_2_URL}/ready" 200 12 1)"
+    The variable loss_regressions should eq 0
+
+    # Rediscovery + rejoin pass: the legacy anti-latch cleared serving here;
+    # the latch must hold through the whole recovery window.
+    dc up -d kura-us >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US kura-us
+    recovery_regressions="$(count_status_regressions "${KURA_US_2_URL}/ready" 200 15 1)"
+    The variable recovery_regressions should eq 0
+
+    wait_for_http "${KURA_US_URL}/up" || return 1
+    capture_into us_ready_after wait_for_contains "${KURA_US_URL}/ready" '"state":"serving"' || return 1
+    The variable us_ready_after should include '"ready":true'
+
+    # The mesh is functional after the flap, not just nominally Ready.
+    flap_artifact_status="$(status_only -X POST \
+      "${KURA_US_URL}/api/cache/cas/post-flap-artifact?tenant_id=acme&namespace_id=ios" \
+      -H "content-type: application/octet-stream" \
+      --data-binary "post-flap-binary")"
+    The variable flap_artifact_status should eq 204
+    capture_into post_flap_artifact \
+      wait_for_contains \
+      "${KURA_US_2_URL}/api/cache/cas/post-flap-artifact?tenant_id=acme&namespace_id=ios" \
+      'post-flap-binary' || return 1
+    The variable post_flap_artifact should eq 'post-flap-binary'
+  End
+End

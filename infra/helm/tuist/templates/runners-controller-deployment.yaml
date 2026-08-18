@@ -34,8 +34,11 @@ rules:
     verbs: [get, list, watch]
   # The fleet-aware autoscaler sums allocatable memory across the
   # bare-metal Linux node pool to bin-pack shape replicas against real
-  # host capacity. Nodes are cluster-scoped, so this read can't live in
-  # the namespaced Role below.
+  # host capacity, and the RunnerPool reconciler reads a Pod's node to
+  # tell whether it is draining, so idle runners on a node Cluster API
+  # is replacing are retired instead of holding the drain open. Nodes
+  # are cluster-scoped, so this read can't live in the namespaced Role
+  # below.
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]

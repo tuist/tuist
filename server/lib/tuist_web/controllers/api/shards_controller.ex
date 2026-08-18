@@ -59,6 +59,12 @@ defmodule TuistWeb.API.ShardsController do
              items: %Schema{type: :string},
              description: "Test suite names (for suite-level granularity)."
            },
+           parallelizable_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
+           },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
            shard_total: %Schema{
@@ -101,6 +107,7 @@ defmodule TuistWeb.API.ShardsController do
       reference: body_params.reference,
       modules: Map.get(body_params, :modules),
       test_suites: Map.get(body_params, :test_suites),
+      parallelizable_modules: Map.get(body_params, :parallelizable_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),

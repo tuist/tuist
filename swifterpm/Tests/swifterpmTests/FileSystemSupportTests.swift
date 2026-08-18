@@ -64,8 +64,12 @@ struct FileSystemSupportTests {
 
             #expect(try await fileSystem.exists(link.absolutePath))
             #expect(!(fileSystem.isDirectoryAndNotSymlink(link)))
+            // A link to a file is not a directory either way, so the two helpers
+            // only disagree when the link resolves to a directory.
+            #expect(!(fileSystem.isDirectoryFollowingSymlinks(link)))
             #expect(try await fileSystem.exists(directoryLink.absolutePath, isDirectory: true))
             #expect(!(fileSystem.isDirectoryAndNotSymlink(directoryLink)))
+            #expect(fileSystem.isDirectoryFollowingSymlinks(directoryLink))
             #expect(!(try await fileSystem.currentWorkingDirectory().pathString.isEmpty))
         }
     }
