@@ -1,4 +1,4 @@
-#if canImport(UIKit)
+#if !os(Linux)
     import Foundation
 
     public protocol ApplicationLogStoring: Sendable {
