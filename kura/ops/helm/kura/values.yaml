@@ -138,12 +138,6 @@ config:
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
   backfill:
-    # Boot-time selection of the peer catch-up walker: when true the node
-    # runs the recency-first backfill lifecycle instead of the legacy
-    # bootstrap walker. Read once at process start, so flipping it rolls the
-    # pods; watermarks and index rows are durable and sit inert while the
-    # flag is off.
-    enabled: false
     # Share of the age-ordered segment ring (counted from the newest) whose
     # boundary segment's seal-time age stat bounds how far back a backfill
     # pass reaches. The margin's share of the ring's time span is the
@@ -192,17 +186,14 @@ config:
     deploymentEnvironment: production
   discovery:
     enabled: true
-  # The Kura image vendors a DB-IP Lite City MMDB at
-  # `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution
-  # (country + ISO 3166-2 subdivision) is on whenever that file is
-  # present (Kura soft-fails if it isn't). `refreshIntervalSecs`
-  # controls how often the pod re-downloads the monthly dump in the
-  # background. Set to 0 to pin to the vendored copy for the pod
-  # lifetime.
-  geoip:
-    refreshIntervalSecs: 86400
 
-# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
+# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN,
+# or optional settings such as KURA_NODE_COUNTRY / KURA_NODE_SUBDIVISION, the ISO
+# 3166-1 alpha-2 and ISO 3166-2 codes of the datacenter this node runs in. Kura
+# stamps those onto the OTel Resource as `geo.country.iso_code` and
+# `geo.region.iso_code` and never derives them at runtime, so leaving them unset
+# just leaves the attributes off, except that a region name beginning with a
+# country code (`fr-par`) still answers for the country.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

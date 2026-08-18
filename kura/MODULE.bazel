@@ -3,9 +3,8 @@
 Bazel foundation: workspace skeleton, the host Rust + C/C++ toolchains, and the
 third-party crate graph — enough to build the lib, binary, and tests. Each
 release arch is built natively on a runner of that arch (no cross-compilation).
-The runtime OCI image (rules_oci/rules_pkg/rules_distroless + the geoip/apt
-layers) is added in a later change; it is intentionally not part of this
-foundation.
+The runtime OCI image (rules_oci/rules_pkg/rules_distroless + the apt layers)
+is added in a later change; it is intentionally not part of this foundation.
 """
 
 module(

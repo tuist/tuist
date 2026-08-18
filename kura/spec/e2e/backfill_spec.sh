@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
-# End-to-end checks for the recency-first backfill walker
-# (KURA_BACKFILL_ENABLED), one per origin incident shape:
+# End-to-end checks for the recency-first backfill walker, one per origin
+# incident shape:
 #
 #   - mid-pass restart: a node restart during backfill re-fetches only the
 #     unapplied tail (the 2026-07 "~93% of a multi-hour pass lost to a
@@ -17,7 +17,7 @@
 #     segments seal at the compiled 512 MiB ceiling and the ring floor is 5
 #     segments, so an "undersized ring" cannot be produced with small data.
 #
-# All suites run the mesh flag-on via spec/e2e/docker-compose.backfill.yml.
+# All suites run under spec/e2e/docker-compose.backfill.yml.
 # There is no env-armable failpoint mechanism in the release binary (the
 # FailpointSet setters are cfg(test)-only), so the restart point is pinned
 # instead by bandwidth-shaping the source and polling the requester's applied

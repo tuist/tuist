@@ -1334,7 +1334,8 @@ defmodule Tuist.Runners.Jobs do
       repository: j.repository,
       claimed_at: j.claimed_at,
       started_at: j.started_at,
-      pod_name: j.pod_name
+      pod_name: j.pod_name,
+      fleet_name: j.fleet_name
     })
     |> ClickHouseRepo.all()
   end
@@ -1372,6 +1373,7 @@ defmodule Tuist.Runners.Jobs do
         claimed_at: j.claimed_at,
         started_at: j.started_at,
         pod_name: j.pod_name,
+        fleet_name: j.fleet_name,
         status: j.status
       })
       |> ClickHouseRepo.one()

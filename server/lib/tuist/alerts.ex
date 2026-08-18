@@ -130,14 +130,18 @@ defmodule Tuist.Alerts do
       |> maybe_add_environment(alert_rule.environment)
       |> maybe_add_git_branch(alert_rule.git_branch)
 
-    current = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, current_opts)
-
     previous_opts =
       [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
       |> maybe_add_environment(alert_rule.environment)
       |> maybe_add_git_branch(alert_rule.git_branch)
 
-    previous = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
+    {current, previous} =
+      CacheAnalytics.cache_hit_rate_metric_window_comparison(
+        alert_rule.project_id,
+        alert_rule.metric,
+        current_opts,
+        previous_opts
+      )
 
     check_decrease_regression(alert_rule, current, previous)
   end

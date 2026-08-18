@@ -900,6 +900,8 @@ defmodule Tuist.Kura do
     end
   end
 
+  def begin_drain(%Server{}), do: {:error, :not_drainable}
+
   # An open deployment outlives the status change unless it is closed here, and
   # the rollout fast path would keep driving it: activation would flip a
   # draining server back to `:active` behind the lifecycle's back, leaving its
@@ -919,8 +921,6 @@ defmodule Tuist.Kura do
       end
     end)
   end
-
-  def begin_drain(%Server{}), do: {:error, :not_drainable}
 
   @doc """
   Cancels a drain and returns the instance to service: republishes the cache
@@ -1038,7 +1038,7 @@ defmodule Tuist.Kura do
   the same account, or an enrolled self-hosted peer.
 
   A cold return has neither. Projecting `:replicating` onto an instance with
-  no peers would leave it waiting on a bootstrap that can never complete, so
+  no peers would leave it waiting on a catch-up that can never complete, so
   the reconciler consults this before surfacing that status.
   """
   def replication_source?(%Server{id: id, account_id: account_id} = server) do

@@ -1643,15 +1643,24 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	}
 
 	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's
-	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-	// promoted immediately, which is what makes a rolling deploy gapless instead of
-	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every Ready pod, not just the age-eligible ones.
+	// status endpoint is unreachable for every pod: without the runtime's own
+	// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+	// filling isn't promoted. When the runtime status IS reachable it supersedes
+	// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+	// a freshly-rolled but caught-up standby be promoted immediately, making a
+	// rolling deploy gapless instead of waiting out the 10-minute age with no
+	// eligible primary. The runtime status is therefore probed for every Ready
+	// pod, not just the age-eligible ones.
+	//
+	// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+	// (is_serving required bootstrapped_peers == known_peers), but readiness now
+	// latches at a ring-fullness threshold or when the initial backfill cycle
+	// settles, and a cycle settles even when a peer stays unreachable. A pod that
+	// reports serving can therefore still be filling, or be cold on an empty
+	// volume whose only peer is down. Ring members and the writer lock below are
+	// what this gate actually rests on; `backfill_initial_cycle` on
+	// /status/rollout is the completeness signal, and it is deliberately not
+	// consumed here (see the region-move note in kura/README.md).
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0

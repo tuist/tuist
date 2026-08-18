@@ -621,8 +621,8 @@ defmodule Tuist.Kura.Lifecycle do
     DateTime.compare(demand_at, started_at) != :lt
   end
 
-  defp drain_window_elapsed?(%AccountRegionLifecycle{drain_started_at: nil}, _cutoff), do: false
-
+  # `resolve_drain/2` starts the clock before reaching here, so the drain start
+  # is always set by this point.
   defp drain_window_elapsed?(%AccountRegionLifecycle{drain_started_at: started_at}, cutoff) do
     DateTime.compare(started_at, cutoff) != :gt
   end

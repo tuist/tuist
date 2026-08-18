@@ -60,11 +60,13 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
           http_status_tag: :status_class
         )
 
-      assert Enum.all?(http_event.metrics, fn metric ->
-               :status_class in metric.tags and :status not in metric.tags
-             end)
+      [request_duration, response_size, requests_total] = http_event.metrics
 
-      [request_duration | _] = http_event.metrics
+      for metric <- [response_size, requests_total] do
+        assert :status_class in metric.tags and :status not in metric.tags
+      end
+
+      assert :status_class not in request_duration.tags
 
       conn =
         Plug.Test.conn(:get, "/articles")
@@ -74,6 +76,18 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
 
       assert tag_values.status_class == "4xx"
       refute Map.has_key?(tag_values, :status)
+    end
+
+    test "keeps the status tag off the request duration histogram" do
+      http_event = phoenix_http_event(router: Router, endpoint: Endpoint)
+
+      [request_duration, _response_size, requests_total] = http_event.metrics
+
+      assert :status not in request_duration.tags
+      assert :path in request_duration.tags
+      assert :method in request_duration.tags
+
+      assert :status in requests_total.tags
     end
 
     test "can drop controller and action labels while keeping path" do

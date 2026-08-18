@@ -1,4 +1,9 @@
-{{- if and .Values.ociRegistry.enabled .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.certificate.enabled }}
+{{- /*
+  Skipped when the Pod is a tailnet node: the certificate is then for a
+  `.ts.net` name, and Let's Encrypt cannot issue for a zone we do not
+  control — Tailscale issues those, and the cert sidecar fetches one.
+*/ -}}
+{{- if and (not .Values.ociRegistry.tailscale.enabled) .Values.ociRegistry.enabled .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.certificate.enabled }}
 # Publicly-trusted certificate for a privately-reachable endpoint.
 #
 # The name has to be one we control, because no public CA will issue for

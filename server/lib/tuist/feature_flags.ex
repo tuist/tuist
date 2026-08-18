@@ -40,22 +40,6 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's managed Kura instances run the recency-first
-  backfill walker (`KURA_BACKFILL_ENABLED=true`) instead of the legacy
-  bootstrap walker. Read by the Kura provisioner at manifest render time;
-  because the rendered env participates in the manifest revision, flipping
-  the flag rolls exactly the gated account's instances — public mesh
-  instances and private runner-cache (co-located) instances alike, since
-  both render through the same manifest. Off everywhere by default: the
-  flag is the per-account rollout (and rollback) switch for Release AB.
-  Self-hosted instances are outside the flag; their operators set the env
-  on their own instance configuration.
-  """
-  def kura_backfill_enabled?(account) do
-    FunWithFlags.enabled?(:kura_backfill, for: account)
-  end
-
-  @doc """
   Whether the demand-driven Kura lifecycle may archive this account's
   inactive instances (`Tuist.Kura.Lifecycle`).
 

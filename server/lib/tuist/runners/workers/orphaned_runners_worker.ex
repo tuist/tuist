@@ -209,24 +209,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :ok
   end
 
-  defp recover_one(%{
-         workflow_job_id: workflow_job_id,
-         account_id: account_id,
-         repository: repository,
-         claimed_at: claimed_at,
-         pod_name: pod_name
-       }) do
+  defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, %{status: gh_status, conclusion: conclusion}} ->
-          handle_gh_status(gh_status, conclusion, workflow_job_id, claimed_at, pod_name, account)
+          handle_gh_status(gh_status, conclusion, orphan, account)
 
         {:error, :not_found} ->
           # GH pruned the workflow_job (90-day retention by default).
           # The job can't be live; treat as completed so the PG cap
           # slot doesn't leak forever.
-          handle_gh_status("completed", "", workflow_job_id, claimed_at, pod_name, account)
+          handle_gh_status("completed", "", orphan, account)
 
         {:error, reason} ->
           Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
@@ -244,7 +238,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("queued", _conclusion, workflow_job_id, claimed_at, pod_name, account) do
+  defp handle_gh_status("queued", _conclusion, %{workflow_job_id: workflow_job_id, pod_name: pod_name} = orphan, account) do
     # GitHub still has this job queued, so the runner minted for it never
     # took it. That does NOT mean the Pod holding the claim is idle: GitHub
     # assigns jobs to any label-eligible runner, so it may be busy executing
@@ -265,13 +259,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
       false
     else
-      requeue_orphan(workflow_job_id, claimed_at, pod_name, account)
+      requeue_orphan(orphan, account)
     end
   end
 
-  defp handle_gh_status("in_progress", _conclusion, _wfid, _claimed_at, _pod, _account), do: false
+  defp handle_gh_status("in_progress", _conclusion, _orphan, _account), do: false
 
-  defp handle_gh_status("completed", conclusion, workflow_job_id, _claimed_at, pod_name, account) do
+  defp handle_gh_status(
+         "completed",
+         conclusion,
+         %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name},
+         account
+       ) do
     # GH has a terminal status but we never saw the corresponding
     # `workflow_job.completed` webhook (or it was retry-exhausted
     # before reaching us). Without releasing here, the PG claim
@@ -296,13 +295,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :telemetry.execute(
       Telemetry.event_name_recovery(),
       %{count: 1},
-      %{kind: "orphan_completed"}
+      %{kind: "orphan_completed", fleet: fleet_name}
     )
 
     true
   end
 
-  defp handle_gh_status(other, _conclusion, workflow_job_id, _claimed_at, _pod, _account) do
+  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account) do
     # Unknown / future GH status. Log and skip; if it's actually
     # terminal we'll catch it on a later tick once GitHub-side
     # state settles or the 404 fallback above handles retention.
@@ -314,7 +313,16 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     false
   end
 
-  defp requeue_orphan(workflow_job_id, claimed_at, pod_name, account) do
+  defp requeue_orphan(
+         %{
+           workflow_job_id: workflow_job_id,
+           claimed_at: claimed_at,
+           started_at: started_at,
+           pod_name: pod_name,
+           fleet_name: fleet_name
+         },
+         account
+       ) do
     Logger.warning("runners: orphaned running row — GH still queued, recovering",
       workflow_job_id: workflow_job_id,
       account: account.name,
@@ -325,8 +333,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
          :ok <- safe_release(workflow_job_id, claimed_at) do
       :telemetry.execute(
         Telemetry.event_name_recovery(),
-        %{count: 1},
-        %{kind: "orphan_requeued"}
+        %{count: 1, stranded_ms: stranded_ms(started_at)},
+        %{kind: "orphan_requeued", fleet: fleet_name}
       )
 
       true
@@ -334,6 +342,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       _ -> false
     end
   end
+
+  # The customer-visible stall: from the JIT mint that put the row in
+  # `running` to the moment we proved the runner never took the job. No
+  # queue series can express this — the row is `running` throughout, so
+  # queue depth and queue age both read zero while the customer watches
+  # "waiting for a runner". Clamped at 0 so skew between the minting pod's
+  # clock and this one cannot report a negative wait.
+  defp stranded_ms(%DateTime{} = started_at) do
+    DateTime.utc_now() |> DateTime.diff(started_at, :millisecond) |> max(0)
+  end
+
+  defp stranded_ms(_started_at), do: 0
 
   # CH first — see moduledoc. Treat a CH failure as "skip, retry
   # next tick" — the PG claim stays put so we re-see the row.

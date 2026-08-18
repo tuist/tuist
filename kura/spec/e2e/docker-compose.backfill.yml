@@ -1,8 +1,7 @@
-# Turns the mesh into a KURA_BACKFILL_ENABLED one for the backfill e2e suites.
-# The serving plane (index + /_internal/backfill/* endpoints) is unconditional
-# in the binary; this overlay flips the behavioral plane (backfill walker,
-# latched readiness) on every node the suites start. Compose merges
-# `environment` key-by-key, so this layers on top of the base kura env.
+# Backfill-suite overlay: pins the knobs the backfill e2e suites drive (batch
+# bound, bandwidth shaping) and collapses discovery onto DNS. The walker itself
+# needs no opt-in — it is the only peer catch-up path in the binary. Compose
+# merges `environment` key-by-key, so this layers on top of the base kura env.
 #
 # Suites that include this file must also include
 # test/e2e/docker-compose.discovery.yml (it defines kura-us-2, referenced
@@ -14,7 +13,7 @@
 #
 # Interpolated knobs (all optional, set per suite via suite_env):
 #   KURA_E2E_REPLICATION_BW_BYTES_PER_SECOND — serving-side bandwidth shaping
-#     shared by replication, legacy bootstrap, and backfill bodies streaming.
+#     shared by replication and backfill bodies streaming.
 #     The fault suites throttle it to hold a pass open long enough to restart
 #     or delete underneath it deterministically.
 #   KURA_E2E_BACKFILL_BATCH_BYTES — bodies batch bound (and oversized cutoff).
@@ -25,7 +24,6 @@
 services:
   kura-us:
     environment: &kura_backfill_env
-      KURA_BACKFILL_ENABLED: "true"
       KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: ${KURA_E2E_REPLICATION_BW_BYTES_PER_SECOND:-536870912}
       KURA_BACKFILL_BATCH_BYTES: ${KURA_E2E_BACKFILL_BATCH_BYTES:-33554432}
       KURA_PEERS: http://kura-us.kura.internal:7443

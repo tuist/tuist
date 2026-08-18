@@ -6,6 +6,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.OrphanedRunnersWorker
 
   setup :verify_on_exit!
@@ -17,7 +18,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       repository: Keyword.get(opts, :repository, "tuist/tuist"),
       claimed_at: Keyword.get(opts, :claimed_at, ~U[2026-05-16 21:14:06.616167Z]),
       started_at: Keyword.get(opts, :started_at, ~U[2026-05-16 21:14:07.711527Z]),
-      pod_name: Keyword.get(opts, :pod_name, "pod-1")
+      pod_name: Keyword.get(opts, :pod_name, "pod-1"),
+      fleet_name: Keyword.get(opts, :fleet_name, "tuist-tuist-runner-pool-macos-26-6")
     }
   end
 
@@ -58,6 +60,45 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       end)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "recovery telemetry carries the fleet and how long the job sat stranded" do
+      # A stranded job is invisible to every queue signal: its row is
+      # `running`, so queue depth and queue age both read zero while the
+      # customer watches "waiting for a runner". Recovery is the only
+      # point that knows, via the GitHub cross-check, that the wait was
+      # real — so it has to carry both which pool stranded and how long
+      # the customer actually waited.
+      account = account_fixture()
+
+      orphan =
+        candidate(
+          account_id: account.id,
+          fleet_name: "tuist-tuist-runner-pool-macos-26-6",
+          started_at: DateTime.add(DateTime.utc_now(), -90, :second)
+        )
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      expect(Jobs, :record_queued, fn _wfid -> :ok end)
+      expect(Claims, :release, fn _wfid, _handle -> :ok end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_recovery()])
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+
+      assert_receive {[:tuist, :runners, :recovery], ^ref, measurements, metadata}
+      assert metadata.kind == "orphan_requeued"
+      assert metadata.fleet == "tuist-tuist-runner-pool-macos-26-6"
+      assert_in_delta measurements.stranded_ms, 90_000, 5_000
     end
 
     test "leaves real running builds alone when GitHub reports in_progress" do

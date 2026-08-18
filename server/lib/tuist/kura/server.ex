@@ -76,7 +76,7 @@ defmodule Tuist.Kura.Server do
   @statuses Keyword.keys(@status_mappings)
   # `:replicating` sits between `:provisioning` and `:active`: the workload is up
   # on the desired image but its public endpoint is not serving yet because the
-  # pod is still replicating from mesh peers behind the bootstrap gate.
+  # pod is still replicating from mesh peers behind the backfill readiness gate.
   #
   # `:drain_pending` and `:archived` are the demand-driven lifecycle's two
   # states (see `Tuist.Kura.Lifecycle`). An active instance whose account has
