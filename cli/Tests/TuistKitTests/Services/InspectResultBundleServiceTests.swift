@@ -108,7 +108,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -188,7 +189,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -322,7 +324,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -395,7 +398,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -471,7 +475,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .value(.github),
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -533,7 +538,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .value(nil),
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -619,7 +625,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -759,7 +766,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -870,7 +878,8 @@ struct UploadResultBundleServiceTests {
                 ciProvider: .any,
                 shardPlanId: .value(nil),
                 shardIndex: .value(nil),
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }

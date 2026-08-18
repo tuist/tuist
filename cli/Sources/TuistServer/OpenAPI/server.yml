@@ -7740,11 +7740,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                has_explicit_test_selection:
-                  description: Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
-                  type: boolean
-                  x-struct:
-                  x-validate:
                 id:
                   description: Optional client-generated UUID for the test run. If not provided, the server generates one.
                   format: uuid
@@ -7766,6 +7761,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
@@ -7780,6 +7784,15 @@ paths:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 status:

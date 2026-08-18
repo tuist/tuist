@@ -42,7 +42,8 @@ public protocol UploadResultBundleServicing {
         config: Tuist,
         shardPlanId: String?,
         shardIndex: Int?,
-        hasExplicitTestSelection: Bool
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
     ) async throws -> Components.Schemas.RunsTest
 
     func uploadResultBundle(
@@ -52,7 +53,8 @@ public protocol UploadResultBundleServicing {
         buildRunId: String?,
         shardPlanId: String?,
         shardIndex: Int?,
-        hasExplicitTestSelection: Bool
+        onlyTestIdentifiers: [String],
+        skipTestIdentifiers: [String]
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -107,7 +109,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         config: Tuist,
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        hasExplicitTestSelection: Bool = false
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -155,7 +158,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
-            hasExplicitTestSelection: hasExplicitTestSelection
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
         )
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
@@ -181,7 +185,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         buildRunId: String? = nil,
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
-        hasExplicitTestSelection: Bool = false
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -246,7 +251,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
-            hasExplicitTestSelection: hasExplicitTestSelection
+            onlyTestIdentifiers: onlyTestIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers
         )
 
         return test

@@ -739,7 +739,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
             mode: mode,
-            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -877,7 +878,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: .testWithoutBuilding,
             scheme: schemeName,
             mode: mode,
-            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1866,7 +1868,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
                 mode: mode,
-                hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
+                onlyTestIdentifiers: testTargets.map(\.description),
+                skipTestIdentifiers: skipTestTargets.map(\.description)
             )
             throw error
         }
@@ -1890,7 +1893,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: scheme.name,
             quarantinedTests: quarantinedTests,
             mode: mode,
-            hasExplicitTestSelection: !testTargets.isEmpty || !skipTestTargets.isEmpty
+            onlyTestIdentifiers: testTargets.map(\.description),
+            skipTestIdentifiers: skipTestTargets.map(\.description)
         )
     }
 
@@ -1959,7 +1963,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         mode: TestProcessingMode = .local,
-        hasExplicitTestSelection: Bool = false
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -1976,7 +1981,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     config: config,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
-                    hasExplicitTestSelection: hasExplicitTestSelection
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -1988,7 +1994,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
-                    hasExplicitTestSelection: hasExplicitTestSelection
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -2091,9 +2098,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
             shardIndex: nil,
-            // Everything selective testing skipped: the run carries no modules, so it never reaches
+            // Everything selective testing skipped. The run carries no modules, so it never reaches
             // the suite inventory either way.
-            hasExplicitTestSelection: false
+            onlyTestIdentifiers: [],
+            skipTestIdentifiers: []
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

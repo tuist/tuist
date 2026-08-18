@@ -173,7 +173,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -4257,7 +4258,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     config: .any,
                     shardPlanId: .any,
                     shardIndex: .any,
-                    hasExplicitTestSelection: .any
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -5363,7 +5365,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5409,7 +5412,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ciProvider: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(1)
     }

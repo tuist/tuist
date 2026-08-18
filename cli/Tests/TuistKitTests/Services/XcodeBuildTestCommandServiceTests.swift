@@ -239,7 +239,8 @@ struct XcodeBuildTestCommandServiceTests {
                     config: .any,
                     shardPlanId: .any,
                     shardIndex: .any,
-                    hasExplicitTestSelection: .any
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .willThrow(TestError("Inspect failed"))
 
@@ -254,7 +255,8 @@ struct XcodeBuildTestCommandServiceTests {
                     config: .any,
                     shardPlanId: .any,
                     shardIndex: .any,
-                    hasExplicitTestSelection: .any
+                    onlyTestIdentifiers: .any,
+                    skipTestIdentifiers: .any
                 )
                 .called(1)
             let warnings = alertController.warnings()
@@ -264,7 +266,7 @@ struct XcodeBuildTestCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func recordsThatTheCallerRestrictedTheRunToItsOwnTests() async throws {
+    func recordsTheTestsTheCallerLimitedTheRunTo() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         // Given
         let resultBundlePath = temporaryDirectory.appending(component: "test.xcresult")
@@ -312,7 +314,8 @@ struct XcodeBuildTestCommandServiceTests {
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -329,7 +332,7 @@ struct XcodeBuildTestCommandServiceTests {
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
         // Then: a run the caller narrowed says nothing about what its modules hold, and the server
-        // needs to know that before reading its suites back as a module's inventory.
+        // needs to know what it was limited to before reading its suites back as an inventory.
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
@@ -337,7 +340,8 @@ struct XcodeBuildTestCommandServiceTests {
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .value(true)
+                onlyTestIdentifiers: .value(["AppTests/SmokeSuite"]),
+                skipTestIdentifiers: .any
             )
             .called(1)
     }
@@ -384,7 +388,8 @@ struct XcodeBuildTestCommandServiceTests {
                 buildRunId: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(0)
         verify(uploadResultBundleService)
@@ -394,7 +399,8 @@ struct XcodeBuildTestCommandServiceTests {
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
-                hasExplicitTestSelection: .any
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any
             )
             .called(0)
     }

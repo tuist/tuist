@@ -30,7 +30,8 @@ import TuistHTTP
             ciProvider: CIProvider?,
             shardPlanId: String?,
             shardIndex: Int?,
-            hasExplicitTestSelection: Bool
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -84,7 +85,8 @@ import TuistHTTP
             ciProvider: CIProvider?,
             shardPlanId: String?,
             shardIndex: Int?,
-            hasExplicitTestSelection: Bool
+            onlyTestIdentifiers: [String],
+            skipTestIdentifiers: [String]
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -240,14 +242,15 @@ import TuistHTTP
                             git_commit_sha: gitCommitSHA,
                             git_ref: gitRef,
                             git_remote_url_origin: gitRemoteURLOrigin,
-                            has_explicit_test_selection: hasExplicitTestSelection,
                             id: id,
                             is_ci: isCI,
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
+                            only_test_identifiers: onlyTestIdentifiers,
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
                             shard_plan_id: shardPlanId,
+                            skip_test_identifiers: skipTestIdentifiers,
                             status: status,
                             test_modules: testModules,
                             xcode_version: xcodeVersion

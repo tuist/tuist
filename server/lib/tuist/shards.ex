@@ -627,12 +627,15 @@ defmodule Tuist.Shards do
 
   defp unrestricted_runs_join(:included), do: ""
 
+  # A run the caller limited to specific tests executed what it was given, so its suites are not the
+  # module's inventory. One the caller only excluded tests from still ran everything else, and stays
+  # evidence: the union across runs covers what it skipped.
   defp unrestricted_runs_join(:excluded) do
     """
     INNER JOIN test_runs AS runs
       ON runs.id = module_runs.test_run_id
       AND runs.project_id = {project_id:Int64}
-      AND runs.has_explicit_test_selection = false
+      AND empty(runs.only_test_identifiers)
     """
   end
 

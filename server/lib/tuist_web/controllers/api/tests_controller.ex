@@ -297,10 +297,16 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The shard plan ID if this test run is part of a sharded execution."
            },
-           has_explicit_test_selection: %Schema{
-             type: :boolean,
+           only_test_identifiers: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
              description:
-               "Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count."
+               "The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state."
+           },
+           skip_test_identifiers: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "The tests the caller asked this run to exclude."
            },
            shard_index: %Schema{
              type: :integer,
@@ -797,7 +803,8 @@ defmodule TuistWeb.API.TestsController do
           gradle_build_id: Map.get(params, :gradle_build_id),
           shard_plan_id: Map.get(params, :shard_plan_id),
           shard_index: Map.get(params, :shard_index),
-          has_explicit_test_selection: Map.get(params, :has_explicit_test_selection, false)
+          only_test_identifiers: Map.get(params, :only_test_identifiers, []),
+          skip_test_identifiers: Map.get(params, :skip_test_identifiers, [])
         })
     end
   end

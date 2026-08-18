@@ -82,10 +82,11 @@ struct XcodeBuildTestCommandService {
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil
     ) async throws {
-        // Read before Tuist appends the shard's own `-only-testing`: a shard restricts what runs, but
-        // it is a restriction Tuist chose, not one the caller asked for, and the two mean opposite
-        // things when the run is later read back as evidence of what a module contains.
-        let hasExplicitTestSelection = Self.declaresTestSelection(passthroughXcodebuildArguments)
+        // Read before Tuist appends the shard's own identifiers, and before the quarantine skips: a
+        // shard also narrows what runs, but it is a selection Tuist made and is already recorded on
+        // the shard plan, whereas this is what the caller asked for.
+        let callerOnlyTestIdentifiers = Self.testIdentifiers(for: "-only-testing", in: passthroughXcodebuildArguments)
+        let callerSkipTestIdentifiers = Self.testIdentifiers(for: "-skip-testing", in: passthroughXcodebuildArguments)
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         let (
             resultBundlePathArgs,
@@ -190,7 +191,8 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
                 mode: mode,
-                hasExplicitTestSelection: hasExplicitTestSelection
+                onlyTestIdentifiers: callerOnlyTestIdentifiers,
+                skipTestIdentifiers: callerSkipTestIdentifiers
             )
 
             let quarantinePass: Bool
@@ -246,7 +248,8 @@ struct XcodeBuildTestCommandService {
             shardIndex: shardIndex,
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
             mode: mode,
-            hasExplicitTestSelection: hasExplicitTestSelection
+            onlyTestIdentifiers: callerOnlyTestIdentifiers,
+            skipTestIdentifiers: callerSkipTestIdentifiers
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -374,14 +377,19 @@ struct XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
-    /// Whether the caller restricted the run to tests of its own choosing. xcodebuild accepts both
-    /// `-only-testing ID` and `-only-testing:ID`.
-    static func declaresTestSelection(_ arguments: [String]) -> Bool {
-        arguments.contains { argument in
-            ["-only-testing", "-skip-testing"].contains { option in
-                argument == option || argument.hasPrefix("\(option):")
+    /// The identifiers the given option selects. xcodebuild accepts both `-only-testing ID` and
+    /// `-only-testing:ID`.
+    static func testIdentifiers(for option: String, in arguments: [String]) -> [String] {
+        var identifiers: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == option, let identifier = iterator.next() {
+                identifiers.append(identifier)
+            } else if argument.hasPrefix("\(option):") {
+                identifiers.append(String(argument.dropFirst(option.count + 1)))
             }
         }
+        return identifiers
     }
 
     private func uploadResultBundleIfNeeded(
@@ -394,7 +402,8 @@ extension XcodeBuildTestCommandService {
         shardIndex: Int? = nil,
         scheme: String? = nil,
         mode: TestProcessingMode = .local,
-        hasExplicitTestSelection: Bool = false
+        onlyTestIdentifiers: [String] = [],
+        skipTestIdentifiers: [String] = []
     ) async {
         guard config.fullHandle != nil else { return }
 
@@ -410,7 +419,8 @@ extension XcodeBuildTestCommandService {
                     config: config,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
-                    hasExplicitTestSelection: hasExplicitTestSelection
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
             case .remote:
                 guard let resultBundlePath else { return }
@@ -422,7 +432,8 @@ extension XcodeBuildTestCommandService {
                     buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
-                    hasExplicitTestSelection: hasExplicitTestSelection
+                    onlyTestIdentifiers: onlyTestIdentifiers,
+                    skipTestIdentifiers: skipTestIdentifiers
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(

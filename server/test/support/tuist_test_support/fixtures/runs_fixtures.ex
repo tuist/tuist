@@ -142,7 +142,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ci_host: Keyword.get(attrs, :ci_host),
         ci_provider: Keyword.get(attrs, :ci_provider),
         shard_plan_id: Keyword.get(attrs, :shard_plan_id),
-        has_explicit_test_selection: Keyword.get(attrs, :has_explicit_test_selection, false),
+        only_test_identifiers: Keyword.get(attrs, :only_test_identifiers, []),
+        skip_test_identifiers: Keyword.get(attrs, :skip_test_identifiers, []),
         shard_index: Keyword.get(attrs, :shard_index),
         test_modules: test_modules,
         run_destinations: Keyword.get(attrs, :run_destinations, [])

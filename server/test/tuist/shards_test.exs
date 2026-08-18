@@ -1112,11 +1112,11 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
     end
 
-    # A run asked for a handful of a module's suites says nothing about what the module contains, so
-    # it can't stand in for the module's inventory. The reported project's default branch runs only
-    # such a job (an eight-suite smoke selection), which is what a branch with no history of its own
-    # would otherwise inherit.
-    test "ignores runs restricted to a caller-supplied selection while unrestricted history exists" do
+    # A run the caller limited to a handful of a module's suites says nothing about what the module
+    # contains, so it can't stand in for the module's inventory. The reported project's default
+    # branch runs only such a job (an eight-suite smoke selection), which is what a branch with no
+    # history of its own would otherwise inherit.
+    test "ignores runs the caller limited to specific tests while fuller history exists" do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
       smoke_suites = ["SmokeCartSuite", "SmokeHomeSuite"]
       full_suites = smoke_suites ++ ["CheckoutSuite", "OrderTrackingSuite", "SearchSuite"]
@@ -1126,7 +1126,7 @@ defmodule Tuist.ShardsTest do
           project_id: project.id,
           is_ci: true,
           git_branch: "main",
-          has_explicit_test_selection: true,
+          only_test_identifiers: Enum.map(smoke_suites, &"AppTests/#{&1}"),
           ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), ran_at, :day),
           test_modules: [
             %{
@@ -1171,6 +1171,48 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(
                planned_targets(result),
                MapSet.new(Enum.map(full_suites, &"AppTests/#{&1}"))
+             )
+    end
+
+    # Excluding a few tests still leaves a run that executed everything else, so it remains evidence
+    # of what the module holds. The union across runs covers whatever it was told to skip.
+    test "keeps runs the caller only excluded tests from" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        skip_test_identifiers: ["AppTests/FlakySuite"],
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 6_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "CartSuite", status: "success", duration: 3_000},
+              %{name: "CheckoutSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skip-only-history",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2,
+        git_branch: "main"
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      assert MapSet.equal?(
+               planned_targets(result),
+               MapSet.new(["AppTests/CartSuite", "AppTests/CheckoutSuite"])
              )
     end
 

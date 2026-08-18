@@ -15892,10 +15892,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
-                    /// Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/has_explicit_test_selection`.
-                    public var has_explicit_test_selection: Swift.Bool?
                     /// Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
@@ -15912,6 +15908,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
                     public var model_identifier: Swift.String?
+                    /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
+                    public var only_test_identifiers: [Swift.String]?
                     /// The scheme used for the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
@@ -15924,6 +15924,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
                     public var shard_plan_id: Swift.String?
+                    /// The tests the caller asked this run to exclude.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
+                    public var skip_test_identifiers: [Swift.String]?
                     /// The status of the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
@@ -16441,14 +16445,15 @@ public enum Operations {
                     ///   - git_ref: The git reference.
                     ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
-                    ///   - has_explicit_test_selection: Whether the run was restricted to a caller-supplied set of tests. Such a run says nothing about what a module contains, so shard planning doesn't read its suites as the module's inventory. A restriction Tuist applies for a shard doesn't count.
                     ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                    ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - scheme: The scheme used for the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
+                    ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
@@ -16465,14 +16470,15 @@ public enum Operations {
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
-                        has_explicit_test_selection: Swift.Bool? = nil,
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
+                        only_test_identifiers: [Swift.String]? = nil,
                         scheme: Swift.String? = nil,
                         shard_index: Swift.Int? = nil,
                         shard_plan_id: Swift.String? = nil,
+                        skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
@@ -16489,14 +16495,15 @@ public enum Operations {
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_build_id = gradle_build_id
-                        self.has_explicit_test_selection = has_explicit_test_selection
                         self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
+                        self.only_test_identifiers = only_test_identifiers
                         self.scheme = scheme
                         self.shard_index = shard_index
                         self.shard_plan_id = shard_plan_id
+                        self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
@@ -16514,14 +16521,15 @@ public enum Operations {
                         case git_ref
                         case git_remote_url_origin
                         case gradle_build_id
-                        case has_explicit_test_selection
                         case id
                         case is_ci
                         case macos_version
                         case model_identifier
+                        case only_test_identifiers
                         case scheme
                         case shard_index
                         case shard_plan_id
+                        case skip_test_identifiers
                         case status
                         case test_modules
                         case xcode_version

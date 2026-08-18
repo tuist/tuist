@@ -139,9 +139,10 @@
                 config: config,
                 shardPlanId: nil,
                 shardIndex: nil,
-                // `tuist inspect test` analyses a bundle someone else produced; whether its run was
-                // restricted isn't knowable from here.
-                hasExplicitTestSelection: false
+                // `tuist inspect test` analyses a bundle someone else produced; how that run was
+                // invoked isn't knowable from here.
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: []
             )
 
             AlertController.current.success(
@@ -160,7 +161,8 @@
                 buildRunId: nil,
                 shardPlanId: nil,
                 shardIndex: nil,
-                hasExplicitTestSelection: false
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: []
             )
 
             AlertController.current.success(
