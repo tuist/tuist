@@ -951,12 +951,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   # SAME run (same id + ran_at) with is_flaky=true. Preceded by four older
   # stable runs.
   # Every rolling window is served by `test_case_runs_recent_window_per_case`,
-  # which keeps distinct run keys and a column per flag. These run against real
-  # ClickHouse so the aggregate's collapsing of re-inserted runs, and the
-  # counting of a flag inside the window, are exercised as ClickHouse actually
-  # evaluates them.
+  # which encodes each run as a single Int64. These run against real ClickHouse
+  # so the packing, the bit-level flag reads, and the de-duplication of
+  # correction rows are exercised as ClickHouse actually evaluates them.
   describe "rolling window measurement" do
-    test "flakiness_rate measures the rolling aggregate" do
+    test "flakiness_rate measures the packed aggregate" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
       RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_flaky")
@@ -997,7 +996,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute triggered.(11)
     end
 
-    test "reliability_rate counts the success column over the same window" do
+    test "reliability_rate reads the success bit of the same packed entry" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
       RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_unreliable")
@@ -1053,8 +1052,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       end
 
       # One logical run re-inserted as flaky, exactly as the correction path
-      # writes it. Both physical rows share `ran_at`, so the aggregate collapses
-      # them onto one run key and the flaky column records that key once.
+      # writes it. Both physical rows share `ran_at`, so they share a packed run
+      # key and differ only in the flag bits.
       corrected_run_id = UUIDv7.generate()
 
       for is_flaky <- [false, true] do
@@ -1161,7 +1160,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
     end
 
-    test "evaluate_rolling_alerts/2 measures the rolling aggregate for a shared window" do
+    test "evaluate_rolling_alerts/2 measures the packed aggregate for a shared window" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
       RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_grouped")

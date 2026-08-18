@@ -1,25 +1,34 @@
 defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   @moduledoc """
-  Seeds the rolling window aggregate from the 100-entry tuple bucket.
+  Seeds the packed rolling aggregate from the 100-entry tuple bucket.
 
   `20260817120000` created `test_case_runs_recent_window_per_case` forward-only,
   which left the monitor reading two different aggregates: the tuple bucket for
-  windows it already served, and the new one only above them. That split
-  existed only because the new table started empty.
+  windows it already served, and the packed one only above them. That split
+  existed only because the packed table started empty.
 
   `test_case_runs_recent_100_per_case` already holds the latest runs per test
-  case, and its two parallel tuple aggregates carry exactly the run keys the
-  window columns need. Reconstructing from it reads one row per test case rather than
+  case, and its two parallel tuple aggregates carry exactly the fields a packed
+  entry needs. Reconstructing from it reads one row per test case rather than
   the multi-billion-row fact table, and reproduces the tuple bucket's contents
   exactly, so one aggregate can serve every window.
 
   ## Reconstruction
 
-  Each target column is the distinct run keys of one kind, so each is read
-  straight off the source's tuple arrays: every key for the window, the keys
-  flagged flaky, and the keys flagged successful. The de-duplicating aggregate
-  collapses a key that appears more than once, so a run re-inserted to set
-  `is_flaky` needs no reconciliation here.
+  Both materialized views read the same `test_case_runs` rows, and
+  `groupArraySorted` truncates on the sort key before the flag, so both
+  aggregates always retain the same run keys per test case. De-duplicating each
+  to one entry per key therefore yields two arrays aligned element for element,
+  which zip in a single pass. Zipping by key lookup instead is quadratic, and in
+  a vectorised engine that materialises `entries x keys` intermediates for the
+  whole block: it allocated in 625 MiB chunks and exceeded the memory limit on
+  its own.
+
+  Depth is inherited, not extended. The source holds 100 physical entries, so a
+  logical run re-inserted to set `is_flaky` consumes two of them and a test case
+  recovers between 50 and 100 distinct runs. That is what the tuple bucket could
+  serve, so windows up to its ceiling are unaffected and larger ones keep
+  filling forward. The reconstructed window is a prefix of the true window.
 
   ## Memory
 
@@ -53,7 +62,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   would drop runs the view never captured.
 
   Re-running is safe for the same reason: a run reinserted with an identical
-  run key collapses in the aggregate.
+  packed value collapses on read.
   """
   use Ecto.Migration
 
@@ -64,16 +73,17 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  @window_view_migration_version 20_260_817_120_000
+  @packed_view_migration_version 20_260_817_120_000
   @source_table "test_case_runs_recent_100_per_case"
   @target_table "test_case_runs_recent_window_per_case"
-  @target_bucket_size 1000
+  @target_bucket_size 2000
   @test_cases_per_chunk 25_000
   @chunk_throttle_ms 100
+  @flag_sentinel "(toInt64(9223372036854775807), toUInt8(0))"
 
   def up do
     project_ids = source_project_ids()
-    window_view_boundary = window_view_boundary()
+    packed_view_boundary = packed_view_boundary()
 
     Logger.info(
       "Backfilling #{@target_table} from #{@source_table} (#{length(project_ids)} projects)"
@@ -84,7 +94,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
       |> test_case_id_ranges()
       |> Enum.each(fn range ->
         retry_on_transient_failure(fn ->
-          backfill_range(project_id, range, window_view_boundary)
+          backfill_range(project_id, range, packed_view_boundary)
         end)
 
         Process.sleep(@chunk_throttle_ms)
@@ -92,37 +102,47 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
     end)
   end
 
-  # Entries are negated run timestamps, so a run that predates the view sorts
-  # above this boundary. Falling back to the current time backfills everything,
-  # which is what a target with no view writes yet needs.
-  defp window_view_boundary do
+  # The rows this wrote are indistinguishable from the ones the materialized
+  # view writes, so there is nothing to selectively remove.
+  def down, do: :ok
+
+  # Entries key on the negated run timestamp, so a run that predates the view
+  # sorts above this boundary. The comparison happens against packed entries, so
+  # the boundary is scaled into the same space: an entry is `run_key * 4 + flags`
+  # with flags in 0..3, so `run_key * 4 + 3` excludes every flag combination of a
+  # run at the boundary itself while admitting any strictly older run.
+  #
+  # The row count decides whether the version is recorded, not the aggregate.
+  # `inserted_at` is a non-nullable `DateTime`, so `min()` over no rows returns
+  # the epoch rather than NULL and the boundary computes to a positive value.
+  # Every run key is negative, so that value would filter out every run and the
+  # backfill would report success having written nothing.
+  defp packed_view_boundary do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
       IngestRepo.query!(
         """
-        SELECT -toUnixTimestamp64Micro(toDateTime64(min(inserted_at), 6))
+        SELECT
+          count() AS recorded,
+          -toUnixTimestamp64Micro(toDateTime64(min(inserted_at), 6)) * 4 + 3 AS boundary
         FROM schema_migrations
         WHERE version = {version:Int64}
         """,
-        %{version: @window_view_migration_version}
+        %{version: @packed_view_migration_version}
       )
 
     case rows do
-      [[boundary]] when is_integer(boundary) ->
+      [[recorded, boundary]] when recorded > 0 and is_integer(boundary) ->
         boundary
 
       _ ->
         Logger.warning(
-          "#{@window_view_migration_version} is not recorded; backfilling every run in the source"
+          "#{@packed_view_migration_version} is not recorded; backfilling every run in the source"
         )
 
-        -System.os_time(:microsecond)
+        -System.os_time(:microsecond) * 4 + 3
     end
   end
-
-  # The rows this wrote are indistinguishable from the ones the materialized
-  # view writes, so there is nothing to selectively remove.
-  def down, do: :ok
 
   defp source_project_ids do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
@@ -170,8 +190,8 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
     <<div(index * Bitwise.bsl(1, 128), chunks)::128>> |> binary_part(0, 16) |> Ecto.UUID.load!()
   end
 
-  defp backfill_range(project_id, {lower, upper}, window_view_boundary) do
-    params = %{project_id: project_id, lower: lower, boundary: window_view_boundary}
+  defp backfill_range(project_id, {lower, upper}, packed_view_boundary) do
+    params = %{project_id: project_id, lower: lower, boundary: packed_view_boundary}
 
     {upper_clause, params} =
       case upper do
@@ -182,40 +202,42 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!(
       """
-      INSERT INTO #{@target_table} (project_id, test_case_id, recent_runs, flaky_runs, successful_runs)
+      INSERT INTO #{@target_table} (project_id, test_case_id, recent_runs)
       SELECT
         project_id,
         test_case_id,
-        arrayReduce('groupArraySortedDistinctState(#{@target_bucket_size})', run_keys) AS recent_runs,
-        arrayReduce('groupArraySortedDistinctState(#{@target_bucket_size})', flaky_keys) AS flaky_runs,
-        arrayReduce('groupArraySortedDistinctState(#{@target_bucket_size})', successful_keys) AS successful_runs
+        arrayReduce(
+          'groupArraySortedState(#{@target_bucket_size})',
+          arrayFilter(
+            entry -> entry > {boundary:Int64},
+            arrayMap(
+              (flaky_entry, successful_entry) ->
+                tupleElement(flaky_entry, 1) * 4
+                + toInt64(tupleElement(flaky_entry, 2)) * 2
+                + toInt64(tupleElement(successful_entry, 2)),
+              arrayFilter(
+                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+                flaky_runs,
+                arrayShiftLeft(flaky_runs, 1, #{@flag_sentinel})
+              ),
+              arrayFilter(
+                (entry, next_entry) -> tupleElement(entry, 1) != tupleElement(next_entry, 1),
+                successful_runs,
+                arrayShiftLeft(successful_runs, 1, #{@flag_sentinel})
+              )
+            )
+          )
+        ) AS recent_runs
       FROM (
         SELECT
           project_id,
           test_case_id,
-          arrayFilter(
-            run_key -> run_key > {boundary:Int64},
-            arrayMap(entry -> tupleElement(entry, 1), flaky_source)
-          ) AS run_keys,
-          arrayFilter(
-            run_key -> run_key > {boundary:Int64},
-            arrayMap(entry -> tupleElement(entry, 1), arrayFilter(entry -> tupleElement(entry, 2) = 1, flaky_source))
-          ) AS flaky_keys,
-          arrayFilter(
-            run_key -> run_key > {boundary:Int64},
-            arrayMap(entry -> tupleElement(entry, 1), arrayFilter(entry -> tupleElement(entry, 2) = 1, successful_source))
-          ) AS successful_keys
-        FROM (
-          SELECT
-            project_id,
-            test_case_id,
-            finalizeAggregation(recent_runs) AS flaky_source,
-            finalizeAggregation(recent_successful_runs) AS successful_source
-          FROM #{@source_table} FINAL
-          WHERE project_id = {project_id:Int64}
-            AND test_case_id >= {lower:UUID}
-            #{upper_clause}
-        )
+          finalizeAggregation(recent_runs) AS flaky_runs,
+          finalizeAggregation(recent_successful_runs) AS successful_runs
+        FROM #{@source_table} FINAL
+        WHERE project_id = {project_id:Int64}
+          AND test_case_id >= {lower:UUID}
+          #{upper_clause}
       )
       SETTINGS
         max_threads = 2,
