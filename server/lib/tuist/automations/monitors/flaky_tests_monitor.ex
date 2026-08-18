@@ -72,15 +72,21 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # was corrected, given the at-most-two physical rows per logical run that
   # `Tests.report_test_case_run_multiplicity/3` enforces.
   #
-  # De-duplicating in the aggregate instead, so the bucket could equal the cap,
-  # does not work: `groupArraySortedDistinct`'s parameter bounds the array it
-  # returns, not the state it keeps. The state retains every distinct value the
-  # test case has ever contributed, so at a bound of 10 it measures 89 bytes for
-  # `groupArraySorted` against 78 KiB at 10,000 distinct runs and 1.53 MiB at
-  # 200,000. Storage, merges, and reads would all then scale with a test case's
-  # entire history rather than with the window — the failure that retired the
-  # earlier aggregates, reintroduced unbounded. The headroom is the cheaper
-  # trade.
+  # De-duplicating inside the aggregate instead, so the bucket could equal the
+  # cap, is not available. `-Distinct` is a generic combinator: it filters the
+  # argument stream before the inner aggregate sees it, so it holds a hash set of
+  # every distinct argument and cannot prune that set to the inner bound. It
+  # knows nothing about the aggregate it wraps, and forgetting a value would
+  # break `countDistinct`, which has no bound to prune to.
+  #
+  # The bound therefore never touches the set. Over 200,000 distinct values,
+  # `groupArraySortedDistinctState` measures 1.53 MiB at a bound of 10 and the
+  # same 1.53 MiB at 1000, where `groupArraySorted` holds 89 bytes at any input
+  # size; `sumDistinct` measures 1.53 MiB over that input against 16 bytes for
+  # `sum`, which is where the growth actually lives. Storage, merges, and reads
+  # would all then scale with a test case's entire run history rather than with
+  # the window — the shape that retired the earlier aggregates, with no bound
+  # this time. The headroom is the cheaper trade.
   @recent_runs_bucket_size 2000
   @max_active_rolling_window_size 1000
 
