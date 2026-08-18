@@ -77,7 +77,8 @@ Where a governance process requires evidence that current logging cannot produce
 
 ### 1.4 Retention and integrity
 
-- Security-relevant logs shall be retained for a minimum of twelve (12) months, with at least ninety (90) days immediately searchable.
+- Security-relevant logs shall be retained for a minimum of thirty (30) days, fully searchable for that period. Records of the log reviews described in section 2 are retained for at least one year, so the evidence of what was examined and what was found outlives the raw logs it was drawn from.
+- Because the retention window is thirty days, a review that is not performed on schedule cannot be performed retrospectively. Reviews scheduled monthly shall be completed within the first week of the period they cover.
 - Logs shall be shipped off the originating host to centralized storage so that compromise of a single system does not destroy its own audit trail.
 - Log storage shall be append-only or otherwise protected against modification and deletion by the accounts whose activity it records.
 - Access to logs shall follow the principle of least privilege and shall itself be logged.
@@ -106,15 +107,18 @@ Continuous automated monitoring supplements but does not replace periodic review
 
 ### 3.1 Detection
 
-Automated alerting shall be configured for at least the following conditions:
+Automated alerting complements periodic review rather than replacing it. It is configured for conditions where a signal arriving in minutes is materially better than one found at the next review, and where the detection can be stated precisely enough to be acted on rather than dismissed:
 
-- Repeated authentication failures against a single account, or authentication failures spread across many accounts
-- Successful authentication from an unexpected location, network, or device for privileged accounts
-- Privileged access granted or used outside an approved request
-- Access to customer data that does not match an expected support or operational workflow
-- Unusual volumes of data export or object storage reads
-- Gaps in log ingestion, which are treated as a potential loss of visibility rather than as an absence of events
-- Changes to logging configuration, retention, or access controls
+- Repeated authentication failures against a single account, or spread across many accounts
+- Privileged access exercised outside an approved elevation, detected by joining infrastructure access records against the approved elevation window covering them
+- Operator access to a customer's data without a corresponding signed access grant
+- Loss of log ingestion from any source, treated as a loss of visibility rather than as an absence of events
+
+The second and third conditions are stated as reconciliations against an authoritative record rather than as behavioural anomalies. An alert that fires on a deviation from a learned baseline is only as good as the baseline; one that fires when an action has no matching authorization is either true or a bug in the authorization path, and both are worth knowing.
+
+Changes to logging configuration held in version control are covered by change review rather than by alerting. Where a provider holds configuration outside version control, the change record available from that provider is what applies.
+
+This list is deliberately short. A condition is added when it can be expressed precisely and someone will act on it, not to broaden coverage on paper.
 
 ### 3.2 Risk-proportionate response
 
@@ -161,6 +165,68 @@ Any known violations of this policy should be reported to the IT Manager. Violat
 ## Review
 
 This policy shall be reviewed annually or when significant changes occur to Tuist GmbH's technology infrastructure.
+
+## Appendix A: Logging coverage
+
+This appendix records what is captured at each activity level and where it is
+held. It is the documentation of logging configuration required by section 5,
+and it is maintained alongside the systems it describes.
+
+Every request handled by the Tuist server emits a structured completion record
+carrying the request identifier, the request kind, the acting account, the
+selected account and project where one is in scope, the method, the route, the
+response status, and the duration. Where a request runs under an operator
+access grant, the grant identifier and subject are attached to that same
+record. This single record is what provides actor, action, resource, outcome,
+and correlation identifier for most of what follows, which is why the table
+below points at it repeatedly rather than describing a separate log per event.
+
+### Administrative activity
+
+| Event | Where it is captured |
+| --- | --- |
+| Authentication attempts and their outcome | Server request records, identified by route and response status, with the acting account attached |
+| Workforce authentication and multi-factor challenges | The identity provider's own audit log. The Tuist application does not authenticate workforce identity directly |
+| Account creation, modification, disablement, and deletion | Server request records; automated retirement of dormant accounts additionally emits a record naming every account actioned |
+| Role, permission, and organization membership changes | Server request records |
+| Privileged infrastructure elevation, with justification | Three independent records: the approval thread, the operations database, and the per-call access log of the cluster gateway |
+| Operator access to a customer account | The signed grant, joinable to every request made under it by the grant identifier |
+| Infrastructure, network, and deployment configuration changes | Version control history and the deployment pipeline's own run records |
+| Changes to logging configuration held in version control | Version control history |
+
+### Application activity
+
+| Event | Where it is captured |
+| --- | --- |
+| Access to and modification of customer data and organization settings | Server request records, attributed to the selected account and project |
+| Creation, rotation, and revocation of tokens and other credentials | Server request records |
+| Administrative operations performed on customer accounts by Tuist personnel | Server request records carrying the operator grant identifier |
+| Export or bulk retrieval of data | Server request records |
+| Errors and exceptions indicating a security-relevant failure | Application error reporting, and the server's own error records |
+
+### Transaction activity
+
+| Event | Where it is captured |
+| --- | --- |
+| Interface requests, with method, route, status, and originating account | Server request records |
+| Database schema migrations and administrative tasks | The output of the job that runs them, collected with all other workload output |
+| Billing and subscription state changes | The payment provider's event log, and the server request and webhook records that accompany each change |
+
+### Where records are held
+
+Workload output is shipped off the originating host to the central telemetry
+platform, so no system holds the only copy of its own audit trail. Records held
+by third parties, including the identity provider and the payment provider,
+remain in those systems and are retrieved from them when a review or an
+investigation calls for it.
+
+### Maintenance
+
+This appendix is reviewed whenever a new system is introduced, whenever an
+existing system changes what it records, and at the annual review of this
+policy. Where a governance process needs evidence that current coverage cannot
+produce, section 1.3 applies: the coverage is extended rather than the process
+weakened.
 
 ## Version history
 
