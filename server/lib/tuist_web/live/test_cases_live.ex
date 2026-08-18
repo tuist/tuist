@@ -535,4 +535,36 @@ defmodule TuistWeb.TestCasesLive do
   defp duration_statistic_patch(uri, statistic) do
     "?#{uri.query |> Query.put("table-duration-type", to_string(statistic)) |> Query.drop("page")}"
   end
+
+  @doc """
+  The duration column's statistic picker, rendered into the column header.
+
+  It lives on the column rather than in the table toolbar because it configures
+  that column and nothing else, and it is icon-only so the header keeps reading
+  as the column's name with the sort affordance intact. The chart's own
+  percentile dropdown is a separate control for a separate thing: it picks the
+  series drawn project-wide, not what this column measures per test case.
+  """
+  attr :uri, :map, required: true
+  attr :statistic, :atom, required: true
+
+  def duration_statistic_dropdown(assigns) do
+    ~H"""
+    <.dropdown
+      id="test-cases-duration-statistic"
+      icon_only
+      label={duration_statistic_label(@statistic)}
+    >
+      <.dropdown_item
+        :for={statistic <- Tests.duration_statistics()}
+        value={to_string(statistic)}
+        label={duration_statistic_label(statistic)}
+        patch={duration_statistic_patch(@uri, statistic)}
+        data-selected={@statistic == statistic}
+      >
+        <:right_icon><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    """
+  end
 end

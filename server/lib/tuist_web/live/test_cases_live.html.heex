@@ -524,25 +524,6 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
-        <%!-- Scoped to the table, separate from the duration widget's percentile
-        dropdown above: that one picks the series drawn in the project-wide
-        chart, this one picks the statistic the per-test-case column shows and
-        ranks by. --%>
-        <.dropdown
-          id="test-cases-duration-statistic"
-          label={duration_statistic_label(@test_cases_duration_statistic)}
-          secondary_text={dgettext("dashboard_tests", "Duration:")}
-        >
-          <.dropdown_item
-            :for={statistic <- Tests.duration_statistics()}
-            value={to_string(statistic)}
-            label={duration_statistic_label(statistic)}
-            patch={duration_statistic_patch(@uri, statistic)}
-            data-selected={@test_cases_duration_statistic == statistic}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
           label={dgettext("dashboard_tests", "Filter")}
@@ -629,6 +610,12 @@
           <:col
             :let={test_case}
             label={duration_statistic_label(@test_cases_duration_statistic)}
+            header_action={
+              duration_statistic_dropdown(%{
+                uri: @uri,
+                statistic: @test_cases_duration_statistic
+              })
+            }
             patch={
               @test_cases_sort_by == "duration" &&
                 column_sort_patch(assigns, "duration")

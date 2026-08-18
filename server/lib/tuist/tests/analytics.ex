@@ -1317,7 +1317,13 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets analytics for a specific test case by its identifier including total runs, failed runs, and average duration.
+  Gets analytics for a specific test case by its identifier including total runs,
+  failed runs, and the duration distribution (average plus p50 / p90 / p99).
+
+  The percentiles come from the same pass over the same rows as the average, so
+  the detail page can offer the whole distribution for the cost it already paid
+  for the mean. They matter here for the same reason they do in the Test Cases
+  listing: a single stalled run drags the mean somewhere no run actually was.
 
   Options:
     * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
@@ -1331,7 +1337,10 @@ defmodule Tuist.Tests.Analytics do
           select: %{
             total_count: count(),
             failed_count: fragment("countIf(? = 'failure')", tcr.status),
-            avg_duration: avg(tcr.duration)
+            avg_duration: avg(tcr.duration),
+            p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
+            p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
+            p99_duration: fragment("quantile(0.99)(?)", tcr.duration)
           }
         ),
         opts
@@ -1341,13 +1350,16 @@ defmodule Tuist.Tests.Analytics do
 
     case result do
       nil ->
-        %{total_count: 0, failed_count: 0, avg_duration: 0}
+        %{total_count: 0, failed_count: 0, avg_duration: 0, p50_duration: 0, p90_duration: 0, p99_duration: 0}
 
       %{total_count: total, failed_count: failed, avg_duration: avg} ->
         %{
           total_count: total,
           failed_count: failed,
-          avg_duration: normalize_duration(avg)
+          avg_duration: normalize_duration(avg),
+          p50_duration: normalize_duration(result.p50_duration),
+          p90_duration: normalize_duration(result.p90_duration),
+          p99_duration: normalize_duration(result.p99_duration)
         }
     end
   end

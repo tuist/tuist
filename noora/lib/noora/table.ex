@@ -118,6 +118,14 @@ defmodule Noora.Table do
     attr(:icon, :string, doc: "An icon to render next to the label")
     attr(:patch, :string, doc: "A patch to apply to the column")
 
+    attr(:header_action, :any,
+      doc:
+        "Rendered content placed in the header beside the label, for a control that configures " <>
+          "what the column shows. It sits outside the sort link so the control and the sort " <>
+          "affordance stay separate, and it is dropped from the floating header, which is an " <>
+          "inert clone where it could not be operated."
+    )
+
     attr(:sort_order, :any,
       doc:
         ~s(When set to "asc" or "desc", renders a sort-direction arrow that morphs between the two directions as the value changes. Mirror your sort-state gating, e.g. `sort_order={@sort_by == "duration" && @sort_order}`.)
@@ -171,6 +179,9 @@ defmodule Noora.Table do
                     order={col[:sort_order]}
                   />
                 <% end %>
+                <span :if={col[:header_action]} data-part="header-action">
+                  {col[:header_action]}
+                </span>
               </th>
             </tr>
           </thead>

@@ -352,6 +352,14 @@
     text-align: left;
     white-space: nowrap;
 
+    /* Keeps a header control on the label's baseline. The header is `nowrap`, so the control
+     * sits beside the label rather than wrapping under it. */
+    & > [data-part="header-action"] {
+      display: inline-flex;
+      margin-left: var(--noora-spacing-2);
+      vertical-align: middle;
+    }
+
     & > [data-part="sort-link"] {
       color: unset;
       text-decoration: unset;
