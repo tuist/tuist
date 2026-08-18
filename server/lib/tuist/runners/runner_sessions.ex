@@ -354,7 +354,13 @@ defmodule Tuist.Runners.RunnerSessions do
   colliding runner name belonging to another.
 
   Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
-  mirroring `Claims.record_execution/3`.
+  mirroring `Claims.record_execution/3`, or `{:error, changeset}` when the
+  write itself failed.
+
+  A caller must not swallow that error. This is the only path that records
+  the billable job window, and a session missing either bound bills
+  nothing, so a dropped write silently loses that job's usage rather than
+  merely losing attribution.
   """
   def record_execution(runner_name, executed_workflow_job_id, account_id, job_window \\ %{})
 
@@ -422,16 +428,16 @@ defmodule Tuist.Runners.RunnerSessions do
     |> Repo.update()
     |> case do
       {:ok, _updated} ->
-        :ok
+        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
 
       {:error, changeset} ->
         Logger.warning("runners: failed to record session execution",
           runner_name: session.runner_name,
           changeset_errors: inspect(changeset.errors)
         )
-    end
 
-    if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+        {:error, changeset}
+    end
   end
 
   defp latest_for_pod(pod_name) do

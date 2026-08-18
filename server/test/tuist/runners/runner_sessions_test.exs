@@ -1,5 +1,6 @@
 defmodule Tuist.Runners.RunnerSessionsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -378,6 +379,25 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       stored = Repo.get!(RunnerSession, session.id)
       assert stored.job_started_at == ~U[2026-08-18 13:50:02.000000Z]
       assert stored.job_ended_at == ~U[2026-08-18 13:50:08.000000Z]
+    end
+
+    test "surfaces a persistence failure instead of reporting success" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-fails", workflow_job_id: 8013)
+
+      # Returning :matched here would let the caller acknowledge a webhook
+      # whose billable window was never stored, and nothing else records it.
+      stub(Repo, :update, fn _changeset ->
+        {:error, %Ecto.Changeset{errors: [job_started_at: {"boom", []}]}}
+      end)
+
+      assert {:error, %Ecto.Changeset{}} =
+               RunnerSessions.record_execution("runner-fails", 8013, account.id, %{
+                 started_at: ~U[2026-08-18 13:50:02.000000Z],
+                 ended_at: ~U[2026-08-18 13:50:08.000000Z]
+               })
+
+      assert session.id
     end
 
     test "leaves the job window null when the payload carried only one bound" do

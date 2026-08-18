@@ -545,6 +545,26 @@ defmodule Tuist.Runners.DispatchTest do
       assert_receive {:session_exec, "runner-late", 4800, _job_window}
     end
 
+    test "leaves the delivery unacknowledged when the session write fails", %{account: account} do
+      account_id = account.id
+
+      # The billable job window is recorded nowhere else, and a session
+      # missing either bound bills nothing, so acknowledging here would
+      # turn a transient Postgres failure into permanently lost usage.
+      stub(RunnerSessions, :record_execution, fn "runner-broken", 4802, ^account_id, _window ->
+        {:error, %Ecto.Changeset{errors: [job_started_at: {"boom", []}]}}
+      end)
+
+      stub(Claims, :complete_by_runner_name, fn "runner-broken", ^account_id -> 1 end)
+      reject(&Jobs.complete/2)
+
+      assert {:error, {:session_execution_write_failed, _}} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4802, runner_name: "runner-broken", steps: []),
+                 1
+               )
+    end
+
     test "passes GitHub's job window through to the billing session", %{account: account} do
       test_pid = self()
       account_id = account.id
