@@ -1826,6 +1826,20 @@ mod tests {
                 .any(|(namespace_id, _)| namespace_id == "old-ns"),
             "the delete must not have been applied"
         );
+
+        // Control: the same peer and the same tombstone, walked with no bound.
+        // Without this the assertions above would also hold if tombstones were
+        // simply never listed.
+        let unbounded = test_context(|_| {}).await;
+        let (outcome, _) = run_pass(&unbounded, &peer_url, tuning()).await;
+        let BackfillPassOutcome::Completed { end, stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::PeerExhausted);
+        assert_eq!(
+            stats.tombstones_applied, 1,
+            "an unbounded walk does list and apply the same tombstone"
+        );
     }
 
     #[tokio::test]
