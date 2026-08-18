@@ -82,11 +82,6 @@ pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
 // pre-branch backlog, not a tuning knob, and one that trips it logs how far it
 // walked to get there.
 pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
-// Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
-// go *without forward progress* (a fetched page or applied artifact) before it
-// is abandoned and retried. A large cold pull that keeps making progress runs to
-// completion however long that takes; only a genuinely stalled one is dropped.
-pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 pub const SEGMENT_FREE_SPACE_MARGIN: u64 = 2;
 pub const DEFAULT_USAGE_WINDOW_SECS: u64 = 60;
 pub const DEFAULT_USAGE_FLUSH_INTERVAL_MS: u64 = 60_000;
@@ -95,14 +90,10 @@ pub const DEFAULT_USAGE_BATCH_SIZE: usize = 1_000;
 pub const DEFAULT_USAGE_MAX_BUCKETS: usize = 10_000;
 pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 
-pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
-pub const MAX_BOOTSTRAP_PAGE_ITEMS: usize = 2048;
-// Range-digest anti-entropy: partition the sorted `artifact_id` keyspace by its
-// leading hex characters. 3 nibbles = 4096 buckets (~340 artifacts/bucket at
-// 1.4M), enough to make a mostly-in-sync bootstrap O(delta) while keeping the
-// digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
-// length is capped well under its width.
-pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
+// Ceilings a peer-facing listing page is read under: the response body a
+// requester will buffer, and the row count it will accept in one page.
+pub const MAX_PEER_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+pub const MAX_PEER_PAGE_ITEMS: usize = 2048;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
@@ -121,15 +112,6 @@ pub fn encoded_response_stream_chunk_bytes(body_bytes: u64) -> usize {
         .div_ceil(RESPONSE_STREAM_MIN_CHUNK_BYTES)
         .saturating_mul(RESPONSE_STREAM_MIN_CHUNK_BYTES)
 }
-pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
-// Stripes for the per-artifact bootstrap fetch gate that single-flights the
-// body download across peers. Sized well above the peak concurrent fetches
-// (bootstrap_max_concurrent_peers x per-peer fetch concurrency) so distinct
-// keys rarely share a stripe; false sharing only over-serializes briefly and is
-// correctness-neutral because the gate is paired with an exact per-artifact
-// presence recheck.
-pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
-
 // Backfill horizon margin (KURA_BACKFILL_MARGIN_PERCENT default): the share
 // of the age-ordered segment ring, counted from the newest, whose boundary
 // segment's seal-time stat becomes the horizon. The margin's share of the
@@ -244,9 +226,8 @@ pub const BACKFILL_BATCH_FLUSH_INTERVAL_MS: u64 = 1_000;
 pub const BACKFILL_APPLY_GROUP_RECORDS: usize = 64;
 // Bounded backoff for budget-exempt retryable peer responses (index building,
 // endpoint-absent, peer busy, tmp budget, generic Retry-After backpressure).
-// Same shape as the legacy bootstrap backpressure retry; the pass retries
-// without failing and reports cumulative retry-sleep time so the lifecycle
-// layer can enforce the per-peer wall-clock cap.
+// The pass retries without failing and reports cumulative retry-sleep time so
+// the lifecycle layer can enforce the per-peer wall-clock cap.
 pub const BACKFILL_RETRY_BACKOFF_BASE_MS: u64 = 250;
 pub const BACKFILL_RETRY_BACKOFF_MAX_MS: u64 = 5_000;
 // Capacity of the lister→fetcher claimed-tuple queue inside one backfill
