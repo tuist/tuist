@@ -2383,9 +2383,9 @@ defmodule Tuist.Tests do
       column on `test_cases`; the duration comes from the matching `is_ci`
       slice of `test_case_duration_daily_stats_per_case`. `nil` (the default)
       means "any environment".
-    * `:with_durations`: compute the duration distribution.
+    * `:preload`: pass `[:durations]` to compute the duration distribution.
 
-  With durations on, each returned test case carries `:duration_p50_ms`,
+  With durations preloaded, each returned test case carries `:duration_p50_ms`,
   `:duration_p90_ms`, `:duration_p99_ms` and `:duration_avg_ms` over the active
   window, plus `:duration_sample_count` (the runs they were computed from).
   Each is `nil` when that count is below `#{@min_duration_samples}`. Sort by
@@ -2397,9 +2397,10 @@ defmodule Tuist.Tests do
   expose the column by name.
 
   Computing them costs an aggregate read across the project's whole active
-  suite, so it is opt-in: pass `:with_durations`, or order by one of the
-  duration fields. Callers that do neither, namely the public API and the MCP
-  tool, run exactly the query they ran before and get `nil` for all of them.
+  suite, so it is opt-in: preload them, or order by one of the duration fields,
+  which implies the preload because the ordering reads the same aliases.
+  Callers that do neither, namely the public API and the MCP tool, run exactly
+  the query they ran before and get `nil` for all of them.
 
   The listing intentionally has no date-window option. Callers that take a
   user-controlled date picker on the same page (e.g. the Test Cases LiveView)
@@ -2415,7 +2416,7 @@ defmodule Tuist.Tests do
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
-    with_durations? = with_durations?(Keyword.get(opts, :with_durations), attrs)
+    preload_durations? = preload_durations?(opts, attrs)
 
     # `state` / `is_flaky` are resolved from `test_case_states`, not from the
     # legacy columns on `test_cases`, so they are pulled out of the Flop filter
@@ -2492,7 +2493,7 @@ defmodule Tuist.Tests do
       :joined ->
         base_query
         |> select_resolved_test_case_state()
-        |> select_durations(project_id, with_durations?, is_ci)
+        |> select_durations(project_id, preload_durations?, is_ci)
         |> Tuist.ClickHouseFlop.run(flop,
           for: TestCase,
           count: total_count,
@@ -2502,7 +2503,7 @@ defmodule Tuist.Tests do
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_durations(project_id, with_durations?, is_ci)
+          |> select_durations(project_id, preload_durations?, is_ci)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
@@ -2533,12 +2534,17 @@ defmodule Tuist.Tests do
   """
   def min_duration_samples, do: @min_duration_samples
 
-  # Flop accepts both atom and string params, so an order on a duration field
-  # can arrive either way. Missing the string form would leave the aliases out
-  # of the SELECT and make ClickHouse reject the ORDER BY that referenced one.
-  defp with_durations?(true, _attrs), do: true
+  defp preload_durations?(opts, attrs) do
+    :durations in List.wrap(Keyword.get(opts, :preload, [])) or orders_by_duration?(attrs)
+  end
 
-  defp with_durations?(_flag, attrs) do
+  # Ordering by a duration reads the alias the preload puts in the SELECT, so an
+  # order implies the preload whether or not the caller asked for it. Without
+  # this, `order_by: [:duration_p50]` alone would build an ORDER BY over an
+  # alias that is not there and ClickHouse would reject the query.
+  #
+  # Flop accepts both atom and string params, so the order can arrive either way.
+  defp orders_by_duration?(attrs) do
     order_by = Map.get(attrs, :order_by) || Map.get(attrs, "order_by")
     ordered = MapSet.new(List.wrap(order_by), &to_string/1)
 

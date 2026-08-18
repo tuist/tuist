@@ -433,7 +433,7 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    list_opts = [is_ci: is_ci, with_durations: true]
+    list_opts = [is_ci: is_ci, preload: [:durations]]
 
     socket
     |> assign(:active_filters, filters)

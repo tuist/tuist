@@ -3400,7 +3400,7 @@ defmodule Tuist.TestsTest do
       run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
 
       # When
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, preload: [:durations])
 
       # Then
       assert test_case.duration_p50_ms == 100.0
@@ -3414,7 +3414,7 @@ defmodule Tuist.TestsTest do
       run_test_case(project, "testHeavyTail", [500, 500, 500, 500, 500, 500, 500, 500, 9000, 9000])
 
       # When
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, preload: [:durations])
 
       # Then - the tail is what the percentiles are for
       assert test_case.duration_p50_ms == 500.0
@@ -3459,7 +3459,7 @@ defmodule Tuist.TestsTest do
       """)
 
       # When
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, preload: [:durations])
 
       # Then - the duplicate version does not inflate the count past the floor
       assert test_case.duration_sample_count == 4
@@ -3472,7 +3472,7 @@ defmodule Tuist.TestsTest do
       run_test_case(project, "testRare", [100, 200, 300])
 
       # When
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, preload: [:durations])
 
       # Then
       assert is_nil(test_case.duration_p50_ms)
@@ -3489,10 +3489,10 @@ defmodule Tuist.TestsTest do
       run_test_case(project, "testBoth", [50, 50, 50, 50, 50], is_ci: false)
 
       # When
-      {[on_ci], _meta} = Tests.list_test_cases(project.id, %{}, is_ci: true, with_durations: true)
+      {[on_ci], _meta} = Tests.list_test_cases(project.id, %{}, is_ci: true, preload: [:durations])
 
       {[locally], _meta} =
-        Tests.list_test_cases(project.id, %{}, is_ci: false, with_durations: true)
+        Tests.list_test_cases(project.id, %{}, is_ci: false, preload: [:durations])
 
       # Then
       assert on_ci.duration_p50_ms == 1000.0
