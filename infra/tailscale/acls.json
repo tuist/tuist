@@ -146,28 +146,55 @@
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
 			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Tart VMs have no route to the
-			// in-cluster receiver address other workloads use, and their
-			// logs cannot be tailed from the node at all.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
 			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Tart VMs have no route to the
-			// in-cluster receiver address other workloads use, and their
-			// logs cannot be tailed from the node at all.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
 			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
-			// proxy, for spans and logs. Tart VMs have no route to the
-			// in-cluster receiver address other workloads use, and their
-			// logs cannot be tailed from the node at all.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
+			// proxy, for spans and logs. Both the Mac mini HOST and the
+			// Tart VMs on it push logs to 3100. The VMs have no route to
+			// the in-cluster receiver address other workloads use; the
+			// host's own launchd logs (tart-kubelet's reconciler, node
+			// agent and volume manager, shipped by
+			// infra/macos-log-shipper) cannot be tailed from the cluster
+			// at all, because a Pod on a macOS Node IS a VM.
+			// :443   the OCI registry holding the VM images. The
+			//        builders clone their base and push finished
+			//        images over this; without it the image
+			//        workflows lose their registry the moment the
+			//        catch-all grant above is removed.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -380,6 +407,24 @@
 				"10.128.0.10:4000",
 				"10.128.0.10:53",
 			],
+		},
+		// Host-log push path: every mini POSTs its tart-kubelet log to
+		// the same-env Alloy receiver's loki.source.api on 3100. The
+		// grant predates the host agent (the Tart guests used it for
+		// spans and logs), so this only pins it — a narrowing that
+		// dropped 3100 would silently take the macOS fleet's only
+		// queryable output offline, with a healthy-looking Node.
+		{
+			"src": "tag:tuist-macmini-staging",
+			"accept": ["tag:tuist-k8s-staging:3100"],
+		},
+		{
+			"src": "tag:tuist-macmini-canary",
+			"accept": ["tag:tuist-k8s-canary:3100"],
+		},
+		{
+			"src": "tag:tuist-macmini-production",
+			"accept": ["tag:tuist-k8s-production:3100"],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's
 		// test engine doesn't resolve `autogroup:*` as a concrete

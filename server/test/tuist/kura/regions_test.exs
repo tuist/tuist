@@ -251,6 +251,47 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "node_location/1" do
+    test "gives every provisionable region the location of the datacenter it runs in" do
+      locations = %{
+        # OVH Vint Hill VA / Hillsboro OR, Scaleway Dedibox (Paris region),
+        # OVHcloud BHS in Quebec, Scaleway Elastic Metal fr-par.
+        "us-east" => %{country: "US", subdivision: "US-VA"},
+        "us-west" => %{country: "US", subdivision: "US-OR"},
+        "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
+        "ca-east" => %{country: "CA", subdivision: "CA-QC"},
+        "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"}
+      }
+
+      for {id, location} <- locations do
+        assert Regions.node_location(Regions.get(id)) == location
+      end
+    end
+
+    test "leaves no provisionable region without one" do
+      # Kura cannot work its own location out any more, so a fleet that ships
+      # without this exports every span with no geography and nothing detects
+      # it. The local controller region is a developer's own machine, and
+      # tombstones never provision, so neither declares a location.
+      unlocated =
+        Regions.all()
+        |> Enum.reject(&(&1.id == "local-controller" or Regions.retired?(&1)))
+        |> Enum.filter(&is_nil(Regions.node_location(&1)))
+
+      assert unlocated == []
+    end
+
+    test "returns nil for a region that declares no location" do
+      # Two different shapes reach nil. The local controller omits the keys
+      # entirely, while a tombstone carries them as nil, because the region
+      # builders write both unconditionally through Map.get/2. Any future
+      # region added without a location takes the tombstone's path, so it is
+      # the one that has to keep resolving rather than raising.
+      assert Regions.node_location(Regions.get("local-controller")) == nil
+      assert Regions.node_location(Regions.get("hetzner-staging-runners")) == nil
+    end
+  end
+
   describe "available/0" do
     test "returns only the controller-backed local region in test" do
       assert Enum.map(Regions.available(), & &1.id) == ["local-controller"]

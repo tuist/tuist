@@ -9,6 +9,11 @@ use serde_json::{Value, json};
 
 use crate::metrics::Metrics;
 
+/// How far past its own `exp` a credential is still taken as current, matching
+/// jsonwebtoken's own default. It absorbs the clock skew between the issuer and
+/// this node.
+pub const EXPIRY_LEEWAY: Duration = Duration::from_secs(60);
+
 #[derive(Clone, Debug)]
 pub struct JwtVerifier {
     pub algorithm: Algorithm,
@@ -30,6 +35,10 @@ impl JwtVerifier {
     pub fn verify(&self, token: &str) -> Result<Value, String> {
         let key = DecodingKey::from_secret(self.secret.as_bytes());
         let mut validation = Validation::new(self.algorithm);
+        // Pinned rather than inherited from jsonwebtoken's default, because the
+        // policy refuses a credential past its expiry before asking the server
+        // and has to refuse it over exactly the window this accepts it over.
+        validation.leeway = EXPIRY_LEEWAY.as_secs();
         if let Some(issuer) = self.issuer.as_deref() {
             validation.set_issuer(&[issuer]);
         }

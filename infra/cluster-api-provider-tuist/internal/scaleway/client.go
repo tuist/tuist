@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -41,6 +43,7 @@ type AppleSiliconAPI interface {
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	RebootServer(req *applesilicon.RebootServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
 }
 
 // AppleSiliconPrivateNetworkAPI is the slice of the SDK's
@@ -286,6 +289,40 @@ func IsPoolOrAdopting(name, poolPrefix string) bool {
 // more capacity.
 var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 
+// ErrOSNotPublished reports that a fleet's os pin names an image
+// Scaleway no longer lists. Callers releasing a host must not treat
+// this as fatal: the pin is unsatisfiable, so refusing to release
+// would strand both the host (still billing) and the Machine (its
+// finalizer never clears) with no way for the fleet to recover on its
+// own. Fall back to the server type's default image and surface the
+// pin as the thing needing an operator fix.
+var ErrOSNotPublished = errors.New("os pin names an image Scaleway no longer publishes")
+
+// ErrOSPinNotFamily reports that a fleet's os pin names a specific
+// image ("macos-tahoe-26.5") where a release family ("Tahoe") is
+// required.
+//
+// Adoption refuses it rather than widening it to the family. Silently
+// treating an exact pin as its family would tell an operator who
+// asked for 26.5 that they got it while handing them any Tahoe host,
+// and a pin nobody can honour should fail where it is written, not
+// somewhere downstream.
+//
+// Release deliberately does not enforce this: Machines predating the
+// switch to families carry exact pins in their own specs, and
+// refusing to release one would strand it — host still claimed and
+// billing, finalizer never clearing. A drain path has to accept what
+// already exists.
+var ErrOSPinNotFamily = errors.New("os pin must name a release family, not a specific image")
+
+// osPinIsFamily reports whether a pin names a family rather than an
+// image. Families are place names — Tahoe, Sequoia, Sonoma, Ventura,
+// Golden Gate — and carry no digits, so a digit anywhere is a version
+// the fleet cannot actually hold.
+func osPinIsFamily(pin string) bool {
+	return !strings.ContainsAny(pin, "0123456789")
+}
+
 // AdoptFromPool claims a pre-ordered server in `zone` whose
 // Scaleway-side name starts with `poolPrefix`, matches
 // (`serverType`, `osName`), and is `Delivered=true` +
@@ -330,6 +367,14 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 func (c *Client) AdoptFromPool(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
 	if poolPrefix == "" {
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
+	}
+	if !osPinIsFamily(osName) {
+		// Matching is case-insensitive, so the derived key is a
+		// literal the operator can paste straight into the fleet's
+		// values without worrying about capitalisation.
+		return nil, fmt.Errorf(
+			"%w: %q pins an image; set the fleet's os to its family instead (%q)",
+			ErrOSPinNotFamily, osName, osFamilyKey(osName))
 	}
 
 	c.adoptMu.Lock()
@@ -377,7 +422,7 @@ func (c *Client) AdoptFromPool(ctx context.Context, claimName, zone, serverType,
 			if s.Type != serverType {
 				continue
 			}
-			if s.Os == nil || s.Os.Name != osName {
+			if !osFamilyMatches(s.Os, osName) {
 				continue
 			}
 
@@ -582,14 +627,26 @@ func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
 //     `findServerByName(claimName)` lookups (the per-Machine name
 //     is gone) and visible to future `AdoptFromPool` scans.
 //
-//  2. Trigger ReinstallServer, which wipes the disk and reimages
-//     with the server type's default OS. Async on Scaleway's side
-//     (~5-15 min on M2-L); we fire-and-forget because
-//     AdoptFromPool already filters on `Delivered + Status == Ready`
-//     and the host transitions through `reinstalling → ready` on
-//     its own. Means: next adopt sees factory-default state — no
-//     stale tart-kubelet config, no leftover Tailscale auth, no
-//     cached secrets — so bootstrap doesn't need to be re-entrant.
+//  2. Trigger ReinstallServer, which wipes the disk and reimages.
+//     Async on Scaleway's side (~5-15 min on M2-L); we
+//     fire-and-forget because AdoptFromPool already filters on
+//     `Delivered + Status == Ready` and the host transitions through
+//     `reinstalling → ready` on its own. Means: next adopt sees
+//     factory-default state — no stale tart-kubelet config, no
+//     leftover Tailscale auth, no cached secrets — so bootstrap
+//     doesn't need to be re-entrant.
+//
+// `pin` fixes step 2's image. A zero Family reimages with the
+// server type's *current* default, which is what Scaleway does when
+// no os_id is supplied — and that is a trap when the caller adopts on
+// an exact image match. A fleet pinned to an older point release
+// would get its host back on whatever Scaleway defaults to that week,
+// AdoptFromPool would never match it again, and the host is lost to
+// the fleet for good. Staging lost its entire runner pool to exactly
+// this in Aug 2026, after Scaleway retired macos-tahoe-26.3 out from
+// under the pin. So the per-Machine release path passes its fleet's
+// family here and the host returns adoptable; only the orphan sweep,
+// which has no CR left to read one from, leaves it zero.
 //
 // Idempotency: callers retry on error. Step 1 is safe to repeat —
 // renaming to a different UUID just lands the host at a different
@@ -597,9 +654,34 @@ func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
 // TransientStateError if the server is already mid-reinstall from a
 // previous attempt; we swallow it as success. 404 on either step
 // means the operator deleted the host out-of-band; also success.
-func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error {
+// ReleasePin describes the image a released host should be reimaged
+// onto: the fleet's family pin, scoped to images its SKU can boot. A
+// zero value means "whatever the server type defaults to", which is
+// what the orphan sweep uses — a strand has no surviving CR to read
+// either field from.
+type ReleasePin struct {
+	Family     string
+	ServerType string
+}
+
+func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin ReleasePin) error {
 	if poolPrefix == "" {
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
+	}
+
+	// Resolve before the rename so a pin that can't be honoured is
+	// discovered while the host is still claimed and recoverable,
+	// rather than after it has been parked in the pool. An
+	// unresolvable pin comes back as ErrOSNotPublished, which the
+	// caller is expected to downgrade to an unpinned release rather
+	// than treat as fatal — see the sentinel's doc comment.
+	var osID *string
+	if pin.Family != "" {
+		resolved, err := c.resolveOSID(ctx, zone, pin.Family, pin.ServerType)
+		if err != nil {
+			return err
+		}
+		osID = &resolved
 	}
 
 	// Hold the adoption lock across the rename + reinstall request so an
@@ -624,6 +706,7 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	if _, err := c.API.ReinstallServer(&applesilicon.ReinstallServerRequest{
 		ServerID: id,
 		Zone:     scw.Zone(zone),
+		OsID:     osID,
 	}, scw.WithContext(ctx)); err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -639,6 +722,196 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	}
 
 	return nil
+}
+
+// osFamilyKey reduces an os pin or a Scaleway OS family to a single
+// comparable token: "macos-tahoe-26.3", "macos-tahoe-26.6.1", "Tahoe"
+// and "tahoe" all collapse to "tahoe".
+//
+// Fleets pin a family, not a point release. Pinning an exact image is
+// what stranded staging: Scaleway retires point releases without
+// notice and reimages released hosts onto the server type's current
+// default, so an exact pin drifts out from under the fleet and no
+// pool host can satisfy it again. A family survives that — every
+// Tahoe host matches a Tahoe fleet no matter which point release
+// Scaleway is shipping this week.
+//
+// Legacy exact-image pins normalize to their family, which is what
+// lets a Machine still carrying `macos-tahoe-26.3` release onto
+// current Tahoe. Note this is the release path only: AdoptFromPool
+// refuses a versioned pin outright rather than widening it, so such a
+// Machine cannot adopt again — see ErrOSPinNotFamily.
+//
+// The version suffix is cut at the first `-` followed by a digit
+// rather than the first `-` outright, so multi-word families survive
+// ("macos-golden-gate-27.0" -> "goldengate", matching the API's
+// "Golden Gate").
+func osFamilyKey(s string) string {
+	key := strings.ToLower(strings.TrimSpace(s))
+	key = strings.TrimPrefix(key, "macos-")
+	for i := 0; i+1 < len(key); i++ {
+		if key[i] == '-' && key[i+1] >= '0' && key[i+1] <= '9' {
+			key = key[:i]
+			break
+		}
+	}
+	return strings.NewReplacer(" ", "", "-", "", "_", "").Replace(key)
+}
+
+// osFamilyMatches reports whether a server's image belongs to the
+// family a fleet pins. Falls back to deriving the family from the
+// image name when the API leaves Family empty.
+func osFamilyMatches(os *applesilicon.OS, pin string) bool {
+	if os == nil || pin == "" {
+		return false
+	}
+	// Either surface may carry the family. The API's Family field is
+	// authoritative and is what keeps devos-tahoe-* out of a Tahoe
+	// fleet, but the vendored SDK documents it as numeric ("eg. 13 or
+	// 14") while both endpoints return names in practice. Accepting a
+	// name-derived match too means a surprising Family value degrades
+	// to name matching instead of silently mismatching a whole fleet.
+	// Cross-family images stay excluded either way: devos-tahoe keys to
+	// "devos" by family and "devostahoe" by name, neither of which is
+	// "tahoe".
+	key := osFamilyKey(pin)
+	return osFamilyKey(os.Family) == key || osFamilyKey(os.Name) == key
+}
+
+// compareOSVersions orders dotted versions: 26.6.1 > 26.6 > 26.5.
+//
+// A segment carrying a suffix ranks below the bare segment, so
+// "26.7-beta" < "26.7" rather than above it — a plain string fallback
+// gets this backwards, since the longer string compares greater, and
+// that would hand a pre-release the top slot in its family.
+func compareOSVersions(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		var av, bv string
+		if i < len(as) {
+			av = as[i]
+		}
+		if i < len(bs) {
+			bv = bs[i]
+		}
+		an, arest := splitVersionSegment(av)
+		bn, brest := splitVersionSegment(bv)
+		if an != bn {
+			if an < bn {
+				return -1
+			}
+			return 1
+		}
+		switch {
+		case arest == brest:
+		case arest == "":
+			// b carries a pre-release suffix, a does not.
+			return 1
+		case brest == "":
+			return -1
+		default:
+			if c := strings.Compare(arest, brest); c != 0 {
+				return c
+			}
+		}
+	}
+	return 0
+}
+
+// splitVersionSegment peels the leading integer off a version segment
+// and returns it with whatever follows. A segment with no leading
+// digits yields -1 so it sorts below any numbered one.
+func splitVersionSegment(s string) (int, string) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return -1, s
+	}
+	n, err := strconv.Atoi(s[:i])
+	if err != nil {
+		return -1, s
+	}
+	return n, s[i:]
+}
+
+// resolveOSID returns the UUID of the newest published image in the
+// pinned family that the given server type can run. That is what
+// ReinstallServer should put back on a released host: newest keeps the
+// pool converging on one image instead of accumulating a spread of
+// point releases, and staying inside the family keeps the host
+// adoptable by the fleet that released it.
+//
+// Deliberately not Scaleway's own `Name` list filter — that is a
+// prefix match ("26.6" also returns "26.6.1"), so it would quietly
+// cross point releases. We list and compare ourselves.
+//
+// Not cached. A resolved UUID looks stable but isn't: Scaleway retires
+// images, and a cached UUID outliving its image would fail
+// ReinstallServer with a generic API error rather than
+// ErrOSNotPublished, so the caller's downgrade would never fire and
+// every release in the family would retry the same dead UUID until the
+// process restarted. That is the outage this whole path exists to
+// prevent, one layer down. Release runs once per host teardown, so a
+// list call per release is not worth trading for that.
+//
+// `serverType` scopes the catalog to images that SKU can boot. Without
+// it, a family's newest image published only for newer hardware would
+// be chosen for an older host and the reinstall would fail. Empty
+// means unscoped.
+//
+// A family with nothing published returns ErrOSNotPublished; see that
+// sentinel for why callers downgrade rather than fail.
+func (c *Client) resolveOSID(ctx context.Context, zone, pin, serverType string) (string, error) {
+	req := &applesilicon.ListOSRequest{Zone: scw.Zone(zone)}
+	if serverType != "" {
+		req.ServerType = &serverType
+	}
+	resp, err := c.API.ListOS(req, scw.WithContext(ctx), scw.WithAllPages())
+	if err != nil {
+		return "", fmt.Errorf("list apple silicon OS images in %s: %w", zone, err)
+	}
+
+	// Betas are a last resort. Scaleway does publish them — today
+	// fedora-asahi-remix carries is_beta — and a beta can hold the
+	// highest version in its family, so picking purely on version would
+	// silently reimage production hosts onto a pre-release OS.
+	var best, bestBeta *applesilicon.OS
+	families := map[string]bool{}
+	for _, os := range resp.Os {
+		if os == nil {
+			continue
+		}
+		if f := strings.TrimSpace(os.Family); f != "" {
+			families[f] = true
+		}
+		if !osFamilyMatches(os, pin) {
+			continue
+		}
+		target := &best
+		if os.IsBeta {
+			target = &bestBeta
+		}
+		if *target == nil || compareOSVersions(os.Version, (*target).Version) > 0 {
+			*target = os
+		}
+	}
+	if best == nil {
+		best = bestBeta
+	}
+
+	if best == nil {
+		available := make([]string, 0, len(families))
+		for f := range families {
+			available = append(available, f)
+		}
+		sort.Strings(available)
+		return "", fmt.Errorf(
+			"%w: no image in family %q published in %s for server type %q; repoint the fleet's os pin at one of: %s",
+			ErrOSNotPublished, pin, zone, serverType, strings.Join(available, ", "))
+	}
+	return best.ID, nil
 }
 
 // isTransientState detects scaleway-sdk-go's typed

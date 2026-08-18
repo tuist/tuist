@@ -9,6 +9,14 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and staging run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-canary
+    - tag:tuist-k8s-canary
+
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
@@ -262,17 +270,22 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
-      # See values-managed-production.yaml for the rationale. Canary's
-      # only Mac mini is on the production tailnet (single shared
-      # tailnet across canary + production), so the proxy needs to land
-      # on the same tag as production's `tag:tuist-k8s-production`
-      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
-      # by the operator's OAuth client. Hostname is env-scoped to
-      # keep production's stable.
+      # See values-managed-production.yaml for the rationale. Canary
+      # shares a tailnet with production but not a tag: the canary Mac
+      # mini fleet joins as `tag:tuist-macmini-canary` (macosFleet
+      # .tailscale.tags below) and the canary operator runs its own
+      # OAuth client, which can only mint `tag:tuist-k8s-canary`.
+      # Requesting production's tag here left the Service stuck on
+      # `requested tags [tag:tuist-k8s-production] are invalid or not
+      # permitted`, so no proxy node existed, the hostname below
+      # resolved to nothing, and the Tart VM could not reach Postgres.
+      # infra/tailscale/acls.json already grants
+      # tag:tuist-macmini-canary -> tag:tuist-k8s-canary on tcp:5432.
+      # Hostname stays env-scoped to keep production's stable.
       tailscale:
         enabled: true
         hostname: tuist-pg-pooler-canary
-        tags: tag:tuist-k8s-production
+        tags: tag:tuist-k8s-canary
     storage:
       size: "10Gi"
     resources:
@@ -468,6 +481,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-canary.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="canary"}; every line also carries
+  # `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-canary.taild6d7bb.ts.net:3100/loki/api/v1/push
+    env: canary
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private

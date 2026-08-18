@@ -377,7 +377,7 @@ sum by (cluster, node) (
   rate(cilium_drop_count_total{
     direction="INGRESS",
     reason="Policy denied"
-  }[10m])
+  }[5m])
   * on (cluster, pod) group_left(node)
   kube_pod_info{
     namespace="kube-system",
@@ -395,8 +395,8 @@ sum by (cluster, node) (
   at the cache.
 - The metric carries no `node` label, hence the `kube_pod_info` join on the
   Cilium agent pod. The `node=~".*-kura-fleet-.*"` matcher restricts this to the
-  co-located runner-cache nodes, whose steady-state rate is exactly zero; other
-  pools carry background policy drops and would make it noisy.
+  co-located runner-cache nodes; other pools carry far heavier background policy
+  drops (one dedibox node holds a flat ~0.42/s indefinitely) and would swamp it.
 - Summary: `Kura cache on {{ $labels.node }} is dropping runner traffic at the
   NetworkPolicy ({{ $labels.cluster }}) — builds on the affected runner will
   hang until their client timeouts`
@@ -405,6 +405,61 @@ sum by (cluster, node) (
   traffic never reaches the kura node and this counter stays at zero while the
   build hangs identically.
 
+**The window is `[5m]`, not `[10m]`. The threshold stays `> 0` deliberately.**
+
+The rule is meant to catch *any* sustained denial, so a magnitude floor was
+rejected: it would have to be tuned, and it would silently hide a low-rate variant
+of the same fault. The discrimination belongs on duration instead, which is what
+the pending period already expresses. `[10m]` broke that: a rate over a 10-minute
+window stays non-zero for a full 10 minutes after the *last* dropped packet, so a
+4-minute burst held the condition for ~14 minutes and cleared a 10-minute pending
+period. Any burst of roughly a minute could page. With `[5m]` the same burst holds
+the condition for about 7 minutes and never reaches the pending period, while a
+genuinely stuck job, which drips for hours, still fires after 10 minutes exactly as
+before. The pending period now means "still dropping" rather than "dropped
+recently".
+
+That matters because these nodes do **not** sit at exactly zero, contrary to what
+an earlier version of this note claimed. Two distinct populations show up:
+
+- **Transient bursts, 0.02 to 0.10 packets/s, a few minutes long.** A
+  **kura-controller rollout** produces one on *all four* kura-hosting nodes at
+  once, within seconds of the new ReplicaSet appearing, on roughly half of
+  rollouts. Since every merge to `main` rolls the controller, a rule that pages on
+  these pages constantly. The `[5m]` window is what suppresses them. The mechanism
+  is not yet proven, but the obvious suspects are ruled out: the policy object is
+  patched, never recreated (`reconcileNetworkPolicy` uses
+  `controllerutil.CreateOrUpdate`, and the live objects are still `generation: 1`),
+  no Cilium agent restarts, and a rolling update reuses the same pod labels so no
+  new security identity has to propagate. Cilium runs `routing-mode: tunnel`, which
+  carries the source identity in the VXLAN header, so ordinary in-cluster
+  pod-to-pod traffic is matched by `namespaceSelector: {}` and allowed. That leaves
+  a path where the pod identity is *lost*: from outside the cluster, or SNATed
+  through a NodePort/LoadBalancer. Note the `peer` rule already had to open
+  `0.0.0.0/0` for exactly that reason, while `http` has no equivalent escape hatch
+  beyond per-instance `ClientCIDRs`.
+- **Sustained episodes, 0.8 to 5 packets/s, lasting 30 minutes to 6 hours.** These
+  are the real thing and the rule *should* page on them. Treat a firing alert as a
+  genuine mis-sourced host, not as noise. The impact is now measured rather than
+  assumed: across 2026-08-10 to 2026-08-14 the production node had 20 such
+  episodes, and **every one of the 17 macOS runner sessions that exceeded 40
+  minutes in that window started inside one of them**, 17 for 17. Outside those
+  episodes not a single macOS session passed 40 minutes (max 30.2 min over 650
+  sessions). Linux pools show no effect either way, which is the control: they do
+  not use the PN/pf NAT path. Three sessions hit exactly 361 minutes, the 6-hour
+  ceiling. Total burned wall-clock was ~34 hours across two accounts.
+
+  Those episodes stopped on 2026-08-14 once `b4ce0dba49` fixed the duplicated
+  `/etc/pf.conf` anchor block that made `pfctl` reject the whole ruleset (see
+  "Runner host PN VLAN missing" below for the companion failure). In the three days
+  after, 255 macOS sessions ran with **zero** over 40 minutes and a 27-minute max,
+  and the node logged no sustained episode at all. If this class reappears, the pf
+  anchor is the first thing to check.
+
+Before concluding a Mac mini is mis-sourced, check that the drops are confined to
+**one** node. A runner VM talks to a single regional cache, so simultaneous drops
+across regions are never a mis-sourced host.
+
 A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
 and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
 is not masqueraded to its host's PN VLAN address arrives from outside that block,
@@ -412,14 +467,45 @@ so Cilium drops it at ingress — silently, with no RST. The client sees no
 connection at all and every cache request hangs until its own timeout, which has
 turned 8-minute CI jobs into 6-hour ones while every dashboard showed kura
 healthy and idle. The drop counter is the only signal that fires, and it tracks
-the stuck job almost exactly: zero before it starts, a steady ~2/s SYN-retransmit
-trickle for its whole life, zero again within a scrape of it being cancelled.
+the stuck job closely: a steady ~1-2/s SYN-retransmit trickle for its whole life,
+falling back to baseline within a scrape of it being cancelled. What makes it
+detectable is that it *persists*, which is why the rule discriminates on duration
+rather than on magnitude.
 
-Note the counter carries no source address, so it says *that* a host is
-mis-sourced but not *which* one. Correlating it back to a Mac mini currently
-needs Hubble flow metrics with source labels on the cache node, or catching the
-job live (`kubectl get pod -o wide`) and checking
-`pfctl -a com.apple/tuist.vmnat -s nat` plus `ifconfig vlan0` on that host.
+Note `cilium_drop_count_total` carries no source address, so on its own it says
+*that* a host is mis-sourced but not *which* one. Use `hubble_drop_total`, which
+carries `source` and `destination`:
+
+```promql
+topk(10, sum by (source, destination) (
+  rate(hubble_drop_total{reason="POLICY_DENIED", protocol="TCP"}[5m])
+))
+```
+
+An in-cluster source resolves to a pod name; a mis-sourced runner VM or a SNATed
+path resolves to a bare IP, which is the distinction that matters here. Those
+labels come from `drop:sourceContext=pod|ip;destinationContext=pod` in
+[`cilium-values.yaml`](../../k8s/mgmt/bootstrap/cilium-values.yaml). A cluster
+that has not had that Cilium value applied still reports `hubble_drop_total`
+aggregated to `(protocol, reason)` only, and needs the job caught live
+(`kubectl get pod -o wide`) with `pfctl -a com.apple/tuist.vmnat -s nat` plus
+`ifconfig vlan0` checked on the host instead.
+
+A mis-sourced host can also be found from metrics alone, because none of its cache
+traffic completes and its PN VLAN goes nearly silent:
+
+```promql
+sort_desc(max_over_time((sum by (instance) (rate(
+  node_network_receive_bytes_total{job="tuist-macos-node-exporter",
+  device="vlan0"}[30m])))[7d:30m]))
+```
+
+Healthy runner hosts peak in the hundreds of kB/s; the mis-sourced host in the
+August 2026 incident sat ~1600x below its peers. Use a **7-day peak**: a shorter
+window makes a merely idle host look broken, and a floor or minimum does not
+separate them because every host, healthy or not, has quiet stretches. Scope this
+to the runner fleet: `macos-fleet` and `builders-fleet` hosts sit at a couple of
+hundred B/s legitimately, since they run no cache-using VMs.
 
 ### Runner host PN VLAN missing
 
@@ -1018,6 +1104,57 @@ rule that fires late on every pool beats a fast rule with a hole in it.
 Still far tighter than the 24 hours on "stuck mid-rollout", which additionally
 has to sit above a *whole* multi-node bare-metal roll rather than a single
 Machine's drain.
+
+### Pod cannot be scheduled
+
+Catches a Pod the scheduler has given up placing. Nothing else in this
+document covers it, because an unscheduled Pod produces none of the
+signals the other workload rules read: it has no container, so there is
+no waiting reason, no termination reason, and no restart count, and it
+never had a ready endpoint to lose. Its Services keep existing with zero
+endpoints, which reads as "no traffic" rather than "no backend".
+
+That is how `registry/registry-pg-1` — the sole instance of a
+CloudNativePG cluster — sat `Pending` in production from 2026-07-06 to
+2026-08-18 without anyone noticing. Its volume had been provisioned
+against a node that was later destroyed, and Hetzner Cloud Volumes are
+location-bound, so the replacement Pod could not satisfy the volume's
+node affinity anywhere in the cluster. All three of that cluster's
+Services served zero endpoints for six weeks.
+
+```promql
+max by (cluster, namespace, pod) (
+  kube_pod_status_unschedulable{namespace!="tuist-runners"}
+) == 1
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- Summary: `Pod {{ $labels.namespace }}/{{ $labels.pod }} has been unschedulable for 30 minutes in {{ $labels.cluster }}`
+
+No metric change is needed. The kube-state-metrics tuning in
+[`values.yaml`](./values.yaml) already keeps `kube_pod_status_unschedulable`
+cluster-wide while dropping the rest of `kube_pod_*` for the runner
+namespace, on the grounds that it is a cheap placement signal — so the
+series for this incident existed in Grafana Cloud the whole time and
+nothing read it.
+
+`tuist-runners` is excluded rather than alerted on. Unschedulable Pods
+are an expected steady state there: the autoscaler deliberately asks for
+more replicas than the fleet can bin-pack, and the surplus stays
+unschedulable until hosts free up. The real runner-side failure is
+already covered by *Runner queue not draining*, which measures queue age
+and does not confuse a capacity ceiling with a fault. Idle Linux runners
+would not have matched this rule in any case — they are `Pending` because
+their dispatch poller runs as an init container, not because the
+scheduler could not place them.
+
+Thirty minutes clears the ordinary path where a Pod waits on the cluster
+autoscaler to add a node, and is short enough that a volume-affinity or
+taint mistake surfaces the same morning instead of six weeks later. This
+is a warning rather than a page because it fires on any workload in any
+namespace: the Pod that motivated it was critical, but most Pods that
+briefly cannot schedule are not.
 
 ### Kubernetes request latency
 

@@ -5,7 +5,6 @@ use tokio::fs;
 use crate::{
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
-        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
         DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
         DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
         DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
@@ -80,10 +79,6 @@ const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
 const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -99,9 +94,6 @@ const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
 const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
-const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
-const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
-const KURA_BACKFILL_ENABLED: &str = "KURA_BACKFILL_ENABLED";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
 const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
 const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
@@ -109,8 +101,6 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
-const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
-const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
@@ -184,20 +174,12 @@ pub struct Config {
     /// How long an outbox artifact upload may produce no body chunk before the
     /// attempt is abandoned. This is the only deadline on that path — the
     /// upload client carries no read timeout — so it is tunable without a
-    /// rollout, like `bootstrap_timeout_ms`.
+    /// rollout.
     pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub multipart_max_active_uploads: usize,
     pub multipart_max_stored_bytes: u64,
-    pub bootstrap_timeout_ms: u64,
-    pub bootstrap_max_concurrent_peers: usize,
-    /// Boot-time selection of the peer catch-up walker: `true` runs the
-    /// recency-first backfill lifecycle, `false` (the default) the legacy
-    /// bootstrap walker. Read once at process start — the two paths share no
-    /// state and never run together; flipping is an env change plus restart,
-    /// with `backfill/` rows sitting inert while the flag is off.
-    pub backfill_enabled: bool,
     /// Share of the age-ordered segment ring (counted from the newest) whose
     /// boundary segment's seal-time stat becomes the backfill horizon; the
     /// margin's share of the ring's time span is the window's structural
@@ -207,7 +189,7 @@ pub struct Config {
     /// percentage) at which a node still running its initial backfill cycle
     /// marks itself ready. Defaults to half the backfill margin
     /// ([`default_backfill_ready_ring_percent`]); an explicit env value
-    /// overrides the derivation. Only consulted while `backfill_enabled`.
+    /// overrides the derivation.
     pub backfill_ready_ring_percent: u64,
     /// Byte threshold a backfill pass composes one bodies batch against, and
     /// the cutoff above which a listed entry is fetched through the
@@ -220,17 +202,13 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
-    /// How often the in-process GeoIP database is refreshed against the
-    /// upstream DB-IP Lite dump. `0` disables background refresh — the
-    /// container-image copy is then used for the pod's lifetime.
-    pub geoip_refresh_interval_secs: u64,
-    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
-    /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `geo.country.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
+    /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
+    /// the datacenter the node runs in; there is no runtime discovery behind
+    /// it, so an unset value simply leaves the attribute off.
     pub node_country_override: Option<String>,
-    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
-    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `geo.region.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`), stamped as `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 
@@ -410,9 +388,15 @@ impl Config {
     /// memory the kernel *can* reclaim.
     ///
     /// Subtracts the anon this process holds outside admission: the metadata
-    /// store's block cache and write-buffer pool, the manifest cache, and a
-    /// baseline for the process itself (measured at ~150 MiB total on an idle
-    /// instance, of which the caches are the larger part).
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
     ///
     /// `None` when nothing published a floor, which leaves the ceiling-derived
     /// sizing in place.
@@ -420,6 +404,7 @@ impl Config {
         let untracked = (self.rocksdb_block_cache_bytes as u64)
             .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
             .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
             .saturating_add(PROCESS_ANON_BASELINE_BYTES);
         Some(self.memory_floor_bytes?.saturating_sub(untracked))
     }
@@ -1060,45 +1045,6 @@ impl Config {
                 "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
             ));
         }
-        let bootstrap_timeout_ms = optional_parsed_value(
-            &mut lookup,
-            KURA_BOOTSTRAP_TIMEOUT_MS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_BOOTSTRAP_TIMEOUT_MS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_BOOTSTRAP_TIMEOUT_MS);
-        if bootstrap_timeout_ms == 0 {
-            invalid.push(format!(
-                "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
-            ));
-        }
-        let bootstrap_max_concurrent_peers = optional_parsed_value(
-            &mut lookup,
-            KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS,
-            &mut invalid,
-            |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be a valid usize")
-                })
-            },
-        )
-        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS);
-        if bootstrap_max_concurrent_peers == 0 {
-            invalid.push(format!(
-                "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
-            ));
-        }
-        let backfill_enabled =
-            optional_parsed_value(&mut lookup, KURA_BACKFILL_ENABLED, &mut invalid, |value| {
-                value
-                    .parse::<bool>()
-                    .map_err(|_| format!("{KURA_BACKFILL_ENABLED} must be a valid bool"))
-            })
-            .unwrap_or(false);
         let backfill_margin_percent = optional_parsed_value(
             &mut lookup,
             KURA_BACKFILL_MARGIN_PERCENT,
@@ -1357,11 +1303,9 @@ impl Config {
             ));
         }
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         // Usage reporting and authorization address the same server, so a node
@@ -1372,7 +1316,6 @@ impl Config {
         let has_credentials =
             control_plane_client_id.is_some() && control_plane_client_secret.is_some();
         let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
             .or_else(|| {
                 has_credentials
                     .then(|| lookup(KURA_AUTH_TUIST_URL))
@@ -1414,17 +1357,6 @@ impl Config {
                 None
             }
         };
-        let geoip_refresh_interval_secs = optional_parsed_value(
-            &mut lookup,
-            KURA_GEOIP_REFRESH_INTERVAL_SECS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1584,9 +1516,6 @@ impl Config {
             multipart_janitor_interval_ms,
             multipart_max_active_uploads,
             multipart_max_stored_bytes,
-            bootstrap_timeout_ms,
-            bootstrap_max_concurrent_peers,
-            backfill_enabled,
             backfill_margin_percent,
             backfill_ready_ring_percent,
             backfill_batch_bytes,
@@ -1599,7 +1528,6 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
-            geoip_refresh_interval_secs,
             node_country_override,
             node_subdivision_override,
         })
@@ -1614,13 +1542,15 @@ impl Config {
         _data_dir_lock: &DataDirLock,
     ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
-        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
-        // staging) is dead once the process restarts, and a failed transfer can
-        // leave a partial file behind. Left to accumulate they fill the data disk
-        // and RocksDB then fails to open with "No space left on device", wedging
-        // the pod in a crash loop. Clearing them here — before Store::open — lets
-        // such a pod free space and recover on the next start instead of staying
-        // stuck out-of-space.
+        // Everything under tmp_dir (in-flight uploads, multipart parts, peer
+        // catch-up staging) is dead once the process restarts, and a failed
+        // transfer can leave a partial file behind. Left to accumulate they fill
+        // the data disk and RocksDB then fails to open with "No space left on
+        // device", wedging the pod in a crash loop. Clearing them here — before
+        // Store::open — lets such a pod free space and recover on the next start
+        // instead of staying stuck out-of-space. `bootstrap` is the retired
+        // legacy walker's staging directory: still swept (an upgrading node can
+        // carry its leftovers in) but no longer recreated.
         for staging in ["uploads", "parts", "bootstrap", "backfill"] {
             let path = self.tmp_dir.join(staging);
             match fs::remove_dir_all(&path).await {
@@ -1631,7 +1561,6 @@ impl Config {
         }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
-        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
         fs::create_dir_all(self.tmp_dir.join("backfill")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
@@ -2041,6 +1970,38 @@ mod tests {
     }
 
     #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
+    }
+
+    #[test]
     fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
         let mut values = base_values();
         values.insert(
@@ -2164,24 +2125,6 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-        assert_eq!(
-            config.geoip_refresh_interval_secs,
-            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
-        );
-    }
-
-    #[test]
-    fn from_lookup_parses_backfill_enabled() {
-        let config = config_from(&[]).expect("default backfill selection should be valid");
-        assert!(!config.backfill_enabled, "the flag must default off");
-
-        let config = config_from(&[(KURA_BACKFILL_ENABLED, "true")])
-            .expect("an explicit backfill flag should be valid");
-        assert!(config.backfill_enabled);
-
-        let error = config_from(&[(KURA_BACKFILL_ENABLED, "definitely")])
-            .expect_err("a non-bool backfill flag must fail");
-        assert!(error.contains(KURA_BACKFILL_ENABLED));
     }
 
     #[test]
@@ -2252,29 +2195,6 @@ mod tests {
                 .expect_err("an out-of-range backfill batch threshold must fail");
             assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
         }
-    }
-
-    #[test]
-    fn from_lookup_parses_geoip_refresh_interval_override() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected geoip config to parse");
-
-        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
     }
 
     #[test]
@@ -2959,8 +2879,11 @@ mod tests {
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
-        assert!(config.tmp_dir.join("bootstrap").exists());
         assert!(config.tmp_dir.join("backfill").exists());
+        assert!(
+            !config.tmp_dir.join("bootstrap").exists(),
+            "the retired legacy walker's staging directory must not be recreated"
+        );
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());

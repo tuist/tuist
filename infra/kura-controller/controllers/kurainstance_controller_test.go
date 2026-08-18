@@ -156,7 +156,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			IngressClassName: "kura-eu-central",
 			StorageClassName: "hcloud-volumes",
-			ExtensionScript:  "return true",
 		},
 	}
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
@@ -246,12 +245,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected PDB selector to match instance, got %q", got)
 	}
 
+	// The controller used to render a script into a ConfigMap and mount it.
 	configMap := &corev1.ConfigMap{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap); err != nil {
-		t.Fatal(err)
-	}
-	if got := configMap.Data["hooks.lua"]; got != "return true" {
-		t.Fatalf("expected extension script, got %q", got)
+	configMapErr := reconciler.Get(ctx, types.NamespacedName{Name: "kura-tuist-eu-1-extension", Namespace: instance.Namespace}, configMap)
+	if !apierrors.IsNotFound(configMapErr) {
+		t.Fatalf("expected no extension ConfigMap, got %v", configMapErr)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -266,8 +264,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	for _, envVar := range container.Env {
 		env[envVar.Name] = envVar.Value
 	}
-	if got := env["KURA_EXTENSION_ENABLED"]; got != "true" {
-		t.Fatalf("expected controller to enable the extension, got %q", got)
+	// Kura authorizes natively and is configured through the instance's
+	// extraEnv, so the controller injects nothing for it of its own.
+	if _, ok := env["KURA_EXTENSION_ENABLED"]; ok {
+		t.Fatal("expected no extension env because Kura authorizes natively")
+	}
+	if _, ok := env["KURA_EXTENSION_SCRIPT_PATH"]; ok {
+		t.Fatal("expected no extension script path because Kura authorizes natively")
 	}
 	if _, ok := env["KURA_PUBLIC_TLS_CERT_PATH"]; ok {
 		t.Fatal("expected public TLS cert env to be absent because regional Kura ingress terminates TLS")

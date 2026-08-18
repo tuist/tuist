@@ -139,7 +139,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -259,7 +259,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -380,7 +380,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -654,7 +654,7 @@
                 "wrapLogMessage": false
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -797,7 +797,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -913,7 +913,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1063,7 +1063,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1179,7 +1179,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1345,7 +1345,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1466,7 +1466,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1587,7 +1587,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1708,7 +1708,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -1950,7 +1950,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -2054,7 +2054,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -2175,7 +2175,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -2631,7 +2631,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3008,7 +3008,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3117,7 +3117,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3219,7 +3219,7 @@
                 "textMode": "auto"
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3333,7 +3333,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3447,7 +3447,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3534,7 +3534,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3622,7 +3622,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -3636,7 +3636,7 @@
                 {
                   "kind": "PanelQuery",
                   "spec": {
-                    "hidden": true,
+                    "hidden": false,
                     "query": {
                       "datasource": {
                         "name": "grafanacloud-prom"
@@ -3646,7 +3646,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "kura_backfill_pass_events_total_total{env=\"$env\", pod=\"$pod\", event=\"started\"}",
+                        "expr": "sum by (event) (kura_backfill_pass_events_total_total{env=\"$env\", pod=\"$pod\"})",
                         "instant": true,
                         "legendFormat": "__auto",
                         "range": false
@@ -3654,48 +3654,6 @@
                       "version": "v0"
                     },
                     "refId": "A"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": true,
-                    "query": {
-                      "datasource": {
-                        "name": "grafanacloud-prom"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "editorMode": "code",
-                        "exemplar": false,
-                        "expr": "kura_backfill_pass_events_total_total{env=\"$env\", pod=\"$pod\", event=\"completed\"}",
-                        "instant": true,
-                        "legendFormat": "__auto",
-                        "range": false
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "__expr__"
-                      },
-                      "group": "__expr__",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expression": "$A-$B",
-                        "type": "math"
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -3706,48 +3664,36 @@
           "description": "",
           "id": 39,
           "links": [],
-          "title": "events in progress",
+          "title": "events",
           "vizConfig": {
-            "group": "gauge",
+            "group": "piechart",
             "kind": "VizConfig",
             "spec": {
               "fieldConfig": {
                 "defaults": {
                   "color": {
-                    "mode": "thresholds"
+                    "mode": "palette-classic"
                   },
-                  "thresholds": {
-                    "mode": "percentage",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      },
-                      {
-                        "color": "#EAB839",
-                        "value": 60
-                      },
-                      {
-                        "color": "red",
-                        "value": 80
-                      }
-                    ]
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
                   }
                 },
                 "overrides": []
               },
               "options": {
-                "barShape": "flat",
-                "barWidthFactor": 0.54,
-                "effects": {
-                  "barGlow": false,
-                  "centerGlow": false,
-                  "gradient": false
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "values": [
+                    "percent"
+                  ]
                 },
-                "endpointMarker": "point",
-                "minVizHeight": 75,
-                "minVizWidth": 75,
-                "orientation": "auto",
+                "pieType": "pie",
                 "reduceOptions": {
                   "calcs": [
                     "lastNotNull"
@@ -3755,17 +3701,15 @@
                   "fields": "",
                   "values": false
                 },
-                "segmentCount": 63,
-                "segmentSpacing": 0.3,
-                "shape": "gauge",
-                "showThresholdLabels": false,
-                "showThresholdMarkers": true,
-                "sizing": "auto",
-                "sparkline": true,
-                "textMode": "auto"
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4002,7 +3946,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4118,7 +4062,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4235,7 +4179,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4351,7 +4295,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4447,7 +4391,8 @@
                         "value": 80
                       }
                     ]
-                  }
+                  },
+                  "unit": "bytes"
                 },
                 "overrides": []
               },
@@ -4465,7 +4410,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4586,6 +4531,350 @@
           }
         }
       },
+      "panel-46": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (stage) (kura_auth_decisions_total_total{env=\"$env\", pod=\"$pod\"})",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 46,
+          "links": [],
+          "title": "decisions per stage",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-47": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (kura_auth_decisions_total_total{env=\"$env\", pod=\"$pod\", stage=\"authenticate\"})",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 47,
+          "links": [],
+          "title": "authenticate decisions result",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": [
+                  "name",
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-48": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (kura_auth_decisions_total_total{env=\"$env\", pod=\"$pod\", stage=\"authorize\"})",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 48,
+          "links": [],
+          "title": "authorize decisions result",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": [
+                  "name",
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-49": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (kura_auth_decisions_total_total{env=\"$env\", pod=\"$pod\", stage=\"decide\"})",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 49,
+          "links": [],
+          "title": "decide decisions per result",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": [
+                  "name",
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
       "panel-5": {
         "kind": "Panel",
         "spec": {
@@ -4703,7 +4992,413 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-50": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (increase(kura_auth_cache_total_total{env=\"$env\", pod=\"$pod\"}[$__range]))",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 50,
+          "links": [],
+          "title": "cache result",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": [
+                  "name",
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-52": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "min by(result) (rate(kura_auth_cache_total_total{env=\"$env\", pod=\"$pod\"}[$__rate_interval]))",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 52,
+          "links": [],
+          "title": "cache result",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-53": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (increase(kura_auth_backend_requests_total_total{env=\"$env\", pod=\"$pod\"}[$__range]))",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 53,
+          "links": [],
+          "title": "backend cache per result",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  },
+                  "decimals": 0
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": [
+                  "name",
+                  "value"
+                ],
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
+          }
+        }
+      },
+      "panel-54": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "min by(result) (increase(kura_auth_backend_requests_total_total{env=\"$env\", pod=\"$pod\"}[$__rate_interval]))",
+                        "legendFormat": "__auto",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 54,
+          "links": [],
+          "title": "cache result",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -4945,7 +5640,7 @@
                 }
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -5035,7 +5730,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       },
@@ -5151,7 +5846,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-30890958429"
+            "version": "13.2.0-31683987170"
           }
         }
       }
@@ -5395,6 +6090,124 @@
                 }
               },
               "title": "Membership"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-46"
+                        },
+                        "height": 8,
+                        "width": 5,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-47"
+                        },
+                        "height": 8,
+                        "width": 5,
+                        "x": 5,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-48"
+                        },
+                        "height": 8,
+                        "width": 4,
+                        "x": 10,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-49"
+                        },
+                        "height": 8,
+                        "width": 4,
+                        "x": 14,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-50"
+                        },
+                        "height": 8,
+                        "width": 4,
+                        "x": 0,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-52"
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 4,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-53"
+                        },
+                        "height": 8,
+                        "width": 4,
+                        "x": 12,
+                        "y": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-54"
+                        },
+                        "height": 8,
+                        "width": 8,
+                        "x": 16,
+                        "y": 8
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Auth"
             }
           },
           {

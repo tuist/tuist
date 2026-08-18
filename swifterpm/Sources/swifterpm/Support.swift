@@ -484,16 +484,24 @@ enum PathCanonicalizer {
         #if os(Windows)
             url.standardizedFileURL
         #else
+            // The pointer `realpath` returns is only guaranteed for as long as the buffer is
+            // borrowed, so the string has to be built inside the borrow rather than from the
+            // returned pointer afterwards.
             var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-            #if canImport(Glibc)
-                let resolved = Glibc.realpath(url.path, &buffer)
-            #elseif canImport(Musl)
-                let resolved = Musl.realpath(url.path, &buffer)
-            #else
-                let resolved = Darwin.realpath(url.path, &buffer)
-            #endif
-            if let resolved, let path = String(validatingCString: resolved) {
-                return URL(fileURLWithPath: path)
+            let resolved = buffer.withUnsafeMutableBufferPointer { buffer -> String? in
+                guard let base = buffer.baseAddress else { return nil }
+                #if canImport(Glibc)
+                    let resolved = Glibc.realpath(url.path, base)
+                #elseif canImport(Musl)
+                    let resolved = Musl.realpath(url.path, base)
+                #else
+                    let resolved = Darwin.realpath(url.path, base)
+                #endif
+                guard let resolved else { return nil }
+                return String(validatingCString: resolved)
+            }
+            if let resolved {
+                return URL(fileURLWithPath: resolved)
             }
             return url.standardizedFileURL
         #endif

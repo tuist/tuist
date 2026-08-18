@@ -630,6 +630,38 @@ func TestRenderSSHIngressGuardScript(t *testing.T) {
 	}
 }
 
+// A Tart VM's egress arrives inbound on the vmnet bridge before it is routed
+// and NAT'd out, so a bare `to any port 22` block also drops every SSH the
+// customer workload makes — private git dependencies, ssh:// submodules, deploy
+// steps — as a silent timeout rather than a refusal. The guard exists to keep
+// scan traffic off the host's own listener, so it must pass VM egress while
+// still denying a VM the host's and a sibling's :22.
+func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state",
+		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// pf is first-match-wins across `quick` rules. The VM pass has to render
+	// above the catch-all block or VM egress stays dropped, and the VM→VM block
+	// has to render above that pass or a VM reaches the host's :22.
+	vmPass := strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22")
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") < vmPass {
+		t.Error("catch-all block renders before the VM pass; VM egress to :22 stays dropped")
+	}
+	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
+		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
+	}
+}
+
 // A malformed allow CIDR must fail closed rather than render a creative
 // ruleset onto a host we can only reach through the port it governs.
 func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
@@ -734,6 +766,206 @@ func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
 	}
 }
 
+func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{
+		NodeName:   "tuist-tuist-runners-fleet-abc12",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	for _, want := range []string{
+		"<string>--url=http://tuist-alloy-receiver-staging:3100/loki/api/v1/push</string>",
+		"<string>--file=tuist-macos-tart-kubelet=/var/log/tart-kubelet.log</string>",
+		"<string>--instance=tuist-tuist-runners-fleet-abc12</string>",
+		"<string>--env=staging</string>",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("rendered script missing %q\n%s", want, out)
+		}
+	}
+}
+
+// The env label is optional; a chart that hasn't set it must not render an
+// empty flag, which the agent would read as an empty label value.
+func TestRenderLogShipperScript_OmitsEnvWhenUnset(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if strings.Contains(out, "--env=") {
+		t.Fatalf("expected no --env flag when LogShipEnv is empty\n%s", out)
+	}
+	if strings.Contains(out, "--instance=") {
+		t.Fatalf("expected no --instance flag when NodeName is empty\n%s", out)
+	}
+}
+
+// A `&` in the push URL would otherwise close the plist's <string> element
+// malformed, launchd would refuse the job, and the host would go quiet with no
+// symptom other than absent logs.
+func TestRenderLogShipperScript_EscapesXMLInSubstitutedValues(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/push?a=1&b=2"})
+	if !strings.Contains(out, "--url=http://receiver:3100/push?a=1&amp;b=2</string>") {
+		t.Fatalf("expected the ampersand to be XML-escaped\n%s", out)
+	}
+}
+
+// The script ships the binary on stdin and the plist as a heredoc; a syntax
+// error in it is invisible until a host silently stops shipping logs.
+func TestRenderLogShipperScript_IsValidSh(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "install-log-shipper")
+	body := renderLogShipperInstallScript(Config{
+		NodeName:   "macmini-1",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("log shipper script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+// All three inputs gate the feature. The binary rides the operator image, the
+// push URL comes from the chart, and the tailnet is the only route to that URL
+// — the receiver does not exist on the public internet.
+func TestLogShippingEnabled_RequiresBinaryURLAndTailnet(t *testing.T) {
+	full := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
+	}
+	if !logShippingEnabled(full) {
+		t.Fatal("expected a fully wired config to enable host logging")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no binary":  func(c *Config) { c.LogShipperBinary = nil },
+		"no url":     func(c *Config) { c.LogShipURL = "" },
+		"no tailnet": func(c *Config) { c.TailscaleAuthKey = "" },
+	} {
+		cfg := full
+		mutate(&cfg)
+		if logShippingEnabled(cfg) {
+			t.Fatalf("expected host logging to be disabled with %s", name)
+		}
+	}
+}
+
+// Turning the chart flag off has to REMOVE the daemon, not merely stop pushing
+// a new config to it. A launchd job that is already loaded keeps running with
+// whatever URL and env label it was last given, so a disable that only skipped
+// the install would stop no ingestion at all — leaving the rollback lever
+// attached to nothing.
+func TestRenderLogShipperScript_UninstallsWhenDisabled(t *testing.T) {
+	out := renderLogShipperScript(Config{LogShipperBinary: []byte("shipper")})
+	for _, want := range []string{
+		"launchctl bootout system \"$PLIST\"",
+		"rm -f \"$PLIST\"",
+		"rm -f /usr/local/bin/tuist-log-shipper",
+		// The positions file has to go too: it points into a log that kept
+		// growing while the agent was off, so resuming from it would replay the
+		// whole disabled window — the exact cost the flag was flipped to avoid.
+		"rm -rf /var/lib/tuist-log-shipper",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("disabled render missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "launchctl bootstrap") {
+		t.Fatalf("disabled render must not load the job\n%s", out)
+	}
+}
+
+// The uninstall is delivered by the drift loop, which only fires when the fleet
+// hash moves. A disable that left the hash unchanged would never reach a host.
+func TestHostConfigHash_ChangesWhenLogShippingIsTurnedOff(t *testing.T) {
+	enabled := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+		LogShipURL:        "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv:        "staging",
+		TailscaleAuthKey:  "auth-key",
+	}
+	disabled := enabled
+	disabled.LogShipURL = ""
+	if HostConfigHash(enabled) == HostConfigHash(disabled) {
+		t.Fatal("HostConfigHash must change when host logging is turned off, or the uninstall never rolls")
+	}
+}
+
+// The uninstall runs on hosts that never carried the agent, so it has to be a
+// clean no-op there rather than a failed step that fails the whole drift roll.
+func TestRenderLogShipperUninstallScript_IsIdempotentAndValidSh(t *testing.T) {
+	body := renderLogShipperUninstallScript()
+	if !strings.Contains(body, "2>/dev/null || true") {
+		t.Fatalf("bootout of an absent job must not fail the script\n%s", body)
+	}
+	for _, removal := range []string{"rm -f \"$PLIST\"", "rm -f /usr/local/bin/tuist-log-shipper", "rm -rf /var/lib/tuist-log-shipper"} {
+		if !strings.Contains(body, removal) {
+			t.Fatalf("missing %q\n%s", removal, body)
+		}
+	}
+	script := filepath.Join(t.TempDir(), "uninstall-log-shipper")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("uninstall script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+// Turning host logs on, pointing them at a different receiver, or re-baking the
+// agent all have to move the fleet hash — otherwise the change never reaches
+// an already-bootstrapped mini, which is exactly how node_exporter silently
+// skipped every drift update once.
+func TestHostConfigHash_ChangesWithLogShipping(t *testing.T) {
+	// An operator image that carries the agent but no push URL is the disabled
+	// state, so the URL is what turns the feature on from here.
+	base := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+	}
+
+	url := base
+	url.LogShipURL = "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push"
+	if HostConfigHash(base) == HostConfigHash(url) {
+		t.Fatal("HostConfigHash must change when the log push URL changes")
+	}
+
+	moved := url
+	moved.LogShipURL = "http://tuist-alloy-receiver-canary:3100/loki/api/v1/push"
+	if HostConfigHash(url) == HostConfigHash(moved) {
+		t.Fatal("HostConfigHash must change when the receiver moves")
+	}
+
+	env := url
+	env.LogShipEnv = "staging"
+	if HostConfigHash(url) == HostConfigHash(env) {
+		t.Fatal("HostConfigHash must change when the log env label changes")
+	}
+
+	rebuilt := env
+	rebuilt.LogShipperBinary = []byte("shipper-v2")
+	if HostConfigHash(env) == HostConfigHash(rebuilt) {
+		t.Fatal("HostConfigHash must change when the log shipper binary is re-baked")
+	}
+}
+
+// The shipper tails whatever launchd points tart-kubelet's stdout at. Nothing
+// enforces that at compile time, and a silent mismatch is invisible: the plist
+// would still load, the agent would still run, and the host would just never
+// appear in Loki.
+func TestLogShipperTailsTheTartKubeletLaunchdSink(t *testing.T) {
+	plist := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if !strings.Contains(plist, "<key>StandardOutPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's launchd sink is not %s; the log shipper would tail a dead file\n%s", tartKubeletLogPath, plist)
+	}
+	if !strings.Contains(plist, "<key>StandardErrorPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's stderr does not go to %s, so panics would never ship\n%s", tartKubeletLogPath, plist)
+	}
+	shipper := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if !strings.Contains(shipper, "--file="+tartKubeletLogJob+"="+tartKubeletLogPath+"</string>") {
+		t.Fatalf("the shipper does not tail %s\n%s", tartKubeletLogPath, shipper)
+	}
+}
+
 // Hosts provisioned before the begin/end markers existed carry a bare,
 // un-delimited anchor/load-anchor pair in /etc/pf.conf. A marker-only strip
 // leaves it in place and appends a second copy, so loading /etc/pf.conf hits
@@ -808,5 +1040,70 @@ load anchor "com.apple" from "/etc/pf.anchors/com.apple"
 	// precisely the failure this guards against.
 	if !strings.Contains(string(out), `nat-anchor "com.apple/*"`) {
 		t.Fatalf("strip removed the stock Apple nat-anchor\n%s", out)
+	}
+}
+
+// HostConfigHash zeroes TailscaleAuthKey, so anything the rendered script keys
+// on must survive that. If the render consulted the auth key, the enabled and
+// disabled configs would hash identically and the flag would move nothing —
+// neither the install nor the uninstall would ever reach a host.
+func TestRenderLogShipperScript_ChoiceSurvivesTheHashZeroingTheAuthKey(t *testing.T) {
+	cfg := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
+	}
+	withKey := renderLogShipperScript(cfg)
+	cfg.TailscaleAuthKey = ""
+	if renderLogShipperScript(cfg) != withKey {
+		t.Fatal("the rendered script must not depend on the auth key the hash strips")
+	}
+	if !strings.Contains(withKey, "launchctl bootstrap") {
+		t.Fatalf("a configured fleet must render the install, not the uninstall\n%s", withKey)
+	}
+}
+
+// The resolver only redirects `.ts.net`. Scoping it to the whole of
+// tuist.dev would be the obvious shortcut for reaching the registry by its
+// vanity name, and it would break the host: MagicDNS knows nothing of
+// tuist.dev, so every other name under it — the server, the Swift
+// registry — would start resolving nowhere.
+func TestRenderTailnetResolverScript_ScopesToTsNetOnly(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "/etc/resolver/ts.net") {
+		t.Fatalf("resolver must be installed for ts.net, got:\n%s", script)
+	}
+	if strings.Contains(script, "/etc/resolver/tuist.dev") {
+		t.Fatalf("resolver must not capture tuist.dev, got:\n%s", script)
+	}
+	if !strings.Contains(script, "nameserver 100.100.100.100") {
+		t.Fatalf("resolver must point at MagicDNS, got:\n%s", script)
+	}
+}
+
+// macOS caches negative answers, and these names answered NXDOMAIN on
+// every host until this file existed. Without a flush the cached
+// negatives outlive the fix, so a roll would look applied while lookups
+// kept failing.
+func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "dscacheutil -flushcache") {
+		t.Fatalf("resolver install must flush the DNS cache, got:\n%s", script)
+	}
+}
+
+// The resolver has to reach existing hosts, not just newly bootstrapped
+// ones. It does that only by being part of the fleet-wide fingerprint the
+// drift loop compares against.
+func TestHostConfigHash_CoversTheTailnetResolver(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	h := HostConfigHash(base)
+	// Recomputing must be stable, or every reconcile would see drift and
+	// re-push to every host forever.
+	if h != HostConfigHash(base) {
+		t.Fatal("HostConfigHash must be deterministic")
+	}
+	if !strings.Contains(renderTailnetResolverScript(), "100.100.100.100") {
+		t.Fatal("resolver script missing from the hashed set")
 	}
 }

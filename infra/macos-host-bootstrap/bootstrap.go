@@ -33,6 +33,11 @@
 //  8. Drop the kubeconfig the controller built for this host.
 //  9. Upload the tart-kubelet binary.
 //  10. Write the launchd plist with this host's flags + load it.
+//  11. Install tuist-log-shipper, which tails the host's log files and
+//     pushes them to the in-cluster Alloy receiver over the tailnet.
+//     Metrics are pulled; logs are pushed, because nothing in the
+//     cluster can tail a file on a macOS host. Last on purpose — see
+//     the comment at the call site.
 //
 // After the last step the agent on the host registers a Node and
 // starts reconciling Pods. The provider's MachineReconciler flips
@@ -226,6 +231,41 @@ type Config struct {
 	// listening on a public IP.
 	NodeExporterBinary []byte
 
+	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary
+	// (cross-built in the operator image from infra/macos-log-shipper).
+	// Installed at /usr/local/bin/tuist-log-shipper under a launchd
+	// plist that tails the host's log files and pushes the lines to
+	// LogShipURL.
+	//
+	// A host-side agent is the only option here, and the reason is
+	// structural rather than incidental: tart-kubelet turns a Pod
+	// scheduled to this Node into a Tart VM, so a log collector
+	// deployed as a DaemonSet lands *inside a virtual machine* with no
+	// view of the host filesystem. Nothing in the cluster can tail
+	// /var/log/tart-kubelet.log, and that file is where everything the
+	// reconciler, node agent and volume manager log ends up.
+	//
+	// Empty (or an empty LogShipURL / TailscaleAuthKey) disables the
+	// step, same shape as NodeExporterBinary.
+	LogShipperBinary []byte
+
+	// LogShipURL is the Loki push endpoint the host agent POSTs to,
+	// including the /loki/api/v1/push path. In managed envs this is the
+	// tailnet hostname of the Tailscale-operator proxy fronting the
+	// k8s-monitoring chart's alloy-receiver, which already serves the
+	// same endpoint for the xcresult processor's Tart guests.
+	//
+	// Pushed rather than pulled, and pushed there rather than straight
+	// to Grafana Cloud, for the same reason those guests do it: the
+	// tailnet ACL is the access control, so no Grafana Cloud credential
+	// ever lands on a Mac mini. Empty disables the step.
+	LogShipURL string
+
+	// LogShipEnv is the `env` stream label (staging / canary /
+	// production), mirroring the label the server's own Loki handler
+	// sets. Empty omits the label.
+	LogShipEnv string
+
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
 	HostMemoryMB int
@@ -383,6 +423,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
+	// After installTailscale: the resolver points at the daemon this
+	// installs, so writing it first would leave a window where `.ts.net`
+	// resolves nowhere rather than resolving publicly.
+	if err := installTailnetResolver(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailnet resolver: %w", err)
+	}
 	// After installTailscale: the guard's unconditional allowance is the
 	// tailnet, so it must not narrow :22 before that path exists.
 	if err := installSSHIngressGuard(ctx, client, cfg); err != nil {
@@ -408,6 +454,16 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		if err := runActionsRunnerInstall(ctx, client, cfg.SSHUser, cfg.NodeName, *cfg.GHActionsRunner); err != nil {
 			return hk.Observed(), fmt.Errorf("install gh actions runner: %w", err)
 		}
+	}
+	// Last, and deliberately so on both paths. Nothing else needs the log
+	// shipper, and every step above is what makes this host a working Node —
+	// so ordering it here means a failure in the observability agent can never
+	// be what stops the kubelet from being installed, configured or reloaded.
+	// The step is still fatal (a host that silently stops shipping is the
+	// failure mode this whole agent exists to end), it just cannot cost
+	// anything but itself.
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
 	return hk.Observed(), nil
 }
@@ -492,13 +548,88 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
+	// Re-run on the drift path for the same reason node_exporter does: the
+	// binary and the push URL both come from the operator, so an image bump or
+	// a values change has to reach already-bootstrapped minis without
+	// re-provisioning them.
+	//
+	// Last, after the kubelet reload, for the reason spelled out at the end of
+	// Run: a failure here records an update failure and eventually turns the CR
+	// terminal, and ordering it earlier would mean the logging agent could stop
+	// a tart-kubelet roll from landing at all.
+	if err := installLogShipper(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
+	}
 	return hk.Observed(), nil
+}
+
+// PerHost carries every Config field whose value belongs to one specific Mac
+// mini rather than to the fleet. It exists so that split has exactly one
+// definition in the codebase.
+//
+// It used to have two, written far apart: an assignment list in the operator's
+// drift-update path naming the fleet-wide fields, and the zeroing list in
+// HostConfigHash naming the per-host ones. Nothing tied them together, so a
+// field added to Config and wired into only one of them left the operator
+// pushing a config that did not match the hash it then stamped on the host --
+// the host was recorded as converged to a config it had never received, and
+// the skew stayed invisible until something downstream needed the dropped
+// field. node_exporter, the log shipper and the cache-volume flags were each
+// lost that way. The fourth, the Tailscale tags, froze the production Mac mini
+// fleet on 2026-08-18: once the shared credential became a Tailscale OAuth
+// client secret, an untagged join was no longer possible at all.
+//
+// With one definition the failure cannot recur. WithPerHost applies these
+// fields on top of a fleet config, and HostConfigHash strips them by applying
+// an empty PerHost, so the two lists are the same list.
+type PerHost struct {
+	IP                   string
+	SSHUser              string
+	UserPassword         string
+	SSHPrivateKey        []byte
+	NodeName             string
+	ProviderID           string
+	Kubeconfig           string
+	TailscaleAuthKey     string
+	VNCRelayHost         string
+	VMCachePNVLAN        uint32
+	KnownHostFingerprint string
+	NodeLabels           map[string]string
+	GHActionsRunner      *GHActionsRunnerConfig
+	// DisableVMGC is a per-host role signal (builder hosts set it); the
+	// launchd plist renderer keys --disable-vm-gc off it.
+	DisableVMGC bool
+	// SkipTailscaleInstall is transport-only: it gates whether
+	// installTailscale runs and changes no rendered output.
+	SkipTailscaleInstall bool
+}
+
+// WithPerHost returns a copy of c with the per-host fields replaced by p.
+// The receiver is a fleet config, identical across the fleet; the result is
+// what one host actually receives.
+func (c Config) WithPerHost(p PerHost) Config {
+	c.IP = p.IP
+	c.SSHUser = p.SSHUser
+	c.UserPassword = p.UserPassword
+	c.SSHPrivateKey = p.SSHPrivateKey
+	c.NodeName = p.NodeName
+	c.ProviderID = p.ProviderID
+	c.Kubeconfig = p.Kubeconfig
+	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.VNCRelayHost = p.VNCRelayHost
+	c.VMCachePNVLAN = p.VMCachePNVLAN
+	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.NodeLabels = p.NodeLabels
+	c.GHActionsRunner = p.GHActionsRunner
+	c.DisableVMGC = p.DisableVMGC
+	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	return c
 }
 
 // HostConfigHash is a fleet-wide canonical fingerprint of everything the
 // operator pushes to a host: the rendered install scripts (firewall +
 // vmnat, PN interface, launchd job + plist, Tailscale, node_exporter,
-// tart-kubelet install) plus the bytes of every embedded binary. The
+// log shipper, tart-kubelet install) plus the bytes of every embedded binary. The
 // reconciler stamps it on each Machine and re-pushes when it drifts, so
 // a change to ANY pushed config — a script tweak, a fleet-config CIDR, or
 // a re-baked binary in the operator image — reaches existing hosts on the
@@ -517,26 +648,10 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 func HostConfigHash(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
-	// and the embedded binaries are kept.
-	cfg.IP = ""
-	cfg.SSHUser = ""
-	cfg.UserPassword = ""
-	cfg.SSHPrivateKey = nil
-	cfg.NodeName = ""
-	cfg.ProviderID = ""
-	cfg.Kubeconfig = ""
-	cfg.TailscaleAuthKey = ""
-	cfg.VNCRelayHost = ""
-	cfg.VMCachePNVLAN = 0
-	cfg.KnownHostFingerprint = ""
-	cfg.GHActionsRunner = nil
-	cfg.NodeLabels = nil
-	// Per-host role signal (builder hosts set it); the launchd plist
-	// renderer keys --disable-vm-gc off it, so neutralize it too.
-	cfg.DisableVMGC = false
-	// Transport-only: gates whether installTailscale runs, changes no
-	// rendered output. Neutralized so it can never perturb the hash.
-	cfg.SkipTailscaleInstall = false
+	// and the embedded binaries are kept. Stripping is an empty overlay
+	// rather than its own zeroing list, so the set of per-host fields is
+	// defined once, in PerHost, and cannot drift from what callers apply.
+	cfg = cfg.WithPerHost(PerHost{})
 
 	var b strings.Builder
 
@@ -564,6 +679,8 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"tailnet-resolver", renderTailnetResolverScript()},
+		{"log-shipper", renderLogShipperScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
@@ -590,6 +707,7 @@ func HostConfigHash(cfg Config) string {
 		{"tart-kubelet", cfg.TartKubeletBinary},
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
+		{"log-shipper-binary", cfg.LogShipperBinary},
 	} {
 		b.WriteString(bin.name)
 		b.WriteByte('\x00')
@@ -2070,6 +2188,55 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
 }
 
+// logShippingConfigured reports whether the CHART asked for host logs: the
+// operator image carries the agent and macosFleet.hostLogs supplied a push URL.
+//
+// This, not logShippingEnabled, is what the rendered script keys on, because
+// HostConfigHash deliberately zeroes TailscaleAuthKey (it is a secret, and the
+// hash has to be identical fleet-wide). A render that consulted the auth key
+// would therefore see "disabled" on every canonical hash computation, the
+// enabled and disabled configs would hash the same, and the drift loop would
+// never deliver either state — the flag would move nothing.
+func logShippingConfigured(cfg Config) bool {
+	return len(cfg.LogShipperBinary) > 0 && cfg.LogShipURL != ""
+}
+
+// logShippingEnabled adds the runtime precondition to the chart's intent: a
+// tailnet to reach the receiver over.
+//
+// The gate exists for the mirror-image reason node_exporter has one.
+// node_exporter is *pulled*, so without a tailnet it would listen on a public
+// interface; the shipper *pushes*, so without a tailnet it has no route to the
+// in-cluster receiver at all — that endpoint exists nowhere else. A host in
+// that state gets the agent removed rather than left running against an
+// unreachable URL.
+func logShippingEnabled(cfg Config) bool {
+	return logShippingConfigured(cfg) && cfg.TailscaleAuthKey != ""
+}
+
+// installLogShipper converges the host onto the desired state: it installs and
+// (re)loads the agent when host logging is on, and removes it when host logging
+// is off.
+//
+// The removal half is what makes the chart flag a real switch. Returning early
+// when the feature is off only prevents the operator from PUSHING a new
+// config; a launchd job that is already loaded keeps running, keeps its old URL
+// and env label, and keeps ingesting. Flipping macosFleet.hostLogs.enabled back
+// to false would then stop nothing, which is the wrong behaviour for a rollback
+// lever whose whole point is to stop ingestion.
+//
+// This is convergent rather than latched, so the uninstall also runs on hosts
+// that never had the agent (one cheap SSH command per drift roll). That is
+// deliberate: the operator cannot know what a host is carrying — a host
+// bootstrapped by an older operator image, or one whose CR was detached and
+// re-adopted, may hold a job this config never installed.
+func installLogShipper(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if !logShippingEnabled(cfg) {
+		return RunCommand(ctx, client, renderLogShipperUninstallScript())
+	}
+	return RunCommandWithStdin(ctx, client, renderLogShipperInstallScript(cfg), bytes.NewReader(cfg.LogShipperBinary))
+}
+
 // installSSHReachability installs the host-side self-heal that keeps the
 // operator's only management channel (SSH → tart-kubelet updates) from staying
 // wedged. See renderSSHReachabilityScript.
@@ -2198,6 +2365,18 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // 127.0.0.1 probe reads as permanently wedged and reloads ssh every
 // minute.
 //
+// Being interface-agnostic is also what makes the VM carve-out
+// mandatory. A Tart VM's egress arrives inbound on the vmnet bridge with
+// its 192.168.64.x source before it is routed and NAT'd out, so a bare
+// `block drop in quick proto tcp to any port 22` matches it and drops
+// every SSH the customer workload makes — private git dependencies,
+// ssh:// submodules, deploy steps — silently, as a connect timeout
+// rather than a refusal. The `tuist.runners` anchor cannot compensate:
+// its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
+// anything appended to the end of /etc/pf.conf. So the VM sources get an
+// explicit pass, preceded by a block that still denies them the host's
+// and a sibling's :22.
+//
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
 // carrying it. That also makes the guard self-correcting: if the
@@ -2253,11 +2432,21 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # MUST stay above the block.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
+table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
 pass in quick on lo0 proto tcp to any port 22 keep state
 pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+
+# A Tart VM's egress arrives inbound on the vmnet bridge before it is
+# routed and NAT'd out, so the catch-all block below also swallows every
+# SSH the customer workload makes. The guard protects the host's own
+# listener, not the workload's outbound reach: VMs keep :22 to the
+# internet, but not to the host or a sibling VM.
+block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+
 block drop in quick proto tcp to any port 22
 PFCONF
 
@@ -2308,6 +2497,46 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-sshguard.
 // node_exporter wrapper + launchd job. The binary rides stdin and its
 // drift is tracked by its own SHA in the host config hash, so this
 // script carries no per-host or per-binary input.
+// installTailnetResolver teaches the host OS to resolve `.ts.net` names
+// through MagicDNS.
+//
+// tailscaled is running here, and answers MagicDNS on 100.100.100.100 like
+// anywhere else — but the open-source daemon on macOS never rewrites the
+// system resolver configuration, so nothing that uses ordinary OS
+// resolution can see tailnet names. That is why the log shipper resolves
+// through tailscaled itself rather than through the OS, and why a Tart VM
+// guest resolves these names while its host does not.
+//
+// Programs we do not control cannot do that. `crane`, `oras` and `tart`
+// all resolve through the OS, so on a builder every tailnet name is
+// NXDOMAIN — which is what broke image publishing when the workflows moved
+// to the tailnet-hosted registry.
+//
+// A scoped resolver supplies exactly what the daemon cannot, and nothing
+// more: only `.ts.net` is redirected, so public DNS keeps answering for
+// everything else, including the rest of tuist.dev.
+func installTailnetResolver(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderTailnetResolverScript())
+}
+
+func renderTailnetResolverScript() string {
+	return `set -euo pipefail
+sudo mkdir -p /etc/resolver
+# 100.100.100.100 is Tailscale's fixed MagicDNS address, not a per-host
+# value, so this file is identical fleet-wide and stays inside the
+# fleet-wide config hash.
+sudo tee /etc/resolver/ts.net >/dev/null <<'RESOLVER'
+nameserver 100.100.100.100
+RESOLVER
+sudo chmod 0644 /etc/resolver/ts.net
+# macOS caches negative answers, and these names have been NXDOMAIN on
+# this host until now, so without a flush the first lookups keep failing
+# for as long as the cache holds them.
+sudo dscacheutil -flushcache || true
+sudo killall -HUP mDNSResponder 2>/dev/null || true
+`
+}
+
 func renderNodeExporterScript() string {
 	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin
@@ -2366,6 +2595,158 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
+}
+
+// tartKubeletLogPath is the launchd StandardOut/StandardError sink for the
+// tart-kubelet job (see renderLaunchdPlist). It is the file the log shipper
+// tails, and the reason this whole agent exists: everything the reconciler,
+// node agent and volume manager log lands here and nowhere else.
+const tartKubeletLogPath = "/var/log/tart-kubelet.log"
+
+// tartKubeletLogJob is the Loki `job` label the tart-kubelet host log ships
+// under. Queries in dashboards and runbooks select on it, so treat it as an
+// interface: renaming it orphans every saved query.
+const tartKubeletLogJob = "tuist-macos-tart-kubelet"
+
+// renderLogShipperScript is what the host config hash folds in: whichever of
+// the two scripts this config would actually push. Turning host logging off
+// therefore moves the fleet hash, which is what makes the drift loop deliver
+// the uninstall — a disable that did not move the hash would never reach a
+// single host.
+func renderLogShipperScript(cfg Config) string {
+	if !logShippingConfigured(cfg) {
+		return renderLogShipperUninstallScript()
+	}
+	return renderLogShipperInstallScript(cfg)
+}
+
+// renderLogShipperUninstallScript removes the agent and the state it owns.
+//
+// The positions file goes with it, deliberately. It records how far into
+// /var/log/tart-kubelet.log the agent had shipped, and that file keeps growing
+// while the agent is off — so a re-enable that resumed from the stale offset
+// would replay the entire disabled window in one burst, which is both the cost
+// the feature flag was flipped to avoid and a batch Grafana Cloud would reject
+// as too old. Dropping it makes a re-enable start at the end of the file, the
+// same as a first install.
+//
+// /var/log/tuist-log-shipper.log is left in place: it holds the agent's own
+// diagnostics, which are the first thing anyone reads when asking why host
+// logging was turned off.
+func renderLogShipperUninstallScript() string {
+	return `set -euo pipefail
+PLIST=/Library/LaunchDaemons/dev.tuist.log-shipper.plist
+sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+sudo rm -f "$PLIST"
+sudo rm -f /usr/local/bin/tuist-log-shipper
+sudo rm -rf /var/lib/tuist-log-shipper
+`
+}
+
+// renderLogShipperInstallScript is the SSH script that installs the
+// tuist-log-shipper binary + launchd job. The binary rides stdin and its drift
+// is tracked by its own SHA in the host config hash; the push URL, env label
+// and node name are substituted here, so this script is config-shaped and
+// folds into the hash.
+//
+// Only /var/log/tart-kubelet.log is tailed. The other host logs (tailscaled,
+// node_exporter, the shipper's own) are either already observable by other
+// means or are diagnostics for the transport itself — shipping the shipper's
+// push failures through the shipper would turn one outage into a loop.
+func renderLogShipperInstallScript(cfg Config) string {
+	args := []string{
+		"/usr/local/bin/tuist-log-shipper",
+		"--url=" + cfg.LogShipURL,
+		"--file=" + tartKubeletLogJob + "=" + tartKubeletLogPath,
+	}
+	if cfg.NodeName != "" {
+		// Explicit rather than relying on the agent's os.Hostname() default,
+		// for the same reason tart-kubelet takes --node-name explicitly: macOS
+		// will happily let a DHCP lease rename the host out from under the
+		// value SetHostname wrote, and an `instance` label that drifts is worse
+		// than no label at all.
+		args = append(args, "--instance="+cfg.NodeName)
+	}
+	if cfg.LogShipEnv != "" {
+		args = append(args, "--env="+cfg.LogShipEnv)
+	}
+	var programArgs strings.Builder
+	for _, arg := range args {
+		programArgs.WriteString("\n    <string>")
+		programArgs.WriteString(xmlEscape(arg))
+		programArgs.WriteString("</string>")
+	}
+
+	// The reload mirrors loadTartKubeletLaunchd's content comparison rather
+	// than the unconditional bootout+bootstrap the older install steps use:
+	// every re-registration is a Background Task Management event, and BTM
+	// stops honouring KeepAlive for a job that churns too often. The common
+	// drift case is a binary bump with identical args, which `kickstart -k`
+	// handles without touching BTM at all.
+	//
+	// Unlike loadTartKubeletLaunchd, a job that fails to come up is NOT an
+	// error here. A drift roll that failed on the log shipper would block the
+	// tart-kubelet and firewall config it also carries — letting the logging
+	// path wedge the fleet it is supposed to observe. launchd's KeepAlive
+	// retries on its own, and the failure is visible both in
+	// /var/log/tuist-log-shipper.log and as this host going quiet in Loki.
+	return fmt.Sprintf(`set -euo pipefail
+sudo mkdir -p /usr/local/bin /var/lib/tuist-log-shipper
+sudo tee /usr/local/bin/tuist-log-shipper >/dev/null
+sudo chmod 0755 /usr/local/bin/tuist-log-shipper
+# Re-sign in place for the same reason renderTartKubeletInstallScript does:
+# overwriting the binary at the same inode leaves AMFI validating the new pages
+# against the old cdhash, and the kernel kills the next launch as
+# OS_REASON_CODESIGNING.
+sudo codesign --force --sign - /usr/local/bin/tuist-log-shipper
+
+PLIST=/Library/LaunchDaemons/dev.tuist.log-shipper.plist
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW" <<'LOGSHIPPER_PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.log-shipper</string>
+  <key>ProgramArguments</key>
+  <array>%[1]s
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tuist-log-shipper.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tuist-log-shipper.log</string>
+</dict>
+</plist>
+LOGSHIPPER_PLIST
+
+if cmp -s "$NEW" "$PLIST" && sudo launchctl print system/dev.tuist.log-shipper >/dev/null 2>&1; then
+  sudo launchctl kickstart -k system/dev.tuist.log-shipper 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+`, programArgs.String())
+}
+
+// xmlEscape makes a launchd plist <string> safe for values the operator
+// substitutes. A push URL with a query string is the realistic case: a bare `&`
+// makes the plist malformed, launchd refuses to load the job, and the host goes
+// quiet with no other symptom.
+func xmlEscape(s string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		`"`, "&quot;",
+		"'", "&apos;",
+	)
+	return replacer.Replace(s)
 }
 
 // === SSH helpers ===========================================================
