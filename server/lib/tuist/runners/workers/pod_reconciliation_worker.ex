@@ -1,135 +1,50 @@
 defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   @moduledoc """
-  Reconciles Postgres against the Pods that actually exist, correcting
-  both rows a vanished Pod strands: the `runner_claims` row holding its
-  slice of the account's concurrency budget, and the `runner_sessions`
-  row holding its host.
+  Failsafe. Releases `runner_claims` and closes `runner_sessions` whose
+  Pod no longer exists.
 
-  ## Why this exists
+  Both are reservations held by a Pod, and both are normally cleared on
+  an edge: `reapRunner` reports the stop before it deletes, the
+  `workflow_job.completed` webhook releases the claim, and
+  `StaleClaimsWorker` / `OrphanedRunnersWorker` sweep their own slices.
+  Those edges cover every Pod the controller reaps and nothing removed
+  by anyone else — node loss, eviction, drain, a manual delete — where
+  there is no event left to hook.
 
-  Both rows are reservations, and the thing physically holding each one
-  is a Pod. Every other release path infers the Pod is gone from
-  something else:
+  So this asks the one question that does not depend on how we learned:
+  does the Pod exist? Level-triggered, one cluster read per tick, both
+  corrections off it.
 
-    * the `workflow_job.completed` webhook (an edge, keyed on
-      `runner_name`, silently releases nothing when GitHub reports no
-      runner)
-    * the controller's pod-stopped POST (two edges: the pod-lifecycle
-      reconciler on the terminal transition, and the reap itself
-      immediately before it deletes. Together they cover every Pod the
-      controller reaps, but neither fires for a Pod removed by something
-      else — node loss, eviction, drain, a manual delete — or for a Pod
-      that ended while the controller was restarting)
-    * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`
-    * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`
-
-  Each covers a slice, and the slices are defined by *how we learned*
-  rather than by *what is true*, so a row can be invisible to all of
-  them at once. Production had claims stuck for over ten days in exactly
-  that hole: Postgres said `running` so the `claimed` sweep skipped
-  them, ClickHouse said `claimed` so the `running` sweep skipped them,
-  and no completion had been recorded. Sessions leaked on the same
-  principle but continuously, until the reap was ordered to report before
-  deleting: on 2026-08-14, 264 of 1185 sessions never closed, a rate of
-  21-25% that held on every fleet and every working day back to at least
-  2026-07-07. Each one read to the allocator as an occupied host for six
-  hours, so a busy afternoon could withhold more hosts than the fleet
-  has. That leak is an ordering bug and is fixed at its source; what is
-  left for this worker is the residue no edge can see.
-
-  This worker asks the only question that does not depend on any of
-  that: does the Pod exist? It is level-triggered — it compares desired
-  state against observed state and corrects the difference, rather than
-  reacting to an event it might never receive. Kubernetes applies the
-  same shape to ResourceQuota, where admission is incremental but a
-  periodic resync recomputes usage from observed objects and writes the
-  correction.
-
-  Claims and sessions are corrected from **one** observation rather than
-  by two workers polling the same selector a minute apart. They answer
-  the same question and only diverge in what they do with the answer,
-  and a second reconciler for the same fact is how this family grew in
-  the first place.
-
-  ## Claims and sessions are not the same reservation
-
-  A claim is released when its job completes; the session stays open
-  through teardown. That trailing window is where the leaked sessions
-  sat, so a session needs its own pass rather than riding the claim's.
-  The two also carry different risk, which is why only one of them waits
-  for a confirmed absence — see Safety below.
+  A sustained `tuist_runners_recovery_count{kind}` means an edge is
+  broken. Fix it there, not here.
 
   ## Safety
 
-  The failure mode here is inverted and worse than a leak: releasing a
-  claim whose runner is alive lets the account exceed its cap and
-  oversubscribe real hosts. A bad cluster read must never do that, so
-  every guard below biases toward doing nothing. The first three protect
-  both corrections off the single read:
+  Over-releasing is worse than leaking: freeing a claim whose runner is
+  alive lets the account exceed its cap and oversubscribe real hosts.
+  Every guard biases toward doing nothing.
 
-    1. **Complete reads only.** Any API error aborts the tick. A
-       partial listing is indistinguishable from mass absence.
-    2. **Non-empty result.** Zero Pods returned while claims or sessions
-       are open is treated as a bad read (wrong selector, wrong
-       namespace, empty cache), not as an empty fleet.
-    3. **Grace window.** Rows younger than their arm's threshold are
-       never considered — a Pod is labelled just after its claim is
-       inserted, and a session is written at claim-win before the Pod
-       exists to be listed at all.
-    4. **Bounded blast radius.** At most `@max_releases_per_tick` claims
-       and `@max_closes_per_tick` sessions per run, with the overflow
-       reported rather than silently trickled.
-
-  Claims add a fifth: **consecutive absence.** A first absence only
-  records `pod_missing_since`; the release needs it to persist past
-  `@confirm_seconds`, and a Pod that reappears resets the clock.
-  Sessions deliberately do not. `K8sClient.list_pods/2` issues an
-  unpaginated GET with no `resourceVersion=0`, so it reads at quorum
-  rather than from the watch cache, and the realistic way a live Pod
-  leaves this selector — a label change during a rollout — is
-  persistent, so waiting would delay that bad close rather than prevent
-  it. The consequences differ too: over-releasing a claim oversubscribes
-  hosts, while over-closing a session under-bills and dips occupancy
-  that the claim side of `RunnerSessions.occupied_counts_per_fleet/0`
-  largely still covers.
-
-  Losing these leaves the current behaviour (a leak), which is
-  survivable. Over-releasing is not, which is why the bias runs this
-  way.
+    * Any API error, or an empty Pod list while rows are open, aborts
+      the tick — a partial read is indistinguishable from mass absence.
+    * Rows younger than their arm's threshold are skipped; both are
+      written before the Pod is listable.
+    * Per-tick caps bound a wrong-but-plausible read, overflow logged.
+    * Claims additionally require absence across consecutive ticks
+      (`pod_missing_since`). Sessions do not: `list_pods/2` reads at
+      quorum, and the realistic way a live Pod leaves this selector is a
+      label change mid-rollout, which is persistent — waiting would
+      delay a bad close rather than prevent one.
 
   ## CH before PG
 
-  Freeing the slot is only half the job. A Pod can vanish while its
-  ClickHouse row still reads `claimed` or `running`, so releasing the
-  Postgres claim first would free the capacity and strand the
-  workflow_job permanently: `pick_queued` only selects `queued`, and with
-  no claim left no later sweep can recover it. Each release therefore
-  writes `queued` to ClickHouse before deleting the row, the same
-  ordering `StaleClaimsWorker` follows, and a ClickHouse failure skips
-  the claim so the pair is retried intact next tick.
+  A released claim writes `queued` to ClickHouse *before* the Postgres
+  row is deleted. Reversed, a Pod that vanished while CH still read
+  `claimed` strands the workflow_job: `pick_queued` only selects
+  `queued`, and with no PG row left nothing can recover it. A CH failure
+  skips that claim so the pair retries intact.
 
-  ## Which `ended_at` a closed session gets
-
-  Closing at the six-hour billing clamp would fix capacity and leave the
-  invoice wrong. The clamp is what an unclosed row was *already* being
-  charged against, so draining the backlog there is a no-op on billing:
-  one account's month-to-date orphans would settle at roughly 36,000
-  minutes against about 1,400 minutes of real work. A fresh orphan is
-  wrong the other way — it would bill a floor of
-  `@session_absence_seconds` whether the job ran for two hours or ninety
-  seconds.
-
-  So the session arm resolves its batch against
-  `Jobs.terminal_completions/1` first: one ClickHouse query, bounded by
-  `@max_closes_per_tick`, returning `completed_at` for the jobs whose
-  latest state is terminal. A session that resolves closes at its job's
-  real completion; everything else closes at the clamp, which stays the
-  right conservative answer when there is no evidence of a real end. See
-  `RunnerSessions.close_pod_missing/3` for why the write is
-  `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`
-  rather than the completion alone. A ClickHouse failure degrades the
-  whole batch to the clamp, so the capacity fix never waits on the
-  billing refinement.
+  Closed sessions resolve their `ended_at` from the job's terminal
+  completion where there is one; see `RunnerSessions.close_pod_missing/3`.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -143,25 +58,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
 
   require Logger
 
-  # A claim is inserted before its Pod is labelled, and the cluster read
-  # is eventually consistent, so young claims are legitimately absent.
   @grace_seconds 600
-
-  # How long a claim's absence must persist before it is believed. Spans
-  # several ticks of the 1-minute cron so a transient read cannot clear
-  # the bar.
   @confirm_seconds 300
-
-  # Bounds a wrong-but-plausible read that survives the guards above.
   @max_releases_per_tick 25
 
-  # A session is written at claim-win, before the Pod exists to be
-  # listed, so anything younger is legitimately absent. Wider than the
-  # claim grace because the session arm acts on a single observation.
+  # Wider than the claim grace: the session arm acts on one observation.
   @session_absence_seconds 900
-
-  # Bounds the session arm the same way, and paces the first drain of a
-  # long-standing backlog.
   @max_closes_per_tick 100
 
   @runner_label_selector "tuist.dev/runner=true"
@@ -184,20 +86,16 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
     end
   end
 
-  # Kill switch. This worker deletes and closes rows, and the guards
-  # below can only defend against failures we anticipated. Flipping
-  # `runner_pod_reconciliation_paused` stops both arms within a tick,
-  # without waiting for a deploy to remove the cron entry.
+  # Kill switch for both arms, without waiting for a deploy to pull the
+  # cron entry.
   defp paused?, do: FunWithFlags.enabled?(:runner_pod_reconciliation_paused)
 
   defp reconcile(claims, sessions, now) do
     case observed_pod_names() do
       {:ok, pod_names} ->
         if MapSet.size(pod_names) == 0 do
-          # Guard 2. We hold claims or open sessions, so the fleet cannot
-          # really be empty; far more likely the selector or namespace is
-          # wrong, or the apiserver returned an empty page. Acting here
-          # would release every claim and close every session at once.
+          # Rows are open, so the fleet cannot really be empty: wrong
+          # selector, wrong namespace, or an empty page.
           Logger.error("runners: pod reconciliation read returned no Pods while rows are open; skipping",
             claims: length(claims),
             sessions: length(sessions)
@@ -211,8 +109,6 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
         end
 
       {:error, reason} ->
-        # Guard 1. A partial or failed read looks exactly like mass
-        # absence. Do nothing and let the next tick retry.
         Logger.warning("runners: pod reconciliation cluster read failed; skipping tick",
           reason: inspect(reason)
         )
@@ -226,8 +122,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   defp reconcile_claims(claims, pod_names, now) do
     {present, missing} = Enum.split_with(claims, &MapSet.member?(pod_names, &1.pod_name))
 
-    # Consecutive absence, first half: a Pod that came back resets its
-    # clock, so only uninterrupted absence accumulates toward a release.
+    # A Pod that came back resets its clock.
     cleared =
       present
       |> Enum.filter(&(&1.pod_missing_since != nil))
@@ -281,9 +176,8 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
       )
     end
 
-    # Guard 4's reporting half. A backlog above the cap means either a
-    # genuine mass teardown or a read we should not have trusted, and
-    # both are worth seeing rather than trickling away silently.
+    # A backlog past the cap is either a mass teardown or a read we
+    # should not have trusted. Both are worth seeing.
     if eligible > count do
       Logger.warning("runners: pod reconciliation deferred releases past the per-tick cap",
         eligible: eligible,
@@ -300,9 +194,7 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   defp reconcile_sessions(sessions, pod_names, now) do
     missing = Enum.reject(sessions, &MapSet.member?(pod_names, &1.pod_name))
 
-    # `list_open_for_pod_reconciliation/1` returns oldest first, so a
-    # capped batch drains the longest-standing leaks and the rest wait
-    # for the next tick.
+    # Oldest first, so a capped batch drains the worst leaks.
     batch = Enum.take(missing, @max_closes_per_tick)
     completions = fetch_terminal_completions(batch)
     closed = Enum.filter(batch, &close_session(&1, completions, now))
@@ -339,20 +231,16 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
     RunnerSessions.close_pod_missing(session.id, now, completed_at: completed_at_for(session, completions)) == :ok
   end
 
-  # `executed_workflow_job_id` outranks the claim-time `workflow_job_id`:
-  # a runner can be handed a sibling's job, and it is the job GitHub
-  # actually ran — the one whose completion released the Pod — that
-  # dates the session's end. `nil` falls through both lookups and the
-  # close reverts to the billing clamp.
+  # The job GitHub actually ran outranks the one the claim was minted
+  # for; its completion is what released the Pod. `nil` falls through to
+  # the billing clamp.
   defp completed_at_for(session, completions) do
     Map.get(completions, session.executed_workflow_job_id) ||
       Map.get(completions, session.workflow_job_id)
   end
 
-  # One ClickHouse query per tick, bounded by `@max_closes_per_tick`.
-  # A failure here must not block the capacity fix, so it degrades to an
-  # empty map and every session in the batch closes at the billing clamp
-  # exactly as it would have before completions were consulted.
+  # One ClickHouse query per tick. A failure degrades the batch to the
+  # billing clamp rather than blocking the close.
   defp fetch_terminal_completions([]), do: %{}
 
   defp fetch_terminal_completions(candidates) do
