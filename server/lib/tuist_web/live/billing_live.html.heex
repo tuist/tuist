@@ -234,6 +234,33 @@
       </.table>
     </.card_section>
   </.card>
+  <.card
+    :if={@prepaid_runner_credit}
+    data-part="prepaid-credit-card"
+    icon="credit_card"
+    title={dgettext("dashboard_account", "Prepaid runner credit")}
+  >
+    <.card_section data-part="prepaid-credit-card-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_account",
+          "%{amount} of prepaid runner credit remaining. Runner usage is billed at the standard rate and drawn from this balance until it runs out or expires.",
+          amount: format_money(@prepaid_runner_credit.available)
+        )}
+      </span>
+      <.table id="prepaid-runner-credit-table" rows={@prepaid_runner_credit.grants}>
+        <:col :let={grant} label={dgettext("dashboard_account", "Credit")}>
+          <.text_cell label={prepaid_credit_kind_label(grant.kind)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard_account", "Remaining")}>
+          <.text_cell label={format_money(grant.available)} />
+        </:col>
+        <:col :let={grant} label={dgettext("dashboard_account", "Expires")}>
+          <.text_cell label={prepaid_credit_expiry_label(grant.expires_at)} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
   <.card_section :if={@plan == :pro} data-part="billing-payment-method-card-section">
     <div data-part="header">
       <span data-part="title">

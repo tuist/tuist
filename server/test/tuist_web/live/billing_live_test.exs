@@ -6,6 +6,7 @@ defmodule TuistWeb.BillingLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Billing
+  alias Tuist.Runners.Prepaid
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} = context do
@@ -45,6 +46,8 @@ defmodule TuistWeb.BillingLiveTest do
         }
       }
     end)
+
+    stub(Prepaid, :balance, fn _account -> nil end)
 
     conn =
       conn
@@ -210,6 +213,45 @@ defmodule TuistWeb.BillingLiveTest do
 
       # When/Then
       assert {:ok, _lv, _html} = live(conn, ~p"/#{account.name}/billing")
+    end
+  end
+
+  describe "prepaid runner credit" do
+    test "is hidden for an account with no runner credit", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "[data-part='prepaid-credit-card']")
+    end
+
+    test "shows what is left, and when each grant runs out", %{conn: conn, account: account} do
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(650_000, :USD),
+          expires_at: ~U[2026-09-01 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_trial",
+              kind: "trial",
+              available: Money.new(250_000, :USD),
+              expires_at: ~U[2026-09-01 00:00:00Z]
+            },
+            %{
+              id: "credgr_prepaid",
+              kind: "prepaid",
+              available: Money.new(400_000, :USD),
+              expires_at: ~U[2027-01-01 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert has_element?(lv, "[data-part='prepaid-credit-card']", "Prepaid runner credit")
+      assert has_element?(lv, "#prepaid-runner-credit-table", "Trial credit")
+      assert has_element?(lv, "#prepaid-runner-credit-table", "Prepaid credit")
+      assert has_element?(lv, "#prepaid-runner-credit-table", "September 1, 2026")
+      assert has_element?(lv, "#prepaid-runner-credit-table", "January 1, 2027")
     end
   end
 end

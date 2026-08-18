@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Runners.Prepaid
 
   @impl true
   def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
@@ -65,6 +66,7 @@ defmodule TuistWeb.BillingLive do
 
     socket =
       socket
+      |> assign(:prepaid_runner_credit, Prepaid.balance(selected_account))
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
@@ -118,6 +120,13 @@ defmodule TuistWeb.BillingLive do
       assign(socket, :plan, new_plan)
     }
   end
+
+  def prepaid_credit_kind_label("trial"), do: dgettext("dashboard_account", "Trial credit")
+  def prepaid_credit_kind_label(_kind), do: dgettext("dashboard_account", "Prepaid credit")
+
+  def prepaid_credit_expiry_label(nil), do: dgettext("dashboard_account", "No expiry")
+
+  def prepaid_credit_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
 
   attr :label, :string, required: true
 

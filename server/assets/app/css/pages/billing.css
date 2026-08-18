@@ -127,8 +127,10 @@
     }
   }
 
-  & > [data-part="usage-card"] {
-    & > [data-part="usage-card-section"] {
+  & > [data-part="usage-card"],
+  & > [data-part="prepaid-credit-card"] {
+    & > [data-part="usage-card-section"],
+    & > [data-part="prepaid-credit-card-section"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-8);
