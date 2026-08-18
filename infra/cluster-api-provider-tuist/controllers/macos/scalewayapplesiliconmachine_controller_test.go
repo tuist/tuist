@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -27,6 +28,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -1394,5 +1396,92 @@ func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
 	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
 		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",
 			stub.rebootCalls, stub.releaseCalls)
+	}
+}
+
+// The drift loop is only honest if what it pushes is what the operator hashed.
+// HostConfigHash is a fleet-wide fingerprint the reconciler stamps on a Machine
+// to mean "this host has the current config"; it is computed in cmd/manager
+// from operator-image + fleet-config inputs, with every per-host field left
+// zero. HostConfigHash zeroes exactly that same set, so a drift config that
+// carries all the fleet-wide fields must hash identically to the canonical one.
+//
+// A field dropped from driftUpdateConfig therefore shows up here as a hash
+// mismatch, which is the failure the fleet cannot otherwise see: the host is
+// marked converged while the dropped field never reached it. node_exporter, the
+// log shipper, the cache-volume flags and the Tailscale tags were each lost this
+// way, the last one freezing the whole production fleet once the credential
+// swap to a Tailscale OAuth client made an untagged join impossible.
+//
+// Every fleet-wide field is set to a distinctive non-zero value, so a field
+// that goes missing can't coincidentally match the canonical config's zero.
+func TestDriftUpdateConfig_HashesEqualToCanonicalFleetConfig(t *testing.T) {
+	fleet := bootstrap.Config{
+		TartKubeletBinary:       []byte("tart-kubelet-binary"),
+		TailscaleBinaries:       []byte("tailscale-binaries"),
+		NodeExporterBinary:      []byte("node-exporter-binary"),
+		LogShipperBinary:        []byte("log-shipper-binary"),
+		LogShipURL:              "http://alloy.example.ts.net:3100/loki/api/v1/push",
+		LogShipEnv:              "production",
+		TailscaleTags:           []string{"tag:tuist-macmini-production"},
+		TailscaleAcceptRoutes:   true,
+		VMKuraEgressCIDR:        "10.128.0.0/12",
+		VMClusterDNSIP:          "10.96.0.10",
+		VMCachePNCIDR:           "172.16.0.0/22",
+		SSHIngressAllowCIDRs:    []string{"116.202.0.10/32"},
+		HostCPU:                 8,
+		HostMemoryMB:            14336,
+		MaxPods:                 3,
+		RunnerCacheVolumeGiB:    80,
+		CacheVolumeMasterCapGiB: 20,
+		CacheVolumeCASGiB:       11,
+		VNCRelayPort:            DashboardVNCRelayPort,
+	}
+
+	r := &ScalewayAppleSiliconMachineReconciler{
+		TartKubeletBinary:       fleet.TartKubeletBinary,
+		TailscaleBinaries:       fleet.TailscaleBinaries,
+		NodeExporterBinary:      fleet.NodeExporterBinary,
+		LogShipperBinary:        fleet.LogShipperBinary,
+		LogShipURL:              fleet.LogShipURL,
+		LogShipEnv:              fleet.LogShipEnv,
+		TailscaleTags:           fleet.TailscaleTags,
+		TailscaleAcceptRoutes:   fleet.TailscaleAcceptRoutes,
+		VMKuraEgressCIDR:        fleet.VMKuraEgressCIDR,
+		VMClusterDNSIP:          fleet.VMClusterDNSIP,
+		VMCachePNCIDR:           fleet.VMCachePNCIDR,
+		SSHIngressAllowCIDRs:    fleet.SSHIngressAllowCIDRs,
+		TartKubeletHostCPU:      fleet.HostCPU,
+		TartKubeletHostMemoryMB: fleet.HostMemoryMB,
+		TartKubeletMaxPods:      fleet.MaxPods,
+		RunnerCacheVolumeGiB:    fleet.RunnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB: fleet.CacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:       fleet.CacheVolumeCASGiB,
+	}
+
+	// Per-host values, all distinct from the canonical config's zeroes. If
+	// HostConfigHash ever stops neutralizing one of these the hashes diverge
+	// here too, which is equally worth catching: it would make a fleet-wide
+	// fingerprint differ per host and every drift check fire forever.
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	machine.Name = "tuist-tuist-runners-fleet-mndbc-2t7nk"
+	machine.Spec.ProviderID = ptr.To("scw-applesilicon://fr-par-1/c0b4b946")
+
+	got := r.driftUpdateConfig(
+		machine,
+		"51.15.1.1",
+		&credentials.MachineBootstrap{SSHUsername: "m1", HostFingerprint: "SHA256:abc"},
+		[]byte("ssh-private-key"),
+		"apiVersion: v1\nkind: Config\n",
+		"tskey-client-secret",
+		42,
+		"vnc-relay.example",
+		DashboardVNCRelayPort,
+	)
+
+	if want, have := bootstrap.HostConfigHash(fleet), bootstrap.HostConfigHash(got); want != have {
+		t.Fatalf("driftUpdateConfig hash = %s, canonical fleet hash = %s\n"+
+			"a fleet-wide field is missing from driftUpdateConfig (or newly per-host in HostConfigHash); "+
+			"hosts would be stamped converged to a config they never received", have, want)
 	}
 }
