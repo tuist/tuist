@@ -183,29 +183,45 @@
         }
 
         @Test(.withMockedEnvironment())
-        func recomputes_after_a_failed_lookup_so_a_returning_instance_is_picked_up() async throws {
+        func does_not_cache_a_failed_lookup_so_a_returning_instance_is_picked_up() async throws {
             // Given
-            // The daemon outlives the absence: nothing negative-caches, so once the
-            // server has provisioned an endpoint back, the next request resolves it
-            // without restarting the process.
+            // Two stores over one shared cache stand in for two requests to the
+            // same long-lived cache daemon: the first while the account's instance
+            // is still being provisioned back, the second once it is serving. If a
+            // failed lookup were cached, the daemon would need a restart to ever
+            // see the instance again.
             let serverURL = URL(string: "https://tuist.dev")!
             let endpoint = "https://cache.example.com"
 
-            given(getCacheEndpoints)
+            let whileProvisioning = MockGetCacheEndpointsServicing()
+            given(whileProvisioning)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([])
 
-            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
-                _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
-            }
-
-            // When
-            given(getCacheEndpoints)
+            let onceServing = MockGetCacheEndpointsServicing()
+            given(onceServing)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([endpoint])
 
+            let provisioningSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: whileProvisioning,
+                endpointLatencyService: latencyService
+            )
+            let servingSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: onceServing,
+                endpointLatencyService: latencyService
+            )
+
+            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
+                _ = try await provisioningSubject.getCacheURL(for: serverURL, accountHandle: nil)
+            }
+
+            // When
+            let url = try await servingSubject.getCacheURL(for: serverURL, accountHandle: nil)
+
             // Then
-            let url = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
             #expect(url == URL(string: endpoint)!)
         }
 
