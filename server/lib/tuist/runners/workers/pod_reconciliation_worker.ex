@@ -28,9 +28,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   them at once. Production had claims stuck for over ten days in exactly
   that hole: Postgres said `running` so the `claimed` sweep skipped
   them, ClickHouse said `claimed` so the `running` sweep skipped them,
-  and no completion had been recorded. It later had seventeen open
-  sessions on a nine-mini fleet, which reads to the allocator as
-  saturation and starves every pool sharing those hosts.
+  and no completion had been recorded. Sessions were leaking on the same
+  principle but continuously: on 2026-08-14, 264 of 1185 sessions never
+  closed, a rate of 21-25% that held on every fleet and every working
+  day back to at least 2026-07-07. Each one reads to the allocator as an
+  occupied host for six hours, so a busy afternoon could withhold more
+  hosts than the fleet has.
 
   This worker asks the only question that does not depend on any of
   that: does the Pod exist? It is level-triggered — it compares desired

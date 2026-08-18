@@ -142,16 +142,35 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // there the clamp is six hours of a Mac mini withheld from every
 // sibling pool — so silence here is not an acceptable fallback.
 //
-// Two shapes reach this branch, and neither is rare:
+// The branch is not an edge case. It was the normal outcome for
+// roughly a fifth of all runner Pods: on 2026-08-14, 264 of 1185
+// sessions never closed (21.1% on linux-2vcpu, 23.9% on macos-26-6,
+// 24.5% on linux-4vcpu), and the same rate holds every working day
+// back to at least 2026-07-07.
 //
-//   - The reap wins the race. A reconciler delete on an idle or
-//     Pending runner collects the object with no grace period to
-//     speak of, so the terminal transition can be gone before we
-//     dequeue it. Clearing `reported` and returning guaranteed
-//     nothing would ever report that Pod.
-//   - The controller restarts. `reported` is in-memory and the
-//     informer only replays objects that still exist, so every Pod
-//     that ended during the downtime is invisible on resync.
+// The cause is a race between this reconciler and
+// `RunnerPoolReconciler`, which reaps terminal Pods. Both wake on the
+// same watch event into separate workqueues with no ordering between
+// them, so whichever drains first decides whether the Pod still exists
+// when we Get it. The leak rate tracks that directly: 0% in hours with
+// under ten sessions, 8-36% once volume passes ~40/hour.
+//
+// The Pod's termination grace period does not help, which is the part
+// that is easy to get wrong. Grace is a ceiling on how long the kubelet
+// waits for live containers, not a floor on how long the object
+// survives. A Pod that has already reached Succeeded or Failed has
+// nothing left to terminate, so the reap's Delete removes it in
+// milliseconds regardless of the 30s default.
+//
+// Nor is it a delivery failure we could retry our way out of: a full
+// day of controller logs carries zero "report pod stopped; will retry"
+// lines. We were not failing to deliver the report, we were never
+// reaching the code that sends it.
+//
+// The controller restarting reaches this branch too — `reported` is
+// in-memory and the informer only replays objects that still exist, so
+// a Pod that ended during downtime is invisible on resync. That one is
+// rare by comparison; the leak shows no spikes at deploy boundaries.
 //
 // `now()` is the only bound still provable once the object is gone:
 // the Pod stopped no later than this. It is later than the real
