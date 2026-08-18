@@ -1700,8 +1700,9 @@ impl Store {
             // otherwise yield a short read that streams a body shorter than the
             // declared Content-Length — peers see an undecodable response and
             // backfill silently wedges. Surface a truncated artifact as missing
-            // so the serve 404s it; the backfilling peer then skips it
-            // (IgnoredMissing) and the lost entry re-populates on cache miss.
+            // so the serve 404s it; the backfilling peer classifies that as
+            // absent (`classify_backfill_response`) and moves on, and the lost
+            // entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
                 .as_std()
@@ -4475,7 +4476,7 @@ impl Store {
         let mut after: Option<String> = None;
         let mut expired: Vec<ArtifactManifest> = Vec::new();
         loop {
-            let page = self.manifests_page_scoped(after.as_deref(), None, SCAN_PAGE)?;
+            let page = self.manifests_page(after.as_deref(), SCAN_PAGE)?;
             for manifest in page.manifests {
                 if manifest.producer == ArtifactProducer::Reapi
                     && manifest.key.starts_with("action_cache/")
@@ -4918,9 +4919,8 @@ impl Store {
                     .map_err(|error| format!("invalid blob-refs backfill cursor: {error}"))
             })
             .transpose()?;
-        let page = self.manifests_page_scoped(
+        let page = self.manifests_page(
             after.as_deref(),
-            None,
             ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP,
         )?;
         let mut batch = WriteBatch::default();
@@ -5026,31 +5026,18 @@ impl Store {
         Ok(tombstones)
     }
 
-    /// Whether this store has any locally usable cache data.
-    #[cfg(test)]
-    pub fn has_artifacts(&self) -> Result<bool, String> {
-        self.db
-            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start)
-            .next()
-            .transpose()
-            .map(|item| item.is_some())
-            .map_err(|error| format!("failed to inspect manifests: {error}"))
-    }
-
-    /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
-    /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
-    /// (unless a later `after` cursor is supplied) and stops as soon as it
-    /// leaves the prefix, so callers can enumerate a single digest bucket's
-    /// range without scanning the rest of the keyspace.
-    pub fn manifests_page_scoped(
+    /// Walk the manifest keyspace in `artifact_id` order from an optional
+    /// cursor. The prefix-restricted variant went out with the range-digest
+    /// walker that enumerated one digest bucket at a time; every caller here
+    /// walks the whole keyspace in pages.
+    pub fn manifests_page(
         &self,
         after: Option<&str>,
-        prefix: Option<&str>,
         limit: usize,
     ) -> Result<ManifestPage, String> {
         let mut manifests = Vec::new();
         let mut next_after = None;
-        let start_key = after.or(prefix).unwrap_or_default();
+        let start_key = after.unwrap_or_default();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_MANIFESTS),
             IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
@@ -5063,11 +5050,6 @@ impl Store {
                 .map_err(|error| format!("invalid manifest key: {error}"))?;
             if after == Some(artifact_id) {
                 continue;
-            }
-            if let Some(prefix) = prefix
-                && !artifact_id.starts_with(prefix)
-            {
-                break;
             }
             if manifests.len() == limit {
                 next_after = manifests
@@ -9489,25 +9471,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn has_artifacts_tracks_local_manifest_availability() {
-        let (_temp_dir, _config, store) = temp_store();
-        assert!(!store.has_artifacts().expect("empty store should inspect"));
-
-        store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Gradle,
-                "ios",
-                "artifact",
-                "application/octet-stream",
-                b"payload",
-            )
-            .await
-            .expect("artifact should persist");
-
-        assert!(store.has_artifacts().expect("warm store should inspect"));
-    }
-
-    #[tokio::test]
     async fn manifests_page_returns_results_in_artifact_id_order() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -9533,7 +9496,7 @@ mod tests {
             .expect("failed to persist second artifact");
 
         let first_page = store
-            .manifests_page_scoped(None, None, 1)
+            .manifests_page(None, 1)
             .expect("failed to load first manifest page");
         assert_eq!(first_page.manifests.len(), 1);
         assert!(
@@ -9546,7 +9509,7 @@ mod tests {
         );
 
         let second_page = store
-            .manifests_page_scoped(first_page.next_after.as_deref(), None, 1)
+            .manifests_page(first_page.next_after.as_deref(), 1)
             .expect("failed to load second manifest page");
         assert_eq!(second_page.manifests.len(), 1);
         assert_ne!(
@@ -9556,58 +9519,6 @@ mod tests {
         assert!(
             second_page.manifests[0].artifact_id == first.artifact_id
                 || second_page.manifests[0].artifact_id == second.artifact_id
-        );
-    }
-
-    async fn apply_inline(store: &Store, key: &str, version_ms: u64, bytes: &[u8]) {
-        store
-            .apply_replicated_inline_artifact_from_bytes(
-                ArtifactProducer::Xcode,
-                "ios",
-                key,
-                "application/octet-stream",
-                bytes,
-                version_ms,
-                None,
-                None,
-            )
-            .await
-            .expect("failed to apply replicated inline artifact");
-    }
-
-    #[tokio::test]
-    async fn manifests_page_scoped_restricts_to_prefix() {
-        let (_temp_dir, _config, store) = temp_store();
-        for key in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
-            apply_inline(&store, key, 100, b"payload").await;
-        }
-
-        let all = store
-            .manifests_page_scoped(None, None, 256)
-            .expect("list all")
-            .manifests;
-        let target_prefix: String = all[0].artifact_id.chars().take(2).collect();
-        let expected: Vec<String> = all
-            .iter()
-            .filter(|m| m.artifact_id.starts_with(&target_prefix))
-            .map(|m| m.artifact_id.clone())
-            .collect();
-
-        let scoped = store
-            .manifests_page_scoped(None, Some(&target_prefix), 256)
-            .expect("scoped walk")
-            .manifests;
-        let scoped_ids: Vec<String> = scoped.iter().map(|m| m.artifact_id.clone()).collect();
-
-        assert_eq!(
-            scoped_ids, expected,
-            "scoped walk must return exactly the artifacts in the prefix range"
-        );
-        assert!(
-            scoped
-                .iter()
-                .all(|m| m.artifact_id.starts_with(&target_prefix)),
-            "scoped walk must not leak artifacts outside the prefix"
         );
     }
 

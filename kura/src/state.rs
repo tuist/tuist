@@ -207,9 +207,9 @@ pub(crate) struct ReadinessState {
     known_peers: BTreeSet<String>,
     // Every peer ever seen through discovery only (not in the static or
     // dynamic peer config): in-cluster siblings and cross-region pods. Outbox
-    // pruning never drops their messages — unlike control-plane-managed
-    // peers, nothing re-drives catch-up for them after a network flap, so
-    // dropping would be silent under-replication. Monotone and in-memory:
+    // pruning never drops their messages — the re-join backfill reaches back
+    // only to the backfill window, so dropping would be silent
+    // under-replication for anything older. Monotone and in-memory:
     // bounded by the peers a process ever meets, reset by restart.
     ever_discovered_only_peers: BTreeSet<String>,
 }

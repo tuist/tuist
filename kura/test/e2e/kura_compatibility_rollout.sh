@@ -419,6 +419,11 @@ stage_2_cold_convergence_across_the_skew() {
   dc "${SKEW_OVERRIDE}" up -d kura-eu >/dev/null
   wait_for_ready_pair
   wait_for_body "$(artifact_url "${eu_url}" "mixed-h1")" "mixed-payload-1"
+  # The body alone does not prove backfill ran: the write predates the peer's
+  # return, so a queued outbox delivery would satisfy it too. Assert the
+  # requester actually applied a body through a pass, or a broken catch-up
+  # path across the skew passes this stage unnoticed.
+  wait_for_metric_ge "${eu_url}" "kura_backfill_bodies_total" 'outcome="applied"' 1
 
   put_artifact "${eu_url}" "mixed-h2" "mixed-payload-2"
   wait_for_body "$(artifact_url "${us_url}" "mixed-h2")" "mixed-payload-2"
@@ -428,6 +433,9 @@ stage_2_cold_convergence_across_the_skew() {
   wait_for_ready_pair
   wait_for_body "$(artifact_url "${us_url}" "mixed-h1")" "mixed-payload-1"
   wait_for_body "$(artifact_url "${us_url}" "mixed-h2")" "mixed-payload-2"
+  # Both entries predate this node's volume, so both had to arrive through a
+  # pass against the AB peer.
+  wait_for_metric_ge "${us_url}" "kura_backfill_bodies_total" 'outcome="applied"' 2
   wait_for_rollout_contains "${us_url}" '"backfill_initial_cycle":"complete"'
   assert_gate_green "${us_url}" "${eu_url}"
 

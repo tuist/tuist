@@ -112,6 +112,17 @@ openssl x509 -req -in peer.csr \
   -extfile peer.ext
 ```
 
+### Catch-up between nodes {#catch-up-between-nodes}
+
+A node that joins or rejoins a mesh **backfills**: it walks each peer's entries newest-first and pulls what it is missing, while live replication covers writes made while the peer is in view. A backfill pass reaches back from the peer's newest entry to the older of the node's segment-ring horizon and its last completed pass, so a node is guaranteed to hold the recent data, not necessarily all of it. `KURA_BACKFILL_MARGIN_PERCENT` sets how far back the horizon sits.
+
+Two consequences are worth knowing before you run a mesh:
+
+- A node reports `/ready` once its segment ring is `KURA_BACKFILL_READY_RING_PERCENT` full **or** its first backfill cycle settles, and readiness then holds for the rest of the process lifetime. A later peer flap never takes a serving node out of rotation.
+- A cycle also settles when a peer is unreachable for long enough. A node whose only peer is down therefore becomes Ready while holding little or no data. It serves misses rather than errors. `/status/rollout` reports `backfill_initial_cycle` (`pending`, `complete` or `degraded`) if you want to gate a rollout on the difference.
+
+**Upgrading a mesh across the backfill change.** Kura releases before backfill catch up through a different, now-removed peer protocol. Roll every node onto a release that runs backfill **before** you take a release that only speaks backfill. Nodes on the two protocols cannot catch up from each other: a warm node keeps serving from its volume but stops closing its gap, and a node that starts on an empty volume in that window never becomes Ready. The chart sets `KURA_BACKFILL_ENABLED=true` for you, so a chart-first upgrade covers this. A single `helm upgrade` that moves the chart and the image together does not.
+
 Use network-level restrictions in addition to mTLS. In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery, then allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, give each node a stable DNS name or IP address, seed the mesh with the internal URLs of the other nodes, and use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
 
 ## Configuration {#configuration}

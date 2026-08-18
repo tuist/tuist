@@ -543,9 +543,11 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         // staleness window of missed heartbeats), so messages for an absent
         // control-plane-managed target are dropped immediately; a departed
         // peer that later rejoins does so through a recovery re-enrollment,
-        // whose re-join backfill reconciles the gap over the backfill window,
-        // so the dropped deltas are recovered. An empty target set means the node has no peer view at
-        // all (e.g. the control plane is unreachable), not that every peer
+        // which arms a pass per peer in view, and those reconcile back to the
+        // backfill window — so the dropped deltas are recovered as long as the
+        // absence fits inside it. An empty target set means the node has no
+        // peer view at all (e.g. the control plane is unreachable), not that
+        // every peer
         // left — never prune on it. The accepted trade-off: a mesh that
         // legitimately shrinks to zero peers keeps its queued messages until
         // a peer rejoins or the node restarts.
@@ -926,7 +928,11 @@ async fn replicate_message(
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, http::StatusCode, routing::put};
+    use axum::{
+        Router,
+        http::StatusCode,
+        routing::{get, put},
+    };
     use tokio::net::TcpListener;
 
     use super::*;
@@ -1044,6 +1050,56 @@ mod tests {
                 .expect("test server should run");
         });
         (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn peer_body_larger_than_its_reservation_is_rejected_mid_stream() {
+        // The guard the backfill pass relies on: an inconsistent peer streams
+        // a chunked body larger than the manifest it listed, so the receiver
+        // has reserved less than the peer sends. The staged file is capped at
+        // the reservation and the transfer fails there, instead of overrunning
+        // the staging budget and the tmp-dir ceiling. Both call sites derive
+        // the reservation from the peer's declared size
+        // (`spool_batch_response`, `apply_individual_response`), so a
+        // regression here surfaces as ENOSPC rather than a failed pass.
+        let chunk = vec![7_u8; 16 * 1024];
+        let app = Router::new().route(
+            "/body",
+            get({
+                let chunk = chunk.clone();
+                move || {
+                    let chunk = chunk.clone();
+                    async move {
+                        let stream = futures_util::stream::iter(0..8).then(move |_| {
+                            let chunk = chunk.clone();
+                            async move { Ok::<_, std::io::Error>(chunk) }
+                        });
+                        axum::body::Body::from_stream(stream)
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context(|_config| {}).await;
+        let reserved = 32 * 1024_u64;
+        let response = reqwest::get(format!("{peer_url}/body"))
+            .await
+            .expect("peer body request should succeed");
+        let path = ctx.state.config.tmp_dir.join("backfill").join("overrun");
+
+        let error = stream_response_to_temp(&ctx.state, response, &path, reserved)
+            .await
+            .expect_err("a body larger than the reservation must be rejected");
+        assert!(
+            error.contains("exceeded reserved"),
+            "expected a reservation-overflow rejection, got: {error}"
+        );
+
+        assert!(
+            tokio::fs::metadata(&path).await.is_err(),
+            "the partial staging file must be removed, not left charging the tmp budget"
+        );
     }
 
     #[tokio::test]

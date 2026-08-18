@@ -3174,14 +3174,7 @@ async fn serve_file(
                 // smaller degraded pool. Waiting here first would only delay
                 // that fallback by a full admission timeout.
                 None => {
-                    return serve_file_reader(
-                        state,
-                        status,
-                        manifest,
-                        None,
-                        ResponseStreamClass::Public,
-                    )
-                    .await;
+                    return serve_file_reader(state, status, manifest).await;
                 }
             };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
@@ -3191,31 +3184,30 @@ async fn serve_file(
             attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => {
-            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
-        }
+        Ok(None) => serve_file_reader(state, status, manifest).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
+            serve_file_reader(state, status, manifest).await
         }
     }
 }
 
-#[derive(Clone, Copy)]
-enum ResponseStreamClass {
-    Public,
-}
-
+/// Streams an artifact from a reader to a public cache response.
+///
+/// Public-only since the legacy bootstrap serving plane was retired: peer
+/// catch-up no longer streams artifacts through here, so there is no second
+/// admission class and no bandwidth limiter on this path. Backfill's own
+/// serving (`internal_backfill_bodies`) reserves from the background pool
+/// instead, and is shed there rather than degraded — internal peer traffic
+/// retries on its own schedule.
 async fn serve_file_reader(
     state: &SharedState,
     status: StatusCode,
     manifest: &ArtifactManifest,
-    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    class: ResponseStreamClass,
 ) -> Response {
     state.metrics.record_artifact_serving_path("streaming");
     let inline_bytes = if manifest.inline { manifest.size } else { 0 };
@@ -3226,39 +3218,35 @@ async fn serve_file_reader(
             .saturating_add(inline_bytes),
     )
     .unwrap_or(usize::MAX);
-    let (permit, stream_chunk_bytes) = match class {
-        // A public read first degrades to the minimum chunk. If even that
-        // bounded path has no slot or live headroom, shed it with a retryable
-        // response rather than opening an unaccounted stream.
-        ResponseStreamClass::Public => match state
-            .memory
-            .acquire_response_stream_memory(
-                requested_bytes,
-                "http",
-                ResponseStreamAdmissionPatience::Degradable,
+    // A public read first degrades to the minimum chunk. If even that bounded
+    // path has no slot or live headroom, shed it with a retryable response
+    // rather than opening an unaccounted stream.
+    let (permit, stream_chunk_bytes) = match state
+        .memory
+        .acquire_response_stream_memory(
+            requested_bytes,
+            "http",
+            ResponseStreamAdmissionPatience::Degradable,
+        )
+        .await
+    {
+        Ok(permit) => (permit, stream_chunk_bytes),
+        Err(_) => {
+            let degraded_bytes = usize::try_from(
+                u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(inline_bytes),
             )
-            .await
-        {
-            Ok(permit) => (permit, stream_chunk_bytes),
-            Err(_) => {
-                let degraded_bytes = usize::try_from(
-                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
-                        .unwrap_or(u64::MAX)
-                        .saturating_add(inline_bytes),
-                )
-                .unwrap_or(usize::MAX);
-                match state
-                    .memory
-                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
-                    .await
-                {
-                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
-                    Err(_) => return response_stream_unavailable(),
-                }
+            .unwrap_or(usize::MAX);
+            match state
+                .memory
+                .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                .await
+            {
+                Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                Err(_) => return response_stream_unavailable(),
             }
-        },
-        // Backfill is internal peer traffic that retries on its own schedule,
-        // so shedding it keeps the background bound intact.
+        }
     };
     // Tolerates a concurrent background promotion relocating the artifact
     // between the caller's manifest fetch and this open (see
@@ -3272,13 +3260,7 @@ async fn serve_file_reader(
     {
         Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
-            let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(
-                state,
-                &manifest,
-                stream,
-                matches!(class, ResponseStreamClass::Public),
-            );
+            let stream = instrument_artifact_stream(state, &manifest, stream, true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, &manifest);

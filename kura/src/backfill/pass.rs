@@ -354,6 +354,10 @@ async fn list_entries(
             if context.cancel.is_cancelled() {
                 return Err(PassAbort::Cancelled);
             }
+            // Kind-blind by design, tombstones included: the index is one
+            // version-ordered stream, so exempting a kind means walking to the
+            // peer's oldest entry every pass. See `compute_window` for why the
+            // residual is acceptable.
             if let Some(min_version_ms) = context.window.min_version_ms
                 && entry.version_ms < min_version_ms
             {
@@ -1526,7 +1530,7 @@ mod tests {
         backfill::claims::ClaimSet,
         constants::BACKFILL_APPLY_GROUP_RECORDS,
         failpoints::FailpointAction,
-        http::{encode_backfill_body_frame_header, router},
+        http::{BackfillBodyManifestMeta, encode_backfill_body_frame_header, router},
         segment::{reference::SegmentReference, state::SegmentState},
         test_support::{TestContext, test_context},
     };
@@ -1767,6 +1771,60 @@ mod tests {
                 .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "legacy-ns", 800)
                 .expect("tombstone check should succeed"),
             "tombstone should be applied locally"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_window_bound_stops_the_walk_for_tombstones_too() {
+        // Pins the kind-blind bound documented on `compute_window`: the index
+        // is one version-ordered stream, so a namespace tombstone below the
+        // bound ends the walk exactly like an artifact would. A node whose
+        // window has risen past a delete never learns of it — the accepted
+        // residual, not an oversight, and the thing to revisit first if
+        // tombstone coverage ever has to be unconditional.
+        let peer = test_context(|_| {}).await;
+        seed_inline(&peer, "recent", b"recent-body", 1_000).await;
+        seed_tombstone(&peer, "old-ns", 800).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        let claim_set = ClaimSet::new();
+        let guard = claim_set.register_pass();
+        let cancel = CancellationToken::new();
+        let outcome = run_backfill_pass_with_tuning(
+            &local.state,
+            &peer_url,
+            BackfillWindow {
+                min_version_ms: Some(900),
+            },
+            guard,
+            &cancel,
+            tuning(),
+        )
+        .await;
+
+        let BackfillPassOutcome::Completed { end, stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::WindowBound);
+        assert_eq!(
+            stats.bodies_applied, 1,
+            "the in-window artifact still lands"
+        );
+        assert_eq!(
+            stats.tombstones_applied, 0,
+            "a tombstone below the bound is not listed"
+        );
+        assert!(
+            !local
+                .state
+                .store
+                .namespace_tombstones()
+                .expect("tombstone lookup should succeed")
+                .iter()
+                .any(|(namespace_id, _)| namespace_id == "old-ns"),
+            "the delete must not have been applied"
         );
     }
 
@@ -2584,6 +2642,87 @@ mod tests {
             "expected cancellation, got {outcome:?}"
         );
         assert!(claim_set.is_empty(), "guard drop must release all claims");
+        assert_backfill_tmp_dir_empties(&local).await;
+    }
+
+    #[tokio::test]
+    async fn an_inline_body_over_the_replication_bound_is_skipped_instead_of_wedging_the_pass() {
+        // With no second walker left, this arm is the only thing keeping one
+        // un-pullable entry from holding a joining node in partial catch-up
+        // for good: the peer answers Present with a declared inline body over
+        // MAX_INLINE_REPLICATION_BODY_BYTES, which this node can never apply.
+        // The pass must discard that body, resolve the claim absent so other
+        // peers can still serve it, and complete.
+        let peer = test_context(|_| {}).await;
+        seed_inline(&peer, "oversized", b"placeholder", 1_000).await;
+        seed_inline(&peer, "usable", b"usable-body", 1_001).await;
+        build_index(&peer);
+
+        let oversized_len = MAX_INLINE_REPLICATION_BODY_BYTES + 1;
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| async move {
+                if request.uri().path() != "/_internal/backfill/bodies" {
+                    return next.run(request).await;
+                }
+                let bytes = axum::body::to_bytes(request.into_body(), 1024 * 1024)
+                    .await
+                    .expect("bodies request should read");
+                let parsed: BackfillBodiesRequest =
+                    serde_json::from_slice(&bytes).expect("bodies request should decode");
+                let mut frames = Vec::new();
+                for entry in &parsed.entries {
+                    let meta = BackfillBodyManifestMeta {
+                        producer: ArtifactProducer::Xcode.as_str().to_owned(),
+                        namespace_id: "ios".to_owned(),
+                        key: entry.record_id.rsplit('/').next().unwrap_or("k").to_owned(),
+                        content_type: "application/octet-stream".to_owned(),
+                        branch: None,
+                    }
+                    .to_wire_bytes()
+                    .expect("manifest meta should encode");
+                    frames.extend_from_slice(
+                        &encode_backfill_body_frame_header(
+                            BackfillRecordKind::InlineArtifact,
+                            BackfillBodyDisposition::Present,
+                            entry.version_ms,
+                            &entry.record_id,
+                            &meta,
+                            oversized_len,
+                        )
+                        .expect("frame header should encode"),
+                    );
+                    frames.resize(frames.len() + oversized_len as usize, 0_u8);
+                }
+                frames.into_response()
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_| {}).await;
+        let (outcome, claim_set) = run_pass(&local, &peer_url, tuning()).await;
+
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(
+            stats.tuples_claimed, 2,
+            "both entries must reach the fetcher"
+        );
+        assert_eq!(stats.bodies_applied, 0);
+        assert_eq!(
+            stats.bodies_absent, 2,
+            "an unusable body resolves per-peer absent, not applied and not failed"
+        );
+        assert!(
+            claim_set.is_empty(),
+            "the skipped entries must not stay claimed"
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Xcode, "oversized")
+                .await
+                .is_none(),
+            "an inline body over the bound must not be applied"
+        );
         assert_backfill_tmp_dir_empties(&local).await;
     }
 

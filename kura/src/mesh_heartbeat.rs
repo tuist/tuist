@@ -7,11 +7,11 @@
 //!   live mesh members. The control plane withholds peers that stop
 //!   heartbeating and answers `mesh_member: false` once a node has been
 //!   withheld; the node then performs a **recovery re-enrollment** (with
-//!   backoff), which restores its membership server-side. Nothing local is
-//!   torn down for it: the backfill walker's watermarks are durable, so the
-//!   next pass re-walks from them and reconciles the writes missed while out
-//!   of the mesh, and readiness is latched for the process lifetime so the
-//!   node keeps serving through it.
+//!   backoff), which restores its membership server-side and re-arms a
+//!   backfill pass for every peer in view. Nothing local is torn down for it:
+//!   the walker's watermarks are durable, so those passes re-walk from them
+//!   and reconcile back to the backfill window, and readiness is latched for
+//!   the process lifetime so the node keeps serving through it.
 //! - **Managed pods** don't enroll (Kubernetes owns their liveness), but they
 //!   consume the same dynamic peer view through a peers-only fetch, so a
 //!   self-hosted peer joining or leaving propagates at heartbeat cadence
@@ -261,10 +261,16 @@ async fn fetch_peers(
 // enrollment is the only door — so recovery is a re-enrollment: the server's
 // enrollment upsert reactivates or recreates the row. Nothing local has to be
 // forgotten: whatever was written while the node was out of the mesh was never
-// enqueued for it, and the backfill walker's watermarks are durable and
-// monotonic, so the next pass re-walks from them and reconciles the gap in the
-// background. Readiness is not clawed back for it — a node that already holds
-// usable data keeps serving while it catches up.
+// enqueued for it, and the walker's watermarks are durable and monotonic, so a
+// pass re-walks from them and reconciles back to the backfill window.
+//
+// The passes have to be armed explicitly. A pass is otherwise scheduled from a
+// membership edge, and edges are a set difference over the probed peer set, so
+// a control-plane-only outage produces none: the node keeps reaching its peers
+// and its view never changes, while the server withholds it and its peers
+// prune the outbox messages queued for it. Readiness is not clawed back for
+// any of this — a node that already holds usable data keeps serving while it
+// catches up.
 async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBackoff) {
     if !recovery.should_attempt(Instant::now()) {
         return;
@@ -274,13 +280,14 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
     match crate::enrollment::renew().await {
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
+                state.backfill.rearm_after_mesh_rejoin();
                 // The backoff is deliberately NOT reset here: recovery is
                 // only proven by a later heartbeat answering
                 // `mesh_member: true` (which resets it in the run loop). A
                 // successful re-enrollment that the server still answers
                 // `false` to must keep backing off, or it becomes a
                 // re-enrollment loop at heartbeat cadence.
-                info!("re-enrolled to recover mesh membership");
+                info!("re-enrolled to recover mesh membership; re-arming backfill passes");
             }
             Err(error) => warn!("recovery re-enrollment: failed to apply: {error}"),
         },
