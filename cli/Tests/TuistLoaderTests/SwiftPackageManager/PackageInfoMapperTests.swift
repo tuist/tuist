@@ -7459,6 +7459,53 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTargetIsSharedByProductsWithConflictingProductTypes_prefersStaticProductType() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        for target in ["DynamicTarget", "StaticTarget", "SharedTarget"] {
+            try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/\(target)")))
+        }
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Dynamic", type: .library(.automatic), targets: ["DynamicTarget"]),
+                        .init(name: "Static", type: .library(.automatic), targets: ["StaticTarget"]),
+                    ],
+                    targets: [
+                        .test(name: "DynamicTarget", dependencies: [.byName(name: "SharedTarget", condition: nil)]),
+                        .test(name: "StaticTarget", dependencies: [.byName(name: "SharedTarget", condition: nil)]),
+                        .test(name: "SharedTarget"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productTypes: [
+                    "Dynamic": .framework,
+                    "Static": .staticFramework,
+                ],
+                baseProductType: .framework,
+                baseSettings: .default
+            )
+        )
+
+        let dynamicTarget = try #require(project?.targets.first(where: { $0.name == "DynamicTarget" }))
+        let staticTarget = try #require(project?.targets.first(where: { $0.name == "StaticTarget" }))
+        let sharedTarget = try #require(project?.targets.first(where: { $0.name == "SharedTarget" }))
+        #expect(dynamicTarget.product == .framework)
+        #expect(staticTarget.product == .staticFramework)
+        #expect(sharedTarget.product == .staticFramework)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetPattern_baseProductTypeUsed() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/ATarget")))
