@@ -1216,10 +1216,10 @@ defmodule Tuist.ShardsTest do
              )
     end
 
-    # A run that restricts a module to specific suites doesn't have to be guessed at: the client
+    # A module the built products limit to specific suites doesn't have to be guessed at: the client
     # knows the selection and sends it, and it is the only thing that will run for that module.
-    # Modules the client says nothing about still come from history.
-    test "plans the client's declared suites for the modules that declare them" do
+    # Modules the client selected nothing for still come from history.
+    test "plans the suites the client selected and resolves the rest from history" do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
 
       RunsFixtures.test_fixture(

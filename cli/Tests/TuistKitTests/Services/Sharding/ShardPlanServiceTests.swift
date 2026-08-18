@@ -704,8 +704,8 @@ struct ShardPlanServiceTests {
             archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
         )
 
-        // A restricted module's suites are declared rather than guessed from history; the module
-        // that restricts nothing is left for the server to resolve.
+        // A limited module's suites are sent rather than guessed from history; the module that is
+        // limited to nothing is left for the server to resolve.
         #expect(sentTestSuites.value == ["SmokeTests/CartSuite", "SmokeTests/CheckoutSuite"])
     }
 

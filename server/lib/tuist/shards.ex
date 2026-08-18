@@ -421,16 +421,16 @@ defmodule Tuist.Shards do
 
   defp resolve_units(_project, params, "module"), do: params_modules(params)
 
-  # A client that restricts a module to specific suites knows exactly what will run for it, so those
-  # suites are used as given. Modules it says nothing about are still resolved from history: a
-  # restriction usually covers part of a plan, and dropping the rest would hand whole modules to the
+  # A client whose products limit a module to specific suites knows exactly what will run for it, so
+  # those suites are used as given. Modules it selected nothing for are still resolved from history:
+  # a selection usually covers part of a plan, and dropping the rest would hand whole modules to the
   # catch-all shard.
   defp resolve_units(project, params, "suite") do
-    declared = Map.get(params, :test_suites) || []
-    declared_modules = MapSet.new(declared, &suite_module/1)
-    undeclared_modules = Enum.reject(params_modules(params), &MapSet.member?(declared_modules, &1))
+    selected = Map.get(params, :test_suites) || []
+    selected_modules = MapSet.new(selected, &suite_module/1)
+    unselected_modules = Enum.reject(params_modules(params), &MapSet.member?(selected_modules, &1))
 
-    declared ++ latest_branch_suite_units(project, params, undeclared_modules)
+    selected ++ latest_branch_suite_units(project, params, unselected_modules)
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []
