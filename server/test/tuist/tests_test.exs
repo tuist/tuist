@@ -3422,6 +3422,50 @@ defmodule Tuist.TestsTest do
       assert test_case.duration_p99_ms >= test_case.duration_p90_ms
     end
 
+    test "counts a run once when its flaky state was corrected" do
+      # Given - four runs, one of which is re-inserted by a flaky-state
+      # correction. `test_case_runs` is a ReplacingMergeTree and the correction
+      # writes a whole new version of the row, so the aggregate sees five
+      # inserts for four runs.
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testCorrected", [100, 100, 100, 100])
+
+      [%{id: run_id} | _] =
+        ClickHouseRepo.all(
+          from(run in TestCaseRun,
+            where: run.project_id == ^project.id,
+            select: %{id: run.id},
+            limit: 1
+          )
+        )
+
+      IngestRepo.query!("""
+      INSERT INTO test_case_duration_daily_stats_per_case
+        (project_id, date, test_case_id, is_ci, run_count, avg_duration,
+         p50_duration, p90_duration, p99_duration)
+      SELECT
+        project_id,
+        toDate(ran_at) AS date,
+        assumeNotNull(test_case_id) AS test_case_id,
+        is_ci,
+        uniqExactState(id) AS run_count,
+        avgState(duration) AS avg_duration,
+        quantileState(0.5)(duration) AS p50_duration,
+        quantileState(0.9)(duration) AS p90_duration,
+        quantileState(0.99)(duration) AS p99_duration
+      FROM test_case_runs
+      WHERE id = '#{run_id}'
+      GROUP BY project_id, date, test_case_id, is_ci
+      """)
+
+      # When
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, with_durations: true)
+
+      # Then - the duplicate version does not inflate the count past the floor
+      assert test_case.duration_sample_count == 4
+      assert is_nil(test_case.duration_p50_ms)
+    end
+
     test "reports no durations for a test case below the sample floor" do
       # Given
       project = ProjectsFixtures.project_fixture()

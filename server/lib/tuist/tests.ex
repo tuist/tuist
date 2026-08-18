@@ -2609,14 +2609,14 @@ defmodule Tuist.Tests do
   # `run_count = 0` and is handled by the sample floor like any other
   # under-sampled row.
   defp test_case_duration_stats_subquery(project_id, is_ci) do
-    window_start = Date.add(Date.utc_today(), -@active_window_days)
+    window_start = active_window_start_date()
 
     fields = Map.new(@duration_fields, &{&1, duration_merge_dynamic(&1)})
 
     fields =
       fields
       |> Map.put(:test_case_id, dynamic([stats], stats.test_case_id))
-      |> Map.put(:run_count, dynamic(fragment("countMerge(run_count)")))
+      |> Map.put(:run_count, dynamic(fragment("uniqExactMerge(run_count)")))
 
     query =
       from(stats in TestCaseDurationDailyStatsPerCase,
@@ -2851,6 +2851,15 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # The window starts at midnight rather than at an instant `@active_window_days`
+  # x 24 hours ago, because the per-case duration aggregates are keyed by day and
+  # cannot express a cutoff inside one. Both halves of the listing therefore mean
+  # the same window: a row is admitted on exactly the runs its durations are
+  # computed from. The alternative, a timestamp for admission and a whole
+  # boundary day for durations, let a row be ranked on up to a day of runs that
+  # the window itself would not have admitted.
+  defp active_window_start_date, do: Date.add(Date.utc_today(), -@active_window_days)
+
   # `last_ran_at_ci` and `last_ran_at_local` are denormalized on `test_cases`
   # (kept current by `create_test_cases/4`'s read-modify-write merge per
   # test_case_id). Reading them directly — no `test_case_runs` join —
@@ -2859,7 +2868,7 @@ defmodule Tuist.Tests do
   # the window and many times since still has its latest timestamp ≥
   # window_start, so it correctly stays in the listing.
   defp apply_active_window(query, is_ci) do
-    window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
+    window_start = NaiveDateTime.new!(active_window_start_date(), ~T[00:00:00])
 
     case is_ci do
       true ->
