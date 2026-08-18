@@ -1619,131 +1619,6 @@
         "type": "timeseries"
       },
       {
-        "datasource": "$datasource",
-        "description": "Open `runner_sessions` rows per fleet whose Pod stopped without the close ever landing, and which have now passed the six-hour safety bound. This is a leak counter, not a capacity signal: a session counts as an occupied host until it closes, so leaked rows read to the allocator as a saturated fleet and withhold real hosts from every sibling pool. Before the reap was ordered to report before deleting, this ran at 21-25% of all sessions on every fleet, every working day \u2014 264 of 1185 on 2026-08-14 \u2014 with queue age climbing while allocated stayed pinned. Two mechanisms have to fail for it to move off zero: the controller's pod-stopped report (which now fires both on the terminal transition and immediately before the reap deletes, so it is missed only for Pods the controller never reaps \u2014 node loss, eviction, a manual delete \u2014 or for Pods that ended during a controller restart) and `PodReconciliationWorker`, which closes any session whose Pod is absent from a complete cluster read well inside the bound. So a sustained non-zero value means the reconciler itself is not running or not converging — check its Oban cron and the `runner_pod_reconciliation_paused` flag before adding hosts. Note the gauge is exported per replica; take the max, not the sum.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 1
-                }
-              ]
-            },
-            "unit": "none"
-          }
-        },
-        "gridPos": {
-          "h": 9,
-          "w": 12,
-          "x": 0,
-          "y": 67
-        },
-        "id": 135,
-        "options": {
-          "legend": {
-            "calcs": [
-              "max"
-            ],
-            "displayMode": "list",
-            "placement": "bottom"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "max by (fleet) (tuist_runners_session_clamped_count{fleet=~\".*$platform.*\", env=\"$env\"})",
-            "legendFormat": "{{fleet}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Leaked runner sessions (Pod gone, session still open) by fleet",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Rate at which `PodReconciliationWorker` reclaims rows whose Pod is gone \u2014 sessions closed and claims released off the same cluster read. This is the reconciler working, so a steady low rate is normal churn — pod-stopped reports get missed whenever the reap wins its race with the lifecycle reconciler. Read it against the panel to the left: closes happening with the clamp gauge at zero means the leak is being caught in time, while the clamp gauge rising regardless means closes are not keeping up. A sudden spike with no deploy is worth a look; it usually means a controller restart dropped a batch of terminal transitions at once.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "cps"
-          }
-        },
-        "gridPos": {
-          "h": 9,
-          "w": 12,
-          "x": 12,
-          "y": 67
-        },
-        "id": 136,
-        "options": {
-          "legend": {
-            "calcs": [
-              "max"
-            ],
-            "displayMode": "list",
-            "placement": "bottom"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (kind) (rate(tuist_runners_recovery_count{kind=~\"orphaned_runner_session|stranded_claim_released|pod_missing_claim\", env=\"$env\"}[5m]))",
-            "legendFormat": "{{kind}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Recovery sweeps / sec (sessions and claims reclaimed from gone Pods)",
-        "type": "timeseries"
-      },
-      {
         "id": 520,
         "type": "row",
         "title": "Cache volumes (fast-forward last-writer-wins)",
@@ -1752,7 +1627,7 @@
           "h": 1,
           "w": 24,
           "x": 0,
-          "y": 77
+          "y": 68
         },
         "panels": []
       },
@@ -1766,7 +1641,7 @@
           "h": 5,
           "w": 6,
           "x": 0,
-          "y": 78
+          "y": 69
         },
         "fieldConfig": {
           "defaults": {
@@ -1827,7 +1702,7 @@
           "h": 5,
           "w": 6,
           "x": 6,
-          "y": 78
+          "y": 69
         },
         "fieldConfig": {
           "defaults": {
@@ -1888,7 +1763,7 @@
           "h": 5,
           "w": 6,
           "x": 12,
-          "y": 78
+          "y": 69
         },
         "fieldConfig": {
           "defaults": {
@@ -1941,7 +1816,7 @@
           "h": 5,
           "w": 6,
           "x": 18,
-          "y": 78
+          "y": 69
         },
         "fieldConfig": {
           "defaults": {
@@ -1998,7 +1873,7 @@
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 83
+          "y": 74
         },
         "fieldConfig": {
           "defaults": {
@@ -2066,7 +1941,7 @@
           "h": 8,
           "w": 12,
           "x": 12,
-          "y": 83
+          "y": 74
         },
         "fieldConfig": {
           "defaults": {
@@ -2127,7 +2002,7 @@
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 91
+          "y": 82
         },
         "fieldConfig": {
           "defaults": {
@@ -2188,7 +2063,7 @@
           "h": 8,
           "w": 12,
           "x": 12,
-          "y": 91
+          "y": 82
         },
         "fieldConfig": {
           "defaults": {
@@ -2249,7 +2124,7 @@
           "h": 8,
           "w": 24,
           "x": 0,
-          "y": 99
+          "y": 90
         },
         "fieldConfig": {
           "defaults": {
