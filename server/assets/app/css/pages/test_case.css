@@ -521,8 +521,8 @@
     & > [data-part="test-case-duration-section"] {
       & > [data-part="duration-chart"] {
         & .noora-chart {
-          height: 200px;
           padding: var(--noora-spacing-3);
+          height: 200px;
         }
       }
     }
