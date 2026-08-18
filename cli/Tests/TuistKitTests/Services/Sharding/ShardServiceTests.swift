@@ -67,11 +67,8 @@ struct ShardServiceTests {
             "AppTests/SignupTests",
             "CoreTests/NetworkTests",
         ])
-        #expect(
-            Logger.testingLogHandler
-                .collected[.notice, ==] ==
-                "Shard 0 of plan plan-123: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests"
-        )
+        #expect(Logger.testingLogHandler
+            .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
     }
 
     // MARK: - shard plan ID normalization
@@ -244,10 +241,7 @@ struct ShardServiceTests {
         // No -only-testing; the remainder is selected by skipping everything already assigned.
         #expect(shard.testIdentifiers.isEmpty)
         #expect(shard.skipTestIdentifiers == ["AppTests/LoginTests", "CoreTests/NetworkTests"])
-        #expect(
-            Logger.testingLogHandler.collected[.notice, ==] ==
-                "Shard 2 of plan plan-123: AppTests/LoginTests, CoreTests/NetworkTests"
-        )
+        #expect(Logger.testingLogHandler.collected[.notice, ==] == "Shard 2: AppTests/LoginTests, CoreTests/NetworkTests")
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

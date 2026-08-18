@@ -77,9 +77,6 @@ tuist xcodebuild test \
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
-> [!IMPORTANT] Bind each shard to its own plan
-> A shard reference identifies the CI run, not the build job inside it. When a workflow builds more than one shard plan per run, every plan is created under the same reference and a shard that resolves its plan by reference gets the most recently created one, which may belong to another build job. Pass `--shard-plan-id` (`TUIST_SHARD_PLAN_ID`) from the shard matrix the build job emitted so each shard runs the plan its own build produced. Both phases log the plan identifier, so a shard that ran a different plan than its build created is visible by comparing the two jobs' logs.
-
 ## Continuous integration {#continuous-integration}
 
 Tuist automatically detects the following CI providers:
@@ -140,18 +137,9 @@ jobs:
 
 #### Building more than one shard plan per run {#github-actions-matrix-builds}
 
-A job's outputs are shared by every leg of its matrix, so a matrixed build job overwrites `outputs.matrix` leg by leg and `needs.build.outputs.matrix` ends up holding whichever leg finished last. Every shard job then runs that one leg's plan. Give each leg its own shard reference and pass the same value to its shard jobs so they resolve their own plan:
+A job's outputs are shared by every leg of its matrix, so a matrixed build job overwrites `outputs.matrix` leg by leg and `needs.build.outputs.matrix` ends up holding whichever leg finished last. Every shard job then runs that leg's plan, including the shards meant for the others, and the mismatch is silent.
 
-```yaml
-  build:
-    strategy:
-      matrix:
-        variant: [alpha, beta]
-    env:
-      TUIST_SHARD_REFERENCE: ${{ github.run_id }}-${{ matrix.variant }}
-```
-
-Then set `TUIST_SHARD_REFERENCE` to the same expression on the corresponding shard jobs, or spawn the shard jobs from a job that merges the legs' matrices into a single matrix carrying both `shard` and `shard_plan_id`.
+Keep each plan's shards fed by their own build. Either declare the builds as separate jobs, so each has its own `outputs.matrix` and its own downstream shard job, or have one job merge the legs' matrices into a single matrix whose entries carry `shard_plan_id` alongside `shard`.
 
 ### GitLab CI {#gitlab-ci}
 

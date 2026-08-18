@@ -101,13 +101,15 @@ public struct ShardService: ShardServicing {
             shardIndex: shardIndex
         )
 
+        // A reference identifies the CI run rather than the build job inside it, so a workflow that
+        // builds more than one plan per run can resolve a plan another job created. The suites
+        // printed below are what shows that; the identifier is here for pinning it down after.
+        Logger.current.debug("Resolved shard plan \(shard.shard_plan_id)")
+
         let suites = shard.suites.additionalProperties
         let skipTestIdentifiers = shard.skip ?? []
-        // Naming the plan lets this line be compared against the one the build phase logged: a
-        // reference identifies the CI run rather than the build job inside it, so a workflow that
-        // builds more than one plan per run can resolve a plan another job created.
         Logger.current.notice(
-            "Shard \(shardIndex) of plan \(shard.shard_plan_id): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
+            "Shard \(shardIndex): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
             metadata: .section
         )
 

@@ -160,6 +160,9 @@
                 gitBranch: try await gitBranch(projectPath: projectPath)
             )
 
+            // The identifier is what a workflow passes to the shard jobs as `--shard-plan-id`, and
+            // the generated matrices below carry it; printing it once here covers the providers
+            // whose output can't.
             Logger.current.notice(
                 "Shard plan \(shardPlan.id) created: \(shardPlan.shard_count) shards",
                 metadata: .section
