@@ -6,6 +6,7 @@ defmodule Tuist.Registry.Swift.RepairTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias Tuist.Registry
   alias Tuist.Registry.S3
+  alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
   alias Tuist.Registry.Swift.Repair
   alias Tuist.Registry.Swift.SyncWorker
@@ -15,6 +16,10 @@ defmodule Tuist.Registry.Swift.RepairTest do
 
   setup do
     Sandbox.checkout(Tuist.Repo)
+
+    stub(Lock, :try_acquire, fn _key, _ttl -> {:ok, :acquired} end)
+    stub(Lock, :release, fn _key -> :ok end)
+
     :ok
   end
 
@@ -113,6 +118,86 @@ defmodule Tuist.Registry.Swift.RepairTest do
       refute_enqueued(worker: SyncWorker)
     end
 
+    # Normalization is lossy, so the handle cannot be derived back from scope and
+    # name, and it is the field the rebuild is actually executed against. Left
+    # unsigned, editing only it kept the approval valid while pointing the
+    # rebuild at a different package than the one that was backed up.
+    test "refuses a plan whose repository handle was edited after it was approved" do
+      stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+      stub(S3, :head_object, fn _key -> {:error, :not_found} end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+
+      repointed = %{
+        plan
+        | targets: Enum.map(plan.targets, &Map.put(&1, :repository_full_handle, "attacker/parser"))
+      }
+
+      reject(&S3.copy_object/2)
+
+      assert {:error, :approval_required} = Repair.apply_plan(repointed, approval: plan.approval)
+      refute_enqueued(worker: SyncWorker)
+    end
+
+    # `:counts` is a convenience for a human reading the plan and is not covered
+    # by the digest, so the gates must not trust it.
+    test "counts checksum-changing targets from the signed targets, not the plan's summary" do
+      versions = Enum.map(1..3, &{"apple/parser", "1.0.#{&1}"})
+
+      stub(Metadata, :get_package, fn _scope, _name ->
+        {:ok, %{"releases" => Map.new(1..3, &{"1.0.#{&1}", %{"checksum" => "abc"}})}}
+      end)
+
+      stub(S3, :head_object, fn _key -> {:error, :not_found} end)
+
+      {:ok, plan} = Repair.plan(versions, max_checksum_changes: 2)
+
+      understated = %{plan | counts: %{plan.counts | unresolvable: 0}}
+
+      reject(&S3.copy_object/2)
+
+      assert {:error, {:too_many_checksum_changes, 3, 2}} =
+               Repair.apply_plan(understated, approval: plan.approval)
+
+      refute_enqueued(worker: SyncWorker)
+    end
+
+    test "counts uninspectable targets from the signed targets, not the plan's summary" do
+      expect(Metadata, :get_package, fn _scope, _name -> {:error, {:s3_error, 500}} end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+
+      understated = %{plan | counts: %{plan.counts | uninspectable: 0}}
+
+      reject(&S3.copy_object/2)
+
+      assert {:error, {:uninspectable_targets, 1}} = Repair.apply_plan(understated, approval: plan.approval)
+      refute_enqueued(worker: SyncWorker)
+    end
+
+    # The release worker replaces the archive before it writes the catalog entry,
+    # so a rebuild that fails in between leaves new bytes under an unchanged
+    # catalog checksum. The obvious re-plan must not copy those over the only
+    # remaining copy of the pre-repair bytes.
+    test "keeps the first backup when one already exists for the published checksum" do
+      expect(Metadata, :get_package, 2, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
+
+      expect(S3, :head_object, fn "registry/swift/apple/parser/1.0.0/source_archive.zip" ->
+        {:ok, %{"x-amz-meta-sha256" => "rebuilt-bytes"}}
+      end)
+
+      {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+
+      expect(S3, :head_object, fn "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" ->
+        {:ok, %{}}
+      end)
+
+      reject(&S3.copy_object/2)
+      reject(&S3.upload_content/3)
+
+      assert {:ok, %{applied: [%{status: :enqueued}]}} = Repair.apply_plan(plan, approval: plan.approval)
+    end
+
     test "refuses a plan whose targets were edited after it was approved" do
       stub(Metadata, :get_package, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
       stub(S3, :head_object, fn _key -> {:ok, %{"x-amz-meta-sha256" => "abc"}} end)
@@ -168,9 +253,17 @@ defmodule Tuist.Registry.Swift.RepairTest do
 
     test "backs the archive up before enqueuing a rebuild that may replace it" do
       expect(Metadata, :get_package, 2, fn _scope, _name -> {:ok, catalog("1.0.0", "abc")} end)
-      expect(S3, :head_object, fn _key -> {:ok, %{"x-amz-meta-sha256" => "def"}} end)
+
+      expect(S3, :head_object, fn "registry/swift/apple/parser/1.0.0/source_archive.zip" ->
+        {:ok, %{"x-amz-meta-sha256" => "def"}}
+      end)
 
       {:ok, plan} = Repair.plan([{"apple/parser", "1.0.0"}])
+
+      # No backup exists yet for this published checksum, so one is taken.
+      expect(S3, :head_object, fn "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" ->
+        {:error, :not_found}
+      end)
 
       expect(S3, :copy_object, fn source, destination ->
         assert source == "registry/swift/apple/parser/1.0.0/source_archive.zip"
@@ -243,7 +336,7 @@ defmodule Tuist.Registry.Swift.RepairTest do
 
   describe "restore/4" do
     test "copies the backup back and rewrites the catalog entry to its checksum" do
-      expect(Metadata, :get_package, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
+      expect(Metadata, :get_package, 2, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
       expect(S3, :head_object, fn "registry/backups/swift/apple/parser/1.0.0/abc/source_archive.zip" -> {:ok, %{}} end)
 
       expect(S3, :copy_object, fn source, destination ->
@@ -279,6 +372,54 @@ defmodule Tuist.Registry.Swift.RepairTest do
       assert {:ok, %{cancelled_jobs: 1}} = Repair.restore("apple/parser", "1.0.0", "abc")
 
       assert %{state: "cancelled"} = Tuist.Repo.reload!(job)
+    end
+
+    # The catalog entry is one document per package, so the restore's write is a
+    # read-modify-write shared with release publication. Re-reading inside the
+    # lock is what keeps a version published during the archive copy from being
+    # dropped by writing back the older document.
+    test "re-reads the catalog inside the package lock rather than writing back the pre-flight copy" do
+      before_copy = catalog("1.0.0", "rebuilt")
+
+      published_during_copy =
+        put_in(before_copy["releases"]["2.0.0"], %{"checksum" => "published-while-copying", "manifests" => []})
+
+      Agent.start_link(fn -> [before_copy, published_during_copy] end, name: :restore_catalog_reads)
+
+      stub(Metadata, :get_package, fn "apple", "parser" ->
+        Agent.get_and_update(:restore_catalog_reads, fn
+          [only] -> {{:ok, only}, [only]}
+          [head | rest] -> {{:ok, head}, rest}
+        end)
+      end)
+
+      expect(Lock, :try_acquire, fn {:package, "apple", "parser"}, _ttl -> {:ok, :acquired} end)
+      expect(Lock, :release, fn {:package, "apple", "parser"} -> :ok end)
+
+      stub(S3, :head_object, fn _key -> {:ok, %{}} end)
+      stub(S3, :copy_object, fn _source, _destination -> :ok end)
+
+      expect(Metadata, :put_package, fn "apple", "parser", metadata ->
+        assert metadata["releases"]["1.0.0"]["checksum"] == "abc"
+        # Published while the archive was being copied. Writing back the
+        # pre-flight document would have silently dropped it.
+        assert metadata["releases"]["2.0.0"]["checksum"] == "published-while-copying"
+        :ok
+      end)
+
+      assert {:ok, %{checksum: "abc"}} = Repair.restore("apple/parser", "1.0.0", "abc")
+    end
+
+    test "reports the partial state when the package lock cannot be taken" do
+      stub(Metadata, :get_package, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
+      stub(S3, :head_object, fn _key -> {:ok, %{}} end)
+      stub(S3, :copy_object, fn _source, _destination -> :ok end)
+      stub(Lock, :try_acquire, fn _key, _ttl -> {:error, :already_locked} end)
+
+      reject(&Metadata.put_package/3)
+
+      assert {:error, {:restore_incomplete, :catalog_not_updated, :package_lock_contended}} =
+               Repair.restore("apple/parser", "1.0.0", "abc")
     end
 
     test "leaves a repair job for a different version alone" do
@@ -317,7 +458,7 @@ defmodule Tuist.Registry.Swift.RepairTest do
     # checksum, so the version resolves to a mismatch until this is re-run.
     # Naming that state is what tells the operator to retry.
     test "reports the partial state when the catalog write fails after the archive is replaced" do
-      expect(Metadata, :get_package, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
+      expect(Metadata, :get_package, 2, fn "apple", "parser" -> {:ok, catalog("1.0.0", "rebuilt")} end)
       expect(S3, :head_object, fn _key -> {:ok, %{}} end)
       expect(S3, :copy_object, fn _source, _destination -> :ok end)
       expect(Metadata, :put_package, fn _scope, _name, _metadata -> {:error, :timeout} end)
