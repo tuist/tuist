@@ -74,13 +74,10 @@ config:
   # MemoryPressure::Critical at ~1.68 GiB working set and start
   # shedding replication writes. These smaller caches keep steady-state
   # RSS around ~1.4 GiB, well below the 1.74 GiB hard limit where
-  # Critical fires. These values apply to Helm-chart deployments, which
-  # are the ones still on the 2 GiB limit above. The custom-resource
-  # instances the Kura controller provisions run a 1 GiB floor with a
-  # 4 GiB ceiling, so their hard limit is ~3.4 GiB and the controller
-  # sizes the snapshot cache higher for that headroom; the two paths are
-  # deliberately no longer identical. Spec #78 will supersede these when
-  # it ships the 512 MiB standard compute profile.
+  # Critical fires. These values apply to Helm-chart deployments; the
+  # production custom-resource-provisioned instances receive the same
+  # overrides from the Kura controller. Spec #78 will supersede these
+  # when it ships the 512 MiB standard compute profile.
   memory:
     snapshotCacheMaxBytes: 67108864
     manifestCacheMaxBytes: 33554432

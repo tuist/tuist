@@ -296,7 +296,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
 	for name, expected := range map[string]string{
-		snapshotCacheMaxBytesEnvVar:             "134217728",
+		snapshotCacheMaxBytesEnvVar:             "67108864",
 		manifestCacheMaxBytesEnvVar:             "33554432",
 		metadataStoreReadCacheBytesEnvVar:       "33554432",
 		metadataStoreWriteBufferPoolBytesEnvVar: "33554432",
