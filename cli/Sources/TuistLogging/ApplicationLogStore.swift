@@ -1,4 +1,4 @@
-#if os(iOS)
+#if os(iOS) || os(macOS)
     import Foundation
 
     public protocol ApplicationLogStoring: Sendable {
