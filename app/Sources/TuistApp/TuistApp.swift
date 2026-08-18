@@ -1,5 +1,6 @@
 import SwiftUI
 import TuistAuthentication
+import TuistLogging
 import TuistServer
 
 #if os(macOS)
