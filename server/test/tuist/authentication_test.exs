@@ -32,16 +32,26 @@ defmodule Tuist.AuthenticationTest do
 
     expect(Tuist.Guardian, :resource_from_token, fn ^user_token -> {:ok, user, %{}} end)
 
-    # When/Then
-    assert Authentication.authenticated_subject(user_token) == user
+    # When
+    subject = Authentication.authenticated_subject(user_token)
+
+    # Then
+    assert subject.id == user.id
+    # Authenticating is activity, so the subject comes back with its
+    # inactivity clock reset.
+    assert subject.last_sign_in_at
   end
 
   test "authenticated_subject returns the user associated to the token" do
     # Given
     user = AccountsFixtures.user_fixture()
 
-    # When/Then
-    assert Authentication.authenticated_subject(user.token) == user
+    # When
+    subject = Authentication.authenticated_subject(user.token)
+
+    # Then
+    assert subject.id == user.id
+    assert subject.last_sign_in_at
   end
 
   test "authenticated_subject returns the project associated to the legacy token" do

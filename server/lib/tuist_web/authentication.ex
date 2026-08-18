@@ -192,6 +192,7 @@ defmodule TuistWeb.Authentication do
       end
 
     Analytics.user_authenticate(user)
+    Accounts.touch_last_sign_in(user)
 
     conn
     |> renew_session()
@@ -280,6 +281,10 @@ defmodule TuistWeb.Authentication do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token, preload: [:account])
+    # A session resumed from the remember-me cookie is still the account being
+    # used, so it has to count as activity. Otherwise a user who never logs in
+    # again because they never log out looks dormant.
+    user = user && Accounts.touch_last_sign_in(user)
     assign(conn, :current_user, user)
   end
 

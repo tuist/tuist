@@ -33,6 +33,7 @@ defmodule Tuist.Authentication do
   end
 
   defp reject_if_inactive_user(%User{active: false}), do: nil
+  defp reject_if_inactive_user(%User{} = user), do: Accounts.touch_last_sign_in(user)
   defp reject_if_inactive_user(other), do: other
 
   defp reject_if_inactive_account_user(%AuthenticatedAccount{account: %Account{} = account} = resource) do
