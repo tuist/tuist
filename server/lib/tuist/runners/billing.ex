@@ -42,29 +42,32 @@ defmodule Tuist.Runners.Billing do
 
   ## Stripe reporting
 
-  Usage is metered as normalized compute units against a single
-  Stripe meter. A session's elapsed milliseconds are scaled by the
-  effective multiplier frozen on the row when it opened, so the
-  2 vCPU / 8 GB Linux baseline reports one unit-millisecond per
-  elapsed millisecond and every other machine reports proportionally
-  more. The meter receives compute-unit milliseconds and its price
-  transforms 60,000 units into one billed baseline-minute.
+  Usage is metered as normalized compute units, one Stripe meter per
+  platform. Each platform is normalized to its own baseline machine,
+  so one Linux compute unit is one minute on the 2 vCPU / 8 GB Linux
+  baseline and one macOS compute unit is one minute on the 6 vCPU /
+  14 GB Mac. A session's elapsed milliseconds are scaled by the
+  multiplier frozen on the row when it opened. Each meter receives
+  compute-unit milliseconds and its price transforms 60,000 units
+  into one billed baseline-minute, so a platform's Price is quoted
+  directly per baseline machine-minute.
 
-  One meter rather than one per exact shape or per platform: Stripe
-  caps classic subscriptions at 20 items, and a per-shape catalog
-  would burn one item per shape plus a Meter, Price, config key,
-  and backfill for every shape ever added. Splitting by platform
-  instead would make a compute unit worth a different amount
-  depending on which meter it landed in. The platform premium lives
-  in the multiplier alongside the resource weighting, since both are
-  rate card. Raw shape, raw milliseconds, and the frozen multiplier
-  stay on the row, so analytics lose nothing.
+  Per platform rather than per exact shape: Stripe caps classic
+  subscriptions at 20 items, and a per-shape catalog would burn one
+  item per shape plus a Meter, Price, config key, and backfill for
+  every shape ever added. Two meters keep a subscription at two
+  runner items no matter how many shapes the catalog grows to, while
+  leaving each platform's rate, credit grants, discounts, contract
+  terms, and invoice line items independently movable in Stripe. A
+  single global unit would instead fix both platforms' rates to one
+  hardcoded ratio. Raw shape, raw milliseconds, and the frozen
+  multiplier stay on the row, so analytics lose nothing.
 
   Usage is always reported gross. Prepaid runner access is a
-  money-denominated Stripe billing credit grant scoped to the
-  runner meter prices, rather than minutes subtracted in Tuist.
-  That keeps mixed machine types fungible without pretending that
-  every machine minute has the same value.
+  money-denominated Stripe billing credit grant scoped to the runner
+  meter prices, rather than minutes subtracted in Tuist. Scoping a
+  grant to one platform's Price is what lets prepaid terms differ
+  between Linux and macOS.
   """
 
   import Ecto.Query
@@ -246,25 +249,34 @@ defmodule Tuist.Runners.Billing do
   end
 
   @doc """
-  Total billable compute-unit milliseconds for the requested window.
+  Billable compute-unit milliseconds grouped by platform for the
+  requested window.
 
   This is what Stripe is metered on. Each machine group's elapsed
-  milliseconds are scaled by the effective multiplier frozen on its
-  sessions, so a 4 vCPU / 16 GB Linux machine contributes twice the units
-  of the 2 vCPU / 8 GB baseline for the same wall-clock time, and a macOS
-  machine carries its platform premium in the same number. One meter for
-  every shape and platform keeps a subscription at a single runner item
-  no matter how the catalog grows, and keeps a compute unit worth the
-  same amount wherever it came from.
+  milliseconds are scaled by the multiplier frozen on its sessions, so a
+  4 vCPU / 16 GB Linux machine contributes twice the units of the Linux
+  baseline for the same wall-clock time. Because each platform is
+  normalized to its own baseline machine, one macOS compute unit is one
+  minute on the real 6 vCPU / 14 GB Mac, and its Stripe Price is quoted
+  directly in those terms.
+
+  One meter per platform, rather than one per exact shape, keeps a
+  subscription at two runner items no matter how many shapes the catalog
+  grows to, while leaving each platform's rate, credit grants, and
+  contract terms independently movable in Stripe.
 
   Weighted milliseconds truncate rather than round, keeping the same
   under-bill bias the rest of this module holds to.
   """
-  def compute_unit_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+  def compute_units_by_platform(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
     account_id
     |> compute_milliseconds_by_machine(period_start, period_end, opts)
-    |> Enum.reduce(0, fn usage, acc -> acc + compute_units(usage) end)
+    |> Enum.reduce(%{}, fn usage, acc ->
+      Map.update(acc, usage.platform, compute_units(usage), &(&1 + compute_units(usage)))
+    end)
+    |> Enum.map(fn {platform, total_units} -> %{platform: platform, total_units: total_units} end)
+    |> Enum.sort_by(& &1.platform)
   end
 
   defp compute_units(%{total_ms: total_ms, billing_multiplier: multiplier}) do
@@ -272,9 +284,11 @@ defmodule Tuist.Runners.Billing do
   end
 
   @doc """
-  Stable Stripe meter event name for runner compute.
+  Stable Stripe meter event name for a runner platform.
   """
-  def meter_event_name, do: "runner_compute_unit_milliseconds"
+  def meter_event_name(platform) when platform in [:linux, :macos] do
+    "runner_#{platform}_compute_unit_milliseconds"
+  end
 
   @doc """
   Returns a bucket-keyed map of billable milliseconds within the

@@ -378,7 +378,7 @@ defmodule Tuist.BillingTest do
             "usage" => ["pro.usage"],
             "flat_monthly" => ["pro.flat.monthly"]
           },
-          "runners" => %{"runner_compute_unit_milliseconds" => "runner.compute"}
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"}
         }
       end)
 
@@ -386,7 +386,7 @@ defmodule Tuist.BillingTest do
                                     success_url: "success_url",
                                     line_items: [
                                       %{price: "pro.usage"},
-                                      %{price: "runner.compute"},
+                                      %{price: "runner.macos"},
                                       %{price: "pro.flat.monthly", quantity: 1}
                                     ],
                                     mode: "subscription",
@@ -513,7 +513,7 @@ defmodule Tuist.BillingTest do
           "flat_monthly" => ["pro.flat.monthly"]
         },
         "runners" => %{
-          "runner_compute_unit_milliseconds" => "runner.compute"
+          "runner_macos_compute_unit_milliseconds" => "runner.macos"
         }
       }
     end)
@@ -528,7 +528,7 @@ defmodule Tuist.BillingTest do
         data: [
           %{price: %{id: "pro.usage"}},
           %{price: %{id: "pro.flat.monthly"}},
-          %{price: %{id: "runner.compute"}}
+          %{price: %{id: "runner.macos"}}
         ]
       }
     })
@@ -546,7 +546,10 @@ defmodule Tuist.BillingTest do
           "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
           "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
           "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
-          "runners" => %{"runner_compute_unit_milliseconds" => "runner.compute"}
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos"
+          }
         }
       end)
 
@@ -554,8 +557,8 @@ defmodule Tuist.BillingTest do
     end
 
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
-      # Given a subscription that already carries the runner item, so its
-      # accrued usage would be lost if the plan change deleted it.
+      # Given a subscription that already carries the Linux runner item, so
+      # its accrued usage would be lost if the plan change deleted it.
       stub(Stripe.Subscription, :retrieve, fn "sub_runner" ->
         {:ok,
          %Stripe.Subscription{
@@ -563,7 +566,7 @@ defmodule Tuist.BillingTest do
              data: [
                %{id: "si_air_usage", price: %{id: "air.usage"}},
                %{id: "si_air_flat", price: %{id: "air.flat.monthly"}},
-               %{id: "si_runner", price: %{id: "runner.compute"}}
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}}
              ]
            }
          }}
@@ -587,14 +590,16 @@ defmodule Tuist.BillingTest do
       # When
       assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
 
-      # Then the runner item is absent from the payload entirely: not
-      # deleted, not re-added, so it keeps its Stripe id and its usage.
+      # Then the Linux runner item is absent from the payload entirely: not
+      # deleted, not re-added, so it keeps its Stripe id and its usage. Only
+      # the macOS price it was missing gets attached.
       assert_received {:items, items}
 
       assert items == [
                %{id: "si_air_usage", deleted: true},
                %{id: "si_air_flat", deleted: true},
                %{price: "pro.usage"},
+               %{price: "runner.macos"},
                %{price: "pro.flat.monthly", quantity: 1}
              ]
     end
@@ -638,12 +643,13 @@ defmodule Tuist.BillingTest do
                %{id: "si_air_usage", deleted: true},
                %{id: "si_air_flat", deleted: true},
                %{price: "pro.usage"},
-               %{price: "runner.compute"},
+               %{price: "runner.linux"},
+               %{price: "runner.macos"},
                %{price: "pro.flat.monthly", quantity: 1}
              ]
     end
 
-    test "keeps the runner item when switching to enterprise", %{account: account} do
+    test "keeps both runner items when switching to enterprise", %{account: account} do
       # Given
       stub(Stripe.Subscription, :retrieve, fn "sub_runner_enterprise" ->
         {:ok,
@@ -652,7 +658,8 @@ defmodule Tuist.BillingTest do
              data: [
                %{id: "si_pro_usage", price: %{id: "pro.usage"}},
                %{id: "si_pro_flat", price: %{id: "pro.flat.monthly"}},
-               %{id: "si_runner", price: %{id: "runner.compute"}}
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}},
+               %{id: "si_runner_macos", price: %{id: "runner.macos"}}
              ]
            }
          }}
@@ -703,23 +710,23 @@ defmodule Tuist.BillingTest do
       account_id = account.id
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
-      event_name = "runner_compute_unit_milliseconds"
-
+      # Only the macOS price is configured, so Linux usage stays unreported
+      # until its own price lands. Each platform turns on independently.
       stub(Environment, :stripe_prices, fn ->
-        %{"runners" => %{event_name => "runner.compute"}}
+        %{"runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"}}
       end)
 
       expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
         10
       end)
 
-      expect(RunnerBilling, :compute_unit_milliseconds, fn ^account_id, ^period_start, ^period_end ->
-        750_125
+      expect(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, total_units: 400_000}, %{platform: :macos, total_units: 750_125}]
       end)
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "remote_cache_hit", value: 10},
-               %{event_name: event_name, value: 750_125}
+               %{event_name: "runner_macos_compute_unit_milliseconds", value: 750_125}
              ]
     end
 
@@ -735,7 +742,9 @@ defmodule Tuist.BillingTest do
         10
       end)
 
-      reject(&RunnerBilling.compute_unit_milliseconds/3)
+      stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ ->
+        [%{platform: :linux, total_units: 400_000}, %{platform: :macos, total_units: 750_125}]
+      end)
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "remote_cache_hit", value: 10}
@@ -764,7 +773,7 @@ defmodule Tuist.BillingTest do
         0
       end)
 
-      stub(RunnerBilling, :compute_unit_milliseconds, fn ^account_id, ^period_start, ^period_end -> 0 end)
+      stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == [
                %{event_name: "llm_input_token", value: 100},
@@ -783,7 +792,7 @@ defmodule Tuist.BillingTest do
         0
       end)
 
-      stub(RunnerBilling, :compute_unit_milliseconds, fn ^account_id, ^period_start, ^period_end -> 0 end)
+      stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == []
     end
@@ -792,7 +801,7 @@ defmodule Tuist.BillingTest do
   describe "report_meter_event/5" do
     test "stamps the event inside its own usage window under a period-specific identifier" do
       customer_id = "customer-#{UUIDv7.generate()}"
-      event_name = "runner_compute_unit_milliseconds"
+      event_name = "runner_macos_compute_unit_milliseconds"
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
@@ -839,7 +848,7 @@ defmodule Tuist.BillingTest do
       assert {:ok, :already_reported} =
                Billing.report_meter_event(
                  customer_id,
-                 "runner_compute_unit_milliseconds",
+                 "runner_macos_compute_unit_milliseconds",
                  750_125,
                  ~U[2026-07-16 00:00:00.000000Z],
                  ~U[2026-07-17 00:00:00.000000Z]
@@ -854,14 +863,14 @@ defmodule Tuist.BillingTest do
          %Stripe.Error{
            source: :stripe,
            code: :invalid_request_error,
-           message: "No such meter: `runner_compute_unit_milliseconds`."
+           message: "No such meter: `runner_macos_compute_unit_milliseconds`."
          }}
       end)
 
       assert {:error, %Stripe.Error{}} =
                Billing.report_meter_event(
                  customer_id,
-                 "runner_compute_unit_milliseconds",
+                 "runner_macos_compute_unit_milliseconds",
                  750_125,
                  ~U[2026-07-16 00:00:00.000000Z],
                  ~U[2026-07-17 00:00:00.000000Z]

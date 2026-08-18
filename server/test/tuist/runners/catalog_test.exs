@@ -5,13 +5,15 @@ defmodule Tuist.Runners.CatalogTest do
   alias Tuist.Runners.Catalog
 
   describe "billing_multiplier/3" do
-    test "the 2 vCPU / 8 GB baseline is exactly one compute unit" do
+    test "each platform's baseline machine is exactly one compute unit" do
       assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()
+      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.compute_unit_basis_points()
     end
 
     test "doubling both resources doubles the multiplier" do
       assert Catalog.billing_multiplier(:linux, 4, 16) == 2 * Catalog.billing_multiplier(:linux, 2, 8)
       assert Catalog.billing_multiplier(:linux, 8, 32) == 4 * Catalog.billing_multiplier(:linux, 2, 8)
+      assert Catalog.billing_multiplier(:macos, 12, 28) == 2 * Catalog.billing_multiplier(:macos, 6, 14)
     end
 
     test "weights CPU more heavily than memory" do
@@ -20,25 +22,11 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.billing_multiplier(:linux, 4, 8) > Catalog.billing_multiplier(:linux, 2, 16)
     end
 
-    test "carries the macOS premium so one compute unit is worth the same everywhere" do
-      # With a single meter, the platform premium has to be in the
-      # multiplier: the same shape on macOS costs more than on Linux.
-      assert Catalog.billing_multiplier(:macos, 6, 14) ==
-               4 * Catalog.billing_multiplier(:linux, 6, 14)
-
-      assert Catalog.platform_multiplier(:linux) == Catalog.compute_unit_basis_points()
-    end
-
-    test "the real macOS machine is what its premium is defined against" do
-      # 62/24 resource units at a 4x platform coefficient.
-      assert Catalog.billing_multiplier(:macos, 6, 14) == 103_332
-    end
-  end
-
-  describe "resource_multiplier/2" do
-    test "is the platform-independent shape weighting" do
-      assert Catalog.resource_multiplier(2, 8) == Catalog.compute_unit_basis_points()
-      assert Catalog.resource_multiplier(4, 16) == 2 * Catalog.resource_multiplier(2, 8)
+    test "carries no platform premium, so each platform's Price sets its own rate" do
+      # The premium lives in the Stripe Price, not the multiplier. A macOS
+      # unit and a Linux unit are each one minute on their own baseline, so
+      # the same shape weighs less on the platform whose baseline is bigger.
+      assert Catalog.billing_multiplier(:macos, 2, 8) < Catalog.billing_multiplier(:linux, 2, 8)
     end
   end
 

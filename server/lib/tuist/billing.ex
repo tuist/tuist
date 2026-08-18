@@ -131,25 +131,19 @@ defmodule Tuist.Billing do
         []
       end
 
-    # Only report the runner meter once its Stripe price is configured.
-    # During the staged rollout `stripe.prices.runners` is empty, so the
-    # meter doesn't exist in Stripe yet; reporting to an unprovisioned
-    # meter just errors the job and adds Sentry noise, and usage without
-    # an attached price wouldn't bill anyway. Runner billing turns on the
-    # moment the price lands in config.
-    runner_event_name = RunnerBilling.meter_event_name()
-
+    # Only report a platform's runner meter once its Stripe price is
+    # configured. During the staged rollout `stripe.prices.runners` is
+    # empty, so neither meter exists in Stripe yet; reporting to an
+    # unprovisioned meter just errors the job and adds Sentry noise, and
+    # usage without an attached price wouldn't bill anyway. Each platform
+    # turns on independently, the moment its price lands in config.
     runner_values =
-      if runner_meter_priced?(runner_event_name) do
-        [
-          %{
-            event_name: runner_event_name,
-            value: RunnerBilling.compute_unit_milliseconds(account_id, period_start, period_end)
-          }
-        ]
-      else
-        []
-      end
+      account_id
+      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> Enum.map(fn usage ->
+        %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
+      end)
+      |> Enum.filter(&runner_meter_priced?(&1.event_name))
 
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
