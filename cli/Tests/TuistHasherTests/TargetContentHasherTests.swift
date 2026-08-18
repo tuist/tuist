@@ -21,6 +21,7 @@ struct TargetContentHasherTests {
     private var settingsContentHasher: MockSettingsContentHashing!
     private var dependenciesContentHasher: MockDependenciesContentHashing!
     private var foreignBuildHasher: MockForeignBuildHashing!
+    private var additionalHashingInputsHasher: MockAdditionalHashingInputsHashing!
     private var subject: TargetContentHasher!
 
     init() async throws {
@@ -36,6 +37,7 @@ struct TargetContentHasherTests {
         settingsContentHasher = MockSettingsContentHashing()
         dependenciesContentHasher = MockDependenciesContentHashing()
         foreignBuildHasher = MockForeignBuildHashing()
+        additionalHashingInputsHasher = MockAdditionalHashingInputsHashing()
         subject = TargetContentHasher(
             contentHasher: contentHasher,
             sourceFilesContentHasher: sourceFilesContentHasher,
@@ -48,7 +50,8 @@ struct TargetContentHasherTests {
             plistContentHasher: plistContentHasher,
             settingsContentHasher: settingsContentHasher,
             dependenciesContentHasher: dependenciesContentHasher,
-            foreignBuildHasher: foreignBuildHasher
+            foreignBuildHasher: foreignBuildHasher,
+            additionalHashingInputsHasher: additionalHashingInputsHasher
         )
 
         given(contentHasher)
@@ -80,6 +83,9 @@ struct TargetContentHasherTests {
         given(dependenciesContentHasher)
             .hash(graphTarget: .any, hashedTargets: .any, hashedPaths: .any)
             .willReturn(DependenciesContentHash(hashedPaths: [:], hash: "dependencies_hash"))
+        given(additionalHashingInputsHasher)
+            .hash(inputs: .any, hashedPaths: .any, sourceRootPath: .any)
+            .willReturn((hash: nil, hashedPaths: [:]))
         given(targetScriptsContentHasher)
             .hash(targetScripts: .any, sourceRootPath: .any)
             .willReturn("target_scripts_hash")
@@ -184,6 +190,47 @@ struct TargetContentHasherTests {
                 additionalStrings: ["additional_string"]
             )
         )
+    }
+
+    @Test func hash_with_additional_hashing_inputs() async throws {
+        // Given
+        let hashingInputs: [TargetHashingInput] = [.string("codegen-version")]
+        let inputPath = try AbsolutePath(validating: "/test/template.stencil")
+        let target = GraphTarget.test(
+            target: .test(additionalHashingInputs: hashingInputs),
+            project: .test()
+        )
+        additionalHashingInputsHasher.reset([.given])
+        given(additionalHashingInputsHasher)
+            .hash(
+                inputs: .any,
+                hashedPaths: .any,
+                sourceRootPath: .any
+            )
+            .willReturn((
+                hash: "additional_hashing_inputs_hash",
+                hashedPaths: [inputPath: "template_hash"]
+            ))
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+
+        // Then
+        #expect(got.hash.contains("additional_hashing_inputs_hash"))
+        #expect(got.hashedPaths[inputPath] == "template_hash")
+        #expect(got.subhashes.additionalHashingInputs == "additional_hashing_inputs_hash")
+        verify(additionalHashingInputsHasher)
+            .hash(
+                inputs: .value(hashingInputs),
+                hashedPaths: .any,
+                sourceRootPath: .any
+            )
+            .called(1)
     }
 
     @Test func hash_with_buildable_folders() async throws {

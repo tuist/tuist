@@ -107,7 +107,29 @@ defmodule Tuist.Runners.WorkflowJobs do
   racing a completion leaves the completed state alone.
   """
   def requeue(workflow_job_id) when is_integer(workflow_job_id) do
-    transition(workflow_job_id, ["claimed", "running"], "queued",
+    transition(workflow_job_id, ["claimed", "running"], "queued", requeue_fields())
+  end
+
+  @doc """
+  Like `requeue/1`, but guarded on the `claimed_at` handle as well as
+  the status — the lifecycle-row half of `Tuist.Runners.Claims.release/2`,
+  for callers whose claim is already gone.
+
+  `Claims.release_by_pod_name/1` deletes a stopped Pod's claim without
+  re-queueing the row, because whether the job should run again is
+  GitHub's call (it may be executing on a sibling runner).
+  `OrphanedRunnersWorker` makes that call and lands here to finish the
+  release: the row still carries the stopped Pod's `claimed_at` only
+  if nothing else has touched it since, so a job that was re-claimed
+  (newer handle) or completed (terminal status) misses the guard and
+  is left alone. Returns `:ok` when applied, `:noop` otherwise.
+  """
+  def requeue_by_handle(workflow_job_id, %DateTime{} = claimed_at) when is_integer(workflow_job_id) do
+    transition(workflow_job_id, ["claimed", "running"], "queued", requeue_fields(), claimed_at: claimed_at)
+  end
+
+  defp requeue_fields do
+    [
       conclusion: nil,
       pod_name: nil,
       runner_name: nil,
@@ -115,7 +137,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       started_at: nil,
       completed_at: nil,
       executed_workflow_job_id: nil
-    )
+    ]
   end
 
   @doc """
@@ -289,17 +311,30 @@ defmodule Tuist.Runners.WorkflowJobs do
     Repo.all(
       from(j in WorkflowJob,
         where: j.status == "running" and j.started_at < ^threshold,
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: j.account_id,
-          repository: j.repository,
-          claimed_at: j.claimed_at,
-          started_at: j.started_at,
-          pod_name: j.pod_name
-        }
+        select: map(j, ^orphan_fields())
       )
     )
   end
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.get_orphaned_running/1`: the
+  same recovery shape for one workflow_job, or `nil` unless the row's
+  current status is `running`. Feeds `OrphanedRunnersWorker`'s
+  targeted mode, where the caller already holds evidence the Pod is
+  gone and needs no age gate.
+  """
+  def get_orphaned_running(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.one(
+      from(j in WorkflowJob,
+        where: j.workflow_job_id == ^workflow_job_id and j.status == "running",
+        select: map(j, ^orphan_fields())
+      )
+    )
+  end
+
+  @orphan_fields [:workflow_job_id, :account_id, :repository, :claimed_at, :started_at, :pod_name, :fleet_name]
+
+  defp orphan_fields, do: @orphan_fields
 
   @doc """
   Postgres twin of `Tuist.Runners.Jobs.list_stale_queued/2`, feeding
@@ -414,20 +449,19 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   # ----- internal -----
 
-  defp transition(workflow_job_id, expected_statuses, new_status, set_fields) do
+  defp transition(workflow_job_id, expected_statuses, new_status, set_fields, guards \\ []) do
     now = DateTime.utc_now()
     set_fields = Keyword.merge(set_fields, status: new_status, updated_at: DateTime.truncate(now, :second))
 
     {:ok, outcome} =
       Repo.transaction(fn ->
         {count, rows} =
-          Repo.update_all(
-            from(j in WorkflowJob,
-              where: j.workflow_job_id == ^workflow_job_id and j.status in ^expected_statuses,
-              select: j
-            ),
-            set: set_fields
+          from(j in WorkflowJob,
+            where: j.workflow_job_id == ^workflow_job_id and j.status in ^expected_statuses,
+            select: j
           )
+          |> apply_guards(guards)
+          |> Repo.update_all(set: set_fields)
 
         case {count, rows} do
           {1, [row]} ->
@@ -440,6 +474,12 @@ defmodule Tuist.Runners.WorkflowJobs do
       end)
 
     outcome
+  end
+
+  defp apply_guards(query, []), do: query
+
+  defp apply_guards(query, claimed_at: %DateTime{} = claimed_at) do
+    where(query, [j], j.claimed_at == ^claimed_at)
   end
 
   defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do

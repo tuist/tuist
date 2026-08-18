@@ -1,0 +1,82 @@
+{
+  "name": "Filter",
+  "tagName": "noora-filter",
+  "elementClassName": "NooraFilter",
+  "className": "noora-filter",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Builds and displays a set of structured filters.",
+  "usage": "<noora-filter>\n  <noora-filter-definition name=\"status\" label=\"Status\" type=\"option\">\n    <noora-filter-option value=\"active\">Active</noora-filter-option>\n    <noora-filter-option value=\"paused\">Paused</noora-filter-option>\n  </noora-filter-definition>\n  <noora-filter-value name=\"status\" operator=\"==\" value=\"active\"></noora-filter-value>\n</noora-filter>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "Filter",
+      "description": "Sets the add-filter label."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables editing."
+    }
+  ],
+  "properties": [
+    {
+      "name": "availableFilters",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines available filters programmatically when declarative definitions are not used."
+    },
+    {
+      "name": "filters",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Gets or sets active filters programmatically."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-filter-definition and noora-filter-value children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "filter",
+      "description": "The filter container."
+    },
+    {
+      "name": "active-filters",
+      "description": "The active-filter list."
+    },
+    {
+      "name": "add",
+      "description": "The add-filter control."
+    },
+    {
+      "name": "active-filter",
+      "description": "An active filter control."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-filter-change",
+      "type": "CustomEvent<{ filters: Array<Record<string, unknown>> }>",
+      "description": "Emitted when a filter is added, changed, or removed."
+    }
+  ],
+  "notes": ["Changes emit a `noora-filter-change` event."],
+  "examples": [
+    {
+      "id": "status",
+      "title": "Status filter",
+      "description": "Offer a predefined status filter.",
+      "markup": "<noora-filter>\n  <noora-filter-definition name=\"status\" label=\"Status\" type=\"option\">\n    <noora-filter-option value=\"active\">Active</noora-filter-option>\n    <noora-filter-option value=\"paused\">Paused</noora-filter-option>\n  </noora-filter-definition>\n  <noora-filter-definition name=\"name\" label=\"Name\" type=\"text\"></noora-filter-definition>\n  <noora-filter-definition name=\"amount\" label=\"Amount\" type=\"number\"></noora-filter-definition>\n  <noora-filter-value name=\"status\" operator=\"==\" value=\"active\"></noora-filter-value>\n</noora-filter>"
+    }
+  ]
+}

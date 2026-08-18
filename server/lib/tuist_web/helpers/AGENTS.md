@@ -4,6 +4,7 @@ This area owns helper functions for views, forms, and UI utilities.
 
 ## Responsibilities
 - Provide helpers for formatting, rendering, and UI convenience.
+- Build deterministic signed Open Graph image URLs from template variables supplied by controllers and LiveViews.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

@@ -213,6 +213,21 @@ defmodule Tuist.Runners.DispatchTest do
       assert Map.get(counts, "queued", 0) == 1
     end
 
+    test "returns an enqueue failure so the webhook worker retries it" do
+      account = enabled_account()
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      stub(Jobs, :enqueue_if_missing, fn _attrs -> {:error, :rollback} end)
+
+      assert {:error, :rollback} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
     test "returns {:ignored, :no_pools} when the cluster has no RunnerPool CRs" do
       account = enabled_account()
 
@@ -353,6 +368,44 @@ defmodule Tuist.Runners.DispatchTest do
 
         refute_enqueued(worker: FetchLogsWorker, args: %{workflow_job_id: id})
       end
+    end
+
+    test "propagates an unexpected error from the completion write so Oban retries" do
+      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :rollback} end)
+
+      payload =
+        completed_payload(
+          id: 4400,
+          conclusion: "success",
+          steps: [%{"name" => "Set up job", "status" => "completed", "number" => 1}]
+        )
+
+      assert {:error, :rollback} = Dispatch.handle_webhook(payload, 1)
+
+      refute_enqueued(worker: FetchLogsWorker, args: %{workflow_job_id: 4400})
+    end
+
+    test "propagates an unexpected error from the completed-before-queued write" do
+      account = enabled_account()
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :not_found} end)
+      stub(Jobs, :record_completed, fn _attrs, _conclusion -> {:error, :rollback} end)
+
+      payload =
+        completed_payload(
+          owner: account.name,
+          id: 4410,
+          conclusion: "cancelled",
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:error, :rollback} = Dispatch.handle_webhook(payload, 1)
     end
 
     test "does not resurrect a canceled job when completed arrives before queued" do

@@ -53,7 +53,7 @@
           </.tab_menu_vertical>
         </.link>
         <div :for={group <- @tree} data-part="nav-section">
-          <.line_divider />
+          <.line_divider :if={group.label} />
           <div :if={group.label} data-part="content-divider">
             <.icon name={group_icon(group.label)} />
             <span>{group.label}</span>

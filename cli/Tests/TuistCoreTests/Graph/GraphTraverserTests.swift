@@ -1,11 +1,50 @@
 import FileSystem
 import Foundation
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistTesting
+
+struct GraphTraverserPackageProductTests {
+    @Test func packageProductsLinkedThroughStaticTargetsIncludesDirectAndTransitiveProducts() {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let featureCore = Target.test(name: "FeatureCore", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [feature, featureCore])
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let featureCoreDependency = GraphDependency.target(name: featureCore.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                featureDependency: [featureCoreDependency],
+                featureCoreDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let packageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: feature.name
+        )
+        let directPackageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: featureCore.name
+        )
+
+        // Then
+        #expect(packageProducts == [.packageProduct(product: "SwiftProtobuf")])
+        #expect(directPackageProducts == [.packageProduct(product: "SwiftProtobuf")])
+    }
+}
 
 final class GraphTraverserTests: TuistUnitTestCase {
     func test_dependsOnXCTest_when_is_framework() {
@@ -514,6 +553,46 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
+        ])
+    }
+
+    func test_resourceBundleTargetDependencies_preservesProducerPathWhenTargetNamesCollide() {
+        let bundleA = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [bundleA, staticFramework])
+        let bundleB = Target.test(name: "ResourceBundle", product: .bundle)
+        let projectB = Project.test(path: "/path/b", targets: [bundleB])
+        let app = Target.test(name: "App", product: .app)
+        let appProject = Project.test(path: "/path/app", targets: [app])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: appProject.path): [
+                .target(name: staticFramework.name, path: projectA.path),
+            ],
+            .target(name: staticFramework.name, path: projectA.path): [
+                .target(name: bundleA.name, path: projectA.path),
+            ],
+            .target(name: bundleA.name, path: projectA.path): [],
+            .target(name: bundleB.name, path: projectB.path): [],
+        ]
+        let graph = Graph.test(
+            path: .root,
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+                appProject.path: appProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        let got = subject.resourceBundleTargetDependencies(path: appProject.path, name: app.name)
+
+        XCTAssertEqual(got, [
+            GraphTargetReference(
+                target: GraphTarget(path: projectA.path, target: bundleA, project: projectA),
+                condition: nil
+            ),
         ])
     }
 

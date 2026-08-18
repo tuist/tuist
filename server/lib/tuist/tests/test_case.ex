@@ -9,6 +9,11 @@ defmodule Tuist.Tests.TestCase do
 
   import Ecto.Changeset
 
+  # `state` and `is_flaky` are deliberately absent from `filterable`. They live
+  # in `test_case_states` (the columns of the same name here are legacy and no
+  # longer read), so `Tuist.Tests.list_test_cases/3` pulls those filters out and
+  # applies them against the joined subquery. Leaving them filterable here would
+  # let a filter silently match the stale column instead.
   @derive {
     Flop.Schema,
     filterable: [
@@ -17,8 +22,6 @@ defmodule Tuist.Tests.TestCase do
       :module_name,
       :suite_name,
       :last_status,
-      :is_flaky,
-      :state,
       :last_ran_at,
       :last_ran_at_ci,
       :last_ran_at_local

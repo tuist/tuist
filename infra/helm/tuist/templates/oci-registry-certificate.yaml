@@ -1,0 +1,33 @@
+{{- /*
+  Skipped when the Pod is a tailnet node: the certificate is then for a
+  `.ts.net` name, and Let's Encrypt cannot issue for a zone we do not
+  control — Tailscale issues those, and the cert sidecar fetches one.
+*/ -}}
+{{- if and (not .Values.ociRegistry.tailscale.enabled) .Values.ociRegistry.enabled .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.certificate.enabled }}
+# Publicly-trusted certificate for a privately-reachable endpoint.
+#
+# The name has to be one we control, because no public CA will issue for
+# a `.ts.net` name. It resolves to the tailnet node via a CNAME to the
+# MagicDNS name (see the Service's external-dns annotations) rather than
+# an A record, because the tailnet address is not stable — it already
+# changed once when the node was recreated. Outside the tailnet the
+# CNAME target does not resolve, so this fails closed.
+#
+# Issuance is DNS-01, which needs no inbound reachability. The challenge
+# lands on `_acme-challenge.<host>`, a separate label, so it does not
+# collide with the CNAME at the host itself.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tls") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry
+spec:
+  secretName: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tls") }}
+  dnsNames:
+    - {{ required "ociRegistry.tls.host is required when ociRegistry.tls.enabled is true" .Values.ociRegistry.tls.host | quote }}
+  issuerRef:
+    name: {{ .Values.ociRegistry.tls.certificate.issuerRef.name }}
+    kind: {{ .Values.ociRegistry.tls.certificate.issuerRef.kind }}
+{{- end }}

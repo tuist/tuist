@@ -19,13 +19,17 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     case missingPathInLocalSwiftPackage(String)
     /// Thrown when dependencies were not installed before loading the graph SwiftPackageManagerGraph
     case installRequired
+    /// Thrown when a dependency's `Package.swift` cannot be loaded from the directory the
+    /// workspace state points at. Swift Package Manager reports this against its own working
+    /// directory without naming the dependency, so the package and folder are attached here.
+    case packageManifestLoadFailed(name: String, path: AbsolutePath, reason: String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
-        case .installRequired:
+        case .installRequired, .packageManifestLoadFailed:
             return .abort
         }
     }
@@ -39,6 +43,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
         case .installRequired:
             return "We could not find external dependencies. Run `tuist install` before you continue."
+        case let .packageManifestLoadFailed(name, path, reason):
+            return "We could not load the manifest of the package \(name) at \(path.pathString): \(reason)"
         }
     }
 }
@@ -172,12 +178,24 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
                 }
 
-                let packageInfo = if let packageInfoCache,
-                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                let packageInfo: PackageInfo
+                if let packageInfoCache,
+                   let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
                 {
-                    cachedPackageInfo
+                    packageInfo = cachedPackageInfo
                 } else {
-                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                    do {
+                        packageInfo = try await manifestLoader.loadPackage(
+                            at: packageFolder,
+                            disableSandbox: disableSandbox
+                        )
+                    } catch {
+                        throw SwiftPackageManagerGraphGeneratorError.packageManifestLoadFailed(
+                            name: name,
+                            path: packageFolder,
+                            reason: "\(error)"
+                        )
+                    }
                 }
                 let targetToArtifactPaths = try workspaceState.object.artifacts
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }

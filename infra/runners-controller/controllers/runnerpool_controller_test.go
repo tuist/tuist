@@ -20,6 +20,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
 func nn(ns, name string) types.NamespacedName {
@@ -95,6 +96,20 @@ func newRunnerPod(name, image string, phase corev1.PodPhase, poolName string) *c
 	}
 }
 
+func warmLinuxRunnerPod(name, image, poolName, runtimeClassRevision string) *corev1.Pod {
+	pod := newRunnerPod(name, image, corev1.PodPending, poolName)
+	if runtimeClassRevision != "" {
+		pod.Annotations = map[string]string{
+			podtemplate.RuntimeClassRevisionAnnotation: runtimeClassRevision,
+		}
+	}
+	pod.Status.InitContainerStatuses = []corev1.ContainerStatus{{
+		Name:  "poller",
+		State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+	}}
+	return pod
+}
+
 func TestIsStaleImage(t *testing.T) {
 	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
 
@@ -128,6 +143,30 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	}
 	if isStaleImage(pod, pool) {
 		t.Fatalf("expected isStaleImage to be false for empty-containers pod")
+	}
+}
+
+func TestIsStaleRuntimeClassRevision(t *testing.T) {
+	pool := newLinuxKataPool("pool", 1, 1)
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	current := warmLinuxRunnerPod("current", "image", pool.Name, "current")
+	stale := warmLinuxRunnerPod("stale", "image", pool.Name, "old")
+	missing := warmLinuxRunnerPod("missing", "image", pool.Name, "")
+
+	if isStaleRuntimeClassRevision(current, pool) {
+		t.Fatal("current RuntimeClass revision was classified as stale")
+	}
+	if !isStaleRuntimeClassRevision(stale, pool) {
+		t.Fatal("old RuntimeClass revision was not classified as stale")
+	}
+	if !isStaleRuntimeClassRevision(missing, pool) {
+		t.Fatal("missing RuntimeClass revision was not classified as stale")
+	}
+	delete(pool.Annotations, podtemplate.RuntimeClassRevisionAnnotation)
+	if isStaleRuntimeClassRevision(stale, pool) {
+		t.Fatal("revision was classified as stale when the pool has no desired revision")
 	}
 }
 
@@ -523,6 +562,154 @@ func TestReconcile_NoDeletionWhenImageMatches(t *testing.T) {
 	}
 	if len(pods.Items) != 1 || pods.Items[0].Name != "p-runner-current" {
 		t.Fatalf("expected current-image pod to survive reconcile untouched, got %v", podNames(pods.Items))
+	}
+}
+
+func TestReconcile_RollsStaleRuntimeClassRevisionAtConfiguredCap(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 50}
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	old0 := warmLinuxRunnerPod("p-runner-old-0", pool.Spec.Image, pool.Name, "old")
+	old1 := warmLinuxRunnerPod("p-runner-old-1", pool.Spec.Image, pool.Name, "old")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, old0, old1).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:              c,
+		Scheme:              scheme,
+		DispatchURL:         "http://dispatch",
+		DispatchInternalURL: "http://dispatch-internal",
+	}
+	request := ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}
+
+	if _, err := r.Reconcile(context.Background(), request); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods after first reconcile: %v", err)
+	}
+	oldNames := map[string]bool{old0.Name: true, old1.Name: true}
+	oldRemaining := 0
+	var replacement *corev1.Pod
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if oldNames[pod.Name] {
+			oldRemaining++
+		} else {
+			replacement = pod
+		}
+	}
+	if oldRemaining != 1 || replacement == nil || len(pods.Items) != 2 {
+		t.Fatalf("first reconcile left %d old Pods and replacement %v; want one of each", oldRemaining, replacement != nil)
+	}
+	if got := replacement.Annotations[podtemplate.RuntimeClassRevisionAnnotation]; got != "current" {
+		t.Fatalf("replacement RuntimeClass revision = %q, want current", got)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(replacement), replacement); err != nil {
+		t.Fatalf("get replacement before status update: %v", err)
+	}
+	replacement.Status = corev1.PodStatus{
+		Phase: corev1.PodPending,
+		InitContainerStatuses: []corev1.ContainerStatus{{
+			Name:  "poller",
+			State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+		}},
+	}
+	if err := c.Status().Update(context.Background(), replacement); err != nil {
+		t.Fatalf("mark replacement warm: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), request); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	pods = &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods after second reconcile: %v", err)
+	}
+	for i := range pods.Items {
+		if oldNames[pods.Items[i].Name] {
+			t.Fatalf("old-revision Pod %q survived after the warm replacement freed the roll slot", pods.Items[i].Name)
+		}
+	}
+	if len(pods.Items) != 2 {
+		t.Fatalf("expected pool to remain at 2 Pods, got %d", len(pods.Items))
+	}
+}
+
+func TestReconcile_LeavesClaimedAndRunningPodsWithStaleRuntimeClassRevisionAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	claimed := warmLinuxRunnerPod("p-runner-claimed", pool.Spec.Image, pool.Name, "old")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "account"
+	running := newRunnerPod("p-runner-running", pool.Spec.Image, corev1.PodRunning, pool.Name)
+	running.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "old",
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, claimed, running).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(claimed), &corev1.Pod{}); err != nil {
+		t.Fatalf("claimed Pod with a stale RuntimeClass revision was interrupted: %v", err)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(running), &corev1.Pod{}); err != nil {
+		t.Fatalf("Running Pod with a stale RuntimeClass revision was interrupted: %v", err)
+	}
+}
+
+func TestReconcile_CurrentTemplateUnavailableCapacityPausesRuntimeClassRoll(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 50}
+	pool.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	stale := warmLinuxRunnerPod("p-runner-stale", pool.Spec.Image, pool.Name, "old")
+	scalingUp := newRunnerPod("p-runner-scaling", pool.Spec.Image, corev1.PodPending, pool.Name)
+	scalingUp.Annotations = map[string]string{
+		podtemplate.RuntimeClassRevisionAnnotation: "current",
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, stale, scalingUp).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(stale), &corev1.Pod{}); err != nil {
+		t.Fatalf("stale warm Pod was reaped while current-template capacity was already unavailable: %v", err)
 	}
 }
 

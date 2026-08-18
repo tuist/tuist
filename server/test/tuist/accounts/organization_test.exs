@@ -100,6 +100,69 @@ defmodule Tuist.OrganizationTest do
       assert changeset.valid? == true
     end
 
+    test "requires a verified login domain for automatic enrollment with a custom provider" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_automatic_enrollment, true)
+        )
+
+      refute changeset.valid?
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "allows automatic enrollment with a verified login domain" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_login_domain: "example.com",
+            sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+            sso_automatic_enrollment: true
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "requires a verified login domain before enforcing a new custom-provider configuration" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_enforced, true)
+        )
+
+      refute changeset.valid?
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
+    end
+
+    test "preserves enforcement for a legacy custom-provider configuration" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_enforced: true,
+            sso_legacy_email_domain_fallback: true
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "preserves automatic enrollment for a legacy custom-provider configuration" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_automatic_enrollment: true,
+            sso_legacy_email_domain_fallback: true
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "accepts an oauth2 issuer URL with a path" do
       changeset =
         Organization.create_changeset(
@@ -295,6 +358,18 @@ defmodule Tuist.OrganizationTest do
       changeset = Organization.update_changeset(%Organization{}, @oauth2_attrs)
 
       assert changeset.valid? == true
+    end
+
+    test "rejects enabling automatic enrollment without a verified login domain" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_automatic_enrollment, true)
+        )
+
+      refute changeset.valid?
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
     end
 
     test "normalizes the oauth2 site on update" do

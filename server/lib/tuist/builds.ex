@@ -44,11 +44,14 @@ defmodule Tuist.Builds do
     ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
   end
 
-  # `ORDER BY inserted_at DESC LIMIT 1` picks the latest version of the row
-  # without the multi-part merge `FINAL` would force. The recent lookup adds an
-  # inserted_at bound so ClickHouse can prune monthly partitions for common
-  # detail-page/callback traffic, then falls back to the unbounded lookup for
-  # older build URLs.
+  # `ORDER BY updated_at DESC LIMIT 1` picks the latest version of the row
+  # without the multi-part merge `FINAL` would force. `updated_at` is the
+  # table's ReplacingMergeTree version, so a processed row always outranks the
+  # `processing` placeholder it replaces; `inserted_at` cannot order them
+  # because the worker carries it over from the placeholder. The recent lookup
+  # adds an inserted_at bound so ClickHouse can prune monthly partitions for
+  # common detail-page/callback traffic, then falls back to the unbounded
+  # lookup for older build URLs.
   def get_build(id, opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
 
@@ -75,7 +78,7 @@ defmodule Tuist.Builds do
   defp get_build_query(uuid, nil) do
     from(b in Build,
       where: b.id == ^uuid,
-      order_by: [desc: b.inserted_at],
+      order_by: [desc: b.updated_at],
       limit: 1
     )
   end
@@ -83,7 +86,7 @@ defmodule Tuist.Builds do
   defp get_build_query(uuid, project_id) do
     from(b in Build,
       where: b.project_id == ^project_id and b.id == ^uuid,
-      order_by: [desc: b.inserted_at],
+      order_by: [desc: b.updated_at],
       limit: 1
     )
   end
@@ -91,7 +94,7 @@ defmodule Tuist.Builds do
   defp get_build_query(uuid, nil, inserted_at_floor) do
     from(b in Build,
       where: b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
-      order_by: [desc: b.inserted_at],
+      order_by: [desc: b.updated_at],
       limit: 1
     )
   end
@@ -99,7 +102,7 @@ defmodule Tuist.Builds do
   defp get_build_query(uuid, project_id, inserted_at_floor) do
     from(b in Build,
       where: b.project_id == ^project_id and b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
-      order_by: [desc: b.inserted_at],
+      order_by: [desc: b.updated_at],
       limit: 1
     )
   end

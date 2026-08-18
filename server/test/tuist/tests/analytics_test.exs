@@ -1074,6 +1074,39 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "test_run_average_duration_analytics/2" do
+    test "returns the current average and trend without percentile data" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-28 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-29 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 3000,
+        ran_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.test_run_average_duration_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-29 10:20:30Z]
+        )
+
+      assert got == %{total_average_duration: 2000.0, trend: 100.0}
+    end
+  end
+
   describe "test_case_reliability_by_id/3" do
     test "returns reliability percentage for test case runs on default branch" do
       # Given
@@ -1378,6 +1411,100 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Then - 0 successes out of 1 run on main = 0%
       assert got == 0.0
     end
+
+    test "only counts runs within the given period" do
+      # Given - the ingestion timestamps are deliberately the inverse of the run
+      # timestamps, so bounding the wrong column would flip the result to 0.0.
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 1,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - only the run that executed inside the period counts
+      assert got == 100.0
+    end
+
+    test "falls back to all branches within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "feature-branch",
+        status: 1,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      # When - the default branch has no runs inside the period
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then
+      assert got == 0.0
+    end
+
+    test "returns nil when no runs fall within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_reliability_by_id(project.id, test_case_id, "main",
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - ingested inside the period, but it did not run inside it
+      assert got == nil
+    end
   end
 
   describe "test_case_analytics_by_id/2" do
@@ -1413,6 +1540,74 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       # Then
       assert got == %{total_count: 2, failed_count: 1, avg_duration: 200}
+    end
+
+    test "only aggregates runs within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 0,
+        duration: 100,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 300,
+        ran_at: ~N[2024-04-30 10:01:00.000000],
+        inserted_at: ~N[2024-05-20 10:01:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 5000,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_analytics_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - the run from outside the period is excluded from every aggregate
+      assert got == %{total_count: 2, failed_count: 1, avg_duration: 200}
+    end
+
+    test "returns zeroed analytics when no runs fall within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 0,
+        duration: 100,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_case_analytics_by_id(project.id, test_case_id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - ingested inside the period, but it did not run inside it
+      assert got == %{total_count: 0, failed_count: 0, avg_duration: 0}
     end
   end
 
@@ -1561,14 +1756,14 @@ defmodule Tuist.Tests.AnalyticsTest do
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+        ran_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
       )
 
       RunsFixtures.test_case_run_fixture(
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.utc_now() |> DateTime.add(-40, :day) |> DateTime.to_naive()
+        ran_at: DateTime.utc_now() |> DateTime.add(-40, :day) |> DateTime.to_naive()
       )
 
       # When
@@ -1576,6 +1771,71 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       # Then - Only 1 flaky run in the last 30 days out of 1 total = 100%
       assert got == 100.0
+    end
+
+    test "counts a run that executed inside the period but was ingested after it" do
+      # Given - xcresult processing is asynchronous, so a run can land in
+      # ClickHouse well after the window it belongs to.
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.get_test_case_flakiness_rate(test_case,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then
+      assert got == 100.0
+    end
+
+    test "only counts runs within the given period" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-30 10:00:00.000000],
+        inserted_at: ~N[2024-05-20 10:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        ran_at: ~N[2024-04-30 10:01:00.000000],
+        inserted_at: ~N[2024-05-20 10:01:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-10 10:00:00.000000],
+        inserted_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.get_test_case_flakiness_rate(test_case,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then - 1 flaky run out of the 2 that fall inside the period
+      assert got == 50.0
     end
   end
 

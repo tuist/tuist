@@ -601,6 +601,53 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     }
 }
 
+/// This integration test resolves a large external package graph and runs two Xcode builds. Serializing it prevents
+/// the intermittent resource contention observed when it runs alongside the rest of the acceptance-test shard.
+@Suite(.serialized)
+struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
+    @Test(.withFixture("generated_ios_app_with_modulemap_packages"), .inTemporaryDirectory)
+    func ios_app_with_modulemap_packages() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "ModuleMapPackages.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+    }
+}
+
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     /// Regression coverage for the request to include SwiftPM target headers in generated projects
     /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
@@ -688,6 +735,58 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
             "-derivedDataPath",
             derivedDataPath.pathString,
         ])
+    }
+}
+
+struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
+    /// Pins package compiler-setting propagation through static target chains while ensuring
+    /// package object files are linked only by the final binary.
+    @Test(.withFixture("generated_app_with_native_package_static_chain"), .inTemporaryDirectory)
+    func app_with_native_package_static_chain() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(GenerateCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let productsPath = derivedDataPath.appending(components: "Build", "Products", "Debug")
+        for targetName in ["FeatureA", "FeatureB", "FeatureCore", "PackageLeaf"] {
+            let archivePath = productsPath.appending(
+                components: "\(targetName).framework", "Versions", "A", targetName
+            )
+            let archiveMembers = try await CommandRunner().capture(arguments: [
+                "/usr/bin/ar",
+                "-t",
+                archivePath.pathString,
+            ])
+
+            #expect(archiveMembers.contains("\(targetName).o"))
+            #expect(!archiveMembers.contains("PackageFeature.o"))
+            #expect(!archiveMembers.contains("CModule.o"))
+        }
+
+        let appBinaryPath = productsPath.appending(component: "App")
+        let appSymbols = try await CommandRunner().capture(arguments: [
+            "/usr/bin/nm",
+            "-gj",
+            appBinaryPath.pathString,
+        ])
+        #expect(appSymbols.split(separator: "\n").count { $0 == "_package_value" } == 1)
     }
 }
 
@@ -1012,17 +1111,10 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
 }
 
 struct GenerateAcceptanceTestiOSAppWithAppClip {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            appClip: "AppClip1",
-            architecture: "arm64"
-        )
-        try await XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await run(BuildCommand.self, "App")
         try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
             "App.app",
             destination: "Debug-iphonesimulator",
@@ -1034,6 +1126,11 @@ struct GenerateAcceptanceTestiOSAppWithAppClip {
             "AppClip1.app",
             destination: "Debug-iphonesimulator",
             extension: "AppClip1Widgets"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "AppClip1.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
         )
     }
 }
@@ -1493,6 +1590,14 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
             destination: "Debug-iphonesimulator",
             resource: "Localizable.strings"
         )
+    }
+}
+
+struct GenerateAcceptanceTestStaticFrameworkWithBundleMacro {
+    @Test(.withFixture("generated_static_framework_with_bundle_macro"), .inTemporaryDirectory)
+    func static_framework_with_bundle_macro() async throws {
+        try await run(GenerateCommand.self)
+        try await run(TestCommand.self)
     }
 }
 

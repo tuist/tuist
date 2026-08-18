@@ -109,19 +109,19 @@ struct GitHubTests {
             SourceControlLocations.canonicalResolvedFileLocation(
                 "https://github.com/CombineCommunity/CombineExt.git"
             )
-                == "https://github.com/combinecommunity/combineext"
+                == "https://github.com/CombineCommunity/CombineExt"
         )
         #expect(
             SourceControlLocations.canonicalResolvedFileLocation(
                 "git@github.com:DataDog/dd-sdk-ios.git"
             )
-                == "git@github.com:datadog/dd-sdk-ios"
+                == "git@github.com:DataDog/dd-sdk-ios"
         )
         #expect(
             SourceControlLocations.canonicalResolvedFileLocation(
                 "https://gitlab.com/Tuist/SwifterPM.git"
             )
-                == "https://gitlab.com/tuist/swifterpm"
+                == "https://gitlab.com/Tuist/SwifterPM"
         )
         #expect(
             SourceControlLocations.canonicalResolvedFileLocation(
@@ -134,6 +134,25 @@ struct GitHubTests {
                 "git@Source.Example.com:Tuist/SwifterPM.git"
             )
                 == "git@source.example.com:Tuist/SwifterPM.git"
+        )
+    }
+
+    @Test
+    func canonicalResolvedFileLocationsPreserveMixedCaseGitHubOrg() {
+        // Git's url.*.insteadOf rules match case-sensitively, so lowercasing
+        // the path breaks CI setups that inject credentials per-org. Only the
+        // scheme and host are lowercased; the path keeps its declared casing.
+        #expect(
+            SourceControlLocations.canonicalResolvedFileLocation(
+                "https://github.com/Fourthline-com/FourthlineSDK-iOS.git"
+            )
+                == "https://github.com/Fourthline-com/FourthlineSDK-iOS"
+        )
+        #expect(
+            SourceControlLocations.canonicalResolvedFileLocation(
+                "https://github.com/Fourthline-com/FourthlineSDK-iOS"
+            )
+                == "https://github.com/Fourthline-com/FourthlineSDK-iOS"
         )
     }
 }

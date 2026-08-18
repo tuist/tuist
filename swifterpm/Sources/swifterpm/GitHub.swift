@@ -115,8 +115,7 @@ enum SourceControlLocations {
         let withoutGit =
             trimmed.lowercased().hasSuffix(".git")
                 ? String(trimmed.dropLast(4)) : trimmed
-        let path = withoutGit.lowercased()
-        return path.isEmpty ? "" : "/\(path)"
+        return withoutGit.isEmpty ? "" : "/\(withoutGit)"
     }
 
     fileprivate static func canonicalizesProviderPath(host: String) -> Bool {

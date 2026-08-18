@@ -405,6 +405,12 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.buildable_folders_hash}</span>
       </div>
+      <div :if={@target.additional_hashing_inputs_hash != ""} data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Additional hashing inputs")}:
+        </span>
+        <span data-part="subhash-value">{@target.additional_hashing_inputs_hash}</span>
+      </div>
       <div :if={not Enum.empty?(@target.additional_strings || [])} data-part="subhash-item">
         <span data-part="subhash-label">
           {dgettext("dashboard_builds", "Additional strings")}:
@@ -575,6 +581,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
+      additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
       destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }

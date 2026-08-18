@@ -18,15 +18,15 @@ import XcodeGraph
 struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
+    private var swiftVersionProvider: MockSwiftVersionProviding!
 
     init() throws {
-        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
-        given(swiftVersionProviderMock)
-            .swiftVersion()
-            .willReturn("5.2")
-
         Environment.mocked?.stubbedArchitecture = .arm64
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
+        swiftVersionProvider = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProvider)
+            .swiftDefaultLanguageModeVersion()
+            .willReturn("6")
         subject = ProjectEditorMapper(
             swiftPackageManagerController: swiftPackageManagerController
         )
@@ -34,9 +34,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -89,6 +89,9 @@ struct ProjectEditorMapperTests {
 
         // Then
         #expect(graph.name == "TestManifests")
+        verify(swiftVersionProvider)
+            .swiftDefaultLanguageModeVersion()
+            .called(1)
 
         #expect(targets.count == 9)
 
@@ -104,7 +107,10 @@ struct ProjectEditorMapperTests {
         #expect(manifestsTarget.product == .staticFramework)
         #expect(
             manifestsTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [projectManifestPaths[0]]
+                )
         )
         #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
         #expect(manifestsTarget.filesGroup == projectsGroup)
@@ -142,7 +148,10 @@ struct ProjectEditorMapperTests {
         #expect(templatesTarget.product == .staticFramework)
         #expect(
             templatesTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: templates
+                )
         )
         #expect(templatesTarget.sources.map(\.path) == templates)
         #expect(templatesTarget.additionalFiles.map(\.path) == templateResource)
@@ -197,7 +206,10 @@ struct ProjectEditorMapperTests {
         #expect(configTarget.product == .staticFramework)
         #expect(
             configTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [configPath]
+                )
         )
         #expect(configTarget.sources.map(\.path) == [configPath])
         #expect(configTarget.filesGroup == projectsGroup)
@@ -217,6 +229,8 @@ struct ProjectEditorMapperTests {
         expectedPackagesSettings = expectedPackagesSettings.with(
             base: expectedPackagesSettings.base.merging(
                 [
+                    "DEFINES_MODULE": "NO",
+                    "EXCLUDED_SOURCE_FILE_NAMES": .array([packageManifestPath.basename]),
                     "OTHER_SWIFT_FLAGS": .array([
                         "-package-description-version",
                         "5.5.0",
@@ -271,9 +285,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -323,7 +337,10 @@ struct ProjectEditorMapperTests {
         #expect(manifestsTarget.product == .staticFramework)
         #expect(
             manifestsTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [projectManifestPaths[0]]
+                )
         )
         #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
         #expect(manifestsTarget.filesGroup == projectsGroup)
@@ -355,9 +372,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func tuist_edit_with_more_than_one_manifest() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -365,7 +382,7 @@ struct ProjectEditorMapperTests {
         let otherProjectPath = "Module"
         let projectManifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),
-            sourceRootPath.appending(component: otherProjectPath).appending(component: "Project.swift"),
+            sourceRootPath.appending(component: otherProjectPath).appending(component: "Workspace.swift"),
         ]
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
@@ -410,7 +427,10 @@ struct ProjectEditorMapperTests {
         #expect(manifestOneTarget.product == .staticFramework)
         #expect(
             manifestOneTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [try #require(projectManifestPaths.last)]
+                )
         )
         #expect(manifestOneTarget.sources.map(\.path) == [try #require(projectManifestPaths.last)])
         #expect(manifestOneTarget.filesGroup == .group(name: projectName))
@@ -426,7 +446,10 @@ struct ProjectEditorMapperTests {
         #expect(manifestTwoTarget.product == .staticFramework)
         #expect(
             manifestTwoTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [try #require(projectManifestPaths.first)]
+                )
         )
         #expect(manifestTwoTarget.sources.map(\.path) == [try #require(projectManifestPaths.first)])
         #expect(manifestTwoTarget.filesGroup == .group(name: projectName))
@@ -440,7 +463,10 @@ struct ProjectEditorMapperTests {
         #expect(configTarget.product == .staticFramework)
         #expect(
             configTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [configPath]
+                )
         )
         #expect(configTarget.sources.map(\.path) == [configPath])
         #expect(configTarget.filesGroup == .group(name: projectName))
@@ -472,9 +498,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func tuist_edit_with_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [sourceRootPath].map { $0.appending(component: "Plugin.swift") }
@@ -523,7 +549,10 @@ struct ProjectEditorMapperTests {
         #expect(pluginTarget.product == .staticFramework)
         #expect(
             pluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: pluginManifestPaths
+                )
         )
         #expect(pluginTarget.sources.map(\.path) == pluginManifestPaths)
         #expect(pluginTarget.filesGroup == projectsGroup)
@@ -553,9 +582,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func tuist_edit_with_more_than_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [
@@ -607,7 +636,10 @@ struct ProjectEditorMapperTests {
         #expect(firstPluginTarget.product == .staticFramework)
         #expect(
             firstPluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPaths[0]]
+                )
         )
         #expect(firstPluginTarget.sources.map(\.path) == [pluginManifestPaths[0]])
         #expect(firstPluginTarget.filesGroup == projectsGroup)
@@ -620,7 +652,10 @@ struct ProjectEditorMapperTests {
         #expect(secondPluginTarget.product == .staticFramework)
         #expect(
             secondPluginTarget.settings ==
-                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPaths[1]]
+                )
         )
         #expect(secondPluginTarget.sources.map(\.path) == [pluginManifestPaths[1]])
         #expect(secondPluginTarget.filesGroup == projectsGroup)
@@ -662,9 +697,9 @@ struct ProjectEditorMapperTests {
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func tuist_edit_plugin_only_takes_required_sources() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -719,13 +754,22 @@ struct ProjectEditorMapperTests {
             pluginTarget.sources.sorted(by: { $0.path < $1.path }) ==
                 ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
+
+        // Plugin manifest and template sources are excluded from compilation; helpers are not.
+        #expect(
+            pluginTarget.settings ==
+                expectedManifestSettings(
+                    includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory],
+                    sourcePaths: [pluginManifestPath] + templateSources
+                )
+        )
     }
 
     @Test(
         .withMockedEnvironment(),
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
-        .withMockedXcodeController
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
     ) func tuist_edit_project_with_plugin() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -780,10 +824,13 @@ struct ProjectEditorMapperTests {
         #expect(localPluginTarget.dependencies.isEmpty)
         #expect(
             localPluginTarget.settings ==
-                expectedSettings(includePaths: [
-                    projectDescriptionPath,
-                    projectDescriptionPath.parentDirectory,
-                ])
+                expectedManifestSettings(
+                    includePaths: [
+                        projectDescriptionPath,
+                        projectDescriptionPath.parentDirectory,
+                    ],
+                    sourcePaths: [localPlugin.path.appending(component: "Plugin.swift")]
+                )
         )
 
         // ProjectDescriptionHelpers target
@@ -819,12 +866,15 @@ struct ProjectEditorMapperTests {
         )
         #expect(
             manifestsTarget.settings ==
-                expectedSettings(includePaths: [
-                    projectDescriptionPath,
-                    projectDescriptionPath.parentDirectory,
-                    // Manifests can include plugins
-                    remotePlugin.path.parentDirectory,
-                ])
+                expectedManifestSettings(
+                    includePaths: [
+                        projectDescriptionPath,
+                        projectDescriptionPath.parentDirectory,
+                        // Manifests can include plugins
+                        remotePlugin.path.parentDirectory,
+                    ],
+                    sourcePaths: [projectManifestPaths[0]]
+                )
         )
 
         // Generated manifests Project
@@ -877,10 +927,21 @@ struct ProjectEditorMapperTests {
                 "FRAMEWORK_SEARCH_PATHS": .array(paths),
                 "LIBRARY_SEARCH_PATHS": .array(paths),
                 "SWIFT_INCLUDE_PATHS": .array(paths),
-                "SWIFT_VERSION": .string("5.2"),
+                "SWIFT_VERSION": .string("6"),
             ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
+    }
+
+    private func expectedManifestSettings(includePaths: [AbsolutePath], sourcePaths: [AbsolutePath]) -> Settings {
+        let settings = expectedSettings(includePaths: includePaths)
+        return settings.with(base: settings.base.merging(
+            [
+                "DEFINES_MODULE": "NO",
+                "EXCLUDED_SOURCE_FILE_NAMES": .array(sourcePaths.map(\.basename)),
+            ],
+            uniquingKeysWith: { _, new in new }
+        ))
     }
 }

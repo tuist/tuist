@@ -615,6 +615,54 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  def test_run_average_duration_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    result =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^previous_start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        select: %{
+          previous_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? < ?)",
+              t.duration,
+              t.ran_at,
+              ^previous_start_datetime,
+              t.ran_at,
+              ^start_datetime
+            ),
+          current_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? <= ?)",
+              t.duration,
+              t.ran_at,
+              ^start_datetime,
+              t.ran_at,
+              ^end_datetime
+            )
+        }
+      )
+      |> apply_test_run_filters(opts)
+      |> ClickHouseRepo.one()
+
+    previous_average_duration = normalize_average_duration(result && result.previous_average_duration)
+    current_average_duration = normalize_average_duration(result && result.current_average_duration)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_average_duration,
+          current_value: current_average_duration
+        ),
+      total_average_duration: current_average_duration
+    }
+  end
+
   defp test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     scheme = Keyword.get(opts, :scheme)
@@ -638,12 +686,13 @@ defmodule Tuist.Tests.Analytics do
 
     result = ClickHouseRepo.one(query)
 
-    case result do
-      nil -> 0.0
-      avg when is_float(avg) -> avg
-      avg -> avg * 1.0
-    end
+    normalize_average_duration(result)
   end
+
+  defp normalize_average_duration(nil), do: 0.0
+  defp normalize_average_duration(%Decimal{} = duration), do: Decimal.to_float(duration)
+  defp normalize_average_duration(duration) when is_float(duration), do: duration
+  defp normalize_average_duration(duration), do: duration * 1.0
 
   defp test_run_average_durations(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
@@ -1222,17 +1271,20 @@ defmodule Tuist.Tests.Analytics do
   First attempts to calculate based on the project's default branch. If no runs exist on the
   default branch, falls back to calculating reliability across all branches.
   Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
   """
-  def test_case_reliability_by_id(project_id, test_case_id, default_branch) do
+  def test_case_reliability_by_id(project_id, test_case_id, default_branch, opts \\ []) do
     default_branch_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.test_case_id == ^test_case_id,
-        where: tcr.git_branch == ^default_branch,
-        select: %{
-          success_count: fragment("countIf(? = 'success')", tcr.status),
-          total_count: count()
-        }
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          where: tcr.git_branch == ^default_branch,
+          select: %{success_count: fragment("countIf(? = 'success')", tcr.status), total_count: count()}
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(default_branch_query)
@@ -1243,13 +1295,13 @@ defmodule Tuist.Tests.Analytics do
 
       _ ->
         all_branches_query =
-          from(tcr in TestCaseRun,
-            where: tcr.project_id == ^project_id,
-            where: tcr.test_case_id == ^test_case_id,
-            select: %{
-              success_count: fragment("countIf(? = 'success')", tcr.status),
-              total_count: count()
-            }
+          apply_period_filter(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id == ^project_id,
+              where: tcr.test_case_id == ^test_case_id,
+              select: %{success_count: fragment("countIf(? = 'success')", tcr.status), total_count: count()}
+            ),
+            opts
           )
 
         all_result = ClickHouseRepo.one(all_branches_query)
@@ -1266,17 +1318,23 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Gets analytics for a specific test case by its identifier including total runs, failed runs, and average duration.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period. Unbounded when omitted.
   """
-  def test_case_analytics_by_id(project_id, test_case_id) do
+  def test_case_analytics_by_id(project_id, test_case_id, opts \\ []) do
     query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.test_case_id == ^test_case_id,
-        select: %{
-          total_count: count(),
-          failed_count: fragment("countIf(? = 'failure')", tcr.status),
-          avg_duration: avg(tcr.duration)
-        }
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          select: %{
+            total_count: count(),
+            failed_count: fragment("countIf(? = 'failure')", tcr.status),
+            avg_duration: avg(tcr.duration)
+          }
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(query)
@@ -1296,21 +1354,24 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Gets the flakiness rate for a specific test case.
-  Calculates the ratio of flaky runs to total runs in the last 30 days.
+  Calculates the ratio of flaky runs to total runs, defaulting to the last 30 days.
   Returns 0.0 if there are no flaky runs or no data.
+
+  Options:
+    * `:start_datetime` / `:end_datetime` - bound the runs to a period.
   """
-  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}) do
-    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}, opts \\ []) do
+    opts =
+      Keyword.put_new_lazy(opts, :start_datetime, fn -> DateTime.add(DateTime.utc_now(), -30, :day) end)
 
     query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.test_case_id == ^test_case_id,
-        where: tcr.inserted_at >= ^thirty_days_ago,
-        select: %{
-          flaky_count: fragment("countIf(?)", tcr.is_flaky),
-          total_count: count(tcr.id)
-        }
+      apply_period_filter(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^project_id,
+          where: tcr.test_case_id == ^test_case_id,
+          select: %{flaky_count: fragment("countIf(?)", tcr.is_flaky), total_count: count(tcr.id)}
+        ),
+        opts
       )
 
     result = ClickHouseRepo.one(query)
@@ -1323,6 +1384,25 @@ defmodule Tuist.Tests.Analytics do
         0.0
     end
   end
+
+  defp apply_period_filter(query, opts) do
+    query
+    |> apply_start_datetime_filter(Keyword.get(opts, :start_datetime))
+    |> apply_end_datetime_filter(Keyword.get(opts, :end_datetime))
+  end
+
+  # Bounds `ran_at`, not `inserted_at`: xcresult processing is asynchronous, so
+  # ingestion time can trail execution by hours. The time-bucketed series bound
+  # `inserted_at` instead, which keeps a rendered series from being rewritten by
+  # late arrivals, but a scalar over a user-picked window has to agree with the
+  # "Ran at" column shown beside it.
+  defp apply_start_datetime_filter(query, nil), do: query
+
+  defp apply_start_datetime_filter(query, start_datetime), do: where(query, [tcr], tcr.ran_at >= ^start_datetime)
+
+  defp apply_end_datetime_filter(query, nil), do: query
+
+  defp apply_end_datetime_filter(query, end_datetime), do: where(query, [tcr], tcr.ran_at <= ^end_datetime)
 
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)

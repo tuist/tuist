@@ -7,23 +7,24 @@ use arc_swap::ArcSwap;
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use tokio::{
-    sync::{Mutex, Notify, Semaphore},
+    sync::{Mutex, Notify},
     time::{Duration, Instant},
 };
 
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
+    backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
-    extension::SharedExtension,
-    geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
     peer_tls::PeerClientFactory,
+    reapi::SnapshotCache,
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
@@ -35,18 +36,21 @@ const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
 pub struct AppState {
     pub config: Config,
     pub _data_dir_lock: DataDirLock,
-    pub store: Store,
+    pub store: Arc<Store>,
     pub io: IoController,
     pub memory: MemoryController,
+    pub snapshot_cache: Arc<SnapshotCache>,
     pub metrics: Metrics,
     pub runtime: Arc<RuntimeState>,
-    pub extension: Option<SharedExtension>,
+    pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
-    pub geoip: Option<GeoIp>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
     pub client: ArcSwap<Client>,
+    /// Peer client for streaming request bodies (outbox artifact PUTs): no
+    /// read timeout, paired with the caller's byte-progress stall watchdog.
+    pub upload_client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
     // The inbound internal mTLS server config, retained so cert rotation can
     // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
@@ -58,15 +62,66 @@ pub struct AppState {
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
-    pub bootstrap_semaphore: Arc<Semaphore>,
-    pub bootstrap_staging_budget: Arc<TmpBudget>,
-    // Per-artifact gate that single-flights the bootstrap body download across
-    // peers: only the first peer-task to claim a key fetches it, and the rest
-    // observe it already applied and skip the network. Striped (see
-    // `bootstrap_fetch_lock`). Bootstrap-scoped so it never blocks the
-    // live-replication apply path, which the node still serves while joining.
-    pub bootstrap_fetch_locks: Vec<Mutex<()>>,
+    /// Process-wide byte budget shared by every transient disk writer.
+    pub tmp_staging_budget: Arc<TmpBudget>,
+    /// Byte budget for peer catch-up staging: the spool a backfill pass writes
+    /// bodies through, and the reservation the serving side charges a bodies
+    /// response against. Separate from `tmp_staging_budget` so catch-up traffic
+    /// cannot starve in-flight client uploads (or the reverse).
+    pub peer_staging_budget: Arc<TmpBudget>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+    /// Serving-side per-peer-identity concurrency gate for the backfill bodies
+    /// endpoint (see [`BackfillBodiesPeerSlots`]).
+    pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
+    /// The backfill walker's node-side state machine, driven by the
+    /// membership loop.
+    pub backfill: Arc<BackfillLifecycle>,
+}
+
+/// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
+///
+/// The requester side already limits itself to one in-flight bodies request
+/// per peer, but that bound is politeness: self-hosted peers hold account-CA
+/// client certificates on customer infrastructure, and a hostile or buggy
+/// peer must not be able to pin the shared tmp budget and bandwidth limiter
+/// with parallel bulk requests. Identities come from the internal mTLS
+/// listener's verified client certificate
+/// ([`crate::peer_tls::InternalPeerIdentity`]).
+#[derive(Debug, Default)]
+pub struct BackfillBodiesPeerSlots {
+    active: std::sync::Mutex<BTreeSet<Arc<str>>>,
+}
+
+impl BackfillBodiesPeerSlots {
+    /// Claims the identity's slot, or `None` while another request from the
+    /// same identity is still in flight. The returned guard must live for the
+    /// whole request, response streaming included.
+    pub fn try_acquire(self: &Arc<Self>, identity: Arc<str>) -> Option<BackfillBodiesPeerSlot> {
+        let mut active = self.active.lock().expect("backfill peer slots lock");
+        if !active.insert(identity.clone()) {
+            return None;
+        }
+        Some(BackfillBodiesPeerSlot {
+            slots: self.clone(),
+            identity,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct BackfillBodiesPeerSlot {
+    slots: Arc<BackfillBodiesPeerSlots>,
+    identity: Arc<str>,
+}
+
+impl Drop for BackfillBodiesPeerSlot {
+    fn drop(&mut self) {
+        self.slots
+            .active
+            .lock()
+            .expect("backfill peer slots lock")
+            .remove(&self.identity);
+    }
 }
 
 pub struct ReplicationBackoff {
@@ -80,15 +135,9 @@ impl AppState {
         self.client.load()
     }
 
-    /// The bootstrap fetch gate for an artifact. Striped by artifact id so
-    /// distinct keys fetch concurrently; same-key fetches across peers serialize
-    /// onto one stripe and single-flight via the caller's presence recheck.
-    pub fn bootstrap_fetch_lock(&self, artifact_id: &str) -> &Mutex<()> {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::hash::Hash::hash(artifact_id, &mut hasher);
-        let index =
-            (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
-        &self.bootstrap_fetch_locks[index]
+    /// The current outbound peer upload client (picks up rotated certs).
+    pub fn upload_client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.upload_client.load()
     }
 }
 
@@ -104,8 +153,6 @@ pub struct ReadinessReport {
     pub writer_lock_owned: bool,
     pub initial_discovery_completed: bool,
     pub known_peers: Vec<String>,
-    pub bootstrapped_peers: Vec<String>,
-    pub bootstrap_inflight_peers: Vec<String>,
     pub http_inflight: usize,
     pub grpc_inflight: usize,
 }
@@ -118,14 +165,21 @@ pub struct RolloutStatusReport {
     pub ring_members: usize,
     pub initial_discovery_completed: bool,
     pub writer_lock_owned: bool,
-    pub bootstrap_known_peers: usize,
-    pub bootstrap_completed_peers: usize,
-    pub bootstrap_inflight_peers: usize,
     pub http_inflight: usize,
     pub grpc_inflight: usize,
     pub outbox_messages: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
+    pub backfill: BackfillRolloutStatus,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BackfillRolloutStatus {
+    pub initial_cycle: BackfillInitialCycleMode,
+    pub backfilling_peers: usize,
+    pub budget_exhausted_real: usize,
+    pub budget_exhausted_capability: usize,
+    pub ring_fullness_percent: u64,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -151,21 +205,12 @@ pub(crate) struct ReadinessState {
     settle_until: Instant,
     members: BTreeSet<String>,
     known_peers: BTreeSet<String>,
-    bootstrapped_peers: BTreeSet<String>,
-    bootstrap_inflight_peers: BTreeSet<String>,
-    // Bumped by reset_bootstrap_progress. A bootstrap pass captures the epoch
-    // when it starts and its completion only counts under the same epoch, so
-    // a pass already in flight when a recovery re-enrollment resets progress
-    // cannot re-mark its peer bootstrapped — the pass may straddle the
-    // absence window and miss writes behind its cursor.
-    bootstrap_epoch: u64,
     // Every peer ever seen through discovery only (not in the static or
     // dynamic peer config): in-cluster siblings and cross-region pods. Outbox
-    // pruning never drops their messages — unlike control-plane-managed
-    // peers, nothing re-bootstraps them after a network flap, so dropping
-    // would be silent under-replication. Monotone and in-memory: bounded by
-    // the peers a process ever meets, reset by restart (which also
-    // re-bootstraps).
+    // pruning never drops their messages — the re-join backfill reaches back
+    // only to the backfill window, so dropping would be silent
+    // under-replication for anything older. Monotone and in-memory:
+    // bounded by the peers a process ever meets, reset by restart.
     ever_discovered_only_peers: BTreeSet<String>,
 }
 
@@ -176,8 +221,6 @@ struct ReadinessSnapshot {
     readiness_settled: bool,
     members: Vec<String>,
     known_peers: Vec<String>,
-    bootstrapped_peers: Vec<String>,
-    bootstrap_inflight_peers: Vec<String>,
 }
 
 impl ReadinessState {
@@ -188,9 +231,6 @@ impl ReadinessState {
             settle_until: now,
             members: BTreeSet::new(),
             known_peers: BTreeSet::new(),
-            bootstrapped_peers: BTreeSet::new(),
-            bootstrap_inflight_peers: BTreeSet::new(),
-            bootstrap_epoch: 0,
             ever_discovered_only_peers: BTreeSet::new(),
         }
     }
@@ -232,10 +272,6 @@ impl ReadinessState {
 
         self.members = members;
         self.known_peers = known_peers;
-        self.bootstrapped_peers
-            .retain(|peer| self.known_peers.contains(peer));
-        self.bootstrap_inflight_peers
-            .retain(|peer| self.known_peers.contains(peer));
 
         MembershipUpdate {
             discovered_peers,
@@ -246,56 +282,6 @@ impl ReadinessState {
         }
     }
 
-    fn note_bootstrap_started(&mut self, peer: &str) -> bool {
-        if !self.known_peers.contains(peer)
-            || self.bootstrapped_peers.contains(peer)
-            || self.bootstrap_inflight_peers.contains(peer)
-        {
-            return false;
-        }
-        self.bootstrap_inflight_peers.insert(peer.to_string());
-        true
-    }
-
-    fn note_bootstrap_succeeded(&mut self, peer: &str, epoch: u64) -> bool {
-        self.bootstrap_inflight_peers.remove(peer);
-        // A completion from a pass started before the last progress reset does
-        // not count as bootstrapped; the peer re-enters peers_needing_bootstrap
-        // and gets a fresh pass.
-        if epoch == self.bootstrap_epoch && self.known_peers.contains(peer) {
-            self.bootstrapped_peers.insert(peer.to_string());
-            true
-        } else {
-            false
-        }
-    }
-
-    fn reset_bootstrap_progress(&mut self, now: Instant) {
-        self.bootstrapped_peers.clear();
-        self.bootstrap_epoch = self.bootstrap_epoch.wrapping_add(1);
-        // Re-arm the settle window (like a generation change does) so
-        // maybe_mark_serving cannot re-mark the node before the gate is
-        // genuinely re-evaluated — e.g. while known_peers is momentarily
-        // empty, which would make "all known peers bootstrapped" trivially
-        // true.
-        self.settle_until = now + READINESS_SETTLE_WINDOW;
-    }
-
-    fn note_bootstrap_failed(&mut self, peer: &str) {
-        self.bootstrap_inflight_peers.remove(peer);
-    }
-
-    fn peers_needing_bootstrap(&self) -> Vec<String> {
-        self.known_peers
-            .iter()
-            .filter(|peer| {
-                !self.bootstrapped_peers.contains(*peer)
-                    && !self.bootstrap_inflight_peers.contains(*peer)
-            })
-            .cloned()
-            .collect()
-    }
-
     fn snapshot(&self, now: Instant) -> ReadinessSnapshot {
         ReadinessSnapshot {
             generation: self.generation,
@@ -303,8 +289,6 @@ impl ReadinessState {
             readiness_settled: now >= self.settle_until,
             members: self.members.iter().cloned().collect(),
             known_peers: self.known_peers.iter().cloned().collect(),
-            bootstrapped_peers: self.bootstrapped_peers.iter().cloned().collect(),
-            bootstrap_inflight_peers: self.bootstrap_inflight_peers.iter().cloned().collect(),
         }
     }
 }
@@ -365,26 +349,15 @@ impl AppState {
 
         let membership_update = {
             let mut readiness = self.readiness.lock().await;
-            let membership_update = readiness.apply_membership(
-                members,
-                known_peers,
-                discovery_observed,
-                Instant::now(),
-            );
-            if membership_update.generation_changed {
-                self.runtime.clear_serving();
-            }
-            membership_update
+            readiness.apply_membership(members, known_peers, discovery_observed, Instant::now())
         };
-        // A lost peer silently drops its bootstrapped mark and re-enters the
-        // bootstrap gate when it returns; a flapping peer set is the difference
-        // between a 30-minute bootstrap and one that never converges. Lost
-        // peers are routine on rolling deploys and scale-downs, so this logs at
-        // info and the kura_membership_peer_changes_total{change="lost"} counter
-        // carries the alerting signal.
+        // Lost peers are routine on rolling deploys and scale-downs, so this
+        // logs at info and the
+        // kura_membership_peer_changes_total{change="lost"} counter carries the
+        // alerting signal.
         if !membership_update.lost_peers.is_empty() {
             info!(
-                "membership changed: lost peers {:?} (discovered {:?}); their bootstrapped state is forgotten until they are re-bootstrapped",
+                "membership changed: lost peers {:?} (discovered {:?})",
                 membership_update.lost_peers, membership_update.discovered_peers
             );
         } else if !membership_update.discovered_peers.is_empty() {
@@ -400,67 +373,8 @@ impl AppState {
         membership_update
     }
 
-    pub async fn peers_needing_bootstrap(&self) -> Vec<String> {
-        self.readiness.lock().await.peers_needing_bootstrap()
-    }
-
     pub async fn initial_discovery_completed(&self) -> bool {
         self.readiness.lock().await.initial_discovery_completed
-    }
-
-    /// Forgets all bootstrap progress so the membership loop re-pulls the full
-    /// dataset from every known peer, and takes the node out of serving until
-    /// the gate re-passes. Called on a *recovery* re-enrollment — the node was
-    /// out of the mesh for an unknown window, and the writes it missed were
-    /// never enqueued for it (replication targets are computed at write time),
-    /// so only a full re-bootstrap can reconcile the gap, including namespace
-    /// delete tombstones. Readiness implies complete data, so the node must
-    /// not keep advertising ready while it knows its data is incomplete —
-    /// every *other* node already re-enters the gate when this node rejoins
-    /// (their membership generation changes); this keeps the one node whose
-    /// data actually is incomplete from being the only one that skips it.
-    /// Bumps the bootstrap epoch so passes already in flight cannot re-mark
-    /// their peer bootstrapped.
-    pub async fn reset_bootstrap_progress(&self) {
-        self.readiness
-            .lock()
-            .await
-            .reset_bootstrap_progress(Instant::now());
-        self.runtime.clear_serving();
-    }
-
-    /// Claims a bootstrap slot for `peer`, returning the epoch the pass runs
-    /// under (to be handed back to `note_bootstrap_succeeded`), or `None` when
-    /// the peer is unknown, already bootstrapped, or already in flight.
-    pub async fn note_bootstrap_started(&self, peer: &str) -> Option<u64> {
-        let mut readiness = self.readiness.lock().await;
-        readiness
-            .note_bootstrap_started(peer)
-            .then_some(readiness.bootstrap_epoch)
-    }
-
-    pub async fn note_bootstrap_succeeded(&self, peer: &str, epoch: u64) {
-        let recorded = self
-            .readiness
-            .lock()
-            .await
-            .note_bootstrap_succeeded(peer, epoch);
-        if !recorded {
-            // The pass ran to completion but no longer counts toward the
-            // readiness gate — the peer flapped out of the membership view or
-            // the bootstrap epoch was reset mid-pass. The peer gets a fresh
-            // pass, so repeated discards are how a bootstrap loops forever
-            // without ever logging a failure.
-            warn!(
-                "bootstrap completion for {peer} discarded (membership changed or epoch reset mid-pass); the peer will be re-bootstrapped"
-            );
-            self.metrics.record_bootstrap_completion_discarded();
-        }
-    }
-
-    #[cfg(test)]
-    pub async fn current_bootstrap_epoch(&self) -> u64 {
-        self.readiness.lock().await.bootstrap_epoch
     }
 
     pub async fn note_discovered_only_peers(&self, peers: Vec<String>) {
@@ -477,10 +391,6 @@ impl AppState {
             .await
             .ever_discovered_only_peers
             .clone()
-    }
-
-    pub async fn note_bootstrap_failed(&self, peer: &str) {
-        self.readiness.lock().await.note_bootstrap_failed(peer);
     }
 
     async fn readiness_snapshot(&self) -> ReadinessSnapshot {
@@ -505,6 +415,16 @@ impl AppState {
         targets.into_iter().collect()
     }
 
+    /// Segment count as a percentage of the ring's desired total, the ring
+    /// term of the backfill readiness gate.
+    pub(crate) fn ring_fullness_percent(&self) -> u64 {
+        let inputs = self.store.backfill_capacity_inputs();
+        if inputs.ring_total_segments == 0 {
+            return 100;
+        }
+        (inputs.segment_count as u64).saturating_mul(100) / inputs.ring_total_segments as u64
+    }
+
     pub async fn maybe_mark_serving(&self) {
         if self.runtime.is_draining() || self.runtime.is_serving() {
             return;
@@ -517,27 +437,20 @@ impl AppState {
             return;
         }
 
-        let bootstrapped = snapshot
-            .bootstrapped_peers
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        let bootstrap_inflight = snapshot
-            .bootstrap_inflight_peers
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        if snapshot
-            .known_peers
-            .iter()
-            .any(|peer| bootstrap_inflight.contains(peer))
-        {
-            return;
-        }
-        if snapshot
-            .known_peers
-            .iter()
-            .all(|peer| bootstrapped.contains(peer))
+        // R8: past the discovery gates above, the node is ready when its ring
+        // is at least the configured percent full OR it is no longer
+        // backfilling — where "backfilling" covers only the initial join
+        // cycle, whose membership is fixed at (initial discovery ∪ first
+        // control-plane view); later discoveries never gate. An empty cycle
+        // settles immediately (zero peers ⇒ ready here), and a cycle whose
+        // peers all exhausted their budgets settles too (ready-but-cold is
+        // intended; background retries continue, metered). Serving then
+        // LATCHES for the process lifetime: this function only runs while not
+        // serving, and no backfill path clears the flag — only the orthogonal
+        // /ready inputs (writer lock, draining) can take the node out of
+        // rotation.
+        if !self.backfill.cycle_snapshot().is_backfilling()
+            || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent
         {
             self.runtime.mark_serving();
         }
@@ -569,24 +482,12 @@ impl AppState {
         {
             reasons.push("discovery settling".to_string());
         }
-        if !self.runtime.is_serving() && !snapshot.bootstrap_inflight_peers.is_empty() {
-            reasons.push("bootstrap in progress".to_string());
-        }
-        if !self.runtime.is_serving() {
-            let bootstrapped = snapshot
-                .bootstrapped_peers
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            let missing = snapshot
-                .known_peers
-                .iter()
-                .filter(|peer| !bootstrapped.contains(*peer))
-                .cloned()
-                .collect::<Vec<_>>();
-            if !missing.is_empty() {
-                reasons.push(format!("bootstrap incomplete for {}", missing.join(", ")));
-            }
+        if !self.runtime.is_serving() && self.backfill.cycle_snapshot().is_backfilling() {
+            let fullness = self.ring_fullness_percent();
+            reasons.push(format!(
+                "initial backfill cycle in progress (ring {fullness}% < {}%)",
+                self.config.backfill_ready_ring_percent
+            ));
         }
 
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
@@ -599,8 +500,6 @@ impl AppState {
             writer_lock_owned,
             initial_discovery_completed: snapshot.initial_discovery_completed,
             known_peers: snapshot.known_peers,
-            bootstrapped_peers: snapshot.bootstrapped_peers,
-            bootstrap_inflight_peers: snapshot.bootstrap_inflight_peers,
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
         }
@@ -615,6 +514,15 @@ impl AppState {
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
         let metrics = self.metrics.rollout_metrics_snapshot();
 
+        let cycle = self.backfill.cycle_snapshot();
+        let backfill = BackfillRolloutStatus {
+            initial_cycle: cycle.initial_cycle_mode(),
+            backfilling_peers: cycle.backfilling_peers,
+            budget_exhausted_real: cycle.budget_exhausted_real,
+            budget_exhausted_capability: cycle.budget_exhausted_capability,
+            ring_fullness_percent: self.ring_fullness_percent(),
+        };
+
         RolloutStatusReport {
             generation: snapshot.generation,
             ready,
@@ -622,14 +530,12 @@ impl AppState {
             ring_members: snapshot.known_peers.len() + 1,
             initial_discovery_completed: snapshot.initial_discovery_completed,
             writer_lock_owned,
-            bootstrap_known_peers: snapshot.known_peers.len(),
-            bootstrap_completed_peers: snapshot.bootstrapped_peers.len(),
-            bootstrap_inflight_peers: snapshot.bootstrap_inflight_peers.len(),
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
             outbox_messages: metrics.outbox_messages,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
+            backfill,
         }
     }
 
@@ -643,10 +549,10 @@ impl AppState {
             report.writer_lock_owned,
         );
         self.metrics.update_membership_generation(report.generation);
-        self.metrics.update_bootstrap_peers(
-            report.known_peers.len(),
-            report.bootstrapped_peers.len(),
-            report.bootstrap_inflight_peers.len(),
+        self.metrics
+            .set_backfill_ring_fullness_percent(self.ring_fullness_percent());
+        self.metrics.set_backfill_initial_cycle_mode(
+            self.backfill.cycle_snapshot().initial_cycle_mode().as_i64(),
         );
         self.metrics.update_replication_bandwidth_limits(
             self.config.replication_bandwidth_limit_bytes_per_second,
@@ -660,11 +566,53 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use tokio::sync::Barrier;
-
-    use crate::test_support::test_context;
+    use crate::{
+        artifact::producer::ArtifactProducer,
+        backfill::lifecycle::{BudgetChargeKind, MembershipTick, PassResolution},
+        constants::{
+            BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET, BACKFILL_PASS_RETRY_BACKOFF_MAX_MS,
+            BACKFILL_SEAM_FOLLOWUP_DELAY_MS,
+        },
+        test_support::test_context,
+    };
 
     use super::*;
+
+    fn backfill_tick<'a>(discovered: &'a [String], lost: &'a [String]) -> MembershipTick<'a> {
+        MembershipTick {
+            discovered,
+            lost,
+            view_settled: true,
+            control_plane_peers: &[],
+            admission: true,
+        }
+    }
+
+    /// Charges the peer's whole initial-cycle failure budget with the given
+    /// kind, leaving the peer budget-exhausted (it stops gating readiness).
+    fn exhaust_backfill_budget_over(
+        state: &AppState,
+        peer: &str,
+        kind: BudgetChargeKind,
+        mut now: Instant,
+    ) -> Instant {
+        let discovered = vec![peer.to_string()];
+        state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        for _ in 0..BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
+            state.backfill.test_finish_pass(
+                peer,
+                PassResolution::Cancelled {
+                    budget_charge: Some(kind),
+                },
+                now,
+            );
+            now += Duration::from_millis(BACKFILL_PASS_RETRY_BACKOFF_MAX_MS + 1);
+            state.backfill.test_evaluate(&backfill_tick(&[], &[]), now);
+        }
+        now
+    }
 
     #[test]
     fn readiness_state_advances_generation_and_reconciles_peer_sets() {
@@ -692,17 +640,6 @@ mod tests {
             ]
         );
 
-        assert!(readiness.note_bootstrap_started("http://peer-a.kura.internal:7443"));
-        readiness.note_bootstrap_succeeded(
-            "http://peer-a.kura.internal:7443",
-            readiness.bootstrap_epoch,
-        );
-        assert!(
-            readiness
-                .bootstrapped_peers
-                .contains("http://peer-a.kura.internal:7443")
-        );
-
         let topology_change = readiness.apply_membership(
             BTreeSet::from(["remote-a".to_string(), "remote-c".to_string()]),
             BTreeSet::from([
@@ -721,62 +658,6 @@ mod tests {
             topology_change.lost_peers,
             vec!["http://peer-b.kura.internal:7443".to_string()]
         );
-        assert!(
-            readiness
-                .bootstrapped_peers
-                .contains("http://peer-a.kura.internal:7443")
-        );
-        assert!(
-            !readiness
-                .bootstrapped_peers
-                .contains("http://peer-b.kura.internal:7443")
-        );
-    }
-
-    #[test]
-    fn stale_epoch_bootstrap_completion_does_not_count() {
-        let now = Instant::now();
-        let mut readiness = ReadinessState::new(now);
-        let peer = "http://peer-a.kura.internal:7443".to_string();
-        readiness.apply_membership(
-            BTreeSet::from(["remote".to_string()]),
-            BTreeSet::from([peer.clone()]),
-            true,
-            now,
-        );
-
-        assert!(readiness.note_bootstrap_started(&peer));
-        // A recovery re-enrollment resets progress while the pass is in
-        // flight: the pass may straddle the absence window, so its completion
-        // must not mark the peer bootstrapped.
-        let stale_epoch = readiness.bootstrap_epoch;
-        readiness.reset_bootstrap_progress(now);
-        assert!(!readiness.note_bootstrap_succeeded(&peer, stale_epoch));
-
-        assert_eq!(readiness.peers_needing_bootstrap(), vec![peer.clone()]);
-
-        // A fresh pass under the current epoch counts.
-        assert!(readiness.note_bootstrap_started(&peer));
-        let fresh_epoch = readiness.bootstrap_epoch;
-        assert!(readiness.note_bootstrap_succeeded(&peer, fresh_epoch));
-        assert!(readiness.peers_needing_bootstrap().is_empty());
-    }
-
-    #[test]
-    fn readiness_state_deduplicates_bootstrap_start_per_peer() {
-        let now = Instant::now();
-        let mut readiness = ReadinessState::new(now);
-        readiness.apply_membership(
-            BTreeSet::from(["remote".to_string()]),
-            BTreeSet::from(["http://peer.kura.internal:7443".to_string()]),
-            true,
-            now,
-        );
-
-        assert!(readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
-        assert!(!readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
-        readiness.note_bootstrap_failed("http://peer.kura.internal:7443");
-        assert!(readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
     }
 
     #[test]
@@ -800,74 +681,8 @@ mod tests {
         assert_eq!(readiness.generation, 1);
     }
 
-    #[test]
-    fn peers_needing_bootstrap_excludes_completed_and_inflight_entries() {
-        let now = Instant::now();
-        let mut readiness = ReadinessState::new(now);
-        let peer_a = "http://peer-a.kura.internal:7443".to_string();
-        let peer_b = "http://peer-b.kura.internal:7443".to_string();
-        let peer_c = "http://peer-c.kura.internal:7443".to_string();
-        readiness.apply_membership(
-            BTreeSet::from(["a".to_string(), "b".to_string(), "c".to_string()]),
-            BTreeSet::from([peer_a.clone(), peer_b.clone(), peer_c.clone()]),
-            true,
-            now,
-        );
-
-        readiness.note_bootstrap_succeeded(&peer_a, readiness.bootstrap_epoch);
-        assert!(readiness.note_bootstrap_started(&peer_b));
-
-        let pending = readiness.peers_needing_bootstrap();
-        assert_eq!(pending, vec![peer_c.clone()]);
-
-        readiness.note_bootstrap_failed(&peer_b);
-        let mut after_failure = readiness.peers_needing_bootstrap();
-        after_failure.sort();
-        assert_eq!(after_failure, vec![peer_b, peer_c]);
-    }
-
     #[tokio::test]
-    async fn app_state_serializes_concurrent_bootstrap_start_requests() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-
-        let barrier = Arc::new(Barrier::new(3));
-        let state_one = context.state.clone();
-        let barrier_one = barrier.clone();
-        let peer_one = peer.clone();
-        let first = tokio::spawn(async move {
-            barrier_one.wait().await;
-            state_one.note_bootstrap_started(&peer_one).await
-        });
-        let state_two = context.state.clone();
-        let barrier_two = barrier.clone();
-        let second = tokio::spawn(async move {
-            barrier_two.wait().await;
-            state_two.note_bootstrap_started(&peer).await
-        });
-
-        barrier.wait().await;
-        let first_started = first.await.expect("first bootstrap task should finish");
-        let second_started = second.await.expect("second bootstrap task should finish");
-        assert_eq!(
-            [first_started, second_started]
-                .into_iter()
-                .filter(|started| started.is_some())
-                .count(),
-            1
-        );
-    }
-
-    #[tokio::test]
-    async fn app_state_returns_to_joining_when_membership_generation_advances() {
+    async fn app_state_keeps_serving_when_membership_generation_advances() {
         let context = test_context(|_| {}).await;
         let peer_a = "http://peer-a.kura.internal:7443".to_string();
         let peer_b = "http://peer-b.kura.internal:7443".to_string();
@@ -881,8 +696,8 @@ mod tests {
             .await;
         context
             .state
-            .note_bootstrap_succeeded(&peer_a, context.state.current_bootstrap_epoch().await)
-            .await;
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -902,15 +717,315 @@ mod tests {
             )
             .await;
 
-        let joining = context.state.readiness_report().await;
-        assert!(!joining.ready);
-        assert_eq!(joining.state, TrafficState::Joining);
+        let still_serving = context.state.readiness_report().await;
+        assert!(still_serving.ready);
+        assert_eq!(
+            still_serving.state,
+            TrafficState::Serving,
+            "the newly discovered peer reconciles in the background"
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_readiness_latches_at_ring_fullness_while_still_backfilling() {
+        let context = test_context(|config| {
+            // Clamp the ring to the 5-segment legacy floor so one persisted
+            // segment reads as 20% full.
+            config.cas_capacity_bytes = Some(1);
+            config.backfill_ready_ring_percent = 20;
+        })
+        .await;
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("local artifact should persist");
+        assert_eq!(context.state.ring_fullness_percent(), 20);
+
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        // The peer's pass is in flight: the node is still backfilling.
+        let discovered = vec![peer.clone()];
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), Instant::now());
+        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let report = context.state.readiness_report().await;
+        assert!(report.ready, "ring at threshold latches ready mid-backfill");
+        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
+
+        context.state.sync_runtime_metrics().await;
+        let rendered = context.state.metrics.render();
+        assert_eq!(
+            rendered_metric_value(&rendered, "kura_backfill_ring_fullness_percent"),
+            Some(20)
+        );
+        assert_eq!(
+            rendered_metric_value(&rendered, "kura_backfill_initial_cycle_mode"),
+            Some(0),
+            "the cycle is still pending"
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_readiness_latches_when_no_longer_backfilling_below_ring_threshold() {
+        let context = test_context(|_| {}).await;
+        assert_eq!(context.state.ring_fullness_percent(), 0);
+
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        context.state.expire_readiness_settle_window().await;
+
+        // Mid-cycle (pass in flight) the small-dataset node is not ready.
+        let discovered = vec![peer.clone()];
+        let now = Instant::now();
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        context.state.maybe_mark_serving().await;
+        let report = context.state.readiness_report().await;
+        assert!(!report.ready);
         assert!(
-            joining
+            report
                 .reasons
                 .iter()
-                .any(|reason| reason.contains("discovery settling"))
+                .any(|reason| reason.contains("initial backfill cycle in progress"))
         );
+
+        // The cycle settles (first pass + seam follow-up complete): ready
+        // latches even though the ring never reached the threshold.
+        context
+            .state
+            .backfill
+            .test_finish_pass(&peer, PassResolution::Completed, now);
+        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), seam);
+        context
+            .state
+            .backfill
+            .test_finish_pass(&peer, PassResolution::Completed, seam);
+        context.state.maybe_mark_serving().await;
+        assert!(context.state.readiness_report().await.ready);
+    }
+
+    #[tokio::test]
+    async fn backfill_readiness_latches_when_all_in_cycle_budgets_exhaust_below_threshold() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        exhaust_backfill_budget_over(
+            &context.state,
+            &peer,
+            BudgetChargeKind::Real,
+            Instant::now(),
+        );
+
+        let cycle = context.state.backfill.cycle_snapshot();
+        assert!(!cycle.is_backfilling());
+        assert_eq!(cycle.budget_exhausted_real, 1);
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(
+            context.state.readiness_report().await.ready,
+            "ready-but-cold is intended when every in-cycle budget exhausts"
+        );
+        let report = context.state.rollout_status_report().await;
+        let backfill = report.backfill;
+        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Degraded);
+    }
+
+    #[tokio::test]
+    async fn backfill_readiness_with_zero_peers_requires_only_the_discovery_gates() {
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
+        context.state.expire_readiness_settle_window().await;
+
+        // Gate two (first control-plane peer view) still withholds serving.
+        context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
+
+        context.state.runtime.mark_peer_view_ready();
+        context.state.maybe_mark_serving().await;
+        assert!(
+            context.state.runtime.is_serving(),
+            "an empty cycle settles immediately: zero peers ⇒ ready"
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_peer_discovered_after_cycle_fixed_does_not_gate_readiness() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        // The first settled tick fixes an empty cycle.
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
+
+        // A peer discovered after the fix runs an ordinary re-join backfill.
+        let late_peer = vec!["http://late-peer.kura.internal:7443".to_string()];
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&late_peer, &[]), Instant::now());
+        assert!(!context.state.backfill.cycle_snapshot().is_backfilling());
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(
+            context.state.runtime.is_serving(),
+            "a post-fix discovery must not gate first readiness"
+        );
+    }
+
+    #[tokio::test]
+    async fn rollout_status_report_advances_backfill_mode_from_pending_through_degraded_to_complete()
+     {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        // Pending: the peer's pass is in flight and gates the cycle.
+        let discovered = vec![peer.clone()];
+        let now = Instant::now();
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&discovered, &[]), now);
+        let report = context.state.rollout_status_report().await;
+        let backfill = report.backfill;
+        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Pending);
+        assert_eq!(backfill.backfilling_peers, 1);
+
+        // Degraded: the budget exhausts on real failures and the cycle settles.
+        let now = exhaust_backfill_budget_over(&context.state, &peer, BudgetChargeKind::Real, {
+            // The pending pass above must terminate before the budget
+            // loop restarts passes over the same slot.
+            context
+                .state
+                .backfill
+                .test_finish_pass(&peer, PassResolution::Failed, now);
+            now + Duration::from_millis(BACKFILL_PASS_RETRY_BACKOFF_MAX_MS + 1)
+        });
+        let report = context.state.rollout_status_report().await;
+        let backfill = report.backfill;
+        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Degraded);
+        assert_eq!(backfill.backfilling_peers, 0);
+        assert_eq!(backfill.budget_exhausted_real, 1);
+        context.state.sync_runtime_metrics().await;
+        assert_eq!(
+            rendered_metric_value(
+                &context.state.metrics.render(),
+                "kura_backfill_initial_cycle_mode"
+            ),
+            Some(2)
+        );
+
+        // Degraded is not terminal: the background retry (and its seam
+        // follow-up) completing advances the mode to complete.
+        context
+            .state
+            .backfill
+            .test_finish_pass(&peer, PassResolution::Completed, now);
+        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
+        context
+            .state
+            .backfill
+            .test_evaluate(&backfill_tick(&[], &[]), seam);
+        context
+            .state
+            .backfill
+            .test_finish_pass(&peer, PassResolution::Completed, seam);
+        let report = context.state.rollout_status_report().await;
+        let backfill = report.backfill;
+        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Complete);
+        assert_eq!(backfill.budget_exhausted_real, 0);
+    }
+
+    #[tokio::test]
+    async fn rollout_status_report_counts_capability_excluded_peers_as_complete() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://pre-ab-peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        exhaust_backfill_budget_over(
+            &context.state,
+            &peer,
+            BudgetChargeKind::Capability,
+            Instant::now(),
+        );
+
+        let report = context.state.rollout_status_report().await;
+        let backfill = report.backfill;
+        assert_eq!(
+            backfill.initial_cycle,
+            BackfillInitialCycleMode::Complete,
+            "a capability-excluded bystander must not degrade the cycle"
+        );
+        assert_eq!(backfill.budget_exhausted_capability, 1);
+        assert_eq!(backfill.budget_exhausted_real, 0);
     }
 
     fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {
@@ -951,36 +1066,6 @@ mod tests {
         );
         assert_eq!(
             rendered_metric_value(&rendered, "change=\"lost\"}"),
-            Some(1)
-        );
-    }
-
-    #[tokio::test]
-    async fn app_state_records_discarded_bootstrap_completion_metric() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-
-        let stale_epoch = context.state.current_bootstrap_epoch().await;
-        context.state.note_bootstrap_started(&peer).await;
-        // A recovery re-enrollment resets progress while the pass is in flight,
-        // so the completion arrives under a stale epoch and is discarded.
-        context.state.reset_bootstrap_progress().await;
-        context
-            .state
-            .note_bootstrap_succeeded(&peer, stale_epoch)
-            .await;
-
-        let rendered = context.state.metrics.render();
-        assert_eq!(
-            rendered_metric_value(&rendered, "kura_bootstrap_completions_discarded"),
             Some(1)
         );
     }

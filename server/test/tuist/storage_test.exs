@@ -402,6 +402,65 @@ defmodule Tuist.StorageTest do
       # Then
       assert {:error, {:timeout, {Task.Supervised, :stream, [60_000]}}} = result
     end
+
+    test "returns :object_not_found when the object is missing" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+
+      # ExAws.S3.Download sizes the object with `head_object` through
+      # `ExAws.request!` and rescues the raised error itself, so the status code
+      # only survives in the inspected message.
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error,
+         %ExAws.Error{
+           message:
+             "ExAws Request Error!\n\n{:error, {:http_error, 404, %{body: \"\", headers: %{}, status_code: 404}}}\n"
+         }}
+      end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:error, :object_not_found} = result
+    end
+
+    test "keeps non-404 ExAws errors as they are" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+
+      error = %ExAws.Error{
+        message: "ExAws Request Error!\n\n{:error, {:http_error, 500, %{body: \"\", status_code: 500}}}\n"
+      }
+
+      expect(ExAws, :request, fn ^operation, _opts -> {:error, error} end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:error, ^error} = result
+    end
   end
 
   describe "object_exists?/1" do
@@ -972,10 +1031,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -999,10 +1058,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -1026,10 +1085,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -1266,9 +1325,9 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         assert updated_operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When

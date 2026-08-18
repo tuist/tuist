@@ -54,6 +54,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
           destinations: xt.destinations,
           additional_strings: xt.additional_strings
         }
@@ -86,6 +87,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
           destinations: target.destinations,
           additional_strings: target.additional_strings
         }
@@ -126,6 +128,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
           destinations: xt.destinations,
           additional_strings: xt.additional_strings
         }
@@ -158,6 +161,7 @@ defmodule Tuist.Xcode do
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
           destinations: target.destinations,
           additional_strings: target.additional_strings
         }

@@ -1,0 +1,43 @@
+{
+  "name": "ChartPoint",
+  "tagName": "noora-chart-point",
+  "elementClassName": "NooraChartPoint",
+  "className": "noora-chart-point",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative chart data point.",
+  "usage": "<noora-chart-point value=\"28\" color=\"var:noora-chart-primary\"></noora-chart-point>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "value",
+      "property": "value",
+      "type": "number",
+      "description": "Sets the numeric data value."
+    },
+    {
+      "name": "color",
+      "property": "color",
+      "type": "string",
+      "description": "Overrides the point color, including with a Noora semantic chart color."
+    },
+    {
+      "name": "url",
+      "property": "url",
+      "type": "string",
+      "description": "Navigates to this address when the point is selected."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-chart-series."],
+  "examples": [
+    {
+      "id": "point",
+      "title": "Point",
+      "description": "Describe one semantically colored value.",
+      "markup": "<noora-chart-point value=\"28\" color=\"var:noora-chart-primary\"></noora-chart-point>"
+    }
+  ]
+}

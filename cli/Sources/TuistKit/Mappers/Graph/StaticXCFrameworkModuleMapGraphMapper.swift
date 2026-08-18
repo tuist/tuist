@@ -12,7 +12,12 @@ import XcodeGraph
 /// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
-public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
+public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint:disable:this type_body_length
+    private struct ConditionedXCFramework {
+        let xcframework: GraphDependency.XCFramework
+        let condition: PlatformCondition?
+    }
+
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
     private let configLoader: ConfigLoading
@@ -44,19 +49,21 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         ) { graphTarget in
             let target = graphTarget.target
             let project = graphTarget.project
+            let targetDependency = GraphDependency.target(name: target.name, path: project.path)
             let staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
                 .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
                     path: project.path,
                     name: target.name
                 )
                 .sorted()
-                .compactMap { dependency -> GraphDependency.XCFramework? in
-                    switch dependency {
-                    case let .xcframework(xcframework):
-                        return xcframework
-                    default:
-                        return nil
-                    }
+                .compactMap { dependency -> ConditionedXCFramework? in
+                    guard case let .xcframework(xcframework) = dependency,
+                          case let .condition(condition) = graphTraverser.combinedCondition(
+                              to: dependency,
+                              from: targetDependency
+                          )
+                    else { return nil }
+                    return ConditionedXCFramework(xcframework: xcframework, condition: condition)
                 }
 
             // Static Swift xcframeworks reached through a dynamic xcframework are not relinked
@@ -69,8 +76,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     name: target.name
                 )
                 .sorted()
-                .compactMap { dependency -> GraphDependency.XCFramework? in
-                    if case let .xcframework(xcframework) = dependency { return xcframework } else { return nil }
+                .compactMap { dependency -> ConditionedXCFramework? in
+                    guard case let .xcframework(xcframework) = dependency,
+                          case let .condition(condition) = graphTraverser.combinedCondition(
+                              to: dependency,
+                              from: targetDependency
+                          )
+                    else { return nil }
+                    return ConditionedXCFramework(xcframework: xcframework, condition: condition)
                 }
 
             guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
@@ -79,6 +92,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    .map(\.xcframework)
                     .filter { $0.containsLibrary() }
 
             sideEffects += try await generateModuleMapAndUmbrellaHeader(
@@ -88,7 +102,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             let staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
-                    .filter { !$0.containsLibrary() }
+                    .filter { !$0.xcframework.containsLibrary() }
 
             var settings = SettingsDictionary()
             let xcframeworksRequiringPerSDKSearchPaths =
@@ -97,10 +111,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             if !xcframeworksRequiringPerSDKSearchPaths.isEmpty {
                 var pathsBySDKCondition: [String: [String]] = [:]
 
-                for xcframework in xcframeworksRequiringPerSDKSearchPaths {
+                for conditionedXCFramework in xcframeworksRequiringPerSDKSearchPaths {
+                    let xcframework = conditionedXCFramework.xcframework
                     for library in xcframework.infoPlist.libraries {
                         let platform = library.platform.graphPlatform
                         guard target.supportedPlatforms.contains(platform) else { continue }
+                        guard library.applies(to: conditionedXCFramework.condition) else { continue }
 
                         let path =
                             "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
@@ -500,6 +516,26 @@ extension XCFrameworkInfoPlist.Library {
             return "sdk=macosx*"
         case nil:
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
+        }
+    }
+
+    fileprivate func applies(to condition: PlatformCondition?) -> Bool {
+        guard let condition else { return true }
+        return condition.platformFilters.contains(platformFilter)
+    }
+
+    private var platformFilter: PlatformFilter {
+        switch platformVariant {
+        case .maccatalyst:
+            return .catalyst
+        case .simulator, nil:
+            switch platform {
+            case .iOS: return .ios
+            case .macOS: return .macos
+            case .tvOS: return .tvos
+            case .watchOS: return .watchos
+            case .visionOS: return .visionos
+            }
         }
     }
 }

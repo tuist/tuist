@@ -801,6 +801,38 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert got.values == [0, 0.5, 0.5]
       assert got.hit_rate == 0.5
     end
+
+    test "excludes command events after the selected period from the summary" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-29 09:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-04-29 23:59:59Z]
+        )
+
+      assert got.hit_rate == 0.5
+    end
   end
 
   describe "selective_testing_analytics_with_percentiles/1" do
@@ -2446,6 +2478,88 @@ defmodule Tuist.Builds.AnalyticsTest do
       # Then (use assert_in_delta for floating point comparison)
       assert_in_delta current, 0.9, 0.001
       assert_in_delta previous, 0.7, 0.001
+    end
+
+    test "only includes builds on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 80% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "main",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 80,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # feature branch: 20% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "feature",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 20,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When
+      result =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
+    end
+
+    test "returns nil when the window holds fewer builds than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..2 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
     end
   end
 

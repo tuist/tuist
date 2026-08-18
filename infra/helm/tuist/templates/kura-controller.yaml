@@ -74,6 +74,12 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
+    # delete lets a new Kura image replace pods that cannot pass readiness on
+    # the previous image. Ready pods remain under the StatefulSet's ordinary
+    # ordered rollout.
+    verbs: [get, list, watch, delete]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
     verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
@@ -265,6 +271,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      # Kura creates one Service per cache instance. Injecting every Service
+      # as environment variables can exceed the process argument limit and
+      # prevent the controller from starting when it is most needed.
+      enableServiceLinks: false
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

@@ -25,6 +25,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
+  alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
 
   @cache_retention_workers [
     DeleteExpiredCasCacheArtifactsWorker,
@@ -114,6 +115,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
 
         refute ExpireInteractiveSessionsWorker in workers
@@ -241,6 +243,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
 
         assert ExpireInteractiveSessionsWorker in workers

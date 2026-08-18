@@ -79,6 +79,18 @@ extension FileSystem {
         return (stats.st_mode & S_IFMT) == S_IFDIR
     }
 
+    /// True if a path resolves to a directory, following symbolic links.
+    /// Use this to classify a path a manifest named explicitly; use
+    /// `isDirectoryAndNotSymlink(_:)` when walking a tree, where following links
+    /// risks escaping the tree or cycling.
+    /// Synchronous because `stat` is a single non-blocking metadata call.
+    func isDirectoryFollowingSymlinks(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { stat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFDIR
+    }
+
     /// True if a path exists or is a (potentially broken) symlink.
     /// Synchronous because `lstat` is a single non-blocking metadata call.
     func existsIncludingSymlinks(_ url: URL) -> Bool {
@@ -115,12 +127,16 @@ extension FileSystem {
         return url
     }
 
-    /// If `directory` contains exactly one subdirectory, replace `directory` with that subdirectory's contents.
+    /// If `directory` contains exactly one subdirectory, move that subdirectory's contents up one level.
     func flattenSingleDirectory(_ url: URL) async throws {
-        let entries = try await contentsOfDirectory(url.absolutePath)
-        guard entries.count == 1 else { return }
-        let nested = entries[0].fileURL
-        guard isDirectoryAndNotSymlink(nested) else { return }
+        let subdirectories = try await contentsOfDirectory(at: url)
+            .filter { isDirectoryAndNotSymlink($0) }
+        guard subdirectories.count == 1, let nested = subdirectories.first else { return }
+        if try await exists(url.appendingPathComponent("Package.swift").absolutePath),
+           ["Plugins", "Sources", "Tests"].contains(nested.lastPathComponent)
+        {
+            return
+        }
 
         let temp = url.deletingLastPathComponent().appendingPathComponent(
             "\(url.lastPathComponent).flattening")
@@ -128,8 +144,14 @@ extension FileSystem {
             try await remove(temp.absolutePath)
         }
         try await move(from: nested.absolutePath, to: temp.absolutePath, options: [])
-        try await remove(url.absolutePath)
-        try await move(from: temp.absolutePath, to: url.absolutePath, options: [])
+        for entry in try await contentsOfDirectory(at: temp) {
+            try await move(
+                from: entry.absolutePath,
+                to: url.appendingPathComponent(entry.lastPathComponent).absolutePath,
+                options: []
+            )
+        }
+        try await remove(temp.absolutePath)
     }
 
     /// Materialise `source` at `destination`, removing any existing item first. By default,

@@ -102,7 +102,9 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         try generatePackages(
             target: target,
             pbxTarget: pbxTarget,
-            pbxproj: pbxproj
+            pbxproj: pbxproj,
+            path: path,
+            graphTraverser: graphTraverser
         )
 
         try generateEmbedPhase(
@@ -172,7 +174,9 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
     func generatePackages(
         target: Target,
         pbxTarget: PBXTarget,
-        pbxproj: PBXProj
+        pbxproj: PBXProj,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
@@ -189,6 +193,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                 case .runtime, .runtimeEmbedded:
                     role = target.product.isStatic ? .buildOnly : .link
                 }
+                guard role != .buildOnly else { continue }
                 try pbxTarget.addSwiftPackageProduct(
                     productName: product,
                     role: role,
@@ -199,6 +204,30 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }
+        }
+
+        let buildOnlyPackageProducts = target.product.isStatic
+            ? graphTraverser.packageProductsLinkedThroughStaticTargets(path: path, name: target.name).sorted()
+            : []
+        for case let .packageProduct(product, condition) in buildOnlyPackageProducts {
+            try pbxTarget.addSwiftPackageProduct(
+                productName: product,
+                role: .buildOnly,
+                pbxproj: pbxproj,
+                target: target,
+                condition: condition
+            )
+        }
+
+        if !buildOnlyPackageProducts.isEmpty {
+            // Xcode needs package product dependencies to propagate transitive package build settings,
+            // including C module maps, but their object files must stay out of static archives. Package
+            // products can contain targets with unrelated names, so the exclusion cannot use product names.
+            try setup(
+                setting: "EXCLUDED_SOURCE_FILE_NAMES",
+                values: ["$(BUILT_PRODUCTS_DIR)/*.o"],
+                pbxTarget: pbxTarget
+            )
         }
     }
 
@@ -695,6 +724,11 @@ extension PBXTarget {
             let targetDependency = PBXTargetDependency(product: productDependency)
             if role == .buildOnly {
                 targetDependency.applyCondition(condition, applicableTo: target)
+                // Preserve the package product dependency for package-imparted compiler settings.
+                if packageProductDependencies == nil {
+                    packageProductDependencies = []
+                }
+                packageProductDependencies?.append(productDependency)
             }
             pbxproj.add(object: targetDependency)
 

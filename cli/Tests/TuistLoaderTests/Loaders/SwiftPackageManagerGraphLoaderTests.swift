@@ -228,6 +228,79 @@ struct SwiftPackageManagerGraphLoaderTests {
         }
     }
 
+    @Test
+    func load_attributesAManifestLoadFailureToTheDependency() async throws {
+        struct ManifestFailure: Error, CustomStringConvertible {
+            var description: String { "boom" }
+        }
+
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                // Given
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "Alamofire.Alamofire",
+                              "kind" : "registry",
+                              "location" : "Alamofire.Alamofire",
+                              "name" : "Alamofire.Alamofire"
+                            },
+                            "state" : {
+                              "name" : "registryDownload",
+                              "version" : "5.10.2"
+                            },
+                            "subpath" : "Alamofire/Alamofire/5.10.2"
+                          }
+                        ],
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                // The dependency's manifest fails to load; the root's still resolves, so a
+                // failure attributed to the root would pass the assertion below only by
+                // accident. The interesting property is that the error names the dependency
+                // and the folder the workspace state pointed at, not the root package.
+                let packageFolder = temporaryDirectory.appending(components: [
+                    ".build", "registry", "downloads", "Alamofire", "Alamofire", "5.10.2",
+                ])
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willProduce { path, _ in
+                        if path == packageFolder { throw ManifestFailure() }
+                        return .test()
+                    }
+
+                // When / Then
+                await #expect(
+                    throws: SwiftPackageManagerGraphGeneratorError.packageManifestLoadFailed(
+                        name: "Alamofire.Alamofire",
+                        path: packageFolder,
+                        reason: "boom"
+                    )
+                ) {
+                    try await subject.load(
+                        packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                        packageSettings: PackageSettings.test(),
+                        disableSandbox: true
+                    )
+                }
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func load_doesNotHoldSwiftPackageManagerLock_whenLoadingManifests() async throws {
         // The Swift package manager scratch-directory lock is acquired by every

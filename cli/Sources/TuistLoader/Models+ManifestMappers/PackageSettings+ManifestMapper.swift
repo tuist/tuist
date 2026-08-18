@@ -32,7 +32,8 @@ extension TuistCore.PackageSettings {
             baseSettings: baseSettings,
             expectedSignatures: expectedSignatures,
             targetSettings: targetSettings,
-            projectOptions: projectOptions
+            projectOptions: projectOptions,
+            includeLocalPackageTestTargets: manifest.includeLocalPackageTestTargets
         )
     }
 }

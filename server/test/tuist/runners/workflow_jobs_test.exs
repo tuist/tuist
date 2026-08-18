@@ -169,6 +169,50 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
+  describe "requeue_by_handle/2" do
+    test "re-queues a running row that still carries the handle" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_035))
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_035, "pod-1", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_035, "runner-x")
+
+      assert :ok = WorkflowJobs.requeue_by_handle(910_035, claimed_at)
+
+      row = get_row!(910_035)
+      assert row.status == "queued"
+      assert row.pod_name == nil
+      assert row.claimed_at == nil
+    end
+
+    test "leaves a row re-claimed under a newer handle alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_036))
+      stale_handle = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_036, "pod-1", stale_handle)
+      :ok = WorkflowJobs.requeue(910_036)
+      newer_handle = DateTime.add(stale_handle, 5, :second)
+      :ok = WorkflowJobs.transition_claimed(910_036, "pod-2", newer_handle)
+
+      assert :noop = WorkflowJobs.requeue_by_handle(910_036, stale_handle)
+
+      row = get_row!(910_036)
+      assert row.status == "claimed"
+      assert row.pod_name == "pod-2"
+    end
+
+    test "leaves a terminal row alone even with a matching handle" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_037))
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_037, "pod-1", claimed_at)
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_037), "success", DateTime.utc_now())
+
+      assert :noop = WorkflowJobs.requeue_by_handle(910_037, claimed_at)
+      assert get_row!(910_037).status == "completed"
+    end
+  end
+
   describe "record_completed/3" do
     test "transitions an existing row from any non-terminal status" do
       account = account_fixture()

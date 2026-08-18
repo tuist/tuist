@@ -82,6 +82,29 @@ defmodule Tuist.Runners.JobsTest do
     :ok
   end
 
+  describe "with_workflow_job_ordering_lock/2" do
+    test "aborts the caller's transaction instead of handing the failure back as a value" do
+      test_pid = self()
+
+      result =
+        Repo.transaction(fn ->
+          Jobs.with_workflow_job_ordering_lock(8_100_001, fn -> Repo.rollback(:lock_failed) end)
+          send(test_pid, :ran_after_lock)
+          :done
+        end)
+
+      assert result == {:error, :lock_failed}
+      refute_received :ran_after_lock
+    end
+
+    test "returns the function's value when called inside an existing transaction" do
+      assert {:ok, :from_fun} =
+               Repo.transaction(fn ->
+                 Jobs.with_workflow_job_ordering_lock(8_100_002, fn -> :from_fun end)
+               end)
+    end
+  end
+
   describe "enqueue/1" do
     test "inserts a queued row" do
       account = account_fixture()
@@ -597,6 +620,54 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "get_orphaned_running/1" do
+    test "returns the recovery shape for a running job regardless of its age" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5201, fleet: "fleet-orphan", repository: "acme/app")
+      {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-orphan", claimed_at)
+      :ok = WorkflowJobs.transition_running(5201, "tuist-runner-orphan")
+
+      # No staleness floor: the caller reaches this having already been
+      # told the Pod stopped, which is the evidence the sweep's age gate
+      # is a proxy for.
+      assert %{
+               workflow_job_id: 5201,
+               account_id: account_id,
+               repository: "acme/app",
+               pod_name: "pod-orphan",
+               fleet_name: "fleet-orphan",
+               claimed_at: %DateTime{},
+               started_at: %DateTime{}
+             } = Jobs.get_orphaned_running(5201)
+
+      assert account_id == account.id
+    end
+
+    test "returns nil once the job leaves the running state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5202, fleet: "fleet-orphan")
+      {:ok, candidate} = Jobs.pick_queued("fleet-orphan", [])
+      :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-orphan-2", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_running(5202, "tuist-runner-orphan-2")
+      {:ok, _} = Jobs.complete(5202, "success")
+
+      refute Jobs.get_orphaned_running(5202)
+    end
+
+    test "returns nil for a job that never reached running" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5203, fleet: "fleet-orphan")
+
+      refute Jobs.get_orphaned_running(5203)
+    end
+
+    test "returns nil for an unknown workflow_job_id" do
+      refute Jobs.get_orphaned_running(999_999_999)
+    end
+  end
+
   describe "record_queued/1" do
     test "re-surfaces a claimed candidate without re-reading its ClickHouse row" do
       account = account_fixture()
@@ -759,6 +830,29 @@ defmodule Tuist.Runners.JobsTest do
 
       assert first.workflow_job_id == 8502
       assert bottom.workflow_job_id == 8501
+    end
+
+    test "narrows to any of the conclusions when :conclusion is a list" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 8701,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 30, :second)
+        )
+
+      :ok = completed_job_fixture(account, 8702, conclusion: "failure", completed_at: base)
+      :ok = completed_job_fixture(account, 8703, conclusion: "skipped", completed_at: base)
+      :ok = completed_job_fixture(account, 8704, conclusion: "cancelled", completed_at: base)
+
+      opts = [status: "completed", conclusion: ["success", "failure"]]
+
+      assert account.id |> Jobs.list_for_account(opts) |> Enum.map(& &1.workflow_job_id) |> Enum.sort() ==
+               [8701, 8702]
+
+      assert Jobs.count_for_account(account.id, opts) == 2
     end
 
     test "filters by :search via job_name ILIKE substring" do
@@ -945,6 +1039,74 @@ defmodule Tuist.Runners.JobsTest do
       one_day_ms = 24 * 60 * 60 * 1_000
       assert run.duration_ms < one_day_ms
       assert run.duration_ms >= 0
+    end
+
+    test "narrows to the given conclusions, applying the limit after the filter" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_001,
+          workflow_run_id: 7_401,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      # Both land after the succeeded run, so an unfiltered limit of 1
+      # would return one of these instead of it.
+      :ok =
+        completed_job_fixture(account, 64_002,
+          workflow_run_id: 7_402,
+          conclusion: "skipped",
+          completed_at: DateTime.add(base, 120, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_003,
+          workflow_run_id: 7_403,
+          conclusion: "cancelled",
+          completed_at: DateTime.add(base, 180, :second)
+        )
+
+      runs =
+        Jobs.list_recent_workflow_runs_for_account(account.id,
+          conclusion: ["success", "failure"],
+          limit: 1
+        )
+
+      assert Enum.map(runs, & &1.workflow_run_id) == [7_401]
+    end
+
+    test "drops a run whose jobs mostly succeeded but one was cancelled" do
+      account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
+
+      :ok =
+        completed_job_fixture(account, 64_101,
+          workflow_run_id: 7_501,
+          conclusion: "success",
+          started_at: base,
+          completed_at: DateTime.add(base, 60, :second)
+        )
+
+      :ok =
+        completed_job_fixture(account, 64_102,
+          workflow_run_id: 7_501,
+          conclusion: "cancelled",
+          started_at: base,
+          completed_at: DateTime.add(base, 90, :second)
+        )
+
+      # The rollup ladder ranks cancelled above success, so this run
+      # reads `cancelled` even though most of it ran and it carries a
+      # real duration. The card asks for success/failure only, so it
+      # stays out — deliberate, and the Workflows page still lists it.
+      assert Jobs.list_recent_workflow_runs_for_account(account.id, conclusion: ["success", "failure"]) == []
+
+      assert account.id
+             |> Jobs.list_recent_workflow_runs_for_account()
+             |> Enum.map(& &1.conclusion) == ["cancelled"]
     end
 
     test "scopes results to the given account" do
@@ -1266,49 +1428,6 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8332, fleet: "fleet-qca-look", enqueued_at: stale)
 
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
-    end
-  end
-
-  describe "p95_concurrent_last_hour/1" do
-    test "returns 0 on a fleet with no history" do
-      assert Jobs.p95_concurrent_last_hour("fleet-empty") == 0
-    end
-
-    test "reflects a workflow_job currently in flight" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 9001, fleet: "fleet-p95")
-      {:ok, candidate} = Jobs.pick_queued("fleet-p95", [])
-      # claimed_at lives a few seconds in the past to make sure it
-      # falls inside the most recent minute bucket on machines where
-      # the test runs sub-second.
-      claimed_at = DateTime.add(DateTime.utc_now(), -5, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", claimed_at)
-      :ok = Jobs.record_running(9001, "runner-1")
-
-      # One in-flight workflow_job → p95 of the 60 buckets is at
-      # least 1 (most recent bucket contains it; the remaining 59
-      # buckets predating claimed_at contain 0). p95 over [1, 0×59]
-      # is 0 with strict quantile semantics; with quantile() linear
-      # interpolation across 60 ordered samples [0,0,...,0,1] the
-      # 95th percentile lands in the upper tail. Either way the
-      # observed value tracks "at least one job was concurrent
-      # somewhere in the window" — the autoscaler's anti-thrash
-      # cooldown handles the precision gap.
-      assert Jobs.p95_concurrent_last_hour("fleet-p95") >= 0
-    end
-
-    test "ignores jobs that completed more than 2 hours ago" do
-      # Sanity check: the 2-hour scan bound is permissive enough
-      # to cover the 1-hour window. A workflow_job whose claimed_at
-      # is well outside the bound contributes nothing.
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 9101, fleet: "fleet-old")
-      {:ok, candidate} = Jobs.pick_queued("fleet-old", [])
-      far_past = DateTime.add(DateTime.utc_now(), -10_800, :second)
-      :ok = Jobs.record_claimed(candidate, "pod-1", far_past)
-      {:ok, _} = Jobs.complete(9101, "success")
-
-      assert Jobs.p95_concurrent_last_hour("fleet-old") == 0
     end
   end
 

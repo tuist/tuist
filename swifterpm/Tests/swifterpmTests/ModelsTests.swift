@@ -137,7 +137,7 @@ struct ModelsTests {
             let readBackByIdentity = Dictionary(uniqueKeysWithValues: readBack.pins.map {
                 ($0.identity, $0)
             })
-            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/apple/swift-log")
+            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/Apple/swift-log")
             #expect(readBackByIdentity["example.package"]?.originalLocation == "https://source.example.com/Tuist/SwifterPM.git")
 
             let resolvedFilePath = root.appendingPathComponent("Package.resolved")
@@ -152,7 +152,7 @@ struct ModelsTests {
                     return (identity, pin)
                 }
             )
-            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String == "https://github.com/apple/swift-log")
+            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String == "https://github.com/Apple/swift-log")
             #expect(rawPinsByIdentity["example.package"]?["originalLocation"] as? String ==
                 "https://source.example.com/Tuist/SwifterPM.git")
         }
@@ -234,9 +234,9 @@ struct ModelsTests {
                 "generic",
                 "swifterpm",
             ]))
-            #expect(rawPinsByIdentity["combineext"]?["location"] as? String == "https://github.com/combinecommunity/combineext")
-            #expect(rawPinsByIdentity["dd-sdk-ios"]?["location"] as? String == "git@github.com:datadog/dd-sdk-ios")
-            #expect(rawPinsByIdentity["swifterpm"]?["location"] as? String == "https://gitlab.com/tuist/swifterpm")
+            #expect(rawPinsByIdentity["combineext"]?["location"] as? String == "https://github.com/CombineCommunity/CombineExt")
+            #expect(rawPinsByIdentity["dd-sdk-ios"]?["location"] as? String == "git@github.com:DataDog/dd-sdk-ios")
+            #expect(rawPinsByIdentity["swifterpm"]?["location"] as? String == "https://gitlab.com/Tuist/SwifterPM")
             #expect(rawPinsByIdentity["generic"]?["location"] as? String == "https://source.example.com/Tuist/SwifterPM.git")
             #expect(rawPinsByIdentity["LocalPackage"]?["location"] as? String == "file:///tmp/LocalPackage.git")
             #expect(!rawLocations.contains("https://github.com/CombineCommunity/CombineExt.git"))
