@@ -10,6 +10,17 @@
 
 Tuist packages its agent skills and hosted MCP server as plugins so you can install both together. Choose the package that matches your coding agent.
 
+## Claude Code
+
+The [Tuist Claude Code marketplace](https://github.com/tuist/claude-plugin) packages the Tuist plugin from the private repository required by [Claude Code managed marketplace restrictions](https://code.claude.com/docs/en/plugin-marketplaces#managed-marketplace-restrictions). Members with repository access can install it with:
+
+```bash
+claude plugin marketplace add tuist/claude-plugin
+claude plugin install tuist@tuist-plugins
+```
+
+The plugin provides Tuist skills and connects Claude Code to the hosted MCP server.
+
 ## Cursor
 
 Install the [Tuist plugin for Cursor](https://github.com/tuist/cursor-plugin) from the [Cursor Marketplace](https://cursor.com/marketplace):

@@ -141,6 +141,22 @@ jobs:
             echo "No changes to push"
           fi
 
+      - name: Push to tuist/claude-plugin
+        run: |
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/claude-plugin.git /tmp/claude-plugin
+          rm -rf /tmp/claude-plugin/plugins/tuist/skills
+          cp -r skills/skills /tmp/claude-plugin/plugins/tuist/skills
+          cd /tmp/claude-plugin
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Sync Tuist skills"
+            git push origin main
+          else
+            echo "No changes to push"
+          fi
+
       - name: Create Skills GitHub Release
         uses: softprops/action-gh-release@v2
         with:
