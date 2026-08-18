@@ -69,9 +69,9 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, the
-# RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects. This aggregates into `view` via
-# the label below (no extra binding; both tuist-admins and tuist-eng
-# inherit it), and is strictly
+# RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects. This
+# aggregates into `view` via the label below (no extra binding; both
+# tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
 # Secret exclusion is untouched. None of these resource kinds embed secret
 # data (CAPI/Kura/CNPG reference Secrets by name, never inline).
@@ -174,15 +174,15 @@ rules:
 #     an incident-time action that cannot destroy anything. No delete: pruning
 #     the archive is barman's retention job, not an operator's.
 #
-# `delete` on `clusters` is withheld, and that is the one place this diverges
+# `delete` on `clusters` is withheld from THIS role, which is where it diverges
 # from `tuist-edit-kura-write`. A Kura CR is regenerable (the control plane
-# re-renders it and the mesh refills), so granting delete there costs a cache
-# warm-up. A CNPG `Cluster` is not: deleting it deletes the PVCs it owns, and
-# `tuist-tuist-pg` is the production datastore. Nothing a TTL-bounded elevation
-# is for requires destroying a database, and a genuine decommission is rare,
-# deliberate, and reviewed. It stays an admin action. `create` is withheld for
-# the same reason inverted: standing up a datastore is a chart change, not an
-# operator action.
+# re-renders it and the mesh refills), so delete rides along with the other
+# verbs there. A CNPG `Cluster` is not: deleting it deletes the PVCs it owns.
+# Retiring a cluster is still a real operation, so the capability does exist,
+# but it lives in `tuist-cnpg-decommission` below on a direct binding to the
+# elevation group rather than in this aggregated role, so it cannot be
+# inherited by anything else that later binds `edit`. `create` is withheld
+# outright: standing up a datastore is a chart change, not an operator action.
 #
 # Scoped to named kinds rather than `*` so future kinds in the group (Database,
 # Publication, Subscription) do not silently inherit write access, following
@@ -201,6 +201,66 @@ rules:
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["backups"]
     verbs: ["get", "list", "watch", "create"]
+---
+# Decommission capability for RETIRING a CNPG cluster. Separated from
+# `tuist-edit-cnpg-write` above because `delete` on a datastore deserves a
+# tighter binding than the rest of the CNPG verbs, and modelled on
+# `tuist-fleet-unwedge` below rather than on the aggregated roles.
+#
+# Why it exists at all: there is no tier between the JIT write elevation and
+# the break-glass kubeconfig. Withholding cluster deletion from the elevation
+# does not make the operation safer, it makes the only route to it the
+# emergency path, so a planned decommission of a dead cluster would be done
+# with credentials reserved for incidents. That inverts the access policy.
+# Gating it behind an elevation that is requested with a stated intent,
+# TTL-bounded, and audited is the stronger control.
+#
+# Why the blast radius is acceptable: every managed cluster archives WAL
+# continuously and takes base backups to Tigris through the Barman Cloud
+# Plugin, and the `ObjectStore` CR holding that archive is a separate object
+# that a Cluster delete does not touch. The PVCs are `hcloud-volumes`, which
+# is `reclaimPolicy: Retain`, so they outlive the Cluster too. Deleting a
+# Cluster CR is therefore a severe outage and a restore, not data loss.
+#
+# Like `tuist-fleet-unwedge`, this is NOT aggregated into `edit`. It binds
+# straight to `tuist-<env>-write` below, so the capability is welded to an
+# active elevation and cannot be inherited by a service account or a team
+# namespace through some later RoleBinding onto the generic `edit` role.
+#
+# Deliberately narrow: `clusters` only, `delete` only. Poolers, backups and
+# scheduled backups keep the non-destructive verbs granted above. Namespaces
+# stay untouched, so retiring a cluster leaves an empty namespace behind for
+# an admin to sweep; that is inert, and granting namespace deletion here
+# would reach every namespace in the cluster, not just a retired one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-cnpg-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["delete"]
+---
+# Bind the decommission role straight to this env's write-elevation group, so
+# cluster deletion lives ONLY on an active `tuist-<env>-write` elevation and
+# never on the generic `edit` tier. Per-env like the bindings above, so a prod
+# elevation cannot retire a staging cluster or vice versa.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-cnpg-decommission
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-cnpg-decommission
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
 ---
 # Host-recovery capability for UN-WEDGING a single fleet host without the
 # break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
