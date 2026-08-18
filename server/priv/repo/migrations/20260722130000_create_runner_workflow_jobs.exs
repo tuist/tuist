@@ -38,5 +38,27 @@ defmodule Tuist.Repo.Migrations.CreateRunnerWorkflowJobs do
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_workflow_jobs, [:updated_at])
+
+    # The recovery sweeps scan one live status across every fleet, and
+    # rows are kept for the account's lifetime, so without a partial
+    # index each sweep would walk the full history. The live set is a
+    # tiny fraction of the table.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(:runner_workflow_jobs, [:started_at],
+             where: "status = 'running'",
+             name: :runner_workflow_jobs_running_started_at_index
+           )
+
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(:runner_workflow_jobs, [:enqueued_at],
+             where: "status = 'queued'",
+             name: :runner_workflow_jobs_queued_enqueued_at_index
+           )
+
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(:runner_workflow_jobs, [:status, :workflow_job_id],
+             where: "status IN ('queued', 'claimed', 'running')",
+             name: :runner_workflow_jobs_live_index
+           )
   end
 end

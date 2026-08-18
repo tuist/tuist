@@ -38,11 +38,13 @@ defmodule Tuist.Runners.WorkflowJobs do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
   @terminal_statuses ~w(completed cancelled)
+  @live_statuses ~w(queued claimed running)
 
   @doc """
   Inserts a `queued` row for the workflow_job when none exists.
@@ -155,7 +157,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   def record_completed(attrs, conclusion, %DateTime{} = completed_at) when is_map(attrs) and is_binary(conclusion) do
     now = DateTime.utc_now()
     truncated_now = DateTime.truncate(now, :second)
-    status = if conclusion == "cancelled", do: "cancelled", else: "completed"
+    status = terminal_status(conclusion)
 
     row =
       attrs
@@ -357,23 +359,28 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  Adopts lifecycle rows for jobs that exist only in ClickHouse —
-  enqueued by code that predates this table. Inserts each row in its
-  current ClickHouse status (`ON CONFLICT DO NOTHING`, completion
-  guard included), so redeliveries and races with live transitions
-  are safe. Adopted rows emit no outbox event: ClickHouse is the
-  source here, so there is nothing to replicate back.
+  Adopts a lifecycle row for a job that exists only in ClickHouse —
+  enqueued by code that predates this table — in its current
+  ClickHouse status. Returns the number of rows inserted (`0` or `1`).
+
+  Must run inside `Tuist.Runners.Jobs.with_workflow_job_ordering_lock/2`:
+  every completion writer (this release and the one before it) takes
+  that lock, so the completion check and the insert cannot straddle a
+  completion landing in between. `ON CONFLICT DO NOTHING` covers a
+  race with a live transition that created the row first. Adopted rows
+  emit no outbox event — ClickHouse is the source here, so there is
+  nothing to replicate back.
 
   Transitional, used only by
-  `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`; deleted with it.
+  `Tuist.Runners.Workers.ReconcileWorkflowJobsWorker`; deleted with it.
   """
-  def adopt_missing(ch_rows) when is_list(ch_rows) do
-    now = DateTime.utc_now()
-    truncated_now = DateTime.truncate(now, :second)
+  def adopt(ch_row) when is_map(ch_row) do
+    if completion_recorded?(ch_row.workflow_job_id) do
+      0
+    else
+      now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    rows =
-      for ch_row <- ch_rows,
-          not completion_recorded?(ch_row.workflow_job_id) do
+      row =
         ch_row
         |> base_row()
         |> Map.merge(%{
@@ -383,17 +390,136 @@ defmodule Tuist.Runners.WorkflowJobs do
           started_at: Map.get(ch_row, :started_at),
           pod_name: blank_to_nil(Map.get(ch_row, :pod_name)),
           runner_name: blank_to_nil(Map.get(ch_row, :runner_name)),
-          inserted_at: truncated_now,
-          updated_at: truncated_now
+          inserted_at: now,
+          updated_at: now
         })
-      end
 
-    {count, _} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing)
-    count
+      {count, _} = Repo.insert_all(WorkflowJob, [row], on_conflict: :nothing)
+      count
+    end
   end
 
   defp adopt_status(%{status: "completed", conclusion: "cancelled"}), do: "cancelled"
   defp adopt_status(%{status: status}), do: status
+
+  @doc """
+  Which of `workflow_job_ids` already have a completion recorded.
+  Batched prefilter for adoption so the per-row locked check only runs
+  for candidates that might still be live.
+  """
+  def completed_ids(workflow_job_ids) when is_list(workflow_job_ids) do
+    Repo.all(
+      from(c in JobCompletion,
+        where: c.workflow_job_id in ^workflow_job_ids,
+        select: c.workflow_job_id
+      )
+    )
+  end
+
+  @doc """
+  Closes lifecycle rows still non-terminal for a job whose completion
+  is recorded. Returns the number of rows transitioned.
+
+  A `runner_job_completions` row is proof the job is over, written by
+  every completion path — including the previous release's, which
+  never touches this table. While old and new pods overlap (a roll,
+  or a rollback and roll-forward), a job the old code completed keeps
+  its Postgres row wherever it was — `queued` churns dispatch, and
+  `claimed`/`running` looks live to the recovery scans — until this
+  closes it with the completion's own conclusion.
+  """
+  def close_completed do
+    stale =
+      Repo.all(
+        from(j in WorkflowJob,
+          join: c in JobCompletion,
+          on: c.workflow_job_id == j.workflow_job_id,
+          where: j.status in ^@live_statuses,
+          select: {j.workflow_job_id, c.conclusion, c.completed_at}
+        )
+      )
+
+    Enum.count(stale, fn {workflow_job_id, conclusion, completed_at} ->
+      completed_at = completed_at || DateTime.utc_now()
+
+      transition(workflow_job_id, @live_statuses, terminal_status(conclusion),
+        conclusion: conclusion,
+        completed_at: completed_at
+      ) == :ok
+    end)
+  end
+
+  @doc """
+  Re-queues `claimed` lifecycle rows that no live claim backs. Returns
+  the number of rows transitioned.
+
+  Under this release a claim and its `claimed` row are created and
+  released in one transaction, so the state cannot arise on its own.
+  It appears when the previous release's code releases a claim this
+  release made — its stale-claim sweep and pod-stopped path delete
+  the claim without touching this table — leaving the job invisible
+  to dispatch (not `queued`) and to every recovery scan (no claim to
+  list, not `running`). A `claimed` row is by construction pre-mint,
+  so nothing can be running for it and the requeue is safe; the
+  handle guard leaves a row that was re-claimed in the meantime alone.
+  """
+  def requeue_unbacked_claimed do
+    unbacked =
+      Repo.all(
+        from(j in WorkflowJob,
+          left_join: c in Claim,
+          on: c.workflow_job_id == j.workflow_job_id,
+          where: j.status == "claimed" and is_nil(c.workflow_job_id),
+          select: {j.workflow_job_id, j.claimed_at}
+        )
+      )
+
+    Enum.count(unbacked, fn
+      {workflow_job_id, %DateTime{} = claimed_at} -> requeue_by_handle(workflow_job_id, claimed_at) == :ok
+      {workflow_job_id, nil} -> requeue(workflow_job_id) == :ok
+    end)
+  end
+
+  @doc """
+  Moves `queued` lifecycle rows that a live claim already backs into
+  the claim's state. Returns the number of rows transitioned.
+
+  The previous release's `Claims.attempt/5` and `mark_running/2` write
+  the claim only, so a job this release enqueued and the old code
+  claimed reads `queued` here while a Pod holds it. Dispatch would
+  keep offering it (each attempt losing the claim race by primary
+  key), and the recovery scans would miss it — this brings the row to
+  where the claim says it is.
+  """
+  def sync_claimed_from_claims do
+    backed =
+      Repo.all(
+        from(j in WorkflowJob,
+          join: c in Claim,
+          on: c.workflow_job_id == j.workflow_job_id,
+          where: j.status == "queued",
+          select: {j.workflow_job_id, c.pod_name, c.claimed_at, c.lifecycle_state, c.runner_name}
+        )
+      )
+
+    Enum.count(backed, fn {workflow_job_id, pod_name, claimed_at, lifecycle_state, runner_name} ->
+      case transition_claimed(workflow_job_id, pod_name, claimed_at) do
+        :ok ->
+          if lifecycle_state == "running", do: transition_running(workflow_job_id, runner_name || "")
+          true
+
+        :noop ->
+          false
+      end
+    end)
+  end
+
+  @doc """
+  The terminal status a conclusion maps to: `"cancelled"` for a
+  cancelled conclusion, `"completed"` for everything else.
+  """
+  def terminal_status("cancelled"), do: "cancelled"
+  def terminal_status(_conclusion), do: "completed"
 
   @doc """
   Rows whose `updated_at` falls in `(updated_after, updated_before)`,

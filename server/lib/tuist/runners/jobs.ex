@@ -1318,7 +1318,7 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  ClickHouse-side source for `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`:
+  ClickHouse-side source for `Tuist.Runners.Workers.ReconcileWorkflowJobsWorker`:
   the latest state of every non-terminal `runner_jobs` row enqueued
   after `enqueued_after`, carrying the full column set so a missing
   Postgres lifecycle row can be adopted in its current status.

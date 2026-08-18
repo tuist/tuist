@@ -31,7 +31,7 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
   `missing_in_postgres` is deliberately not a kind: this worker's scan
   is Postgres-driven, and jobs that exist only in ClickHouse (enqueued
   by code predating the lifecycle table) are
-  `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`'s job to adopt,
+  `Tuist.Runners.Workers.ReconcileWorkflowJobsWorker`'s job to adopt,
   not this one's to report.
   """
 

@@ -11,7 +11,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Registry.Swift.SyncWorker
-  alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
+  alias Tuist.Runners.Workers.ReconcileWorkflowJobsWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.JobStateDriftWorker
@@ -133,7 +133,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute StaleQueuedJobsWorker in workers
         refute JobStateDriftWorker in workers
         refute FlushJobTransitionEventsWorker in workers
-        refute BackfillWorkflowJobsWorker in workers
+        refute ReconcileWorkflowJobsWorker in workers
       end
     end
 
@@ -261,7 +261,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert StaleQueuedJobsWorker in workers
         assert JobStateDriftWorker in workers
         assert FlushJobTransitionEventsWorker in workers
-        assert BackfillWorkflowJobsWorker in workers
+        assert ReconcileWorkflowJobsWorker in workers
       end
     end
 
