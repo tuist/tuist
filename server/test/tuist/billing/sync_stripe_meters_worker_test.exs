@@ -160,4 +160,28 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
     assert length(all_jobs) == 1
   end
+
+  test "reports an explicit window when the caller supplies one" do
+    customer_id = "account-explicit-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    # An arbitrary window, deliberately not yesterday, so the assertion
+    # proves the boundaries came from the args rather than the clock.
+    period_start = ~U[2026-08-18 00:00:00.000000Z]
+    period_end = ~U[2026-08-19 00:00:00.000000Z]
+
+    assert :ok =
+             SyncStripeMetersWorker.perform(%Oban.Job{
+               args: %{
+                 "period_start" => DateTime.to_unix(period_start, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end, :microsecond)
+               }
+             })
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    job = Enum.find(jobs, &(&1.args["customer_id"] == customer_id))
+
+    assert job.args["period_start"] == DateTime.to_unix(period_start, :microsecond)
+    assert job.args["period_end"] == DateTime.to_unix(period_end, :microsecond)
+  end
 end
