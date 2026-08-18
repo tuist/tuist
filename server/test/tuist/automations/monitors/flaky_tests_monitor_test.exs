@@ -500,7 +500,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
             "threshold" => 1,
             "comparison" => "gte",
             "window_type" => "rolling",
-            "rolling_window_size" => 5
+            "rolling_window_size" => 1
           }
         )
 
@@ -601,6 +601,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         )
       end
 
+      # The run from the fixture above plus these fills the five-run window, so
+      # the threshold is compared against the window the alert asked for.
+      for i <- 4..6 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: false,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
@@ -640,7 +652,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{
             "threshold" => 1,
             "window_type" => "rolling",
-            "rolling_window_size" => 5,
+            "rolling_window_size" => 1,
             "comparison" => "gte"
           }
         )
@@ -938,12 +950,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   # original ingestion writes is_flaky=false, then later re-marks re-insert the
   # SAME run (same id + ran_at) with is_flaky=true. Preceded by four older
   # stable runs.
-  # Windows above 75 are served by `test_case_runs_recent_packed_per_case`,
-  # which encodes each run as a single Int64 rather than a
-  # `(-ran_at_micros, flag)` tuple. These run against real ClickHouse so the
-  # packing, the bit-level flag reads, and the de-duplication of correction rows
-  # are exercised as ClickHouse actually evaluates them.
-  describe "rolling window above the tuple bucket" do
+  # Every rolling window is served by `test_case_runs_recent_packed_per_case`,
+  # which encodes each run as a single Int64. These run against real ClickHouse
+  # so the packing, the bit-level flag reads, and the de-duplication of
+  # correction rows are exercised as ClickHouse actually evaluates them.
+  describe "rolling window measurement" do
     test "flakiness_rate measures the packed aggregate" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
@@ -1075,7 +1086,44 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute test_case_id in FlakyTestsMonitor.evaluate_by_run_count(alert.(2)).triggered
     end
 
-    test "does not evaluate a window the aggregate has not filled yet" do
+    test "does not evaluate a small window the aggregate has not filled yet" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_partial_small")
+
+      base = NaiveDateTime.utc_now()
+
+      # Three flaky runs against a ten-run window. A partial window would report
+      # 100%; the alert asked about ten runs, and only three exist.
+      for i <- 1..3 do
+        ran_at = NaiveDateTime.add(base, -i, :second)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: true,
+          status: "failure",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "rolling",
+            "rolling_window_size" => 10,
+            "comparison" => "gte"
+          }
+        )
+
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "does not evaluate a large window the aggregate has not filled yet" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
       RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "packed_partial")
