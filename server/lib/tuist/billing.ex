@@ -131,30 +131,35 @@ defmodule Tuist.Billing do
         []
       end
 
-    # Only report a platform's runner meter once its Stripe price is
-    # configured. During the staged rollout `stripe.prices.runners` is
-    # empty, so neither meter exists in Stripe yet; reporting to an
-    # unprovisioned meter just errors the job and adds Sentry noise, and
-    # usage without an attached price wouldn't bill anyway. Each platform
-    # turns on independently, the moment its price lands in config.
+    # Only report a platform's runner meter once that Meter exists in
+    # Stripe. During the staged rollout `stripe.prices.runners` is empty,
+    # so neither Meter exists yet, and reporting to an unprovisioned meter
+    # just errors the job and adds Sentry noise. Each platform turns on
+    # independently, the moment its key lands in config.
     runner_values =
       account_id
       |> RunnerBilling.compute_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
       end)
-      |> Enum.filter(&runner_meter_priced?(&1.event_name))
+      |> Enum.filter(&runner_meter_provisioned?(&1.event_name))
 
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
     Enum.reject(remote_cache_values ++ language_model_values ++ runner_values, &(&1.value == 0))
   end
 
-  defp runner_meter_priced?(event_name) do
+  # A platform reports as soon as its Meter exists in Stripe, which the
+  # presence of its key in `stripe.prices.runners` declares. The value is
+  # the Price id, and an empty one is the deliberate reporting-only state:
+  # usage accrues on the Meter where it can be inspected, while
+  # `runner_subscription_items/1` and `configured_runner_price_ids/0` both
+  # skip empty ids, so no subscription ever carries the item and nothing
+  # can be charged. Filling the id in is what turns billing on.
+  defp runner_meter_provisioned?(event_name) do
     (Tuist.Environment.stripe_prices() || %{})
     |> Map.get("runners", %{})
-    |> Map.get(event_name)
-    |> then(&(is_binary(&1) and &1 != ""))
+    |> Map.has_key?(event_name)
   end
 
   @doc """

@@ -730,14 +730,68 @@ defmodule Tuist.BillingTest do
              ]
     end
 
-    test "drops the runner meter when its Stripe price is not yet configured" do
+    test "reports a platform whose Meter exists but whose Price is not set yet" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      # An empty Price id is the reporting-only state: the Meter exists in
+      # Stripe and receives usage, but no subscription can carry the item,
+      # so nothing is charged.
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{"runner_macos_compute_unit_milliseconds" => ""}}
+      end)
+
+      expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        0
+      end)
+
+      expect(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :macos, total_units: 750_125}]
+      end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "runner_macos_compute_unit_milliseconds", value: 750_125}
+             ]
+    end
+
+    test "attaches no subscription item for a Meter whose Price is not set yet" do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => ""}
+        }
+      end)
+
+      expect(Session, :create, fn %{
+                                    success_url: "success_url",
+                                    line_items: [
+                                      %{price: "pro.usage"},
+                                      %{price: "pro.flat.monthly", quantity: 1}
+                                    ],
+                                    mode: "subscription",
+                                    customer: "customer_id"
+                                  } ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      assert Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"}) ==
+               {:ok, {:external_redirect, "session_url"}}
+    end
+
+    test "drops a platform whose Meter does not exist in Stripe yet" do
       customer_id = "customer-#{UUIDv7.generate()}"
       %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
-      # The base setup stub ships `"runners" => %{}`, so no runner price
-      # is configured yet.
+      # The base setup stub ships `"runners" => %{}`, so neither Meter has
+      # been created in Stripe yet.
       expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
         10
       end)
