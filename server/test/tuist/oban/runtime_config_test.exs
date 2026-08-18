@@ -1,6 +1,7 @@
 defmodule Tuist.Oban.RuntimeConfigTest do
   use ExUnit.Case, async: true
 
+  alias Tuist.Accounts.Workers.DormantOperatorAccountsWorker
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
   alias Tuist.Alerts.Workers.AlertWorker
   alias Tuist.Automations.Workers.AutomationScheduler
@@ -256,6 +257,20 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert KuraReconciler in workers
         assert StaleQueuedJobsWorker in workers
         assert FlushJobTransitionEventsWorker in workers
+      end
+    end
+
+    test "retires dormant operator accounts only on Tuist-hosted deployments" do
+      for env <- [:prod, :stag, :can] do
+        hosted = :web |> RuntimeConfig.crontab(env, true) |> Enum.map(&cron_worker/1)
+        self_hosted = :web |> RuntimeConfig.crontab(env, false) |> Enum.map(&cron_worker/1)
+
+        assert DormantOperatorAccountsWorker in hosted
+
+        # The sweep keys off the operator email domain, which only identifies
+        # Tuist's own workforce. On a self-hosted install that domain belongs to
+        # someone else, so running it there would disable a customer's staff.
+        refute DormantOperatorAccountsWorker in self_hosted
       end
     end
 

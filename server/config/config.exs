@@ -130,6 +130,11 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # Dormant operator account sweep — this line is the evidence record for
+    # the inactivity control, so the ids have to survive into the log output
+    :disabled_user_ids,
+    :scrubbed_user_ids,
+    :unassessable_user_ids,
     :session_payload_bytes,
     :warning_threshold_bytes,
     # Tuist.Runners structured fields
