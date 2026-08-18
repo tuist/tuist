@@ -6340,6 +6340,53 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_staticXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_dynamicXCFrameworksOverlapAndChain() async throws {
+        // App ---> DynamicA ---> StaticSwiftA
+        //      |           \--> DynamicB ---> StaticSwiftB
+        //      \--> DynamicB
+        //
+        // `DynamicB` is both a direct dependency and reachable through `DynamicA`, which is what makes the
+        // per-root walk observable: the statics behind it must be reported exactly once and from either path.
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let staticSwiftAPath = try temporaryPath().appending(component: "StaticSwiftA.xcframework")
+        let staticSwiftBPath = try temporaryPath().appending(component: "StaticSwiftB.xcframework")
+
+        let dynamicA = GraphDependency.testXCFramework(path: "/test/DynamicA.xcframework", linking: .dynamic)
+        let dynamicB = GraphDependency.testXCFramework(path: "/test/DynamicB.xcframework", linking: .dynamic)
+        let staticSwiftA = GraphDependency.testXCFramework(
+            path: staticSwiftAPath,
+            linking: .static,
+            swiftModules: [staticSwiftAPath.appending(component: "StaticSwiftA.swiftmodule")]
+        )
+        let staticSwiftB = GraphDependency.testXCFramework(
+            path: staticSwiftBPath,
+            linking: .static,
+            swiftModules: [staticSwiftBPath.appending(component: "StaticSwiftB.swiftmodule")]
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([dynamicA, dynamicB]),
+            dynamicA: Set([staticSwiftA, dynamicB]),
+            dynamicB: Set([staticSwiftB]),
+        ]
+        let graph = Graph.test(projects: [project.path: project], dependencies: dependencies)
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertBetterEqual(got, Set([staticSwiftA, staticSwiftB]))
+        // Repeated so the memoized per-root walks are exercised on a warm cache too.
+        XCTAssertBetterEqual(
+            subject.staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: project.path, name: target.name),
+            Set([staticSwiftA, staticSwiftB])
+        )
+    }
+
     func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Swift XCFramework (A)

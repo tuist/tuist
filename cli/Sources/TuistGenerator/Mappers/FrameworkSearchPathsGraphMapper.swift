@@ -182,8 +182,11 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         for input: TargetInput,
         graphTraverser: GraphTraverser
     ) throws -> TargetOutput? {
+        // Not sorted: every value derived below lands in a `Set` and is ordered explicitly before it
+        // reaches a build setting or a response file, and sorting hundreds of references per target is
+        // a measurable share of this mapper's cost on a binary-cache-substituted graph.
         let linkableModules = try graphTraverser
-            .searchablePathDependencies(path: input.id.projectPath, name: input.id.targetName).sorted()
+            .searchablePathDependencies(path: input.id.projectPath, name: input.id.targetName)
 
         let precompiledArtifacts = Set(linkableModules.compactMap(\.precompiledPath).map(PrecompiledArtifact.init))
         let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
