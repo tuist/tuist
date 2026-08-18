@@ -8,7 +8,7 @@
 
 # Plugins
 
-Tuist packages its agent skills and hosted [Model Context Protocol](https://modelcontextprotocol.io/) server as plugins so you can install both together. Choose the package that matches your coding agent.
+Tuist packages its agent skills and hosted MCP server as plugins so you can install both together. Choose the package that matches your coding agent.
 
 ## Cursor
 
@@ -18,7 +18,7 @@ Install the [Tuist plugin for Cursor](https://github.com/tuist/cursor-plugin) fr
 2. Search for **Tuist**.
 3. Select **Install**, then choose whether to install it for the current project or your user account.
 
-You can also type `/add-plugin` in Cursor to open the same installation flow. The plugin provides Tuist skills and connects Cursor to the hosted Model Context Protocol server.
+You can also type `/add-plugin` in Cursor to open the same installation flow. The plugin provides Tuist skills and connects Cursor to the hosted MCP server.
 
 If your organization manages Cursor marketplaces, import `https://github.com/tuist/cursor-plugin` from **Settings → Plugins → Team Marketplaces → Import Marketplace** first.
 
@@ -30,7 +30,7 @@ The [Tuist Agent Plugin](https://github.com/tuist/agent-plugin) follows the open
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-It installs Tuist skills and registers `https://tuist.dev/mcp` as a remote Model Context Protocol server. For clients that do not yet support Agent Plugins, install the [skills](/guides/features/agentic-coding/skills) or configure the [Model Context Protocol server](/guides/features/agentic-coding/mcp) separately.
+It installs Tuist skills and registers `https://tuist.dev/mcp` as a remote MCP server. For clients that do not yet support Agent Plugins, install the [skills](/guides/features/agentic-coding/skills) or configure the [MCP server](/guides/features/agentic-coding/mcp) separately.
 
 ## Authentication
 
@@ -40,4 +40,4 @@ Most skills use the Tuist command-line interface, so authenticate it once before
 tuist auth login
 ```
 
-The hosted Model Context Protocol server requests its own sign-in when needed. See the [Model Context Protocol guide](/guides/features/agentic-coding/mcp) for client-specific setup and authentication details.
+The hosted MCP server requests its own sign-in when needed. See the [MCP guide](/guides/features/agentic-coding/mcp) for client-specific setup and authentication details.
