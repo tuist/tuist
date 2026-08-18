@@ -17,6 +17,7 @@ public struct CacheURLStore: CacheURLStoring {
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let endpointLatencyService: EndpointLatencyServicing
     private let localCache: NSCache<NSString, NSString>
+    private let provisioningCacheTTL: TimeInterval
 
     public init() {
         self.init(
@@ -37,11 +38,13 @@ public struct CacheURLStore: CacheURLStoring {
     init(
         cachedValueStore: CachedValueStoring,
         getCacheEndpointsService: GetCacheEndpointsServicing,
-        endpointLatencyService: EndpointLatencyServicing
+        endpointLatencyService: EndpointLatencyServicing,
+        provisioningCacheTTL: TimeInterval = CacheURLStore.defaultProvisioningCacheTTL
     ) {
         self.cachedValueStore = cachedValueStore
         self.getCacheEndpointsService = getCacheEndpointsService
         self.endpointLatencyService = endpointLatencyService
+        self.provisioningCacheTTL = provisioningCacheTTL
         localCache = NSCache<NSString, NSString>()
     }
 
@@ -105,10 +108,11 @@ public struct CacheURLStore: CacheURLStoring {
     {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
-        let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
+        let resolution = try await getCacheEndpointsService.getCacheEndpoints(
             serverURL: serverURL,
             accountHandle: accountHandle
         )
+        let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
             throw CacheURLStoreError.noEndpointsAvailable
@@ -116,8 +120,7 @@ public struct CacheURLStore: CacheURLStoring {
 
         if endpoints.count == 1 {
             Logger.current.debug("Only one endpoint available, using it directly: \(endpoints[0])")
-            let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-            return (value: endpoints[0], expiresAt: expirationDate)
+            return (value: endpoints[0], expiresAt: expiration(provisioning: resolution.provisioning))
         }
 
         let endpointLatencies: [(String, TimeInterval?)] = try await endpoints.concurrentMap { endpoint in
@@ -153,9 +156,26 @@ public struct CacheURLStore: CacheURLStoring {
                 "Selected endpoint \(bestEndpoint.0) with latency \(String(format: "%.3f", bestEndpoint.1))s"
             )
 
-        let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-        return (value: bestEndpoint.0, expiresAt: expirationDate)
+        return (value: bestEndpoint.0, expiresAt: expiration(provisioning: resolution.provisioning))
     }
+
+    /// How long a resolved endpoint stays good for.
+    ///
+    /// An hour normally, because the answer is stable and the latency race is
+    /// not worth repeating. Seconds while the account's own cache instance is
+    /// still being provisioned: that answer is a stand-in that stops being
+    /// right the moment the instance starts serving, and caching it for the
+    /// usual interval would keep a build on the wrong lane long after its own
+    /// cache was available.
+    private func expiration(provisioning: Bool) -> Date? {
+        if provisioning {
+            return Date().addingTimeInterval(provisioningCacheTTL)
+        }
+
+        return Calendar.current.date(byAdding: .hour, value: 1, to: Date())
+    }
+
+    static let defaultProvisioningCacheTTL: TimeInterval = 30
 
     private func currentCacheEndpointKeySuffix() -> String {
         if ClientFeatureFlags.contains("kura") {

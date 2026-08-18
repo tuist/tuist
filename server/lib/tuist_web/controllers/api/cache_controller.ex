@@ -65,6 +65,11 @@ defmodule TuistWeb.API.CacheController do
              endpoints: %Schema{
                type: :array,
                items: %Schema{type: :string}
+             },
+             provisioning: %Schema{
+               type: :boolean,
+               description:
+                 "Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval."
              }
            }
          }},
@@ -73,13 +78,12 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    endpoints =
+    %{endpoints: endpoints, provisioning: provisioning} =
       params[:account_handle]
       |> authorized_account_handle(conn)
-      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-      |> Enum.reject(&is_nil/1)
+      |> Accounts.get_cache_resolution_for_handle(technology(conn))
 
-    json(conn, %{endpoints: endpoints})
+    json(conn, %{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
   end
 
   defp authorized_account_handle(nil, _conn), do: nil

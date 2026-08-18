@@ -45,6 +45,7 @@ defmodule Tuist.Kura.Demand do
   alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
+  alias Tuist.Kura.Server
   alias Tuist.Repo
 
   @table __MODULE__
@@ -109,6 +110,30 @@ defmodule Tuist.Kura.Demand do
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))
+  end
+
+  @doc """
+  Whether a Kura instance is expected to start serving for this account
+  shortly, so a client should treat an endpoint answer as short-lived.
+
+  True when the account is under the lifecycle and has no live Kura endpoint
+  right now: archived and asked for by the request that is running this check,
+  still provisioning or catching up, or draining. All three resolve within
+  minutes, and the request itself is what records the demand that starts a
+  cold return.
+
+  Deliberately false when the account has no instance and is not getting one,
+  so a region refusing provisions for capacity does not turn every refused
+  account into a poller.
+  """
+  def instance_expected?(%Account{id: account_id} = account) do
+    lifecycle_managed?(account) and
+      Repo.exists?(
+        from(s in Server,
+          where: s.account_id == ^account_id,
+          where: s.status in [:provisioning, :replicating, :drain_pending, :archived]
+        )
+      )
   end
 
   @doc """

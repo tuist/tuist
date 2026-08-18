@@ -163,7 +163,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Authentication.put_current_user(attacker)
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints}
+      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints, "provisioning" => false}
     end
 
     test "returns Kura endpoints to a project-scoped account token", %{conn: conn} do
@@ -192,7 +192,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Headers.put_client_feature_flags(["kura"])
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"], "provisioning" => false}
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{

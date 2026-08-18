@@ -4747,6 +4747,60 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
 
+    test "reports provisioning while the account's instance is not serving yet" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      Repo.insert!(%Tuist.Kura.Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "does not report provisioning for an account that is not getting an instance" do
+      # Given
+      # A region refusing provisions for capacity must not turn every refused
+      # account into a poller.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "does not report provisioning when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+
+      # Then
+      refute resolution.provisioning
+    end
+
     test "records cache demand for the account when a Kura client resolves endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)

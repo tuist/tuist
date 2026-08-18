@@ -2506,6 +2506,36 @@ defmodule Tuist.Accounts do
     cache_endpoints_for_handle(account_handle, technology)
   end
 
+  @doc """
+  The cache endpoints for an account handle, plus whether a dedicated instance
+  is expected to start serving shortly.
+
+  `provisioning` is true when the account is under the demand-driven Kura
+  lifecycle and has no Kura endpoint right now: archived and just asked for by
+  this very request, still rolling out, or draining. Clients use it to decide
+  how long to cache the answer, because caching a transient absence for the
+  usual interval leaves a build on the wrong lane long after its instance is
+  back.
+
+  It is deliberately not true for an account that has no instance and is not
+  getting one, so a region at capacity does not turn every refused account into
+  a poller.
+  """
+  def get_cache_resolution_for_handle(account_handle, technology \\ :default) do
+    endpoints = cache_endpoints_for_handle(account_handle, technology)
+
+    %{endpoints: endpoints, provisioning: cache_provisioning?(account_handle, technology)}
+  end
+
+  defp cache_provisioning?(account_handle, :kura) when is_binary(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account -> Demand.instance_expected?(account)
+      _ -> false
+    end
+  end
+
+  defp cache_provisioning?(_account_handle, _technology), do: false
+
   defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       hosted_cache_endpoints_for_handle(account_handle, technology)

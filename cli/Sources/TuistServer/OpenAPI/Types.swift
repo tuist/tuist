@@ -3876,15 +3876,25 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
+            /// Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/provisioning`.
+            public var provisioning: Swift.Bool?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            public init(endpoints: [Swift.String]) {
+            ///   - provisioning: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+            public init(
+                endpoints: [Swift.String],
+                provisioning: Swift.Bool? = nil
+            ) {
                 self.endpoints = endpoints
+                self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
+                case provisioning
             }
         }
         /// The page number to return.
@@ -12568,15 +12578,25 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
+                        /// Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/provisioning`.
+                        public var provisioning: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        public init(endpoints: [Swift.String]) {
+                        ///   - provisioning: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+                        public init(
+                            endpoints: [Swift.String],
+                            provisioning: Swift.Bool? = nil
+                        ) {
                             self.endpoints = endpoints
+                            self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
+                            case provisioning
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
@@ -19161,10 +19181,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19173,20 +19189,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query

@@ -890,6 +890,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        provisioning:
+          description: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+          type: boolean
+          x-struct:
+          x-validate:
       required:
         - endpoints
       title: CacheEndpoints
@@ -6735,6 +6740,11 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  provisioning:
+                    description: Whether a dedicated cache instance for this account is not serving yet but is expected to be shortly. Clients should treat the endpoint list as short-lived and re-resolve sooner rather than caching it for the usual interval.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                 required:
                   - endpoints
                 title: CacheEndpoints
@@ -8776,10 +8786,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -8792,20 +8802,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.

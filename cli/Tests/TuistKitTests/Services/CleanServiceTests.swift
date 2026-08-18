@@ -374,7 +374,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                         serverURL: .value(serverURL),
                         accountHandle: .value("tuist")
                     )
-                    .willReturn([cacheEndpoint])
+                    .willReturn(CacheEndpointsResolution(endpoints: [cacheEndpoint], provisioning: false))
 
                 given(cleanProjectCacheService)
                     .cleanProjectCache(
