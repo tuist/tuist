@@ -4264,12 +4264,10 @@ struct PackageInfoMapperTests {
                                 "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
                                     "$(inherited)",
                                     "$(SRCROOT)/Sources/Target1/value",
-                                    "$(SRCROOT)/Sources/Target1/otherValue",
                                 ],
                                 "HEADER_SEARCH_PATHS[sdk=appletvsimulator*]": [
                                     "$(inherited)",
                                     "$(SRCROOT)/Sources/Target1/value",
-                                    "$(SRCROOT)/Sources/Target1/otherValue",
                                 ],
                                 "OTHER_SWIFT_FLAGS": [
                                     "$(inherited)",
