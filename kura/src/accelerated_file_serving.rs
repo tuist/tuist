@@ -22,7 +22,7 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tower::ServiceExt;
-use tracing::{Instrument, info};
+use tracing::{Instrument, debug, info, warn};
 
 use crate::{
     analytics::Analytics,
@@ -659,15 +659,25 @@ async fn serve_accelerated(
             }
         }
         Err(error) => {
-            state.metrics.record_http(
-                route,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                transfer_started_at.elapsed(),
-            );
-            state.metrics.record_artifact_read(producer, "error", 0);
+            let failure = TransferFailure::classify(&error);
+            if failure == TransferFailure::ClientAborted {
+                debug!(route = %route, "artifact transfer aborted by client: {error}");
+            } else {
+                warn!(
+                    route = %route,
+                    result = failure.result(),
+                    "artifact transfer failed: {error}"
+                );
+            }
+            state
+                .metrics
+                .record_http(route, failure.status(), transfer_started_at.elapsed());
+            state
+                .metrics
+                .record_artifact_read(producer, failure.result(), 0);
             state.metrics.record_artifact_egress(
                 producer,
-                "error",
+                failure.result(),
                 0,
                 transfer_started_at.elapsed(),
             );
@@ -1137,6 +1147,10 @@ fn transfer_sendfile(
             }
             return Err(error);
         }
+        // Unlike the splice counterpart below, a zero here is the input file
+        // hitting EOF: the destination is a blocking socket, so it would move a
+        // byte, park, or fail rather than accept nothing. Breaking to
+        // `ensure_complete_transfer` reports the short file, which is right.
         if sent == 0 {
             break;
         }
@@ -1210,8 +1224,20 @@ fn transfer_splice(
                     }
                     return Err(error);
                 }
+                // Zero out of the pipe means the socket will take nothing more,
+                // which is the peer going away rather than the input running
+                // short. Saying so keeps it out of `ensure_complete_transfer`,
+                // whose UnexpectedEof is reserved for a file that disagrees
+                // with the record describing it. The pipe provably holds
+                // `pending` bytes and the socket is blocking, so the kernel
+                // should move a byte, park, or fail: this is not expected to be
+                // reachable, hence the message, which separates it from an
+                // ordinary peer reset once both are classified as aborts.
                 if spliced_out == 0 {
-                    break;
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionAborted,
+                        "splice to socket returned 0",
+                    ));
                 }
                 pending -= spliced_out as usize;
                 sent_total += spliced_out as u64;
@@ -1226,6 +1252,65 @@ fn transfer_splice(
         libc::close(pipe_fds[1]);
     }
     result
+}
+
+// The status recorded for a body the peer stopped reading. Borrowed from
+// nginx so it reads the same way in dashboards, and deliberately not a 5xx:
+// the response line already went out as 200, and a client that hung up is not
+// a server fault. It exists only in metrics; nothing writes it to the wire.
+const CLIENT_CLOSED_REQUEST: u16 = 499;
+
+/// Why an in-flight accelerated transfer ended early.
+///
+/// `serve_accelerated` writes the `200 OK` response line before the body, so by
+/// the time any of these happen the status is already committed. Classifying
+/// them keeps a peer hanging up out of the server-error budget while leaving
+/// the failures that are genuinely ours visible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TransferFailure {
+    /// The peer went away mid-body.
+    ClientAborted,
+    /// The socket accepted nothing for `IO_TIMEOUT`.
+    WriteTimeout,
+    /// The file yielded fewer bytes than the store's metadata promised, so the
+    /// artifact on disk disagrees with the record describing it.
+    Incomplete,
+    Failed,
+}
+
+impl TransferFailure {
+    fn classify(error: &std::io::Error) -> Self {
+        match error.kind() {
+            std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted => Self::ClientAborted,
+            // A blocking socket carrying SO_SNDTIMEO reports the expired write
+            // as EAGAIN, which maps to WouldBlock rather than TimedOut.
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => Self::WriteTimeout,
+            std::io::ErrorKind::UnexpectedEof => Self::Incomplete,
+            _ => Self::Failed,
+        }
+    }
+
+    fn status(self) -> StatusCode {
+        match self {
+            Self::ClientAborted => {
+                StatusCode::from_u16(CLIENT_CLOSED_REQUEST).expect("499 is a valid status code")
+            }
+            Self::WriteTimeout | Self::Incomplete | Self::Failed => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+    }
+
+    fn result(self) -> &'static str {
+        match self {
+            Self::ClientAborted => "client_aborted",
+            Self::WriteTimeout => "write_timeout",
+            Self::Incomplete => "incomplete",
+            Self::Failed => "error",
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -1259,9 +1344,124 @@ mod tests {
 
     use super::{
         AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, ParsedRequest,
-        artifact_request, parse_request, request_wants_keep_alive, sanitized_content_type,
-        serve_accelerated, system_page_bytes,
+        TransferFailure, artifact_request, parse_request, request_wants_keep_alive,
+        sanitized_content_type, serve_accelerated, system_page_bytes,
     };
+
+    #[test]
+    fn client_hangups_are_not_server_errors() {
+        for kind in [
+            std::io::ErrorKind::BrokenPipe,
+            std::io::ErrorKind::ConnectionReset,
+            std::io::ErrorKind::ConnectionAborted,
+        ] {
+            let failure = TransferFailure::classify(&std::io::Error::from(kind));
+            assert_eq!(failure, TransferFailure::ClientAborted, "{kind:?}");
+            assert_eq!(failure.result(), "client_aborted");
+            assert!(
+                !failure.status().is_server_error(),
+                "{kind:?} must not be counted as a 5xx"
+            );
+            assert_eq!(failure.status().as_u16(), 499);
+        }
+    }
+
+    #[test]
+    fn write_stalls_and_short_transfers_stay_server_errors() {
+        for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
+            let failure = TransferFailure::classify(&std::io::Error::from(kind));
+            assert_eq!(failure, TransferFailure::WriteTimeout, "{kind:?}");
+            assert_eq!(failure.result(), "write_timeout");
+            assert!(failure.status().is_server_error(), "{kind:?}");
+        }
+
+        let incomplete = TransferFailure::classify(&std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "sendfile transferred 1 bytes but expected 2",
+        ));
+        assert_eq!(incomplete, TransferFailure::Incomplete);
+        assert_eq!(incomplete.result(), "incomplete");
+        assert!(incomplete.status().is_server_error());
+
+        let other = TransferFailure::classify(&std::io::Error::other("disk fell over"));
+        assert_eq!(other, TransferFailure::Failed);
+        assert_eq!(other.result(), "error");
+        assert!(other.status().is_server_error());
+    }
+
+    // Accelerated transfers are sendfile/splice, so the body path only exists on
+    // Linux; off it `transfer_file` refuses up front and never reaches the peer.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn client_that_hangs_up_mid_transfer_is_not_recorded_as_a_5xx() {
+        let context = crate::test_support::test_context(|_| {}).await;
+        // Comfortably past the socket send buffer, so the transfer cannot land
+        // entirely in kernel buffers before the peer is gone.
+        let size = 64 * 1024 * 1024;
+        let path = context.state.config.tmp_dir.join("aborted-artifact");
+        let artifact = std::fs::File::create(&path).expect("create artifact");
+        artifact.set_len(size).expect("size artifact");
+        drop(artifact);
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                context
+                    .state
+                    .io
+                    .open_persistent_read_file(&path)
+                    .await
+                    .expect("open accelerated artifact"),
+            ),
+            offset: 0,
+            size,
+            content_type: "application/octet-stream".into(),
+        };
+        let candidate = AcceleratedCandidate {
+            header_len: 0,
+            artifact: ArtifactRequest {
+                producer: ArtifactProducer::Module,
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".into(),
+                key: "builds/hash/Module.framework".into(),
+                analytics_key: None,
+                artifact_hash: Some("hash".into()),
+                route: "/api/cache/module/{id}",
+                path: "/api/cache/module/hash".into(),
+                query: BTreeMap::new(),
+            },
+            file,
+        };
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let client = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect test client");
+        let (server, _) = listener.accept().await.expect("accept test client");
+        drop(client);
+
+        let result = serve_accelerated(
+            server,
+            &context.state,
+            &context.state.config.accelerated_file_serving,
+            candidate,
+            Instant::now(),
+            false,
+        )
+        .await;
+        assert!(result.is_err(), "aborted transfer should surface an error");
+
+        let rendered = context.state.metrics.render();
+        assert!(
+            rendered.contains(r#"result="client_aborted""#),
+            "expected a client_aborted artifact read, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains(r#"status="500""#),
+            "client hangup must not be recorded as a 500, got:\n{rendered}"
+        );
+    }
 
     fn parsed_with_headers(headers: &[(&str, &str)]) -> ParsedRequest {
         ParsedRequest {
