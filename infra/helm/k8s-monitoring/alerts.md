@@ -802,6 +802,51 @@ plugin, the scrape, or the queue's registration went away, not that the
 queue is idle. Production only: staging and canary can legitimately run
 with no processor deployment at all.
 
+### Swift registry catalog coverage deferred
+
+Same shape as the queue rule above, for the writer rather than a
+consumer: the swift-registry-sync pod can be `1/1 Running` with zero
+restarts and still not be mirroring anything.
+
+That is not hypothetical. During the July 2026 registry incident the
+production pod logged 2,566 GitHub rate-limit failures and dropped nine
+consecutive scheduled catalog passes in a little over six hours, while
+every availability signal stayed green. Nothing paged, and the first
+detection of the resulting catalog drift was a customer issue.
+
+`Tuist.Registry.Swift.SyncWorker` now defers a throttled pass to the
+quota reset instead of discarding it, holds the rotation cursor at the
+package it stopped on, and counts the packages it gave up on. This rule
+reads that count.
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_coverage_deferred_total[30m])
+) >= 3
+```
+
+- Pending period: 0 minutes
+- Severity: critical
+- Label: `affected_service` set to the registry component
+- Summary: `The Swift registry mirror deferred {{ $value }} scheduled
+  catalog passes in the last 30 minutes in {{ $labels.cluster }}`
+
+Passes, not packages: a single deferred pass is ordinary (the mirror
+backs off, the next one catches up), and three inside half an hour means
+the deferral is not clearing on its own. The catalog rotates roughly
+every ten minutes, so three consecutive deferrals is the whole window.
+
+`reason` separates the causes without changing the threshold, and is
+worth reading before acting. `rate_limited` points at the request budget
+(check `tuist_github_rate_limit_used` against `tuist_github_rate_limit_limit`
+and, if it is genuinely exhausted, at `swiftRegistrySync.syncLimit`).
+`missing_credential` means the GitHub App could not issue an installation
+token at all. `unauthorized` means GitHub refused the token the mirror
+does hold, which during the App cutover is the signal that an
+installation token cannot read repositories outside its installation —
+revert `swiftRegistrySync.githubAppInstallation` to fall back to the
+personal access token. Neither of the last two is fixed by waiting.
+
 ### xcresult processor guest metrics unavailable fleet-wide
 
 The direct detector for "the BEAM inside the Tart VM is not running".
@@ -996,6 +1041,43 @@ absent_over_time(
 - Summary: `The public endpoint check stopped producing telemetry`
 
 ## Warning alerts
+
+### Swift registry release work repeatedly deferred
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_release_deferred_total[1h])
+) > 50
+```
+
+- Pending period: 10 minutes
+- Summary: `{{ $value }} Swift registry release jobs were deferred in the
+  last hour in {{ $labels.cluster }}`
+
+Deferred release jobs keep their arguments and run once the throttling
+clears, so a handful is the mechanism working. A sustained rate means new
+versions are not reaching the catalog, which surfaces to customers as a
+version that never appears rather than as an error. Pairs with the
+critical coverage rule above: that one fires when whole passes stop,
+this one when individual releases pile up behind throttling.
+
+### Swift registry packages skipped without being read
+
+```promql
+sum by (cluster, env) (
+  increase(tuist_registry_swift_sync_package_skipped_total[1h])
+) > 100
+```
+
+- Pending period: 10 minutes
+- Summary: `The Swift registry mirror passed over {{ $value }} packages
+  without reading their tags in the last hour in {{ $labels.cluster }}`
+
+Distinct from the deferral rules: these are packages the pass moved past
+after a non-throttling failure, so the cursor has already rotated beyond
+them and they wait a full catalog rotation for another look. A steady
+rate here is upstream repositories going away or a scope problem on the
+mirror's credential, not a quota problem.
 
 ### Worker node pool stuck mid-rollout
 
