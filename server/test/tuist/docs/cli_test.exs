@@ -86,6 +86,14 @@ defmodule Tuist.Docs.CLITest do
       assert CLI.get_pages(cache_opts(cache)) == []
     end
 
+    test "returns empty list when GitHub API returns an invalid release response", %{cache: cache} do
+      stub(Req, :get, fn _url, _opts ->
+        {:ok, %{status: 200, body: %{"data" => []}}}
+      end)
+
+      assert CLI.get_pages(cache_opts(cache)) == []
+    end
+
     test "returns empty list when no CLI release is found", %{cache: cache} do
       stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: [%{"tag_name" => "server@1.0.0"}]}}

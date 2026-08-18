@@ -34,10 +34,21 @@ public struct Tuist: Codable, Equatable, Sendable {
         /// `HTTPS_PROXY`/`HTTP_PROXY` when present in the environment.
         public let proxy: Bool
 
+        /// Path to a PEM (or DER) CA certificate bundle to trust in addition to the
+        /// system root store when connecting to a self-hosted Tuist/Kura server that
+        /// uses a private CA. The system root store remains trusted, so public CAs
+        /// keep validating normally. The `TUIST_CA_CERTIFICATE` environment variable
+        /// takes precedence over this value.
+        public let caCertificate: Path?
+
         /// Creates network options.
-        /// - Parameter proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
-        public static func network(proxy: Bool = true) -> Self {
-            Network(proxy: proxy)
+        /// - Parameters:
+        ///   - proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
+        ///   - caCertificate: Path to a CA certificate bundle to trust on top of the system root store.
+        ///     Useful for self-hosted servers with a private CA on hosts where the root can't be installed
+        ///     in the System keychain (for example headless CI). Defaults to `nil`.
+        public static func network(proxy: Bool = true, caCertificate: Path? = nil) -> Self {
+            Network(proxy: proxy, caCertificate: caCertificate)
         }
     }
 

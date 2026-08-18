@@ -2,10 +2,14 @@ defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.Repo
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -83,6 +87,7 @@ defmodule Tuist.AutomationsTest do
                })
 
       assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
     end
 
     test "keeps the baseline when only enabled changes" do
@@ -91,6 +96,7 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
 
       assert updated.baseline_established_at == automation.baseline_established_at
+      assert updated.baseline_generation == automation.baseline_generation
     end
   end
 
@@ -303,6 +309,39 @@ defmodule Tuist.AutomationsTest do
       assert [%{scheduled_at: scheduled_at}] = all_enqueued(worker: AlertEvaluationWorker)
       assert DateTime.diff(scheduled_at, enqueued_at, :second) in 30..31
     end
+
+    test "does not enqueue a second scoped evaluation while the existing job is active" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      job_query =
+        from(job in Oban.Job,
+          where: job.worker == ^inspect(AlertEvaluationWorker)
+        )
+
+      job = Repo.one!(job_query)
+
+      for state <- ["executing", "retryable"] do
+        Repo.update!(Ecto.Changeset.change(job, state: state))
+
+        assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+        assert [%{id: job_id, state: ^state}] = Repo.all(job_query)
+        assert job_id == job.id
+      end
+    end
   end
 
   describe "recent_test_case_run_changes_for_alert/1" do
@@ -314,6 +353,8 @@ defmodule Tuist.AutomationsTest do
 
       first_id = Ecto.UUID.generate()
       second_id = Ecto.UUID.generate()
+      corrected_id = Ecto.UUID.generate()
+      outside_window_id = Ecto.UUID.generate()
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
@@ -341,6 +382,19 @@ defmodule Tuist.AutomationsTest do
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
+        test_case_id: corrected_id,
+        ran_at: ~N[2025-01-01 00:00:00.000000],
+        inserted_at: ~N[2026-06-09 10:10:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: outside_window_id,
+        inserted_at: ~N[2026-06-09 10:15:50.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
         test_case_id: nil,
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
@@ -351,11 +405,11 @@ defmodule Tuist.AutomationsTest do
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
 
-      assert %{test_case_ids: test_case_ids, cursor: cursor} =
+      assert %{test_case_ids: test_case_ids, cursor: cursor, more?: true} =
                Automations.recent_test_case_run_changes_for_alert(alert)
 
-      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
-      assert cursor == ~U[2026-06-09 10:00:48Z]
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id, corrected_id])
+      assert cursor == ~U[2026-06-09 10:15:50Z]
     end
   end
 
@@ -457,6 +511,23 @@ defmodule Tuist.AutomationsTest do
       reject(&ActionExecutor.execute_actions/3)
 
       assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts whose trigger state filter does not match the test case" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["marked_flaky"], "states" => ["skipped"]})
+      project_id = project.id
+      test_case_id = test_case.id
+
+      expect(Tests, :get_test_case_states, fn ^project_id, [^test_case_id] ->
+        %{test_case_id => %{state: "muted", is_flaky: false}}
+      end)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+      assert Automations.list_active_alert_events(alert.id) == []
     end
 
     test ":unmarked_flaky fires an alert subscribed to unmarked_flaky" do

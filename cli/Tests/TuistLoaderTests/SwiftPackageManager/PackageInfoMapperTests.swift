@@ -13,6 +13,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
+@Suite(.withMockedSwiftBackDeploymentLibrariesProvider, .withMockedSDKDeploymentTargetsProvider)
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
     private let fileSystem = FileSystem()
@@ -22,6 +23,14 @@ struct PackageInfoMapperTests {
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.9")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(.none)
+        let swiftBackDeploymentLibrariesProviderMock = try #require(SwiftBackDeploymentLibrariesProvider.mocked)
+        given(swiftBackDeploymentLibrariesProviderMock)
+            .runpathSearchPaths()
+            .willReturn([])
         subject = PackageInfoMapper()
     }
 
@@ -2957,12 +2966,284 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenUsingSwift64_clampsPackageDeploymentTargetsToXcode27Minimums() async throws {
+    ) func map_whenSDKMinimumsAreUnavailable_clampsPackageDeploymentTargetsToSwiftVersionMinimums() async throws {
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         swiftVersionProviderMock.reset()
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("6.4")
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.10", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageDeploymentTargetsAreOlderThanTheSDKs_clampsThemToTheSDKMinimums() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(iOS: "15.0", macOS: "12.0", watchOS: "9.0", tvOS: "15.0", visionOS: "1.0")
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.15", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageDeploymentTargetsAreSupportedByTheSDKs_keepsThem() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.3")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(iOS: "12.0", macOS: "10.13", watchOS: "4.0", tvOS: "12.0", visionOS: "1.0")
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "14.0", options: []),
+                        .init(platformName: "macos", version: "10.15", options: []),
+                        .init(platformName: "watchos", version: "7.0", options: []),
+                        .init(platformName: "tvos", version: "14.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "14.0",
+                macOS: "10.15",
+                watchOS: "7.0",
+                tvOS: "14.0",
+                visionOS: "1.0"
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetBuildsForMacCatalyst_clampsIOSToTheCatalystSDKMinimum() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(
+                    iOS: "12.0",
+                    macOS: "10.13",
+                    watchOS: "4.0",
+                    tvOS: "12.0",
+                    visionOS: "1.0",
+                    macCatalyst: "13.1"
+                )
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "12.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(target.destinations.contains(ProjectDescription.Destination.macCatalyst))
+        #expect(target.deploymentTargets?.iOS == "13.1")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetDoesNotBuildForMacCatalyst_keepsTheIOSSDKMinimum() async throws {
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(
+                SDKDeploymentTargets(
+                    iOS: "12.0",
+                    macOS: "10.13",
+                    watchOS: "4.0",
+                    tvOS: "12.0",
+                    visionOS: "1.0",
+                    macCatalyst: "13.1"
+                )
+            )
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "12.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productDestinations: ["Product1": [.iPhone, .iPad]],
+                baseSettings: .default
+            )
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(!target.destinations.contains(ProjectDescription.Destination.macCatalyst))
+        #expect(target.deploymentTargets?.iOS == "12.0")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenOnlySomeSDKMinimumsAreAvailable_fallsBackToSwiftVersionMinimumsForTheRest() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.4")
+        let sdkDeploymentTargetsProviderMock = try #require(SDKDeploymentTargetsProvider.mocked)
+        sdkDeploymentTargetsProviderMock.reset()
+        given(sdkDeploymentTargetsProviderMock)
+            .minimumDeploymentTargets()
+            .willReturn(SDKDeploymentTargets(macOS: "12.0"))
 
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3736,7 +4017,10 @@ struct PackageInfoMapperTests {
             base: ["CUSTOM_SETTING": .string("CUSTOM_VALUE")],
             configurations: [
                 .init(name: "Custom Debug", variant: .debug): .init(
-                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                    settings: [
+                        "CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1"),
+                        "OTHER_SWIFT_FLAGS": .array(["-DDEBUG"]),
+                    ],
                     xcconfig: sourcesPath.appending(component: "Config.xcconfig")
                 ),
                 .init(name: "Custom Release", variant: .release): .init(
@@ -3793,7 +4077,14 @@ struct PackageInfoMapperTests {
                                 configurations: [
                                     .debug(
                                         name: "Custom Debug",
-                                        settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                        settings: [
+                                            "CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1"),
+                                            "OTHER_SWIFT_FLAGS": .array([
+                                                "-DDEBUG",
+                                                "-package-name",
+                                                "Package",
+                                            ]),
+                                        ],
                                         xcconfig: "Sources/Target1/Config.xcconfig"
                                     ),
                                     .release(
@@ -5401,7 +5692,152 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenExternalRemoteSwiftPackageHasTestTarget() async throws {
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget_andTestsAreEnabled_includesTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .local, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                includeLocalPackageTestTargets: true
+            )
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
+        let testTarget = project?.targets.first(where: { $0.name == "TargetTests" })
+        #expect(testTarget?.product == .unitTests)
+        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenEnabledExternalLocalPackageTestDependsOnExternalProduct_throwsConcreteError() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When / Then
+        await #expect(
+            throws: PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: "Package",
+                target: "TargetTests",
+                product: "TestSupport"
+            )
+        ) {
+            _ = try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageType: .external(origin: .local, artifactPaths: [:]),
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                        ],
+                        targets: [
+                            .test(name: "Target"),
+                            .test(
+                                name: "TargetTests",
+                                type: .test,
+                                dependencies: [
+                                    .target(name: "Target", condition: nil),
+                                    .product(
+                                        name: "TestSupport",
+                                        package: "TestSupportPackage",
+                                        moduleAliases: nil,
+                                        condition: nil
+                                    ),
+                                ]
+                            ),
+                        ],
+                        platforms: [.ios]
+                    ),
+                ],
+                packageSettings: .test(includeLocalPackageTestTargets: true)
+            )
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenEnabledExternalLocalPackageTestDependsOnExecutableTarget_throwsConcreteError() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "MyTool"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "MyToolTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When / Then
+        await #expect(
+            throws: PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: "Package",
+                target: "MyToolTests",
+                executable: "MyTool"
+            )
+        ) {
+            _ = try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageType: .external(origin: .local, artifactPaths: [:]),
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "MyTool", type: .executable, targets: ["MyTool"]),
+                        ],
+                        targets: [
+                            .test(name: "MyTool", type: .executable),
+                            .test(
+                                name: "MyToolTests",
+                                type: .test,
+                                dependencies: [.target(name: "MyTool", condition: nil)]
+                            ),
+                        ],
+                        platforms: [.macos]
+                    ),
+                ],
+                packageSettings: .test(includeLocalPackageTestTargets: true)
+            )
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalRemoteSwiftPackageHasTestTarget_andTestsAreEnabled_ignoresTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -5430,7 +5866,8 @@ struct PackageInfoMapperTests {
                     ],
                     platforms: [.ios]
                 ),
-            ]
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
         )
 
         // Then
@@ -5867,8 +6304,57 @@ struct PackageInfoMapperTests {
 
         // Then
         #expect(
-            project?.settings?.base["OTHER_SWIFT_FLAGS"] ==
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"] ==
                 .array(["$(inherited)", "-package-name", "Package"])
+        )
+        #expect(project?.settings?.base["OTHER_SWIFT_FLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenPackageUsesPackageAccessAndCustomSwiftSettings_addsPackageNameToTargetFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "SwiftProtobuf/Sources/SwiftProtobuf"))
+        )
+
+        let project = try await subject.map(
+            package: "SwiftProtobuf",
+            basePath: basePath,
+            packageInfos: [
+                "SwiftProtobuf": .test(
+                    name: "SwiftProtobuf",
+                    products: [
+                        .init(name: "SwiftProtobuf", type: .library(.automatic), targets: ["SwiftProtobuf"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "SwiftProtobuf",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableUpcomingFeature,
+                                    condition: nil,
+                                    value: ["ExistentialAny"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    toolsVersion: Version(5, 9, 0)
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-upcoming-feature \"ExistentialAny\"",
+                "-package-name",
+                "SwiftProtobuf",
+            ])
         )
     }
 
@@ -7316,6 +7802,50 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_addsSwiftBackDeploymentLibrariesToRunpathSearchPaths() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+
+        let backDeploymentProvider = MockSwiftBackDeploymentLibrariesProviding()
+        given(backDeploymentProvider)
+            .runpathSearchPaths()
+            .willReturn(["$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)"])
+
+        let project = try await SwiftBackDeploymentLibrariesProvider.$current.withValue(backDeploymentProvider) {
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        ],
+                        targets: [
+                            .test(name: "Library"),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        }
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Library" }))
+        #expect(
+            mappedTarget.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                "$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)",
+            ])
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetSharesProductNameWithBinaryXcframework_suffixesProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -7404,6 +7934,7 @@ struct PackageInfoMapperTests {
                     targets: [
                         .test(
                             "Singular",
+                            swiftPackageName: "Singular",
                             basePath: basePath,
                             customProductName: "SingularWrapper",
                             headers: .spmTarget(headersPath.parentDirectory),
@@ -7568,6 +8099,8 @@ struct PackageInfoMapperTests {
                 prebuiltPath.appending(component: "Modules").pathString,
                 "-I",
                 checkoutPath.appending(try RelativePath(validating: "Sources/_SwiftSyntaxCShims/include")).pathString,
+                "-package-name",
+                "Package",
             ])
         )
         #expect(
@@ -7583,6 +8116,133 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        arguments: [
+            XcodeGraph.SettingValue.array(["$(inherited)", "-DSTAGING"]),
+            XcodeGraph.SettingValue.string("$(inherited) -DSTAGING"),
+        ]
+    ) func map_targetWithSwiftPMFlags_inheritsPackageBaseSettings(
+        baseFlags: XcodeGraph.SettingValue
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Target", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableExperimentalFeature,
+                                    condition: nil,
+                                    value: ["Lifetimes"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: [
+                    "OTHER_SWIFT_FLAGS": baseFlags,
+                ])
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target" }))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-experimental-feature \"Lifetimes\"",
+                "-package-name",
+                "Package",
+            ])
+        )
+        let projectFlags: [String]
+        switch project?.settings?.base["OTHER_SWIFT_FLAGS"] {
+        case let .array(flags):
+            projectFlags = flags
+        case let .string(flags):
+            projectFlags = flags.split(separator: " ").map(String.init)
+        case nil:
+            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be a string or an array")
+            return
+        @unknown default:
+            Issue.record("Expected project-level OTHER_SWIFT_FLAGS to be a string or an array")
+            return
+        }
+        #expect(projectFlags.filter { $0 == "-DSTAGING" }.count == 1)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_targetWithSwiftPMFlags_appendsTargetSettingsWithoutInherited() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Target", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target",
+                            settings: [
+                                .init(
+                                    tool: .swift,
+                                    name: .enableExperimentalFeature,
+                                    condition: nil,
+                                    value: ["Lifetimes"]
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                targetSettings: [
+                    "Target": .test(base: ["OTHER_SWIFT_FLAGS": ["-DSTAGING"]]),
+                ]
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target" }))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-enable-experimental-feature \"Lifetimes\"",
+                "-DSTAGING",
+                "-package-name",
+                "Package",
+            ])
+        )
     }
 
     @Test(
@@ -7718,7 +8378,13 @@ struct PackageInfoMapperTests {
 
         let target = try #require(project?.targets.first)
         #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-package-name",
+                "Package",
+            ])
+        )
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
     }
@@ -7786,6 +8452,8 @@ struct PackageInfoMapperTests {
                 prebuiltPath.appending(component: "Modules").pathString,
                 "-I",
                 prebuiltPath.appending(components: "include", "_SwiftSyntaxCShims").pathString,
+                "-package-name",
+                "Package",
             ])
         )
         #expect(
@@ -7915,7 +8583,13 @@ struct PackageInfoMapperTests {
 
         let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
         #expect(target.dependencies.isEmpty)
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-package-name",
+                "Package",
+            ])
+        )
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
     }
@@ -8147,7 +8821,6 @@ extension ProjectDescription.Project {
             name: name,
             options: options,
             settings: DependenciesGraph.swiftpmProjectSettings(
-                packageName: name,
                 baseSettings: settings,
                 with: customSettings
             ),
@@ -8165,6 +8838,7 @@ extension ProjectDescription.Target {
     fileprivate static func test(
         _ name: String,
         packageName: String = "Package",
+        swiftPackageName: String? = nil,
         basePath: AbsolutePath = "/",
         destinations: ProjectDescription.Destinations = Set(Destination.allCases),
         product: ProjectDescription.Product = .staticFramework,
@@ -8188,6 +8862,7 @@ extension ProjectDescription.Target {
         moduleMap: String? = nil
     ) -> Self {
         let sources: SourceFilesList?
+        var customSettings = customSettings
 
         switch customSources {
         case let .custom(list):
@@ -8199,6 +8874,20 @@ extension ProjectDescription.Target {
                     basePath.appending(defaultSourcesPath).pathString,
                 ])
         }
+
+        let swiftFlags: [String] = switch customSettings["OTHER_SWIFT_FLAGS"] {
+        case let .array(values):
+            values
+        case let .string(value):
+            value.split(separator: " ").map(String.init)
+        case nil:
+            ["$(inherited)"]
+        @unknown default:
+            ["$(inherited)"]
+        }
+        customSettings["OTHER_SWIFT_FLAGS"] = .array(
+            swiftFlags + ["-package-name", (swiftPackageName ?? packageName).quotedIfContainsSpaces]
+        )
 
         return ProjectDescription.Target.target(
             name: name,

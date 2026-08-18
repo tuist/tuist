@@ -43,6 +43,7 @@ struct ShardPlanServiceTests {
                 serverURL: .any,
                 reference: .any,
                 modules: .any,
+                parallelizableModules: .any,
                 testSuites: .any,
                 shardMin: .any,
                 shardMax: .any,
@@ -134,6 +135,7 @@ struct ShardPlanServiceTests {
                 serverURL: .any,
                 reference: .any,
                 modules: .any,
+                parallelizableModules: .any,
                 testSuites: .any,
                 shardMin: .any,
                 shardMax: .any,
@@ -279,6 +281,7 @@ struct ShardPlanServiceTests {
                 serverURL: .any,
                 reference: .any,
                 modules: .any,
+                parallelizableModules: .any,
                 testSuites: .any,
                 shardMin: .any,
                 shardMax: .any,
@@ -431,6 +434,7 @@ struct ShardPlanServiceTests {
                 serverURL: .any,
                 reference: .any,
                 modules: .any,
+                parallelizableModules: .any,
                 testSuites: .any,
                 shardMin: .any,
                 shardMax: .any,
@@ -439,7 +443,7 @@ struct ShardPlanServiceTests {
                 shardGranularity: .any,
                 buildRunId: .any
             )
-            .willProduce { _, _, _, _, testSuites, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _ in
                 capture(testSuites)
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -450,6 +454,85 @@ struct ShardPlanServiceTests {
                 )
             }
         return createShardPlanService
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_sendsParallelizableModulesFromTheXCTestRun() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            TestTargetFixture(blueprintName: "ParallelTests", parallelizationEnabled: true),
+                            TestTargetFixture(blueprintName: "SerialTests", parallelizationEnabled: false),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let sentParallelizableModules = LockedValue<[String]?>(nil)
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                parallelizableModules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any
+            )
+            .willProduce { _, _, _, _, parallelizableModules, _, _, _, _, _, _, _ in
+                sentParallelizableModules.mutate { $0 = parallelizableModules }
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        )
+
+        // Only the target xcodebuild will actually parallelize is declared. Whether a module runs its
+        // suites concurrently is a property of this invocation, not something the server can infer.
+        #expect(sentParallelizableModules.value == ["ParallelTests"])
     }
 
     private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {
@@ -484,9 +567,11 @@ private struct TestConfigurationFixture: Encodable {
 
 private struct TestTargetFixture: Encodable {
     let blueprintName: String
+    var parallelizationEnabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case blueprintName = "BlueprintName"
+        case parallelizationEnabled = "ParallelizationEnabled"
     }
 }
 

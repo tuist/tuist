@@ -9,6 +9,14 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; production and staging run
+# their own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-canary
+    - tag:tuist-k8s-canary
+
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
@@ -17,11 +25,32 @@ registry:
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
+  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
+  # while every other Deployment in the release is surging too, so the extra
+  # Pods queue behind each other on FailedScheduling and whichever waits past
+  # progressDeadlineSeconds fails the whole release. One replica means a surge
+  # buys no availability here anyway: the Service has a single endpoint either
+  # way, and canary registry traffic tolerates the restart gap.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
 
 server:
   replicaCount: 1
 
   appUrl: https://canary.tuist.dev
+
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
@@ -98,9 +127,10 @@ server:
     # advertise the canonical prefix already.
     - name: TUIST_REGISTRY_URL
       value: https://registry-canary.tuist.dev/swift
-    # Cache remains the sole registry writer until the managed cutover.
+    # The registry sync deployment owns catalog synchronization after the
+    # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     # Single web replica shares this pool between request handling and the
     # in-node Oban queues (default: 10). Sized well above the default-queue
     # concurrency so the steady AlertEvaluationWorker load can't starve web
@@ -136,6 +166,9 @@ objectStorage:
 clickhouse:
   poolSize: "30"
   bufferPoolSize: "30"
+  # Exercise the shared application-user memory guard before production with a
+  # smaller pre-production budget.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:
@@ -177,6 +210,13 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -230,17 +270,22 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
-      # See values-managed-production.yaml for the rationale. Canary's
-      # only Mac mini is on the production tailnet (single shared
-      # tailnet across canary + production), so the proxy needs to land
-      # on the same tag as production's `tag:tuist-k8s-production`
-      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
-      # by the operator's OAuth client. Hostname is env-scoped to
-      # keep production's stable.
+      # See values-managed-production.yaml for the rationale. Canary
+      # shares a tailnet with production but not a tag: the canary Mac
+      # mini fleet joins as `tag:tuist-macmini-canary` (macosFleet
+      # .tailscale.tags below) and the canary operator runs its own
+      # OAuth client, which can only mint `tag:tuist-k8s-canary`.
+      # Requesting production's tag here left the Service stuck on
+      # `requested tags [tag:tuist-k8s-production] are invalid or not
+      # permitted`, so no proxy node existed, the hostname below
+      # resolved to nothing, and the Tart VM could not reach Postgres.
+      # infra/tailscale/acls.json already grants
+      # tag:tuist-macmini-canary -> tag:tuist-k8s-canary on tcp:5432.
+      # Hostname stays env-scoped to keep production's stable.
       tailscale:
         enabled: true
         hostname: tuist-pg-pooler-canary
-        tags: tag:tuist-k8s-production
+        tags: tag:tuist-k8s-canary
     storage:
       size: "10Gi"
     resources:
@@ -277,12 +322,19 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
-# Cache remains the sole registry writer until the managed cutover. The
-# standalone registry continues exercising the read path against the
-# same bucket.
+# The registry sync deployment owns catalog synchronization after the legacy
+# cache writer was disabled. The standalone registry reads from the same bucket.
 swiftRegistrySync:
-  enabled: false
+  enabled: true
   syncAllowlist: alamofire/alamofire
+  # Terminate-then-replace, for the same reason as `registry.strategy` above.
+  # This is a pure Oban consumer, so the gap only defers queue work: the jobs
+  # stay in Postgres and the replacement Pod picks them up.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can
@@ -392,23 +444,36 @@ ovhFleet:
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
+  # The minis drop inbound :22 from everything except the tailnet, loopback
+  # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
+  # listen backlog. That socket binds *:22, so an exhausted backlog takes the
+  # operator's tailnet fallback down with the public path and the host stops
+  # accepting config pushes entirely. This is the cluster's stable egress
+  # Floating IP, which the capi entry in the platform chart's
+  # ciliumEgressGateway routes the operator through; keep the two in lockstep.
+  # Dropping it here is safe (the drift loop falls back to the tailnet) but
+  # costs the public dial path, the only one that can update Tailscale itself.
+  sshIngressAllowCIDRs:
+    - 78.47.174.50/32
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
-  # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
-  # holds ~16 masters — ample for canary's single replica.
-  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
-  # macOS CI job — the guest mounts the virtio-fs cache share and exports
-  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
-  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
-  # var is exported regardless, so the CLI dies with "Couldn't create the
-  # directory at /Volumes/My Shared Files/cache/tuist/... because its
-  # parent directory doesn't exists". Re-enable only once a real CI job
-  # is verified green on a cache-volume host (host-side provisioning
-  # checks are NOT sufficient — that gap is what let this reach prod).
+  # path rather than risking ENOSPC. With the CAS folded in, a master's
+  # sparse ceiling is masterCapGib (28 GiB); it only bills the quota for
+  # what it actually holds, and the evictor drops whole masters LRU as the
+  # 80 GiB quota fills — ample for canary's single replica.
+  # The 2026-07-16 incident (the guest exported TUIST_XDG_CACHE_HOME at a
+  # virtio-fs share it could not create dirs on, so the CLI died on its
+  # first cache write) was fixed by the disk-image redesign (#11908) — the
+  # cache is now a block-device APFS image, and the guest abandons an
+  # unwritable share for a local cold cache instead of exporting a broken
+  # root. Production has run on that path (gib: 80) since; canary tracks it
+  # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
+  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
   runnerCacheVolume:
-    gib: 0
+    gib: 80
+    masterCapGib: 28
+    casGib: 16
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add
@@ -416,6 +481,14 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
+  # The receiver's tailnet hostname is set by
+  # infra/helm/k8s-monitoring/values-canary.yaml. Query as
+  # {job="tuist-macos-tart-kubelet", env="canary"}; every line also carries
+  # `instance` (the Machine/Node name) and `level`.
+  hostLogs:
+    enabled: true
+    url: http://tuist-alloy-receiver-canary.taild6d7bb.ts.net:3100/loki/api/v1/push
+    env: canary
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private

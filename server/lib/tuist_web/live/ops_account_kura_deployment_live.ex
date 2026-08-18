@@ -75,12 +75,14 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def deployment_status_label(:succeeded), do: dgettext("dashboard", "Succeeded")
   def deployment_status_label(:failed), do: dgettext("dashboard", "Failed")
   def deployment_status_label(:cancelled), do: dgettext("dashboard", "Cancelled")
+  def deployment_status_label(:superseded), do: dgettext("dashboard", "Superseded")
 
   def deployment_status_color(:pending), do: "neutral"
   def deployment_status_color(:running), do: "information"
   def deployment_status_color(:succeeded), do: "success"
   def deployment_status_color(:failed), do: "destructive"
   def deployment_status_color(:cancelled), do: "warning"
+  def deployment_status_color(:superseded), do: "warning"
 
   def format_time(nil), do: dgettext("dashboard", "None")
   def format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")

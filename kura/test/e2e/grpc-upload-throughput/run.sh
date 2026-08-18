@@ -18,10 +18,13 @@ trap cleanup EXIT
 cleanup
 
 # Build the measurement client image (also used by the confgen step below). kura
-# is built lazily by `up` from source if its image (KURA_IMAGE, default kura:e2e)
-# isn't present locally; in CI the image is prebuilt and retagged, so no kura
-# rebuild happens here.
+# is rebuilt from the current source for local runs so an existing kura:e2e tag
+# cannot make the benchmark exercise a stale runtime. In CI KURA_IMAGE points at
+# the image built by the workflow, so this source build remains skipped.
 docker compose build client
+if [ -z "${KURA_IMAGE:-}" ]; then
+  docker compose build kura
+fi
 
 # Render baseline/patched nginx confs + window.env from the live chart values,
 # using the client image's `genconfs` subcommand (no third-party yq image). The

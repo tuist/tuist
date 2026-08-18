@@ -139,13 +139,13 @@ type RunnerPoolSpec struct {
 	// +optional
 	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
 
-	// Rollout bounds how aggressively stale-image Pods are drained when
-	// `spec.image` changes. An image roll makes each affected node
-	// `tart pull` the new (tens-of-GB) image before it can boot a
-	// replacement; unthrottled, the whole fleet pulls at once and the
-	// warm pool collapses for minutes. The controller caps the number
-	// of Pods mid-roll and only drains more as in-flight rollers report
-	// Ready. Absent block = the built-in default (5%, min 1).
+	// Rollout bounds how aggressively Pods with a stale image or
+	// RuntimeClass revision are replaced. An image roll can make each
+	// affected node pull a large image before it can boot a replacement;
+	// a RuntimeClass roll changes admission-time sandbox accounting.
+	// The controller caps unavailable serving capacity and only retires
+	// more stale Pods as current-template Pods become warm. Absent block
+	// means the built-in default (5%, minimum 1).
 	// +optional
 	Rollout *RunnerPoolRollout `json:"rollout,omitempty"`
 }
@@ -183,14 +183,15 @@ type RunnerPoolAutoscaling struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// MinWarmPoolFloor is the preferred lower bound (target) for the
-	// desired warm pool size; the server's rolling p95 of concurrent
-	// claims can lift the effective target higher. It is a target, not
-	// a hard floor: in a shared Linux fleet (multiple shape pools
-	// bin-packing on one bare-metal node pool), the fleet allocator can
+	// desired warm pool size; the server's rolling 95th percentile of
+	// occupied runner sessions can lift the effective target higher. It
+	// is a target, not a hard floor: in a shared Linux fleet (multiple
+	// shape pools bin-packing on one bare-metal node pool), the fleet
+	// allocator can
 	// squeeze an idle pool's desired below this value under memory
 	// contention to admit another shape's real queued work. macOS pools
 	// and uncontended Linux pools honor it as a floor; real load
-	// (claimed + queued) is always funded above it.
+	// (occupied runners + queued jobs) is always funded above it.
 	//
 	// Pointer so a deliberate 0 ("this pool holds no warm capacity")
 	// survives serialization; nil means unset and defaults to 1. Read
@@ -281,16 +282,15 @@ func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
 	return *a.ScaleDownCooldownSeconds
 }
 
-// RunnerPoolRollout carries the image-roll throttle knob. Its own
-// pointer struct so an absent block keeps the spec wire-identical for
-// pools that don't override the default.
+// RunnerPoolRollout carries the Pod-template rollout throttle knob.
+// Its own pointer struct keeps the spec wire-identical for pools that
+// do not override the default.
 type RunnerPoolRollout struct {
-	// MaxConcurrentPercent caps the number of Pods that may be mid-roll
-	// (draining the old image, or booting the new one before it reports
-	// Ready) at once, as a percentage of the pool's replica count,
-	// floored, with a hard minimum of 1 so a roll always makes
-	// progress. Lower keeps more of the warm pool serving during a roll
-	// at the cost of a slower rollout. Default 5.
+	// MaxConcurrentPercent caps unavailable serving capacity during a
+	// rollout, as a percentage of the pool's replica count, floored,
+	// with a hard minimum of 1 so a rollout always makes progress.
+	// Lower keeps more of the warm pool serving during a rollout at the
+	// cost of slower replacement. Default 5.
 	// +kubebuilder:default=5
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=100

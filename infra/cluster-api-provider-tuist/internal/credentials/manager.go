@@ -79,16 +79,17 @@ type Manager struct {
 	NodeIdentityClusterRole string
 
 	// TailscaleAuthKeySecretName is the name of the operator-namespace
-	// Secret holding the Tailscale pre-auth key under key `auth-key`
-	// (synced from 1Password via ESO — see the chart's
-	// macos-fleet-tailscale-external-secrets.yaml). Empty disables
+	// Secret holding the Tailscale join credential under key `auth-key`
+	// (an OAuth client secret, synced from 1Password via ESO). See the
+	// chart's macos-fleet-tailscale-external-secrets.yaml for why it
+	// isn't a pre-auth key. Empty disables
 	// the Tailscale step: bootstrap installs neither Tailscale nor
 	// node_exporter, the kubelet falls back to public-interface IP,
 	// and host-level metrics scraping is off. Set to enable.
 	TailscaleAuthKeySecretName string
 }
 
-// GetTailscaleAuthKey returns the Tailscale pre-auth key from the
+// GetTailscaleAuthKey returns the Tailscale join credential from the
 // operator-namespace Secret. Empty (returns "") when
 // TailscaleAuthKeySecretName isn't configured: the bootstrap step
 // treats that as "don't install Tailscale on this machine" and the

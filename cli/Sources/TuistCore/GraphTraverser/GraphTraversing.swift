@@ -145,6 +145,15 @@ public protocol GraphTraversing {
     ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
+    /// Returns the same bundles as `resourceBundleDependencies`, but only the ones produced by a target,
+    /// and retaining the project and target that produce each one. `resourceBundleDependencies` reduces a
+    /// bundle to its product name, which is not enough to reference the producer across projects.
+    /// Precompiled bundles have no producing target and are omitted.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func resourceBundleTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
+
     /// It returns true if the given target can be compiled for Mac Catalyst. To be able to compile it for Catalyst, itself and
     /// all its
     /// dependencies need to support Mac Catalyst. Otherwise it'll yield a "X not found" error.
@@ -178,6 +187,12 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
+
+    /// Returns package products reachable through the target's static dependency chain.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the target's project.
+    ///   - name: Name of the target.
+    func packageProductsLinkedThroughStaticTargets(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable
     /// path from the target.

@@ -68,6 +68,40 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   agent registers → GH dispatches the workflow_job); 5 min is a
   generous floor that won't false-positive a slow boot.
 
+  ## Targeted mode
+
+  The threshold exists because the sweep cannot distinguish a
+  healthy in-flight build from an orphan without asking GitHub, and
+  a `running` row is overwhelmingly the former. That reasoning does
+  not apply once we have direct evidence the Pod is gone: the
+  controller's `pods/stopped` report releases the claim and passes
+  the released job here as
+  `%{"workflow_job_id" => id, "pod_name" => name}`, which re-checks
+  that one job immediately.
+
+  Both keys are load-bearing. The Pod name binds the run to the
+  attempt that actually stopped, because a queued Oban job can be
+  delayed past a re-queue and a fresh claim. Recovering the row
+  then would release the *replacement's* claim: GitHub still
+  reports `queued` while the new runner registers, and the
+  stale-handle guard in `Claims.release/2` does not catch it either,
+  since re-reading the row hands us the replacement's `claimed_at`
+  rather than the stale one the sweep would have been holding.
+
+  Without it the released job is stranded for the full 5 minutes.
+  Releasing the PG claim does not make the job dispatchable — the
+  ClickHouse row is still `running` and `pick_queued/2` skips it —
+  and GitHub never re-announces a job it still considers `queued`,
+  so nothing else moves it. The customer sees "waiting for a
+  runner" for that whole window with warm capacity sitting idle.
+
+  Targeted mode is the same `recover_one/1` with the same GitHub
+  cross-check, so the safety story is unchanged; only the age gate
+  is skipped. The `executing?/1` guard inside it is naturally
+  satisfied rather than special-cased: the caller has already
+  deleted the claim, so a Pod that ran a sibling's job no longer
+  looks busy, which is correct — it has stopped.
+
   ## Cost
 
   One GitHub API call per orphaned candidate per tick. Steady-
@@ -85,6 +119,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   require Logger
@@ -92,6 +127,51 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   @stale_after_seconds 300
 
   @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}})
+      when is_integer(workflow_job_id) and is_binary(pod_name) and pod_name != "" do
+    case Jobs.get_orphaned_running(workflow_job_id) do
+      nil ->
+        # The row moved on between the release and this run: the
+        # executor's `completed` webhook landed, or the job was
+        # re-queued. Either way there is nothing orphaned.
+        :ok
+
+      %{pod_name: ^pod_name} = orphan ->
+        recover_one(orphan)
+        :ok
+
+      %{pod_name: current_pod} ->
+        # The row is `running` again, but for a DIFFERENT Pod: the job
+        # was re-queued and re-claimed while this run sat in the queue.
+        # Recovering it here would release the replacement's claim using
+        # the replacement's own `claimed_at` — GitHub still reports
+        # `queued` while its runner registers, so the GH check does not
+        # save us, and the stale-handle guard in `Claims.release/2`
+        # cannot either, because re-reading the row hands us the new
+        # handle rather than the old one. Only the Pod we were told
+        # stopped is ours to act on.
+        Logger.info("runners: targeted orphan recovery skipped — job re-claimed by another pod",
+          workflow_job_id: workflow_job_id,
+          stopped_pod: pod_name,
+          current_pod: current_pod
+        )
+
+        :ok
+    end
+  end
+
+  def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id}}) do
+    # Targeted recovery is only safe when it can prove the row still
+    # belongs to the attempt that stopped, so a job without the Pod
+    # binding is dropped rather than run unbound or widened into a full
+    # sweep. The 1-minute sweep still covers the row.
+    Logger.warning("runners: targeted orphan recovery missing pod_name; leaving it to the sweep",
+      workflow_job_id: workflow_job_id
+    )
+
+    :ok
+  end
+
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 
@@ -110,24 +190,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :ok
   end
 
-  defp recover_one(%{
-         workflow_job_id: workflow_job_id,
-         account_id: account_id,
-         repository: repository,
-         claimed_at: claimed_at,
-         pod_name: pod_name
-       }) do
+  defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, %{status: gh_status, conclusion: conclusion}} ->
-          handle_gh_status(gh_status, conclusion, workflow_job_id, claimed_at, pod_name, account)
+          handle_gh_status(gh_status, conclusion, orphan, account)
 
         {:error, :not_found} ->
           # GH pruned the workflow_job (90-day retention by default).
           # The job can't be live; treat as completed so the PG cap
           # slot doesn't leak forever.
-          handle_gh_status("completed", "", workflow_job_id, claimed_at, pod_name, account)
+          handle_gh_status("completed", "", orphan, account)
 
         {:error, reason} ->
           Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
@@ -145,7 +219,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("queued", _conclusion, workflow_job_id, claimed_at, pod_name, account) do
+  defp handle_gh_status("queued", _conclusion, %{workflow_job_id: workflow_job_id, pod_name: pod_name} = orphan, account) do
     # GitHub still has this job queued, so the runner minted for it never
     # took it. That does NOT mean the Pod holding the claim is idle: GitHub
     # assigns jobs to any label-eligible runner, so it may be busy executing
@@ -166,13 +240,18 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
       false
     else
-      requeue_orphan(workflow_job_id, claimed_at, pod_name, account)
+      requeue_orphan(orphan, account)
     end
   end
 
-  defp handle_gh_status("in_progress", _conclusion, _wfid, _claimed_at, _pod, _account), do: false
+  defp handle_gh_status("in_progress", _conclusion, _orphan, _account), do: false
 
-  defp handle_gh_status("completed", conclusion, workflow_job_id, _claimed_at, pod_name, account) do
+  defp handle_gh_status(
+         "completed",
+         conclusion,
+         %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name},
+         account
+       ) do
     # GH has a terminal status but we never saw the corresponding
     # `workflow_job.completed` webhook (or it was retry-exhausted
     # before reaching us). Without releasing here, the PG claim
@@ -197,13 +276,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     :telemetry.execute(
       Telemetry.event_name_recovery(),
       %{count: 1},
-      %{kind: "orphan_completed"}
+      %{kind: "orphan_completed", fleet: fleet_name}
     )
 
     true
   end
 
-  defp handle_gh_status(other, _conclusion, workflow_job_id, _claimed_at, _pod, _account) do
+  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account) do
     # Unknown / future GH status. Log and skip; if it's actually
     # terminal we'll catch it on a later tick once GitHub-side
     # state settles or the 404 fallback above handles retention.
@@ -215,30 +294,55 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     false
   end
 
-  defp requeue_orphan(workflow_job_id, claimed_at, pod_name, account) do
+  defp requeue_orphan(
+         %{
+           workflow_job_id: workflow_job_id,
+           claimed_at: claimed_at,
+           started_at: started_at,
+           pod_name: pod_name,
+           fleet_name: fleet_name
+         },
+         account
+       ) do
     Logger.warning("runners: orphaned running row — GH still queued, recovering",
       workflow_job_id: workflow_job_id,
       account: account.name,
       pod: pod_name
     )
 
-    case Claims.release(workflow_job_id, claimed_at) do
+    # `Claims.release/2` deletes the claim and re-queues the lifecycle
+    # row in one transaction. `:stale_claim` means the claim is already
+    # gone — either the pod-stopped report released it ahead of this
+    # targeted run, or another Pod re-claimed the job with a newer
+    # handle. The lifecycle row tells the two apart: it still carries
+    # our `claimed_at` only in the former case, so the handle-guarded
+    # requeue finishes that release and is a no-op for the latter.
+    released =
+      case Claims.release(workflow_job_id, claimed_at) do
+        :ok -> :ok
+        {:error, :stale_claim} -> WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+      end
+
+    case released do
       :ok ->
         :telemetry.execute(
           Telemetry.event_name_recovery(),
-          %{count: 1},
-          %{kind: "orphan_requeued"}
+          %{count: 1, stranded_ms: stranded_ms(started_at)},
+          %{kind: "orphan_requeued", fleet: fleet_name}
         )
 
         true
 
-      {:error, :stale_claim} ->
-        # Someone else released + re-claimed between our list and our
-        # release; the new claim has a newer claimed_at. Treat as a
-        # no-op.
+      :noop ->
         false
     end
   end
+
+  defp stranded_ms(%DateTime{} = started_at) do
+    DateTime.utc_now() |> DateTime.diff(started_at, :millisecond) |> max(0)
+  end
+
+  defp stranded_ms(_started_at), do: 0
 
   # `Claims.complete/1` is idempotent and deletes the PG row
   # regardless of the claim handle. Used here because the GH-side

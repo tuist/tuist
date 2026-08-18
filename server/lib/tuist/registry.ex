@@ -26,6 +26,7 @@ defmodule Tuist.Registry do
   alias Tuist.Registry.Swift.SyncWorker
 
   def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
+  def registry_s3_config, do: Application.get_env(:tuist, :registry)[:s3_config] || []
 
   @doc """
   The full public base URL, including the API path prefix, that clients use
@@ -78,10 +79,24 @@ defmodule Tuist.Registry do
     end
   end
 
-  def force_resync_swift_package_version(repository_full_handle, version)
+  @doc """
+  Rebuilds a published version in place.
+
+  A rebuild that produces different bytes than the version already advertises
+  is refused, because it turns a working pin into a checksum mismatch for every
+  client that already resolved it. Pass `allow_checksum_change: true` to accept
+  that trade, which is the case for a version whose stored archive cannot be
+  extracted at all and so was never resolved successfully by anyone.
+  """
+  def force_resync_swift_package_version(repository_full_handle, version, opts \\ [])
       when is_binary(repository_full_handle) and is_binary(version) do
-    %{repository_full_handle: repository_full_handle, version: version, force: true}
-    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force]])
+    %{
+      repository_full_handle: repository_full_handle,
+      version: version,
+      force: true,
+      allow_checksum_change: Keyword.get(opts, :allow_checksum_change, false)
+    }
+    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force, :allow_checksum_change]])
     |> Oban.insert()
   end
 

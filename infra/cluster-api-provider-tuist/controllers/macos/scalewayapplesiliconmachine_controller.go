@@ -71,76 +71,26 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// Required for tart-kubelet to authenticate to the cluster.
 	Kubeconfig *kubeconfig.Builder
 
-	// TartKubeletBinary is the darwin/arm64 binary baked into the
-	// operator's own image. Read once at operator startup, uploaded to
-	// each Mac mini over SSH at provision time and on every drift-
-	// detected rolling update.
-	TartKubeletBinary []byte
+	// FleetConfig is every field of the host config that is identical
+	// across the fleet: the operator-image binaries and the chart-driven
+	// fleet settings. The manager builds it once, hands the same value
+	// here, and derives HostConfigHash from it, so what the operator
+	// hashes and what it pushes cannot be two different things.
+	//
+	// Both push paths start from this value and overlay only per-host
+	// fields (see bootstrap.PerHost). Previously each path assembled its
+	// own bootstrap.Config field by field from separate reconciler
+	// fields, and a field wired into one path but not the other made the
+	// operator stamp a host as converged to a config it never received.
+	// The Tailscale tags were lost that way and froze the production
+	// fleet on 2026-08-18.
+	FleetConfig bootstrap.Config
 
 	// TartKubeletBinarySHA is the SHA-256 of TartKubeletBinary. Used
 	// as the version stamp on each ScalewayAppleSiliconMachine: when
 	// status.tartKubeletBinarySHA != this value, the reconciler
 	// re-uploads + reloads launchd.
 	TartKubeletBinarySHA string
-
-	// HostConfigHash is the fleet-wide canonical hash of every host
-	// config the operator pushes (bootstrap.HostConfigHash over the
-	// rendered install scripts + embedded binaries). It's the version
-	// stamp that drives the host-config drift loop: when
-	// status.hostConfigHash != this value the reconciler re-pushes the
-	// host config. Broader than TartKubeletBinarySHA, which only catches
-	// a tart-kubelet binary change — this also catches a script tweak or
-	// a fleet-config (CIDR/tags/accept-routes) change.
-	HostConfigHash string
-
-	// TartTarball is the gzipped tar of the upstream `tart.app` bundle
-	// pinned in the operator's Dockerfile and read at startup. Uploaded
-	// to each Mac mini over SSH at first bootstrap. We do not run a
-	// drift loop on the Tart version: a Mac mini already running VMs
-	// can't safely have its hypervisor swapped out from under them, so
-	// upgrading Tart fleet-wide goes through Machine replacement (the
-	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
-	TartTarball []byte
-
-	// TailscaleBinaries is the gzipped tarball of darwin/arm64
-	// `tailscale` + `tailscaled` cross-built from upstream source at
-	// the operator-image-pinned tag (TAILSCALE_VERSION in the
-	// Dockerfile). Same drift policy as TartTarball: version bumps
-	// roll via operator-image replacement, not in-place updates of
-	// running hosts (the running tailnet connection doesn't tolerate
-	// a daemon swap mid-flight). Empty disables the Tailscale step.
-	TailscaleBinaries []byte
-
-	// NodeExporterBinary is the darwin/arm64 node_exporter binary,
-	// cross-compiled in the operator image. Installed on each Mac
-	// mini at bootstrap and supervised by launchd; scraped over the
-	// tailnet at <node-ip>:9100. Empty disables the host-metrics
-	// step (paired with TailscaleBinaries — node_exporter without
-	// Tailscale would bind to a public interface, which is the kind
-	// of mistake we don't want a chart-level toggle to make easy).
-	NodeExporterBinary []byte
-
-	// TailscaleTags are the Tailscale ACL tags every Mac mini in
-	// the fleet advertises at `tailscale up` time (e.g.
-	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
-	// auth key — see acls.json's tagOwners block. Empty means the
-	// minis use whatever default tag the auth key carries.
-	TailscaleTags []string
-
-	// TailscaleAcceptRoutes makes every Mac mini run `tailscale up
-	// --accept-routes`, installing the subnet routes the cluster's
-	// Connector advertises (the Service CIDR) so Tart runner VMs can
-	// reach the in-cluster Kura runner-cache Service. See
-	// bootstrap.Config.TailscaleAcceptRoutes for the single-
-	// advertiser caveat.
-	TailscaleAcceptRoutes bool
-
-	// VMKuraEgressCIDR / VMClusterDNSIP parameterize the VM egress
-	// firewall's runner-cache carve-out (Kura ports on the Service
-	// CIDR + cluster DNS). Empty leaves the firewall as a pure
-	// blocklist. See the bootstrap.Config fields of the same names.
-	VMKuraEgressCIDR string
-	VMClusterDNSIP   string
 
 	// VMCachePNName / VMCachePNCIDR configure the Scaleway Private
 	// Network carrying the kura runner-cache NodePort endpoints.
@@ -152,28 +102,12 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// disables the PN data plane. See
 	// bootstrap.Config.VMCachePNCIDR / VMCachePNVLAN.
 	VMCachePNName string
-	VMCachePNCIDR string
 
 	// VPC find-or-creates the runner-cache Private Network the Mac
 	// fleet shares with the Elastic Metal cache node, resolving
 	// VMCachePNName to an ID. Same shared client as the EM reconciler,
 	// so the two fleets land on one PN per env.
 	VPC *scaleway.VPCClient
-
-	// TartKubelet host advertising — passed into bootstrap which bakes
-	// them into the launchd plist on each Mac mini.
-	TartKubeletHostCPU      int
-	TartKubeletHostMemoryMB int
-	TartKubeletMaxPods      int
-
-	// RunnerCacheVolumeGiB / CacheVolumeMasterCapGiB turn on per-account
-	// cache volumes on the Mac fleet: bootstrap provisions a
-	// quota-bounded APFS volume of RunnerCacheVolumeGiB and passes
-	// --runner-cache-root (+ optional per-master cap) to tart-kubelet. 0
-	// leaves the feature off. See the bootstrap.Config fields of the same
-	// names.
-	RunnerCacheVolumeGiB    int
-	CacheVolumeMasterCapGiB int
 
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
@@ -182,6 +116,16 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// terminal-failure surface for ops. Defaulted to 5 attempts in
 	// the manager binary; chart can override per env if needed.
 	TartKubeletMaxUpdateAttempts int32
+
+	// TartKubeletTerminalRetryAfter re-arms the drift loop this long
+	// after the update failure that drove a host terminal. The terminal
+	// state's other exit — a new HostConfigHash — only covers a host
+	// that rejected the config; it never fires for the common case of a
+	// host that was unreachable while the operator tried to push, which
+	// then stays frozen at a stale config forever while its Node keeps
+	// taking jobs. A cooldown bounds that to one fresh attempt budget
+	// per interval. Zero disables the re-arm (hash-drift only).
+	TartKubeletTerminalRetryAfter time.Duration
 
 	// BootstrapRebootAfter is the consecutive-failure count at which
 	// the BootstrapFailed path asks Scaleway to reboot the host. The
@@ -210,12 +154,16 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// locking — bumping this only parallelizes across distinct CRs.
 	MaxConcurrentReconciles int
 
-	// DefaultAdoptPoolPrefix is the pool prefix reconcileDelete falls
-	// back to when a CR's Spec.AdoptPoolPrefix is empty. Spec now
-	// requires the field (MinLength=1), so this only covers legacy CRs
-	// created before that contract existed: without a fallback their
-	// delete skips the Scaleway release and strands the host. Empty
-	// preserves the skip behavior (no pool prefix to release into).
+	// DefaultAdoptPoolPrefix is the pool prefix every path falls back
+	// to when a CR's Spec.AdoptPoolPrefix is empty — adoption,
+	// bootstrap-exhaustion release, and delete alike. A CR reaches
+	// that shape either by predating the field or by being cloned
+	// from a MachineTemplate that drifted without it (helm patches
+	// these CRs manifest-to-manifest, so a field the live object
+	// never received is never backfilled). Empty means no prefix
+	// resolves at all: adoption refuses to scan (an unprefixed scan
+	// would claim an arbitrary server) and release skips, leaving the
+	// host running for the orphan-reclaim sweep.
 	DefaultAdoptPoolPrefix string
 
 	// Tailscale egress Service materialisation. When EgressProxyGroup
@@ -613,38 +561,22 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
-		vncRelayPort := r.dashboardVNCRelayPort()
 
-		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                      ip,
-			SSHUser:                 bootstrapCreds.SSHUsername,
-			UserPassword:            bootstrapCreds.SudoPassword,
-			SSHPrivateKey:           sshKey,
-			NodeName:                machine.Name,
-			ProviderID:              providerIDOf(machine),
-			Kubeconfig:              kubeconfigYAML,
-			TartKubeletBinary:       r.TartKubeletBinary,
-			TartTarball:             r.TartTarball,
-			TailscaleBinaries:       r.TailscaleBinaries,
-			TailscaleAuthKey:        tailscaleAuthKey,
-			TailscaleTags:           r.TailscaleTags,
-			TailscaleAcceptRoutes:   r.TailscaleAcceptRoutes,
-			VMKuraEgressCIDR:        r.VMKuraEgressCIDR,
-			VMClusterDNSIP:          r.VMClusterDNSIP,
-			VMCachePNCIDR:           r.VMCachePNCIDR,
-			VMCachePNVLAN:           vmCachePNVLAN,
-			NodeExporterBinary:      r.NodeExporterBinary,
-			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:            hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:                 r.TartKubeletMaxPods,
-			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
-			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
-			VNCRelayHost:            vncRelayHost,
-			VNCRelayPort:            vncRelayPort,
-			NodeLabels:              machineNodeLabels(machine),
-			KnownHostFingerprint:    bootstrapCreds.HostFingerprint,
-			GHActionsRunner:         ghRunner,
-		})
+		fingerprint, err := bootstrap.Run(ctx, r.hostConfig(machine, bootstrap.PerHost{
+			IP:                   ip,
+			SSHUser:              bootstrapCreds.SSHUsername,
+			UserPassword:         bootstrapCreds.SudoPassword,
+			SSHPrivateKey:        sshKey,
+			NodeName:             machine.Name,
+			ProviderID:           providerIDOf(machine),
+			Kubeconfig:           kubeconfigYAML,
+			TailscaleAuthKey:     tailscaleAuthKey,
+			VMCachePNVLAN:        vmCachePNVLAN,
+			VNCRelayHost:         vncRelayHost,
+			NodeLabels:           machineNodeLabels(machine),
+			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+			GHActionsRunner:      ghRunner,
+		}))
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
 		// TOFU pin we already verified successfully.
@@ -656,7 +588,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts), nil
+			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts, r.adoptPoolPrefix(machine)), nil
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
@@ -687,7 +619,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// moves the hash and re-pushes the host config. Existing machines
 	// carry an empty Status.HostConfigHash, so the first reconcile after
 	// this upgrade drifts once and re-pushes — the intended migration.
-	configDrift := hostConfigDrift(r.HostConfigHash, machine.Status.HostConfigHash)
+	// Resolved per machine, not read from a fleet-wide field: HostCPU and
+	// HostMemoryMB are overridable per Machine, so the desired hash for an
+	// overridden host is not the fleet's. See desiredHostConfigHash.
+	desiredHostConfigHash := r.desiredHostConfigHash(machine)
+	configDrift := hostConfigDrift(desiredHostConfigHash, machine.Status.HostConfigHash)
 	// Once a CR enters the terminal-failed state (FailureReason set
 	// and FailureMessage describes the underlying error) we stop
 	// firing the drift loop. CAPI core takes over: surfaces the
@@ -710,8 +646,27 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// every reconcile and hammer the same broken config indefinitely, defeating
 	// the cap. Against the failed hash, an unchanged broken config stays
 	// terminal while a genuinely new config retries.
-	if shouldClearTerminalFailure(r.HostConfigHash, machine.Status.FailedHostConfigHash, terminalFailure) {
-		clearUpdateFailure(machine, logger, r.Recorder)
+	//
+	// Self-heal on time too: config drift only lifts the state for a host that
+	// REJECTED the config, and most terminal failures are instead a host the
+	// operator could not reach (`dial tcp ...:22: i/o timeout`). Those stayed
+	// terminal indefinitely — Ready, schedulable, still running jobs — pinned
+	// to whatever config was last pushed, so a networking fix could roll to the
+	// fleet and silently miss them. The cooldown gives such a host one fresh
+	// attempt budget per interval once it is reachable again.
+	if shouldClearTerminalFailure(
+		desiredHostConfigHash,
+		machine.Status.FailedHostConfigHash,
+		terminalFailure,
+		machine.Status.LastUpdateFailureTime,
+		r.TartKubeletTerminalRetryAfter,
+		time.Now(),
+	) {
+		reason := "host config drifted since the failure was recorded"
+		if desiredHostConfigHash != "" && desiredHostConfigHash == machine.Status.FailedHostConfigHash {
+			reason = "retry cooldown elapsed"
+		}
+		clearUpdateFailure(machine, reason, logger, r.Recorder)
 		terminalFailure = false
 	}
 	if configDrift && !terminalFailure {
@@ -721,7 +676,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -729,7 +684,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -743,7 +698,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// way to keep the plist render correct.
 		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -759,58 +714,23 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			vmCachePNVLAN = 0
 		}
 		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
-		vncRelayPort := r.dashboardVNCRelayPort()
 
 		// The drift update dials the mini's public IP first (see the
 		// tailnet fallback right after this call). cfg.IP is a pure dial
 		// target on the update path — HostConfigHash strips it and nothing
 		// else reads it — so the fallback re-points it without changing
 		// what we push.
-		updateCfg := bootstrap.Config{
-			IP:                ip,
-			SSHUser:           bootstrapCreds.SSHUsername,
-			SSHPrivateKey:     sshKey,
-			NodeName:          machine.Name,
-			ProviderID:        providerIDOf(machine),
-			Kubeconfig:        kubeconfigYAML,
-			TartKubeletBinary: r.TartKubeletBinary,
-			TailscaleBinaries: r.TailscaleBinaries,
-			TailscaleAuthKey:  tailscaleAuthKey,
-			// Tailscale + firewall config rides the drift loop too —
-			// UpdateTartKubelet re-runs installTailscale and
-			// installVMEgressFirewall, so an accept-routes or
-			// carve-out values change lands on existing minis with
-			// the next operator-image roll instead of waiting for
-			// re-provisioning.
-			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
-			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
-			VMClusterDNSIP:        r.VMClusterDNSIP,
-			VMCachePNCIDR:         r.VMCachePNCIDR,
-			VMCachePNVLAN:         vmCachePNVLAN,
-			// node_exporter is re-installed on every drift-loop run,
-			// not just on first bootstrap, so a chart-driven binary
-			// bump (NODE_EXPORTER_VERSION ARG in the operator
-			// Dockerfile) lands on running minis the next time the
-			// tart-kubelet binary drifts. Forgetting this here made
-			// node_exporter silently skip on every drift update —
-			// installNodeExporter short-circuits when its binary is
-			// empty.
-			NodeExporterBinary: r.NodeExporterBinary,
-			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:            r.TartKubeletMaxPods,
-			// Per-account cache volumes must ride the drift loop
-			// too: the volume flag + provisioning land on already-bootstrapped
-			// minis via UpdateTartKubelet, not first-boot Run. Omitting these
-			// left the plist without --runner-cache-root (tart-kubelet booted
-			// every VM cold) and skipped installRunnerCacheVolume, while the
-			// operator's canonical HostConfigHash still reflected the enabled
-			// config — so the roll looked applied but the feature was off.
-			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
-			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
-			VNCRelayHost:            vncRelayHost,
-			VNCRelayPort:            vncRelayPort,
-			NodeLabels:              machineNodeLabels(machine),
+		updateCfg := r.hostConfig(machine, bootstrap.PerHost{
+			IP:               ip,
+			SSHUser:          bootstrapCreds.SSHUsername,
+			SSHPrivateKey:    sshKey,
+			NodeName:         machine.Name,
+			ProviderID:       providerIDOf(machine),
+			Kubeconfig:       kubeconfigYAML,
+			TailscaleAuthKey: tailscaleAuthKey,
+			VMCachePNVLAN:    vmCachePNVLAN,
+			VNCRelayHost:     vncRelayHost,
+			NodeLabels:       machineNodeLabels(machine),
 			// Builder hosts must keep `--disable-vm-gc` across binary
 			// rolls. This path re-renders the plist but doesn't re-resolve
 			// GHActionsRunner (which renderLaunchdPlist otherwise keys the
@@ -819,7 +739,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// in-flight image-bake VM mid-`tart push`.
 			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-		}
+		})
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
 		// Tailnet fallback. A running runner mini filters inbound :22 on
 		// its public interface once Internet Sharing / vmnet reconfigures
@@ -852,19 +772,19 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
-		machine.Status.HostConfigHash = r.HostConfigHash
+		machine.Status.HostConfigHash = desiredHostConfigHash
 		machine.Status.TartKubeletUpdateAttempts = 0
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA,
-			"hostConfigHash", r.HostConfigHash)
+			"hostConfigHash", desiredHostConfigHash)
 	}
 
 	// Stage 4: materialise the per-machine Tailscale egress Service
@@ -899,7 +819,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// as bootstrap returns; whether the Node has reported Ready yet is
 	// a separate concern observable via `kubectl get nodes`.
 	machine.Status.Ready = true
-	machine.Status.Phase = "Ready"
+	if !terminalPhasePinned(machine.Status.FailureReason) {
+		machine.Status.Phase = "Ready"
+	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -914,23 +836,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	// rename + reinstall — so the host stays alive for the next
 	// adopt. Skip if already released (mid-cleanup retry).
 	//
-	// Legacy CRs predating the required-AdoptPoolPrefix contract may
-	// still exist with the field unset (the older chart only
-	// rendered `adoptPoolPrefix` when the value was non-empty, so
-	// fleets that didn't set it produced bare CRs). For those, fall
-	// back to the controller-level DefaultAdoptPoolPrefix so the host
-	// still returns to the pool. Only when neither the CR nor the
+	// CRs with an unset AdoptPoolPrefix fall back to the
+	// controller-level DefaultAdoptPoolPrefix so the host still
+	// returns to the pool. Only when neither the CR nor the
 	// controller default carries a prefix do we skip the Scaleway
 	// release (the client rejects an empty prefix to avoid orphaning a
 	// host outside the pool namespace), leave the host running, and
 	// let the orphan-reclaim sweep or an operator clean it up. Without
-	// this fallthrough, deleting a bare legacy CR would loop forever on
+	// this fallthrough, deleting a bare CR would loop forever on
 	// a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
-		poolPrefix := machine.Spec.AdoptPoolPrefix
-		if poolPrefix == "" {
-			poolPrefix = r.DefaultAdoptPoolPrefix
-		}
+		poolPrefix := r.adoptPoolPrefix(machine)
 		switch {
 		case poolPrefix == "":
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
@@ -943,7 +859,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
 				"Returning Scaleway server %s to pool %q (with reinstall)",
 				machine.Status.ServerID, poolPrefix)
-			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix); err != nil {
+			if err := releaseHostToPool(ctx, r.ScalewayClient, r.Recorder, machine, poolPrefix); err != nil {
 				logger.Error(err, "Scaleway release-to-pool failed; will retry")
 				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 					"Scaleway ReleaseToPool: %v (will retry)", err)
@@ -1141,17 +1057,104 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
 }
 
+// terminalPhasePinned reports whether the reconcile tail must leave
+// Status.Phase alone because the machine holds a terminal failure.
+//
+// The drift gate SKIPS a terminal machine rather than returning early, so
+// every reconcile after the one that recorded the failure still falls
+// through to the tail. Writing "Ready" there overwrote the "Failed" that
+// recordUpdateFailure had just set — within a single reconcile interval —
+// leaving machines that carried FailureReason while reporting phase Ready.
+//
+// That combination is invisible to alerting: the "stuck Failed" rule keys
+// on phase="Failed" persisting for 30m, and the phase flapped back to Ready
+// in ~5m, so the rule could never fire. Three production hosts sat wedged on
+// a stale tart-kubelet for weeks with the alert green. Pinning the phase is
+// what makes the terminal state observable; clearUpdateFailure lifts it.
+func terminalPhasePinned(failureReason *string) bool {
+	return failureReason != nil
+}
+
 // shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
-// failure should be cleared so the drift loop retries. It clears only when the
-// operator's desired config differs from the one that exhausted its retry
-// budget (failedHash) — NOT from the last successfully applied hash. A broken
-// config can never be applied, so the applied hash never advances to it and a
-// desired-vs-applied comparison would report drift forever, resetting the cap
-// on every reconcile and retrying the same broken config indefinitely. Keyed on
-// the failed hash instead, an unchanged broken config keeps its terminal state
-// while a genuinely new (typically fixed) config gets a fresh budget.
-func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure bool) bool {
-	return terminalFailure && desiredHash != "" && desiredHash != failedHash
+// failure should be cleared so the drift loop retries.
+//
+// Two independent exits:
+//
+// Config drift — the operator's desired config differs from the one that
+// exhausted its retry budget (failedHash), NOT from the last successfully
+// applied hash. A broken config can never be applied, so the applied hash never
+// advances to it and a desired-vs-applied comparison would report drift
+// forever, resetting the cap on every reconcile and retrying the same broken
+// config indefinitely. Keyed on the failed hash instead, an unchanged broken
+// config keeps its terminal state while a genuinely new (typically fixed)
+// config gets a fresh budget.
+//
+// Cooldown — retryAfter has elapsed since the failure. Config drift alone reads
+// every terminal failure as a verdict on the CONFIG, but most are a verdict on
+// REACHABILITY: the operator could not open :22. Such a host stayed terminal
+// until someone shipped an unrelated config change or hand-patched its status,
+// all the while Ready, schedulable, and running jobs against a frozen host
+// config — which is how a fleet ends up with hosts silently missing a
+// networking fix. The cooldown bounds a persistently-broken config to one fresh
+// attempt budget per interval rather than per reconcile, so the cap still does
+// its job.
+func shouldClearTerminalFailure(
+	desiredHash, failedHash string,
+	terminalFailure bool,
+	lastFailure *metav1.Time,
+	retryAfter time.Duration,
+	now time.Time,
+) bool {
+	if !terminalFailure {
+		return false
+	}
+	if desiredHash != "" && desiredHash != failedHash {
+		return true
+	}
+	// A terminal CR recorded before this field existed carries no
+	// timestamp; treat it as due rather than stranding it forever.
+	if retryAfter <= 0 {
+		return false
+	}
+	if lastFailure == nil {
+		return true
+	}
+	return !now.Before(lastFailure.Time.Add(retryAfter))
+}
+
+// hostConfig is the config for one Mac mini: the fleet-wide config the manager
+// built, with this machine's per-host fields overlaid. Both push paths go
+// through it, so neither can push a config the operator did not hash.
+//
+// HostCPU / HostMemoryMB are the one seam. They are fleet-wide in the hash --
+// a chart-level change to either must roll the fleet -- but a Machine may
+// override them per host, so they are resolved here rather than in PerHost.
+// desiredHostConfigHash resolves them identically, which is what keeps the
+// stamp on an overridden host equal to the hash of what that host received.
+func (r *ScalewayAppleSiliconMachineReconciler) hostConfig(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	perHost bootstrap.PerHost,
+) bootstrap.Config {
+	cfg := r.FleetConfig
+	cfg.HostCPU = hostCPUFor(machine, r.FleetConfig.HostCPU)
+	cfg.HostMemoryMB = hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB)
+	return cfg.WithPerHost(perHost)
+}
+
+// desiredHostConfigHash is the fingerprint of the config this machine should be
+// running. It is the hash of exactly what hostConfig would push, so a host is
+// only ever stamped with a hash of the config it actually received.
+//
+// It is computed per machine rather than once per fleet because HostCPU and
+// HostMemoryMB are overridable per Machine. A single fleet constant was correct
+// for every host that took the fleet defaults and quietly wrong for one that
+// did not: the operator pushed the overridden config and then stamped the
+// fleet hash on it, so the host read as converged to a config it had never
+// been sent, and a later change to the overridden field could not drift it.
+func (r *ScalewayAppleSiliconMachineReconciler) desiredHostConfigHash(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) string {
+	return bootstrap.HostConfigHash(r.hostConfig(machine, bootstrap.PerHost{}))
 }
 
 // recordUpdateFailure increments the drift-loop retry counter and,
@@ -1166,6 +1169,9 @@ func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure 
 // the loop resumes.
 func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, operatorHash string, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
+	// Stamped on every failure, not only the terminal one, so the cooldown
+	// measures from the last attempt actually made.
+	machine.Status.LastUpdateFailureTime = &metav1.Time{Time: time.Now()}
 	logger.Error(err, "tart-kubelet update step failed",
 		"attempt", machine.Status.TartKubeletUpdateAttempts,
 		"max", maxAttempts)
@@ -1197,12 +1203,20 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 // config is a fresh target (typically a fix) that deserves its own retry
 // budget rather than the old config's terminal verdict, so a bad rollout
 // self-heals on the next config push instead of stranding every affected
-// host on a manual `kubectl patch`. No-op when there is nothing to clear.
-func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger logr.Logger, recorder record.EventRecorder) {
+// host on a manual `kubectl patch`. Also called when the retry cooldown has
+// elapsed, which is what recovers a host that was merely unreachable. The
+// caller passes which of the two applies so the log and Event name the real
+// trigger. No-op when there is nothing to clear.
+//
+// LastUpdateFailureTime is deliberately left in place: it records when the
+// host last failed, and the next failure re-stamps it. Clearing it here would
+// make a re-failed host read as never-failed.
+func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, reason string, logger logr.Logger, recorder record.EventRecorder) {
 	if machine.Status.FailureReason == nil && machine.Status.FailureMessage == nil && machine.Status.TartKubeletUpdateAttempts == 0 {
 		return
 	}
-	logger.Info("clearing terminal tart-kubelet-update failure; host config drifted since it was recorded — retrying against the new config",
+	logger.Info("clearing terminal tart-kubelet-update failure; retrying",
+		"reason", reason,
 		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
 	machine.Status.FailureReason = nil
 	machine.Status.FailureMessage = nil
@@ -1212,7 +1226,45 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger log
 		machine.Status.Phase = ""
 	}
 	recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRollRetried",
-		"host config drifted since the terminal tart-kubelet update failure; cleared it and retrying against the new config")
+		"cleared the terminal tart-kubelet update failure (%s); retrying", reason)
+}
+
+// poolReleaser is the one call releaseHostToPool needs, so both the
+// full *scaleway.Client on the reconciler and the narrow
+// bootstrapRecoveryClient can go through the same policy.
+type poolReleaser interface {
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error
+}
+
+// releaseHostToPool returns a host to the pool, reinstalling it onto
+// the fleet's pinned image so the next AdoptFromPool scan — which
+// matches the image name exactly — can claim it back.
+//
+// A pin Scaleway has retired is downgraded to an unpinned release
+// rather than failed. Every Machine created before an operator
+// repoints its fleet carries the old pin baked into its own spec, and
+// failing here would wedge each of them on delete: the host stays
+// claimed and billing, the finalizer never clears, and the fleet
+// can't shed the Machine to get a correctly-pinned replacement. The
+// host lands on the server type's default image instead, which is
+// what a repointed fleet will be pinned to anyway. The event names
+// the pin so the fix is obvious.
+func releaseHostToPool(
+	ctx context.Context,
+	client poolReleaser,
+	recorder record.EventRecorder,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	poolPrefix string,
+) error {
+	err := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix,
+		scaleway.ReleasePin{Family: machine.Spec.OS, ServerType: machine.Spec.Type})
+	if !errors.Is(err, scaleway.ErrOSNotPublished) {
+		return err
+	}
+	recorder.Eventf(machine, corev1.EventTypeWarning, "OSPinUnavailable",
+		"Fleet os pin %q is no longer published by Scaleway; releasing %s onto the server type default instead. Repoint the fleet's os pin: %v",
+		machine.Spec.OS, machine.Status.ServerID, err)
+	return client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix, scaleway.ReleasePin{})
 }
 
 // bootstrapRecoveryClient is the narrow Scaleway surface
@@ -1221,7 +1273,7 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger log
 // natively.
 type bootstrapRecoveryClient interface {
 	RebootServer(ctx context.Context, id, zone string) error
-	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string, pin scaleway.ReleasePin) error
 }
 
 // bootstrapSecretCleaner wipes the per-machine bootstrap Secret that
@@ -1282,6 +1334,7 @@ func handleBootstrapFailure(
 	logger logr.Logger,
 	rebootAfter int32,
 	maxAttempts int32,
+	poolPrefix string,
 ) ctrl.Result {
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
@@ -1291,10 +1344,10 @@ func handleBootstrapFailure(
 	recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
 		"%v (attempt %d, will retry)", err, attempts)
 
-	hostAdoptable := machine.Status.ServerID != "" && machine.Spec.AdoptPoolPrefix != ""
+	hostAdoptable := machine.Status.ServerID != "" && poolPrefix != ""
 	switch {
 	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
-		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); releaseErr != nil {
+		if releaseErr := releaseHostToPool(ctx, client, recorder, machine, poolPrefix); releaseErr != nil {
 			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
 			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",
@@ -1350,6 +1403,20 @@ func handleBootstrapFailure(
 	return ctrl.Result{RequeueAfter: 60 * time.Second}
 }
 
+// adoptPoolPrefix resolves the pool prefix for a CR: its own spec
+// first, the operator-global default when the spec is empty. Every
+// caller goes through this rather than reading Spec.AdoptPoolPrefix
+// directly, so a CR cloned from a MachineTemplate that never received
+// the field still adopts into, and releases back to, the right pool.
+func (r *ScalewayAppleSiliconMachineReconciler) adoptPoolPrefix(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) string {
+	if machine.Spec.AdoptPoolPrefix != "" {
+		return machine.Spec.AdoptPoolPrefix
+	}
+	return r.DefaultAdoptPoolPrefix
+}
+
 // acquireServer claims a pre-ordered host from the pool. Returns
 // (nil, requeue, nil) on `ErrNoAvailableHost` — that's a transient
 // "wait for operator pre-order" state, not a failure; surfaces a
@@ -1360,27 +1427,65 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (*scaleway.Server, time.Duration, error) {
+	poolPrefix := r.adoptPoolPrefix(machine)
+	// An unprefixed scan would match every server in the project,
+	// including hosts already claimed by other fleets, so refuse
+	// rather than adopt something arbitrary. Requeue: the operator
+	// fixes this by setting `--default-adopt-pool-prefix` or the
+	// field on the template, and neither needs the CR recreated.
+	if poolPrefix == "" {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptPoolPrefix",
+			clusterv1.ConditionSeverityError,
+			"no adoptPoolPrefix on the CR and no operator default; cannot scan the pool")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAdoptPoolPrefix",
+			"No adoptPoolPrefix on the CR and no --default-adopt-pool-prefix on the operator; refusing to scan for an unprefixed host")
+		return nil, 5 * time.Minute, nil
+	}
 	machine.Status.Phase = "Adopting"
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
 		"Searching pool %q for an unclaimed %s Mac mini in zone %s",
-		machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+		poolPrefix, machine.Spec.Type, machine.Spec.Zone)
 	srv, err := r.ScalewayClient.AdoptFromPool(
 		ctx,
 		machine.Name,
 		machine.Spec.Zone,
 		machine.Spec.Type,
 		machine.Spec.OS,
-		machine.Spec.AdoptPoolPrefix,
+		poolPrefix,
 	)
+	// A versioned pin is a configuration error, not absent capacity.
+	// Reporting it as NoAvailableHost would send an operator to
+	// pre-order hosts that could never match. Requeue slowly: nothing
+	// changes on its own.
+	//
+	// The likeliest cause is not a mis-edited fleet but a Machine that
+	// predates the switch to families: its spec carries a versioned pin
+	// that the MachineTemplate no longer has, so editing the fleet
+	// changes nothing for it. Under OnDelete nothing replaces it
+	// either, so the message names deleting the Machine first —
+	// MachineSet re-clones from the current template. This is reachable
+	// without any operator action: handleBootstrapFailure releases the
+	// host at exhaustion and leaves the Machine hostless, so a legacy
+	// Machine sheds its host and lands here on the next reconcile.
+	if errors.Is(err, scaleway.ErrOSPinNotFamily) {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "InvalidOSPin",
+			clusterv1.ConditionSeverityError, "%v", err)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "InvalidOSPin",
+			"This Machine's os %q pins a specific image; adoption requires a release family. "+
+				"If the fleet's MachineTemplate already pins a family, this Machine predates it: "+
+				"delete the Machine so its MachineSet re-clones from the template, or patch its spec.os. %v",
+			machine.Spec.OS, err)
+		return nil, 5 * time.Minute, nil
+	}
 	if errors.Is(err, scaleway.ErrNoAvailableHost) {
 		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost",
 			clusterv1.ConditionSeverityWarning,
 			"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+			poolPrefix, machine.Spec.Type, machine.Spec.OS,
 			"ready", machine.Spec.Zone)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
 			"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+			poolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
 		return nil, 60 * time.Second, nil
 	}
 	if err != nil {
@@ -1392,7 +1497,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	}
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
 		"Claimed Mac mini %s from pool %q (renamed to %s)",
-		srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
+		srv.ID, poolPrefix, machine.Name)
 	return srv, 0, nil
 }
 
@@ -1450,10 +1555,10 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 // Returns 0 (and no error) when the PN data plane is not configured
 // or the machine has no Scaleway server yet.
 func (r *ScalewayAppleSiliconMachineReconciler) ensureVMCachePN(ctx context.Context, machine *infrav1.ScalewayAppleSiliconMachine) (uint32, error) {
-	if r.VMCachePNName == "" || r.VMCachePNCIDR == "" || machine.Status.ServerID == "" {
+	if r.VMCachePNName == "" || r.FleetConfig.VMCachePNCIDR == "" || machine.Status.ServerID == "" {
 		return 0, nil
 	}
-	pnID, err := r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZoneString(machine.Spec.Zone), r.VMCachePNName, r.VMCachePNCIDR)
+	pnID, err := r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZoneString(machine.Spec.Zone), r.VMCachePNName, r.FleetConfig.VMCachePNCIDR)
 	if err != nil {
 		return 0, err
 	}

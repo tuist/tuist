@@ -1,0 +1,142 @@
+{
+  "name": "DigitInput",
+  "tagName": "noora-digit-input",
+  "elementClassName": "NooraDigitInput",
+  "className": "noora-digit-input",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Collects a fixed-length verification or personal identification code.",
+  "usage": "<noora-digit-input characters=\"6\" one-time-code></noora-digit-input>",
+  "attributes": [
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["alphanumeric", "numeric", "alphabetic"],
+      "default": "numeric",
+      "description": "Limits accepted characters."
+    },
+    {
+      "name": "characters",
+      "property": "characters",
+      "type": "number",
+      "default": 6,
+      "description": "Sets the number of fields."
+    },
+    {
+      "name": "placeholder",
+      "property": "placeholder",
+      "type": "string",
+      "default": "",
+      "description": "Sets each field placeholder."
+    },
+    {
+      "name": "one-time-code",
+      "property": "oneTimeCode",
+      "type": "boolean",
+      "default": false,
+      "description": "Enables one-time-code autofill."
+    },
+    {
+      "name": "error",
+      "property": "error",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the error state."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables all fields."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Gets or sets the combined value."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the hidden submitted field name."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "root",
+      "description": "The field group."
+    },
+    {
+      "name": "input",
+      "description": "Each character input."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the entered code changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted when every field contains a valid character."
+    },
+    {
+      "name": "noora-input",
+      "type": "CustomEvent<{ value: string }>",
+      "description": "Emitted with the current code after a valid input."
+    },
+    {
+      "name": "noora-complete",
+      "type": "CustomEvent<{ value: string }>",
+      "description": "Emitted when every field contains a valid character."
+    },
+    {
+      "name": "noora-invalid",
+      "type": "CustomEvent<{ value: string }>",
+      "description": "Emitted when an entered or pasted value is rejected."
+    }
+  ],
+  "notes": [
+    "The component emits `noora-complete` when every field contains a character."
+  ],
+  "examples": [
+    {
+      "id": "types",
+      "title": "Input types",
+      "description": "Choose numeric, alphanumeric, or alphabetic validation.",
+      "markup": "<noora-digit-input type=\"numeric\" characters=\"6\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input type=\"alphanumeric\" characters=\"4\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input type=\"alphabetic\" characters=\"3\" placeholder=\"•\"></noora-digit-input>"
+    },
+    {
+      "id": "character-counts",
+      "title": "Character counts",
+      "description": "Collect short, medium, and long codes.",
+      "markup": "<noora-digit-input characters=\"4\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input characters=\"6\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input characters=\"8\" placeholder=\"•\"></noora-digit-input>"
+    },
+    {
+      "id": "one-time-codes",
+      "title": "One-time codes",
+      "description": "Enable browser-assisted one-time-code entry.",
+      "markup": "<noora-digit-input characters=\"6\" one-time-code placeholder=\"•\"></noora-digit-input>\n<noora-digit-input characters=\"4\" one-time-code placeholder=\"0\"></noora-digit-input>"
+    },
+    {
+      "id": "states",
+      "title": "States",
+      "description": "Compare default, disabled, and error states.",
+      "markup": "<noora-digit-input characters=\"4\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input characters=\"4\" placeholder=\"•\" disabled></noora-digit-input>\n<noora-digit-input characters=\"4\" placeholder=\"•\" error></noora-digit-input>"
+    },
+    {
+      "id": "placeholders",
+      "title": "Placeholders",
+      "description": "Use dots, dashes, or empty fields.",
+      "markup": "<noora-digit-input characters=\"6\" placeholder=\"•\"></noora-digit-input>\n<noora-digit-input characters=\"6\" placeholder=\"-\"></noora-digit-input>\n<noora-digit-input characters=\"6\"></noora-digit-input>"
+    }
+  ]
+}

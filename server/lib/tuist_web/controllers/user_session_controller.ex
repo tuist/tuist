@@ -73,9 +73,12 @@ defmodule TuistWeb.UserSessionController do
         |> halt()
 
       {:error, :not_confirmed} ->
+        # Valid credentials but an unconfirmed email. The password already proved
+        # ownership, so carry the email to the resend page for a one-click resend
+        # instead of dead-ending on the login form.
         conn
-        |> put_flash(:error, "Please confirm your account before logging in.")
-        |> redirect(to: ~p"/users/log_in")
+        |> put_session(:unconfirmed_email, email)
+        |> redirect(to: ~p"/users/confirm")
         |> halt()
     end
   end

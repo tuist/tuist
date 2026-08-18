@@ -8,6 +8,8 @@ defmodule Tuist.OAuth.Introspection do
   alias Tuist.Cache
   alias Tuist.Projects.Project
 
+  @cache_token_type "cache"
+
   def token_response(token) do
     case Authentication.authenticated_subject(token) do
       nil -> %{active: false}
@@ -26,7 +28,7 @@ defmodule Tuist.OAuth.Introspection do
   def token_response(token, %Account{} = account) do
     case Authentication.authenticated_subject(token) do
       nil ->
-        %{active: false}
+        cache_token_response(token, account)
 
       subject ->
         grants = scope_grants_to_account(Cache.cache_grants(subject), account)
@@ -37,6 +39,37 @@ defmodule Tuist.OAuth.Introspection do
           %{active: false}
         end
     end
+  end
+
+  # A cache token cannot resolve to a subject — Guardian refuses it on purpose,
+  # so that a token minted to reach the cache can never act as an API
+  # credential — but it carries the grants it was minted with, so it can be
+  # answered from itself. Verifying it here keeps that refusal intact: nothing
+  # about this makes a cache token resolvable anywhere else.
+  #
+  # A self-hosted node holds no verifier secret, so this is the only way it can
+  # be told what one of these tokens may reach. Without it such a node reports
+  # every exchanged token inactive and denies the request.
+  defp cache_token_response(token, %Account{} = account) do
+    with {:ok, %{"cache_grants" => grants} = claims} <-
+           Tuist.Guardian.decode_and_verify(token, %{"typ" => @cache_token_type}),
+         scoped when scoped != :empty <- scoped_or_empty(grants, account) do
+      # `principal_kind` is omitted: the claims do not record what the token was
+      # minted for, and a node treats its absence as an unnamed subject.
+      %{
+        active: true,
+        iss: issuer(),
+        sub: claims["sub"],
+        cache_grants: scoped
+      }
+    else
+      _ -> %{active: false}
+    end
+  end
+
+  defp scoped_or_empty(grants, account) do
+    scoped = scope_grants_to_account(grants, account)
+    if grants_present?(scoped), do: scoped, else: :empty
   end
 
   defp active_response(subject, grants) do

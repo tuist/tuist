@@ -1,0 +1,54 @@
+{{- if and .Values.ociRegistry.enabled .Values.ociRegistry.tailscale.enabled }}
+# The tailscaled sidecar keeps its node identity in a Secret rather than
+# on disk, so it survives a restart as the same tailnet node. On
+# ephemeral state it would register again on every restart, come back as
+# `<hostname>-1`, and the certificate — which follows the name actually
+# assigned — would stop matching what clients dial.
+#
+# That means the Pod needs to read and write one specific Secret, which
+# it also creates on first join. Scoped to that single name: this is a
+# registry, and a broader grant would let a compromised registry read
+# every Secret in the namespace, including the database credentials.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry
+rules:
+  # `create` cannot be restricted to a resourceName — Kubernetes evaluates
+  # it before the object exists — so it is granted at the namespace level
+  # while every other verb is pinned to this one Secret.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale-state") | quote }}
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry-tailscale") }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "oci-registry") }}
+{{- end }}

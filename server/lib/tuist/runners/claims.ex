@@ -459,21 +459,34 @@ defmodule Tuist.Runners.Claims do
   a `running` claim that neither the completed webhook (that job
   completes elsewhere) nor `OrphanedRunnersWorker` (GitHub reports
   the job `in_progress`, so it's left alone) will free — until the
-  Pod stops. We deliberately do NOT re-queue here: a job whose
-  runner vanished mid-flight is re-queued by GitHub itself (a fresh
-  `queued` webhook), and a job that already ran elsewhere is
-  finalized by its own `completed` webhook.
+  Pod stops.
 
-  Returns the number of claims released (0 in the common case where
-  the job's `completed` webhook already freed the claim before the
-  Pod halted; ≥1 only for a stranded or crashed-mid-job Pod).
+  Freeing the budget is only half the recovery: the ClickHouse row
+  stays at `running`, which `pick_queued/2` skips, so the released
+  job is invisible to dispatch until something moves it back to
+  `queued`. GitHub does not do that for us. A runner that never
+  registered leaves the workflow_job `queued` on GitHub's side for
+  its whole life, so there is no state change for GitHub to
+  announce and no second `queued` webhook ever arrives — the job
+  only moved through `claimed → running` in *our* store. The
+  caller is therefore expected to schedule recovery for each
+  returned id; `OrphanedRunnersWorker` re-checks GitHub's own view
+  before re-queueing, so the released ids are candidates, not
+  verdicts.
+
+  Returns the released `workflow_job_id`s (empty in the common case
+  where the job's `completed` webhook already freed the claim
+  before the Pod halted; non-empty only for a stranded or
+  crashed-mid-job Pod).
   """
   def release_by_pod_name(pod_name) when is_binary(pod_name) and pod_name != "" do
-    {count, _} = Repo.delete_all(from(c in Claim, where: c.pod_name == ^pod_name))
-    count
+    {_count, released} =
+      Repo.delete_all(from(c in Claim, where: c.pod_name == ^pod_name, select: c.workflow_job_id))
+
+    released || []
   end
 
-  def release_by_pod_name(_pod_name), do: 0
+  def release_by_pod_name(_pod_name), do: []
 
   @doc """
   Counts active claims per fleet **across all accounts**. Returns

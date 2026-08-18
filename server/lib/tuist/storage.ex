@@ -193,20 +193,55 @@ defmodule Tuist.Storage do
   end
 
   def put_object(object_key, content, actor) do
-    case storage_provider(actor) do
-      :azure_blob ->
-        AzureBlob.put_object(object_key, content)
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.put_object(object_key, content)
 
-      :s3 ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
-        headers = region_headers(actor)
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+          headers = region_headers(actor)
 
-        operation =
-          bucket_name
-          |> ExAws.S3.put_object(object_key, content)
-          |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
+          operation =
+            bucket_name
+            |> ExAws.S3.put_object(object_key, content)
+            |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
 
-        ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
+          ExAws.request(operation, Map.merge(config, fast_api_req_opts()))
+      end
+
+    case result do
+      {:ok, _response} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def get_object(object_key, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.get_object(object_key)
+
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            bucket_name
+            |> ExAws.S3.get_object(object_key)
+            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        end
+      end)
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_get_object(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
+
+    case result do
+      {:ok, %{body: content}} -> {:ok, content}
+      {:error, {:http_error, 404, _response}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -249,6 +284,7 @@ defmodule Tuist.Storage do
         bucket_name
         |> ExAws.S3.download_file(object_key, file_path)
         |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> normalize_download_error()
     end
   catch
     # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
@@ -256,6 +292,19 @@ defmodule Tuist.Storage do
     # and would crash the calling job. Surface it as a retryable error instead.
     :exit, reason -> {:error, reason}
   end
+
+  # `ExAws.S3.Download` sizes the object with `head_object` through
+  # `ExAws.request!` and rescues the raised `ExAws.Error` itself, so a missing
+  # object reaches callers as an opaque struct whose only trace of the status
+  # code is the inspected message. Callers need to tell "not there (yet)" apart
+  # from a transport failure, so collapse it into a named reason here.
+  defp normalize_download_error({:error, %ExAws.Error{message: message}} = error) when is_binary(message) do
+    if String.contains?(message, "{:http_error, 404,"), do: {:error, :object_not_found}, else: error
+  end
+
+  defp normalize_download_error({:error, {:http_error, 404, _response}}), do: {:error, :object_not_found}
+
+  defp normalize_download_error(result), do: result
 
   def get_object_as_string(object_key, actor) do
     {time, result} =

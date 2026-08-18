@@ -1,11 +1,13 @@
 # CAPI infrastructure provider for Scaleway Apple Silicon Mac minis.
 #
 # Owns lifecycle: order/release Mac minis from Scaleway, SSH-bootstrap
-# each into a real cluster Node by installing `tart-kubelet`. Three
+# each into a real cluster Node by installing `tart-kubelet`. Several
 # darwin/arm64 artifacts ride the linux operator image:
 #   - the manager itself (linux/<arch>),
 #   - the tart-kubelet binary the operator uploads to each Mac mini at
 #     provision and on every drift-detected rolling update,
+#   - the tuist-log-shipper binary, which tails the host's logs and
+#     pushes them to the in-cluster Alloy receiver over the tailnet,
 #   - the upstream `tart.app` tarball pinned via TART_VERSION below
 #     (the asset GitHub publishes on each cirruslabs/tart release),
 #     which the operator extracts onto the Mac mini at first bootstrap
@@ -89,6 +91,28 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tart-kubelet-darwin-arm64 ./cmd/tart-kubelet
 
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS log-shipper-builder
+
+WORKDIR /src
+COPY infra/macos-log-shipper ./
+
+# Same shape as the tart-kubelet stage: darwin/arm64 because it runs on the
+# Mac mini, CGO off so the binary is statically linked and has no Homebrew
+# dependency on the target. It is stdlib-only, so there is nothing to
+# `go mod download`.
+#
+# Why a purpose-built ~6MB binary instead of Grafana Alloy or Promtail: the
+# operator uploads every host binary over SSH on each drift roll, so an Alloy
+# install (two orders of magnitude larger) would dominate the roll for a
+# feature that needs "tail a file, POST it". Promtail is the right size but
+# upstream has ended its life.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" \
+    -o /out/tuist-log-shipper-darwin-arm64 ./cmd/tuist-log-shipper
+
+
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tart-fetcher
 
 # Pin Tart at image build time. The asset URL pattern is stable:
@@ -169,6 +193,7 @@ COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tar
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
 COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
+COPY --from=log-shipper-builder /out/tuist-log-shipper-darwin-arm64 /opt/log-shipper/tuist-log-shipper-darwin-arm64
 
 USER nonroot:nonroot
 

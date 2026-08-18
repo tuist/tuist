@@ -123,6 +123,7 @@
             }
             let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
             let modules = xcTestRun.testModules
+            let parallelizableModules = xcTestRun.parallelizableTestModules
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -140,6 +141,7 @@
                 serverURL: serverURL,
                 reference: reference,
                 modules: modules,
+                parallelizableModules: parallelizableModules,
                 testSuites: nil,
                 shardMin: shardMin,
                 shardMax: shardMax,

@@ -12,7 +12,7 @@ name: Runner Image
 # `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
 # by the chart.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
 # live in the base; this build just adds the GitHub Actions runner
 # agent and dispatch loop on top, so a rebuild is ~2 min instead of
@@ -29,9 +29,8 @@ on:
         description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
         required: true
       runner_version:
-        description: "GitHub Actions runner version"
+        description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
         required: false
-        default: "2.334.0"
 
 concurrency:
   group: runner-image
@@ -44,7 +43,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -53,19 +52,15 @@ jobs:
           go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both pull (this build's clone of the base) and the push
-      # at the end of the job. Bypasses both the macOS keychain
-      # (which `tart login` would use, and which gates on a Tahoe-
-      # LaunchAgent-incompatible "User interaction" prompt) and
-      # Tart 2.32.1's env-var-only push path (which hangs with
-      # "Error: The request timed out").
-      - name: Log in to GHCR (crane)
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
+      - name: Log in to the Tuist OCI registry
+        uses: ./.github/actions/oci-registry-login
+        with:
+          host: ${{ vars.OCI_REGISTRY_HOST }}
+          vault: ${{ vars.OCI_REGISTRY_OP_VAULT }}
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Initialize Packer
         working-directory: infra/runner-image
@@ -85,26 +80,33 @@ jobs:
         working-directory: infra/runner-image
         env:
           XCODE: ${{ inputs.xcode_version }}
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
+          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           # Single-profile dispatch. The multi-profile rebuild loop
           # is in server-production-deployment.yml's runner-image-build matrix.
           BASE_TAG="${XCODE//./-}"
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
+          # `runner_version` is passed only when the dispatch input is
+          # non-empty; otherwise packer falls back to the Renovate-tracked
+          # default in runner.pkr.hcl. Duplicating that default here is how
+          # the pin silently went stale before, so there is no literal.
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
-            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
+            ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
       - name: Restore nvram.bin if missing
         env:
           XCODE: ${{ inputs.xcode_version }}
+          OCI_REGISTRY_HOST: ${{ vars.OCI_REGISTRY_HOST }}
         # packer-plugin-tart v1.20.0 builds leave the VM bundle
         # without `nvram.bin`, so the very next `tart push` uploads
         # config + disk successfully then fails with
@@ -119,7 +121,7 @@ jobs:
           ls -la "$BUNDLE"
           if [ ! -f "$BUNDLE/nvram.bin" ]; then
             BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            BASE_IMAGE="${OCI_REGISTRY_HOST}/macos-tahoe-xcode:${BASE_TAG}"
             echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
             tart delete nvram-restore 2>/dev/null || true
             tart clone "$BASE_IMAGE" nvram-restore
@@ -128,12 +130,15 @@ jobs:
             echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
           fi
 
-      - name: Push image to GHCR
-        id: push
+      - name: Resolve image tag
+        id: image-tag
+        run: |
+          set -euo pipefail
+          echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Push image to the Tuist OCI registry
+        timeout-minutes: 90
         env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           # Tart's OCI-cache prune fires opportunistically during
           # `tart push`'s internal staging step and races the push
           # of the source VM bundle — when it loses, nvram.bin is
@@ -143,30 +148,11 @@ jobs:
           # `reclaim-tart-disk` composite action and won't grow
           # before push completes.
           TART_NO_AUTO_PRUNE: "1"
-        # Direct tart push. Cirrus uses the same path to publish
-        # macos-tahoe-xcode at the same size; the prior bridge through
-        # a local registry was an unsuccessful workaround on a
-        # different host's structurally bad network. Outer 3× retry
-        # stays as belt-and-braces; blob uploads are content-
-        # addressed so a re-push only re-uploads layers that didn't
-        # make it on the previous attempt.
-        run: |
-          set -euo pipefail
-          GIT_SHA="${GITHUB_SHA::8}"
-          PROFILE="${{ steps.build.outputs.profile }}"
-          TAG="${PROFILE}-${GIT_SHA}"
-          for attempt in 1 2 3; do
-            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
-              echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
-              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-            sleep 60
-          done
-          echo "tart push failed three times in a row" >&2
-          exit 1
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: ${{ vars.OCI_REGISTRY_HOST }}/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
+          chunk-size: "64"
 
       - name: Cleanup
         if: always()

@@ -34,8 +34,12 @@ independent workqueues:
   competes. The reconciler runs the per-pool target through
   `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
-  (1) real load (`claimed + queued`), (2) each pool's `minWarmPoolFloor`
-  above its load, then (3) the speculative p95 buffer above that. Only
+  (1) real load (`occupied + queued`), (2) each pool's
+  `minWarmPoolFloor` above its load, then (3) the speculative
+  95th-percentile buffer above that. `occupied` is the distinct union of
+  live claims and open runner sessions, so post-job cache and teardown
+  work keeps its host funded after the GitHub completion webhook releases
+  the claim. Only
   tier 1 (real load) is inviolable — granted in full even past capacity,
   with the excess going Pending (the "add a host" signal). Tiers 2+3 are
   idle warm capacity and yield under contention — headroom first, then
@@ -52,9 +56,16 @@ independent workqueues:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
-    `MemReserveFraction`, default 0.9); cost = `spec.podMemoryMB`.
-    Memory is the only dimension — kata pins it per microVM and CPU
-    is oversubscribed.
+    `MemReserveFraction`, default 0.9); cost =
+    `spec.podMemoryMB` plus the selected RuntimeClass's live
+    `overhead.podFixed.memory`. Reading the RuntimeClass keeps the
+    allocator aligned with Kubernetes admission and scheduling when
+    Kata's virtual-machine overhead changes. If the RuntimeClass
+    cannot be read, the autoscaler leaves replicas unchanged rather
+    than scaling with an incomplete cost. Pool-list and sibling-signal
+    failures still use the independent per-pool target so a transient
+    read failure cannot freeze scale-up for queued work. Memory is the
+    only dimension — Kata pins it per microVM and CPU is oversubscribed.
   - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
     + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
     mini under the Virtualization.framework SLA). The allocator
@@ -68,10 +79,32 @@ independent workqueues:
   healthy-node gate described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
-  the ClusterRole. Any failure gathering the fleet view falls back to
-  the per-pool target — a node-read blip must never trigger a mass
-  scale-down. A pool with an unrecognised `OS` (or without autoscaling
-  enabled) skips the allocator entirely.
+  the ClusterRole. Fleet-capacity, pool-list, and sibling-signal
+  failures fall back to the per-pool target — a transient read blip
+  must never trigger a mass scale-down or block independent scale-up.
+  A pool with an unrecognised `OS` (or without autoscaling enabled)
+  skips the allocator entirely.
+
+  RuntimeClass overhead is copied into `Pod.spec.overhead` only when
+  Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
+  name and fixed processor and memory overhead into
+  `tuist.dev/runtime-class-revision` on each Linux RunnerPool, and
+  `podtemplate.Build` copies that revision to new Pods. A mismatch makes
+  an idle Pending Linux Pod stale. The reconciler replaces those Pods
+  under `spec.rollout.maxConcurrentPercent`; claimed or Running Pods
+  finish naturally. Current-template idle Pods that are not warm consume
+  the same availability budget even when ordinary scale-up created them.
+  This deliberately follows maximum-unavailable semantics: a scale-up
+  can pause a roll rather than letting the controller remove another
+  warm Pod while serving capacity is already unavailable.
+
+  `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
+  retirement signal. The controller does not apply or clear it. The
+  server returns a drain response before attempting a claim, so an
+  idle runner exits through its normal lifecycle and the reconciler
+  replaces it. Removing the label before the runner's next dispatch
+  poll cancels the retirement; after the runner observes it, the Pod
+  is expected to exit and be replaced.
 
   **Linux Kata provisioning admission.** Capacity and creation velocity
   are separate safety boundaries. A queue spike can fit within the
@@ -85,6 +118,15 @@ independent workqueues:
   fleet boundary. Excess demand remains a replica gap and is retried
   every five seconds. macOS pools skip this gate.
 
+  The count deliberately includes Pods with no node. An unbound Pod is
+  one the scheduler may bind at any moment, and nothing re-checks
+  admission between that bind and the sandbox start, so discounting
+  unbound Pods would let a backlog build and then start all at once when
+  capacity returns — the very burst the ceiling exists to prevent.
+  Scheduling gates do not help here either: a gate can be removed but
+  never re-added, so a Pod that turns out to be unschedulable after
+  ungating is back to holding a slot with no way to reclaim it.
+
   Pod creates are visible to the cached client asynchronously. The
   reconciler therefore keeps a 30-second in-process reservation for each
   successful create and counts it until the cache observes the Pod. This
@@ -95,9 +137,62 @@ independent workqueues:
 
   A Linux Pod that is bound to a node but whose poller has not started
   within `spec.provisioning.startTimeoutSeconds` (default 300, 0 disables)
-  is reaped with a warning event and node-condition log. Unscheduled Pods
-  are not recycled because recreation cannot solve a scheduler capacity
-  wait. Claimed Pods and Pods whose poller has terminated are protected.
+  is reaped with a warning event and node-condition log.
+
+  A Pod the scheduler has been rejecting (`PodScheduled=False`, reason
+  `Unschedulable`) for that same duration is reaped too, timed from the
+  condition's `LastTransitionTime`. Recreating it cannot conjure
+  capacity, and that is not the point: it holds a slot in the fleet-wide
+  ceiling that it will never convert into a running sandbox, and nothing
+  else releases it, since the bound-Pod timeout above cannot fire on a
+  Pod with no node. Left in place, one pool whose shape no node can fit
+  holds the whole `FleetSelector`'s budget indefinitely and every
+  sibling shape reconciles at `observed: 0` forever, with queued jobs
+  and healthy dispatch. Reaping returns the slot; the replica gap is
+  untouched, so the pool retries and simply goes unschedulable again
+  while the shortfall lasts, at a rate the timeout bounds. The two reaps
+  are distinguished on
+  `tuist_runners_pool_pod_start_timeouts_total{reason}` as
+  `poller_not_started` and `unschedulable`; a rising `unschedulable`
+  rate is a capacity shortfall for that shape, not a boot fault.
+
+  **Known limitation: reaping does not help when the cause is the node.**
+  The replacement Pod is scheduled independently, and a node that cannot
+  start sandboxes is also the emptiest node in the fleet, so the
+  scheduler prefers it and the replacement lands right back on it. The
+  ceiling then stays saturated by Pods that can never run, and every
+  sibling shape sharing the `FleetSelector` is refused admission with
+  `reason="fleet_cap"` for as long as the node stays broken.
+
+  This is what happened on 2026-08-13: one Linux node hit cgroup
+  exhaustion after 85 days of uptime and failed every new sandbox with
+  `mkdir /sys/fs/cgroup/kubepods.slice/...: no space left on device`.
+  Kubelet reports that per Pod, so the node stayed `Ready` with no
+  pressure condition and `nodeFilterReason` saw nothing wrong. Four dead
+  Pods held the whole ceiling, the autoscaler asked for 160 replicas
+  against 5 running, and ~111 jobs queued over 5.5 hours until an
+  operator cordoned the node. The leak itself is fixed (see the cgroup
+  section below), but the amplification is a property of the ceiling, not
+  of that particular fault — any node that accepts Pods it cannot start
+  reproduces it.
+
+  A per-node circuit breaker was built and then deliberately dropped:
+  counting `poller_not_started` timeouts per node and steering new Pods
+  away with a required `kubernetes.io/hostname NotIn` affinity. It works,
+  but on a two-node fleet the failure mode is worse than the problem.
+  Quarantining both nodes blocks admission on `no_healthy_node` *and*
+  leaves every created Pod unschedulable, and false positives are
+  plausible because `startTimedOut` measures from bind and so counts
+  image-pull time — three slow pulls inside the window are
+  indistinguishable from a broken node. Bounding it to a minority of the
+  fleet makes it safe but also makes it a no-op on two nodes, which is
+  the fleet we have. Detection was kept instead: the queue-age alert in
+  `infra/helm/k8s-monitoring/alerts.md` catches this shape within
+  ~30 minutes regardless of cause, and the remedy is a manual cordon.
+  Revisit the breaker if the fleet grows past a handful of nodes, where
+  quarantining one is cheap and the manual cordon does not scale.
+
+  Claimed Pods and Pods whose poller has terminated are protected.
   Terminal cleanup and idle scale-down run before admission and are never
   blocked by the provisioning ceiling.
 
@@ -146,13 +241,14 @@ independent workqueues:
   this gauge exists to catch, and one that leaves the Node `Ready` and
   `kube_pod_status_unschedulable` at 0 throughout.
 
-  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
-  `..._autoscaler_queued_jobs{pool}` publish the server's two demand
-  signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
-  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
-  actually accept a job right now. "Can accept" is OS-dependent, for the
-  same reason the un-booted age above is darwin-only: on a Tart pool only
-  `Running` counts, because a Pod still waiting on a Mac mini has no VM
+  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}`,
+  `..._autoscaler_occupied_runners{pool}`, and
+  `..._autoscaler_queued_jobs{pool}` publish the server's demand signals
+  unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
+  alive current-template Pods with no `tuist.dev/runner-pool-owner` that
+  can actually accept a job right now. "Can accept" is OS-dependent, for
+  the same reason the un-booted age above is darwin-only: only `Running`
+  counts on a Tart pool, because a Pod still waiting on a Mac mini has no VM
   and is not capacity however long it has been alive; on Linux `Pending`
   counts, because that is where a warm dispatch poller spends its whole
   idle life. Getting this wrong inverts the reading — a fleet starved of
@@ -176,11 +272,12 @@ independent workqueues:
   remaining concurrency headroom before exporting the count (tuist/tuist#11981),
   which is what makes `..._queued_jobs` trustworthy here. Nothing else shows it: the phase
   count reads a warm idle Pod and a Pod running a customer job
-  identically (both `Running`), `claimed+queued` stays flat while work
-  drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
-  age above only sees Pods that never booted, not booted Pods that never
-  received work. The `Runner queue age` alert fires on either state, so
-  it says something is wrong without saying which lever to pull.
+  identically (both `Running`), `occupied+queued` stays flat while work
+  drains normally (`queued` → `claimed` → post-job occupancy), and the
+  oldest-un-booted-Pod age above only sees Pods that never booted, not
+  booted Pods that never received work. The `Runner queue age` alert
+  fires on either state, so it says something is wrong without saying
+  which lever to pull.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
@@ -364,6 +461,238 @@ schedule:
 kubectl --kubeconfig "$STAGING_KUBECONFIG" -n tuist-staging \
   get pods -l app.kubernetes.io/name=kata-deploy
 ```
+
+### cgroup leak on kata nodes (fixed for new hosts; existing hosts need action)
+
+Until 2026-08-13 the `kata-qemu` containerd handler ran with
+`SystemdCgroup = false` while kubelet ran `cgroupDriver: systemd`. The
+`sed` in `bare-metal.yaml` that flips the runc handler to `true` only
+rewrites what `containerd config default` emitted, and the kata block is
+appended after it, so kata silently kept the default.
+
+Under that mismatch the kata shim writes the systemd slice name kubelet
+hands it as a literal directory at the cgroup root
+(`/sys/fs/cgroup/kubepods-burstable-pod<uid>.slice:cri-containerd:<id>`)
+instead of nesting it under `kubepods.slice`. Nothing owns those: systemd
+never knew about them, the shim does not remove them, and they accumulate
+one per container start forever. Exhaustion makes every later cgroup
+`mkdir` return ENOSPC — the node keeps reporting `Ready` while failing
+every new Pod sandbox. Measured at ~65k leaked root cgroups (~130k total
+descendants) on both 85-day nodes versus 70 on a freshly rebooted one,
+growing ~2/min under load.
+
+`bare-metal.yaml` now sets `SystemdCgroup = true` on the kata handler,
+so **newly provisioned hosts are clean**. Existing hosts are a different
+story, and the reason is worth stating precisely, because "the manifest
+is applied automatically" is true and still does not help.
+
+`mgmt-cluster-apply.yml` applies `bare-metal*.yaml` on every push that
+touches `infra/k8s/clusters/**`, falling back to delete + apply because
+`HetznerBareMetalMachineTemplate.spec` is immutable, and then asserts no
+drift. So the template in the cluster does match Git. But the template
+is a blueprint consumed at Machine creation: `postInstallScript` runs
+once, inside Hetzner `installimage`, and is not a reconciliation loop
+over a live host's filesystem. CAPI propagates a template change by
+*replacing* Machines, not by mutating them.
+
+That replacement is currently wedged, and has been since 2026-06-17.
+`tuist-runners-linux-pvv5b` reports `UP-TO-DATE: 1` of 2 ready Machines
+and sits in `ScalingDown` with a third Machine stuck `Provisioning`,
+whose condition reads `no available host (all hosts are in use - found
+4 hosts)`. The MachineDeployment has no explicit `spec.strategy`, so it
+takes the CAPI default of `maxSurge: 1, maxUnavailable: 0` — create the
+replacement first, then delete the old Machine. On a bare-metal pool
+where every `HetznerBareMetalHost` is already claimed there is no host
+to surge onto, so the roll can never start.
+
+The consequence: a `bare-metal.yaml` change does not reach existing
+hosts, not because drift goes unnoticed but because the rollout that
+would deliver it cannot make progress. Options are to give the pool a
+spare host, or to set `maxSurge: 0` + `maxUnavailable: 1` so a Machine
+is deleted first and its freed host reprovisioned. The second costs one
+node of capacity per roll, which on a two-node fleet is the same
+exposure as the manual path below.
+
+Check a host without SSH — the count should be in the hundreds, not
+thousands:
+
+```bash
+kubectl get --raw "/api/v1/nodes/<node>/proxy/metrics" | grep node_cgroups_cgroups
+```
+
+Remediation splits into two independent halves: **stop the leak**
+(config) and **reclaim what already leaked** (sweep). Only the first
+needs a containerd restart.
+
+**Stop the leak.** Edit `/etc/containerd/config.toml` to add
+`SystemdCgroup = true` under
+`[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]`,
+then restart containerd. Cordon and drain first: restarting containerd
+bounces every sandbox on the box, including Cilium. Do one host at a
+time — the Linux fleet is two nodes and a single node saturates at ~99%
+memory, so taking both out at once is a full outage rather than degraded
+capacity.
+
+**Reclaim the leaked cgroups — in place, no reboot.** The leaked
+directories are flat leaves: no child cgroups, no processes, owned by
+nothing. `rmdir` removes them and the kernel reclaims the underlying
+cgroup objects roughly 1:1, asynchronously (`/proc/cgroups` trails the
+directory count by a few seconds, so re-read it after a pause rather
+than concluding the removal did nothing).
+
+**There are two leaked populations, not one, and they are the same
+size.** Sweeping only the first leaves the node at half its leak and
+looks like the reclaim failed:
+
+- `/sys/fs/cgroup/*:cri-containerd:*` — the literal slice names at the
+  cgroup root, described above.
+- `/sys/fs/cgroup/kata_overhead/*` — one per sandbox, named by
+  container ID. Same shape (flat empty leaves), same one-per-container
+  -start growth, never reclaimed.
+
+On the wedged production host these were 65478 and 65486 respectively.
+Sweeping only the root population dropped `/proc/cgroups` memory from
+131134 to 65710 and no further, which reads as a stuck reclaim; it was
+`kata_overhead` still holding the other half. Sweeping both took it to
+250.
+
+Whether `SystemdCgroup = true` also stops the `kata_overhead` leak is
+**not established**. The root-level leak is explained by the cgroup
+driver mismatch; the overhead cgroups are created by the shim either
+way, and only a host running the fixed config can settle it. Check
+`kata_overhead` growth specifically on the first newly provisioned
+host. The alert covers this either way — it counts cgroups, not
+directory names, which is why it was set against normal (hundreds)
+rather than against a known pattern.
+
+The sweep is safe by construction and needs no drain. For the root
+population the path is itself the guard: a correctly-nested cgroup
+lives under `kubepods.slice`, so anything matching
+`*:cri-containerd:*` at the cgroup *root* is by definition leaked.
+Under `kata_overhead` every child is a candidate. In both cases
+skipping a non-empty `cgroup.procs` leaves live sandboxes untouched —
+measured as `kept_busy` equal to the number of running containers — and
+an in-use cgroup would fail `EBUSY` anyway.
+
+**Verify with the directory count, not `/proc/cgroups`.** Directory
+counts drop immediately and deterministically. `/proc/cgroups` lags by
+tens of seconds and keeps counting cgroups whose directory is gone but
+whose charges are not yet reclaimed, so a clean host can read 1500
+there while holding 65 directories.
+
+For a node that can still start Pods, no SSH is needed:
+
+```bash
+kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- \
+  sh -c 'for p in /host/sys/fs/cgroup /host/sys/fs/cgroup/kata_overhead; do
+           cd "$p" || continue
+           for d in *; do
+             [ -d "$d" ] || continue
+             case "$p" in */kata_overhead) ;; *) case "$d" in *:cri-containerd:*) ;; *) continue ;; esac ;; esac
+             [ -s "$d/cgroup.procs" ] && continue
+             rmdir "$d" 2>/dev/null
+           done
+         done'
+```
+
+**A fully wedged node cannot be swept this way**, and this is the
+important limitation. Creating the debug Pod is itself a Pod creation,
+so it fails with the same error the node is failing everything else
+with:
+
+```
+FailedCreatePodContainer: unable to ensure pod container exists: failed to
+create container for [kubepods besteffort pod<uid>] : mkdir
+/sys/fs/cgroup/kubepods.slice/.../kubepods-besteffort-pod<uid>.slice:
+no space left on device
+```
+
+The Pod sits `Pending` indefinitely. On such a host go in over SSH
+("Emergency SSH access" below) and run the sweep directly. Prefer
+`python3` over a shell loop there: at 65k entries a `kubepods-*` glob
+exceeds `ARG_MAX`, so `ls -d <glob> | wc -l` reports **0** rather than
+failing loudly, and a shell loop forks `rmdir` once per directory.
+Count with `ls | grep -c ':cri-containerd:'` instead.
+
+Measured on both production hosts and staging/canary (2026-08-13):
+
+| host | state | root leaked | `kata_overhead` | memcg before → after |
+| --- | --- | --- | --- | --- |
+| prod `vl8jt` | wedged, ENOSPC | 65478 | 65489 | 131134 → 250 |
+| prod `bkzxh` | rebooted 08-13, re-leaking | 14 | 322 | 621 → 287 |
+| staging | 85-day | 3359 | 3359 | 8338 → 1552 |
+| canary | 85-day | 2855 | 2855 | 7208 → 1509 |
+
+Zero failures anywhere. Every node stayed `Ready` with no pressure
+condition and its running Pods were unaffected. The wedged host went
+from every Pod `Pending` to 16 `Running` within a minute of the sweep,
+without a reboot.
+
+So the Hetzner Robot hardware reset is avoidable even on a wedged
+host — but only over SSH. The reboot only ever mattered as a blunt way
+to clear the cgroup tree, and the sweep does that while the node keeps
+serving.
+
+`node_cgroups_cgroups{subsys_name="memory"}` is alerted on at 20000; see
+"Node leaking cgroups" in `infra/helm/k8s-monitoring/alerts.md`.
+
+### Replacing a node without killing CI jobs
+
+Every Machine replacement — a template roll, a MachineHealthCheck
+remediation, a scale-down — drains the node first, and Cluster API's
+default drain *evicts* Pods. On a runner node that means killing
+customer CI jobs mid-flight, which surfaces as "lost communication".
+There is no PodDisruptionBudget in `tuist-runners`, so nothing held
+that back.
+
+Two pieces make a replacement safe, and neither works without the
+other:
+
+1. **`MachineDrainRule`** (`infra/k8s/clusters/machinedrainrules.yaml`)
+   sets `behavior: WaitCompleted` for Pods labeled
+   `tuist.dev/runner=true`. Cluster API stops evicting them and waits
+   for a terminal phase instead. Runner Pods are single-shot
+   (`RestartPolicy: Never`, one `workflow_job`, then exit), so a Pod
+   running a job completes on its own and releases the drain.
+2. **The idle reap** (`controllers/node_drain.go`) retires idle Pods on
+   a cordoned node. Without it the drain never converges: an idle Pod
+   is a dispatch poller with nothing to finish, so `WaitCompleted`
+   would wait on it forever, and the cordon stops new Pods landing
+   without removing the ones already bound. Idle Pods are pure warm
+   capacity, so retiring them costs only a cold start and the
+   autoscaler replaces them on a node that can still accept Pods.
+
+The reap reads `isIdle`, **not** the `tuist.dev/runner-pool-owner`
+label. This is also why a PodDisruptionBudget cannot do this job: a PDB
+selects on labels, and that label is best-effort — the server degrades
+to running a job without it rather than dropping the job when the
+apiserver patch fails. `isIdle` additionally treats a terminated
+`poller` init container as proof of a claim, so a Pod running a job
+survives even when the label never landed.
+
+Consequences worth knowing before triggering a roll:
+
+- A drain takes as long as the node's longest in-flight job — up to six
+  hours for a Linux job. `nodeDrainTimeoutSeconds: 0` on the
+  `bare-metal-worker` class leaves that unbounded on purpose: any finite
+  value is a promise to kill a job once exceeded.
+- **Budget a day for a full roll, not a quarter hour.** With
+  `maxSurge: 0` / `maxUnavailable: 1` the pool runs one node short for
+  the whole replacement, and that is dominated by the drain rather than
+  by the ~8-15 min `installimage` cycle. Two hosts replaced
+  sequentially is roughly 13 hours of halved capacity. On the
+  single-host staging and canary pools it is a full outage of Linux
+  runners for the same window.
+- That trade is deliberate: the Linux pools carry internal workflows
+  only. A spare host is the alternative — it restores `maxSurge: 1` and
+  removes the dip entirely, because the replacement builds while the
+  old node drains — and is what to revisit if customer workloads ever
+  land on Linux.
+- The stall risk is covered by alerting, not by a cap: "Worker node
+  pool stuck mid-rollout" in `infra/helm/k8s-monitoring/alerts.md`
+  fires on `upToDateReplicas < spec.replicas` after 24 hours, which is
+  set to clear that worst-case healthy roll rather than to catch a
+  wedge quickly.
 
 ### Emergency SSH access
 
