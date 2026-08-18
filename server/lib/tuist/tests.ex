@@ -1735,9 +1735,16 @@ defmodule Tuist.Tests do
   end
 
   defp create_test_modules(test, test_modules, shard_index, shard_plan) do
+    # Resolved once per run and threaded down rather than looked up where each
+    # row is built: it decides `is_new` for every test case and
+    # `is_default_branch` for every run row, and both used to mean a separate
+    # Postgres round trip on a path that already runs per ingested test run.
+    default_branch = project_default_branch(test.project_id)
+    is_default_branch = default_branch?(test.git_branch, default_branch)
+
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules)
+        get_test_case_run_data(test, test_modules, default_branch)
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -1821,7 +1828,8 @@ defmodule Tuist.Tests do
           module_test_case_run_data,
           shard_plan,
           shard_index,
-          existing_test_cases
+          existing_test_cases,
+          is_default_branch
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -1852,7 +1860,7 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp get_test_case_run_data(test, test_modules) do
+  defp get_test_case_run_data(test, test_modules, default_branch) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -1883,7 +1891,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test, test_case_data)
+    test_case_data = check_new_test_cases(test, test_case_data, default_branch)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key, %{status: data.status, is_flaky: data.is_flaky, is_new: data.is_new}}
@@ -1965,10 +1973,7 @@ defmodule Tuist.Tests do
     |> Enum.group_by(& &1.test_case_id)
   end
 
-  defp check_new_test_cases(test, test_case_data) do
-    project = Tuist.Projects.get_project_by_id(test.project_id)
-    default_branch = project && project.default_branch
-
+  defp check_new_test_cases(test, test_case_data, default_branch) do
     if is_nil(default_branch) do
       Enum.map(test_case_data, &Map.put(&1, :is_new, false))
     else
@@ -1981,6 +1986,29 @@ defmodule Tuist.Tests do
       end)
     end
   end
+
+  defp project_default_branch(project_id) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+    project && project.default_branch
+  end
+
+  # Classifying a run against the default branch is done here, at ingestion,
+  # because the aggregates that need it are ClickHouse materialized views and
+  # the default branch lives in Postgres. A view cannot reach across, so the
+  # answer has to be denormalized onto the row while it is being written.
+  #
+  # A project that renames its default branch leaves the runs written before
+  # the rename classified against the old name. Nothing rewrites them: the
+  # aggregate this feeds is only ever read over a trailing window, so a rename
+  # heals on its own once the window has moved past it, and the alternative is
+  # rewriting a multi-billion-row fact table on a settings change.
+  #
+  # An unset default branch means no run is on it, which is the same answer the
+  # listing gives for a project whose default branch simply never ran. The
+  # empty string is not a branch name, so it never matches an unset column.
+  defp default_branch?(_git_branch, nil), do: false
+  defp default_branch?(_git_branch, ""), do: false
+  defp default_branch?(git_branch, default_branch), do: git_branch == default_branch
 
   defp get_test_case_ids_with_ci_runs_on_branch(project_id, branch) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
@@ -2107,7 +2135,8 @@ defmodule Tuist.Tests do
          test_case_run_data,
          shard_plan,
          shard_index,
-         existing_test_cases
+         existing_test_cases,
+         is_default_branch
        ) do
     test_case_data_list =
       test_cases
@@ -2164,6 +2193,7 @@ defmodule Tuist.Tests do
           account_id: test.account_id,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
+          is_default_branch: is_default_branch,
           git_commit_sha: test.git_commit_sha || "",
           status: status,
           is_flaky: is_flaky,
@@ -3698,6 +3728,7 @@ defmodule Tuist.Tests do
       account_id,
       ran_at,
       git_branch,
+      is_default_branch,
       git_commit_sha,
       status,
       is_flaky,
@@ -3723,6 +3754,7 @@ defmodule Tuist.Tests do
       account_id,
       ran_at,
       git_branch,
+      is_default_branch,
       git_commit_sha,
       status,
       true,
