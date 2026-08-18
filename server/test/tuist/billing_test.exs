@@ -887,6 +887,32 @@ defmodule Tuist.BillingTest do
                Billing.report_meter_event(customer_id, event_name, 750_125, period_start, period_end)
     end
 
+    test "never stamps an event in the future when the window is still open" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      # A window reported before it closes: the nightly run reports
+      # yesterday, but a manual kick or a backfill can report today, and
+      # Stripe rejects a future-dated meter event outright.
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      now = ~U[2026-07-16 15:10:00.000000Z]
+      now_unix = DateTime.to_unix(now)
+
+      stub(DateTime, :utc_now, fn -> now end)
+
+      expect(Stripe.Request, :make_request, fn %{params: %{timestamp: ^now_unix}} ->
+        {:ok, %{id: "meter-event"}}
+      end)
+
+      assert {:ok, %{id: "meter-event"}} =
+               Billing.report_meter_event(
+                 customer_id,
+                 "runner_macos_compute_unit_milliseconds",
+                 6_000,
+                 period_start,
+                 period_end
+               )
+    end
+
     test "treats a duplicate rejection as already delivered" do
       customer_id = "customer-#{UUIDv7.generate()}"
 

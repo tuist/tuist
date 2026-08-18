@@ -315,8 +315,17 @@ defmodule Tuist.Billing do
   # The window is half-open, so `period_end` itself belongs to the next
   # service period. Stamp one second earlier to stay inside this one,
   # clamping up to `period_start` for windows shorter than a second.
+  #
+  # Also never stamp in the future: Stripe rejects a future-dated meter
+  # event outright. A window can still be open when it is reported —
+  # reporting the current day rather than waiting for the nightly run, or
+  # backfilling a period that has not closed — and `period_end - 1s` is
+  # then still ahead of us. Clamping to now keeps the event inside the
+  # same service period, so attribution is unchanged.
   defp usage_timestamp(period_start, period_end) do
-    timestamp = DateTime.add(period_end, -1, :second)
+    now = DateTime.utc_now()
+    candidate = DateTime.add(period_end, -1, :second)
+    timestamp = if DateTime.after?(candidate, now), do: now, else: candidate
 
     if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
