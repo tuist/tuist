@@ -13,7 +13,7 @@ We manage the host machines using [NixOS](https://nixos.org/), which allows us t
 
 ## Overview
 
-The cache service runs on dedicated servers across multiple regions to minimize latency for developers worldwide. Unlike the main Tuist server (which runs on Render), the cache service is deployed on self-hosted machines that we operate and manage ourselves.
+The cache service runs on dedicated servers across multiple regions to minimize latency for developers worldwide. The cache service is deployed on self-hosted machines that we operate and manage ourselves.
 
 NixOS gives us an infrastructure-as-code workflow for those machines, so host-level configuration changes are versioned, reviewable, and reproducible across all regions.
 

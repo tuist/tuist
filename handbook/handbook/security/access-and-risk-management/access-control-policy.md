@@ -293,7 +293,7 @@ The version history of this document can be found in Tuist's [handbook](https://
 
 ## APPENDIX B — Access matrix
 
-| Role | Email | Google Workspace | Slack | GitHub | CRM | Infrastructure | Supabase | Cloudflare |
+| Role | Email | Google Workspace | Slack | GitHub | CRM | Infrastructure | Databases | Cloudflare |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Founder | x | x | x | x | x |x | x | x |
 | Engineer | x | x | x | x | | x | | |
