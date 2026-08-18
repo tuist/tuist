@@ -848,6 +848,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			TartKubeletBinary: r.TartKubeletBinary,
 			TailscaleBinaries: r.TailscaleBinaries,
 			TailscaleAuthKey:  tailscaleAuthKey,
+			// Must accompany the auth key on this path as well as on
+			// first boot. The credential is an OAuth client secret,
+			// and a key minted from one carries no tags of its own,
+			// so `tailscale up` is rejected without them. Omitting
+			// these left every drift update failing
+			// `TailscaleTags is empty` while first boot succeeded —
+			// a host would join the cluster and then never accept
+			// another config roll.
+			TailscaleTags: r.TailscaleTags,
 			// Tailscale + firewall config rides the drift loop too —
 			// UpdateTartKubelet re-runs installTailscale and
 			// installVMEgressFirewall, so an accept-routes or
