@@ -939,6 +939,7 @@ struct PackageInfoMapperTests {
                     ]
                 )
         )
+        #expect(project?.targets.first?.metadata.tags.contains(TargetTags.swiftPackage) == true)
     }
 
     @Test(
@@ -8799,7 +8800,8 @@ extension ProjectDescription.Target {
                 baseSettings: baseSettings,
                 with: customSettings,
                 moduleMap: moduleMap
-            )
+            ),
+            metadata: .metadata(tags: [TargetTags.swiftPackage])
         )
     }
 }

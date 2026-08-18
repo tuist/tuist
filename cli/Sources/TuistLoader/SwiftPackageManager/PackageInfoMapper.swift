@@ -1039,7 +1039,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             prebuilts: targetPrebuilts
         )
 
-        var metadataTags: [String] = []
+        var metadataTags = [TargetTags.swiftPackage]
         if target.type == .test, packageType.isLocalExternal {
             metadataTags.append(TargetTags.localSwiftPackageTest)
         }

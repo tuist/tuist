@@ -118,7 +118,12 @@ struct ResourcesProjectMapperTests {
     func mapWhenExternalObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(targets: [target], type: .external(hash: nil))
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
@@ -140,15 +145,13 @@ struct ResourcesProjectMapperTests {
     func mapWhenLocalSwiftPackageObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
-        let project = Project.test(
-            settings: Settings(
-                base: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "SWIFT_PACKAGE=1"]],
-                configurations: [:]
-            ),
-            targets: [target],
-            type: .local
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
         )
+        let project = Project.test(targets: [target], type: .local)
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
@@ -1162,7 +1165,12 @@ struct ResourcesProjectMapperTests {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(
             path: try AbsolutePath(validating: "/AbsolutePath/Project"),
             targets: [target],
@@ -1185,12 +1193,20 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsNotExternalTargetHasObjcSourceFiles() async throws {
+    func mapWhenRegularProjectHasSwiftPackageDefinitionDoesNotGenerateObjcAccessors() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            settings: Settings(
+                base: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "SWIFT_PACKAGE=0"]],
+                configurations: [:]
+            ),
+            targets: [target],
+            type: .local
+        )
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 

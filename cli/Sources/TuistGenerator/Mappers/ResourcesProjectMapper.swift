@@ -82,7 +82,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
             }
         }
 
-        if targetNeedsObjcAccessor(target, project: project) {
+        if targetNeedsObjcAccessor(target) {
             try appendObjcBundleAccessor(
                 to: &modifiedTarget,
                 sideEffects: &sideEffects,
@@ -120,8 +120,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsSwift || containsSourcesInBuildableFolders
     }
 
-    private func targetNeedsObjcAccessor(_ target: Target, project: Project) -> Bool {
-        guard projectUsesSwiftPackageBuildSettings(project) else { return false }
+    private func targetNeedsObjcAccessor(_ target: Target) -> Bool {
+        guard target.metadata.tags.contains(TargetTags.swiftPackage) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
         }
@@ -130,21 +130,6 @@ public struct ResourcesProjectMapper: ProjectMapping {
             .isEmpty
         let needsBundle = !target.supportsResources || target.product == .staticFramework
         return containsObjc && hasBundleResources && needsBundle
-    }
-
-    private func projectUsesSwiftPackageBuildSettings(_ project: Project) -> Bool {
-        if case .external = project.type { return true }
-
-        guard let definitions = project.settings.base["GCC_PREPROCESSOR_DEFINITIONS"] else {
-            return false
-        }
-        let values: [String] = switch definitions {
-        case let .array(values):
-            values
-        case let .string(value):
-            value.split(whereSeparator: \.isWhitespace).map(String.init)
-        }
-        return values.contains { $0 == "SWIFT_PACKAGE" || $0.hasPrefix("SWIFT_PACKAGE=") }
     }
 
     /// Files inside buildable folders that should trip bundle synthesis but aren't caught by
