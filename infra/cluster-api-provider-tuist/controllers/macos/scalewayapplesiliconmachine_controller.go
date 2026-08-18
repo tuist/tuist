@@ -854,6 +854,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// carve-out values change lands on existing minis with
 			// the next operator-image roll instead of waiting for
 			// re-provisioning.
+			// The tags are load-bearing, not cosmetic: an OAuth-minted
+			// credential carries no default tag, so a push without them
+			// cannot join the tailnet at all. They also feed
+			// HostConfigHash, so omitting them here stamped hosts as
+			// converged to a hash whose tailscale script they never got.
+			TailscaleTags:         r.TailscaleTags,
 			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
 			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
 			VMClusterDNSIP:        r.VMClusterDNSIP,
