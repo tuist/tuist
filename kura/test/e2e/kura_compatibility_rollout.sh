@@ -9,29 +9,20 @@
 #
 #   PREVIOUS_REF=origin/main kura/test/e2e/kura_compatibility_rollout.sh
 #
-# Stages (docs/plans/2026-07-30-001-refactor-kura-backfill-plan.md, Unit 11):
+# Stages, for the Release AB -> C ladder. PREVIOUS_REF is expected to be an AB
+# build; its pods run flag-on, which is what the production fleet was at when
+# C shipped:
 #
-#   0. previous <-> current flag-off rolling update and rollback — the
-#      Release AB deploy itself is behavior-neutral and rollback needs no
-#      preparation (backfill/ index rows are inert dead keys to the previous
-#      binary).
-#   1. old -> AB rolling update with KURA_BACKFILL_ENABLED=true on the AB
-#      pods: the flag-on pod retries the not-capable class against the old
-#      peer (capped by the compiled BACKFILL_RETRYABLE_WAIT_CAP_MS = 30 min),
-#      old pods bootstrap from AB via the retained legacy serving, and the
-#      rollout gate is green once the update completes. During the skew
-#      window itself the flag-on pod reports backfill_initial_cycle=pending —
-#      the gate intentionally holds there, so the harness asserts readiness
-#      and bidirectional convergence during the window and gate-green before
-#      and after it, rather than sleeping out the 30-minute cap.
-#   2. mixed-flag mesh: flag-on and flag-off AB pods converge in both
-#      directions — a cold flag-off pod legacy-bootstraps from a flag-on
-#      peer, and a cold flag-on pod backfills from a flag-off peer via the
-#      unconditional serving plane.
-#   3. AB -> C: TODO stage stub — Release C (Units 10 + 12) does not exist
-#      yet. When it does, this stage must assert that C peers serve flag-on
-#      AB peers via the new endpoints only (legacy serving deleted) and that
-#      gate.sh stays green across the AB -> C overlap.
+#   0. AB <-> C rolling update and rollback: both directions converge and the
+#      dataset survives, so a C rollout can be reverted in place.
+#   1. AB -> C one node at a time: the C node serves its flag-on AB peer
+#      through /_internal/backfill/* alone (the legacy /_internal/bootstrap/*
+#      routes are gone on C and answer 404), both cycles settle, and the
+#      rollout gate stays green across the overlap.
+#   2. cold-node convergence across the skew, both directions: a cold AB peer
+#      catches up from a C peer and a cold C peer catches up from an AB peer,
+#      which is the property that makes the legacy serving plane safe to
+#      delete.
 
 set -euo pipefail
 
@@ -55,10 +46,8 @@ fi
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kura-compat.XXXXXX")"
 PREVIOUS_WORKTREE="${TMP_DIR}/previous"
 PREVIOUS_OVERRIDE="${TMP_DIR}/compose.previous.yml"
-MIXED_OVERRIDE="${TMP_DIR}/compose.mixed.yml"
-FLAG_ON_SKEW_OVERRIDE="${TMP_DIR}/compose.flag-on-skew.yml"
-FLAG_ON_OVERRIDE="${TMP_DIR}/compose.flag-on.yml"
-MIXED_FLAG_OVERRIDE="${TMP_DIR}/compose.mixed-flag.yml"
+SKEW_OVERRIDE="${TMP_DIR}/compose.skew.yml"
+CURRENT_OVERRIDE="${TMP_DIR}/compose.current.yml"
 
 cleanup() {
   local registered_worktree="${PREVIOUS_WORKTREE_CANONICAL:-${PREVIOUS_WORKTREE}}"
@@ -97,22 +86,22 @@ build_image_from_ref() {
 }
 
 # Renders a compose override pinning each node's image and its
-# KURA_BACKFILL_ENABLED value. KURA_PEERS is trimmed to the two harness nodes
-# so the never-started kura-ap cannot enter a flag-on node's initial backfill
-# cycle (its connection failures would drain the failure budget and degrade
-# the cycle mode for reasons unrelated to the ladder under test). The previous
-# binary ignores the flag env entirely. KURA_CAS_CAPACITY_BYTES=1 clamps both
-# rings to the 5-segment floor: without it the ring total derives from the
-# host's disk size, one written segment rounds to 0% fullness, and the
-# flag-on pod in the stage-1 skew window — whose initial cycle cannot settle
-# against a not-capable old peer — could never latch readiness via the
-# ring-fullness clause (1 of 5 segments = 20% = the default threshold).
+# KURA_BACKFILL_ENABLED value, which only the AB image reads (C runs the
+# walker unconditionally and ignores the env). KURA_PEERS is trimmed to the
+# two harness nodes so the never-started kura-ap cannot enter a node's initial
+# backfill cycle — its connection failures would drain the failure budget and
+# degrade the cycle mode for reasons unrelated to the ladder under test.
+# KURA_CAS_CAPACITY_BYTES=1 clamps both rings to the 5-segment floor: without
+# it the ring total derives from the host's disk size, one written segment
+# rounds to 0% fullness, and a pod whose initial cycle is still pending mid
+# skew could never latch readiness via the ring-fullness clause (1 of 5
+# segments = 20% = the default threshold).
 write_override() {
   local path="$1"
   local kura_us_image="$2"
   local kura_eu_image="$3"
-  local kura_us_flag="${4:-false}"
-  local kura_eu_flag="${5:-false}"
+  local kura_us_flag="${4:-true}"
+  local kura_eu_flag="${5:-true}"
 
   cat >"${path}" <<EOF
 services:
@@ -186,13 +175,16 @@ wait_for_rollout_contains() {
   return 1
 }
 
-assert_rollout_lacks() {
+# Asserts a retired internal route is gone. The internal listener answers on
+# the same port in this harness (no peer TLS), so a deleted route is a plain
+# 404 from axum's fallback rather than a connection error.
+assert_route_absent() {
   local url="$1"
-  local needle="$2"
-  local body
-  body="$(curl -fsS "${url}/status/rollout")"
-  if [[ "${body}" == *"${needle}"* ]]; then
-    echo "Expected ${url}/status/rollout to not contain ${needle}, got: ${body}" >&2
+  local path="$2"
+  local status
+  status="$(curl -s -o /dev/null -w '%{http_code}' "${url}${path}")"
+  if [[ "${status}" != "404" ]]; then
+    echo "Expected ${url}${path} to be gone (404), got ${status}" >&2
     return 1
   fi
 }
@@ -287,7 +279,7 @@ assert_gate_green() {
 
   while ((SECONDS < deadline)); do
     local ok=1 steady=0
-    local node body ready state ring_members inflight outbox pressure backfill_mode
+    local node body ready state ring_members outbox pressure backfill_mode
 
     while ((steady < steady_needed)); do
       ok=1
@@ -303,7 +295,6 @@ assert_gate_green() {
         [[ "${body}" == *'"ready":true'* ]] && ready="true"
         state="$(rollout_json_string "${body}" "state")"
         ring_members="$(rollout_json_number "${body}" "ring_members")"
-        inflight="$(rollout_json_number "${body}" "bootstrap_inflight_peers")"
         backfill_mode="$(rollout_json_string "${body}" "backfill_initial_cycle")"
         outbox="$(rollout_json_number "${body}" "outbox_messages")"
         pressure="$(rollout_json_number "${body}" "memory_pressure_state")"
@@ -311,11 +302,7 @@ assert_gate_green() {
         [ "${ready:-false}" = "true" ] || ok=0
         [ "${state:-unknown}" = "serving" ] || ok=0
         [ "${ring_members:-0}" = "${expected_ring_members}" ] || ok=0
-        if [ -n "${backfill_mode}" ]; then
-          [ "${backfill_mode}" != "pending" ] || ok=0
-        else
-          [ "${inflight:-0}" = "0" ] || ok=0
-        fi
+        [ "${backfill_mode:-complete}" != "pending" ] || ok=0
         [ "${outbox:-0}" = "0" ] || ok=0
         [ "${pressure:-0}" != "2" ] || ok=0
       done
@@ -337,11 +324,11 @@ assert_gate_green() {
   return 1
 }
 
-stage_0_neutral_rolling_update_and_rollback() {
+stage_0_rolling_update_and_rollback() {
   local us_url="$1"
   local eu_url="$2"
 
-  echo "--- stage 0: previous <-> current flag-off rolling update and rollback"
+  echo "--- stage 0: AB <-> C rolling update and rollback"
 
   dc "${PREVIOUS_OVERRIDE}" down -v --remove-orphans >/dev/null 2>&1 || true
   dc "${PREVIOUS_OVERRIDE}" up -d kura-us kura-eu >/dev/null
@@ -350,12 +337,15 @@ stage_0_neutral_rolling_update_and_rollback() {
   put_artifact "${us_url}" "artifact-v1" "payload-from-previous"
   wait_for_body "$(artifact_url "${eu_url}" "artifact-v1")" "payload-from-previous"
 
-  dc "${MIXED_OVERRIDE}" up -d kura-us kura-eu >/dev/null
+  dc "${CURRENT_OVERRIDE}" up -d kura-us kura-eu >/dev/null
   wait_for_ready_pair
 
   put_artifact "${us_url}" "artifact-v2" "payload-from-current"
   wait_for_body "$(artifact_url "${eu_url}" "artifact-v2")" "payload-from-current"
 
+  # Rolling back to AB must find its data intact: C writes nothing the AB
+  # binary cannot read, and the backfill index and watermarks it left behind
+  # are the same durable rows AB already maintains.
   dc "${PREVIOUS_OVERRIDE}" up -d kura-us kura-eu >/dev/null
   wait_for_ready_pair
 
@@ -367,52 +357,41 @@ stage_0_neutral_rolling_update_and_rollback() {
   echo "stage 0 passed"
 }
 
-stage_1_old_to_ab_with_flag_on() {
+stage_1_ab_to_c_rolling_update() {
   local us_url="$1"
   local eu_url="$2"
 
-  echo "--- stage 1: old -> AB rolling update with KURA_BACKFILL_ENABLED on"
+  echo "--- stage 1: AB -> C rolling update, one node at a time"
 
   dc "${PREVIOUS_OVERRIDE}" down -v --remove-orphans >/dev/null 2>&1 || true
   dc "${PREVIOUS_OVERRIDE}" up -d kura-us kura-eu >/dev/null
   wait_for_ready_pair
-  # The stage-1 write also seals readiness for the flag-on upgrade below: a
-  # CAS artifact creates a segment, and the upgraded pod's latched readiness
-  # needs ring fullness (1 of 5 segments >= the default 20%) because its
-  # initial cycle cannot settle against a not-capable old peer inside the
-  # harness budget.
   put_artifact "${us_url}" "skew-w1" "skew-payload-1"
   wait_for_body "$(artifact_url "${eu_url}" "skew-w1")" "skew-payload-1"
   assert_gate_green "${us_url}" "${eu_url}"
 
-  # Upgrade kura-us only: AB image, flag on, against an old peer.
-  dc "${FLAG_ON_SKEW_OVERRIDE}" up -d kura-us kura-eu >/dev/null
+  # Upgrade kura-us only: a C node beside a flag-on AB peer. Both run the
+  # backfill walker, so neither needs the routes C deleted.
+  dc "${SKEW_OVERRIDE}" up -d kura-us kura-eu >/dev/null
   wait_for_ready_pair
+  wait_for_rollout_contains "${us_url}" '"backfill_initial_cycle":"complete"'
+  wait_for_rollout_contains "${eu_url}" '"backfill_initial_cycle":"complete"'
+  assert_gate_green "${us_url}" "${eu_url}"
 
-  # The AB pod runs the backfill walker and classifies the old peer's missing
-  # endpoints as the capped not-capable retry class; its initial cycle stays
-  # pending until the peer upgrades (or the 30-minute wall-clock cap), which
-  # is exactly why production flips the flag only after a mesh is fully >= AB.
-  wait_for_rollout_contains "${us_url}" '"backfill_initial_cycle":"pending"'
-  wait_for_metric_ge "${us_url}" kura_backfill_retry_backoffs_total 'class="not_capable"' 1
+  # The legacy serving plane is gone on C, not merely unused.
+  assert_route_absent "${us_url}" "/_internal/bootstrap/manifests"
+  assert_route_absent "${us_url}" "/_internal/bootstrap/digest"
+  assert_route_absent "${us_url}" "/_internal/bootstrap/namespace_tombstones"
+  assert_route_absent "${us_url}" "/_internal/bootstrap/artifacts/skew-w1"
 
-  # Bidirectional convergence across the skew: replication is walker-agnostic.
+  # Bidirectional convergence across the skew: replication is version-agnostic.
   put_artifact "${us_url}" "skew-w2" "skew-payload-2"
   wait_for_body "$(artifact_url "${eu_url}" "skew-w2")" "skew-payload-2"
   put_artifact "${eu_url}" "skew-w3" "skew-payload-3"
   wait_for_body "$(artifact_url "${us_url}" "skew-w3")" "skew-payload-3"
 
-  # Old pods bootstrap from AB via the retained legacy serving: recreate the
-  # old peer cold and let it catch up from the flag-on AB node.
-  recreate_service_cold "${FLAG_ON_SKEW_OVERRIDE}" kura-eu kura-eu-data
-  wait_for_ready_pair
-  wait_for_body "$(artifact_url "${eu_url}" "skew-w1")" "skew-payload-1"
-  wait_for_body "$(artifact_url "${eu_url}" "skew-w2")" "skew-payload-2"
-  wait_for_body "$(artifact_url "${eu_url}" "skew-w3")" "skew-payload-3"
-
-  # Complete the rolling update: the retrying pass succeeds once the peer is
-  # capable, both cycles settle, and the fleet gate is green again.
-  dc "${FLAG_ON_OVERRIDE}" up -d kura-us kura-eu >/dev/null
+  # Complete the rolling update.
+  dc "${CURRENT_OVERRIDE}" up -d kura-us kura-eu >/dev/null
   wait_for_ready_pair
   wait_for_rollout_contains "${us_url}" '"backfill_initial_cycle":"complete"'
   wait_for_rollout_contains "${eu_url}" '"backfill_initial_cycle":"complete"'
@@ -424,48 +403,43 @@ stage_1_old_to_ab_with_flag_on() {
   echo "stage 1 passed"
 }
 
-stage_2_mixed_flag_mesh() {
+stage_2_cold_convergence_across_the_skew() {
   local us_url="$1"
   local eu_url="$2"
 
-  echo "--- stage 2: mixed-flag AB mesh converges in both directions"
+  echo "--- stage 2: cold nodes converge in both directions across an AB/C skew"
 
-  dc "${MIXED_FLAG_OVERRIDE}" down -v --remove-orphans >/dev/null 2>&1 || true
-  dc "${MIXED_FLAG_OVERRIDE}" up -d kura-us >/dev/null
+  dc "${SKEW_OVERRIDE}" down -v --remove-orphans >/dev/null 2>&1 || true
+  dc "${SKEW_OVERRIDE}" up -d kura-us >/dev/null
   wait_for_http "${us_url}/ready"
   put_artifact "${us_url}" "mixed-h1" "mixed-payload-1"
 
-  # Cold flag-off pod legacy-bootstraps from the flag-on peer (legacy serving
-  # is retained until Release C).
-  dc "${MIXED_FLAG_OVERRIDE}" up -d kura-eu >/dev/null
+  # Cold AB peer catches up from the C node: the only serving plane left is
+  # /_internal/backfill/*, which AB already speaks.
+  dc "${SKEW_OVERRIDE}" up -d kura-eu >/dev/null
   wait_for_ready_pair
   wait_for_body "$(artifact_url "${eu_url}" "mixed-h1")" "mixed-payload-1"
-  assert_rollout_lacks "${eu_url}" 'backfill_initial_cycle'
+  # The body alone does not prove backfill ran: the write predates the peer's
+  # return, so a queued outbox delivery would satisfy it too. Assert the
+  # requester actually applied a body through a pass, or a broken catch-up
+  # path across the skew passes this stage unnoticed.
+  wait_for_metric_ge "${eu_url}" "kura_backfill_bodies_total" 'outcome="applied"' 1
 
   put_artifact "${eu_url}" "mixed-h2" "mixed-payload-2"
   wait_for_body "$(artifact_url "${us_url}" "mixed-h2")" "mixed-payload-2"
 
-  # Cold flag-on pod backfills from the flag-off peer via the unconditional
-  # serving plane (index + /_internal/backfill/* exist on every AB node).
-  recreate_service_cold "${MIXED_FLAG_OVERRIDE}" kura-us kura-us-data
+  # Cold C node catches up from the AB peer.
+  recreate_service_cold "${SKEW_OVERRIDE}" kura-us kura-us-data
   wait_for_ready_pair
   wait_for_body "$(artifact_url "${us_url}" "mixed-h1")" "mixed-payload-1"
   wait_for_body "$(artifact_url "${us_url}" "mixed-h2")" "mixed-payload-2"
+  # Both entries predate this node's volume, so both had to arrive through a
+  # pass against the AB peer.
+  wait_for_metric_ge "${us_url}" "kura_backfill_bodies_total" 'outcome="applied"' 2
   wait_for_rollout_contains "${us_url}" '"backfill_initial_cycle":"complete"'
   assert_gate_green "${us_url}" "${eu_url}"
 
   echo "stage 2 passed"
-}
-
-stage_3_ab_to_c() {
-  # TODO(Release C, docs/plans/2026-07-30-001-refactor-kura-backfill-plan.md
-  # Units 10 + 12): once the retirement release exists, add the AB -> C
-  # rolling-update stage: build a C image, roll a flag-on AB mesh to C one
-  # node at a time, and assert (a) the C node serves the flag-on AB peer via
-  # the /_internal/backfill/* endpoints only, (b) legacy /_internal/bootstrap/*
-  # routes are gone on C, (c) gate.sh stays green across the overlap, and
-  # (d) rollback C -> AB converges. Blocked until Unit 10/12 code exists.
-  echo "--- stage 3: AB -> C rolling update — SKIPPED (Release C not implemented yet)"
 }
 
 main() {
@@ -475,18 +449,15 @@ main() {
   build_image_from_ref "${PREVIOUS_REF}" "${PREVIOUS_IMAGE}" "${PREVIOUS_WORKTREE}"
   build_image_from_ref "${CURRENT_REF}" "${CURRENT_IMAGE}" "${PROJECT_ROOT}"
 
-  write_override "${PREVIOUS_OVERRIDE}" "${PREVIOUS_IMAGE}" "${PREVIOUS_IMAGE}" false false
-  write_override "${MIXED_OVERRIDE}" "${CURRENT_IMAGE}" "${PREVIOUS_IMAGE}" false false
-  write_override "${FLAG_ON_SKEW_OVERRIDE}" "${CURRENT_IMAGE}" "${PREVIOUS_IMAGE}" true false
-  write_override "${FLAG_ON_OVERRIDE}" "${CURRENT_IMAGE}" "${CURRENT_IMAGE}" true true
-  write_override "${MIXED_FLAG_OVERRIDE}" "${CURRENT_IMAGE}" "${CURRENT_IMAGE}" true false
+  write_override "${PREVIOUS_OVERRIDE}" "${PREVIOUS_IMAGE}" "${PREVIOUS_IMAGE}"
+  write_override "${SKEW_OVERRIDE}" "${CURRENT_IMAGE}" "${PREVIOUS_IMAGE}"
+  write_override "${CURRENT_OVERRIDE}" "${CURRENT_IMAGE}" "${CURRENT_IMAGE}"
 
-  stage_0_neutral_rolling_update_and_rollback "${us_url}" "${eu_url}"
-  stage_1_old_to_ab_with_flag_on "${us_url}" "${eu_url}"
-  stage_2_mixed_flag_mesh "${us_url}" "${eu_url}"
-  stage_3_ab_to_c
+  stage_0_rolling_update_and_rollback "${us_url}" "${eu_url}"
+  stage_1_ab_to_c_rolling_update "${us_url}" "${eu_url}"
+  stage_2_cold_convergence_across_the_skew "${us_url}" "${eu_url}"
 
-  echo "Compatibility rollout passed for ${PREVIOUS_REF} -> ${CURRENT_REF} (stages 0-2; stage 3 skipped pending Release C)"
+  echo "Compatibility rollout passed for ${PREVIOUS_REF} -> ${CURRENT_REF}"
 }
 
 main

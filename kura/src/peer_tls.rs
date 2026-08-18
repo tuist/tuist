@@ -130,12 +130,12 @@ impl PeerClientFactory {
     fn builder(&self, timeouts: PeerClientTimeouts) -> Result<reqwest::ClientBuilder, String> {
         let mut builder = Client::builder().connect_timeout(Duration::from_secs(5));
         if timeouts == PeerClientTimeouts::Download {
-            // Idle/read timeout, NOT a total request timeout. A bootstrap
+            // Idle/read timeout, NOT a total request timeout. A backfill
             // artifact streams its whole body over this client; under
             // cold-start load (bandwidth-limited + congested) a large
             // artifact's transfer can exceed any fixed total cap, which
             // aborts it mid-body and surfaces to the peer as an undecodable
-            // (incomplete) response — silently wedging bootstrap. read_timeout
+            // (incomplete) response — silently wedging backfill. read_timeout
             // resets on each chunk, so a slow-but-progressing transfer
             // completes while a genuinely stalled connection still fails fast.
             builder = builder.read_timeout(Duration::from_secs(30));
@@ -383,7 +383,7 @@ mod tests {
         let download = format!("{:?}", factory.build().expect("build download client"));
         assert!(
             download.contains("read_timeout"),
-            "the download client's read timeout is load-bearing for bootstrap; got {download}"
+            "the download client's read timeout is load-bearing for backfill; got {download}"
         );
     }
 

@@ -2366,7 +2366,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     // uploaded bytes against it, but update_action_result stores the digest as a
     // key with no body to check against — so without this an authenticated client
     // could persist an arbitrarily long "hash", inflating the manifest key until a
-    // bootstrap page overflows the receiver's MAX_BOOTSTRAP_PAGE_BYTES ceiling and
+    // backfill index page overflows the receiver's MAX_PEER_PAGE_BYTES ceiling and
     // wedges a joining node. Pin it to the fixed width a conforming client sends.
     if digest.hash.len() != 64 || !digest.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(Status::invalid_argument(
@@ -3126,8 +3126,8 @@ mod tests {
             format!("{}/10", hex::encode([0xabu8; 32]))
         );
 
-        // An unbounded hash is what inflates the manifest key past the bootstrap
-        // page ceiling; update_action_result has no body to verify it against, so
+        // An unbounded hash is what inflates the manifest key past the backfill
+        // index page ceiling; update_action_result has no body to verify it against, so
         // the width check is the only thing keeping the key fixed-size.
         for bad in [
             String::new(),
