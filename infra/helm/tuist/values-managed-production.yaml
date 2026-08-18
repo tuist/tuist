@@ -6,11 +6,23 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Sweeps this env's abandoned tailnet devices only; canary and staging run their
+# own. Starts in dry-run -- read a run's logs, then set dryRun: false.
+tailscaleDeviceReaper:
+  enabled: true
+  tags:
+    - tag:tuist-macmini-production
+    - tag:tuist-k8s-production
+
 registry:
   # Clients stay on tuist.dev/api/registry while the Worker forwards requests
   # to this dedicated ingress host. The ingress hostname is not advertised as
   # a separate registry endpoint.
   enabled: true
+  # Two replicas so a rolling deploy or a node loss always leaves another
+  # ready endpoint behind the ingress. With a single replica the ingress has
+  # nowhere to retry a refused connection and clients see 502s.
+  replicaCount: 2
   publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
@@ -21,6 +33,18 @@ registry:
     tlsSecretName: registry-tls
     annotations:
       external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: registry
+            topologyKey: kubernetes.io/hostname
   resources:
     requests:
       cpu: "500m"

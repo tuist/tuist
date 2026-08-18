@@ -346,6 +346,26 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
       assert html =~ "main"
     end
 
+    test "escapes markup in the branch rendered in the description", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      render_hook(lv, "update_create_alert_form_category", %{"category" => "cache_hit_rate"})
+
+      # When
+      html =
+        render_hook(lv, "update_create_alert_form_git_branch", %{"value" => ~s(main"><xss-probe>)})
+
+      # Then
+      refute html =~ "<xss-probe"
+      assert html =~ "&lt;xss-probe&gt;"
+    end
+
     test "updates the branch of an existing cache_hit_rate alert rule", %{
       conn: conn,
       organization: organization,

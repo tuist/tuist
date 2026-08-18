@@ -92,6 +92,73 @@ func TestDarwinImageInventoryDigest(t *testing.T) {
 	}
 }
 
+// The digest a promoting guest publishes must be measured on the DETACHED image,
+// because it is a claim about the bytes it uploads: it becomes both the HEAD's
+// tree_digest and the immutable object key. Measured through the job's own live
+// read-write mount instead, anything that writes between the measurement and the
+// detach — a build service outliving the runner, the compilation cache's own
+// asynchronous store flush or prune — publishes a HEAD naming bytes that no host
+// can reproduce. Convergence then downloads the object, computes a different
+// digest and declines, and since a cold promote's base generation 0 is rejected
+// while a HEAD exists, the account is stuck cold fleet-wide until that HEAD is
+// retired. This pins the reason dispatch-poll.sh re-attaches read-only at teardown
+// rather than reading the mount it already has.
+func TestLiveMountDigestDivergesFromTheUploadedImage(t *testing.T) {
+	be := darwinVolumeBackend{}
+	image := filepath.Join(t.TempDir(), "cache.sparseimage")
+	if err := be.createImage(image, 1); err != nil {
+		t.Fatalf("create image: %v", err)
+	}
+
+	mnt := t.TempDir()
+	if _, err := runCmd(2*attachTimeout, "hdiutil", "attach", image,
+		"-owners", "off", "-nobrowse", "-noverify", "-quiet", "-mountpoint", mnt); err != nil {
+		t.Fatalf("attach image read-write: %v", err)
+	}
+	store := filepath.Join(mnt, casStoreDir, "v1")
+	if err := os.MkdirAll(store, 0o755); err != nil {
+		t.Fatalf("seed CAS store: %v", err)
+	}
+	records := filepath.Join(store, "records")
+	if err := os.WriteFile(records, make([]byte, 4096), 0o644); err != nil {
+		t.Fatalf("seed CAS records: %v", err)
+	}
+
+	// What the guest used to publish: the inventory of the still-mounted image.
+	published, err := inventoryDigest(mnt)
+	if err != nil {
+		t.Fatalf("digest through the live mount: %v", err)
+	}
+
+	// A straggler appends to the size-capped store after the runner exited. Every
+	// ~cas/ line carries a file size, so one late append is enough.
+	appended, err := os.OpenFile(records, os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		t.Fatalf("open CAS records for append: %v", err)
+	}
+	if _, err := appended.Write(make([]byte, 512)); err != nil {
+		t.Fatalf("append to CAS records: %v", err)
+	}
+	if err := appended.Close(); err != nil {
+		t.Fatalf("close CAS records: %v", err)
+	}
+	if _, err := runCmd(attachTimeout, "hdiutil", "detach", mnt, "-force", "-quiet"); err != nil {
+		t.Fatalf("detach: %v", err)
+	}
+
+	// What a converging host measures on the object it downloads, which is also
+	// what the settled read-only re-attach at teardown now publishes.
+	verified, err := be.imageInventoryDigest(image)
+	if err != nil {
+		t.Fatalf("digest of the settled image: %v", err)
+	}
+
+	if verified == published {
+		t.Fatal("expected the live-mount digest to disagree with the uploaded image; " +
+			"if this now holds, the window this guards against is gone and the reason should be re-checked")
+	}
+}
+
 // guestCacheInventoryScript mirrors dispatch-poll.sh's cache_inventory pipeline
 // byte-for-byte. It takes the image MOUNT root as $1. Keep in sync with the
 // script; TestInventoryDigestMatchesGuestPipeline runs BOTH and asserts they

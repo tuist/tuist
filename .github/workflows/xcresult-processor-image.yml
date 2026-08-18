@@ -12,7 +12,7 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# Builds on top of `<oci-registry>/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode lives in the base —
 # the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 # ships in full Xcode (not the Command Line Tools). This build just
@@ -101,13 +101,9 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates. crane writes creds to ~/.docker/config.json,
-      # which Tart reads via the Docker credential-helper protocol
-      # for both the pull (this build's clone of the base) and the
-      # push at the end of the job. See runner-image.yml's matching
-      # step for the long explanation of why we use crane instead
-      # of `tart login`.
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail

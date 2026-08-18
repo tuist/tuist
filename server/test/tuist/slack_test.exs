@@ -745,7 +745,39 @@ defmodule Tuist.SlackTest do
         header_text = Enum.at(blocks, 0).text.text
         metric_text = Enum.at(blocks, 3).text.text
         assert header_text =~ "Decreased on main"
-        assert metric_text =~ "on `main`"
+        assert metric_text =~ "on main"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "escapes mrkdwn control characters in a branch name" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          git_branch: "<https://evil.example|click me>",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(alert_rule: alert_rule, current_value: 0.6, previous_value: 0.8)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        metric_text = Enum.at(blocks, 3).text.text
+        refute metric_text =~ "<https://evil.example"
+        assert metric_text =~ "&lt;https://evil.example|click me&gt;"
         :ok
       end)
 

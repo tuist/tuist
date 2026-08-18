@@ -201,6 +201,7 @@ defmodule Tuist do
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,
       Runners.Workers.ExpireInteractiveSessionsWorker,
+      Runners.Workers.OrphanedRunnersWorker,
       Runners.Workers.WebhookRedeliveryWorker,
       Runners.Workers.ArchiveLogsWorker,
       Runners.Workers.FetchLogsWorker,

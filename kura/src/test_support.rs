@@ -103,7 +103,6 @@ where
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
-        geoip_refresh_interval_secs: 0,
         node_country_override: None,
         node_subdivision_override: None,
     };
@@ -187,7 +186,6 @@ where
         auth,
         analytics,
         usage,
-        geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,

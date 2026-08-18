@@ -31,7 +31,6 @@ pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
-    http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
@@ -189,7 +188,6 @@ pub struct Metrics {
     snapshot_cache_entries: Gauge,
     snapshot_cache_nodes: Gauge,
     snapshot_cache_served_full_bytes: Gauge,
-    geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
@@ -222,7 +220,6 @@ impl Metrics {
         let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
-        let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let internal_backfill_request_duration =
             Family::<InternalBackfillRouteLabels, Histogram>::new_with_constructor(|| {
@@ -414,7 +411,6 @@ impl Metrics {
         let snapshot_cache_entries = Gauge::default();
         let snapshot_cache_nodes = Gauge::default();
         let snapshot_cache_served_full_bytes = Gauge::default();
-        let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
@@ -439,11 +435,6 @@ impl Metrics {
             "kura_http_requests_total",
             "HTTP requests by route and status code",
             http_requests.clone(),
-        );
-        registry.register(
-            "kura_http_client_requests_total",
-            "Public HTTP requests by client country",
-            http_client_requests.clone(),
         );
         registry.register(
             "kura_http_request_duration_seconds",
@@ -1191,11 +1182,6 @@ impl Metrics {
             snapshot_cache_served_full_bytes.clone(),
         );
         registry.register(
-            "kura_geoip_refresh_total",
-            "Outcomes of background refreshes of the in-process GeoIP database",
-            geoip_refresh.clone(),
-        );
-        registry.register(
             "kura_traffic_state",
             "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
             traffic_state.clone(),
@@ -1267,7 +1253,6 @@ impl Metrics {
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
-            http_client_requests,
             http_request_duration,
             internal_backfill_request_duration,
             backfill_bodies_peer_requests,
@@ -1418,7 +1403,6 @@ impl Metrics {
             snapshot_cache_entries,
             snapshot_cache_nodes,
             snapshot_cache_served_full_bytes,
-            geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
@@ -1459,26 +1443,14 @@ impl Metrics {
             .set(1);
     }
 
-    pub fn record_http(
-        &self,
-        route: String,
-        status: StatusCode,
-        client_country: Option<String>,
-        duration: Duration,
-    ) {
-        let public_http_metrics = records_public_http_metrics(&route);
+    pub fn record_http(&self, route: String, status: StatusCode, duration: Duration) {
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
                 status: status.as_u16(),
             })
             .inc();
-        if public_http_metrics {
-            self.http_client_requests
-                .get_or_create(&HttpClientCountryLabels {
-                    client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
-                })
-                .inc();
+        if records_public_http_metrics(&route) {
             self.http_request_duration.observe(duration.as_secs_f64());
         }
         // Internal routes are excluded from the public duration histogram, so
@@ -2419,14 +2391,6 @@ impl Metrics {
             .inc_by(bytes);
     }
 
-    pub fn record_geoip_refresh(&self, result: &str) {
-        self.geoip_refresh
-            .get_or_create(&GeoIpRefreshLabels {
-                result: result.to_owned(),
-            })
-            .inc();
-    }
-
     pub fn update_runtime_state(
         &self,
         traffic_state: i64,
@@ -2520,11 +2484,6 @@ fn records_public_http_metrics(route: &str) -> bool {
 struct HttpRequestLabels {
     route: String,
     status: u16,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct HttpClientCountryLabels {
-    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -2780,11 +2739,6 @@ struct ResponseStreamAdmissionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct GeoIpRefreshLabels {
-    result: String,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct MembershipChangeLabels {
     change: String,
 }
@@ -2835,13 +2789,11 @@ mod tests {
         metrics.record_http(
             "/_internal/backfill/entries".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/_internal/status".into(),
             StatusCode::OK,
-            None,
             Duration::from_millis(10),
         );
 
@@ -2864,16 +2816,10 @@ mod tests {
     #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        metrics.record_http(
-            "/up".into(),
-            StatusCode::OK,
-            Some("US".into()),
-            Duration::from_millis(10),
-        );
+        metrics.record_http("/up".into(), StatusCode::OK, Duration::from_millis(10));
         metrics.record_http(
             "/api/cache/keyvalue".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
-            None,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
@@ -2987,7 +2933,6 @@ mod tests {
         let rendered = metrics.render();
 
         assert!(rendered.contains("kura_http_requests_total"));
-        assert!(rendered.contains("kura_http_client_requests_total"));
         assert!(rendered.contains("kura_http_exceptions_total"));
         assert!(
             rendered
@@ -2999,15 +2944,8 @@ mod tests {
             rendered
                 .lines()
                 .filter(|line| line.starts_with("kura_http_requests_total"))
-                .all(|line| !line.contains("client_country="))
-        );
-        assert!(
-            rendered
-                .lines()
-                .filter(|line| line.starts_with("kura_http_requests_total"))
                 .all(|line| !line.contains("method="))
         );
-        assert!(rendered.contains("client_country=\"unknown\""));
         assert!(
             rendered
                 .lines()

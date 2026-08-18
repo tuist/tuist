@@ -15,6 +15,7 @@ defmodule TuistWeb.TestCaseLive do
   alias Tuist.Tests.Analytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -153,7 +154,7 @@ defmodule TuistWeb.TestCaseLive do
       socket
       |> assign(:uri, uri)
       |> assign(:selected_tab, selected_tab)
-      |> assign_analytics()
+      |> assign_analytics(params)
       |> assign_test_case_runs(params)
       |> assign_history_tab(selected_tab)
       |> assign_overview_history()
@@ -225,6 +226,27 @@ defmodule TuistWeb.TestCaseLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id, uri: uri}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply,
+     push_patch(socket,
+       to: "/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{query_params}"
+     )}
   end
 
   def handle_event(
@@ -331,10 +353,12 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   def handle_info({:test_created, %{name: "test"}}, socket) do
+    params = URI.decode_query(socket.assigns.uri.query)
+
     socket =
       socket
-      |> assign_analytics()
-      |> assign_test_case_runs(URI.decode_query(socket.assigns.uri.query))
+      |> assign_analytics(params)
+      |> assign_test_case_runs(params)
 
     {:noreply, socket}
   end
@@ -357,21 +381,36 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   defp assign_analytics(
-         %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+         %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket,
+         params
        ) do
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    # Relative presets run up to now, so they take no upper bound: the picker
+    # truncates now down to the second, which would drop runs ingested during it.
+    opts =
+      if preset == "custom" do
+        [start_datetime: start_datetime, end_datetime: end_datetime]
+      else
+        [start_datetime: start_datetime]
+      end
+
     socket
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
     |> assign_async(:reliability, fn ->
-      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch)}}
+      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch, opts)}}
     end)
     |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id)}}
+      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id, opts)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
 
       {:ok,
        %{
-         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail),
+         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail, opts),
          flaky_runs_grouped: flaky_runs_grouped,
          flaky_runs_meta: flaky_runs_meta
        }}

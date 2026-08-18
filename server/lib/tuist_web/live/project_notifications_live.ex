@@ -638,11 +638,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 
+  # The description sentence carries its own <strong> markup and is handed to
+  # raw/1, and Gettext bindings are plain string substitution. Rule-authored
+  # values have to be escaped before they reach the template.
+  defp escape_binding(value) do
+    value
+    |> to_string()
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
+
   defp alert_rule_description(category, metric, deviation, rolling_window_size, opts) do
     case category do
       :bundle_size ->
-        git_branch = Keyword.get(opts, :git_branch, "")
-        bundle_name = Keyword.get(opts, :bundle_name, "")
+        git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
+        bundle_name = escape_binding(Keyword.get(opts, :bundle_name, ""))
         size_label = bundle_size_metric_label(metric)
 
         text =
@@ -670,14 +680,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
       _ ->
         metric_category = alert_metric_category_label(category, metric)
         unit = alert_unit_label(category)
-        scheme = Keyword.get(opts, :scheme, "")
+        scheme = escape_binding(Keyword.get(opts, :scheme, ""))
         environment = Keyword.get(opts, :environment, "any")
         current_unit = qualified_unit_label(scheme, environment, unit)
 
         text =
           case category do
             :cache_hit_rate ->
-              git_branch = Keyword.get(opts, :git_branch, "")
+              git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
 
               if git_branch == "" do
                 dgettext(

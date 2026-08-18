@@ -541,7 +541,7 @@ defmodule Tuist.Kura do
   at all: its host resolves to a cluster node IP, which Cilium
   classifies as `remote-node` and the runner egress policy's `ipBlock`
   rules never match. Auth is identical in both tiers (same Guardian
-  JWT, same `tuist.lua` hook, same `tenantID`).
+  JWT, same authorization, same `tenantID`).
 
   Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).

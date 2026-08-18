@@ -80,10 +80,6 @@ const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
 const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
-const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
-const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
-    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
 const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
 const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
 const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
@@ -109,8 +105,6 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
-const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
-const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
@@ -220,17 +214,13 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
-    /// How often the in-process GeoIP database is refreshed against the
-    /// upstream DB-IP Lite dump. `0` disables background refresh — the
-    /// container-image copy is then used for the pod's lifetime.
-    pub geoip_refresh_interval_secs: u64,
-    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
-    /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `geo.country.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-1 alpha-2 country code for the node,
+    /// stamped as `geo.country.iso_code` on the OTel Resource. Derived from
+    /// the datacenter the node runs in; there is no runtime discovery behind
+    /// it, so an unset value simply leaves the attribute off.
     pub node_country_override: Option<String>,
-    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
-    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `geo.region.iso_code` on the OTel Resource.
+    /// Deployment-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`), stamped as `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 
@@ -410,9 +400,15 @@ impl Config {
     /// memory the kernel *can* reclaim.
     ///
     /// Subtracts the anon this process holds outside admission: the metadata
-    /// store's block cache and write-buffer pool, the manifest cache, and a
-    /// baseline for the process itself (measured at ~150 MiB total on an idle
-    /// instance, of which the caches are the larger part).
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
     ///
     /// `None` when nothing published a floor, which leaves the ceiling-derived
     /// sizing in place.
@@ -420,6 +416,7 @@ impl Config {
         let untracked = (self.rocksdb_block_cache_bytes as u64)
             .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
             .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
             .saturating_add(PROCESS_ANON_BASELINE_BYTES);
         Some(self.memory_floor_bytes?.saturating_sub(untracked))
     }
@@ -1357,11 +1354,9 @@ impl Config {
             ));
         }
         let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
-            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         // Usage reporting and authorization address the same server, so a node
@@ -1372,7 +1367,6 @@ impl Config {
         let has_credentials =
             control_plane_client_id.is_some() && control_plane_client_secret.is_some();
         let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
-            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
             .or_else(|| {
                 has_credentials
                     .then(|| lookup(KURA_AUTH_TUIST_URL))
@@ -1414,17 +1408,6 @@ impl Config {
                 None
             }
         };
-        let geoip_refresh_interval_secs = optional_parsed_value(
-            &mut lookup,
-            KURA_GEOIP_REFRESH_INTERVAL_SECS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1599,7 +1582,6 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
-            geoip_refresh_interval_secs,
             node_country_override,
             node_subdivision_override,
         })
@@ -2041,6 +2023,38 @@ mod tests {
     }
 
     #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
+    }
+
+    #[test]
     fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
         let mut values = base_values();
         values.insert(
@@ -2164,10 +2178,6 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
-        assert_eq!(
-            config.geoip_refresh_interval_secs,
-            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
-        );
     }
 
     #[test]
@@ -2252,29 +2262,6 @@ mod tests {
                 .expect_err("an out-of-range backfill batch threshold must fail");
             assert!(error.contains(KURA_BACKFILL_BATCH_BYTES));
         }
-    }
-
-    #[test]
-    fn from_lookup_parses_geoip_refresh_interval_override() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected geoip config to parse");
-
-        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
     }
 
     #[test]
