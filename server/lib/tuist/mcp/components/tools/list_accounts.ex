@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListAccounts do
   use Tuist.MCP.Tool,
     name: "list_accounts",
     title: "List Accounts",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{},

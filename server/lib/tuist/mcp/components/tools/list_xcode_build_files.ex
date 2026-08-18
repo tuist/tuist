@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
   use Tuist.MCP.Tool,
     name: "list_xcode_build_files",
     title: "List Xcode Build Files",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

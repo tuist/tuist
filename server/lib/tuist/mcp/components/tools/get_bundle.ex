@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
   use Tuist.MCP.Tool,
     name: "get_bundle",
     title: "Get App Bundle",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

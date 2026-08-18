@@ -16,7 +16,6 @@ use rocksdb::{
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
@@ -165,7 +164,7 @@ pub struct Store {
     existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
-    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // (e.g. a fresh node backfilling the same artifact from several peers at
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
@@ -204,18 +203,103 @@ pub struct Store {
     failpoints: Arc<FailpointSet>,
 }
 
-/// Pending read-path promotions: FIFO order plus a membership set so a hot
-/// old artifact read thousands of times enqueues once.
+/// Pending read-path promotions: two FIFOs plus a membership map so a hot old
+/// artifact read thousands of times enqueues once, carrying the trigger that
+/// queued it.
+///
+/// Vouched work drains ahead of serve-path work rather than sharing one queue.
+/// Reserving admission is not enough on its own: a vouched refresh admitted
+/// behind a long serve backlog still waits for the whole backlog to copy, which
+/// is exactly the window the vouch is supposed to close. `pending` is the
+/// authoritative set, so a deque may hold an id already promoted through the
+/// other lane (the trigger upgrade path pushes into `vouched`); those pop as
+/// misses and are skipped.
 #[derive(Default)]
 struct PromotionQueue {
-    order: VecDeque<String>,
-    pending: HashSet<String>,
+    vouched: VecDeque<String>,
+    serve: VecDeque<String>,
+    pending: HashMap<String, RefreshTrigger>,
+}
+
+impl PromotionQueue {
+    fn depth(&self) -> usize {
+        self.pending.len()
+    }
+
+    fn push(&mut self, artifact_id: &str, trigger: RefreshTrigger) {
+        if trigger.extends_vouched_lifetime() {
+            self.vouched.push_back(artifact_id.to_owned());
+        } else {
+            self.serve.push_back(artifact_id.to_owned());
+        }
+    }
+
+    /// The next artifact to promote, vouched lane first. Ids left behind by a
+    /// lane switch are skipped here rather than removed at switch time, which
+    /// would be a linear scan of the queue.
+    fn pop(&mut self) -> Option<(String, RefreshTrigger)> {
+        loop {
+            let artifact_id = self
+                .vouched
+                .pop_front()
+                .or_else(|| self.serve.pop_front())?;
+            if let Some(trigger) = self.pending.remove(&artifact_id) {
+                return Some((artifact_id, trigger));
+            }
+        }
+    }
+}
+
+/// What drove a segment refresh: the metric label, and the selector for which
+/// memory-pressure gate applies.
+///
+/// `GetActionResult` and `FindMissingBlobs` promise that the blobs they report
+/// on stay fetchable afterwards (REAPI asks that "the lifetimes of the
+/// referenced blobs SHOULD be increased if necessary and applicable"), so they
+/// refresh one pressure tier deeper than serve-path promotion. Dropping a
+/// vouched-for blob's refresh reopens that promise's gap exactly when eviction
+/// is most aggressive, whereas serve-path promotion carries no promise: its
+/// read already succeeded and the refresh only speeds up future ones.
+/// Both stop at `Critical`, where a read-path write would compound the squeeze.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RefreshTrigger {
+    /// Background promotion of an artifact just served from an Old segment.
+    Serve,
+    /// A `GetActionResult` that passed its presence gate and is being served.
+    ActionCache,
+    /// A `FindMissingBlobs` that reported the blob present.
+    FindMissing,
+}
+
+impl RefreshTrigger {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Serve => "serve",
+            Self::ActionCache => "action_cache",
+            Self::FindMissing => "find_missing",
+        }
+    }
+
+    /// Whether this refresh backs a lifetime the node has vouched for, and so
+    /// runs under the wider pressure gate.
+    fn extends_vouched_lifetime(self) -> bool {
+        !matches!(self, Self::Serve)
+    }
 }
 
 /// Backstop so an unbounded burst of old-artifact reads cannot grow the
 /// promotion queue without limit; far above what one build's value graphs
 /// enqueue (tens of thousands of artifacts).
 const MAX_PENDING_PROMOTIONS: usize = 262_144;
+
+/// Slice of [`MAX_PENDING_PROMOTIONS`] that only a vouched-for refresh may
+/// occupy. Serve-path promotion is best-effort keep-alive: losing one costs a
+/// later read some latency. A vouched refresh backs a promise already made to a
+/// client, and losing it can hand that client a missing object it hard-fails
+/// the build on, so a flood of serve-path reads must not be able to fill the
+/// queue ahead of one. Reserving a slice rather than raising the ceiling keeps
+/// the queue's total memory bound unchanged.
+const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
 
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
@@ -268,31 +352,6 @@ impl AsyncRead for ArtifactReader {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManifestPage {
     pub manifests: Vec<ArtifactManifest>,
-    pub next_after: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ManifestBucketDigest {
-    pub prefix: String,
-    pub count: u64,
-    pub hash: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ManifestDigest {
-    pub prefix_len: usize,
-    pub buckets: Vec<ManifestBucketDigest>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamespaceTombstoneRecord {
-    pub namespace_id: String,
-    pub version_ms: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamespaceTombstonePage {
-    pub tombstones: Vec<NamespaceTombstoneRecord>,
     pub next_after: Option<String>,
 }
 
@@ -552,14 +611,11 @@ impl Drop for OutboxReservation<'_> {
 // (incoming strictly older — a real LWW rejection, the peer is behind) so
 // anti-entropy diagnosis can tell a re-walk churning already-converged data
 // from genuine one-directional version skew. The apply decision is the same
-// for both: local wins. `IgnoredMissing` covers a bootstrap body fetch the
-// peer 404s (advertised in a manifest page but no longer served, e.g. evicted
-// in between) — no version comparison happened, so it must not count as skew.
+// for both: local wins.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
     IgnoredEqual,
-    IgnoredMissing,
     IgnoredStale,
     IgnoredTombstone,
 }
@@ -569,7 +625,6 @@ impl ArtifactApplyOutcome {
         match self {
             Self::Applied => "applied",
             Self::IgnoredEqual => "ignored_equal",
-            Self::IgnoredMissing => "ignored_missing",
             Self::IgnoredStale => "ignored_stale",
             Self::IgnoredTombstone => "ignored_tombstone",
         }
@@ -594,6 +649,7 @@ impl NamespaceDeleteOutcome {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn applied(self) -> bool {
         matches!(self, Self::Applied)
     }
@@ -1122,7 +1178,8 @@ impl Store {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         match self.manifest(&artifact_id)? {
             Some(manifest) if self.storage_exists(&manifest).await? => {
-                self.maybe_refresh_manifest(manifest).await
+                self.maybe_refresh_manifest(manifest, RefreshTrigger::Serve)
+                    .await
             }
             Some(_) => Ok(None),
             None => Ok(None),
@@ -1232,7 +1289,7 @@ impl Store {
         // and metadata commit. Without it, concurrent applies of the same key
         // each observe "absent" below, each append a full copy to a segment, and
         // only the last manifest write wins — leaving the rest as orphaned bytes
-        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // that accumulate to N x on disk (the backfill-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
         // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
@@ -1728,9 +1785,10 @@ impl Store {
             // relies on (see `try_mmap_artifact_bytes`). A truncated segment would
             // otherwise yield a short read that streams a body shorter than the
             // declared Content-Length — peers see an undecodable response and
-            // bootstrap silently wedges. Surface a truncated artifact as missing
-            // so the serve 404s it; the bootstrap client then skips it
-            // (IgnoredMissing) and the lost entry re-populates on cache miss.
+            // backfill silently wedges. Surface a truncated artifact as missing
+            // so the serve 404s it; the backfilling peer classifies that as
+            // absent (`classify_backfill_response`) and moves on, and the lost
+            // entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
                 .as_std()
@@ -1795,24 +1853,137 @@ impl Store {
         // safe against a concurrent reclaim: segments are unlinked, never
         // truncated, so an open handle stays readable, and a lost race simply
         // degrades that lookup to a miss as before.
-        self.enqueue_promotion(&manifest.artifact_id);
+        self.enqueue_promotion(&manifest.artifact_id, RefreshTrigger::Serve);
         Ok(Some(manifest))
     }
 
-    /// Queues an artifact served from an Old segment for background promotion
-    /// (see [`Store::run_promotion_worker`]). Deduplicated and bounded;
-    /// dropping an entry is safe because promotion is a best-effort keep-alive.
-    fn enqueue_promotion(&self, artifact_id: &str) {
+    /// Queues an artifact from an Old segment for background promotion (see
+    /// [`Store::run_promotion_worker`]). Deduplicated and bounded, with
+    /// [`VOUCHED_PROMOTION_RESERVE`] of the bound admitting vouched-for
+    /// refreshes only.
+    ///
+    /// A dropped entry is recorded on `kura_promotion_drops_total`. Dropping a
+    /// serve-path entry is safe, since that read already succeeded and the
+    /// promotion is a keep-alive for later ones. Dropping a vouched entry means
+    /// the node answered an RPC that promises the blob stays fetchable and then
+    /// did nothing to keep it, so it is the signal that read-triggered
+    /// extension is not keeping up.
+    fn enqueue_promotion(&self, artifact_id: &str, trigger: RefreshTrigger) {
         {
             let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
-            if queue.pending.len() >= MAX_PENDING_PROMOTIONS
-                || !queue.pending.insert(artifact_id.to_owned())
-            {
+            if let Some(pending) = queue.pending.get_mut(artifact_id) {
+                // Already queued: take the strongest trigger seen, so a
+                // serve-path enqueue cannot downgrade a vouched-for blob out of
+                // the wider pressure gate. An upgrade also re-queues it in the
+                // vouched lane, since waiting out the serve backlog would leave
+                // the vouch unbacked for as long as a drop would.
+                let upgraded = trigger > *pending;
+                *pending = (*pending).max(trigger);
+                if upgraded && trigger.extends_vouched_lifetime() {
+                    queue.vouched.push_back(artifact_id.to_owned());
+                }
                 return;
             }
-            queue.order.push_back(artifact_id.to_owned());
+            let ceiling = if trigger.extends_vouched_lifetime() {
+                MAX_PENDING_PROMOTIONS
+            } else {
+                MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE
+            };
+            if queue.depth() >= ceiling {
+                drop(queue);
+                self.io.metrics().record_promotion_drop(trigger.as_str());
+                return;
+            }
+            queue.pending.insert(artifact_id.to_owned(), trigger);
+            queue.push(artifact_id, trigger);
         }
         self.promotion_notify.notify_one();
+    }
+
+    /// Whether any segment has aged into the Old generation, which is the only
+    /// state in which lifetime extension has work to do. Read-path callers
+    /// hoist this so a node whose data all sits in live segments pays one
+    /// state-snapshot read for a whole request instead of a manifest lookup per
+    /// blob.
+    pub fn segment_ring_is_aging(&self) -> bool {
+        !self.segment_state_snapshot().state.old.is_empty()
+    }
+
+    /// Presence check that extends the blob's lifetime from the *same* manifest
+    /// lookup, for read paths whose request size the client controls.
+    ///
+    /// [`Store::artifact_exists`] followed by
+    /// [`Store::extend_artifact_lifetimes`] would resolve every key twice, and
+    /// the second pass lands on RocksDB whenever manifest-cache admission is
+    /// closed, which is exactly the `Constrained` tier read-triggered refresh
+    /// still runs at. Callers gate this on [`Store::segment_ring_is_aging`] and
+    /// otherwise use the plain existence check, whose existence-cache
+    /// short-circuit this necessarily gives up: that cache answers presence but
+    /// carries no segment, so it cannot say whether a blob needs promoting.
+    pub async fn artifact_exists_extending_lifetime(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        trigger: RefreshTrigger,
+    ) -> Result<bool, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        let Some(manifest) = self.manifest(&artifact_id)? else {
+            return Ok(false);
+        };
+        if !self.storage_exists(&manifest).await? {
+            return Ok(false);
+        }
+        self.note_artifact_exists(&artifact_id);
+        if let Some(segment_id) = manifest.segment_id.as_deref()
+            && self.segment_generation(segment_id)? == Some(SegmentGeneration::Old)
+        {
+            self.enqueue_promotion(&artifact_id, trigger);
+        }
+        Ok(true)
+    }
+
+    /// Extends the lifetimes of blobs a REAPI read path has just vouched for.
+    ///
+    /// `GetActionResult` presence-gates an entry and `FindMissingBlobs` reports
+    /// a blob present, but both answer from metadata alone
+    /// ([`Store::artifact_manifest_exists`], [`Store::artifact_exists`]) and
+    /// neither routes through [`Store::prepare_artifact_for_serving`], the only
+    /// caller that keeps a blob alive. Without this, eviction can remove a blob
+    /// between the node vouching for it and the client's `BatchReadBlobs`.
+    ///
+    /// Copy-forward rather than a reservation: promotion makes the blob
+    /// genuinely young again, so the ordinary eviction policy needs no special
+    /// case, nothing has to be honored later, and the extension survives a
+    /// restart. Best-effort and off the request path: this only queues work for
+    /// [`Store::run_promotion_worker`], which re-validates every entry and is
+    /// serialized by `segment_refresh_lock`. A blob already in a live
+    /// segment costs one manifest lookup, and a node holding no Old segments
+    /// costs a single state-snapshot read for the whole batch.
+    pub fn extend_artifact_lifetimes(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        keys: &[String],
+        trigger: RefreshTrigger,
+    ) {
+        let segment_state = self.segment_state_snapshot();
+        if segment_state.state.old.is_empty() {
+            return;
+        }
+
+        for key in keys {
+            let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+            let Ok(Some(manifest)) = self.manifest(&artifact_id) else {
+                continue;
+            };
+            let Some(segment_id) = manifest.segment_id.as_deref() else {
+                continue;
+            };
+            if segment_state.generations.get(segment_id).copied() == Some(SegmentGeneration::Old) {
+                self.enqueue_promotion(&artifact_id, trigger);
+            }
+        }
     }
 
     /// Drains the read-path promotion queue, rewriting each artifact from its
@@ -1821,21 +1992,16 @@ impl Store {
     /// boot.
     pub async fn run_promotion_worker(&self) {
         loop {
-            let next = {
-                let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
-                match queue.order.pop_front() {
-                    Some(artifact_id) => {
-                        queue.pending.remove(&artifact_id);
-                        Some(artifact_id)
-                    }
-                    None => None,
-                }
-            };
-            let Some(artifact_id) = next else {
+            let next = self
+                .promotion_queue
+                .lock()
+                .expect("promotion queue lock")
+                .pop();
+            let Some((artifact_id, trigger)) = next else {
                 self.promotion_notify.notified().await;
                 continue;
             };
-            if let Err(error) = self.promote_artifact(&artifact_id).await {
+            if let Err(error) = self.promote_artifact(&artifact_id, trigger).await {
                 self.io.metrics().record_promotion_failure();
                 tracing::warn!(artifact_id, error, "segment promotion failed");
             }
@@ -1845,7 +2011,11 @@ impl Store {
     /// Promotes one artifact out of an Old segment, re-validating that the
     /// manifest still exists and still lives in an Old segment (it may have
     /// been promoted by a writer, replaced, or reclaimed since it was queued).
-    async fn promote_artifact(&self, artifact_id: &str) -> Result<(), String> {
+    async fn promote_artifact(
+        &self,
+        artifact_id: &str,
+        trigger: RefreshTrigger,
+    ) -> Result<(), String> {
         let Some(manifest) = self.manifest(artifact_id)? else {
             return Ok(());
         };
@@ -1855,17 +2025,28 @@ impl Store {
         if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
             return Ok(());
         }
-        self.maybe_refresh_manifest(manifest).await.map(|_| ())
+        self.maybe_refresh_manifest(manifest, trigger)
+            .await
+            .map(|_| ())
     }
 
     async fn maybe_refresh_manifest(
         &self,
         manifest: ArtifactManifest,
+        trigger: RefreshTrigger,
     ) -> Result<Option<ArtifactManifest>, String> {
-        if !self.memory.allow_segment_refresh() {
+        let allowed = if trigger.extends_vouched_lifetime() {
+            self.memory.allow_read_triggered_refresh()
+        } else {
+            self.memory.allow_segment_refresh()
+        };
+        if !allowed {
             self.io
                 .metrics()
                 .record_memory_action("segment_refresh_skipped");
+            self.io
+                .metrics()
+                .record_segment_refresh_skipped(manifest.producer, trigger.as_str());
             return Ok(Some(manifest));
         }
         let Some(segment_id) = manifest.segment_id.as_deref() else {
@@ -1937,6 +2118,7 @@ impl Store {
         self.io.metrics().record_segment_refresh(
             current.producer,
             "ok",
+            trigger.as_str(),
             current.size,
             refresh_started.elapsed(),
         );
@@ -4389,8 +4571,7 @@ impl Store {
             .promotion_queue
             .lock()
             .expect("promotion queue lock")
-            .order
-            .len();
+            .depth();
         let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
             ("old", segment_state.state.old.len()),
@@ -4418,7 +4599,7 @@ impl Store {
     /// left for segment reclamation — the records this serves (action-cache
     /// expiry) are a few hundred bytes each. Deletion is node-local: peers
     /// running the same policy over the replicated `version_ms` converge on
-    /// their own, and an entry re-copied by a later bootstrap just expires
+    /// their own, and an entry re-copied by a later backfill just expires
     /// again on the next sweep. A concurrent republish of the same key can
     /// race the batch and lose its fresh manifest — benign, the client
     /// recompiles and republishes.
@@ -4504,7 +4685,7 @@ impl Store {
         let mut after: Option<String> = None;
         let mut expired: Vec<ArtifactManifest> = Vec::new();
         loop {
-            let page = self.manifests_page_scoped(after.as_deref(), None, SCAN_PAGE)?;
+            let page = self.manifests_page(after.as_deref(), SCAN_PAGE)?;
             for manifest in page.manifests {
                 if manifest.producer == ArtifactProducer::Reapi
                     && manifest.key.starts_with("action_cache/")
@@ -4947,9 +5128,8 @@ impl Store {
                     .map_err(|error| format!("invalid blob-refs backfill cursor: {error}"))
             })
             .transpose()?;
-        let page = self.manifests_page_scoped(
+        let page = self.manifests_page(
             after.as_deref(),
-            None,
             ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP,
         )?;
         let mut batch = WriteBatch::default();
@@ -5027,30 +5207,46 @@ impl Store {
         }
     }
 
-    /// Whether this store has any locally usable cache data.
-    pub fn has_artifacts(&self) -> Result<bool, String> {
-        self.db
-            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start)
-            .next()
-            .transpose()
-            .map(|item| item.is_some())
-            .map_err(|error| format!("failed to inspect manifests: {error}"))
+    /// Every namespace delete tombstone as `(namespace_id, version_ms)`, in
+    /// key order. Test-only: nothing in production reads tombstones in bulk
+    /// since the legacy bootstrap walker was retired — replication carries
+    /// each delete individually and the backfill index lists them as entries.
+    #[cfg(test)]
+    pub fn namespace_tombstones(&self) -> Result<Vec<(String, u64)>, String> {
+        let mut tombstones = Vec::new();
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
+            IteratorMode::Start,
+        );
+        for item in iter {
+            let (namespace_id, payload) =
+                item.map_err(|error| format!("failed to iterate namespace tombstones: {error}"))?;
+            let namespace_id = std::str::from_utf8(&namespace_id)
+                .map_err(|error| format!("invalid namespace tombstone key: {error}"))?
+                .to_owned();
+            let slice: [u8; 8] = payload.as_ref().try_into().map_err(|_| {
+                format!(
+                    "namespace tombstone for {namespace_id} should be 8 bytes, got {}",
+                    payload.len()
+                )
+            })?;
+            tombstones.push((namespace_id, u64::from_le_bytes(slice)));
+        }
+        Ok(tombstones)
     }
 
-    /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
-    /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
-    /// (unless a later `after` cursor is supplied) and stops as soon as it
-    /// leaves the prefix, so callers can enumerate a single digest bucket's
-    /// range without scanning the rest of the keyspace.
-    pub fn manifests_page_scoped(
+    /// Walk the manifest keyspace in `artifact_id` order from an optional
+    /// cursor. The prefix-restricted variant went out with the range-digest
+    /// walker that enumerated one digest bucket at a time; every caller here
+    /// walks the whole keyspace in pages.
+    pub fn manifests_page(
         &self,
         after: Option<&str>,
-        prefix: Option<&str>,
         limit: usize,
     ) -> Result<ManifestPage, String> {
         let mut manifests = Vec::new();
         let mut next_after = None;
-        let start_key = after.or(prefix).unwrap_or_default();
+        let start_key = after.unwrap_or_default();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_MANIFESTS),
             IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
@@ -5064,11 +5260,6 @@ impl Store {
             if after == Some(artifact_id) {
                 continue;
             }
-            if let Some(prefix) = prefix
-                && !artifact_id.starts_with(prefix)
-            {
-                break;
-            }
             if manifests.len() == limit {
                 next_after = manifests
                     .last()
@@ -5080,109 +5271,6 @@ impl Store {
 
         Ok(ManifestPage {
             manifests,
-            next_after,
-        })
-    }
-
-    /// Summarize the manifest keyspace as per-prefix-bucket digests for
-    /// range-based anti-entropy during bootstrap. Buckets partition the sorted
-    /// `artifact_id` space by their first `prefix_len` hex characters; each
-    /// bucket folds the ordered `(artifact_id, version_ms)` pairs it contains
-    /// into a hash so that adds, removes, and version bumps all flip the bucket.
-    /// One ordered scan builds every non-empty bucket; empty buckets are
-    /// omitted (a bucket present on only one side simply mismatches).
-    pub fn manifests_digest(&self, prefix_len: usize) -> Result<Vec<ManifestBucketDigest>, String> {
-        let iter = self
-            .db
-            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start);
-
-        let mut buckets = Vec::new();
-        let mut current: Option<(String, u64, Sha256)> = None;
-
-        for item in iter {
-            let (artifact_id, payload) =
-                item.map_err(|error| format!("failed to iterate manifests: {error}"))?;
-            let artifact_id = std::str::from_utf8(&artifact_id)
-                .map_err(|error| format!("invalid manifest key: {error}"))?;
-            let prefix: String = artifact_id.chars().take(prefix_len).collect();
-            let manifest = decode_manifest_record(artifact_id, &payload)?;
-
-            match current.as_mut() {
-                Some((bucket_prefix, count, hasher)) if *bucket_prefix == prefix => {
-                    hasher.update(artifact_id.as_bytes());
-                    hasher.update(manifest.version_ms.to_le_bytes());
-                    *count += 1;
-                }
-                _ => {
-                    if let Some((bucket_prefix, count, hasher)) = current.take() {
-                        buckets.push(ManifestBucketDigest {
-                            prefix: bucket_prefix,
-                            count,
-                            hash: hex::encode(hasher.finalize()),
-                        });
-                    }
-                    let mut hasher = Sha256::new();
-                    hasher.update(artifact_id.as_bytes());
-                    hasher.update(manifest.version_ms.to_le_bytes());
-                    current = Some((prefix, 1, hasher));
-                }
-            }
-        }
-
-        if let Some((bucket_prefix, count, hasher)) = current.take() {
-            buckets.push(ManifestBucketDigest {
-                prefix: bucket_prefix,
-                count,
-                hash: hex::encode(hasher.finalize()),
-            });
-        }
-
-        Ok(buckets)
-    }
-
-    pub fn namespace_tombstones_page(
-        &self,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<NamespaceTombstonePage, String> {
-        let mut tombstones = Vec::new();
-        let mut next_after = None;
-        let start_key = after.unwrap_or_default();
-        let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
-            IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
-        );
-
-        for item in iter {
-            let (namespace_id, payload) =
-                item.map_err(|error| format!("failed to iterate namespace tombstones: {error}"))?;
-            let namespace_id = std::str::from_utf8(&namespace_id)
-                .map_err(|error| format!("invalid namespace tombstone key: {error}"))?;
-            if after == Some(namespace_id) {
-                continue;
-            }
-            if tombstones.len() == limit {
-                next_after = tombstones
-                    .last()
-                    .map(|record: &NamespaceTombstoneRecord| record.namespace_id.clone());
-                break;
-            }
-            if payload.len() != 8 {
-                return Err(format!(
-                    "namespace tombstone for {namespace_id} should be 8 bytes, got {}",
-                    payload.len()
-                ));
-            }
-            let mut slice = [0_u8; 8];
-            slice.copy_from_slice(payload.as_ref());
-            tombstones.push(NamespaceTombstoneRecord {
-                namespace_id: namespace_id.to_owned(),
-                version_ms: u64::from_le_bytes(slice),
-            });
-        }
-
-        Ok(NamespaceTombstonePage {
-            tombstones,
             next_after,
         })
     }
@@ -7357,6 +7445,25 @@ mod tests {
         temp_store_with(|_| {})
     }
 
+    fn temp_store_at_pressure(pressure: crate::memory::MemoryPressure) -> (TempDir, Config, Store) {
+        let (temp_dir, config, _) = temp_store_with(|_| {});
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new_with_forced_pressure(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+            pressure,
+        );
+        let store = Store::open(&config, io, memory).expect("failed to open store");
+        (temp_dir, config, store)
+    }
+
     fn temp_store_with<F>(override_config: F) -> (TempDir, Config, Store)
     where
         F: FnOnce(&mut Config),
@@ -7411,9 +7518,6 @@ mod tests {
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             multipart_max_active_uploads: 128,
             multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
-            bootstrap_timeout_ms: 30 * 60 * 1000,
-            bootstrap_max_concurrent_peers: 8,
-            backfill_enabled: false,
             backfill_margin_percent: 40,
             backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
             backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
@@ -7468,7 +7572,7 @@ mod tests {
         // sleep failpoint between the durable append and the metadata commit
         // forces the writers to overlap, so without the lock every copy would be
         // appended (writer_count x on disk). This guards the store invariant
-        // directly, independent of the bootstrap-level fetch gate.
+        // directly, independent of the backfill-level fetch gate.
         let (_temp_dir, config, store) = temp_store();
         store.failpoints().set_always(
             FailpointName::AfterArtifactBytesDurableBeforeMetadata,
@@ -9157,7 +9261,7 @@ mod tests {
     async fn live_apply_paths_keep_per_record_sync_commits() {
         let (_temp_dir, config, store) = temp_store();
         // Warm the store so the active segment exists: the first append's
-        // ring-state bootstrap would otherwise pollute the deltas below.
+        // ring-state initialization would otherwise pollute the deltas below.
         store
             .apply_replicated_artifact_from_bytes(
                 ArtifactProducer::Gradle,
@@ -9445,7 +9549,7 @@ mod tests {
             .await
             .expect("hot artifact should apply");
         let promoted = store
-            .maybe_refresh_manifest(old_manifest)
+            .maybe_refresh_manifest(old_manifest, RefreshTrigger::Serve)
             .await
             .expect("promotion should succeed")
             .expect("promoted manifest should exist");
@@ -9595,25 +9699,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn has_artifacts_tracks_local_manifest_availability() {
-        let (_temp_dir, _config, store) = temp_store();
-        assert!(!store.has_artifacts().expect("empty store should inspect"));
-
-        store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Gradle,
-                "ios",
-                "artifact",
-                "application/octet-stream",
-                b"payload",
-            )
-            .await
-            .expect("artifact should persist");
-
-        assert!(store.has_artifacts().expect("warm store should inspect"));
-    }
-
-    #[tokio::test]
     async fn manifests_page_returns_results_in_artifact_id_order() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -9639,7 +9724,7 @@ mod tests {
             .expect("failed to persist second artifact");
 
         let first_page = store
-            .manifests_page_scoped(None, None, 1)
+            .manifests_page(None, 1)
             .expect("failed to load first manifest page");
         assert_eq!(first_page.manifests.len(), 1);
         assert!(
@@ -9652,7 +9737,7 @@ mod tests {
         );
 
         let second_page = store
-            .manifests_page_scoped(first_page.next_after.as_deref(), None, 1)
+            .manifests_page(first_page.next_after.as_deref(), 1)
             .expect("failed to load second manifest page");
         assert_eq!(second_page.manifests.len(), 1);
         assert_ne!(
@@ -9665,148 +9750,8 @@ mod tests {
         );
     }
 
-    async fn apply_inline(store: &Store, key: &str, version_ms: u64, bytes: &[u8]) {
-        store
-            .apply_replicated_inline_artifact_from_bytes(
-                ArtifactProducer::Xcode,
-                "ios",
-                key,
-                "application/octet-stream",
-                bytes,
-                version_ms,
-                None,
-                None,
-            )
-            .await
-            .expect("failed to apply replicated inline artifact");
-    }
-
     #[tokio::test]
-    async fn manifests_digest_partitions_keyspace_and_matches_identical_stores() {
-        let (_temp_dir_a, _config_a, store_a) = temp_store();
-        let (_temp_dir_b, _config_b, store_b) = temp_store();
-
-        // Same replicated artifacts (identical id + version_ms) on both stores,
-        // mirroring how a peer holds the same version of a replicated artifact.
-        for key in ["alpha", "beta", "gamma", "delta", "epsilon"] {
-            apply_inline(&store_a, key, 100, b"payload").await;
-            apply_inline(&store_b, key, 100, b"payload").await;
-        }
-
-        let digest_a = store_a.manifests_digest(3).expect("digest a");
-        let digest_b = store_b.manifests_digest(3).expect("digest b");
-
-        assert_eq!(
-            digest_a, digest_b,
-            "identical content must yield identical digests across nodes"
-        );
-        assert_eq!(
-            digest_a.iter().map(|bucket| bucket.count).sum::<u64>(),
-            5,
-            "bucket counts must sum to the total manifest count"
-        );
-        for bucket in &digest_a {
-            assert_eq!(bucket.prefix.len(), 3, "prefix_len must be honored");
-        }
-        let mut prefixes: Vec<&str> = digest_a.iter().map(|b| b.prefix.as_str()).collect();
-        let sorted = {
-            let mut copy = prefixes.clone();
-            copy.sort_unstable();
-            copy
-        };
-        assert_eq!(prefixes, sorted, "buckets must be emitted in sorted order");
-        prefixes.dedup();
-        assert_eq!(prefixes.len(), digest_a.len(), "bucket prefixes are unique");
-    }
-
-    #[tokio::test]
-    async fn manifests_digest_flips_only_the_changed_bucket_on_version_bump() {
-        let (_temp_dir, _config, store) = temp_store();
-        for key in ["alpha", "beta", "gamma", "delta"] {
-            apply_inline(&store, key, 100, b"payload").await;
-        }
-
-        let before = store.manifests_digest(3).expect("digest before");
-
-        // Locate the artifact_id (hence bucket prefix) for "alpha".
-        let manifests = store
-            .manifests_page_scoped(None, None, 256)
-            .expect("list manifests")
-            .manifests;
-        let alpha_id = manifests
-            .iter()
-            .find(|m| m.key == "alpha")
-            .expect("alpha manifest")
-            .artifact_id
-            .clone();
-        let alpha_prefix: String = alpha_id.chars().take(3).collect();
-
-        // A version bump on the same key keeps the id (and bucket) but must flip
-        // the bucket's hash so the peer detects the newer version.
-        apply_inline(&store, "alpha", 200, b"payload-v2").await;
-        let after = store.manifests_digest(3).expect("digest after");
-
-        for bucket_before in &before {
-            let bucket_after = after
-                .iter()
-                .find(|b| b.prefix == bucket_before.prefix)
-                .expect("bucket present after");
-            if bucket_before.prefix == alpha_prefix {
-                assert_eq!(
-                    bucket_before.count, bucket_after.count,
-                    "a version bump must not change the bucket count"
-                );
-                assert_ne!(
-                    bucket_before.hash, bucket_after.hash,
-                    "a version bump must flip the bucket hash"
-                );
-            } else {
-                assert_eq!(
-                    bucket_before, bucket_after,
-                    "unrelated buckets must be untouched"
-                );
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn manifests_page_scoped_restricts_to_prefix() {
-        let (_temp_dir, _config, store) = temp_store();
-        for key in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
-            apply_inline(&store, key, 100, b"payload").await;
-        }
-
-        let all = store
-            .manifests_page_scoped(None, None, 256)
-            .expect("list all")
-            .manifests;
-        let target_prefix: String = all[0].artifact_id.chars().take(2).collect();
-        let expected: Vec<String> = all
-            .iter()
-            .filter(|m| m.artifact_id.starts_with(&target_prefix))
-            .map(|m| m.artifact_id.clone())
-            .collect();
-
-        let scoped = store
-            .manifests_page_scoped(None, Some(&target_prefix), 256)
-            .expect("scoped walk")
-            .manifests;
-        let scoped_ids: Vec<String> = scoped.iter().map(|m| m.artifact_id.clone()).collect();
-
-        assert_eq!(
-            scoped_ids, expected,
-            "scoped walk must return exactly the artifacts in the prefix range"
-        );
-        assert!(
-            scoped
-                .iter()
-                .all(|m| m.artifact_id.starts_with(&target_prefix)),
-            "scoped walk must not leak artifacts outside the prefix"
-        );
-    }
-
-    #[tokio::test]
-    async fn namespace_tombstones_page_returns_written_tombstones() {
+    async fn namespace_tombstones_returns_written_tombstones() {
         let (_temp_dir, _config, store) = temp_store();
 
         store
@@ -9818,15 +9763,13 @@ mod tests {
             .await
             .expect("failed to apply second tombstone");
 
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("failed to load tombstone page");
-        assert_eq!(page.tombstones.len(), 2);
-        assert_eq!(page.tombstones[0].namespace_id, "android");
-        assert_eq!(page.tombstones[0].version_ms, 200);
-        assert_eq!(page.tombstones[1].namespace_id, "ios");
-        assert_eq!(page.tombstones[1].version_ms, 100);
-        assert_eq!(page.next_after, None);
+        let tombstones = store
+            .namespace_tombstones()
+            .expect("failed to load tombstones");
+        assert_eq!(
+            tombstones,
+            vec![("android".to_owned(), 200), ("ios".to_owned(), 100)]
+        );
     }
 
     #[tokio::test]
@@ -10108,8 +10051,8 @@ mod tests {
         assert_eq!(read_manifest_bytes(&store, &served).await, b"hello");
         {
             let queue = store.promotion_queue.lock().expect("queue lock");
-            assert_eq!(queue.order.len(), 1);
-            assert!(queue.pending.contains(&served.artifact_id));
+            assert_eq!(queue.depth(), 1);
+            assert!(queue.pending.contains_key(&served.artifact_id));
         }
 
         // A second read of the same artifact does not enqueue it twice.
@@ -10118,20 +10061,12 @@ mod tests {
             .await
             .expect("failed to fetch artifact for serving")
             .expect("artifact should still exist");
-        assert_eq!(
-            store
-                .promotion_queue
-                .lock()
-                .expect("queue lock")
-                .order
-                .len(),
-            1
-        );
+        assert_eq!(store.promotion_queue.lock().expect("queue lock").depth(), 1);
 
         // Applying the queued promotion rewrites the artifact into the current
         // segment, exactly like the refresh the read path used to run inline.
         store
-            .promote_artifact(&served.artifact_id)
+            .promote_artifact(&served.artifact_id, RefreshTrigger::Serve)
             .await
             .expect("promotion should succeed");
         let promoted = store
@@ -10172,7 +10107,7 @@ mod tests {
             })
             .expect("failed to seed segment state");
         store
-            .promote_artifact(&stale.artifact_id)
+            .promote_artifact(&stale.artifact_id, RefreshTrigger::Serve)
             .await
             .expect("promotion should succeed");
         assert_ne!(
@@ -10278,7 +10213,7 @@ mod tests {
             })
             .expect("failed to seed segment state");
         store
-            .promote_artifact(&stale.artifact_id)
+            .promote_artifact(&stale.artifact_id, RefreshTrigger::Serve)
             .await
             .expect("promotion should succeed");
         store
@@ -10389,6 +10324,323 @@ mod tests {
         .await
         .expect("worker should promote the artifact");
         assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
+    }
+
+    /// Seeds one artifact into an Old segment and one into the live segment,
+    /// returning the aged artifact's id.
+    async fn store_with_one_aged_blob(store: &Store) -> String {
+        let aged = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-aged",
+                "application/octet-stream",
+                b"aged",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let aged_segment = aged
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(aged_segment, 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        aged.artifact_id
+    }
+
+    #[tokio::test]
+    async fn extending_lifetimes_queues_only_the_blobs_sitting_in_old_segments() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        let live = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .expect("failed to persist artifact");
+        assert_eq!(live.segment_id.as_deref(), Some("fresh-segment"));
+
+        store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            "ios",
+            &[
+                "blob-aged".to_owned(),
+                "blob-live".to_owned(),
+                "blob-absent".to_owned(),
+            ],
+            RefreshTrigger::ActionCache,
+        );
+
+        let queue = store.promotion_queue.lock().expect("queue lock");
+        assert_eq!(
+            queue.serve.iter().chain(&queue.vouched).collect::<Vec<_>>(),
+            vec![&aged_id],
+            "only a blob whose segment is aging out needs copying forward"
+        );
+        assert_eq!(
+            queue.pending.get(&aged_id),
+            Some(&RefreshTrigger::ActionCache),
+            "the queued promotion is attributed to the RPC that vouched for it"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_serve_flood_cannot_crowd_out_vouched_refreshes() {
+        let (_temp_dir, _config, store) = temp_store();
+        let serve_ceiling = MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE;
+        for index in 0..serve_ceiling {
+            store.enqueue_promotion(&format!("serve-{index}"), RefreshTrigger::Serve);
+        }
+        let depth = || store.promotion_queue.lock().expect("queue lock").depth();
+        assert_eq!(depth(), serve_ceiling);
+
+        store.enqueue_promotion("serve-overflow", RefreshTrigger::Serve);
+        assert_eq!(
+            depth(),
+            serve_ceiling,
+            "best-effort serve promotion stops at its own ceiling"
+        );
+
+        store.enqueue_promotion("vouched", RefreshTrigger::ActionCache);
+        assert_eq!(
+            depth(),
+            serve_ceiling + 1,
+            "the reserve admits a refresh backing a promise already made to a client"
+        );
+    }
+
+    #[tokio::test]
+    async fn vouched_refreshes_drain_ahead_of_a_serve_backlog() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.enqueue_promotion("shared", RefreshTrigger::Serve);
+        for index in 0..64 {
+            store.enqueue_promotion(&format!("serve-{index}"), RefreshTrigger::Serve);
+        }
+        store.enqueue_promotion("vouched", RefreshTrigger::FindMissing);
+        // Upgrading an entry already queued behind the backlog has to move it
+        // too: admitting it and then making it wait out the backlog leaves the
+        // vouch unbacked for just as long as dropping it would.
+        store.enqueue_promotion("shared", RefreshTrigger::ActionCache);
+
+        let mut queue = store.promotion_queue.lock().expect("queue lock");
+        assert_eq!(
+            queue.pop(),
+            Some(("vouched".to_owned(), RefreshTrigger::FindMissing)),
+            "a vouched refresh does not wait out a serve backlog"
+        );
+        assert_eq!(
+            queue.pop(),
+            Some(("shared".to_owned(), RefreshTrigger::ActionCache)),
+            "an upgraded entry moves to the vouched lane"
+        );
+        assert_eq!(
+            queue.pop().map(|(artifact_id, _)| artifact_id),
+            Some("serve-0".to_owned()),
+            "serve work resumes in order once nothing is vouched"
+        );
+        assert_eq!(
+            queue.depth(),
+            63,
+            "the upgraded entry's stale serve-lane slot is skipped, not promoted twice"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_presence_check_extends_a_blob_lifetime_in_the_same_lookup() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        assert!(store.segment_ring_is_aging());
+        let exists = async |key: &str| {
+            store
+                .artifact_exists_extending_lifetime(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    RefreshTrigger::FindMissing,
+                )
+                .await
+                .expect("existence check should succeed")
+        };
+
+        assert!(exists("blob-aged").await);
+        {
+            let queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(queue.depth(), 1);
+            assert_eq!(
+                queue.pending.get(&aged_id),
+                Some(&RefreshTrigger::FindMissing),
+                "the same lookup that answers presence queues the copy-forward"
+            );
+        }
+
+        assert!(!exists("blob-absent").await);
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .expect("failed to persist artifact");
+        assert!(exists("blob-live").await);
+        assert_eq!(
+            store.promotion_queue.lock().expect("queue lock").depth(),
+            1,
+            "an absent blob and one already in a live segment queue nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn extending_lifetimes_is_a_no_op_while_no_segment_has_aged() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            "ios",
+            &["blob-live".to_owned()],
+            RefreshTrigger::FindMissing,
+        );
+
+        assert!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .pending
+                .is_empty(),
+            "a node holding no Old segments does the whole batch from one state read"
+        );
+    }
+
+    #[tokio::test]
+    async fn vouching_upgrades_a_promotion_already_queued_by_serving() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Reapi, "ios", "blob-aged")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .pending
+                .get(&aged_id),
+            Some(&RefreshTrigger::Serve)
+        );
+
+        store.extend_artifact_lifetimes(
+            ArtifactProducer::Reapi,
+            "ios",
+            &["blob-aged".to_owned()],
+            RefreshTrigger::ActionCache,
+        );
+        {
+            let queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(queue.depth(), 1, "the entry is queued exactly once");
+            assert_eq!(
+                queue.pending.get(&aged_id),
+                Some(&RefreshTrigger::ActionCache),
+                "vouching widens the pressure gate the queued refresh runs under"
+            );
+        }
+
+        // A later serve-path read must not undo that.
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Reapi, "ios", "blob-aged")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .pending
+                .get(&aged_id),
+            Some(&RefreshTrigger::ActionCache),
+            "a serve-path enqueue cannot downgrade a vouched-for blob"
+        );
+    }
+
+    #[tokio::test]
+    async fn constrained_pressure_keeps_vouched_refreshes_but_drops_serve_promotions() {
+        let (_temp_dir, _config, store) =
+            temp_store_at_pressure(crate::memory::MemoryPressure::Constrained);
+        let aged_id = store_with_one_aged_blob(&store).await;
+        let segment_of = |id: &str| {
+            store
+                .manifest(id)
+                .expect("manifest lookup should succeed")
+                .expect("manifest should exist")
+                .segment_id
+        };
+
+        store
+            .promote_artifact(&aged_id, RefreshTrigger::Serve)
+            .await
+            .expect("promotion should succeed");
+        assert_ne!(
+            segment_of(&aged_id).as_deref(),
+            Some("fresh-segment"),
+            "serve-path promotion is a pure optimization and yields under pressure"
+        );
+
+        store
+            .promote_artifact(&aged_id, RefreshTrigger::ActionCache)
+            .await
+            .expect("promotion should succeed");
+        assert_eq!(
+            segment_of(&aged_id).as_deref(),
+            Some("fresh-segment"),
+            "a blob the node vouched for is still copied forward at this tier"
+        );
+    }
+
+    #[tokio::test]
+    async fn critical_pressure_drops_vouched_refreshes_too() {
+        let (_temp_dir, _config, store) =
+            temp_store_at_pressure(crate::memory::MemoryPressure::Critical);
+        let aged_id = store_with_one_aged_blob(&store).await;
+
+        store
+            .promote_artifact(&aged_id, RefreshTrigger::ActionCache)
+            .await
+            .expect("promotion should succeed");
+        assert_ne!(
+            store
+                .manifest(&aged_id)
+                .expect("manifest lookup should succeed")
+                .expect("manifest should exist")
+                .segment_id
+                .as_deref(),
+            Some("fresh-segment"),
+            "at Critical the read path's own write would compound the squeeze"
+        );
     }
 
     #[tokio::test]
@@ -11132,14 +11384,12 @@ mod tests {
                 "a purge removes {key} regardless of its version"
             );
         }
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("tombstone page should load");
-        assert_eq!(page.tombstones.len(), 1, "the purge writes no tombstone");
-        assert_eq!(page.tombstones[0].namespace_id, "ios");
         assert_eq!(
-            page.tombstones[0].version_ms, 100,
-            "the pre-existing tombstone survives the purge"
+            store
+                .namespace_tombstones()
+                .expect("tombstones should load"),
+            vec![("ios".to_owned(), 100)],
+            "the purge writes no tombstone and the pre-existing one survives"
         );
     }
 
@@ -11164,11 +11414,13 @@ mod tests {
                 .applied()
         );
 
-        let page = store
-            .namespace_tombstones_page(None, 8)
-            .expect("tombstone page should load");
-        assert_eq!(page.tombstones.len(), 1, "re-delete overwrites in place");
-        assert_eq!(page.tombstones[0].version_ms, 200);
+        assert_eq!(
+            store
+                .namespace_tombstones()
+                .expect("tombstones should load"),
+            vec![("ios".to_owned(), 200)],
+            "re-delete overwrites in place"
+        );
     }
 
     // ---- Backfill per-entry index ----
@@ -13009,11 +13261,11 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         let store = Arc::new(store);
 
-        // A fresh node bootstrapping an account applies inbound artifacts
-        // concurrently (BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY at a time). Inbound
+        // A fresh node backfilling an account applies inbound artifacts
+        // concurrently (the pass pipelines its fetch and apply stages). Inbound
         // applies share the foreground write's segment-append + durability path
         // (`persist_artifact_from_path_with_version`), so group commit must
-        // coalesce their fsyncs too — otherwise the parallel bootstrap fetch just
+        // coalesce their fsyncs too — otherwise the parallel backfill fetch just
         // re-serializes one fsync per inbound write and gains nothing. Slow every
         // fsync so all appliers reach the durability barrier within one window.
         store.failpoints().set_always(
@@ -13049,7 +13301,7 @@ mod tests {
         assert!(
             fsyncs <= 4,
             "expected concurrent replicated applies to batch segment fsyncs (<=4) but observed \
-             {fsyncs} for {appliers} appliers — inbound bootstrap writes are fsyncing per write \
+             {fsyncs} for {appliers} appliers — inbound backfill writes are fsyncing per write \
              under the global segment write lock"
         );
     }

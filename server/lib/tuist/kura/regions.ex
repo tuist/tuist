@@ -165,7 +165,7 @@ defmodule Tuist.Kura.Regions do
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller
     # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
-    # cache regenerates / re-bootstraps from cross-region peers). The region
+    # cache regenerates / backfills from cross-region peers). The region
     # id, cluster_id, ingress class, and public hostnames are unchanged from the
     # former Hetzner ccx13 backing, so the cutover is invisible to the customer.
     %{

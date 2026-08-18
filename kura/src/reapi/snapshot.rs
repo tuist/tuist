@@ -162,7 +162,7 @@ pub(super) const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
 
 /// Minimum age before the presence gate's dead entries are cascade-deleted
 /// from the store. Client publication orders blobs before the entry, but peer
-/// replication and bootstrap may deliver an entry before its blobs — a young
+/// replication and backfill may deliver an entry before its blobs — a young
 /// entry with missing blobs is more likely mid-sync than stranded.
 pub(super) const SNAPSHOT_CASCADE_GRACE_MS: u64 = 60 * 60 * 1000;
 

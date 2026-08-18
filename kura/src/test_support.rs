@@ -4,7 +4,7 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::{Notify, Semaphore};
+use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use crate::{
@@ -91,9 +91,6 @@ where
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         multipart_max_active_uploads: 128,
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
-        bootstrap_timeout_ms: 30 * 60 * 1000,
-        bootstrap_max_concurrent_peers: 8,
-        backfill_enabled: false,
         backfill_margin_percent: 40,
         backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
         backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
@@ -138,9 +135,6 @@ where
     ));
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
-    let local_data_available_at_join = store
-        .has_artifacts()
-        .expect("failed to inspect local test artifacts");
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
@@ -167,12 +161,10 @@ where
         runtime.clone(),
     )
     .map(Arc::new);
-    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(4));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+    let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
-            .min(memory.bootstrap_staging_budget_bytes()),
+            .min(memory.peer_staging_budget_bytes()),
     );
     let state = Arc::new(AppState {
         config,
@@ -194,16 +186,8 @@ where
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
-        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
-            local_data_available_at_join,
-        ),
-        bootstrap_semaphore,
-        bootstrap_artifact_semaphore,
         tmp_staging_budget,
-        bootstrap_staging_budget,
-        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
-            .map(|_| tokio::sync::Mutex::new(()))
-            .collect(),
+        peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
@@ -214,6 +198,24 @@ where
         _temp_dir: temp_dir,
         state,
     }
+}
+
+/// Drives the backfill lifecycle through one settled membership view with no
+/// peers — the state a node with nothing to catch up from reaches on its first
+/// membership tick, and what readiness gates on. Production reaches it from
+/// the membership loop; tests that assert readiness without exercising a peer
+/// pass need it explicitly.
+pub(crate) fn settle_empty_backfill_cycle(state: &Arc<AppState>) {
+    state.backfill.test_evaluate(
+        &crate::backfill::lifecycle::MembershipTick {
+            discovered: &[],
+            lost: &[],
+            view_settled: true,
+            control_plane_peers: &[],
+            admission: true,
+        },
+        Instant::now(),
+    );
 }
 
 pub(crate) async fn response_text(response: Response) -> String {

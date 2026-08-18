@@ -11,7 +11,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, Semaphore, oneshot, watch};
+use tokio::sync::{Notify, oneshot, watch};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep},
@@ -58,7 +58,6 @@ const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 // it: two sysfs reads five times a second would add I/O to the loop the
 // watchdog supervises for a value scraped every 15-60s.
 const MEMORY_PROTECTION_SAMPLE_INTERVAL: Duration = Duration::from_secs(60);
-const BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS: usize = 4;
 #[cfg(target_os = "linux")]
 const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
@@ -146,7 +145,6 @@ async fn run_with_config(
         config.snapshot_cache_max_bytes,
     ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let local_data_available_at_join = store.has_artifacts()?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -170,12 +168,10 @@ async fn run_with_config(
     .map(Arc::new);
     let notify = Notify::new();
 
-    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_artifact_semaphore = Arc::new(Semaphore::new(BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+    let peer_staging_budget = crate::utils::TmpBudget::new(
         config
             .tmp_dir_max_bytes
-            .min(memory.bootstrap_staging_budget_bytes()),
+            .min(memory.peer_staging_budget_bytes()),
     );
     let state = Arc::new(AppState {
         config,
@@ -197,16 +193,8 @@ async fn run_with_config(
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
-        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
-            local_data_available_at_join,
-        ),
-        bootstrap_semaphore,
-        bootstrap_artifact_semaphore,
         tmp_staging_budget,
-        bootstrap_staging_budget,
-        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
-            .map(|_| tokio::sync::Mutex::new(()))
-            .collect(),
+        peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
@@ -779,7 +767,7 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                     }
                 }
                 state.metrics.update_background_work_paused(
-                    "bootstrap",
+                    "backfill",
                     !state.memory.allow_background_admission(),
                 );
                 state.metrics.update_background_work_paused(

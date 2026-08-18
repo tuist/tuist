@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
   use Tuist.MCP.Tool,
     name: "get_cache_run",
     title: "Get Cache Run",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

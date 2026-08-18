@@ -138,12 +138,6 @@ config:
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
   backfill:
-    # Boot-time selection of the peer catch-up walker: when true the node
-    # runs the recency-first backfill lifecycle instead of the legacy
-    # bootstrap walker. Read once at process start, so flipping it rolls the
-    # pods; watermarks and index rows are durable and sit inert while the
-    # flag is off.
-    enabled: false
     # Share of the age-ordered segment ring (counted from the newest) whose
     # boundary segment's seal-time age stat bounds how far back a backfill
     # pass reaches. The margin's share of the ring's time span is the
