@@ -424,6 +424,40 @@ final class SettingsMapperTests: XCTestCase {
 
 struct SettingsMapperConditionalTests {
     @Test
+    func mapSettingsDoesNotRepeatInjectedHeaderSearchPathsInPlatformCondition() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["include"]),
+            .init(
+                tool: .c,
+                name: .headerSearchPath,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["macos"], config: nil),
+                value: ["macos-include"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: ["$(SRCROOT)/Sources/Target/PublicHeaders"],
+            mainRelativePath: try RelativePath(validating: "Sources/Target"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(
+            resolvedSettings["HEADER_SEARCH_PATHS"] ==
+                .array([
+                    "$(inherited)",
+                    "$(SRCROOT)/Sources/Target/PublicHeaders",
+                    "$(SRCROOT)/Sources/Target/include",
+                ])
+        )
+        #expect(
+            resolvedSettings["HEADER_SEARCH_PATHS[sdk=macosx*]"] ==
+                .array(["$(inherited)", "$(SRCROOT)/Sources/Target/macos-include"])
+        )
+    }
+
+    @Test
     func mapSettingsDoesNotRepeatUnconditionalSwiftFlagsInPlatformCondition() throws {
         let availabilityMacro = "AvailabilityMacro=Repro_v1:iOS 13.0, macOS 13.0"
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [

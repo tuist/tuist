@@ -46,7 +46,7 @@ struct SettingsMapper {
 
         return try map(
             settings: platformSettings,
-            headerSearchPaths: headerSearchPaths
+            headerSearchPaths: platform == nil ? headerSearchPaths : []
         )
     }
 
