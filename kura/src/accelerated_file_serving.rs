@@ -1147,6 +1147,10 @@ fn transfer_sendfile(
             }
             return Err(error);
         }
+        // Unlike the splice counterpart below, a zero here is the input file
+        // hitting EOF: the destination is a blocking socket, so it would move a
+        // byte, park, or fail rather than accept nothing. Breaking to
+        // `ensure_complete_transfer` reports the short file, which is right.
         if sent == 0 {
             break;
         }
@@ -1224,9 +1228,16 @@ fn transfer_splice(
                 // which is the peer going away rather than the input running
                 // short. Saying so keeps it out of `ensure_complete_transfer`,
                 // whose UnexpectedEof is reserved for a file that disagrees
-                // with the record describing it.
+                // with the record describing it. The pipe provably holds
+                // `pending` bytes and the socket is blocking, so the kernel
+                // should move a byte, park, or fail: this is not expected to be
+                // reachable, hence the message, which separates it from an
+                // ordinary peer reset once both are classified as aborts.
                 if spliced_out == 0 {
-                    return Err(std::io::Error::from(std::io::ErrorKind::ConnectionAborted));
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionAborted,
+                        "splice to socket returned 0",
+                    ));
                 }
                 pending -= spliced_out as usize;
                 sent_total += spliced_out as u64;
