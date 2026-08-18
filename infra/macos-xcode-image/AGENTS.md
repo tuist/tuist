@@ -99,13 +99,13 @@ login ghcr.io` in the workflow). The reason is the writer, not the
 reader: the mirror's only writer is `mise run xcode-mirror:upload`
 running on a maintainer's Mac over a home link. Measured from one with
 the same 512 MB blob, that push is 136s to GHCR against 481s to the
-tailnet-only registry — a ten-minute upload one way, closer to forty
+tailnet-only registry: a ten-minute upload one way, closer to forty
 the other. Worse, a fresh Tailscale session starts on a DERP relay and
 only upgrades to a direct path once NAT traversal succeeds; over the
 relay these uploads fail outright rather than merely crawl, which is
 exactly what an occasional, once-per-Xcode-release task gets. GHCR's
 rate limits were never the problem for a single-blob artifact pushed a
-handful of times a year — they were the problem for the ~50 GB images,
+handful of times a year. They were the problem for the ~50 GB images,
 and those are pushed from a builder over a datacenter link and do go
 to our registry. Revisit only if the upload path stops being a
 maintainer laptop.

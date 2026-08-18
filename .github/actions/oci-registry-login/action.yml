@@ -96,7 +96,7 @@ runs:
         # only resolver every client here shares. `dig` and `host` read
         # /etc/resolv.conf and ignore the scoped resolvers under
         # /etc/resolver, so on macOS they answer NXDOMAIN for exactly the
-        # tailnet names crane resolves fine — a guard built on either
+        # tailnet names crane resolves fine. A guard built on either
         # fails the job once the resolver is in place. `host` is also
         # wrong in the other direction: it exits 0 for a name that
         # returns no records, which is how the withdrawn `oci.tuist.dev`
