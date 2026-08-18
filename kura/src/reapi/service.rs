@@ -1133,6 +1133,7 @@ impl ActionCache for ReapiService {
             &self.state,
             namespace_id,
             &action_result,
+            self.state.store.segment_ring_is_aging(),
             materialization_budget
                 .get_mut()
                 .expect("action-cache materialization budget lock poisoned"),
@@ -1425,7 +1426,17 @@ impl ContentAddressableStorage for ReapiService {
         };
         self.authorize_request(&request, auth.clone()).await?;
         let mut missing = Vec::new();
-        let mut present = Vec::new();
+        // "Servers SHOULD increase the lifetimes of the referenced blobs if
+        // necessary and applicable": a client told a blob is present skips
+        // uploading it and relies on it staying present, so the answer has to
+        // keep it alive the same way a served action result does. The request's
+        // digest count is client-controlled up to the 64 MiB decode ceiling, so
+        // extension happens inside the presence lookup rather than over a
+        // collected key set: no per-digest allocation is retained, and a
+        // present blob costs one manifest lookup rather than two. When no
+        // segment has aged there is nothing to promote, so the plain existence
+        // check keeps its existence-cache short-circuit.
+        let aging = self.state.store.segment_ring_is_aging();
         for digest in &request.get_ref().blob_digests {
             // The empty blob is present by REAPI convention even when it was
             // never uploaded; reporting it missing would push clients to upload
@@ -1434,30 +1445,27 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             let key = blob_key(&digest_key(digest)?);
-            let exists = self
-                .state
-                .store
-                .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
-                .await
-                .map_err(|error| {
-                    Status::internal(format!("failed to inspect CAS blob: {error}"))
-                })?;
-            if exists {
-                present.push(key);
+            let exists = if aging {
+                self.state
+                    .store
+                    .artifact_exists_extending_lifetime(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &key,
+                        RefreshTrigger::FindMissing,
+                    )
+                    .await
             } else {
+                self.state
+                    .store
+                    .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
+                    .await
+            }
+            .map_err(|error| Status::internal(format!("failed to inspect CAS blob: {error}")))?;
+            if !exists {
                 missing.push(digest.clone());
             }
         }
-        // "Servers SHOULD increase the lifetimes of the referenced blobs if
-        // necessary and applicable": a client that is told a blob is present
-        // skips uploading it and relies on it staying present, so the answer
-        // has to keep it alive the same way a served action result does.
-        self.state.store.extend_artifact_lifetimes(
-            ArtifactProducer::Reapi,
-            namespace_id,
-            &present,
-            RefreshTrigger::FindMissing,
-        );
 
         let mut response = Response::new(reapi::FindMissingBlobsResponse {
             missing_blob_digests: missing,
@@ -1999,8 +2007,10 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
-/// Whether every blob this action result references is still present, and the
-/// keys of the ones confirmed present so their lifetimes can be extended.
+/// Whether every blob this action result references is still present, and, when
+/// `collecting`, the keys of the ones confirmed present so their lifetimes can
+/// be extended. Callers pass [`Store::segment_ring_is_aging`]: with nothing aged
+/// into the Old generation nothing is promotable, so the keys are not retained.
 ///
 /// The original per-key gate (PR #11793) checked `output_files` only; this
 /// covers the rest of what a client fetches when it replays a hit: `stdout` and
@@ -2024,6 +2034,7 @@ async fn first_evicted_output(
     state: &SharedState,
     namespace_id: &str,
     action_result: &reapi::ActionResult,
+    collecting: bool,
     materialization_budget: &mut MaterializationBudget<'_>,
 ) -> OutputPresence {
     let mut present = Vec::new();
@@ -2035,7 +2046,7 @@ async fn first_evicted_output(
         .chain(action_result.stdout_digest.as_ref())
         .chain(action_result.stderr_digest.as_ref())
     {
-        if blob_evicted(state, namespace_id, digest, &mut present) {
+        if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
             return OutputPresence::evicted(&digest.hash);
         }
     }
@@ -2044,7 +2055,7 @@ async fn first_evicted_output(
         let Some(tree_digest) = directory.tree_digest.as_ref() else {
             continue;
         };
-        if blob_evicted(state, namespace_id, tree_digest, &mut present) {
+        if blob_evicted(state, namespace_id, tree_digest, collecting, &mut present) {
             return OutputPresence::evicted(&tree_digest.hash);
         }
         // The tree blob survives; a client next fetches every file it lists, so
@@ -2072,7 +2083,7 @@ async fn first_evicted_output(
             .flat_map(|directory| &directory.files)
             .filter_map(|file| file.digest.as_ref())
         {
-            if blob_evicted(state, namespace_id, digest, &mut present) {
+            if blob_evicted(state, namespace_id, digest, collecting, &mut present) {
                 return OutputPresence::evicted(&digest.hash);
             }
         }
@@ -2105,13 +2116,15 @@ impl OutputPresence {
 }
 
 /// Whether one referenced blob has been evicted, recording its key when it is
-/// still present. A digest with no stored artifact of its own (the canonical
-/// empty blob, or one whose key cannot be derived) is neither evicted nor worth
-/// refreshing, so it is skipped on both counts.
+/// still present and `collecting` says a promotable segment exists. A digest
+/// with no stored artifact of its own (the canonical empty blob, or one whose
+/// key cannot be derived) is neither evicted nor worth refreshing, so it is
+/// skipped on both counts.
 fn blob_evicted(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
+    collecting: bool,
     present: &mut Vec<String>,
 ) -> bool {
     if is_empty_blob(digest) {
@@ -2126,7 +2139,9 @@ fn blob_evicted(
         .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &key)
         .unwrap_or(true);
     if exists {
-        present.push(key);
+        if collecting {
+            present.push(key);
+        }
         return false;
     }
     true
@@ -3637,7 +3652,8 @@ mod tests {
         };
 
         let mut budget = MaterializationBudget::new(&context.state);
-        let presence = first_evicted_output(&context.state, "ios", &serveable, &mut budget).await;
+        let presence =
+            first_evicted_output(&context.state, "ios", &serveable, true, &mut budget).await;
 
         assert!(
             presence.evicted.is_none(),
@@ -3671,7 +3687,8 @@ mod tests {
             stderr_digest: Some(digest([0x99u8; 32], 7)),
             ..Default::default()
         };
-        let presence = first_evicted_output(&context.state, "ios", &doomed, &mut budget).await;
+        let presence =
+            first_evicted_output(&context.state, "ios", &doomed, true, &mut budget).await;
         assert_eq!(
             presence.evicted.as_deref(),
             Some(hex::encode([0x99u8; 32]).as_str())

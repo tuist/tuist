@@ -200,6 +200,7 @@ pub struct Metrics {
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
+    promotion_drops: Family<RefreshTriggerLabels, Counter>,
 }
 
 #[derive(Default)]
@@ -423,6 +424,7 @@ impl Metrics {
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
+        let promotion_drops = Family::<RefreshTriggerLabels, Counter>::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -1237,6 +1239,11 @@ impl Metrics {
             promotion_failures.clone(),
         );
         registry.register(
+            "kura_promotion_drops_total",
+            "Promotions the queue had no room for, by the trigger that queued them (a nonzero find_missing/action_cache rate means read-triggered lifetime extension is not keeping up and vouched blobs may be evicted before the client's follow-up read)",
+            promotion_drops.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -1415,6 +1422,7 @@ impl Metrics {
             mmap_partial_page_exemptions,
             promotion_queue_depth,
             promotion_failures,
+            promotion_drops,
         };
 
         metrics
@@ -1604,6 +1612,18 @@ impl Metrics {
                 trigger: trigger.to_owned(),
             })
             .observe(duration.as_secs_f64());
+    }
+
+    /// A promotion the queue had no room for. Split by trigger because the two
+    /// classes mean different things: a dropped `serve` entry costs a later
+    /// read some latency, while a dropped vouched entry means the node made a
+    /// promise to a client it then did nothing to keep.
+    pub fn record_promotion_drop(&self, trigger: &str) {
+        self.promotion_drops
+            .get_or_create(&RefreshTriggerLabels {
+                trigger: trigger.to_owned(),
+            })
+            .inc();
     }
 
     /// A refresh the pressure gate declined. Counted on the same family as
@@ -2570,6 +2590,11 @@ struct SegmentRefreshLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct SegmentRefreshRouteLabels {
     producer: String,
+    trigger: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct RefreshTriggerLabels {
     trigger: String,
 }
 

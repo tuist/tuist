@@ -255,6 +255,15 @@ impl RefreshTrigger {
 /// enqueue (tens of thousands of artifacts).
 const MAX_PENDING_PROMOTIONS: usize = 262_144;
 
+/// Slice of [`MAX_PENDING_PROMOTIONS`] that only a vouched-for refresh may
+/// occupy. Serve-path promotion is best-effort keep-alive: losing one costs a
+/// later read some latency. A vouched refresh backs a promise already made to a
+/// client, and losing it can hand that client a missing object it hard-fails
+/// the build on, so a flood of serve-path reads must not be able to fill the
+/// queue ahead of one. Reserving a slice rather than raising the ceiling keeps
+/// the queue's total memory bound unchanged.
+const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
+
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
@@ -1838,9 +1847,17 @@ impl Store {
         Ok(Some(manifest))
     }
 
-    /// Queues an artifact served from an Old segment for background promotion
-    /// (see [`Store::run_promotion_worker`]). Deduplicated and bounded;
-    /// dropping an entry is safe because promotion is a best-effort keep-alive.
+    /// Queues an artifact from an Old segment for background promotion (see
+    /// [`Store::run_promotion_worker`]). Deduplicated and bounded, with
+    /// [`VOUCHED_PROMOTION_RESERVE`] of the bound admitting vouched-for
+    /// refreshes only.
+    ///
+    /// A dropped entry is recorded on `kura_promotion_drops_total`. Dropping a
+    /// serve-path entry is safe, since that read already succeeded and the
+    /// promotion is a keep-alive for later ones. Dropping a vouched entry means
+    /// the node answered an RPC that promises the blob stays fetchable and then
+    /// did nothing to keep it, so it is the signal that read-triggered
+    /// extension is not keeping up.
     fn enqueue_promotion(&self, artifact_id: &str, trigger: RefreshTrigger) {
         {
             let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
@@ -1851,13 +1868,63 @@ impl Store {
                 *pending = (*pending).max(trigger);
                 return;
             }
-            if queue.pending.len() >= MAX_PENDING_PROMOTIONS {
+            let ceiling = if trigger.extends_vouched_lifetime() {
+                MAX_PENDING_PROMOTIONS
+            } else {
+                MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE
+            };
+            if queue.pending.len() >= ceiling {
+                drop(queue);
+                self.io.metrics().record_promotion_drop(trigger.as_str());
                 return;
             }
             queue.pending.insert(artifact_id.to_owned(), trigger);
             queue.order.push_back(artifact_id.to_owned());
         }
         self.promotion_notify.notify_one();
+    }
+
+    /// Whether any segment has aged into the Old generation, which is the only
+    /// state in which lifetime extension has work to do. Read-path callers
+    /// hoist this so a node whose data all sits in live segments pays one
+    /// state-snapshot read for a whole request instead of a manifest lookup per
+    /// blob.
+    pub fn segment_ring_is_aging(&self) -> bool {
+        !self.segment_state_snapshot().state.old.is_empty()
+    }
+
+    /// Presence check that extends the blob's lifetime from the *same* manifest
+    /// lookup, for read paths whose request size the client controls.
+    ///
+    /// [`Store::artifact_exists`] followed by
+    /// [`Store::extend_artifact_lifetimes`] would resolve every key twice, and
+    /// the second pass lands on RocksDB whenever manifest-cache admission is
+    /// closed, which is exactly the `Constrained` tier read-triggered refresh
+    /// still runs at. Callers gate this on [`Store::segment_ring_is_aging`] and
+    /// otherwise use the plain existence check, whose existence-cache
+    /// short-circuit this necessarily gives up: that cache answers presence but
+    /// carries no segment, so it cannot say whether a blob needs promoting.
+    pub async fn artifact_exists_extending_lifetime(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        trigger: RefreshTrigger,
+    ) -> Result<bool, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        let Some(manifest) = self.manifest(&artifact_id)? else {
+            return Ok(false);
+        };
+        if !self.storage_exists(&manifest).await? {
+            return Ok(false);
+        }
+        self.note_artifact_exists(&artifact_id);
+        if let Some(segment_id) = manifest.segment_id.as_deref()
+            && self.segment_generation(segment_id)? == Some(SegmentGeneration::Old)
+        {
+            self.enqueue_promotion(&artifact_id, trigger);
+        }
+        Ok(true)
     }
 
     /// Extends the lifetimes of blobs a REAPI read path has just vouched for.
@@ -1888,6 +1955,7 @@ impl Store {
         if segment_state.state.old.is_empty() {
             return;
         }
+
         for key in keys {
             let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
             let Ok(Some(manifest)) = self.manifest(&artifact_id) else {
@@ -10577,6 +10645,90 @@ mod tests {
             queue.pending.get(&aged_id),
             Some(&RefreshTrigger::ActionCache),
             "the queued promotion is attributed to the RPC that vouched for it"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_serve_flood_cannot_crowd_out_vouched_refreshes() {
+        let (_temp_dir, _config, store) = temp_store();
+        let serve_ceiling = MAX_PENDING_PROMOTIONS - VOUCHED_PROMOTION_RESERVE;
+        for index in 0..serve_ceiling {
+            store.enqueue_promotion(&format!("serve-{index}"), RefreshTrigger::Serve);
+        }
+        let depth = || {
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .order
+                .len()
+        };
+        assert_eq!(depth(), serve_ceiling);
+
+        store.enqueue_promotion("serve-overflow", RefreshTrigger::Serve);
+        assert_eq!(
+            depth(),
+            serve_ceiling,
+            "best-effort serve promotion stops at its own ceiling"
+        );
+
+        store.enqueue_promotion("vouched", RefreshTrigger::ActionCache);
+        assert_eq!(
+            depth(),
+            serve_ceiling + 1,
+            "the reserve admits a refresh backing a promise already made to a client"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_presence_check_extends_a_blob_lifetime_in_the_same_lookup() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        assert!(store.segment_ring_is_aging());
+        let exists = async |key: &str| {
+            store
+                .artifact_exists_extending_lifetime(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    RefreshTrigger::FindMissing,
+                )
+                .await
+                .expect("existence check should succeed")
+        };
+
+        assert!(exists("blob-aged").await);
+        {
+            let queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(queue.order.len(), 1);
+            assert_eq!(
+                queue.pending.get(&aged_id),
+                Some(&RefreshTrigger::FindMissing),
+                "the same lookup that answers presence queues the copy-forward"
+            );
+        }
+
+        assert!(!exists("blob-absent").await);
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .expect("failed to persist artifact");
+        assert!(exists("blob-live").await);
+        assert_eq!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .order
+                .len(),
+            1,
+            "an absent blob and one already in a live segment queue nothing"
         );
     }
 
