@@ -2009,7 +2009,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -2052,7 +2052,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Mute on April 10
       RunsFixtures.test_case_event_fixture(
@@ -2116,7 +2116,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # First mute on April 5
       RunsFixtures.test_case_event_fixture(
@@ -2188,7 +2188,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-03-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Mute BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
@@ -2245,9 +2245,9 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_3 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_3)
       ])
 
       # test 1 muted before the period (March 15)
@@ -2315,8 +2315,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2)
       ])
 
       # Mute test 1 on April 10
@@ -2391,7 +2391,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # First mute event
       RunsFixtures.test_case_event_fixture(
@@ -2447,8 +2447,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(test_case_1),
+        TuistTestSupport.Utilities.insertable_attrs(test_case_2)
       ])
 
       # Mute test 1 on April 10
@@ -2518,7 +2518,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Skip on April 10
       RunsFixtures.test_case_event_fixture(
@@ -2769,7 +2769,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -2823,8 +2823,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        ci_tc |> Map.from_struct() |> Map.delete(:__meta__),
-        local_tc |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(ci_tc),
+        TuistTestSupport.Utilities.insertable_attrs(local_tc)
       ])
 
       # Each one marked flaky mid-period

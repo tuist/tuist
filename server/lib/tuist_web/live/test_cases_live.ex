@@ -391,7 +391,12 @@ defmodule TuistWeb.TestCasesLive do
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
-  @allowed_sort_fields ~w(name last_duration avg_duration last_ran_at)
+  # `duration` is the alias field `Tests.list_test_cases/3` computes from the
+  # per-case duration aggregates. `avg_duration` is still accepted so links and
+  # bookmarks pointing at the old denormalized column keep sorting the table by
+  # its duration rather than silently falling back to "Last ran at".
+  @allowed_sort_fields ~w(name last_duration duration last_ran_at)
+  @legacy_sort_fields %{"avg_duration" => "duration"}
   @default_sort_field "last_ran_at"
 
   defp assign_test_cases(%{assigns: %{selected_project: project}} = socket, params) do
@@ -402,6 +407,7 @@ defmodule TuistWeb.TestCasesLive do
     sort_by = validate_sort_by(params["sort_by"])
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
+    duration_statistic = validate_duration_statistic(params["table-duration-type"])
 
     # The table intentionally ignores the analytics date picker — see
     # `Tests.list_test_cases/3` docs. The CI/Local environment dropdown still
@@ -418,7 +424,7 @@ defmodule TuistWeb.TestCasesLive do
     # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
     # deterministic when the primary sort column has ties.
     order_by = [String.to_existing_atom(sort_by), :id]
-    order_directions = [String.to_existing_atom(sort_order), :asc]
+    order_directions = [order_direction(sort_by, sort_order), :asc]
 
     options = %{
       filters: flop_filters,
@@ -428,7 +434,7 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    list_opts = [is_ci: is_ci]
+    list_opts = [is_ci: is_ci, duration_statistic: duration_statistic]
 
     socket
     |> assign(:active_filters, filters)
@@ -436,6 +442,7 @@ defmodule TuistWeb.TestCasesLive do
     |> assign(:test_cases_sort_by, sort_by)
     |> assign(:test_cases_sort_order, sort_order)
     |> assign(:test_cases_filter, search)
+    |> assign(:test_cases_duration_statistic, duration_statistic)
     |> assign_async(
       :test_cases_page,
       fn ->
@@ -452,7 +459,33 @@ defmodule TuistWeb.TestCasesLive do
 
   defp validate_sort_by(nil), do: @default_sort_field
   defp validate_sort_by(field) when field in @allowed_sort_fields, do: field
+
+  defp validate_sort_by(field) when is_map_key(@legacy_sort_fields, field), do: Map.fetch!(@legacy_sort_fields, field)
+
   defp validate_sort_by(_invalid), do: @default_sort_field
+
+  defp validate_duration_statistic(statistic) when is_binary(statistic) do
+    Enum.find(Tests.duration_statistics(), Tests.default_duration_statistic(), &(to_string(&1) == statistic))
+  end
+
+  defp validate_duration_statistic(_statistic), do: Tests.default_duration_statistic()
+
+  # Test cases without enough runs to rank carry a null duration. Sorting them
+  # last in both directions keeps them out of "slowest" and out of "fastest":
+  # the listing does not know how long they take, which is not the same as
+  # knowing they are quick.
+  defp order_direction("duration", "asc"), do: :asc_nulls_last
+  defp order_direction("duration", _desc), do: :desc_nulls_last
+  defp order_direction(_field, "asc"), do: :asc
+  defp order_direction(_field, _desc), do: :desc
+
+  @doc """
+  Column header and sort-menu label for the listing's duration column.
+  """
+  def duration_statistic_label(:avg), do: dgettext("dashboard_tests", "Avg. duration")
+  def duration_statistic_label(:p50), do: dgettext("dashboard_tests", "Median duration")
+  def duration_statistic_label(:p90), do: dgettext("dashboard_tests", "p90 duration")
+  def duration_statistic_label(:p99), do: dgettext("dashboard_tests", "p99 duration")
 
   defp build_flop_filters(filters, search) do
     flop_filters =
@@ -497,5 +530,9 @@ defmodule TuistWeb.TestCasesLive do
 
   defp sort_by_patch(uri, sort_by) do
     "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
+  end
+
+  defp duration_statistic_patch(uri, statistic) do
+    "?#{uri.query |> Query.put("table-duration-type", to_string(statistic)) |> Query.drop("page")}"
   end
 end

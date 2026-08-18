@@ -493,7 +493,7 @@
           label={
             case @test_cases_sort_by do
               "name" -> dgettext("dashboard_tests", "Test Case")
-              "avg_duration" -> dgettext("dashboard_tests", "Avg. duration")
+              "duration" -> dgettext("dashboard_tests", "Duration")
               _ -> dgettext("dashboard_tests", "Last ran at")
             end
           }
@@ -516,10 +516,29 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
           <.dropdown_item
-            value="avg_duration"
-            label={dgettext("dashboard_tests", "Avg. duration")}
-            patch={sort_by_patch(@uri, "avg_duration")}
-            data-selected={@test_cases_sort_by == "avg_duration"}
+            value="duration"
+            label={dgettext("dashboard_tests", "Duration")}
+            patch={sort_by_patch(@uri, "duration")}
+            data-selected={@test_cases_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <%!-- Scoped to the table, separate from the duration widget's percentile
+        dropdown above: that one picks the series drawn in the project-wide
+        chart, this one picks the statistic the per-test-case column shows and
+        ranks by. --%>
+        <.dropdown
+          id="test-cases-duration-statistic"
+          label={duration_statistic_label(@test_cases_duration_statistic)}
+          secondary_text={dgettext("dashboard_tests", "Duration:")}
+        >
+          <.dropdown_item
+            :for={statistic <- Tests.duration_statistics()}
+            value={to_string(statistic)}
+            label={duration_statistic_label(statistic)}
+            patch={duration_statistic_patch(@uri, statistic)}
+            data-selected={@test_cases_duration_statistic == statistic}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
@@ -609,21 +628,43 @@
           </:col>
           <:col
             :let={test_case}
-            label={dgettext("dashboard_tests", "Avg. duration")}
+            label={duration_statistic_label(@test_cases_duration_statistic)}
             patch={
-              @test_cases_sort_by == "avg_duration" &&
-                column_sort_patch(assigns, "avg_duration")
+              @test_cases_sort_by == "duration" &&
+                column_sort_patch(assigns, "duration")
             }
-            sort_order={@test_cases_sort_by == "avg_duration" && @test_cases_sort_order}
+            sort_order={@test_cases_sort_by == "duration" && @test_cases_sort_order}
           >
             <.text_cell
+              :if={not is_nil(test_case.duration_ms)}
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
+                  test_case.duration_ms
                 )
               }
               icon="history"
             />
+            <.tooltip
+              :if={is_nil(test_case.duration_ms)}
+              id={"test-case-duration-#{test_case.id}"}
+              size="large"
+              title={dgettext("dashboard_tests", "Not enough runs")}
+              description={
+                dgettext(
+                  "dashboard_tests",
+                  "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
+                  count: Tests.min_duration_samples(),
+                  days: Tests.active_window_days(),
+                  runs: test_case.duration_sample_count || 0
+                )
+              }
+            >
+              <:trigger :let={attrs}>
+                <span {attrs}>
+                  <.text_cell label={dgettext("dashboard_tests", "N/A")} icon="history" />
+                </span>
+              </:trigger>
+            </.tooltip>
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
             <%= case test_case.last_status do %>

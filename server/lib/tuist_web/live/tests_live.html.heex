@@ -1048,7 +1048,7 @@
             label={dgettext("dashboard_tests", "View more")}
             size="small"
             navigate={
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=duration&sort_order=desc"
             }
           />
         </div>
@@ -1070,7 +1070,7 @@
               <span data-part="duration">
                 <.clock_hour_4 />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
+                  test_case.duration_ms
                 )}
               </span>
             </div>

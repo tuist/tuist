@@ -9,6 +9,12 @@ defmodule Tuist.Tests.TestCase do
 
   import Ecto.Changeset
 
+  # `duration` is an alias field, not a column: `Tuist.Tests.list_test_cases/3`
+  # computes it with `selected_as/2` from the per-case duration aggregates so
+  # the listing can sort by the statistic the caller picked. `avg_duration`
+  # stays sortable for the public API and MCP tool, which expose the
+  # denormalized column by name.
+  #
   # `state` and `is_flaky` are deliberately absent from `filterable`. They live
   # in `test_case_states` (the columns of the same name here are legacy and no
   # longer read), so `Tuist.Tests.list_test_cases/3` pulls those filters out and
@@ -26,8 +32,9 @@ defmodule Tuist.Tests.TestCase do
       :last_ran_at_ci,
       :last_ran_at_local
     ],
-    sortable: [:name, :last_duration, :avg_duration, :last_ran_at, :id],
-    default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]}
+    sortable: [:name, :last_duration, :avg_duration, :duration, :last_ran_at, :id],
+    default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]},
+    adapter_opts: [alias_fields: [:duration]]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -47,6 +54,16 @@ defmodule Tuist.Tests.TestCase do
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :recent_durations, Ch, type: "Array(Int32)"
     field :avg_duration, Ch, type: "Int64"
+
+    # Populated by `Tuist.Tests.list_test_cases/3` from
+    # `test_case_duration_daily_stats_per_case`. `duration_ms` is the selected
+    # statistic over the listing's active window in the selected environment,
+    # and is `nil` when `duration_sample_count` is below the minimum the
+    # listing requires for the statistic to mean anything. It is the value
+    # behind the `:duration` alias field, and carries a distinct name so it
+    # doesn't shadow it in the derived `Flop.Schema` field list.
+    field :duration_ms, :float, virtual: true
+    field :duration_sample_count, :integer, virtual: true
   end
 
   def create_changeset(test_case, attrs) do
