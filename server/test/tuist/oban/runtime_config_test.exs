@@ -11,11 +11,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Registry.Swift.SyncWorker
-  alias Tuist.Runners.Workers.ReconcileWorkflowJobsWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
-  alias Tuist.Runners.Workers.JobStateDriftWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
+  alias Tuist.Runners.Workers.ReconcileWorkflowJobsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
@@ -131,7 +130,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute SyncStripeMetersWorker in workers
         refute KuraReconciler in workers
         refute StaleQueuedJobsWorker in workers
-        refute JobStateDriftWorker in workers
         refute FlushJobTransitionEventsWorker in workers
         refute ReconcileWorkflowJobsWorker in workers
       end
@@ -259,7 +257,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert SyncStripeMetersWorker in workers
         assert KuraReconciler in workers
         assert StaleQueuedJobsWorker in workers
-        assert JobStateDriftWorker in workers
         assert FlushJobTransitionEventsWorker in workers
         assert ReconcileWorkflowJobsWorker in workers
       end

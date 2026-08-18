@@ -51,7 +51,6 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.JobStateDriftWorker},
     {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
     {"* * * * *", Tuist.Runners.Workers.ReconcileWorkflowJobsWorker}
   ]

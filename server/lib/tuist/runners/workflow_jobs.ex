@@ -522,24 +522,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   def terminal_status(_conclusion), do: "completed"
 
   @doc """
-  Rows whose `updated_at` falls in `(updated_after, updated_before)`,
-  newest first, capped at `limit`. Feeds the drift comparator: the
-  upper bound keeps rows mid-transition (Postgres committed, the
-  paired ClickHouse INSERT still in flight) out of the diff.
-  """
-  def list_recently_updated(%DateTime{} = updated_after, %DateTime{} = updated_before, limit)
-      when is_integer(limit) and limit > 0 do
-    Repo.all(
-      from(j in WorkflowJob,
-        where: j.updated_at > ^updated_after and j.updated_at < ^updated_before,
-        order_by: [desc: j.updated_at],
-        limit: ^limit,
-        select: %{workflow_job_id: j.workflow_job_id, status: j.status, enqueued_at: j.enqueued_at}
-      )
-    )
-  end
-
-  @doc """
   Decodes a transition event's JSONB payload back into the ClickHouse
   `runner_jobs` insert row: string keys to atoms, ISO-8601 datetimes
   to `DateTime` promoted to microsecond precision for
