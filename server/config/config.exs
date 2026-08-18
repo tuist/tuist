@@ -137,6 +137,14 @@ config :logger, :console,
     :disabled_clock_started_user_ids,
     :unassessable_user_ids,
     :more_pending,
+    # Object storage deletions destroy customer data and mostly run from
+    # background workers, so these fields are the only attribution they get
+    :storage_operation,
+    :storage_account,
+    :storage_bucket,
+    :storage_prefix,
+    :storage_object_count,
+    :storage_outcome,
     :session_payload_bytes,
     :warning_threshold_bytes,
     # Tuist.Runners structured fields

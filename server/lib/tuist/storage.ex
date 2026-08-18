@@ -10,6 +10,8 @@ defmodule Tuist.Storage do
   alias Tuist.Performance
   alias Tuist.Storage.AzureBlob
 
+  require Logger
+
   @delete_objects_max_concurrency 4
   @file_upload_chunk_max_attempts 3
   @file_upload_chunk_attempt_timeout 30_000
@@ -412,6 +414,8 @@ defmodule Tuist.Storage do
       %{project_slug: prefix}
     )
 
+    log_object_deletion("delete_all_objects", actor, result, storage_prefix: prefix)
+
     result
   end
 
@@ -424,14 +428,19 @@ defmodule Tuist.Storage do
   def delete_objects([], _actor, _opts), do: :ok
 
   def delete_objects(object_keys, actor, opts) do
-    case storage_provider(actor) do
-      :azure_blob ->
-        AzureBlob.delete_objects(object_keys, opts)
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.delete_objects(object_keys, opts)
 
-      :s3 ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
-        delete_objects_from_bucket(object_keys, bucket_name, config, opts)
-    end
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+          delete_objects_from_bucket(object_keys, bucket_name, config, opts)
+      end
+
+    log_object_deletion("delete_objects", actor, result, storage_object_count: length(object_keys))
+
+    result
   end
 
   def delete_objects_from_bucket(object_keys, bucket_name, opts \\ [])
@@ -439,10 +448,18 @@ defmodule Tuist.Storage do
   def delete_objects_from_bucket([], _bucket_name, _opts), do: :ok
 
   def delete_objects_from_bucket(object_keys, bucket_name, opts) do
-    case Keyword.get(opts, :storage_provider, :s3) do
-      :azure_blob -> AzureBlob.delete_objects(object_keys, Keyword.put(opts, :container_name, bucket_name))
-      :s3 -> delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
-    end
+    result =
+      case Keyword.get(opts, :storage_provider, :s3) do
+        :azure_blob -> AzureBlob.delete_objects(object_keys, Keyword.put(opts, :container_name, bucket_name))
+        :s3 -> delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
+      end
+
+    log_object_deletion("delete_objects_from_bucket", nil, result,
+      storage_bucket: bucket_name,
+      storage_object_count: length(object_keys)
+    )
+
+    result
   end
 
   def list_objects_from_bucket(bucket_name, opts \\ []) do
@@ -764,6 +781,29 @@ defmodule Tuist.Storage do
         {:exit, reason}
     end
   end
+
+  # Deleting an object destroys customer data, and most deletions run from
+  # background workers (retention sweeps, project cleanup, log pruning) where
+  # there is no request record to attribute them to. Without this the only
+  # trace of a deletion is the absence of the object.
+  defp log_object_deletion(operation, actor, result, fields) do
+    Logger.info(
+      "object storage deletion",
+      [
+        storage_operation: operation,
+        storage_account: account_handle(actor),
+        storage_outcome: deletion_outcome(result)
+      ] ++ fields
+    )
+  end
+
+  defp account_handle(%Account{name: name}), do: name
+  defp account_handle(_), do: nil
+
+  defp deletion_outcome(:ok), do: "success"
+  defp deletion_outcome({:ok, _}), do: "success"
+  defp deletion_outcome({:error, _}), do: "failure"
+  defp deletion_outcome(_), do: "success"
 
   defp has_custom_storage?(actor), do: Account.custom_s3_storage_configured?(actor)
 

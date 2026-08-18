@@ -210,6 +210,7 @@ below points at it repeatedly rather than describing a separate log per event.
 | --- | --- |
 | Interface requests, with method, route, status, and originating account | Server request records |
 | Database schema migrations and administrative tasks | The output of the job that runs them, collected with all other workload output |
+| Object storage deletions, including those performed by scheduled retention and cleanup work | A dedicated record naming the operation, the account, the prefix or object count, and the outcome |
 | Billing and subscription state changes | The payment provider's event log, and the server request and webhook records that accompany each change |
 
 ### Where records are held
