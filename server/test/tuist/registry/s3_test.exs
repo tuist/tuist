@@ -146,4 +146,65 @@ defmodule Tuist.Registry.S3Test do
     # collapsing to its first value.
     assert Map.get(headers, "vary") == ["Accept", "Accept-Encoding"]
   end
+
+  describe "copy_object/2" do
+    setup do
+      config = [host: "registry.example.com"]
+
+      stub(Registry, :registry_bucket, fn -> "registry-bucket" end)
+      stub(Registry, :registry_s3_config, fn -> config end)
+
+      stub(ExAws.S3, :put_object_copy, fn "registry-bucket", destination, "registry-bucket", source ->
+        %S3Operation{
+          http_method: :put,
+          bucket: "registry-bucket",
+          path: destination,
+          headers: %{"x-amz-copy-source" => "/registry-bucket/" <> source}
+        }
+      end)
+
+      :ok
+    end
+
+    test "succeeds when the response body reports a completed copy" do
+      expect(ExAws, :request, fn _operation, _config ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: ~s(<CopyObjectResult><ETag>"abc"</ETag></CopyObjectResult>)
+         }}
+      end)
+
+      assert :ok = S3.copy_object("registry/swift/a/b/1.0.0/source_archive.zip", "registry/backups/a.zip")
+    end
+
+    # S3 answers CopyObject with 200 even when the copy fails partway through,
+    # embedding the failure in the body. A status-only check reports a backup
+    # that does not exist as taken, which is worse than no backup at all.
+    test "fails when the response body carries an error despite the 200 status" do
+      expect(ExAws, :request, fn _operation, _config ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: ~s(<Error><Code>InternalError</Code><Message>We encountered an internal error</Message></Error>)
+         }}
+      end)
+
+      assert {:error, {:copy_failed, "registry/swift/a.zip", "registry/backups/a.zip", _body}} =
+               S3.copy_object("registry/swift/a.zip", "registry/backups/a.zip")
+    end
+
+    test "fails when the response body is not a copy result at all" do
+      expect(ExAws, :request, fn _operation, _config -> {:ok, %{status_code: 200, body: ""}} end)
+
+      assert {:error, {:copy_result_unrecognized, _source, _destination}} =
+               S3.copy_object("registry/swift/a.zip", "registry/backups/a.zip")
+    end
+
+    test "reports a missing source object" do
+      expect(ExAws, :request, fn _operation, _config -> {:ok, %{status_code: 404}} end)
+
+      assert {:error, :not_found} = S3.copy_object("registry/swift/a.zip", "registry/backups/a.zip")
+    end
+  end
 end

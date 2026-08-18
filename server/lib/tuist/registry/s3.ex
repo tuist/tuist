@@ -118,6 +118,60 @@ defmodule Tuist.Registry.S3 do
   end
 
   @doc """
+  Server-side copy of one object to another key in the registry bucket.
+
+  Copying in object storage rather than round-tripping the bytes through the
+  pod is what makes a pre-repair backup affordable: a source archive can be
+  hundreds of megabytes, and the repair path already holds a temporary
+  directory's worth of working files.
+  """
+  def copy_object(source_key, destination_key) when is_binary(source_key) and is_binary(destination_key) do
+    bucket = Registry.registry_bucket()
+
+    case bucket |> ExAws.S3.put_object_copy(destination_key, bucket, source_key) |> request() do
+      {:ok, %{status_code: 200, body: body}} -> copy_result(body, source_key, destination_key)
+      {:ok, %{status_code: 404}} -> {:error, :not_found}
+      {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # S3 answers CopyObject with 200 even when the copy fails partway through,
+  # embedding the failure in the response body instead of the status. ExAws
+  # registers no parser for this operation, so the body arrives raw and a status
+  # check alone reports a copy that never happened as a success. For the repair
+  # path that body is the whole point: a backup believed to exist and absent is
+  # worse than never having taken one.
+  defp copy_result(body, source_key, destination_key) when is_binary(body) do
+    cond do
+      String.contains?(body, "<Error") -> {:error, {:copy_failed, source_key, destination_key, body}}
+      String.contains?(body, "CopyObjectResult") -> :ok
+      true -> {:error, {:copy_result_unrecognized, source_key, destination_key}}
+    end
+  end
+
+  defp copy_result(_body, source_key, destination_key) do
+    {:error, {:copy_result_unrecognized, source_key, destination_key}}
+  end
+
+  @doc """
+  Lists the keys stored under `prefix`.
+
+  Bang-named because `ExAws.stream!/2` raises on a listing failure rather than
+  returning it, the same way `delete_all_with_prefix/1` does. Callers get the
+  keys or an exception, never a misleading empty list.
+  """
+  def list_keys_with_prefix!(prefix) when is_binary(prefix) do
+    bucket = Registry.registry_bucket()
+
+    bucket
+    |> ExAws.S3.list_objects(prefix: prefix)
+    |> ExAws.stream!(Registry.registry_s3_config())
+    |> Enum.map(& &1.key)
+  end
+
+  @doc """
   Lists all objects under `prefix` and deletes them in 1000-object
   batches. Returns `{:ok, deleted_count}` or `{:error, reason}`.
   """
