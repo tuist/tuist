@@ -274,8 +274,10 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
           -- 100. That is not the shape the earlier attempt measured at 625 MiB
           -- chunks: that one built `entries x keys` intermediates for the whole
           -- block through a per-entry lookup inside `arrayMap`. `has` returns a
-          -- scalar and allocates nothing, and `max_block_size` bounds what is
-          -- in flight regardless.
+          -- scalar, so this adds two filtered copies rather than a cross
+          -- product. It is not free, though, and the budget is shared with the
+          -- reader and the `FINAL` merge, which is why `max_block_size` below
+          -- is what bounds all three.
           arrayMap(entry -> tupleElement(entry, 1), flaky_keyed) AS flaky_keys,
           arrayMap(entry -> tupleElement(entry, 1), successful_keyed) AS successful_keys
         FROM (
@@ -307,7 +309,15 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestCaseRunsRecentWindowPerCase do
       )
       SETTINGS
         max_threads = 2,
-        max_block_size = 4096,
+        -- 4096 overran the budget below on the first project whose parts are
+        -- large enough to matter: 1.87 GiB wanted against 1.86 GiB allowed,
+        -- reported once from the part reader (`max_rows_to_read = 4096`, which
+        -- is this setting) and once from the `FINAL` merge, so it is the whole
+        -- query rather than one operator. Rows in flight scale this directly,
+        -- and the ceiling is shared with live traffic, so it is cheaper to read
+        -- narrower than to claim more of the 8 GiB the environment budgets for
+        -- every Tuist query together.
+        max_block_size = 1024,
         max_memory_usage = 2000000000
       """,
       params,
