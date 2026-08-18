@@ -2543,11 +2543,18 @@ defmodule Tuist.Accounts do
 
   # What to answer while the account has no Kura instance serving — archived,
   # provisioning, draining, or refused for capacity. For an account under the
-  # demand-driven lifecycle that has to be authoritative object storage: if
-  # archival handed these accounts back to the legacy custom-endpoint path
-  # instead, archiving an account would be what keeps that path alive, and the
-  # legacy teardown the migration is aiming at could never complete. Accounts
-  # that have never routed through Kura keep the custom-endpoint behaviour.
+  # demand-driven lifecycle that is the Tuist-hosted default lane, not the
+  # account's own custom endpoints: routing archived accounts down the
+  # custom-endpoint path would make archival the thing that keeps that path
+  # alive, and the legacy teardown the migration is aiming at could never
+  # complete. Accounts that have never routed through Kura keep the
+  # custom-endpoint behaviour.
+  #
+  # This lane is a different content store from the account's Kura instance,
+  # not a backing store for it, so an archived account gets cold misses here
+  # rather than its own artifacts. Once the lane is retired this returns an
+  # empty list, which every build-path caller in the CLI degrades to building
+  # locally.
   defp absent_kura_endpoint_urls(%Account{} = account) do
     if Demand.lifecycle_managed?(account) do
       CacheEndpoints.active_endpoint_urls()

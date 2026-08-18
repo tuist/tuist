@@ -137,7 +137,7 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
           seeded + 1
 
         # No resolvable plan and region means no account-region instance to
-        # keep warm; authoritative object storage keeps serving the account.
+        # keep warm, so there is nothing to seed.
         {:error, _reason} ->
           seeded
       end

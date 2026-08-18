@@ -64,8 +64,8 @@ defmodule Tuist.FeatureFlags do
   precedence gives the rollback the spec requires: an actor gate switches one
   account off and a group gate switches a whole plan off, both while the
   boolean gate keeps archival on for everyone else. Provisioning is never
-  gated by this flag, so disabling archival during an incident does not strand
-  accounts on authoritative object storage.
+  gated by this flag, so disabling archival during an incident does not also
+  stop archived accounts from getting their instances back.
   """
   def kura_archival_enabled?(account) do
     FunWithFlags.enabled?(:kura_archival, for: account)

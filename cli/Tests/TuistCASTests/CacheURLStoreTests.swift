@@ -170,6 +170,45 @@
             }
         }
 
+        @Test
+        func treats_a_missing_endpoint_as_transient_and_a_malformed_one_as_fatal() {
+            // An account whose instance was reclaimed for inactivity, and one whose
+            // instance is still rolling out, both resolve on their own once the
+            // server provisions an endpoint back. A malformed URL never does, so it
+            // must stay fatal: the cache daemon starts through the first two and
+            // refuses the third.
+            #expect(CacheURLStoreError.noEndpointsAvailable.isTransientAbsence)
+            #expect(CacheURLStoreError.noReachableEndpoints.isTransientAbsence)
+            #expect(!CacheURLStoreError.invalidURL("not a url").isTransientAbsence)
+        }
+
+        @Test(.withMockedEnvironment())
+        func recomputes_after_a_failed_lookup_so_a_returning_instance_is_picked_up() async throws {
+            // Given
+            // The daemon outlives the absence: nothing negative-caches, so once the
+            // server has provisioned an endpoint back, the next request resolves it
+            // without restarting the process.
+            let serverURL = URL(string: "https://tuist.dev")!
+            let endpoint = "https://cache.example.com"
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([])
+
+            await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+            }
+
+            // When
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([endpoint])
+
+            // Then
+            let url = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+            #expect(url == URL(string: endpoint)!)
+        }
+
         @Test(.withMockedEnvironment())
         func uses_account_handle_for_cache_key() async throws {
             // Given

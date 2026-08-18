@@ -171,6 +171,28 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     case noReachableEndpoints
     case invalidURL(String)
 
+    /// Whether the failure is an endpoint that is not serving *yet*, rather than
+    /// one that is wrong.
+    ///
+    /// An account whose cache instance was reclaimed for inactivity has no
+    /// endpoint until the server provisions one back, which the very act of
+    /// asking for endpoints triggers. The same is true of an instance that is
+    /// still rolling out. Both resolve on their own within minutes, and every
+    /// per-request caller already degrades to building locally and retries on a
+    /// later request, so a long-lived process should carry on rather than refuse
+    /// to start over a state that is about to fix itself.
+    ///
+    /// `invalidURL` is excluded: a malformed endpoint is a misconfiguration that
+    /// no amount of waiting corrects, so it stays fatal.
+    public var isTransientAbsence: Bool {
+        switch self {
+        case .noEndpointsAvailable, .noReachableEndpoints:
+            true
+        case .invalidURL:
+            false
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .noEndpointsAvailable:

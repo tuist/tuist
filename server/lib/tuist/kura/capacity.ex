@@ -12,9 +12,9 @@ defmodule Tuist.Kura.Capacity do
 
     * provisioning admission. A cold provision is admitted only when the
       region's forecast still fits after adding the candidate's quota.
-      Refusing leaves the account on authoritative object storage, which is
-      correct rather than degraded, and raises a capacity event. Nothing here
-      ever overcommits a node.
+      Refusing leaves the account building without a cache, which is slow
+      rather than broken, and raises a capacity event. Nothing here ever
+      overcommits a node.
 
     * the Air pressure rule. Air's inactivity window shortens from 90 to 60
       complete days only while a region's forecast exceeds what is installed.

@@ -23,12 +23,23 @@ defmodule Tuist.Kura.Lifecycle do
                                   ↑            │
                                   └────────────┘
 
-  `archived` is the resting state, not a failure: authoritative object storage
-  is the source of truth for cache content, so an account without an instance
-  is served correctly rather than degraded. That is what makes reclaiming a
-  directory safe, and it is also what covers every gap in this loop — an
-  instance that is provisioning, recovering, or refused for capacity is simply
-  an account object storage is still answering for.
+  `archived` is the resting state, not a failure, but it is not free either.
+  Kura is terminal storage for what it holds: there is no object store behind
+  it, and a miss is a 404 rather than an origin fetch. Archiving an
+  account-region therefore *discards* that account's cache content in that
+  region; the only other copy is a peer instance in another region, if the
+  account has one.
+
+  What makes that safe is not a second copy, it is that a cache miss is always
+  safe. The client rebuilds what it cannot fetch and re-uploads it, so an
+  account with no instance builds correctly and slowly rather than incorrectly.
+  The same property covers every other gap in this loop: an instance that is
+  provisioning, recovering, or refused for capacity is an account paying cold
+  build times, not one that is broken.
+
+  That cost is the whole trade. An account that has not built in a full
+  inactivity window is one for which a cold rebuild on return is cheaper than
+  holding its quota-enforced directory the entire time.
 
   The first cache demand cold-provisions. Demand while active only refreshes
   `last_cache_demand_at`. A complete inactivity window enters drain-pending,
@@ -52,7 +63,7 @@ defmodule Tuist.Kura.Lifecycle do
     * archival is gated behind the `:kura_archival` flag, which is off until
       an operator turns it on. Provisioning is not gated by it, so archival
       can be switched off for a plan or for one account during an incident
-      without stranding accounts on object storage.
+      without also stopping accounts from getting instances back.
 
   ## Air pressure
 
@@ -330,8 +341,9 @@ defmodule Tuist.Kura.Lifecycle do
     end
   end
 
-  # Refusing is a capacity event, not an error: the account keeps being served
-  # by authoritative object storage, and the region is not overcommitted.
+  # Refusing is a capacity event, not an error: the account keeps building,
+  # without a cache in front of it, and the region is not overcommitted. A cold
+  # build is the correct answer to "no room"; overcommitting the node is not.
   defp refuse_for_capacity(account, plan, region_id, forecast, installed) do
     Telemetry.capacity_refused(plan, region_id, forecast, installed)
 

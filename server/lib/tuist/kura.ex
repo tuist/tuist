@@ -61,10 +61,10 @@ defmodule Tuist.Kura do
   # before its resources are torn down, so persistent gRPC channels and
   # in-flight builds finish. Shared by the warm-handoff move (where the
   # promoted target is already caught up) and by the demand-driven lifecycle's
-  # drain-pending wait (where authoritative object storage is already
-  # answering, since the endpoint is unpublished on entry). In both cases the
-  # cache the drain protects has a correct alternative, so this is a safety
-  # margin rather than a correctness requirement.
+  # drain-pending wait (where the endpoint is already unpublished, so new
+  # traffic has moved off). In both cases the work the drain protects has a
+  # correct outcome without it, so this is a safety margin rather than a
+  # correctness requirement.
   @drain_seconds 120
 
   @doc "Seconds a draining server keeps serving before teardown."
@@ -875,9 +875,8 @@ defmodule Tuist.Kura do
   @doc """
   Enters drain-pending: unpublishes the account's cache endpoint so no new
   cache traffic is routed here, and leaves the workload running so in-flight
-  work finishes. Requests fall back to authoritative object storage from this
-  moment, which is why the endpoint comes down first and teardown waits out
-  `drain_seconds/0`.
+  work finishes. New requests stop being routed here from this moment, which is
+  why the endpoint comes down first and teardown waits out `drain_seconds/0`.
 
   The server keeps its `url`, so cancelling the drain only has to republish
   the endpoint rather than rediscover it.
