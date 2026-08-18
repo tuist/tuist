@@ -12,7 +12,7 @@ Tuist packages its agent skills and hosted MCP server as plugins so you can inst
 
 ## Claude Code
 
-The [Tuist Claude Code marketplace](https://github.com/tuist/claude-plugin) packages the Tuist plugin from the private repository required by [Claude Code managed marketplace restrictions](https://code.claude.com/docs/en/plugin-marketplaces#managed-marketplace-restrictions). Members with repository access can install it with:
+The [Tuist Claude Code marketplace](https://github.com/tuist/claude-plugin) packages the Tuist plugin for installation with:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
