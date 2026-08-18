@@ -1,6 +1,8 @@
 defmodule Tuist.MCP.Authorization do
   @moduledoc false
 
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authorization
 
@@ -29,16 +31,32 @@ defmodule Tuist.MCP.Authorization do
   # authenticated. `:current_user` covers the browser and claimed-agent sessions
   # that carry the grant on the user directly.
   defp operator_grant_authorizes_read?(assigns, :read, resource, category) do
-    case assigns[:operator_grant_user] || assigns[:current_user] do
-      %User{operator_grant: grant} = user when is_map(grant) ->
-        authorize(user, :read, resource, category)
-
-      _ ->
-        false
+    with true <- mcp_scoped?(authenticated_subject(assigns)),
+         %User{operator_grant: grant} = user when is_map(grant) <-
+           assigns[:operator_grant_user] || assigns[:current_user] do
+      authorize(user, :read, resource, category)
+    else
+      _ -> false
     end
   end
 
   defp operator_grant_authorizes_read?(_assigns, _action, _resource, _category), do: false
+
+  # The endpoint asks only that a credential authenticated, so without this the
+  # grant would hand customer reads to a token scoped for something else
+  # entirely — widening what the credential may do, which is exactly what the
+  # grant is not for. Presets expand outwards (`mcp` to its members, never the
+  # reverse), so an unrelated read scope cannot satisfy this by accident.
+  #
+  # A `User` subject is a session rather than a scoped credential: there is no
+  # narrower thing for it to have been restricted to, and the grant checks still
+  # require it to be the operator the grant names.
+  defp mcp_scoped?(%AuthenticatedAccount{scopes: scopes}) when is_list(scopes) do
+    AccountToken.mcp_scope() in scopes
+  end
+
+  defp mcp_scoped?(%User{}), do: true
+  defp mcp_scoped?(_subject), do: false
 
   def authenticated_subject(assigns) when is_map(assigns) do
     assigns[:current_subject] || assigns[:current_user] || assigns[:current_project]

@@ -31,10 +31,10 @@ defmodule Tuist.MCP.AuthorizationTest do
   # `TuistWeb.OperatorGrant` puts the human it resolved. That the plug really
   # produces this shape from a real token is covered by
   # `TuistWeb.MCPOperatorGrantTest`.
-  defp oauth_conn(operator, grant) do
+  defp oauth_conn(operator, grant, scopes \\ ["mcp"]) do
     subject = %AuthenticatedAccount{
       account: operator.account,
-      scopes: ["mcp"],
+      scopes: scopes,
       all_projects: false,
       project_ids: [],
       issued_by: operator
@@ -114,6 +114,35 @@ defmodule Tuist.MCP.AuthorizationTest do
 
     # The grant widens which accounts are readable; it must not widen what the
     # credential may do. An `mcp`-scoped token stays read-only.
+    # The grant widens which accounts a credential can see, not what it may do.
+    # The MCP endpoint asks only that a credential authenticated, so a token
+    # scoped elsewhere must not reach customer reads by presenting a grant.
+    test "is refused when the token does not carry the mcp scope", %{project: project, operator: operator} do
+      stub_test_run(project)
+
+      result =
+        GetTestRun.call(
+          oauth_conn(operator, grant_for(project.account), ["project:admin:read"]),
+          %{"test_run_id" => "run-1"}
+        )
+
+      assert %{"isError" => true} = result
+    end
+
+    # Presets expand outwards, so holding a member of the mcp group is not the
+    # same as holding the group.
+    test "is refused for a token scoped to an unrelated read scope", %{project: project, operator: operator} do
+      stub_test_run(project)
+
+      result =
+        GetTestRun.call(
+          oauth_conn(operator, grant_for(project.account), ["project:cache:read"]),
+          %{"test_run_id" => "run-1"}
+        )
+
+      assert %{"isError" => true} = result
+    end
+
     test "cannot write, even for the account the grant covers", %{project: project, operator: operator} do
       conn = oauth_conn(operator, grant_for(project.account, :admin))
 
