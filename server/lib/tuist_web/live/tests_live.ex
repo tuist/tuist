@@ -360,12 +360,16 @@ defmodule TuistWeb.TestsLive do
       # page with unranked ones, and the card would render each as "None". Drop
       # them, and let the card be short or absent instead.
       {slowest_test_cases, _meta} =
-        Tests.list_test_cases(project.id, %{
-          page: 1,
-          page_size: 5,
-          order_by: [:duration_p50, :id],
-          order_directions: [:desc_nulls_last, :asc]
-        })
+        Tests.list_test_cases(
+          project.id,
+          %{
+            page: 1,
+            page_size: 5,
+            order_by: [:duration_p50, :id],
+            order_directions: [:desc_nulls_last, :asc]
+          },
+          preload: [:duration_p50_ms]
+        )
 
       slowest_test_cases = Enum.reject(slowest_test_cases, &is_nil(&1.duration_p50_ms))
 

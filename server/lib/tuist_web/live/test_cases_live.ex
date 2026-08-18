@@ -433,7 +433,13 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    list_opts = [is_ci: is_ci, preload: [:durations]]
+    # Spelled out rather than derived from `Tests.duration_fields/0`, to match
+    # the four columns the template spells out: dropping a column should leave
+    # its statistic visibly un-preloaded here.
+    list_opts = [
+      is_ci: is_ci,
+      preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
+    ]
 
     socket
     |> assign(:active_filters, filters)

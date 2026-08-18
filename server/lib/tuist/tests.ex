@@ -2383,24 +2383,27 @@ defmodule Tuist.Tests do
       column on `test_cases`; the duration comes from the matching `is_ci`
       slice of `test_case_duration_daily_stats_per_case`. `nil` (the default)
       means "any environment".
-    * `:preload`: pass `[:durations]` to compute the duration distribution.
+    * `:preload`: which duration fields to compute, any of
+      `:duration_p50_ms`, `:duration_p90_ms`, `:duration_p99_ms` and
+      `:duration_avg_ms`.
 
-  With durations preloaded, each returned test case carries `:duration_p50_ms`,
-  `:duration_p90_ms`, `:duration_p99_ms` and `:duration_avg_ms` over the active
-  window, plus `:duration_sample_count` (the runs they were computed from).
-  Each is `nil` when that count is below `#{@min_duration_samples}`. Sort by
-  them with the matching `:duration_p50` / `:duration_p90` / `:duration_p99` /
+  A preloaded field carries that statistic over the active window. Each is
+  `nil` when the test case has fewer than `#{@min_duration_samples}` runs in the
+  window, and `:duration_sample_count` comes along with any of them, since a
+  caller that gets `nil` needs to know how many runs there were. Sort by them
+  with the matching `:duration_p50` / `:duration_p90` / `:duration_p99` /
   `:duration_avg` fields, which order on the same values. Together they replace
   `:avg_duration`, the denormalized mean of the last 50 runs that is unbounded
   in time and blind to environment, as what the dashboard shows and ranks by.
   `:avg_duration` is still populated for the public API and MCP tool, which
   expose the column by name.
 
-  Computing them costs an aggregate read across the project's whole active
-  suite, so it is opt-in: preload them, or order by one of the duration fields,
-  which implies the preload because the ordering reads the same aliases.
-  Callers that do neither, namely the public API and the MCP tool, run exactly
-  the query they ran before and get `nil` for all of them.
+  Each statistic costs a merge across the project's whole active suite, so
+  callers ask for the ones they render rather than the set: the Test Cases
+  table takes all four, the "Slowest test cases" card takes only the median.
+  Ordering by a duration field also computes it, since the ordering reads the
+  alias the computation puts in the SELECT. Callers that do neither, namely the
+  public API and the MCP tool, run exactly the query they ran before.
 
   The listing intentionally has no date-window option. Callers that take a
   user-controlled date picker on the same page (e.g. the Test Cases LiveView)
@@ -2416,7 +2419,7 @@ defmodule Tuist.Tests do
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
-    preload_durations? = preload_durations?(opts, attrs)
+    duration_fields = requested_duration_fields(opts, attrs)
 
     # `state` / `is_flaky` are resolved from `test_case_states`, not from the
     # legacy columns on `test_cases`, so they are pulled out of the Flop filter
@@ -2493,7 +2496,7 @@ defmodule Tuist.Tests do
       :joined ->
         base_query
         |> select_resolved_test_case_state()
-        |> select_durations(project_id, preload_durations?, is_ci)
+        |> select_durations(project_id, duration_fields, is_ci)
         |> Tuist.ClickHouseFlop.run(flop,
           for: TestCase,
           count: total_count,
@@ -2503,7 +2506,7 @@ defmodule Tuist.Tests do
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_durations(project_id, preload_durations?, is_ci)
+          |> select_durations(project_id, duration_fields, is_ci)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
@@ -2534,22 +2537,23 @@ defmodule Tuist.Tests do
   """
   def min_duration_samples, do: @min_duration_samples
 
-  defp preload_durations?(opts, attrs) do
-    :durations in List.wrap(Keyword.get(opts, :preload, [])) or orders_by_duration?(attrs)
-  end
-
-  # Ordering by a duration reads the alias the preload puts in the SELECT, so an
-  # order implies the preload whether or not the caller asked for it. Without
-  # this, `order_by: [:duration_p50]` alone would build an ORDER BY over an
-  # alias that is not there and ClickHouse would reject the query.
+  # A field is computed when the caller preloads it by the name it is read under
+  # (`:duration_p90_ms`) or orders by the name it sorts under (`:duration_p90`).
+  # The second is not a convenience: the ordering reads the alias this puts in
+  # the SELECT, so ordering without computing would build an ORDER BY over a
+  # name ClickHouse cannot resolve.
   #
-  # Flop accepts both atom and string params, so the order can arrive either way.
-  defp orders_by_duration?(attrs) do
-    order_by = Map.get(attrs, :order_by) || Map.get(attrs, "order_by")
-    ordered = MapSet.new(List.wrap(order_by), &to_string/1)
+  # Flop accepts both atom and string params, so an order can arrive either way.
+  defp requested_duration_fields(opts, attrs) do
+    preloaded = to_string_set(Keyword.get(opts, :preload, []))
+    ordered = to_string_set(Map.get(attrs, :order_by) || Map.get(attrs, "order_by"))
 
-    Enum.any?(duration_fields(), &MapSet.member?(ordered, to_string(&1)))
+    Enum.filter(@duration_fields, fn field ->
+      MapSet.member?(preloaded, "#{field}_ms") or MapSet.member?(ordered, to_string(field))
+    end)
   end
+
+  defp to_string_set(value), do: MapSet.new(List.wrap(value), &to_string/1)
 
   # Each statistic is aliased with `selected_as/2` so `Tuist.ClickHouseFlop` can
   # order by it even though it lives in a different table than `test_cases`.
@@ -2562,12 +2566,12 @@ defmodule Tuist.Tests do
   # the active window in the selected environment, which does not guarantee it
   # cleared the sample floor, and an inner join would drop those rows from the
   # table entirely rather than showing them unranked.
-  defp select_durations(query, _project_id, false, _is_ci), do: query
+  defp select_durations(query, _project_id, [], _is_ci), do: query
 
-  defp select_durations(query, project_id, true, is_ci) do
-    stats = test_case_duration_stats_subquery(project_id, is_ci)
+  defp select_durations(query, project_id, duration_fields, is_ci) do
+    stats = test_case_duration_stats_subquery(project_id, duration_fields, is_ci)
 
-    fields = Map.new(@duration_fields, &{:"#{&1}_ms", guarded_duration_dynamic(&1)})
+    fields = Map.new(duration_fields, &{:"#{&1}_ms", guarded_duration_dynamic(&1)})
 
     fields =
       Map.put(
@@ -2614,10 +2618,10 @@ defmodule Tuist.Tests do
   # rather than NULL, so a test case with no rows here arrives as
   # `run_count = 0` and is handled by the sample floor like any other
   # under-sampled row.
-  defp test_case_duration_stats_subquery(project_id, is_ci) do
+  defp test_case_duration_stats_subquery(project_id, duration_fields, is_ci) do
     window_start = active_window_start_date()
 
-    fields = Map.new(@duration_fields, &{&1, duration_merge_dynamic(&1)})
+    fields = Map.new(duration_fields, &{&1, duration_merge_dynamic(&1)})
 
     fields =
       fields
