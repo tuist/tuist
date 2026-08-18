@@ -371,6 +371,10 @@ processor:
       memory: "1536Mi"
 
 swiftRegistrySync:
+  # Staging walks the same full catalog production does, so it inherits
+  # production's batch size too. See the extended rationale in
+  # values-managed-production.yaml.
+  syncLimit: "600"
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag

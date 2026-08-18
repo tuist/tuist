@@ -60,7 +60,7 @@ defmodule Tuist.Registry do
   end
 
   def swift_registry_sync_limit do
-    Application.get_env(:tuist, :registry)[:swift_sync_limit] || 1_000
+    Application.get_env(:tuist, :registry)[:swift_sync_limit] || 600
   end
 
   def list_swift_packages do

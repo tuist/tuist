@@ -523,6 +523,19 @@ swiftRegistrySync:
   # The legacy cache writer is disabled, so this deployment is the sole
   # registry synchronization writer.
   enabled: true
+  # Each package in a pass costs at least one tag-listing request, plus one per
+  # extra page of tags, so the batch size is what decides whether a pass fits
+  # inside the GitHub request budget. Production ran the old 1,000 default and
+  # exhausted the budget mid-pass, which the July 2026 postmortem records as
+  # 2,566 rate-limit failures and nine discarded passes in a little over six
+  # hours on a pod that stayed Ready throughout.
+  #
+  # Set explicitly rather than left to the (now also 600) release default, so
+  # the number production runs is visible next to the deployment that runs it.
+  # This is a static floor under the budget, not a measurement: replacing it
+  # with a limit derived from the live remaining quota and the measured
+  # per-package pagination cost is tracked separately.
+  syncLimit: "600"
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

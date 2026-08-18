@@ -705,10 +705,25 @@ swift_registry_sync_allowlist =
     value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
 
+# The batch size has to stay under the GitHub request budget a single pass can
+# spend: each package costs at least one tag-listing request, plus one per extra
+# page. A limit above the budget exhausts the quota mid-pass, which is what the
+# July 2026 registry incident hit while the pod still reported healthy. An
+# explicitly configured limit that cannot be honoured is rejected rather than
+# clamped, so a typo surfaces at boot instead of silently halving coverage.
 swift_registry_sync_limit =
   case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
-    nil -> 1_000
-    value -> String.to_integer(value)
+    nil ->
+      600
+
+    value ->
+      case Integer.parse(value) do
+        {limit, ""} when limit > 0 ->
+          limit
+
+        _ ->
+          raise "SWIFT_REGISTRY_SYNC_LIMIT must be a positive integer, got: #{inspect(value)}"
+      end
   end
 
 first_registry_env = fn names ->
