@@ -64,7 +64,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     end
 
     test "requires :build_read authorization" do
-      project = %{id: 1, name: "app"}
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
 
       expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project ->
