@@ -26,7 +26,7 @@ Tuist GmbH uses three classes. The definitions below are summarized from the Dat
 
 | Class | Definition | Typical examples |
 | --- | --- | --- |
-| **Confidential** | Highly sensitive data requiring the highest level of protection. Access restricted to specific people; onward sharing requires data owner or executive approval. | Customer data, personally identifiable information, financial and banking data, payroll data, authentication credentials, secrets and private keys, source code, incident reports, risk assessments, vulnerability reports, litigation data |
+| **Confidential** | Highly sensitive data requiring the highest level of protection. Access restricted to specific people; onward sharing requires data owner or executive approval. | Customer data, personally identifiable information, financial and banking data, payroll data, strategic plans, authentication credentials, secrets and private keys, unpublished source code, incident reports, risk assessments, vulnerability reports, litigation data |
 | **Restricted** | Proprietary information requiring thorough protection. Access restricted on a need-to-know basis. **This is the default for all company information unless stated otherwise.** | Internal policies, legal documents, contracts, meeting notes, internal reports, Slack messages, email |
 | **Public** | Information intended for public consumption that can be freely distributed. | Marketing materials, product descriptions, release notes, externally published policies |
 
@@ -45,7 +45,7 @@ Information shall be identified as Confidential when it contains any of the foll
 - Authentication material: passwords, API tokens, private keys, certificates, session material, signing material
 - Financial data: banking details, payroll, compensation, revenue figures not yet published
 - Security findings: vulnerability reports, penetration test results, incident reports, risk assessments
-- Tuist GmbH source code and infrastructure configuration
+- Source code that has not been deliberately published, and infrastructure configuration. Tuist GmbH develops much of its product in the open, and publishing source is a deliberate act of publication, governed by the Publication requirement in section 3, rather than an exception to this rule. Anything not published stays Confidential.
 - Information subject to a confidentiality obligation under a contract, NDA, or legal hold
 
 Where a set of information mixes classes, the whole set takes the highest class present. A document containing one paragraph of customer data is Confidential in its entirety. A system takes the highest classification of any data it stores or processes.
@@ -68,13 +68,14 @@ Labels shall be applied at the point where information is created or ingested, n
 
 ### 2.2 Source code and repositories
 
-- Repository visibility is the label. Private repositories are `Confidential`. Public repositories are `Public`.
+- Repository visibility is the label. Private repositories are `Confidential`. Public repositories are `Public`, having been published deliberately.
+- Making a repository public, or opening a previously private component, is a publication decision under section 3 and requires data owner approval. The review shall confirm that no credentials, customer data, or personal data are present anywhere in the history, not only at the current commit.
 - Files containing secrets shall never be committed, regardless of repository visibility. Secrets are stored in the secret manager and are `Confidential` by definition.
 - Configuration and infrastructure-as-code files that reference production systems shall carry a comment identifying them as `Confidential` where the repository is not itself already private.
 
 ### 2.3 Databases, object storage, and data pipelines
 
-- Database tables and columns holding Confidential data shall be recorded as such in the schema documentation and in `server/data-export.md`, which serves as the register of what personal and organizational data Tuist GmbH stores.
+- Database tables and columns holding Confidential data shall be identifiable from `server/data-export.md`, the register of the personal and organizational data Tuist GmbH stores, which is kept current as the schema changes. Data recorded there as belonging to a customer or to an identifiable person is Confidential under the criteria in section 1.2.
 - Object storage buckets and prefixes shall be classified as a whole, and the classification shall be recorded alongside the bucket's access policy. Buckets holding customer artifacts are `Confidential`.
 - Data exports and reports inherit the highest classification of their inputs, and the label shall be carried into the filename or the export's header.
 
@@ -99,7 +100,7 @@ Confidential information printed to paper shall be labelled "Confidential" on ev
 
 - Labelling is checked as part of the annual review of the Data Management Policy and this policy.
 - Access reviews under the [Access control policy](/security/access-and-risk-management/access-control-policy) shall confirm that access granted to a system is consistent with the classification of the data that system holds.
-- Automated secret scanning runs against all repositories so that Confidential authentication material committed in error is detected. Detections are handled under the [Incident Response Management](/security/human-and-incident-management/incident-response-management) policy.
+- Automated secret scanning runs in continuous integration against the main repository, on every pull request and on every merge to the default branch, so that Confidential authentication material committed in error is detected. Detections are handled under the [Incident Response Management](/security/human-and-incident-management/incident-response-management) policy.
 - Mislabelled or unlabelled information found by anyone shall be reported to the data owner and corrected. Discovery of Confidential information in a Public location is a security incident.
 
 ## 5. Training
@@ -116,11 +117,11 @@ Classification and labelling are covered in security onboarding and in the annua
 
 ## Exceptions
 
-Requests for an exception to this policy must be submitted to the security lead for approval and shall be reviewed at least annually.
+Requests for an exception to this policy must be submitted to the IT Manager for approval and shall be reviewed at least annually.
 
 ## Violations and enforcement
 
-Any known violations of this policy should be reported to the security lead. Violations can result in immediate withdrawal or suspension of system and network privileges and disciplinary action in accordance with company procedures up to and including termination of employment.
+Any known violations of this policy should be reported to the IT Manager. Violations can result in immediate withdrawal or suspension of system and network privileges and disciplinary action in accordance with company procedures up to and including termination of employment.
 
 ## Review
 
