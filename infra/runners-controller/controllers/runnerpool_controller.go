@@ -26,6 +26,7 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
 // runnerPoolFinalizer gates RunnerPool deletion on a graceful drain
@@ -54,6 +55,11 @@ const defaultRollMaxConcurrentPercent = 5
 type RunnerPoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// SessionsClient closes a Pod's billing session immediately before
+	// the reap deletes it — see reapRunner for why the ordering matters.
+	// nil disables reporting; the reap itself still runs.
+	SessionsClient *sessions.Client
 
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
@@ -602,7 +608,26 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 // Called for both terminal Pods (Succeeded/Failed → natural
 // turnover) and stale Pending Pods (Pod-template rollout →
 // recycle on the current template). The cleanup contract is the same.
+//
+// The Pod's billing session is closed BEFORE the Delete, and that
+// ordering is the whole point. `PodLifecycleReconciler` also reports,
+// on the terminal-phase transition, but it runs in a separate workqueue
+// woken by the same watch event with no ordering against this one — so
+// under load the reap got there first and the Pod was gone before the
+// report was attempted. That race closed 22% of runner sessions never:
+// 264 of 1185 on 2026-08-14, holding on every fleet and every working
+// day back to at least 2026-07-07. A grace period does not help, since
+// a Pod already in a terminal phase has no live containers to wait for
+// and is removed in milliseconds.
+//
+// Doing it here removes the race rather than compensating for it: one
+// goroutine, report then delete. The other reconciler's report stays as
+// the faster path (it fires on the phase transition, ahead of the reap)
+// and the two are idempotent, MIN-biased on the server, so a double
+// report cannot extend a billed window.
 func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
+	r.reportStopped(ctx, pod)
+
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
 	}
@@ -625,6 +650,27 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 // once Pod.DeletionTimestamp is set.
 func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
 	return r.reapRunner(ctx, pod)
+}
+
+// reportStopped closes the Pod's billing session before the Pod is
+// deleted. Best-effort by design: a Pod we cannot report must still be
+// reaped, or a Tuist-server outage would leave terminal Pods and their
+// ServiceAccounts accumulating in the namespace — which is what this
+// reap exists to prevent, and a worse failure than a late close.
+// `PodReconciliationWorker` is the level-triggered backstop for
+// whatever this drops, and it resolves a better `ended_at` than we
+// could here (the job's real completion) when it does.
+//
+// nil client disables reporting, matching how the pod-lifecycle
+// reconciler is only wired when the sessions URL is configured.
+func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Pod) {
+	if r.SessionsClient == nil {
+		return
+	}
+
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, podEndedAt(pod, time.Now())); err != nil {
+		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+	}
 }
 
 type podPhaseReplicaCounts struct {

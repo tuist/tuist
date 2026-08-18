@@ -14,12 +14,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
     * the `workflow_job.completed` webhook (an edge, keyed on
       `runner_name`, silently releases nothing when GitHub reports no
       runner)
-    * the controller's pod-stopped POST (an edge, and the *only* thing
-      that closes a session — missed when the reap collects a Pod
-      before the lifecycle reconciler drains its terminal transition,
-      and missed for every Pod that ended while the controller was
-      restarting, since the informer only replays objects that still
-      exist)
+    * the controller's pod-stopped POST (two edges: the pod-lifecycle
+      reconciler on the terminal transition, and the reap itself
+      immediately before it deletes. Together they cover every Pod the
+      controller reaps, but neither fires for a Pod removed by something
+      else — node loss, eviction, drain, a manual delete — or for a Pod
+      that ended while the controller was restarting)
     * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`
     * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`
 
@@ -28,12 +28,14 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   them at once. Production had claims stuck for over ten days in exactly
   that hole: Postgres said `running` so the `claimed` sweep skipped
   them, ClickHouse said `claimed` so the `running` sweep skipped them,
-  and no completion had been recorded. Sessions were leaking on the same
-  principle but continuously: on 2026-08-14, 264 of 1185 sessions never
-  closed, a rate of 21-25% that held on every fleet and every working
-  day back to at least 2026-07-07. Each one reads to the allocator as an
-  occupied host for six hours, so a busy afternoon could withhold more
-  hosts than the fleet has.
+  and no completion had been recorded. Sessions leaked on the same
+  principle but continuously, until the reap was ordered to report before
+  deleting: on 2026-08-14, 264 of 1185 sessions never closed, a rate of
+  21-25% that held on every fleet and every working day back to at least
+  2026-07-07. Each one read to the allocator as an occupied host for six
+  hours, so a busy afternoon could withhold more hosts than the fleet
+  has. That leak is an ordering bug and is fixed at its source; what is
+  left for this worker is the residue no edge can see.
 
   This worker asks the only question that does not depend on any of
   that: does the Pod exist? It is level-triggered — it compares desired

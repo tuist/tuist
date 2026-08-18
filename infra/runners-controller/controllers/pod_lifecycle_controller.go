@@ -96,7 +96,13 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	pod := &corev1.Pod{}
 	if err := r.Get(ctx, req.NamespacedName, pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			return r.reconcileVanished(ctx, req)
+			// Nothing to report: `reapRunner` closes the session
+			// before it issues the Delete, so a Pod that is already
+			// gone has already been accounted for. Drop the dedup
+			// entry so a re-created Pod with the same name (unlikely;
+			// names carry a random suffix) gets a fresh emission.
+			r.reported.Delete(req.NamespacedName.String())
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -132,70 +138,6 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-// reconcileVanished handles a request whose Pod is already gone from
-// the apiserver by the time the workqueue item is drained.
-//
-// This used to return without reporting, on the reasoning that the
-// server's max-lifetime clamp bounds the resulting over-bill. That
-// reasoning only covered billing. The same unclosed `runner_sessions`
-// row is also what the autoscaler counts as an occupied host, and
-// there the clamp is six hours of a Mac mini withheld from every
-// sibling pool — so silence here is not an acceptable fallback.
-//
-// The branch is not an edge case. It was the normal outcome for
-// roughly a fifth of all runner Pods: on 2026-08-14, 264 of 1185
-// sessions never closed (21.1% on linux-2vcpu, 23.9% on macos-26-6,
-// 24.5% on linux-4vcpu), and the same rate holds every working day
-// back to at least 2026-07-07.
-//
-// The cause is a race between this reconciler and
-// `RunnerPoolReconciler`, which reaps terminal Pods. Both wake on the
-// same watch event into separate workqueues with no ordering between
-// them, so whichever drains first decides whether the Pod still exists
-// when we Get it. The leak rate tracks that directly: 0% in hours with
-// under ten sessions, 8-36% once volume passes ~40/hour.
-//
-// The Pod's termination grace period does not help, which is the part
-// that is easy to get wrong. Grace is a ceiling on how long the kubelet
-// waits for live containers, not a floor on how long the object
-// survives. A Pod that has already reached Succeeded or Failed has
-// nothing left to terminate, so the reap's Delete removes it in
-// milliseconds regardless of the 30s default.
-//
-// Nor is it a delivery failure we could retry our way out of: a full
-// day of controller logs carries zero "report pod stopped; will retry"
-// lines. We were not failing to deliver the report, we were never
-// reaching the code that sends it.
-//
-// The controller restarting reaches this branch too — `reported` is
-// in-memory and the informer only replays objects that still exist, so
-// a Pod that ended during downtime is invisible on resync. That one is
-// rare by comparison; the leak shows no spikes at deploy boundaries.
-//
-// `now()` is the only bound still provable once the object is gone:
-// the Pod stopped no later than this. It is later than the real
-// `finishedAt`, so the server's MIN-bias discards it outright if an
-// accurate close already landed, and it caps the leak at one reconcile
-// otherwise.
-func (r *PodLifecycleReconciler) reconcileVanished(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	key := req.NamespacedName.String()
-	if _, already := r.reported.Load(key); already {
-		// Drop the entry so a re-created Pod with the same name
-		// (unlikely; names carry a random suffix) gets a fresh
-		// emission.
-		r.reported.Delete(key)
-		return ctrl.Result{}, nil
-	}
-
-	if err := r.SessionsClient.Stopped(ctx, req.Name, r.now()); err != nil {
-		log.FromContext(ctx).Error(err, "report vanished pod stopped; will retry", "pod", req.NamespacedName)
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	}
-
-	log.FromContext(ctx).V(1).Info("reported vanished pod stopped", "pod", req.NamespacedName)
-	return ctrl.Result{}, nil
-}
-
 // isEnding returns true when the Pod has either transitioned into
 // a terminal phase or been marked for deletion. Both branches mean
 // "the runner container is no longer doing customer work" — the
@@ -226,6 +168,12 @@ func isEnding(pod *corev1.Pod) bool {
 //     somehow in a terminal phase with no terminated containers
 //     and no deletion timestamp — defensive only.
 func (r *PodLifecycleReconciler) endedAt(pod *corev1.Pod) time.Time {
+	return podEndedAt(pod, r.now())
+}
+
+// podEndedAt is the shared resolution, used by this reconciler on the
+// terminal transition and by `reapRunner` immediately before it deletes.
+func podEndedAt(pod *corev1.Pod, fallback time.Time) time.Time {
 	var latest time.Time
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.State.Terminated == nil {
@@ -243,7 +191,7 @@ func (r *PodLifecycleReconciler) endedAt(pod *corev1.Pod) time.Time {
 	if !pod.DeletionTimestamp.IsZero() {
 		return pod.DeletionTimestamp.Time
 	}
-	return r.now()
+	return fallback
 }
 
 func (r *PodLifecycleReconciler) now() time.Time {
