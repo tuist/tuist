@@ -69,12 +69,12 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, the
-# RunnerPool CRs, CRDs, and RBAC objects. This aggregates into `view` via
+# RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects. This aggregates into `view` via
 # the label below (no extra binding; both tuist-admins and tuist-eng
 # inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
 # Secret exclusion is untouched. None of these resource kinds embed secret
-# data (CAPI/Kura reference Secrets by name, never inline).
+# data (CAPI/Kura/CNPG reference Secrets by name, never inline).
 #
 # RBAC read (clusterroles/rolebindings) is the one deliberate widening of the
 # upstream `view` shape: it exposes the authorization graph, which `view`
@@ -102,6 +102,8 @@ rules:
       - infrastructure.cluster.x-k8s.io
       - kura.tuist.dev
       - tuist.dev
+      - postgresql.cnpg.io
+      - barmancloud.cnpg.io
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
@@ -154,6 +156,51 @@ rules:
   - apiGroups: ["tuist.dev"]
     resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+# CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
+# CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
+# equivalents) were invisible to every tier until now: `postgresql.cnpg.io` was
+# absent from `tuist-view-infra-read` above, and `edit` covers no custom
+# resources at all. So an operator holding an active write elevation could not
+# read a Cluster's status, let alone patch one, during exactly the incident the
+# elevation exists for.
+#
+# Mutation is limited to verbs that change how a cluster runs, never whether it
+# exists:
+#   * clusters, poolers, scheduledbackups: update/patch. The real incident
+#     actions: bump `instances`, adjust resources, change a `primaryUpdate`
+#     strategy, annotate to force a reconcile, flip a pooler.
+#   * backups: create. Taking an ad-hoc base backup before a risky change is
+#     an incident-time action that cannot destroy anything. No delete: pruning
+#     the archive is barman's retention job, not an operator's.
+#
+# `delete` on `clusters` is withheld, and that is the one place this diverges
+# from `tuist-edit-kura-write`. A Kura CR is regenerable (the control plane
+# re-renders it and the mesh refills), so granting delete there costs a cache
+# warm-up. A CNPG `Cluster` is not: deleting it deletes the PVCs it owns, and
+# `tuist-tuist-pg` is the production datastore. Nothing a TTL-bounded elevation
+# is for requires destroying a database, and a genuine decommission is rare,
+# deliberate, and reviewed. It stays an admin action. `create` is withheld for
+# the same reason inverted: standing up a datastore is a chart change, not an
+# operator action.
+#
+# Scoped to named kinds rather than `*` so future kinds in the group (Database,
+# Publication, Subscription) do not silently inherit write access, following
+# `tuist-edit-runners-write`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-cnpg-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters", "poolers", "scheduledbackups"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups"]
+    verbs: ["get", "list", "watch", "create"]
 ---
 # Host-recovery capability for UN-WEDGING a single fleet host without the
 # break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
