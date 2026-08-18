@@ -838,69 +838,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// target on the update path — HostConfigHash strips it and nothing
 		// else reads it — so the fallback re-points it without changing
 		// what we push.
-		updateCfg := bootstrap.Config{
-			IP:                ip,
-			SSHUser:           bootstrapCreds.SSHUsername,
-			SSHPrivateKey:     sshKey,
-			NodeName:          machine.Name,
-			ProviderID:        providerIDOf(machine),
-			Kubeconfig:        kubeconfigYAML,
-			TartKubeletBinary: r.TartKubeletBinary,
-			TailscaleBinaries: r.TailscaleBinaries,
-			TailscaleAuthKey:  tailscaleAuthKey,
-			// Tailscale + firewall config rides the drift loop too —
-			// UpdateTartKubelet re-runs installTailscale and
-			// installVMEgressFirewall, so an accept-routes or
-			// carve-out values change lands on existing minis with
-			// the next operator-image roll instead of waiting for
-			// re-provisioning.
-			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
-			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
-			VMClusterDNSIP:        r.VMClusterDNSIP,
-			VMCachePNCIDR:         r.VMCachePNCIDR,
-			SSHIngressAllowCIDRs:  r.SSHIngressAllowCIDRs,
-			VMCachePNVLAN:         vmCachePNVLAN,
-			// node_exporter is re-installed on every drift-loop run,
-			// not just on first bootstrap, so a chart-driven binary
-			// bump (NODE_EXPORTER_VERSION ARG in the operator
-			// Dockerfile) lands on running minis the next time the
-			// tart-kubelet binary drifts. Forgetting this here made
-			// node_exporter silently skip on every drift update —
-			// installNodeExporter short-circuits when its binary is
-			// empty.
-			NodeExporterBinary: r.NodeExporterBinary,
-			// Same reason node_exporter rides this path: the agent and its push
-			// URL both come from the operator, so an image bump or a values
-			// change has to reach already-bootstrapped minis here or it never
-			// lands on the fleet at all.
-			LogShipperBinary: r.LogShipperBinary,
-			LogShipURL:       r.LogShipURL,
-			LogShipEnv:       r.LogShipEnv,
-			HostCPU:          hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:     hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:          r.TartKubeletMaxPods,
-			// Per-account cache volumes must ride the drift loop
-			// too: the volume flag + provisioning land on already-bootstrapped
-			// minis via UpdateTartKubelet, not first-boot Run. Omitting these
-			// left the plist without --runner-cache-root (tart-kubelet booted
-			// every VM cold) and skipped installRunnerCacheVolume, while the
-			// operator's canonical HostConfigHash still reflected the enabled
-			// config — so the roll looked applied but the feature was off.
-			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
-			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
-			CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
-			VNCRelayHost:            vncRelayHost,
-			VNCRelayPort:            vncRelayPort,
-			NodeLabels:              machineNodeLabels(machine),
-			// Builder hosts must keep `--disable-vm-gc` across binary
-			// rolls. This path re-renders the plist but doesn't re-resolve
-			// GHActionsRunner (which renderLaunchdPlist otherwise keys the
-			// flag off), so carry the builder signal explicitly — without
-			// it the roll strips the flag and the orphan-VM GC reaps the
-			// in-flight image-bake VM mid-`tart push`.
-			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
-			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-		}
+		updateCfg := r.driftUpdateConfig(
+			machine, ip, bootstrapCreds, sshKey, kubeconfigYAML,
+			tailscaleAuthKey, vmCachePNVLAN, vncRelayHost, vncRelayPort,
+		)
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
 		// Tailnet fallback. A running runner mini filters inbound :22 on
 		// its public interface once Internet Sharing / vmnet reconfigures
@@ -1281,6 +1222,100 @@ func shouldClearTerminalFailure(
 		return true
 	}
 	return !now.Before(lastFailure.Time.Add(retryAfter))
+}
+
+// driftUpdateConfig assembles the Config the drift loop pushes to a host that
+// is already bootstrapped. Split out of reconcileNormal so a test can pin the
+// invariant that makes the drift loop honest: every fleet-wide field the
+// canonical HostConfigHash is computed over must be set here too. When one is
+// missing the operator still stamps the host as converged, so the host reports
+// a config it never received and the skew is invisible until something
+// downstream happens to need the dropped field. That has now happened four
+// times — node_exporter, the log shipper, the cache-volume flags, and the
+// Tailscale tags — which is why the invariant is asserted rather than reviewed.
+//
+// Only per-host fields may differ from the canonical config; HostConfigHash
+// zeroes exactly those, so the test compares the two hashes directly.
+func (r *ScalewayAppleSiliconMachineReconciler) driftUpdateConfig(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	ip string,
+	bootstrapCreds *credentials.MachineBootstrap,
+	sshKey []byte,
+	kubeconfigYAML string,
+	tailscaleAuthKey string,
+	vmCachePNVLAN uint32,
+	vncRelayHost string,
+	vncRelayPort int,
+) bootstrap.Config {
+	return bootstrap.Config{
+		IP:                ip,
+		SSHUser:           bootstrapCreds.SSHUsername,
+		SSHPrivateKey:     sshKey,
+		NodeName:          machine.Name,
+		ProviderID:        providerIDOf(machine),
+		Kubeconfig:        kubeconfigYAML,
+		TartKubeletBinary: r.TartKubeletBinary,
+		TailscaleBinaries: r.TailscaleBinaries,
+		TailscaleAuthKey:  tailscaleAuthKey,
+		// Tailscale + firewall config rides the drift loop too —
+		// UpdateTartKubelet re-runs installTailscale and
+		// installVMEgressFirewall, so an accept-routes or
+		// carve-out values change lands on existing minis with
+		// the next operator-image roll instead of waiting for
+		// re-provisioning.
+		// The tags are load-bearing, not cosmetic: an OAuth-minted
+		// credential carries no default tag, so a push without them
+		// cannot join the tailnet at all. They also feed
+		// HostConfigHash, so omitting them here stamped hosts as
+		// converged to a hash whose tailscale script they never got.
+		TailscaleTags:         r.TailscaleTags,
+		TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
+		VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
+		VMClusterDNSIP:        r.VMClusterDNSIP,
+		VMCachePNCIDR:         r.VMCachePNCIDR,
+		SSHIngressAllowCIDRs:  r.SSHIngressAllowCIDRs,
+		VMCachePNVLAN:         vmCachePNVLAN,
+		// node_exporter is re-installed on every drift-loop run,
+		// not just on first bootstrap, so a chart-driven binary
+		// bump (NODE_EXPORTER_VERSION ARG in the operator
+		// Dockerfile) lands on running minis the next time the
+		// tart-kubelet binary drifts. Forgetting this here made
+		// node_exporter silently skip on every drift update —
+		// installNodeExporter short-circuits when its binary is
+		// empty.
+		NodeExporterBinary: r.NodeExporterBinary,
+		// Same reason node_exporter rides this path: the agent and its push
+		// URL both come from the operator, so an image bump or a values
+		// change has to reach already-bootstrapped minis here or it never
+		// lands on the fleet at all.
+		LogShipperBinary: r.LogShipperBinary,
+		LogShipURL:       r.LogShipURL,
+		LogShipEnv:       r.LogShipEnv,
+		HostCPU:          hostCPUFor(machine, r.TartKubeletHostCPU),
+		HostMemoryMB:     hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+		MaxPods:          r.TartKubeletMaxPods,
+		// Per-account cache volumes must ride the drift loop
+		// too: the volume flag + provisioning land on already-bootstrapped
+		// minis via UpdateTartKubelet, not first-boot Run. Omitting these
+		// left the plist without --runner-cache-root (tart-kubelet booted
+		// every VM cold) and skipped installRunnerCacheVolume, while the
+		// operator's canonical HostConfigHash still reflected the enabled
+		// config — so the roll looked applied but the feature was off.
+		RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
+		VNCRelayHost:            vncRelayHost,
+		VNCRelayPort:            vncRelayPort,
+		NodeLabels:              machineNodeLabels(machine),
+		// Builder hosts must keep `--disable-vm-gc` across binary
+		// rolls. This path re-renders the plist but doesn't re-resolve
+		// GHActionsRunner (which renderLaunchdPlist otherwise keys the
+		// flag off), so carry the builder signal explicitly — without
+		// it the roll strips the flag and the orphan-VM GC reaps the
+		// in-flight image-bake VM mid-`tart push`.
+		DisableVMGC:          machine.Spec.GHActionsRunner != nil,
+		KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+	}
 }
 
 // recordUpdateFailure increments the drift-loop retry counter and,

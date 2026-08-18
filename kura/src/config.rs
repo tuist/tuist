@@ -400,9 +400,15 @@ impl Config {
     /// memory the kernel *can* reclaim.
     ///
     /// Subtracts the anon this process holds outside admission: the metadata
-    /// store's block cache and write-buffer pool, the manifest cache, and a
-    /// baseline for the process itself (measured at ~150 MiB total on an idle
-    /// instance, of which the caches are the larger part).
+    /// store's block cache and write-buffer pool, the manifest cache, the
+    /// action-cache snapshot cache, and a baseline for the process itself
+    /// (measured at ~150 MiB total on an idle instance, of which the caches are
+    /// the larger part).
+    ///
+    /// The snapshot cache counts for the same reason the manifest cache does:
+    /// it fills to its own ceiling and is never admitted through this budget,
+    /// so every byte of `KURA_SNAPSHOT_CACHE_MAX_BYTES` is anon this budget
+    /// must not hand out twice.
     ///
     /// `None` when nothing published a floor, which leaves the ceiling-derived
     /// sizing in place.
@@ -410,6 +416,7 @@ impl Config {
         let untracked = (self.rocksdb_block_cache_bytes as u64)
             .saturating_add(self.rocksdb_write_buffer_manager_bytes as u64)
             .saturating_add(self.manifest_cache_max_bytes as u64)
+            .saturating_add(self.snapshot_cache_max_bytes as u64)
             .saturating_add(PROCESS_ANON_BASELINE_BYTES);
         Some(self.memory_floor_bytes?.saturating_sub(untracked))
     }
@@ -2013,6 +2020,38 @@ mod tests {
 
         assert_eq!(config.memory_soft_limit_bytes, 160 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 224 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn anon_admission_budget_subtracts_the_snapshot_cache() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_FLOOR_BYTES.to_owned(),
+            (1024 * BYTES_PER_MIB).to_string(),
+        );
+        values.insert(
+            KURA_SNAPSHOT_CACHE_MAX_BYTES.to_owned(),
+            (256 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 4096 * BYTES_PER_MIB,
+                cpu_count: 6,
+            },
+        )
+        .expect("a floor-and-ceiling memory configuration should be valid");
+
+        let untracked = (config.rocksdb_block_cache_bytes as u64)
+            .saturating_add(config.rocksdb_write_buffer_manager_bytes as u64)
+            .saturating_add(config.manifest_cache_max_bytes as u64)
+            .saturating_add(config.snapshot_cache_max_bytes as u64)
+            .saturating_add(PROCESS_ANON_BASELINE_BYTES);
+        assert_eq!(
+            config.anon_admission_budget_bytes(),
+            Some(1024 * BYTES_PER_MIB - untracked)
+        );
     }
 
     #[test]
