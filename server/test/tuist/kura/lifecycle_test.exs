@@ -726,6 +726,34 @@ defmodule Tuist.Kura.LifecycleTest do
       assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
     end
 
+    test "are rescheduled when the drain is cancelled, so the instance is not stranded on an old image" do
+      # Cancelling the rollout on drain entry must not read as "this image was
+      # already delivered", or the instance would sit on its old image until
+      # some newer release came along.
+      account = account()
+      server = active_instance(account)
+
+      Repo.insert!(%Deployment{
+        cluster_id: "us-east-1",
+        image_tag: @image_tag,
+        status: :running,
+        kura_server_id: server.id
+      })
+
+      start_drain(account, server)
+      assert [%Deployment{status: :cancelled}] = Repo.all(from(d in Deployment, where: d.kura_server_id == ^server.id))
+
+      Demand.record(account.id)
+      Lifecycle.reconcile()
+      assert reload(server).status == :active
+
+      # The runtime rollout is scheduled again on the next reconciler pass.
+      Repo.update_all(from(s in Server, where: s.id == ^server.id), set: [current_image_tag: "0.4.0"])
+      {:ok, %{scheduled: scheduled}} = Kura.schedule_runtime_image_deployments()
+
+      assert Enum.any?(scheduled, &(&1.kura_server_id == server.id and &1.image_tag == @image_tag))
+    end
+
     test "leave the row able to cold-return, which requires no open deployment" do
       stub(Provisioner, :destroy, fn _server -> :ok end)
       stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
@@ -749,6 +777,60 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile()
 
       assert reload(server).status == :provisioning
+    end
+  end
+
+  describe "concurrency with the reconciler" do
+    test "activation cannot pull a draining instance back into service" do
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      # The sweep runs alongside the reconciler, so a deployment loop that
+      # preloaded this server as active can reach activation after it entered
+      # drain-pending. The lock is the authority, not the preloaded status.
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      assert {:error, :server_reclaimed} = Kura.activate_server(reload(server), @image_tag)
+      assert reload(server).status == :drain_pending
+    end
+
+    test "activation cannot resurrect an archived instance" do
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+
+      assert {:error, :server_reclaimed} = Kura.activate_server(reload(server), @image_tag)
+      assert reload(server).status == :archived
+    end
+
+    test "an observation cannot overwrite a lifecycle state" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      assert {:ok, _server} =
+               Kura.record_observation(reload(server), %{
+                 status: :active,
+                 last_observed_at: DateTime.truncate(DateTime.utc_now(), :second)
+               })
+
+      assert reload(server).status == :drain_pending
+    end
+
+    test "a failure hint cannot overwrite a lifecycle state" do
+      account = account()
+      server = active_instance(account)
+      start_drain(account, server)
+
+      assert {:ok, _server} = Kura.fail_server(reload(server))
+      assert reload(server).status == :drain_pending
     end
   end
 

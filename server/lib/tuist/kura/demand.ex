@@ -117,8 +117,17 @@ defmodule Tuist.Kura.Demand do
   from the buffer.
   """
   def upsert(account_id, service_region, %DateTime{} = demand_at) do
-    upsert_all([%{account_id: account_id, service_region: service_region, last_cache_demand_at: demand_at}])
+    upsert_many([%{account_id: account_id, service_region: service_region, last_cache_demand_at: demand_at}])
   end
+
+  @doc """
+  Upserts a batch of account-region demand rows in one statement, keeping the
+  latest timestamp per row. The backfill seeds thousands of rows at once, so it
+  goes through here rather than paying a round trip each.
+
+  Rows are `%{account_id:, service_region:, last_cache_demand_at:}`.
+  """
+  def upsert_many(rows) when is_list(rows), do: upsert_all(rows)
 
   @doc """
   Sets or clears the keep-warm exception for an account-region. A keep-warm

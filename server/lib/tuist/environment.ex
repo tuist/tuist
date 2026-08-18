@@ -360,21 +360,37 @@ defmodule Tuist.Environment do
   (see `Tuist.Kura.Capacity`). Leaving a region out means its capacity is
   unknown, which admits provisioning and never pressure-archives.
   """
-  def kura_region_machines(region_id) when is_binary(region_id) do
-    "TUIST_KURA_REGION_MACHINES"
-    |> System.get_env("")
+  def kura_region_machines(region_id, env_value \\ System.get_env("TUIST_KURA_REGION_MACHINES", ""))
+
+  def kura_region_machines(region_id, env_value) when is_binary(region_id) do
+    env_value
     |> String.split(",", trim: true)
     |> Enum.find_value(fn pair ->
-      with [^region_id, count] <- pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1),
-           {machines, ""} <- Integer.parse(count) do
-        machines
-      else
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [^region_id, count] -> parse_region_machines!(region_id, count)
         _ -> nil
       end
     end)
   end
 
-  def kura_region_machines(_region_id), do: nil
+  def kura_region_machines(_region_id, _env_value), do: nil
+
+  # A listed region with an unreadable count raises rather than reading as an
+  # omitted one. `nil` disables both capacity admission and pressure archival,
+  # so letting `us-east=O` mean "unknown" would silently remove the control
+  # that stops a region being overcommitted. Absence is a decision; a typo is
+  # not, and the two must not look alike.
+  defp parse_region_machines!(region_id, count) do
+    case Integer.parse(count) do
+      {machines, ""} when machines > 0 ->
+        machines
+
+      _ ->
+        raise ArgumentError,
+              "TUIST_KURA_REGION_MACHINES has an invalid machine count for #{region_id}: " <>
+                "#{inspect(count)}. Expected a positive integer, as in #{region_id}=4."
+    end
+  end
 
   @doc """
   Whether Kura cache-demand records bypass the in-memory buffer and are

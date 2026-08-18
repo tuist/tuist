@@ -172,9 +172,18 @@ defmodule Tuist.Kura do
   end
 
   defp servers_needing_version_query(image_tag) do
+    # `:cancelled` is excluded: a cancelled deployment never ran, so it is not
+    # evidence the image was delivered. Entering drain-pending cancels the open
+    # rollout, and without this a server whose drain was then cancelled would
+    # stay on its old image until some *newer* release came along, because the
+    # cancelled row looked like the image had already been scheduled.
+    # `:superseded` still counts, because a newer image deliberately replaced
+    # that one and re-scheduling it would roll backwards.
     deployment_for_image_exists_query =
       from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        where:
+          parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag and
+            d.status != :cancelled,
         select: 1
       )
 
@@ -522,6 +531,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{} = server ->
           {:ok, server} =
             server
@@ -755,6 +774,16 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
+        # The archival sweep runs concurrently with the reconciler, so a server
+        # can enter drain-pending after the deployment loop preloaded it as
+        # active. Rejecting under the lock is what makes that preloaded check an
+        # optimisation rather than the guard: without this, an activation would
+        # publish the endpoint and flip the row back to `:active` behind the
+        # lifecycle's back, leaving its drain clock set. Only
+        # `Kura.cancel_drain/1` may return a draining instance to service.
+        %Server{status: status} when status in [:drain_pending, :archived] ->
+          Repo.rollback(:server_reclaimed)
+
         %Server{url: previous_url} = server ->
           with {:ok, server} <-
                  server
@@ -790,7 +819,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -827,7 +857,8 @@ defmodule Tuist.Kura do
              nil ->
                Repo.rollback(:not_found)
 
-             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+             %Server{status: status} = server
+             when status in [:destroying, :destroyed, :drain_pending, :archived] ->
                {:ignored, server}
 
              %Server{} = server ->
@@ -1407,10 +1438,12 @@ defmodule Tuist.Kura do
     if open_deployment_conflict?(changeset), do: nil, else: Repo.rollback(changeset)
   end
 
+  # Same rule as `servers_needing_version_query/1`: a cancelled deployment never
+  # ran, so it does not count as the image having been scheduled.
   defp deployment_for_image_exists?(server_id, image_tag) do
     Repo.exists?(
       from(d in Deployment,
-        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag
+        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag and d.status != :cancelled
       )
     )
   end

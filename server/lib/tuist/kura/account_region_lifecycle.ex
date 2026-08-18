@@ -40,14 +40,6 @@ defmodule Tuist.Kura.AccountRegionLifecycle do
     timestamps(type: :utc_datetime)
   end
 
-  def create_changeset(attrs) do
-    %__MODULE__{}
-    |> cast(attrs, [:account_id, :service_region, :last_cache_demand_at, :keep_warm])
-    |> validate_required([:account_id, :service_region, :last_cache_demand_at])
-    |> foreign_key_constraint(:account_id)
-    |> unique_constraint([:account_id, :service_region])
-  end
-
   @doc """
   Records the lifecycle-phase transitions the archival sweep drives:
   entering drain-pending, issuing teardown, completing archival, and

@@ -49,6 +49,7 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
 
   @default_lookback_days 90
   @account_batch_size 500
+  @upsert_batch_size 1_000
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -106,16 +107,19 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
     if lifecycle_region_ids == [] do
       0
     else
-      Server
-      |> where([s], s.region in ^lifecycle_region_ids)
-      |> where([s], s.status not in [:destroyed, :archived])
-      |> select([s], {s.account_id, s.region})
-      |> Repo.all()
-      |> Enum.uniq()
-      |> Enum.reduce(0, fn {account_id, region}, seeded ->
-        {:ok, _count} = Demand.upsert(account_id, region, since)
-        seeded + 1
-      end)
+      rows =
+        Server
+        |> where([s], s.region in ^lifecycle_region_ids)
+        |> where([s], s.status not in [:destroyed, :archived])
+        |> select([s], {s.account_id, s.region})
+        |> Repo.all()
+        |> Enum.uniq()
+        |> Enum.map(fn {account_id, region} ->
+          %{account_id: account_id, service_region: region, last_cache_demand_at: since}
+        end)
+
+      Enum.each(Enum.chunk_every(rows, @upsert_batch_size), &Demand.upsert_many/1)
+      length(rows)
     end
   end
 
@@ -126,22 +130,31 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorker do
   end
 
   defp seed_batch(account_ids, demand_by_account) do
-    Account
-    |> where([a], a.id in ^account_ids)
-    |> preload(:subscriptions)
-    |> Repo.all()
-    |> Enum.reduce(0, fn account, seeded ->
-      case AccountPolicies.resolve(account) do
-        {:ok, %{service_region: service_region}} ->
-          {:ok, _count} = Demand.upsert(account.id, service_region, Map.fetch!(demand_by_account, account.id))
-          seeded + 1
+    rows =
+      Account
+      |> where([a], a.id in ^account_ids)
+      |> preload(:subscriptions)
+      |> Repo.all()
+      |> Enum.flat_map(fn account ->
+        case AccountPolicies.resolve(account) do
+          {:ok, %{service_region: service_region}} ->
+            [
+              %{
+                account_id: account.id,
+                service_region: service_region,
+                last_cache_demand_at: Map.fetch!(demand_by_account, account.id)
+              }
+            ]
 
-        # No resolvable plan and region means no account-region instance to
-        # keep warm, so there is nothing to seed.
-        {:error, _reason} ->
-          seeded
-      end
-    end)
+          # No resolvable plan and region means no account-region instance to
+          # keep warm, so there is nothing to seed.
+          {:error, _reason} ->
+            []
+        end
+      end)
+
+    {:ok, _count} = Demand.upsert_many(rows)
+    length(rows)
   end
 
   defp kura_usage_demand(since) do

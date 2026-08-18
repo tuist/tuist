@@ -121,6 +121,28 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
+  describe "environment configuration" do
+    test "an unreadable machine count raises rather than reading as unknown capacity" do
+      # `nil` disables admission and pressure archival, so a typo must not be
+      # indistinguishable from deliberately omitting the region.
+      for value <- ["O", "4x", "", "0", "-2"] do
+        assert_raise ArgumentError, ~r/invalid machine count for us-east/, fn ->
+          Environment.kura_region_machines("us-east", "us-east=#{value}")
+        end
+      end
+    end
+
+    test "a region that is simply absent reads as unknown" do
+      assert Environment.kura_region_machines("us-east", "eu-central=2") == nil
+      assert Environment.kura_region_machines("eu-central", "eu-central=2") == 2
+      assert Environment.kura_region_machines("us-east", "") == nil
+    end
+
+    test "reads a well-formed list" do
+      assert Environment.kura_region_machines("us-east", "us-east=4, eu-central=2") == 4
+    end
+  end
+
   describe "occupancy/1" do
     test "reports the forecast against what is installed" do
       installed(2)

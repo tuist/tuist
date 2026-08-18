@@ -325,7 +325,7 @@ defmodule Tuist.Kura.Reconciler do
           Lifecycle.record_ready(server, deployment)
           :ok
 
-        {:error, status} when status in [:server_destroying, :server_destroyed] ->
+        {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
           cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
 
         {:error, {:public_host_not_resolvable, host, reason}} ->
@@ -623,7 +623,7 @@ defmodule Tuist.Kura.Reconciler do
         Logger.info("[Kura.Reconciler] converged server #{server.id} to #{desired}")
         :ok
 
-      {:error, status} when status in [:server_destroying, :server_destroyed] ->
+      {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
         :ok
 
       {:error, {:public_host_not_resolvable, host, reason}} ->
@@ -710,4 +710,5 @@ defmodule Tuist.Kura.Reconciler do
 
   defp server_status(:server_destroying), do: "destroying"
   defp server_status(:server_destroyed), do: "destroyed"
+  defp server_status(:server_reclaimed), do: "drain-pending or archived"
 end

@@ -103,6 +103,41 @@ defmodule Tuist.Kura.DemandTest do
     end
   end
 
+  describe "upsert_many/1" do
+    test "writes a batch in one statement and keeps the latest timestamp per row" do
+      first = air_account()
+      second = paid_account(:pro, :europe)
+      earlier = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      {:ok, 2} =
+        Demand.upsert_many([
+          %{account_id: first.id, service_region: "us-east", last_cache_demand_at: earlier},
+          %{account_id: second.id, service_region: "eu-central", last_cache_demand_at: earlier}
+        ])
+
+      later = DateTime.utc_now()
+
+      {:ok, 1} =
+        Demand.upsert_many([
+          %{account_id: first.id, service_region: "us-east", last_cache_demand_at: later}
+        ])
+
+      assert DateTime.compare(
+               Demand.get(first.id, "us-east").last_cache_demand_at,
+               DateTime.truncate(later, :second)
+             ) == :eq
+
+      assert DateTime.compare(
+               Demand.get(second.id, "eu-central").last_cache_demand_at,
+               DateTime.truncate(earlier, :second)
+             ) == :eq
+    end
+
+    test "is a no-op on an empty batch" do
+      assert {:ok, 0} = Demand.upsert_many([])
+    end
+  end
+
   describe "lifecycle_managed?/1" do
     test "is false before any Kura cache demand and true after" do
       account = air_account()
