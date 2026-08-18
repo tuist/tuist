@@ -814,6 +814,11 @@ config :tuist, :registry,
   s3_config: registry_s3_config,
   url: System.get_env("TUIST_REGISTRY_URL"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  # When set, the mirror authenticates as this GitHub App installation and the
+  # personal access token above is only the fallback. Accepts the organization
+  # the App is installed on (resolved and cached at runtime) or a numeric
+  # installation id. See `Tuist.Registry.swift_registry_github_token/0`.
+  swift_github_app_installation: System.get_env("SWIFT_REGISTRY_GITHUB_APP_INSTALLATION"),
   swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
   swift_sync_limit: swift_registry_sync_limit

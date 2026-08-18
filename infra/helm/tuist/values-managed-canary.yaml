@@ -319,6 +319,21 @@ processor:
 swiftRegistrySync:
   enabled: true
   syncAllowlist: alamofire/alamofire
+  # Canary is where the GitHub App cutover is proven before production moves.
+  # Two things need observing here that no test can answer: that the App can
+  # mint an installation token in a real cluster, and that the resulting token
+  # can read a public repository outside the installation — alamofire/alamofire
+  # is exactly that, and it is the only package this env syncs.
+  #
+  # Failure is visible rather than silent: an App that cannot issue a token logs
+  # and falls back to the personal access token, and a token GitHub refuses to
+  # honour surfaces as the `unauthorized` coverage-deferred alert instead of a
+  # pass that quietly mirrors nothing.
+  #
+  # Promote to values-managed-staging.yaml and then production only once canary
+  # has run clean and `tuist_github_rate_limit_*` shows the budget moving off
+  # the personal access token.
+  githubAppInstallation: tuist
   # Terminate-then-replace, for the same reason as `registry.strategy` above.
   # This is a pure Oban consumer, so the gap only defers queue work: the jobs
   # stay in Postgres and the replacement Pod picks them up.

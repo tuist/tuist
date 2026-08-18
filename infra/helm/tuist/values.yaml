@@ -711,8 +711,18 @@ swiftRegistrySync:
   # Optional override of the SwiftPackageIndex catalog allowlist.
   # Useful for canary to scope sync to a small set of packages.
   syncAllowlist: ""
-  # Optional catalog batch limit.
+  # Optional catalog batch limit. Must be a positive integer; the release
+  # refuses to boot on anything else. Leave empty to take the release default,
+  # which is sized to stay under the GitHub request budget for one pass.
   syncLimit: ""
+  # GitHub App installation the mirror authenticates as, given as the
+  # organization the App is installed on (resolved to an installation id at
+  # runtime) or as a numeric installation id. When set, the release mints a
+  # short-lived installation token per pass and draws on the installation's own
+  # request budget instead of the user-scoped budget a personal access token
+  # spends. SWIFT_REGISTRY_GITHUB_TOKEN stays configured as the fallback, and
+  # the mirror falls back to it if the App cannot issue a token.
+  githubAppInstallation: ""
   # Optional override of the master enable flag. Defaults to enabled
   # in the release; set to false (bool or string) to deploy the pod for
   # image bake without actually pulling from the catalog.
