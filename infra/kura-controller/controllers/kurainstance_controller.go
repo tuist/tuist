@@ -3061,9 +3061,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	return env
 }
 
+// The snapshot cache is sized to saturate Kura's per-build action-cache index
+// budget and no further: that budget caps at 96 MiB, which a 128 MiB cache
+// already reaches. A larger cache holds more namespaces resident but does not
+// raise per-namespace capacity, and every byte is subtracted from the
+// floor-derived anon admission budget. Sized for the 4 GiB ceiling these
+// instances run; the Helm chart's 2 GiB profile stays lower.
 func managedCacheEnvDefaults() []corev1.EnvVar {
 	return []corev1.EnvVar{
-		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
+		{Name: snapshotCacheMaxBytesEnvVar, Value: "134217728"},
 		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
 		{Name: metadataStoreWriteBufferPoolBytesEnvVar, Value: "33554432"},
