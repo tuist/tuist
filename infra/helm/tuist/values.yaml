@@ -2162,7 +2162,12 @@ ociRegistry:
         repository: public.ecr.aws/nginx/nginx
         tag: "1.29"
         pullPolicy: IfNotPresent
-      port: 8080
+      # 443 so a tailnet client reaches the registry without a port in
+      # the reference. When the Pod is a tailnet node, clients dial the
+      # container port directly — the Service's 443 -> proxy mapping only
+      # applies to in-cluster traffic — so this port ends up in every
+      # image tag and chart pin if it is not the default one.
+      port: 443
       # Generous enough to cover a part being flushed to the object
       # store mid-upload.
       timeoutSeconds: 900
