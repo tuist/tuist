@@ -1901,6 +1901,114 @@ defmodule Tuist.CommandEventsTest do
       # Then - Should only include the 50% hit rate event
       assert got == 0.5
     end
+
+    test "only includes events on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 50% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "main",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # feature branch: 0% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "feature",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "only includes CI events when is_ci is true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: true,
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: false,
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C"],
+        remote_cache_target_hits: ["D"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, is_ci: true)
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "returns nil when the window holds fewer events than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..11 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..12 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == 0.5
+    end
   end
 
   describe "get_project_last_interaction_data/1" do

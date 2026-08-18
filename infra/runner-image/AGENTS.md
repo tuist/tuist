@@ -38,16 +38,23 @@ When adding tooling to the base, check ownership and login-shell
 reachability from `runner`, not just presence under `admin`.
 
 A related class of gap is anything GitHub-hosted images pre-seed
-that ours do not. TCC is one: scripted Finder automation
-(`create-dmg`, and anything else driving an app through
-`osascript`) needs a standing `kTCCServiceAppleEvents` approval,
-or macOS raises a prompt no one can answer on a headless VM and
-the send fails as `AppleEvent timed out (-1712)`. That reads as
-flakiness and is not. When adding parity features, compare
-against `actions/runner-images` `images/macos/scripts/build/`,
-and pair each one with a check that asserts the behaviour rather
-than the ingredient — every gap so far was found by a release
-failing, not by the image build.
+that ours do not. When adding parity features, compare against
+`actions/runner-images` `images/macos/scripts/build/`, and pair
+each one with a check that asserts the behaviour rather than the
+ingredient — every gap so far was found by a release failing, not
+by the image build.
+
+TCC looked like one of those gaps and was not. Scripted Finder
+automation here fails as `AppleEvent timed out (-1712)`, which
+reads as a missing `kTCCServiceAppleEvents` approval, and this
+template used to seed one. It changed nothing: seeding the
+approval into the session user's database and reading the row
+back still left every send timing out, because these VMs have no
+Finder that answers rather than one that refuses. Do not re-add
+it. The DMG step that surfaced this no longer drives Finder at
+all (`app/dmg-settings.py`), and if something else needs a GUI
+app here, the question to answer first is whether the auto-login
+session materialises, not whether it is authorised.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
@@ -97,10 +104,31 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: snapshot the post-job inventory while still
-  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
-  its absence is what tells the host to discard, the safe default for any teardown
-  that never reaches a clean detach). Promotion is a **fast-forward
+  Teardown order is load-bearing: **wait for the compilation cache's
+  publications to reach the remote** (`drain_cas_publications`, below), sample
+  the signals that need a live mount (fill
+  %), then **detach**, then measure the SETTLED image for the digest this job
+  publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
+  the same view the verifying host uses), then write `cache-dirty` (only after both
+  a clean detach and a successful measurement — its absence is what tells the host
+  to discard, the safe default for any teardown that reaches neither). The digest
+  must NOT be read through the job's own read-write mount, which is what this
+  replaced: it is both the HEAD's `tree_digest` and the immutable object key, so it
+  is a claim about the bytes the upload sends, and anything writing to the image
+  between the measurement and the detach breaks that claim permanently. The window
+  is why `detach_cache_image` polls and then forces at all — processes outlive the
+  runner (a lingering build service, the compilation cache's own asynchronous store
+  flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
+  SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
+  names bytes no host can reproduce: convergence verifies the downloaded object and
+  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
+  exists, and a host left at an older generation is rejected for a stale base — and
+  the account is stuck fleet-wide (seen in production: one account cold on all nine
+  hosts for days). When a host does hit that, it stages the disproved digest as
+  `volume-head-unverifiable` in the `status` share and the guest relays it as
+  `unverifiable_digest` with BOTH promote requests, which is what lets the server
+  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
+  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,
@@ -108,13 +136,22 @@ added to catch that failed on `admin`'s unwritable cache instead.
   captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
   and a transport error into one failure) and relays the outcome into the
   `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. The host's `Finalize` installs the branch as the account's local
-  master (a whole-image replace) ONLY on `accepted` — so the local master and the
-  HEAD advance together. A `conflict` (a stale base another host advanced past) or
-  an `error` (upload/network/control-plane failure — kept distinct so an outage
-  is not mistaken for cross-host contention) discards the branch and lets
-  convergence re-warm it. A rejected promote still uploaded its object, so the
-  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  or `error`. Most promotes lose that race, and the upload blocks the VM halt and
+  the host's slot, so the guest sends `base_generation` when MINTING the upload
+  URL too and the server 409s there — pre-empting the transfer for a promote that
+  cannot win. That pre-check may only ever skip doomed work: it is racy by
+  construction (another host can win during the upload), so the bump's
+  compare-and-swap stays the authority, an absent `base_generation` disables it
+  for older runner images, and any other failure falls back to
+  upload-then-arbitrate. The host's `Finalize` installs the branch as the
+  account's local master (a whole-image replace) ONLY on `accepted` — so the local
+  master and the HEAD advance together. A `conflict` (a stale base another host
+  advanced past) or an `error` (upload/network/control-plane failure — kept
+  distinct so an outage is not mistaken for cross-host contention) discards the
+  branch and lets convergence re-warm it. A rejected promote that got as far as
+  uploading leaves an object no HEAD points at, so the server records it as an
+  orphan and reclaims it after the URL-TTL grace; a pre-empted one never wrote
+  anything to reclaim. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
@@ -143,6 +180,28 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast
   (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
   blocks slot reclaim).
+  The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
+  teardown. The store's objects are uploaded to the remote cache
+  asynchronously, through the CAS plugin's spool, while the associations naming
+  them are written into the store immediately — so a promote that outruns those
+  uploads publishes a master whose keys name objects nothing can produce, for
+  every host that later clones it, permanently (the compiler's CAS ABI has no
+  delete, and re-putting a key with a different value is refused, so such a key
+  fails until the store generation rolls). The gate asks the running proxy
+  (`tuist-cas-proxy --drain`, exit 0 drained / 3 owed / anything else "could not
+  ask") and falls back to watching `<cas dir>/tuist-spool` itself when no client
+  can be found — a record is deleted only by a publication that SUCCEEDED, so an
+  empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
+  because that computes the digest this image is promoted under, and before the
+  detach because the spool is inside the image; it is skipped on a failed job
+  (which never promotes) and is a no-op for a job that never published, which
+  includes every plain `xcodebuild` using Xcode's builtin lane. Not draining
+  within `CAS_DRAIN_TIMEOUT` (120s) withholds the promote via
+  `mark_cache_not_promotable`: the account keeps its previous master and loses
+  this job's warm set, which is the same trade every other teardown that cannot
+  reach a safe state already makes. It cannot be complete — a host that panics or
+  a job cancelled mid-upload promotes without reaching it — so it complements,
+  and does not replace, the plugin's read-side check on a local hit.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
   `xcodebuild build` against a project Tuist never generated and never wraps —
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both
@@ -379,6 +438,24 @@ customer-facing profile selection.
    Succeeded, the RunnerPoolReconciler reaps the Pod + sibling
    SA and boots a replacement to keep the pool at
    `spec.replicas`.
+
+   The trap writes its exit code to `runner-rc` in the `status`
+   share on its way out, and tart-kubelet publishes that as the
+   Pod's terminated container state. Nothing else carries it off
+   the guest: the trap halts the VM on *every* path, so `tart run`
+   exits zero whether the job finished or the runner died on boot,
+   and a macOS runner death otherwise reaches the cluster as a
+   bare `Succeeded` with no exit code, no reason and no log. Three
+   consumers in the runners-controller read that field — the
+   `runner pod terminated` forensics line, the abnormal-end
+   death-log capture, and the `finishedAt` that dates the billing
+   session — and all three were Linux-only until the guest started
+   reporting. Written from inside the trap rather than after the
+   runner exits, so it also covers the aborts that never reach a
+   runner. Absent on hosts with no `status` share (it rides on the
+   cache-volume feature), which the host reports as
+   `TartRunExited` rather than laundering tart's zero into a clean
+   runner exit.
 
 For the customer-facing dispatch label and capacity model see
 `server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`

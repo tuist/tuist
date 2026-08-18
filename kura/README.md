@@ -366,36 +366,19 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
-HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels, and client country counts live on the separate `kura_http_client_requests_total` counter. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
-
-### GeoIP enrichment
-
-The Kura container image vendors a [DB-IP IP-to-City Lite](https://db-ip.com/db/download/ip-to-city-lite) MMDB at `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution is on by default. Location is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) at two granularities:
-
-- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_client_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
-- subdivision (ISO 3166-2, e.g. `US-CA`): the `geo.region.iso_code` OTel span attribute on `http.request` spans
-
-Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names).
-
-Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × status would inflate active series. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on a dedicated low-cardinality metric because it is bounded (~250 codes).
-
-Lookups that miss (no header, private IP, or DB missing) fall back to `client_country="unknown"` and an unset `geo.region.iso_code`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without geographic attribution.
-
-A background task refreshes the in-memory database from `https://download.db-ip.com/free/dbip-city-lite-YYYY-MM.mmdb.gz` every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`). Set the interval to `0` to keep the vendored copy for the pod's lifetime. The swap takes the in-process `RwLock` write guard for the few microseconds needed to replace the reader; concurrent lookups never observe a partial state. The City dump is ~60 MiB compressed / ~125 MiB decompressed today; each download is bounded to 128 MiB compressed / 256 MiB decompressed with a 60-second timeout, so refresh memory stays predictably capped well within the pod's limit. Outcomes are tracked in `kura_geoip_refresh_total{result="ok|http_error|parse_error"}`.
-
-DB-IP data is © DB-IP, released under CC BY 4.0.
+HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 
 ### Node geographic attribution
 
-Each pod resolves its own country and subdivision once at startup and stamps them on every exported OTel span as the `geo.country.iso_code` and `geo.region.iso_code` Resource attributes, alongside the existing `kura.region` (the cloud deployment region, e.g. `fr-par`) and `kura.tenant_id`. The same resolved country/subdivision also lands on the low-cardinality `kura_node_geo_info` Prometheus info metric so Grafana can map serving nodes without parsing traces. Combined with `geo.country.iso_code` / `geo.region.iso_code` on each request span, traces carry both endpoints of the request and Grafana can compute geographic distance directly off Tempo data.
+Each pod resolves its own country and subdivision once at startup and stamps them on every exported OTel span as the `geo.country.iso_code` and `geo.region.iso_code` Resource attributes, alongside the existing `kura.region` (the cloud deployment region, e.g. `fr-par`) and `kura.tenant_id`. The same resolved country/subdivision also lands on the low-cardinality `kura_node_geo_info` Prometheus info metric so Grafana can map serving nodes without parsing traces. This is the serving node's own location; Kura does not geolocate clients, so a request span carries where it was served and never where it came from.
 
-Country resolution chain, tried in order:
+Both values come from deployment configuration alone: resolution is a pure function of the environment, performs no network call, and consults no geographic database. Country resolution chain, tried in order:
 
-1. `KURA_NODE_COUNTRY` env var (operator override; must be a 2-letter ISO code).
-2. Public egress IP discovered via `https://api.ipify.org` (3-second timeout, best-effort), looked up against the vendored GeoIP database.
-3. Explicit deployment-region mapping for the managed labels we use today (`eu-central` -> `DE`, `us-east` / `us-west` -> `US`), otherwise a real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`).
+1. `KURA_NODE_COUNTRY` env var (2-letter ISO 3166-1 code), set from the datacenter the node runs in.
+2. The country prefix of `KURA_NODE_SUBDIVISION`, when only the subdivision is configured (`US-CA` -> `US`).
+3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-central` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
 
-Subdivision resolution: `KURA_NODE_SUBDIVISION` env var (operator override; ISO 3166-2 code such as `US-CA`), otherwise the same single egress-IP lookup. If the subdivision override is present, Kura derives the country directly from it and skips the extra probe unless subdivision itself is still missing. There is no deployment-region fallback for subdivision, so when neither the override nor the GeoIP lookup yields one, `geo.region.iso_code` is simply not stamped (the same is true of `geo.country.iso_code` when all three steps fail).
+Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-CA`) and nothing else. Neither attribute has a runtime discovery path, so an unconfigured node simply does not stamp it — `geo.region.iso_code` whenever the subdivision is unset, and `geo.country.iso_code` when all three country steps come up empty.
 
 ### Disabling OTLP tracing
 
@@ -578,9 +561,92 @@ Core env vars:
   `HS256`), `KURA_AUTH_JWT_ISSUER` and `KURA_AUTH_JWT_AUDIENCES`
 - `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET`, which
   let a node introspect tokens it cannot verify itself
+- `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` (default `3000`) and
+  `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` (default `4000`) bound the calls to the
+  server. The request budget spans the connect, so keep it the larger of the
+  two; a connect budget under about a second fails on a single dropped SYN,
+  because TCP does not retransmit one until then.
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+A token the node can verify itself, whose own claims prove the request, is
+answered from those claims and never reaches the server. What follows is about
+every request the node cannot settle that way: opaque project, account and user
+tokens, tokens signed by a key this node does not hold, every request on a node
+with no verifier configured, and a verifiable token asking about a target its
+own grants do not name — those grants are a snapshot from minting time, and the
+server can still allow it through a route they know nothing about.
+
+The cache below still holds what was settled for a verifiable token, which
+saves repeating the signature check per request. But asking about one is a
+local check rather than a round trip, so none of the outage behaviour applies
+to it.
+
+What an evaluation settles is held as one **access level** per credential and
+target — `Refused`, `Read` or `ReadWrite`. The level is ordered and write
+implies read, so the one confirmed for a read of a project also answers the
+write the build issues next, and the other way round. Each fresh answer
+**replaces** the entry outright — nothing held earlier survives it — so what
+the server takes away stays taken away.
+
+A level asked for an action above it — a write against `Read` — is not refused
+outright: the server may still allow it through a route the level knows nothing
+about, so the node asks, and the answer replaces the entry. For a short window
+after any evaluation the refusal is answered from the entry alone, so a
+read-only credential retrying uploads does not hammer the server.
+
+A refusal about one target says nothing about the next, and is held against
+that target alone. A refusal about the credential itself — a 401, where the
+server says the token is invalid or expired — voids every entry the credential
+has at once, so the other projects it covered stop being served immediately.
+
+A credential presented past its own expiry is refused without asking: the
+server validates `exp` too and would only answer inactive. That refusal holds
+off for the same minute of leeway the verifier allows, so the two cannot
+disagree about a credential in its last seconds.
+
+Every level is served for **10 minutes** and then revalidated against the
+server, whatever the credential is. That is how long a revocation, a
+deactivated user, or a narrowed grant can go unnoticed here. A credential
+carrying an `exp` is bounded by it as well — an entry never outlives the
+credential's own expiry, and never 25 minutes either — but carrying one is not
+a reason to skip revalidation: expiry says when a credential runs out, not
+whether it has been withdrawn. The `exp` is read without verifying the
+signature, which is safe because it is only read off a credential the server
+has just confirmed; a forged one would not have been.
+
+Revalidation is what keeps a control-plane blip off the serving path. A server
+that answers is taken at its word either way: its answer replaces the entry,
+grant or refusal. A server that does **not** answer knows nothing new about the
+credential, so a level that covers the request keeps serving it, up to 25
+minutes from the answer that established it and no further — nothing is
+written while the server is out of reach, so an outage can never extend its
+own cover. A node holding nothing that covers the request still fails closed,
+and a credential the server just failed to answer for is left alone for a few
+seconds before any request dials again, so an outage costs one probe per
+credential per backoff window rather than one per cold target.
+
+Exactly one request asks the server a given question — one credential, one
+target — at a time. Concurrent requests for the same question wait for its
+answer, so a build starting a hundred requests at once makes one call rather
+than a hundred, and a request whose level still answers it is served from that
+rather than queueing, so a server that black holes instead of refusing does
+not park every request for as long as its timeouts allow. A second project is
+a second question and costs its own call, once per revalidation window.
+
+Answers taken from a held entry are counted as
+`kura_auth_cache_total{cache="access",result="hit"}` and the ones worked out as
+`result="miss"`, with `kura_auth_decisions_total{stage="decide",...}` carrying
+what was answered (`allow`, `deny`, or `unavailable`) and how long it took.
+Reuse during an outage is `result="stale"`, a trip back to the server for a
+held entry is `result="revalidate"`, and an outage the node could not cover is
+`kura_auth_decisions_total{stage="authenticate",result="unavailable"}`, logged
+with the underlying transport or status error — that stage's other results are
+`access` and `deny`.
+
+Everything above is decided against the target a request resolves to, not the
+fields it happens to carry, so the two forms below reach the same answer.
 
 Requests carry their target as `tenant_id` and `namespace_id`, also read from
 `account_handle` and `project_handle` in the query. A request naming no project
@@ -588,14 +654,6 @@ is asking about the account's own cache, which is a different thing from any
 project within it: an account grant does not reach a project, and a project
 grant does not reach the account. A request naming a tenant this node does not
 serve is refused before anything else happens.
-
-Decisions are cached per credentials — keyed on the `authorization` header
-alone — for 60 seconds when granted and 3 seconds when denied, so a revoked
-token stops working within the minute. Concurrent misses on the same key are
-coalesced: one request evaluates and the rest wait for its result, so a build
-starting a hundred requests at once makes one call to the server rather than a
-hundred. Followers are counted as
-`kura_auth_cache_total{result="coalesced"}`.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.

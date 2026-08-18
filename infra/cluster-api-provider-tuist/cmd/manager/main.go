@@ -76,6 +76,9 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
+		logShipperBinaryPath         string
+		logShipURL                   string
+		logShipEnv                   string
 		tailscaleAuthKeySecretName   string
 		tailscaleTagsRaw             string
 		tailscaleAcceptRoutes        bool
@@ -148,6 +151,31 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
+		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
+			"image (/opt/log-shipper/tuist-log-shipper-darwin-arm64 by default). "+
+			"Empty disables the host-log step. The agent tails "+
+			"/var/log/tart-kubelet.log — the launchd sink for everything the "+
+			"reconciler, node agent and volume manager log — and pushes it to "+
+			"--log-ship-url. A DaemonSet cannot do this job: Pods on a macOS Node "+
+			"are Tart VMs, so an in-cluster collector has no view of the host "+
+			"filesystem.")
+	flag.StringVar(&logShipURL, "log-ship-url",
+		envOrDefault("CAPI_LOG_SHIP_URL", ""),
+		"Loki push endpoint (including /loki/api/v1/push) each Mac mini POSTs its "+
+			"host logs to. Points at the tailnet hostname of the Tailscale-operator "+
+			"proxy in front of the k8s-monitoring chart's alloy-receiver, which "+
+			"already serves this endpoint for the xcresult processor's Tart guests. "+
+			"Pushing there rather than to Grafana Cloud keeps every ingest "+
+			"credential off the fleet: the tailnet ACL is the access control and "+
+			"Alloy forwards with the token it already holds. Empty disables the "+
+			"host-log step. Flows from the chart's macosFleet.hostLogs.url.")
+	flag.StringVar(&logShipEnv, "log-ship-env",
+		envOrDefault("CAPI_LOG_SHIP_ENV", ""),
+		"Value of the `env` stream label on shipped host logs (staging / canary / "+
+			"production), mirroring the label the server's own Loki handler sets. "+
+			"Flows from the chart's macosFleet.hostLogs.env.")
 	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
 		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
 		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
@@ -381,6 +409,15 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+	var logShipperBinary []byte
+	if logShipperBinaryPath != "" {
+		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read log shipper binary", "path", logShipperBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded log shipper binary", "path", logShipperBinaryPath, "bytes", len(logShipperBinary), "sha", sha256Hex(logShipperBinary))
+	}
 
 	// Canonical host-config hash: a single fleet-wide fingerprint over
 	// everything the operator pushes (rendered install scripts +
@@ -394,10 +431,30 @@ func main() {
 	if egressProxyGroup != "" && egressNamespace != "" {
 		vncRelayPort = macos.DashboardVNCRelayPort
 	}
-	hostConfigHash := bootstrap.HostConfigHash(bootstrap.Config{
-		TartKubeletBinary:       tartKubeletBinary,
-		TailscaleBinaries:       tailscaleBinaries,
-		NodeExporterBinary:      nodeExporterBinary,
+	// One fleet config, used for both things that must agree: the hash the
+	// reconciler stamps on a Machine, and the config it pushes to the host.
+	// They were separate literals -- this one, and a field-by-field assembly
+	// in each of the controller's two push paths -- with nothing tying them
+	// together, so a field added here but missed there made the operator
+	// record a host as converged to a config it had never received.
+	fleetConfig := bootstrap.Config{
+		TartKubeletBinary:  tartKubeletBinary,
+		TartTarball:        tartTarball,
+		TailscaleBinaries:  tailscaleBinaries,
+		NodeExporterBinary: nodeExporterBinary,
+		LogShipperBinary:   logShipperBinary,
+		LogShipURL:         logShipURL,
+		LogShipEnv:         logShipEnv,
+		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
+		// Flows in from the Helm chart's macosFleet.tailscale.tags
+		// via --tailscale-tags. ACL grants the matching env's
+		// `tag:tuist-k8s-<env>` dial access to this tag on the
+		// scrape ports; cross-env scraping is blocked once the
+		// wide-open catch-all is removed.
+		//
+		// Load-bearing, not cosmetic: an OAuth-minted credential carries
+		// no default tag, so a host config pushed without these cannot
+		// join the tailnet at all.
 		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
 		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
 		VMKuraEgressCIDR:        vmKuraEgressCIDR,
@@ -411,7 +468,8 @@ func main() {
 		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
 		CacheVolumeCASGiB:       cacheVolumeCASGiB,
 		VNCRelayPort:            vncRelayPort,
-	})
+	}
+	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
 
 	restConfig := ctrl.GetConfigOrDie()
@@ -498,38 +556,16 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		ScalewayClient:       scwClient,
-		CredentialsManager:   credsManager,
-		Recorder:             mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
-		Kubeconfig:           kubeconfigBuilder,
-		TartKubeletBinary:    tartKubeletBinary,
-		TartKubeletBinarySHA: binarySHA,
-		HostConfigHash:       hostConfigHash,
-		TartTarball:          tartTarball,
-		TailscaleBinaries:    tailscaleBinaries,
-		NodeExporterBinary:   nodeExporterBinary,
-		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
-		// Flows in from the Helm chart's macosFleet.tailscale.tags
-		// via --tailscale-tags. ACL grants the matching env's
-		// `tag:tuist-k8s-<env>` dial access to this tag on the
-		// scrape ports; cross-env scraping is blocked once the
-		// wide-open catch-all is removed.
-		TailscaleTags:                 parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes:         tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:              vmKuraEgressCIDR,
-		VMClusterDNSIP:                vmClusterDNSIP,
+		Client:                        mgr.GetClient(),
+		Scheme:                        mgr.GetScheme(),
+		ScalewayClient:                scwClient,
+		CredentialsManager:            credsManager,
+		Recorder:                      mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:                    kubeconfigBuilder,
+		TartKubeletBinarySHA:          binarySHA,
+		FleetConfig:                   fleetConfig,
 		VMCachePNName:                 vmCachePNName,
-		VMCachePNCIDR:                 vmCachePNCIDR,
-		SSHIngressAllowCIDRs:          parseCommaList(sshIngressAllowRaw),
 		VPC:                           vpcClient,
-		TartKubeletHostCPU:            tartKubeletHostCPU,
-		TartKubeletHostMemoryMB:       tartKubeletHostMemory,
-		TartKubeletMaxPods:            tartKubeletMaxPods,
-		RunnerCacheVolumeGiB:          runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:       cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:             cacheVolumeCASGiB,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
 		TartKubeletTerminalRetryAfter: terminalRetryAfter,
 		BootstrapRebootAfter:          int32(bootstrapRebootAfter),

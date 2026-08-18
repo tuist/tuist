@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::target::{Action, RequestTarget, Scope};
+use crate::auth::Access;
 
 /// Handles are compared lowercased, and an empty handle is treated as absent,
 /// matching what the server writes.
@@ -42,17 +43,6 @@ impl GrantBucket {
         }
     }
 
-    /// Every handle this bucket mentions, reads first, without duplicates.
-    fn flattened(&self) -> Vec<String> {
-        let mut flattened: Vec<String> = Vec::new();
-        for handle in self.read.iter().chain(self.write.iter()) {
-            if !flattened.iter().any(|existing| existing == handle) {
-                flattened.push(handle.clone());
-            }
-        }
-        flattened
-    }
-
     fn allows(&self, action: &Action, identifier: &str) -> bool {
         let granted = match action {
             Action::Read => &self.read,
@@ -82,14 +72,15 @@ impl CacheGrants {
         Self::from_grants_value(body.get("cache_grants"))
     }
 
-    /// Reads the grants back off a principal, distinguishing a principal that
-    /// carries none at all from one that carries empty ones. Only the former
-    /// falls back to the legacy project handles: a principal that was built
-    /// from grants has already had its say.
-    pub fn from_principal_attributes(attributes: &Value) -> Option<Self> {
-        match attributes.get("cache_grants") {
-            None | Some(Value::Null) => None,
-            grants => Some(Self::from_grants_value(grants)),
+    /// The level these grants give one target: write implies read, so the
+    /// answer is the highest action the buckets name it for.
+    pub fn level(&self, target: &RequestTarget) -> Access {
+        if self.allow(target, &Action::Write) {
+            Access::ReadWrite
+        } else if self.allow(target, &Action::Read) {
+            Access::Read
+        } else {
+            Access::Refused
         }
     }
 
@@ -114,14 +105,6 @@ impl CacheGrants {
     pub fn allow(&self, target: &RequestTarget, action: &Action) -> bool {
         self.bucket(&target.scope)
             .allows(action, &target.identifier)
-    }
-
-    pub fn accounts(&self) -> Vec<String> {
-        self.account.flattened()
-    }
-
-    pub fn projects(&self) -> Vec<String> {
-        self.project.flattened()
     }
 }
 
@@ -151,7 +134,7 @@ mod tests {
         }));
 
         assert_eq!(grants.account.read, vec!["acme"]);
-        assert_eq!(grants.projects(), vec!["acme/ios"]);
+        assert_eq!(grants.project.write, vec!["acme/ios"]);
     }
 
     #[test]
@@ -165,7 +148,10 @@ mod tests {
 
             assert!(!grants.allow(&target(Scope::Project, "acme/ios"), &Action::Read));
             assert!(!grants.allow(&target(Scope::Account, "acme"), &Action::Read));
-            assert!(grants.projects().is_empty());
+            assert_eq!(
+                grants.level(&target(Scope::Project, "acme/ios")),
+                Access::Refused
+            );
         }
     }
 
@@ -213,14 +199,27 @@ mod tests {
         assert!(!project_only.allow(&target(Scope::Account, "acme"), &Action::Read));
     }
 
+    // The level is the highest action the buckets name the target for, which
+    // is the ordered form of the two `allow` rules above.
     #[test]
-    fn flattens_reads_before_writes_without_duplicates() {
+    fn the_level_is_the_highest_action_granted() {
         let grants = CacheGrants::from_body(&json!({
             "cache_grants": {
-                "project": { "read": ["acme/ios", "acme/web"], "write": ["acme/ios", "acme/api"] }
+                "project": { "read": ["acme/web"], "write": ["acme/ios"] }
             }
         }));
 
-        assert_eq!(grants.projects(), vec!["acme/ios", "acme/web", "acme/api"]);
+        assert_eq!(
+            grants.level(&target(Scope::Project, "acme/ios")),
+            Access::ReadWrite
+        );
+        assert_eq!(
+            grants.level(&target(Scope::Project, "acme/web")),
+            Access::Read
+        );
+        assert_eq!(
+            grants.level(&target(Scope::Project, "acme/api")),
+            Access::Refused
+        );
     }
 }

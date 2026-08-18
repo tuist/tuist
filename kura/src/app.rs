@@ -24,7 +24,6 @@ use crate::{
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
     config::Config,
-    geoip::GeoIp,
     http,
     io::IoController,
     memory::{MemoryController, MemoryPressure},
@@ -86,20 +85,17 @@ pub async fn run() -> Result<(), String> {
     let enrollment = crate::enrollment::enroll_on_boot().await?;
 
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let geoip = GeoIp::open();
     let node_location = resolve_node_location(
         config.node_country_override.as_deref(),
         config.node_subdivision_override.as_deref(),
-        geoip.as_ref(),
         &config.region,
-    )
-    .await;
+    );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
         warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip, node_location, enrollment)
+    let result = run_with_config(config, node_location, enrollment)
         .instrument(log_context)
         .await;
 
@@ -109,7 +105,6 @@ pub async fn run() -> Result<(), String> {
 
 async fn run_with_config(
     config: Config,
-    geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
@@ -194,7 +189,6 @@ async fn run_with_config(
         auth,
         analytics,
         usage,
-        geoip,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
@@ -241,7 +235,6 @@ async fn run_with_config(
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
-    spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
@@ -1081,46 +1074,6 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
                     .await
                     .unwrap_or(0);
                 state.metrics.update_tmp_dir_bytes(bytes);
-            }
-        }
-        .in_current_span(),
-    );
-}
-
-fn spawn_geoip_refresh_task(state: Arc<AppState>) {
-    if state.geoip.is_none() {
-        return;
-    }
-    let interval_secs = state.config.geoip_refresh_interval_secs;
-    if interval_secs == 0 {
-        info!("GeoIP background refresh disabled");
-        return;
-    }
-    let http = match reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(60))
-        .build()
-    {
-        Ok(client) => client,
-        Err(error) => {
-            warn!("failed to build GeoIP refresh client: {error}");
-            return;
-        }
-    };
-    let interval = Duration::from_secs(interval_secs);
-    tokio::spawn(
-        async move {
-            loop {
-                tokio::time::sleep(interval).await;
-                let geoip = state
-                    .geoip
-                    .as_ref()
-                    .expect("geoip presence checked before spawning the refresh task");
-                let outcome = geoip.refresh(&http).await;
-                state.metrics.record_geoip_refresh(outcome.as_str());
-                if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {
-                    info!("GeoIP database refreshed");
-                }
             }
         }
         .in_current_span(),

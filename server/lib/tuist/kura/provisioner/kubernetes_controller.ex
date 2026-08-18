@@ -21,7 +21,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-08-11-memory-floor-ceiling-v1"
+  @manifest_revision "2026-08-17-node-location-config-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
@@ -52,21 +52,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp do_rollout(
-         name,
-         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
-       ) do
-    with {:ok, hook_script} <- hook_script(inputs) do
-      entitlements = manifest_entitlements(account, region)
-      external_peers = self_hosted_peers(account, region, entitlements)
+  defp do_rollout(name, %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region}) do
+    entitlements = manifest_entitlements(account, region)
+    external_peers = self_hosted_peers(account, region, entitlements)
 
-      case apply_manifests(
-             [render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)],
-             region
-           ) do
-        :ok -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+    case apply_manifests(
+           [render_manifest(name, image_tag, account, region, server, external_peers, entitlements)],
+           region
+         ) do
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -231,12 +226,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, external_peers \\ []) do
     entitlements = manifest_entitlements(account, region)
-    render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)
+    render_manifest(name, image_tag, account, region, server, external_peers, entitlements)
   end
 
-  defp render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements) do
+  defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = dns_handle(account.name)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     revision = manifest_revision_string(region, external_peers, entitlements)
@@ -289,8 +284,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extensionScript" => hook_script,
-          "extraEnv" => extension_env(region, entitlements)
+          "extraEnv" => auth_env(region, entitlements)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -535,15 +529,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp extension_env(%Regions{} = region, entitlements) do
+  defp auth_env(%Regions{} = region, entitlements) do
     [
-      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
-      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
-      env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      # Emitted alongside the URL so that authorizing is an instruction rather
+      # than an inference. A node reads a blank URL as no configuration at all
+      # and starts serving the cache with no authorization; with this set it
+      # refuses to start instead, which is the failure we want to see.
+      env_var("KURA_AUTH_ENABLED", "true"),
       env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
-      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
+      env_var("KURA_AUTH_TUIST_URL", tuist_base_url(region)),
+      env_var("KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS", "3000"),
+      env_var("KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ] ++
       maybe_env_var(
         "KURA_CONTROL_PLANE_CLIENT_ID",
@@ -552,7 +548,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cas_capacity_env(region) ++
       mesh_peers_sync_env(region, entitlements) ++
       backfill_env(entitlements) ++
+      node_location_env(region) ++
       telemetry_env(region)
+  end
+
+  # Where the node runs, straight from the region's datacenter. Kura stamps it
+  # on its OTel Resource as-is; it has no way to work the location out for
+  # itself, so a region without one exports spans with no geography rather than
+  # a guess. Adding either variable changes every managed instance's manifest,
+  # so @manifest_revision moves with it or the reconciler never re-applies.
+  defp node_location_env(%Regions{} = region) do
+    case Regions.node_location(region) do
+      nil ->
+        []
+
+      %{country: country, subdivision: subdivision} ->
+        maybe_env_var("KURA_NODE_COUNTRY", country) ++
+          maybe_env_var("KURA_NODE_SUBDIVISION", subdivision)
+    end
   end
 
   # The per-account Release AB switch: gated accounts render
@@ -801,46 +814,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp dns_handle(handle), do: String.downcase(handle)
-
-  defp hook_script(inputs) do
-    case Map.get(inputs, :hook_script) do
-      script when is_binary(script) ->
-        {:ok, script}
-
-      nil ->
-        hook_script_from_runtime()
-    end
-  end
-
-  # Hook script is the same for every rollout in a given release, so we
-  # read it once and keep it in :persistent_term to avoid disk I/O on
-  # every reconciler tick. Cleared automatically when the BEAM is
-  # restarted (release upgrade, pod replacement) so a chart change to
-  # the bundled hooks.lua picks up on the next deploy.
-  @hook_script_cache_key {__MODULE__, :hook_script}
-
-  defp hook_script_from_runtime do
-    case Application.get_env(:tuist, :kura_hook_path) do
-      nil ->
-        {:error, "kura_hook_path is not configured"}
-
-      path when is_binary(path) ->
-        case :persistent_term.get({@hook_script_cache_key, path}, :__missing__) do
-          :__missing__ -> read_and_cache_hook_script(path)
-          script -> {:ok, script}
-        end
-    end
-  end
-
-  defp read_and_cache_hook_script(path) do
-    if File.regular?(path) do
-      script = File.read!(path)
-      :persistent_term.put({@hook_script_cache_key, path}, script)
-      {:ok, script}
-    else
-      {:error, "kura_hook_path #{path} is not a file"}
-    end
-  end
 
   defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 

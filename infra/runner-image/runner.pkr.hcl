@@ -252,51 +252,6 @@ build {
     ]
   }
 
-  # Pre-approve scripted Finder automation. Tools that style a
-  # window through AppleScript, `create-dmg` being the one that
-  # surfaced this, drive Finder from `osascript`. macOS gates that
-  # behind a TCC approval, and with none recorded it raises an
-  # authorization prompt. Nothing can answer a prompt on a headless
-  # VM, so the send sits until it gives up with "Finder got an
-  # error: AppleEvent timed out. (-1712)". The timeout reads as
-  # flakiness, which is why callers retry it; here it is
-  # deterministic and retrying only multiplies the wait.
-  #
-  # GitHub-hosted images seed the same table
-  # (images/macos/scripts/build/configure-tccdb-macos.sh). Ours
-  # never have, so DMG creation has been impossible on this fleet
-  # since macOS jobs moved here.
-  #
-  # TCC attributes an event to the *responsible* process, which for
-  # a shell pipeline is usually an ancestor rather than `osascript`
-  # itself, so the shells are seeded alongside it.
-  #
-  # Columns are named rather than positional: the `access` schema
-  # gains columns across macOS releases, and the positional tuple
-  # GitHub uses has to be rewritten on every OS bump.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "SYSTEM_DB='/Library/Application Support/com.apple.TCC/TCC.db'",
-      "USER_DB='/Users/runner/Library/Application Support/com.apple.TCC/TCC.db'",
-      "seed() { local db=$1; for client in /usr/bin/osascript /bin/bash /bin/zsh; do sudo sqlite3 \"$db\" \"INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier_type, indirect_object_identifier, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '$client', 1, 2, 4, 1, 0, 'com.apple.finder', 0, strftime('%s','now'));\"; done; }",
-      "echo 'admin' | sudo -S true",
-      "seed \"$SYSTEM_DB\"",
-      # The per-user database only exists once something has
-      # triggered a TCC decision for that account. Creating it here
-      # would leave a schema-less file shadowing the real one and
-      # break TCC for the runner outright, so seed it only if macOS
-      # has already made it.
-      "if sudo test -f \"$USER_DB\" && sudo sqlite3 \"$USER_DB\" 'SELECT 1 FROM access LIMIT 1;' >/dev/null 2>&1; then seed \"$USER_DB\"; sudo chown runner:staff \"$USER_DB\"; else echo 'per-user TCC.db absent; relying on the system database'; fi",
-      # Not decoration. TCC.db is SIP protected, so a base image
-      # shipping with SIP enforced would have the INSERT rejected and
-      # publish an image where Finder automation is still broken.
-      # That is how the reachability-only brew check let a breakage
-      # through; read the row back so it lands on the image build.
-      "sudo sqlite3 \"$SYSTEM_DB\" \"SELECT 1 FROM access WHERE service='kTCCServiceAppleEvents' AND client='/usr/bin/osascript' AND indirect_object_identifier='com.apple.finder' AND auth_value=2;\" | grep -q 1 || { echo 'sanity check: AppleEvents approval for Finder did not persist to TCC.db (SIP enforced?) — scripted Finder automation, and therefore DMG creation, would fail on this image' >&2; exit 1; }"
-    ]
-  }
-
   # The runner auto-login opens a real desktop session so launchd can
   # run the GitHub Actions agent. On fresh macOS images that first
   # desktop can be intercepted by Setup Assistant's "Update Mac

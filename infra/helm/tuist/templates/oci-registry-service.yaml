@@ -1,9 +1,8 @@
 {{- if .Values.ociRegistry.enabled }}
-# `tailscale.com/expose` makes the operator front this Service with a
-# tailnet node, so builders and the Mac fleet reach the registry by its
-# tailnet name with no public ingress. The proxy is L4, which matters
-# here: an HTTP proxy in the path would impose a request-body limit that
-# 512 MiB layer uploads would run into.
+# No `tailscale.com/expose`: the Pod is a tailnet node in its own right
+# (see the Deployment), so an operator-managed proxy in front of it would
+# be a second node competing for the same name. This Service stays purely
+# in-cluster.
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,22 +10,11 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: oci-registry
-  {{- if .Values.ociRegistry.tailscale.enabled }}
-  annotations:
-    tailscale.com/expose: "true"
-    tailscale.com/hostname: {{ required "ociRegistry.tailscale.hostname is required when ociRegistry.tailscale.enabled is true" .Values.ociRegistry.tailscale.hostname | quote }}
-    {{- with .Values.ociRegistry.tailscale.tags }}
-    tailscale.com/tags: {{ . | quote }}
-    {{- end }}
-    {{- if and .Values.ociRegistry.tls.enabled .Values.ociRegistry.tls.dns.enabled }}
-    # A CNAME onto the MagicDNS name, not an A record: the tailnet
-    # address is reassigned when the node is recreated, and the name is
-    # not. It only resolves for tailnet members, so publishing it costs
-    # nothing and the certificate can be issued for a name we own.
-    external-dns.alpha.kubernetes.io/hostname: {{ .Values.ociRegistry.tls.host | quote }}
-    external-dns.alpha.kubernetes.io/target: {{ printf "%s.%s" .Values.ociRegistry.tailscale.hostname (required "ociRegistry.tls.dns.tailnet is required to build the CNAME target" .Values.ociRegistry.tls.dns.tailnet) | quote }}
-    {{- end }}
-  {{- end }}
+  # No external-dns record. Clients dial the tailnet name directly, which
+  # is also the certificate's name; publishing a vanity CNAME onto it
+  # would hand out a name whose certificate cannot match, and it would
+  # only resolve through MagicDNS anyway — which is exactly what the Mac
+  # hosts do not use.
 spec:
   type: {{ .Values.ociRegistry.service.type }}
   selector:

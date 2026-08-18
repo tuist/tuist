@@ -8,8 +8,12 @@
 // AWS EC2 Mac path described in PR #10499's BYOC section will land
 // as a sibling module that imports macos-host-bootstrap unchanged.
 //
-// tart-kubelet has no dependencies on the others — it ships as a
-// binary baked into each provider's controller image.
+// tart-kubelet and macos-log-shipper have no dependencies on the
+// others — both ship as darwin/arm64 binaries baked into each
+// provider's controller image and uploaded to the hosts over SSH.
+// macos-log-shipper is stdlib-only on purpose: every host binary is
+// re-pushed on each drift roll, so its size is roll time multiplied
+// by the fleet.
 
 go 1.25.0
 
@@ -19,6 +23,7 @@ use (
 	./infra/kura-controller
 	./infra/linux-runner-image
 	./infra/macos-host-bootstrap
+	./infra/macos-log-shipper
 	./infra/runner-image
 	./infra/runners-controller
 	./infra/stable-egress-controller
