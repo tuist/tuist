@@ -2,14 +2,28 @@ defmodule Tuist.Kura.Demand do
   @moduledoc """
   Records and reads Kura cache demand for an account-region instance.
 
-  Cache demand is any authenticated Xcode, Module, or Gradle cache read or
-  write that would route to Kura. General project activity, command events
-  unrelated to cache, billing events, and dashboard visits do not count, which
-  is why demand is recorded at the request boundary — cache-endpoint
-  resolution, where a client asks where to send cache traffic — rather than
-  derived after the fact from analytics tables. Endpoint resolution covers all
-  three lanes uniformly and is the same call for a developer machine and for a
-  runner build.
+  Demand is recorded at the request boundary: cache-endpoint resolution, where
+  a client asks where to send cache traffic. That covers the Xcode, Module, and
+  Gradle lanes uniformly, is the same call for a developer machine and for a
+  runner build, and is the only signal available when an account has no
+  instance at all — which is what lets an archived account ask for one back
+  rather than deadlocking. General project activity, command events unrelated
+  to cache, billing events, and dashboard visits never reach here.
+
+  It is deliberately a proxy for cache traffic rather than a measure of it, and
+  it errs in both directions. `tuist setup cache` installs a LaunchAgent with
+  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
+  account whose agent is installed but idle keeps refreshing its clock without
+  anyone building, and may never reach a full inactive window. In the other
+  direction the CLI caches a resolved endpoint for an hour, so most requests
+  during a build never reach here at all.
+
+  Both are accepted. Holding an idle account warm is the safe error, and the
+  alternative — keeping the clock on `kura_usage_events`, which the instances
+  push for real transfers, while endpoint resolution only triggers provisioning
+  — needs two signals to say what one says now, against a clock measured in
+  days. Fleet sizing should read the archival population as a floor rather than
+  an estimate because of it.
 
   That boundary is a hot path, so `record/1` never touches the database. It
   writes the account id into an ETS buffer; a periodic flush resolves each
