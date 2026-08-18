@@ -2,266 +2,87 @@
 {
   "title": "Cache infrastructure",
   "titleTemplate": ":title | Engineering | Tuist Handbook",
-  "description": "This document describes how Tuist's cache infrastructure is managed using NixOS, including deployment, configuration, and operational procedures."
+  "description": "How Tuist's globally distributed cache nodes are provisioned, deployed, and operated."
 }
 ---
 # Cache infrastructure
 
-Tuist operates a globally distributed cache service that handles artifacts to speed up developers' workflows. This performance is achieved by deploying servers across multiple geographic regions.
+Tuist operates a globally distributed cache that holds build artifacts close to the developers reading them. Latency is the whole point, so the service runs on bare metal in several regions rather than in one place.
 
-We manage the host machines using [NixOS](https://nixos.org/), which allows us to define the system configuration declaratively and reproduce the same environment across all servers. Even though the cache application itself runs in a Docker container, we rely on NixOS to keep the underlying host environment (kernel, networking, system services, nginx, Docker runtime, and observability) consistent and predictable.
+The fleet is mid-migration between two generations. Kura, a Rust cache mesh, runs on nodes that are ordinary members of our Kubernetes clusters. It is replacing an older Elixir cache service that runs on separately managed hosts. This page describes the current model first, because that is what new work targets, and the fleet being retired second.
 
-## Overview
+## How cache nodes work today
 
-The cache service runs on dedicated servers across multiple regions to minimize latency for developers worldwide. The cache service is deployed on self-hosted machines that we operate and manage ourselves.
+A Kura node is a bare-metal box running Ubuntu that has joined one of our Kubernetes clusters as a worker. There is no separate configuration system for it. It gets its configuration the same way every other node does, and Kura itself is scheduled onto it as a workload.
 
-NixOS gives us an infrastructure-as-code workflow for those machines, so host-level configuration changes are versioned, reviewable, and reproducible across all regions.
+That is the substantive change. The old fleet had its own operating system, its own deployment tool, its own secret delivery mechanism, its own reverse proxy, and its own telemetry agent, none of which were the ones the rest of the platform used. A cache host was a different kind of machine that happened to be ours. Now it is the same kind of machine as everything else, which means one way to grant access, one way to deliver secrets, one way to ship telemetry, and one place to look when something is wrong.
 
-### Architecture
+| Concern | How it is handled |
+| --- | --- |
+| Operating system | Ubuntu, installed once during preparation |
+| Cluster membership | Cluster API, with an operator-minted kubelet identity and secure shell self-join |
+| Application | Kura, a Rust service, deployed by Helm and reconciled from `KuraInstance` resources |
+| Storage | Local disk: a metadata store for manifests and replication state, append-only segment files for artifact bodies |
+| Ingress and certificates | Regional ingress controllers with certificates issued through cert-manager |
+| Secrets | 1Password, synchronized into the cluster by the External Secrets Operator |
+| Observability | Grafana Cloud, through the in-cluster telemetry agent that covers every workload |
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| OS & Configuration | NixOS with Nix Flakes | Declarative, reproducible server configuration |
-| Deployment | Colmena | Multi-machine NixOS deployment orchestration |
-| Application | Elixir/Phoenix in Docker | Cache service API (deployed via Kamal) |
-| Reverse Proxy | nginx | HTTP/2, TLS termination, static file serving |
-| Secrets | opnix (1Password) | Secure secrets management |
-| Observability | Grafana Alloy | Metrics and logs to Grafana Cloud |
+## Regions
 
-### Server Regions
+| Region | Provider | Location |
+| --- | --- | --- |
+| `eu-central` | Scaleway Dedibox | Europe, central |
+| `us-east` | OVHcloud | Vint Hill, Virginia |
+| `us-west` | OVHcloud | Hillsboro, Oregon |
+| `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
 
-The cache service is deployed to the following regions:
+The first three are customer-facing. `scw-fr-par-runners` is private: it serves the macOS runner fleet's build cache over the private network the Mac minis attach to, and is not offered as a region to accounts.
 
-| Server | Environment | Region |
-|--------|-------------|--------|
-| `cache-eu-central` | Production | Europe (Central) |
-| `cache-us-east` | Production | US East |
-| `cache-us-west` | Production | US West |
-| `cache-ap-southeast` | Production | Asia Pacific (Southeast) |
-| `cache-eu-central-staging` | Staging | Europe (Central) |
-| `cache-us-east-staging` | Staging | US East |
-| `cache-eu-central-canary` | Canary | Europe (Central) |
+Each region is one box today. A region's capacity grows by adding boxes, not by splitting an account across them, because an account's cache pods are kept together on a single box.
 
-All servers are accessible at `cache-<region>.tuist.dev` (e.g., `cache-eu-central.tuist.dev`). Non-production environments include an explicit suffix: `cache-<region>-<env>.tuist.dev` (e.g., `cache-eu-central-staging.tuist.dev`).
+## Bringing a node into the fleet
 
-## Configuration Structure
+The controllers never order hardware. A box is ordered by hand, prepared, and then adopted.
 
-The NixOS configuration lives in `cache/platform/` and is structured as follows:
+1. **Order the box** in the provider console. OVHcloud for the US regions, Dedibox for `eu-central`.
 
-```
-cache/platform/
-├── flake.nix              # Nix Flake entry point, defines machines and Colmena config
-├── configuration.nix      # Base system configuration (kernel, networking, Docker, etc.)
-├── disk-config.nix        # Declarative disk partitioning via disko
-├── hardware-configuration.nix  # Hardware-specific settings
-├── nginx.nix              # nginx reverse proxy configuration
-├── secrets.nix            # 1Password secrets integration via opnix
-├── users.nix              # User accounts and SSH keys
-└── alloy.nix              # Grafana Alloy observability configuration
-```
-
-### Key Configuration Files
-
-#### `flake.nix`
-
-> [!NOTE]
-> A **Nix flake** is a standardized way to package Nix projects and their dependencies. It pins inputs (via `flake.lock`) and makes builds and environments more reproducible and easier to share. See the [Nix flakes documentation](https://nix.dev/concepts/flakes.html) for details.
-
-Defines the Nix Flake with:
-- Input dependencies (nixpkgs, disko, opnix)
-- List of all cache machines
-- Colmena deployment configuration that targets `cache-<region>(-<env>).tuist.dev`
-
-#### `configuration.nix`
-
-Base system configuration including:
-- Linux kernel 6.18 with optimized network sysctls for high-throughput file serving
-- Docker runtime for the Phoenix application container
-- Firewall rules (ports 22, 80, 443, 4369, 9100-9155)
-- File/socket limits and tmpfiles rules for the cache directories
-
-#### `disk-config.nix`
-
-Declarative disk layout using disko:
-- **`/dev/sda`**: Boot partition (128MB ESP) + root filesystem (ext4)
-- **`/dev/sdb`**: Dedicated `/cas` volume for cache artifacts (ext4 with optimized mount options)
-
-#### `nginx.nix`
-
-nginx configuration optimized for cache performance:
-- HTTP/2 with 512 concurrent streams
-- 10,000 keepalive requests per connection
-- Direct file serving from `/cas` for read operations (bypasses Phoenix after auth)
-- Internal proxy locations for local and remote artifact fetching
-- Let's Encrypt TLS via ACME
-
-#### `secrets.nix`
-
-1Password integration via opnix for:
-- Grafana Cloud Prometheus credentials
-- Grafana Cloud Loki credentials
-
-#### `alloy.nix`
-
-Grafana Alloy configuration for:
-- Prometheus metrics scraping (cache service + system metrics)
-- Docker container log collection
-- nginx error log forwarding
-- Remote write to Grafana Cloud
-
-## Provisioning with nixos-anywhere
-
-[nixos-anywhere](https://github.com/nix-community/nixos-anywhere) allows you to install NixOS on a remote machine over SSH from any Linux system (including a rescue/recovery environment). It automatically handles disk partitioning using disko and installs the complete NixOS configuration in a single command.
-
-### Prerequisites
-
-1. **Local machine**: Nix with flakes enabled
-2. **Target server**:
-   - Booted into a Linux environment with SSH access (e.g., rescue mode, live ISO, or existing Linux)
-   - Root SSH access (either direct root login or a user with passwordless sudo)
-   - At least 1GB RAM (2GB+ recommended for building)
-   - Two disks available (`/dev/sda` for system, `/dev/sdb` for cache storage)
-3. **DNS**: The hostname must resolve to the server's IP (e.g., `cache-eu-central.tuist.dev`)
-4. **1Password**: A service account token for the `cache` vault
-
-### Installation Steps
-
-1. **Add the server to the configuration**
-
-   Edit `cache/platform/flake.nix` and add the new hostname to the `machines` list:
-
-   ```nix
-   machines = [
-     "cache-eu-central"
-     "cache-us-east"
-     # ... existing machines
-     "cache-new-region"  # Add new server
-   ];
-   ```
-
-2. **Run nixos-anywhere**
-
-   From your local machine with Nix installed:
+2. **Prepare it.** One task installs Ubuntu, the fleet's secure shell key, and the sudo password, then sets the adoption marker as its final step:
 
    ```bash
-   cd cache/platform
-
-   # Install NixOS on the target server
-   nix run github:nix-community/nixos-anywhere -- \
-     --flake .#cache-new-region \
-     root@<server-ip-or-hostname>
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-ovh <service-name> <fleet-name>
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>
    ```
 
-   This command will:
-   - Connect to the target server via SSH
-   - Partition the disks according to `disk-config.nix` (this **destroys all data** on the target disks)
-   - Install NixOS with the configuration from the flake
-   - Reboot the server into the new NixOS installation
+   The install runs asynchronously and takes roughly twenty to forty minutes. `PREP_NAMESPACE` selects the environment, which selects both the 1Password vault and the values file the marker is read from. Pass `PREP_SKIP_MARK=1` to stage capacity without releasing it into the pool yet.
 
-3. **Configure secrets**
+3. **Declare the fleet** at the new box count in `infra/helm/tuist/values-managed-<env>.yaml` and deploy. The controller claims the marked box and self-joins it in two to five minutes. Adoption is a claim plus a self-join; the operating system install never runs on this path, which is what keeps it fast.
 
-   After the server reboots, SSH in and set up the 1Password token:
+Scaling afterwards is `kubectl scale machinedeployment`.
 
-   ```bash
-   ssh root@cache-new-region.tuist.dev
+## Deploying
 
-   # Create the opnix token file (get token from 1Password)
-   echo "YOUR_1PASSWORD_SERVICE_ACCOUNT_TOKEN" > /etc/opnix-token
-   chmod 600 /etc/opnix-token
-   ```
+Kura is a mesh, and it is deployed with rolling updates, so nodes running different versions serve traffic side by side during a rollout. Every change has to be safe under that overlap: compatible across one version of skew in both directions, no change to the on-disk or replication formats that an older peer cannot read, and no local optimization that alters the bytes a client receives. The detail lives in `kura/AGENTS.md` and is worth reading before changing anything on the replication path.
 
-4. **Apply the full configuration**
+## Operating
 
-   The initial nixos-anywhere installation includes the base configuration. Run Colmena to ensure everything is up to date and secrets are properly loaded:
+**Access.** Cache nodes are cluster nodes, so they are reached through the same read-only-by-default path as any other workload, with writes going through the just-in-time elevation flow. There is no separate secure shell path for routine work; the fleet key exists for provisioning and recovery.
 
-   ```bash
-   cd cache/platform
-   colmena apply --on cache-new-region
-   ```
+**Secrets.** Held in 1Password and synchronized by the External Secrets Operator. Rotating one means updating the item and letting the operator resynchronize.
 
-5. **Deploy the Phoenix application**
+**Observability.** Metrics, logs, and traces reach Grafana Cloud through the in-cluster agent. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
 
-   Add the new server to the Kamal deploy configuration (`cache/config/deploy.yml`), then deploy:
+**Release.** Releasing a box wipes and reinstalls Scaleway Elastic Metal machines. Dedibox and OVHcloud machines are left installed and can be re-adopted.
 
-   ```bash
-   cd cache
-   kamal deploy -c config/deploy.yml
-   ```
+## The fleet being retired
 
-## Deployment Workflow
+The older cache service is an Elixir application in a container, fronted by nginx, running on hosts managed with NixOS and deployed with Colmena and Kamal. Its configuration lives in `cache/platform/` and its host list in `cache/config/deploy*.yml`.
 
-### Prerequisites
+It is still serving production traffic across roughly ten regions while Kura regions come up beside it. It is being retired region by region rather than in one cutover, and nothing new should be built on it. If you need the provisioning and deployment detail for a host that is still in service, `cache/platform/` and `cache/AGENTS.md` have it.
 
-1. SSH access to the target servers (keys configured in `users.nix`)
-2. 1Password CLI with access to the `cache` vault
-3. Nix with flakes enabled
+NixOS applies only to that fleet. New cache nodes do not use it.
 
-### Deploying NixOS Configuration
+## Related
 
-NixOS configuration changes are deployed using Colmena:
-
-```bash
-# Deploy to all machines
-cd cache/platform
-colmena apply
-
-# Deploy to a specific machine
-colmena apply --on cache-eu-central
-
-# Build without deploying (dry run)
-colmena build
-```
-
-Colmena builds the configuration on the target machine (`buildOnTarget = true`) to ensure architecture compatibility.
-
-### Deploying the Phoenix Application
-
-The Phoenix application runs in a Docker container and is deployed separately using Kamal:
-
-```bash
-# Production deployment
-kamal deploy -d production
-
-# Staging deployment
-kamal deploy -d staging
-```
-
-Kamal handles:
-- Building and pushing the Docker image
-- Rolling deployment across servers
-- Health checks and rollback
-
-## Operational Procedures
-
-### SSH Access
-
-Connect to servers using:
-
-```bash
-ssh <username>@<hostname>.tuist.dev
-```
-
-Authorized users are defined in `users.nix`. All users in the `wheel` group have passwordless sudo access.
-
-### Monitoring
-
-Metrics and logs are shipped to Grafana Cloud via Alloy. Access dashboards at [grafana.com](https://grafana.com) with the Tuist organization account.
-
-Key metrics exported:
-- Phoenix application metrics at `/metrics`
-- System metrics (CPU, memory, disk, network)
-- Docker container resource usage
-
-### Adding SSH Access for a New User
-
-1. Edit `users.nix` to add the user with their SSH public key
-2. Add the user to appropriate groups (`wheel` for sudo, `docker` for container access)
-3. Deploy: `colmena apply`
-
-### Rotating Secrets
-
-Secrets are managed in 1Password under the `cache` vault. The opnix integration automatically fetches secrets at service startup.
-
-To rotate a secret:
-1. Update the secret in 1Password
-2. Restart the affected service: `systemctl restart grafana-alloy` (or restart the Docker container for app secrets)
+- `kura/AGENTS.md` and `kura/docs/architecture.md` for the mesh itself
+- `infra/cluster-api-provider-tuist/AGENTS.md` for the machine kinds and the adoption flow
+- `infra/AGENTS.md` for how the clusters fit together
