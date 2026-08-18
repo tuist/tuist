@@ -842,10 +842,12 @@ worth reading before acting. `rate_limited` points at the request budget
 and, if it is genuinely exhausted, at `swiftRegistrySync.syncLimit`).
 `missing_credential` means the GitHub App could not issue an installation
 token at all. `unauthorized` means GitHub refused the token the mirror
-does hold, which during the App cutover is the signal that an
-installation token cannot read repositories outside its installation —
-revert `swiftRegistrySync.githubAppInstallation` to fall back to the
-personal access token. Neither of the last two is fixed by waiting.
+does hold. `all_packages_failed` means every package in a pass failed,
+which is the mirror being broken rather than several hundred unrelated
+repositories failing at once, and is the shape a credential problem takes
+because GitHub answers an invisible repository with 404 rather than 401.
+For either, reverting `swiftRegistrySync.githubAppInstallation` falls back
+to the personal access token. None of these three is fixed by waiting.
 
 ### xcresult processor guest metrics unavailable fleet-wide
 

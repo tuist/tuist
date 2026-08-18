@@ -108,6 +108,13 @@ over and the cursor moves with it, because contention there is ordinary and
 sub-second. That miss is counted rather than silent
 (`tuist_registry_swift_sync_package_skipped_total{reason="package_locked"}`).
 
+A pass in which *every* package failed is read as one systemic failure rather
+than as many independent ones: the cursor is held and the pass defers. Individual
+per-package failures are survivable by design, which is exactly how they add up
+to a clean-looking run that mirrors nothing, and a broken credential arrives in
+that shape because GitHub answers an invisible repository with 404 rather than
+401.
+
 Lost coverage is a metric and a page, not a log line:
 `Tuist.Registry.Swift.PromExPlugin` emits it and
 `infra/helm/k8s-monitoring/alerts.md` carries the rules.
@@ -116,22 +123,32 @@ Lost coverage is a metric and a page, not a log line:
 
 `Registry.swift_registry_github_token/0` prefers a short-lived GitHub App
 installation token and falls back to the personal access token
-(`SWIFT_REGISTRY_GITHUB_TOKEN`). The App draws on the installation's own request
-budget; the personal access token spends one user-scoped hourly budget across
-the whole catalog rotation and every release job, which is the budget the
-incident exhausted.
+(`SWIFT_REGISTRY_GITHUB_TOKEN`). The personal access token spends one
+user-scoped budget of 5,000 requests an hour across the whole catalog rotation
+and every release job, and that is the budget the incident exhausted. The
+production installation reports 12,500, the documented ceiling, and shares it
+with nothing else.
 
 `SWIFT_REGISTRY_GITHUB_APP_INSTALLATION` selects the installation, as the
 organization the App is installed on (resolved and cached through
 `Tuist.GitHub.App.get_installation_id_for_org/2`) or as a numeric installation
-id. It is set in canary only. Two things have to be observed in a real cluster
-before it is promoted to staging and production: that the App can mint a token
-there at all, and that the token can read a public repository outside the
-installation, which is what the mirror does for every package. Canary syncs
-exactly one such repository (`alamofire/alamofire`), which is why the cutover
-starts there. Both failure modes are loud rather than silent: a token that
-cannot be minted logs and falls back to the personal access token, and a token
-GitHub refuses raises the `unauthorized` coverage-deferred alert.
+id.
+
+The mirror reads repositories that are not part of the installation, which is
+worth stating because the documentation does not: an installation token is
+scoped to its installation's repositories for private data, but public data is
+served to any valid credential regardless of scope. This was verified against
+both the canary and production Apps before the cutover, across every endpoint
+the mirror uses — tag listing, repository contents, single-file reads, zipball
+download, and git clone credentials — against a public repository outside the
+installation. It holds even though `contents` is not among the granted
+permissions.
+
+If that ever stops being true, the failure is loud rather than silent. GitHub
+answers a repository a credential cannot see with 404 rather than 401, so it
+would arrive as every package in a pass failing, which `SyncWorker` treats as
+one systemic failure rather than as several hundred unrelated ones. A token
+that cannot be minted at all logs and falls back to the personal access token.
 
 `SWIFT_REGISTRY_SYNC_LIMIT` is the batch size and therefore what decides whether
 one pass fits inside that budget: each package costs at least one tag-listing

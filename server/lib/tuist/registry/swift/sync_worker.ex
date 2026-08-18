@@ -126,32 +126,57 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   # invisible: each skipped package waited a full catalog rotation for another
   # look, with nothing recording that it had been passed over.
   defp sync_batch(batch, cursor, total, token) do
-    {visited, outcome} =
-      Enum.reduce_while(batch, {0, :ok}, fn package, {visited, :ok} ->
+    {visited, failed, outcome} =
+      Enum.reduce_while(batch, {0, 0, :ok}, fn package, {visited, failed, :ok} ->
         case sync_package(package, token) do
-          :ok -> {:cont, {visited + 1, :ok}}
-          {halt_reason, retry_after} -> {:halt, {visited, {halt_reason, retry_after}}}
+          :ok -> {:cont, {visited + 1, failed, :ok}}
+          :failed -> {:cont, {visited + 1, failed + 1, :ok}}
+          {halt_reason, retry_after} -> {:halt, {visited, failed, {halt_reason, retry_after}}}
         end
       end)
 
+    finish_batch(batch, cursor, total, visited, failed, outcome)
+  end
+
+  defp finish_batch(batch, cursor, total, visited, _failed, {reason, retry_after}) do
     SyncCursor.put(next_cursor(cursor, visited, total))
 
-    case outcome do
-      :ok ->
-        :ok
+    seconds = snooze_seconds(retry_after)
+    deferred = length(batch) - visited
 
-      {reason, retry_after} ->
-        seconds = snooze_seconds(retry_after)
-        deferred = length(batch) - visited
+    Logger.warning("Deferring #{deferred} of #{length(batch)} scheduled registry packages for #{seconds}s (#{reason})")
 
-        Logger.warning(
-          "Deferring #{deferred} of #{length(batch)} scheduled registry packages for #{seconds}s (#{reason})"
-        )
+    :telemetry.execute(@coverage_deferred_event, %{packages: deferred}, %{reason: reason})
 
-        :telemetry.execute(@coverage_deferred_event, %{packages: deferred}, %{reason: reason})
+    {:snooze, seconds}
+  end
 
-        {:snooze, seconds}
-    end
+  # A pass where every package failed is a problem with the mirror, not with
+  # several hundred unrelated repositories at once. Per-package failures are
+  # individually survivable, which is exactly why they add up to a clean-looking
+  # run: the cursor rotates on, the pass returns `:ok`, and the catalog quietly
+  # stops moving. Reading "all of them" as one systemic failure is what keeps a
+  # credential or client regression from hiding inside per-package noise —
+  # GitHub answers a repository a credential cannot see with 404, not 401, so
+  # the authentication halt above cannot catch that shape on its own.
+  #
+  # The cursor is held rather than advanced: nothing was mirrored, so there is
+  # no progress to record, and rotating on would spend the next pass on
+  # different packages that fail the same way.
+  defp finish_batch(batch, cursor, _total, _visited, failed, :ok) when failed > 0 and failed == length(batch) do
+    SyncCursor.put(cursor)
+
+    Logger.error("Every one of the #{failed} packages in this registry pass failed; holding the cursor")
+
+    :telemetry.execute(@coverage_deferred_event, %{packages: failed}, %{reason: :all_packages_failed})
+
+    {:snooze, @default_snooze_seconds}
+  end
+
+  defp finish_batch(_batch, cursor, total, visited, _failed, :ok) do
+    SyncCursor.put(next_cursor(cursor, visited, total))
+
+    :ok
   end
 
   defp next_cursor(_cursor, _visited, 0), do: 0
@@ -316,7 +341,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
         :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :tag_fetch_failed})
 
-        :ok
+        :failed
     end
   end
 

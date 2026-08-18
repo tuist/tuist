@@ -359,7 +359,10 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
   end
 
   test "reports a package the pass passed over without reading its tags" do
-    package = %{scope: "acme", name: "package-1", repository_full_handle: "acme/package-1"}
+    packages =
+      Enum.map(1..2, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
 
     :telemetry.attach(
       "sync-package-skipped-test",
@@ -370,15 +373,71 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
 
     on_exit(fn -> :telemetry.detach("sync-package-skipped-test") end)
 
-    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
-    expect(Metadata, :get_package, fn "acme", "package-1" -> {:error, :not_found} end)
+    expect(Metadata, :get_package, 2, fn _scope, _name -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "acme", "package-2", _metadata -> :ok end)
+
     expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:error, {:http_error, 500}} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-2", "token", _ -> {:ok, []} end)
 
     assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
 
     assert_receive {:package_skipped, %{packages: 1}, %{reason: :tag_fetch_failed}}
+  end
+
+  # GitHub answers a repository a credential cannot see with 404, not 401, so a
+  # credential that stops working looks like several hundred unrelated
+  # repositories failing at once rather than like an authentication error. Per
+  # package that is survivable; all of them at once is the mirror being broken,
+  # and it must not read as a clean pass.
+  test "treats a pass in which every package failed as lost coverage and holds the cursor" do
+    packages =
+      Enum.map(1..3, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    :telemetry.attach(
+      "sync-all-failed-test",
+      SyncWorker.coverage_deferred_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:coverage_deferred, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-all-failed-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 2 end)
+    expect(Metadata, :get_package, 3, fn _scope, _name -> {:error, :not_found} end)
+    stub(TuistCommon.GitHub, :list_tags, fn _handle, "token", _ -> {:error, {:http_error, 404}} end)
+
+    # Held where it was: nothing was mirrored, so there is no progress to record,
+    # and rotating on would spend the next pass failing the same way elsewhere.
+    expect(SyncCursor, :put, fn 2 -> :ok end)
+
+    assert {:snooze, 600} = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:coverage_deferred, %{packages: 3}, %{reason: :all_packages_failed}}
+  end
+
+  test "does not read a partly failed pass as systemic" do
+    packages =
+      Enum.map(1..2, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(Metadata, :get_package, 2, fn _scope, _name -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "acme", "package-1", _metadata -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:ok, []} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-2", "token", _ -> {:error, {:http_error, 404}} end)
+
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
   test "force resyncs the requested version in place, without purging it first" do
