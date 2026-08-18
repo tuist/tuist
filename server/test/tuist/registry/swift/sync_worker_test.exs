@@ -222,10 +222,163 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     assert {:discard, ^reason} = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
-  test "discards the job when GitHub rate limits the catalog request" do
-    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 403}} end)
+  test "defers the job to the reported quota reset when GitHub rate limits the catalog request" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 403, 900}} end)
 
-    assert {:discard, {:rate_limited, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
+    assert {:snooze, 900} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "falls back to a default deferral when GitHub reports no reset" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 403, nil}} end)
+
+    assert {:snooze, 600} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "clamps a reported reset that is longer than GitHub's quota window" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 429, 100_000}} end)
+
+    assert {:snooze, 3_600} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "clamps a reset that has already elapsed so the pass does not immediately replay" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:rate_limited, 429, 0}} end)
+
+    assert {:snooze, 60} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "stops the pass at the throttled package and advances the cursor only over the ones it visited" do
+    packages =
+      Enum.map(1..3, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+
+    expect(Metadata, :get_package, 2, fn _scope, _name -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "acme", "package-1", _metadata -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:ok, []} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-2", "token", _ -> {:error, {:rate_limited, 403, 300}} end)
+
+    # Only the one package that was actually read. The cursor must not skip
+    # package-2 and package-3, which the pass never looked at.
+    expect(SyncCursor, :put, fn 1 -> :ok end)
+
+    assert {:snooze, 300} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "reports the coverage a throttled pass gave up on" do
+    packages =
+      Enum.map(1..2, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    :telemetry.attach(
+      "sync-coverage-deferred-test",
+      SyncWorker.coverage_deferred_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:coverage_deferred, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-coverage-deferred-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:error, {:rate_limited, 403, 300}} end)
+
+    expect(Metadata, :get_package, fn "acme", "package-1" -> {:error, :not_found} end)
+
+    assert {:snooze, 300} = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:coverage_deferred, %{packages: 2}, %{reason: :rate_limited}}
+  end
+
+  # A release worker holds this same lock while writing a package's catalog
+  # entry, so contention is ordinary. The pass moves on rather than stalling the
+  # rotation, but the miss has to be counted rather than silent.
+  test "counts a package it could not lock as skipped coverage" do
+    package = %{scope: "acme", name: "package-1", repository_full_handle: "acme/package-1"}
+
+    :telemetry.attach(
+      "sync-package-locked-test",
+      SyncWorker.package_skipped_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:package_skipped, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-package-locked-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    expect(Lock, :try_acquire, 2, fn
+      :sync, _ -> {:ok, :acquired}
+      {:package, "acme", "package-1"}, _ -> {:error, :already_locked}
+    end)
+
+    reject(&TuistCommon.GitHub.list_tags/3)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:package_skipped, %{packages: 1}, %{reason: :package_locked}}
+  end
+
+  # A 401 is the credential, not the repository, so every remaining package
+  # would fail the same way. Skipping them one by one would advance the cursor
+  # over the whole batch and report a clean pass.
+  test "stops the pass when GitHub rejects the credential rather than skipping every package" do
+    packages =
+      Enum.map(1..3, fn index ->
+        %{scope: "acme", name: "package-#{index}", repository_full_handle: "acme/package-#{index}"}
+      end)
+
+    :telemetry.attach(
+      "sync-unauthorized-test",
+      SyncWorker.coverage_deferred_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:coverage_deferred, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-unauthorized-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(Metadata, :get_package, fn "acme", "package-1" -> {:error, :not_found} end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:error, {:http_error, 401}} end)
+
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    assert {:snooze, 600} = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:coverage_deferred, %{packages: 3}, %{reason: :unauthorized}}
+  end
+
+  test "reports a package the pass passed over without reading its tags" do
+    package = %{scope: "acme", name: "package-1", repository_full_handle: "acme/package-1"}
+
+    :telemetry.attach(
+      "sync-package-skipped-test",
+      SyncWorker.package_skipped_event_name(),
+      fn _event, measurements, metadata, pid -> send(pid, {:package_skipped, measurements, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach("sync-package-skipped-test") end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+    expect(Metadata, :get_package, fn "acme", "package-1" -> {:error, :not_found} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "acme/package-1", "token", _ -> {:error, {:http_error, 500}} end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_receive {:package_skipped, %{packages: 1}, %{reason: :tag_fetch_failed}}
   end
 
   test "force resyncs the requested version in place, without purging it first" do
