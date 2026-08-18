@@ -504,6 +504,160 @@ reclaim_cas_if_disabled() {
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS disabled; reclaimed stale store from image"
 }
 
+# CAS_DRAIN_TIMEOUT bounds the wait for this job's compilation-cache
+# publications to reach the remote cache before the image they live in is
+# measured and promoted. It holds the VM (and its warm-pool slot) open for its
+# duration, so it is a ceiling and not a budget to spend: a healthy job has
+# published continuously while it built and passes this gate in milliseconds.
+# For scale, teardown already allows 600s for the master image upload.
+CAS_DRAIN_TIMEOUT=120
+
+# The proxy's own socket default (`$HOME/.local/state/tuist/cas-proxy.sock`),
+# spelled out rather than left to the client: this shell is not the job's, and
+# an unset HOME would send the client looking under /tmp for a socket that is
+# not there — which reads as "no proxy" and silently costs the precise wait.
+CAS_PROXY_SOCKET="${HOME:-/Users/runner}/.local/state/tuist/cas-proxy.sock"
+
+# cas_spool_dirs lists the publication spools inside the mounted image. The
+# plugin keeps one per CAS directory it opens (`<cas dir>/tuist-spool`) and the
+# compiler picks the subdirectory under COMPILATION_CACHE_CAS_PATH, so discover
+# them rather than assume the layout. No spool is the ordinary case and makes
+# the gate a no-op: a plain `xcodebuild` job runs Xcode's builtin lane, which
+# has no remote and nothing to publish.
+cas_spool_dirs() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -type d -name tuist-spool 2>/dev/null
+}
+
+# cas_spool_records counts what a spool still owes the remote. A record is
+# deleted only by a publication that SUCCEEDED, so the count is exactly the set
+# of associations no other host could ever satisfy. `.tags` sidecars are not
+# records — the proxy's own accounting skips them for the same reason.
+cas_spool_records() {
+  find "$1" -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# cas_proxy_client finds the binary that can ask the running proxy to drain,
+# so the gate waits on the publisher itself instead of sampling a directory.
+#
+# The launch agent `tuist setup cache` installed is the reliable pointer: its
+# `Program` IS the tuist whose bundle serves this machine's socket, and the
+# proxy binary ships beside it. Nothing found (a job that never ran `tuist setup
+# cache`, or a tuist this shell cannot see) is not a failure — the gate falls
+# back to watching the spool, which proves the same thing more slowly.
+cas_proxy_client() {
+  local candidate program plist
+  plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
+  program=""
+  if [ -r "${plist}" ]; then
+    program=$(/usr/libexec/PlistBuddy -c 'Print :Program' "${plist}" 2>/dev/null)
+  fi
+  for candidate in \
+    "${TUIST_CAS_PROXY_PATH:-}" \
+    "$(command -v tuist-cas-proxy 2>/dev/null)" \
+    "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
+    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}"; do
+    if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# drain_cas_publications holds teardown until every compilation-cache
+# publication this job recorded has reached the remote, and reports whether it
+# got there. A non-zero return withdraws the image from promotion.
+#
+# This is what makes a promoted master honest. The CAS store is folded into the
+# image, so the master carries the local `key -> value` associations this job
+# wrote — while the objects behind them are uploaded ASYNCHRONOUSLY, through the
+# plugin's spool. Every host that later clones the master inherits those
+# associations, and its only repair path for an object the store does not hold
+# is the remote. So an association whose blobs were still queued when the VM
+# halted is one NO host can ever satisfy, and nothing retracts it: the compiler's
+# CAS ABI has no delete, and re-putting the key with a different value is
+# refused. It fails every later build of that key until the store generation
+# rolls. Five such CI failures over five days, one key failing on two separate
+# days in different workflows, is what this gate is for.
+#
+# It must run BEFORE capture_settled_inventory, which computes the digest that
+# becomes this image's immutable object key: draining afterwards would stamp an
+# image already carrying associations the remote cannot back. And before the
+# detach, since the spool lives inside the image and the publisher needs to read
+# it.
+#
+# Skipped when the job failed: a non-zero rc never promotes (report_cache_dirty
+# and report_volume_head both gate on it), so there is no master to keep honest
+# and no reason to hold the slot.
+#
+# Best-effort by nature, which is why it does not replace the plugin's read-side
+# guard: a host that panics, or a job cancelled mid-upload, promotes without ever
+# reaching this.
+drain_cas_publications() {
+  local rc="${1:-1}"
+  [ "${rc}" = "0" ] || return 0
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local spools
+  spools=$(cas_spool_dirs)
+  [ -n "${spools}" ] || return 0
+
+  local client deadline status spool cas_path budget owed
+  client=$(cas_proxy_client) || client=""
+  deadline=$(( $(date +%s) + CAS_DRAIN_TIMEOUT ))
+  status=0
+
+  # A heredoc and not a pipe: a `while read` behind a pipe runs in a subshell,
+  # and `status` would never leave it — the gate would pass on every job.
+  while IFS= read -r spool; do
+    [ -n "${spool}" ] || continue
+    cas_path=$(dirname "${spool}")
+    budget=$(( deadline - $(date +%s) ))
+    [ "${budget}" -lt 1 ] && budget=1
+    owed=""
+    if [ -n "${client}" ]; then
+      # `env -u TUIST_CAS_REMOTE_GRPC_URL` is the version-skew guard, not a
+      # tidiness one. A proxy binary older than the drain op does not recognise
+      # `--drain` and falls through to its SERVE path, which unlinks the
+      # machine's socket and binds its own — killing the live proxy from a
+      # teardown script. Without that variable it exits before reaching the bind,
+      # every time, and the gate reads it as "could not ask".
+      env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --drain "${cas_path}" \
+        --socket "${CAS_PROXY_SOCKET}" \
+        --timeout-ms "$(( budget * 1000 ))"
+      # 0 drained, 3 records remain. Every other code is "could not ask" — an
+      # unreachable proxy, one too old to know the op, or a shim that never got
+      # as far as running the binary — which is NOT an answer and must neither
+      # read as drained nor as a verdict. 3 and not 1 for exactly that reason:
+      # 1 is what a failing wrapper returns.
+      case "$?" in
+        0) owed=0 ;;
+        3) owed=$(cas_spool_records "${spool}") ;;
+      esac
+    fi
+    # No client, or none that could answer: watch the spool itself. It proves
+    # the same thing (a record only disappears when its publication landed),
+    # just at polling granularity.
+    if [ -z "${owed}" ]; then
+      while :; do
+        owed=$(cas_spool_records "${spool}")
+        [ "${owed}" = "0" ] && break
+        [ "$(date +%s)" -ge "${deadline}" ] && break
+        sleep 2
+      done
+    fi
+    if [ "${owed}" != "0" ]; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING ${owed} CAS publication(s) under ${cas_path} did not reach the cache within ${CAS_DRAIN_TIMEOUT}s"
+      status=1
+    else
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS publications drained for ${cas_path}"
+    fi
+  done <<EOF
+${spools}
+EOF
+  return "${status}"
+}
+
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
 # most a job's start can be delayed by the cache. The host materializes from its
 # LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
@@ -1041,6 +1195,11 @@ HOOK
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Cache teardown. The order here is load-bearing:
+      #   0. wait for the compilation cache's asynchronous publications to reach
+      #      the remote, while the spool is still mounted and the publisher can
+      #      still read it. The image carries the associations those uploads
+      #      exist to back, so promoting ahead of them hands every host that
+      #      clones this master keys naming objects nothing can produce;
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
@@ -1058,6 +1217,11 @@ HOOK
       # BEFORE the image is measured, so the removal promotes a cleaned master
       # instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
+      # After the reclaim: a store that was just dropped has no spool left to
+      # wait on, so a disabled-CAS teardown never pays for this gate.
+      if ! drain_cas_publications "${rc}"; then
+        mark_cache_not_promotable "CAS publications did not reach the cache"
+      fi
       sample_cache_fill
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"

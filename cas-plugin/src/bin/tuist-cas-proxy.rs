@@ -20,6 +20,7 @@
 use std::os::unix::net::UnixListener;
 
 use tuist_cas_plugin::proxy::Proxy;
+use tuist_cas_plugin::proxy_proto::ProxyClient;
 use tuist_cas_plugin::token::TokenProvider;
 
 // Refresh the bearer only inside this window before its JWT expiry, checked
@@ -29,7 +30,70 @@ use tuist_cas_plugin::token::TokenProvider;
 // token::TokenProvider::refresh_if_expiring).
 const TOKEN_REFRESH_LEAD: std::time::Duration = std::time::Duration::from_secs(25);
 
+/// `--drain <cas-path> [--timeout-ms <n>]`: ask the RUNNING proxy whether every
+/// publication it holds for that CAS path has reached the remote, and wait for
+/// it. The caller is a runner VM's teardown, deciding whether the cache image
+/// this store is folded into may be promoted as the account's master.
+///
+/// Exit codes are the three answers a caller must keep apart:
+///   0 - drained; nothing this store recorded is missing from the remote.
+///   3 - records remain; promoting this store hands other hosts associations
+///       whose objects nothing can produce.
+///   * - could not ask (no proxy listening, one too old to know the op, or this
+///       binary never ran at all). Not an answer: the caller falls back to
+///       watching the spool itself.
+///
+/// "Records remain" is deliberately NOT exit 1. That is what every wrapper,
+/// shim and startup failure between the caller and this binary returns, and a
+/// caller that read one of those as an authoritative answer would act on a
+/// verdict nothing produced.
+fn drain(arguments: &[String]) -> i32 {
+    let value_of = |name: &str| {
+        arguments
+            .iter()
+            .position(|argument| argument == name)
+            .and_then(|at| arguments.get(at + 1))
+            .cloned()
+    };
+    let Some(cas_path) = value_of("--drain") else {
+        eprintln!("--drain requires a CAS path");
+        return 1;
+    };
+    let timeout = value_of("--timeout-ms")
+        .and_then(|millis| millis.parse::<u64>().ok())
+        .map_or(DEFAULT_DRAIN_TIMEOUT, std::time::Duration::from_millis);
+    let socket_path = value_of("--socket").unwrap_or_else(|| {
+        std::env::var("TUIST_CAS_PROXY_SOCKET")
+            .ok()
+            .filter(|socket| !socket.is_empty())
+            .unwrap_or_else(tuist_cas_plugin::default_proxy_socket)
+    });
+    // No instance: the proxy resolves the path's own from its registry, which
+    // the build that wrote the spool primed.
+    match (ProxyClient { socket_path }).drain(&cas_path, "", timeout) {
+        Ok(0) => {
+            eprintln!("cas publications drained for {cas_path}");
+            0
+        }
+        Ok(owed) => {
+            eprintln!("{owed} cas publication(s) never reached the remote for {cas_path}");
+            3
+        }
+        Err(reason) => {
+            eprintln!("cas drain could not run ({reason})");
+            1
+        }
+    }
+}
+
+const DEFAULT_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
 fn main() {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments.iter().any(|argument| argument == "--drain") {
+        std::process::exit(drain(&arguments));
+    }
+
     let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")
         .ok()
         .filter(|socket| !socket.is_empty())
