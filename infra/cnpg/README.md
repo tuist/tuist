@@ -191,9 +191,10 @@ manages, one instance at a time, ending in a primary switchover governed by
 switchover completes automatically). With synchronous replication the promotion
 is fast and lossless (RPO 0); the write path sees a few seconds of dropped
 connections and errors during the switchover. Because the operator is
-cluster-wide, a bump on the production cluster rolls both the main `tuist`
-cluster and the single-instance `tuist-ops` cluster (the latter takes a brief
-restart, since it has no replica to fail over to).
+cluster-wide, a bump on the production cluster rolls every cluster it manages:
+the main `tuist` cluster, `tuist-ops`, and any single-instance cluster still in
+the fleet. A single-instance cluster takes a brief restart rather than a
+switchover, since it has no replica to fail over to.
 
 Merge an operator-bump PR at the start of a low-traffic window wider than the
 deploy lag (the prod step runs after the canary deploy and acceptance tests, so
@@ -202,6 +203,52 @@ roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 In-tree `barmanObjectStore` backups (the operator's native path, deprecated
 since 1.26) are no longer rendered; every cluster backs up through the Barman
 Cloud Plugin.
+
+## Single-instance clusters deadlock node drains
+
+**A single-instance CNPG cluster on a drainable node will eventually wedge a
+CAPI Machine deletion forever.** Treat two instances as the floor for any
+cluster scheduled on a pool CAPI rolls, however small its data.
+
+CNPG gives every cluster a `<cluster>-primary` PodDisruptionBudget with
+`minAvailable: 1` selecting `cnpg.io/instanceRole: primary`. With one instance
+the primary is the only pod, so:
+
+```
+currentHealthy=1 desiredHealthy=1 expectedPods=1 disruptionsAllowed=0
+```
+
+`disruptionsAllowed` is structurally 0 and no eviction can ever succeed. The
+operator does try. It logs `Primary is running on an unschedulable node, will
+try switching over` and then `no valid candidates`, but with nowhere to
+promote, it cannot clear the budget itself. The ClusterClass sets
+`nodeDrainTimeoutSeconds: 0` so a drain never kills a customer's in-flight CI
+job, which means nothing else breaks the tie either. `tuist-md-processor` sat
+in this state for 14 days from 2026-07-31.
+
+Two instances is enough, and the threshold is worth knowing precisely: CNPG
+only emits the second, replica-scoped `<cluster>` PDB once there are at least
+two replicas (three instances). At two instances the demoted old primary is
+covered by no PDB at all, so the drain proceeds. At three the replica PDB
+allows one disruption, which also works. One is the only broken count.
+
+Audit the fleet by counting instance pods. Any cluster with a count of 1 is a
+latent drain deadlock:
+
+```bash
+kubectl get pods -A -l cnpg.io/podRole=instance \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.labels.cnpg\.io/cluster}{"\n"}{end}' \
+  | sort | uniq -c
+```
+
+Count pods (or read `spec.instances`), **not** PDBs. The PDB shape does not
+distinguish the broken case: a healthy two-instance cluster also has only a
+`<cluster>-primary` row with `ALLOWED=0`, because the replica-scoped PDB does
+not appear until three instances. `ALLOWED=0` on the primary budget is normal
+at every instance count and is not by itself a fault.
+
+Reading the `Cluster` CR needs JIT elevation (`clusters.postgresql.cnpg.io` is
+forbidden to the normal kubectl identity); the pod count above does not.
 
 ## Backup: Barman Cloud Plugin
 

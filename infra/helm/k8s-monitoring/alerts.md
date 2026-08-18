@@ -1006,12 +1006,15 @@ healthy while it silently stops receiving template changes. That is how
 `tuist-runners-linux` went two months — from 2026-06-17 — with two Ready
 Machines, one of them up to date, and no signal at all.
 
-Two distinct failures land here. A bare-metal pool whose hosts are all
-claimed cannot surge a replacement, so the roll never starts (fixed by
-`maxSurge: 0` / `maxUnavailable: 1` on the `bare-metal-worker` class). And a
-drain that cannot complete holds the roll open — expected briefly, since
-runner Pods are drained with `WaitCompleted` and a node waits for its
-in-flight CI jobs, but not for hours.
+This covers a roll that has not yet *produced* every Machine it needs, most
+importantly a bare-metal pool whose hosts are all claimed and so cannot surge
+a replacement, meaning the roll never starts (fixed by `maxSurge: 0` /
+`maxUnavailable: 1` on the `bare-metal-worker` class).
+
+It does **not** cover a drain that cannot finish. Once the last replacement is
+Ready, `up_to_date == spec` even though the old Machine is still stuck in
+`Deleting`, and this query goes quiet. "Worker pool has a Machine it cannot
+delete" below is the rule for that half.
 
 ```promql
 kube_customresource_machinedeployment_up_to_date_replicas{
@@ -1040,6 +1043,67 @@ than firing late — an alert that cries wolf on the expected path gets
 muted, and this is the only signal covering a class of failure that
 previously went unnoticed for two months. Twenty-four hours clears the
 worst case with margin and still catches a wedge the next day.
+
+### Worker pool has a Machine it cannot delete
+
+Catches a Machine whose drain never completes. Cluster API's ClusterClass sets
+`nodeDrainTimeoutSeconds: 0`, meaning wait forever, because runner Pods drain
+with `WaitCompleted` and any finite cap is a promise to kill a customer's CI job.
+The accepted cost is that a drain which can *never* finish holds the roll open
+indefinitely, and the whole arrangement is predicated on that being loud.
+
+Every other exported series is blind to it. The pool keeps producing its full
+complement of up-to-date, Ready Machines, so `up_to_date`, `ready`, and
+`available` all equal `spec` while the surplus Machine sits in `Deleting`.
+Only `status.replicas`, which counts Machines the MachineDeployment still owns
+including ones being deleted, rises above `spec`.
+
+That is how `tuist-md-processor` went 14 days from 2026-07-31 at
+`spec=2 replicas=3 up_to_date=2 ready=2`, blocked on two single-instance CNPG
+clusters (`tuist-ops/tuist-ops-pg`, `once-production/once-postgres`) whose
+`<cluster>-primary` PodDisruptionBudget selects the only pod they have and can
+therefore never allow a disruption.
+
+```promql
+kube_customresource_machinedeployment_replicas{
+  cluster="tuist-management"
+}
+>
+kube_customresource_machinedeployment_spec_replicas{
+  cluster="tuist-management"
+}
+```
+
+- Pending period: 8 hours
+- Summary: `Worker pool {{ $labels.machinedeployment }} ({{ $labels.workload_cluster }}) has a Machine it cannot delete`
+
+Two healthy paths put `replicas` above `spec`, and the pending period has to
+clear the slower of them.
+
+A **rollout** surges a replacement before deleting the old Machine, but only on
+the `hcloud-worker` class: `bare-metal-worker` runs `maxSurge: 0` and never
+surges. On an hcloud pool the slowest legitimate term is CNPG's
+`terminationGracePeriodSeconds: 1800`, so a three-node pool rolling
+sequentially holds a surplus Machine for close to two hours.
+
+A **scale-down** is the binding case, and it is the reason this is not a
+four-hour rule. `maxSurge` governs rollouts only. Lowering `spec.replicas`
+puts `replicas` above `spec` immediately, on every class including bare metal,
+and the gap stays open for the whole drain of the Machine being removed.
+Cluster API drains a scale-down exactly like a rollout, so on a runner pool
+that means `WaitCompleted` waiting on an in-flight CI job, legitimately up to
+six hours. Scaling `runners-linux` from two replicas to one would otherwise
+page at four hours every time. Eight clears the six-hour job ceiling with
+margin.
+
+Excluding the runner pools by name and keeping four hours was the alternative.
+Rejected: it hardcodes pool names that rot, and it would leave a wedged drain
+on exactly the pools where drains are slowest with no coverage at all. One
+rule that fires late on every pool beats a fast rule with a hole in it.
+
+Still far tighter than the 24 hours on "stuck mid-rollout", which additionally
+has to sit above a *whole* multi-node bare-metal roll rather than a single
+Machine's drain.
 
 ### Pod cannot be scheduled
 
